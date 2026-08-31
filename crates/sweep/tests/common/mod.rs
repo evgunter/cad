@@ -6,7 +6,11 @@
 //! the narrowest one all of its consumers can reach:
 //!
 //! - `sweep::test_support` — fixtures the LIBRARY can build, reachable
-//!   from in-crate tests as well as from here;
+//!   from in-crate tests, from here, and (behind the same dev-only
+//!   feature) from another crate's suites, which is where a fixture
+//!   with consumers OUTSIDE this crate has to live: the swept elbow
+//!   the `mesh` and `step-export` suites meter is there for that
+//!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
 //! - [`orient`] — what a suite CHECKS of a body it built;
@@ -36,9 +40,33 @@ pub mod orient;
 /// pcurve surgery itself. Body authoring, so it routes here.
 pub mod approx;
 
-use geom_core::Point2;
+use geom::NurbsCurve3;
+use geom_core::{Affine3, Mat3, Point2, Vec3};
 use profile::RawLoop;
 use sweep::{ProfileLoop, ProfileVertex, Section};
+
+/// The placement a path sweep starts from: the plane through the
+/// path's start point whose normal is the start TANGENT, with the
+/// in-plane axes built off whichever world axis is least parallel to
+/// it. `sweep::sweep_places` carries this frame along the path by
+/// minimal rotation, so a section placed here stays normal to the
+/// path — the recipe every path-swept fixture in this corpus starts
+/// from, and the one the tour's sweep cells narrate.
+pub fn normal_start_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
+    let (lo, _) = path.domain();
+    let d = path.deriv(lo);
+    let n = d / d.norm();
+    let helper = if n.z.abs() < 0.9 {
+        Vec3::new(0.0, 0.0, 1.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
+    let u = helper.cross(n);
+    let u = u / u.norm();
+    let v = n.cross(u);
+    let p = path.eval(lo);
+    Affine3::from_parts(Mat3::from_cols(u, v, n), Vec3::new(p.x, p.y, p.z))
+}
 
 /// A closed four-line quad section (one loop, four vertices) — the
 /// plainest INTEGRAL profile: unit weights, no arc anywhere.

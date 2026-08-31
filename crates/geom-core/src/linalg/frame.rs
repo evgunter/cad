@@ -392,8 +392,18 @@ pub fn path_start_frame<T: Decide>(
 ///
 /// Evaluation order (fixed, D9): decide `|normal|`; `n̂ = normal /
 /// |normal|`; `t = n̂ · 2`; columns `e_j − t·n̂_j` in index order;
-/// translation `q − L·q` for `q = point − O`, exactly as
-/// [`Affine3::rotation_about_axis`] computes its own.
+/// translation `q − L·q` for `q = point − O`.
+///
+/// That translation mentions `q` twice, and at `T = Interval` a
+/// repeated operand does not cancel: the anchor is subtracted and
+/// re-added, so a mirror anchored at a point of nonzero width carries
+/// `2·width(point)` of translation it should not have.
+/// [`Affine3::rotation_about_axis`] used to be spelled the same way and
+/// no longer is; the mirror keeps the shape here because retiring it
+/// moves `f64` bits in the mirror lane and needs its own golden and
+/// k-lint pass. An exact replacement exists — `I − L = 2·n̂n̂ᵀ`, so the
+/// translation is `n̂·(2·(n̂·q))`, the anchor mentioned once. The site is
+/// carried as an audit member on issue 1143.
 ///
 /// # Errors
 ///

@@ -8,8 +8,12 @@
 //! and the re-anchor door) by running the whole battery. These rows
 //! attack the same claim from the other side: a broad, deliberately
 //! cheap sweep over the product verbs, run in ONE row so the report is
-//! a LIST of offenders rather than the first one (nextest fail-fast,
-//! #1128, is the reason the unit's own two defects hid for so long).
+//! a LIST of offenders rather than the first one. That shape stands on
+//! its own — one row that enumerates beats N rows a reader has to
+//! collate — but the reason originally given for it does not: hosted CI
+//! truncating a red run to one failure per shard, which was real when
+//! these rows were written and is not true any more, since both sharded
+//! run steps now pass `--no-fail-fast`.
 //!
 //! The second group attacks the declaration-carrying claim: the unit
 //! says `EdgeAuthority::is_declared()` never flips silently across an
@@ -23,7 +27,7 @@ use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::fillet_edges;
+use sweep::blend::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, EdgeKey, FaceKey, ValidationError};

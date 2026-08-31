@@ -75,9 +75,53 @@
 //!    face, so rule 2 has nothing it can compare there. Announced
 //!    with the column that disagreed, never resolved into a
 //!    comparison.
+//! 5. **An uncovered scene** — a scene the fresh sweep has and the
+//!    baseline does not, so every face in it was swept, measured and
+//!    compared against nothing.
 //!
-//! A scene the FRESH sweep adds is not a finding (new scenes are
-//! normal); it is reported, so the baseline's staleness stays visible.
+//! ## Rule 5: corpus growth re-cuts the baseline in the PR that grows
+//!
+//! A scene the fresh sweep adds FAILS the gate. It reads as the
+//! opposite of a finding — coverage went up — and that reading is what
+//! let a comparison gate decay in silence: a scene nobody folded is
+//! swept, measured and reported forever while the verdict stays green
+//! by not looking (#1038's measurement: five scenes, 146 face rows —
+//! the decay this rule was written from, a reading of the tree on the
+//! day #1038 took it, re-taken by nothing and deliberately so: it is
+//! the SIZE OF ONE PAST EVENT, not a property of the corpus, and the
+//! current answer is what rule 5 itself prints on any sweep whose
+//! baseline has fallen behind).
+//!
+//! The **genuinely new** scene and the scene the baseline **outgrew**
+//! are the same case here, deliberately. Both are a gate with nothing
+//! to compare, both are fixed by the same three steps — re-run the
+//! sweep, fold the rows, commit — and both belong in the PR that grew
+//! the corpus, which is where the author who knows what the scene is
+//! supposed to measure is standing. That is the panic-on-move
+//! discipline the rest of this tree runs on, one instrument over: the
+//! cost of growth is paid by the growth.
+//!
+//! What the baseline's [`Cut`] adds is the READING, not the verdict.
+//! A scene added after the cut has been uncovered for one PR; a scene
+//! the cut already predated has been uncovered for however long that
+//! is, and the fold it needs restores comparison from now on without
+//! recovering the window — `docs/TESS-BUDGET.md`'s standing sentence,
+//! *"restores coverage, it does not verify it"*. Without a recorded
+//! cut those two are one undifferentiated "absent", which is why the
+//! sweep writes one and the CLI prints it.
+//!
+//! **The lint PRINTS the cut and stops there; it does not classify a
+//! scene as added-after or predated-by.** That is deliberate and it is
+//! less than it sounds. Deciding which of the two a scene is needs the
+//! scene's own first appearance, and the CSV carries no such column —
+//! the sweep records what the corpus HAS, never when it got it — so
+//! the lint would have to reach outside its inputs, into git, over a
+//! `<stop>/<body>` name that is not a path and often not a file. A
+//! reader who knows when the scene landed can date the window from
+//! the printed cut in one step; a lint that guessed at it would be
+//! stating as a reading something it inferred. Closing the gap
+//! properly means a first-appearance column, which is the sweep's
+//! half of the contract, not this one's.
 //!
 //! ## Rule 2 joins on the face ORDINAL, and rule 4 is its precondition
 //!
@@ -126,15 +170,16 @@
 //! learn to route around. Rule 3 only looks like a counter-example: a
 //! vanished scene loses rule 1 with it.
 //!
-//! **A measurement that could not be read is none of the four, and
+//! **A measurement that could not be read is none of the five, and
 //! must not be resolved into one.** Rules 1 and 2 fire on GROWTH
 //! only, so any in-band fallback for an unreadable value is the
 //! smallest movement expressible and passes by construction. The
 //! sizing columns are therefore admitted or refused where they are
 //! read (`Admissible`, private), per column, and a refused one leaves in the
 //! harness voice — a sweep the lint cannot read is not a tessellation
-//! that got better. Rules 3 and 4 say the same thing one level up: a
-//! comparison that stopped HAPPENING is not growth of any size.
+//! that got better. Rules 3, 4 and 5 say the same thing one level up:
+//! a comparison that stopped HAPPENING — or never started — is not
+//! growth of any size.
 //!
 //! # Reading a firing gate
 //!
@@ -422,21 +467,120 @@ pub const CHART_TAGS: [&str; 7] = [
     "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
 ];
 
+/// The provenance line `scripts/tess_budget_sweep.sh` writes above
+/// [`EXPECTED_HEADER`]: `# tess-budget-cut: <commit> <date>`.
+///
+/// It exists so that a scene the baseline does not cover can be told
+/// apart from a scene the baseline never could have covered. Without
+/// it both read as "absent", and the one that matters — a scene the
+/// corpus gained before this cut and nobody folded — is
+/// indistinguishable from the one that does not.
+pub const CUT_PREFIX: &str = "# tess-budget-cut:";
+
+/// The tree a sweep was taken from, as the sweep script recorded it.
+///
+/// Both fields are the script's readings, kept as text: this crate
+/// reports the cut, it does not resolve it. The commit carries a
+/// `-dirty` suffix when the sweep ran over uncommitted changes, which
+/// is exactly when the pair is least trustworthy and most worth
+/// printing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Cut {
+    /// The commit the sweep tree was at, abbreviated, `-dirty` when
+    /// the tree carried uncommitted changes.
+    pub commit: String,
+    /// That commit's committer date, ISO-8601.
+    pub date: String,
+}
+
+impl std::fmt::Display for Cut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.commit, self.date)
+    }
+}
+
+/// Splits an optional leading [`CUT_PREFIX`] line off a sweep, so that
+/// [`parse`] and [`cut`] agree about what line 1 is by construction
+/// rather than by two readings kept in step.
+///
+/// A `#` line that is not a well-formed cut is harness breakage, not a
+/// missing cut: the sweep and this lint would then disagree about the
+/// provenance format, and a silent `None` there is exactly the
+/// unreadable-measurement-as-absence shape the sizing columns already
+/// refuse one level down.
+fn split_cut(text: &str) -> Result<(Option<Cut>, usize), ParseError> {
+    let Some(first) = text.lines().next() else {
+        return Ok((None, 0));
+    };
+    if !first.starts_with('#') {
+        return Ok((None, 0));
+    }
+    let rest = first.strip_prefix(CUT_PREFIX).ok_or_else(|| ParseError {
+        line: 1,
+        text: format!("comment line is not a `{CUT_PREFIX} <commit> <date>` record: {first}"),
+    })?;
+    let fields: Vec<&str> = rest.split_whitespace().collect();
+    let [commit, date] = fields[..] else {
+        return Err(ParseError {
+            line: 1,
+            text: format!("expected `{CUT_PREFIX} <commit> <date>`, got: {first}"),
+        });
+    };
+    // Enough of a shape check that a placeholder cannot pass as a
+    // reading: a commit is hex (plus the dirty marker) and a date
+    // starts with its calendar day.
+    let hex = commit.strip_suffix("-dirty").unwrap_or(commit);
+    let commit_ok = hex.len() >= 7 && hex.chars().all(|c| c.is_ascii_hexdigit());
+    let date_ok = date.len() >= 10
+        && date.as_bytes()[..10].iter().enumerate().all(|(i, &b)| {
+            if i == 4 || i == 7 {
+                b == b'-'
+            } else {
+                b.is_ascii_digit()
+            }
+        });
+    if !commit_ok || !date_ok {
+        return Err(ParseError {
+            line: 1,
+            text: format!("cut record is not <hex commit> <YYYY-MM-DD…>: {first}"),
+        });
+    }
+    Ok((
+        Some(Cut {
+            commit: commit.to_string(),
+            date: date.to_string(),
+        }),
+        1,
+    ))
+}
+
+/// The tree a sweep was cut from, or `None` when it records none.
+///
+/// # Errors
+///
+/// [`ParseError`] when the provenance line is present but malformed —
+/// harness breakage, for the reason [`split_cut`] gives.
+pub fn cut(text: &str) -> Result<Option<Cut>, ParseError> {
+    split_cut(text).map(|(c, _)| c)
+}
+
 /// Parses a budget CSV.
 ///
 /// # Errors
 ///
-/// [`ParseError`] on a missing/renamed header, a short row, or a field
-/// that does not parse — all harness breakage.
+/// [`ParseError`] on a malformed [`CUT_PREFIX`] line, a
+/// missing/renamed header, a short row, or a field that does not
+/// parse — all harness breakage.
 pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
-    let mut lines = text.lines().enumerate();
-    let (_, header) = lines.next().ok_or(ParseError {
-        line: 0,
+    let (_, skip) = split_cut(text)?;
+    let mut lines = text.lines().enumerate().skip(skip);
+    let (i, header) = lines.next().ok_or(ParseError {
+        line: skip,
         text: "empty file".into(),
     })?;
     if header.trim() != EXPECTED_HEADER {
         return Err(ParseError {
-            line: 1,
+            line: i + 1,
             text: format!("unexpected header (sweep format drift?): {header}"),
         });
     }
@@ -451,6 +595,13 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
     let mut seen: std::collections::HashSet<(&str, usize)> = std::collections::HashSet::new();
     for (i, line) in lines {
         let n = i + 1;
+        // A blank line is not a row, and skipping it is the one place
+        // in this file where a `continue` discards input. Stated
+        // because the module docs name an uncommented skip as this
+        // gate's own blind-spot shape: what is dropped here carries no
+        // measurement at all — a trailing newline, or the blank a
+        // hand-edit leaves — while every line with a field on it goes
+        // to the width check below and is refused if it is short.
         if line.trim().is_empty() {
             continue;
         }
@@ -714,6 +865,14 @@ pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
         .into_iter()
         .map(|scene| {
             let mut t = SceneTotals::default();
+            // `order` and `map` come from ONE `by_scene` call over one
+            // slice, so the miss this `flat_map` folds away cannot
+            // happen: every name in the order has an index. It is
+            // spelled as an empty fold rather than an `expect` because
+            // an absent scene and an empty scene total to the same
+            // thing here, and there is no reading to lose — unlike the
+            // sizing columns, where an unreadable value becomes a
+            // passing one and is refused at the read instead.
             for r in map.get(scene).into_iter().flat_map(FaceIndex::values) {
                 t.add(r);
             }
@@ -871,10 +1030,16 @@ pub enum Kind {
         /// What disagreed there.
         how: Rekey,
     },
-    /// A scene only the fresh sweep has — new coverage, never a
-    /// finding.
-    NewScene {
-        /// What the new scene carries.
+    /// A scene the fresh sweep has and the baseline does not, so the
+    /// gate had nothing to compare any of its faces against (rule 5).
+    ///
+    /// The baseline's own cut is what tells its two readings apart —
+    /// a scene the corpus gained after the cut, and a scene the cut
+    /// already predated — so the CLI prints [`Cut`] beside it. Both
+    /// readings have the same recourse, which is why one variant
+    /// carries both.
+    Uncovered {
+        /// What the uncovered scene carries.
         triangles: f64,
     },
 }
@@ -899,12 +1064,12 @@ pub struct Observation {
 pub struct Report {
     /// Movements that fail the gate.
     pub findings: Vec<Observation>,
-    /// Observations that cost the comparison nothing — reported so the
-    /// baseline's staleness stays visible, never red.
+    /// Observations that cost the comparison nothing — reported, never
+    /// red.
     pub notes: Vec<Observation>,
 }
 
-/// The gate: fresh against baseline, per the four rules in the module
+/// The gate: fresh against baseline, per the five rules in the module
 /// docs.
 ///
 /// Both slices must come from [`parse`], which is what makes the
@@ -940,18 +1105,25 @@ pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
             });
         }
     }
-    // A scene only the FRESH sweep has is new coverage, not a finding
-    // — but never silent: an uncovered scene is a hole in the very
-    // comparison the gate is making.
+    // A scene only the FRESH sweep has is a hole in the very
+    // comparison the gate is making: every face in it was swept,
+    // measured and compared against nothing. The gate cannot compare
+    // what the baseline lacks, so it says so and fails rather than
+    // reporting clean over a scene it never looked at.
+    //
+    // Disjoint from the `Vanished` walk above by construction — that
+    // one ranges over the baseline's scenes, this one over the
+    // fresh sweep's, and a scene either side lacks is in exactly one
+    // of them — so neither direction can shadow the other.
     let base_scenes: std::collections::HashSet<&str> =
         baseline.iter().map(|r| r.scene.as_str()).collect();
     for (scene, t) in &fresh_scenes {
         if !base_scenes.contains(scene.as_str()) {
             #[allow(clippy::cast_precision_loss)]
             let triangles = t.triangles as f64;
-            out.notes.push(Observation {
+            out.findings.push(Observation {
                 scene: scene.clone(),
-                kind: Kind::NewScene { triangles },
+                kind: Kind::Uncovered { triangles },
             });
         }
     }
@@ -1178,15 +1350,99 @@ mod tests {
         );
     }
 
+    /// Rule 5. The scene the baseline does not cover is the one the
+    /// gate never looked at, so it fails the row rather than riding
+    /// along as good news.
     #[test]
-    fn a_new_scene_is_a_note_not_a_finding() {
+    fn an_uncovered_scene_is_a_finding_not_a_note() {
         let base = parse(EXPECTED_HEADER).unwrap();
         let fresh = parse(&csv(100, 2.5e1)).unwrap();
-        assert_eq!(fired(&base, &fresh), vec![]);
         assert_eq!(
-            noted(&base, &fresh),
-            vec![Kind::NewScene { triangles: 104.0 }]
+            fired(&base, &fresh),
+            vec![Kind::Uncovered { triangles: 104.0 }]
         );
+        assert_eq!(noted(&base, &fresh), vec![]);
+    }
+
+    /// Rule 5 must not eat rule 3. The two walks range over different
+    /// sides, so a sweep that drops one scene and adds another owes
+    /// BOTH findings — the fold that answers the second one must not
+    /// be allowed to bury the first.
+    #[test]
+    fn an_uncovered_scene_does_not_shadow_a_vanished_one() {
+        let base = parse(&csv(100, 2.5e1).replace("s/b", "gone/gone")).unwrap();
+        let fresh = parse(&csv(100, 2.5e1)).unwrap();
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![
+                Kind::Vanished {
+                    was_triangles: 104.0
+                },
+                Kind::Uncovered { triangles: 104.0 }
+            ]
+        );
+    }
+
+    #[test]
+    fn a_sweep_records_the_tree_it_was_cut_from() {
+        let text = format!(
+            "{CUT_PREFIX} 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
+            csv(100, 2.5e1)
+        );
+        assert_eq!(
+            cut(&text).unwrap(),
+            Some(Cut {
+                commit: "1a2b3c4d5e6f".into(),
+                date: "2026-08-30T12:00:00+00:00".into()
+            })
+        );
+        // And the rows behind it parse exactly as they do without one.
+        assert_eq!(parse(&text).unwrap(), parse(&csv(100, 2.5e1)).unwrap());
+    }
+
+    #[test]
+    fn a_dirty_cut_says_so_rather_than_reading_as_clean() {
+        let text = format!(
+            "{CUT_PREFIX} 1a2b3c4d-dirty 2026-08-30\n{}",
+            csv(100, 2.5e1)
+        );
+        assert_eq!(cut(&text).unwrap().unwrap().commit, "1a2b3c4d-dirty");
+    }
+
+    #[test]
+    fn a_sweep_without_a_cut_line_records_none() {
+        assert_eq!(cut(&csv(100, 2.5e1)).unwrap(), None);
+    }
+
+    /// A provenance line the lint cannot read is the sweep and the
+    /// lint disagreeing about the format — harness breakage, never a
+    /// silently absent cut, for the reason the sizing columns refuse
+    /// an unreadable value one level down.
+    #[test]
+    fn a_malformed_cut_line_is_harness_breakage_not_an_absent_cut() {
+        for bad in [
+            "# tess-budget-cut: 1a2b3c4d5e6f",
+            "# tess-budget-cut: not-hex 2026-08-30",
+            "# tess-budget-cut: 1a2b3c 2026-08-30",
+            "# tess-budget-cut: 1a2b3c4d5e6f yesterday",
+            "# swept at 1a2b3c4d5e6f 2026-08-30",
+        ] {
+            let text = format!("{bad}\n{}", csv(100, 2.5e1));
+            let e = cut(&text).unwrap_err();
+            assert_eq!(e.line, 1, "{bad}");
+            assert!(parse(&text).is_err(), "parse admitted {bad}");
+        }
+    }
+
+    /// The cut line shifts the physical lines below it, and a parse
+    /// error must name the line the reader will find in the file.
+    #[test]
+    fn a_cut_line_shifts_the_reported_line_numbers() {
+        let text = format!(
+            "{CUT_PREFIX} 1a2b3c4d5e6f 2026-08-30\n{EXPECTED_HEADER}\ns/b,0,plane,2e-3,4\n"
+        );
+        let e = parse(&text).unwrap_err();
+        assert_eq!(e.line, 3);
     }
 
     /// Sizing columns are all-or-nothing: a half-filled row means the

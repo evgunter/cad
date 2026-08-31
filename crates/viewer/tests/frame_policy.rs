@@ -708,3 +708,70 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     assert_eq!(frame::creation_offer(refusal.as_ref()), None);
     assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
 }
+
+/// The XDG rules for where preferences live, held as a table.
+///
+/// Pure like the chooser probe beside it, and for the same reason:
+/// the ambient read is one line, and everything that can be WRONG
+/// here is the resolution. These rows hold whatever the CI box has in
+/// its environment.
+#[test]
+fn the_preferences_path_follows_the_xdg_rules() {
+    use std::ffi::OsStr;
+    use std::path::PathBuf;
+
+    let xdg = |c: Option<&str>, h: Option<&str>| {
+        frame::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
+    };
+    let tail = PathBuf::from("pncad").join("viewer.toml");
+
+    // Set and non-empty wins outright — $HOME is not consulted.
+    assert_eq!(
+        xdg(Some("/cfg"), Some("/home/someone")),
+        Some(PathBuf::from("/cfg").join(&tail)),
+    );
+    assert_eq!(
+        xdg(Some("/cfg"), None),
+        Some(PathBuf::from("/cfg").join(&tail))
+    );
+
+    // Unset falls back to $HOME/.config, as the spec says.
+    assert_eq!(
+        xdg(None, Some("/home/someone")),
+        Some(PathBuf::from("/home/someone/.config").join(&tail)),
+    );
+
+    // EMPTY counts as unset — the spec says so in as many words, and
+    // this is the row that matters: taking `""` as the base would
+    // build a RELATIVE path and write preferences into whatever
+    // directory the viewer was launched from.
+    assert_eq!(
+        xdg(Some(""), Some("/home/someone")),
+        Some(PathBuf::from("/home/someone/.config").join(&tail)),
+        "an empty XDG_CONFIG_HOME is unset, not a relative base",
+    );
+    // The same trap one variable over.
+    assert_eq!(
+        xdg(Some(""), Some("")),
+        None,
+        "an empty HOME is unset too — it would be a relative path as well",
+    );
+
+    // With neither, nothing is invented. The caller's store is then
+    // unusable and says so, which is how a person learns their
+    // preferences are not being kept.
+    assert_eq!(xdg(None, None), None);
+
+    // Whatever it resolves to is absolute, which is the property the
+    // two empty-string rows above exist to protect.
+    for path in [
+        xdg(Some("/cfg"), None),
+        xdg(None, Some("/home/someone")),
+        xdg(Some(""), Some("/home/someone")),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        assert!(path.is_absolute(), "{} is not absolute", path.display());
+    }
+}

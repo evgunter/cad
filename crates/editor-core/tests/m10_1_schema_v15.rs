@@ -38,7 +38,7 @@ fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): M10-1's own bump was v15; LIB-G16 took v16 for the
     // chamfer recipe node, and the number is what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 17);
+    assert_eq!(SCHEMA_VERSION, 19);
 }
 
 #[test]

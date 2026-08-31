@@ -36,6 +36,33 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
+//! the `f64` one did not. Point parameter recovery on a periodic
+//! carrier used to be spelled three times, two of them SELECTING a `2π`
+//! branch — by `floor` in one copy, by a five-candidate scan in the
+//! other — where the surviving body (`geom::Curve3::param_near`)
+//! anchors the `atan2` and so selects nothing. The corpus's VALUES are
+//! unchanged by that: the `f64` constant above is the one MAIN
+//! measured, re-measured on the merged tree and not moved by this
+//! change. What moved is the ENCLOSURE, because an anchored read
+//! re-frames through one `sin_cos` and the seam read did not. The cost
+//! is a few ulps of a radian, pinned in `geom`'s
+//! `curves/param_near_interval.rs`, and what it buys is that `floor`
+//! across an integer — a whole-turn widening — is gone from the lane.
+//! New behaviour, judged correct; not a number restored.
+//!
+//! **AND READ THE `f64` ROW'S SILENCE CORRECTLY, because it is quieter
+//! than it looks.** This digest hashes node OUTCOMES and the bits of
+//! every POINT. A curve parameter is neither, so the row above is
+//! structurally incapable of seeing a split parameter move — and split
+//! parameters DID move, by 1–6 ulps, at two of the three consolidated
+//! sites (measured: `sweep`'s seam split, 115 of 335 live circle calls,
+//! max `8.88e-16` rad; `topo`'s offset re-anchor, 4 of 9, max
+//! `2.22e-16` rad). What an unmoved `f64` digest says is that no
+//! outcome flipped and no point of any body moved, which is the claim
+//! worth making here. It is not a claim of parameter-level bit
+//! identity, and nothing in this file should be read as one.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -72,8 +99,9 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
-//! RE-BLESSED THREE TIMES, every time for a ROSTER change rather than
-//! a build-path one: this digest walks `corpus::documents()`, so a new
+//! RE-BLESSED THREE TIMES FOR A ROSTER CHANGE (the build-path
+//! re-derivation below is a fourth move of these numbers and a
+//! different kind): this digest walks `corpus::documents()`, so a new
 //! document moves it by construction. Each re-blessing was MEASURED
 //! the same way, and the measurement is the procedure — remove the new
 //! document ALONE from `documents()` and check every constant comes
@@ -104,6 +132,108 @@
 //! document, and that prediction is what the removal confirms.
 //!
 //! The three numbers below are the same digest over the grown roster.
+//!
+//! RE-DERIVED ONCE FOR A BUILD-PATH CHANGE, which is the case the
+//! roster procedure above does not cover and the one this fence exists
+//! to catch. `Affine3::rotation_about_axis` stopped spelling its
+//! translation `q − R·q` and now applies `I − R` to the anchor once, so
+//! the arithmetic behind every rotated coordinate genuinely changed and
+//! all three digests moved. What was measured before re-deriving them —
+//! the same corpus walk, dumping every coordinate rather than digesting
+//! it, on this tree and on a tree with only those two files reverted:
+//!
+//! THE INSTRUMENT IS `crates/editor-core/tests/cert3r1_dump.rs`, which
+//! replays this file's own `corpus_digest` walk at both scalars and
+//! prints one `RSTRUCT` line per node and one `RCOORD` line per
+//! coordinate instead of folding into FNV. Run it on two trees, grep
+//! the prefixes, diff. It is committed rather than described because a
+//! measurement whose instrument was thrown away is a claim.
+//!
+//! - **No structural difference at all**, at either scalar: the same
+//!   documents, the same node ids, the same outcome per node, the same
+//!   point sets, the same counts. The digest's non-numeric content is
+//!   unchanged.
+//! - **f64 lane: 4 of 3135 coordinates moved**, each by **exactly one
+//!   ulp**, the largest absolute move 2.22e-16 m
+//!   (−1.9999999999999998 → −1.9999999999999996). Those four are
+//!   **one value on four vertices of one node** — `kitchen_sink` node
+//!   15, points 4/5/6/7, all the `x` component, all reading
+//!   −1.9999999999999998 before and −1.9999999999999996 after. It is
+//!   one arithmetic difference observed four times, not four.
+//! - **Interval lane: 8 of 3135 coordinates moved** — the same four
+//!   points of the same node, `x` and `y` each. Endpoints moved by up
+//!   to **16 ulps**, and the enclosures got **WIDER**, by 4.7× to 13×:
+//!   node 15 points 6/7 `x` went from 4.44e-16 wide to 5.77e-15, and
+//!   points 4/5 `y` from 1.33e-15 to 6.22e-15. Every one is still
+//!   ~1e-15 in absolute terms.
+//!
+//! **The interval lane widening is expected here and is not a
+//! regression of the change's purpose.** The purpose is anchors that
+//! carry width; this corpus builds bodies in-process and hands the
+//! constructor EXACT axis origins, and on a degenerate input the
+//! retired `q − R·q` cost nothing — `x − x` is `[0, 0]` — while the
+//! new form pays an independent operator's outward rounding. So on an
+//! exact-input corpus the change is a small loss, quantified above, and
+//! it buys the six orders on the population that motivated it. Both
+//! halves are recorded because only recording the favourable one would
+//! make this header evidence about itself.
+//!
+//! At `f64` the movement is seven orders under any band the corpus is
+//! evaluated against, and the direction is not systematic: at the
+//! quarter- and half-turn angles the corpus uses, `1 − cos θ` and
+//! `2·sin²(θ/2)` straddle the exact value from opposite sides, one ulp
+//! each way. The reason for accepting the move is on the enclosure
+//! side, for anchors that are not exact: see
+//! `Mat3::identity_minus_rotation_about`.
+//!
+//! RE-DERIVED AGAIN, INTERVAL ROW ONLY, FOR A FOLD REFORMULATION
+//! (issue 1191). `profile`'s signed swept angle stopped composing a
+//! centred period fold on top of a `[0, τ)` reduction of the same
+//! quantity and now folds the raw difference once; `topo`'s window
+//! recentres were respelled onto the same named reduction. Measured
+//! with the instrument named above, this tree against `ad2f9757`, at
+//! both scalars:
+//!
+//! - **f64 lane: 0 of 3153 coordinates moved**, and no structural line
+//!   changed. The `f64` digest above is UNTOUCHED by this change and
+//!   was not re-derived — it still asserts what it asserted before,
+//!   which is the point of reporting the two lanes separately.
+//! - **Interval lane, structure: two documents stopped refusing.**
+//!   `fixture0` and `fixture1` — the rocker eye and the vesica lens,
+//!   the two fused arc-fillet rows the instrument carries — went
+//!   `refused` → `ok 3`. That is 18 coordinates ADDED to the walk, and
+//!   it is the change's purpose: their advance gate measures a swept
+//!   angle from a point to itself, and the composed fold turned that
+//!   hairline into a whole-period enclosure no band could classify.
+//!   Every other structural line is identical.
+//! - **Interval lane, coordinates: 75 of the 3135 shared coordinates
+//!   moved, and every one got NARROWER** — 0 wider, 0 unchanged, by a
+//!   factor of 1.06× to 1.43×. All 75 are in `die_composed_tour`. The
+//!   largest endpoint move is 2.22e-16 m, one ulp at 1.0
+//!   (0.9999999999999993 → 0.9999999999999994).
+//!
+//! Unlike the rotation-anchor re-derivation above, this one has no
+//! unfavourable half to record: the reformulation removes a rounding
+//! rather than adding one, so the enclosure can only tighten, and the
+//! measurement says it did everywhere it moved at all.
+//!
+//! THE COMPARATOR WAS `ad2f9757`, WHICH IS NOT THAT BRANCH'S MERGE
+//! BASE (`0e0df6a1`) — disclosed because a reader who resolves "the
+//! base" gets the other commit and would be comparing a different
+//! pair. `ad2f9757` is the commit the branch was cut from; main moved
+//! once while the lane ran. The choice cannot affect this measurement
+//! and that is checkable rather than argued: `git diff --name-only
+//! ad2f9757 0e0df6a1 -- 'crates/*/src'` is EMPTY. The gap is a
+//! test-file comment, two render re-baselines and two log files, none
+//! of which the corpus walk executes.
+//!
+//! The f64 row's "0 of 3153 moved" is CORPUS-SCOPED and is not a claim
+//! that the change moves no f64 bits anywhere. The centred respells in
+//! `topo` do move them off this corpus — measured over a 4000-sample
+//! spread of the recentre's argument, 1654 samples (41%) differ in
+//! bits, every one bounded by rounding at 4.44e-16 (2·2⁻⁵²) and none
+//! by a changed branch. What the corpus digest says is that no
+//! document this repo carries observes that difference.
 //!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
@@ -325,7 +455,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
+        (0x6542_ae63_e161_000c, 0xe9e2_cd7e_8a6a_dda0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -352,7 +482,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xb09c_3944_a8d7_c440, 0x588d_3ac4_427a_f52c),
+        (0x91f1_96cc_0b84_faf6, 0xb2fd_b741_16c5_1f32),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -376,7 +506,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
+        (0x6542_ae63_e161_000c, 0xe9e2_cd7e_8a6a_dda0),
         "the corpus's Probe evaluation moved"
     );
 }

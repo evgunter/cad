@@ -8,7 +8,11 @@
 //! oracles are written from the geometry rather than from `sugar.rs`:
 //! the signed offset radius ρ = R − σ·τ·r is re-derived, the bulge is
 //! checked against an `atan2` sweep, and setback/extent is recomputed
-//! with `rem_euclid`.
+//! here. The FORWARD reductions below are `rem_euclid(TAU)` — the
+//! right window for an extent, a gap or an authored sweep. The one
+//! SIGNED reduction (`signed`) folds its raw difference once instead;
+//! it is deliberately not a `[0, τ)` reduction with a second fold on
+//! top, which is the spelling the production helper retired.
 //!
 //! Notes on adoption:
 //!
@@ -296,10 +300,15 @@ fn mirror_corner(
     }
 }
 
-/// Signed angular difference into [-π, π).
+/// Signed angular difference into [−π, π).
+///
+/// Spelled here rather than called from `sugar.rs` — see this file's
+/// header on oracle independence — but NOT as the composition the
+/// production helper retired: the raw difference is folded once, into
+/// the window centred on zero. Reducing into `[0, τ)` first would put a
+/// jump exactly at the coincidence this oracle's callers measure.
 fn signed(a: f64) -> f64 {
-    let s = a.rem_euclid(TAU);
-    s - TAU * (s / TAU + 0.5).floor()
+    a - TAU * (a / TAU + 0.5).floor()
 }
 
 /// The signed travel of `p` measured from `q` along an arc leg's

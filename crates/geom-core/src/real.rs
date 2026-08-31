@@ -345,6 +345,81 @@ pub trait Real:
     fn reduce_periodic(self, period: Self) -> Self {
         self - period * (self / period).floor()
     }
+
+    /// The index of the `period`-branch of `self` nearest zero:
+    /// `⌊self/period + ½⌋`, the integer `k` for which `self − k·period`
+    /// lies in `[−period/2, period/2)`.
+    ///
+    /// The **branch-pin** primitive: a consumer holding a raw periodic
+    /// coordinate `raw` and a reference `near` shifts onto the branch
+    /// nearest the reference by `raw + (near − raw).periodic_branch(p)·p`.
+    /// Same construction rules as [`Real::reduce_periodic`] — a fixed
+    /// composition of `÷`, `+` and [`Real::floor`], comparison-free, so
+    /// the `Dual` value channel is bit-identical to the plain-`T` run
+    /// and the interval instantiation contains the true index by
+    /// composition of containments.
+    ///
+    /// **Where its enclosure is wide, and why that is honest**: at
+    /// interval type the result spans two integers exactly when the box
+    /// straddles a half-period offset — `self ≈ (k + ½)·period`, the
+    /// configuration in which the two nearest branches are equidistant
+    /// and the pin is a genuine tie. A consumer that must not be handed
+    /// a tie classifies the distance-to-tie through the predicate layer
+    /// first, like every other decision.
+    fn periodic_branch(self, period: Self) -> Self {
+        (self / period + Self::from_f64(0.5)).floor()
+    }
+
+    /// Range reduction into the period **centred on zero**: the
+    /// representative of `self` modulo `period` lying in
+    /// `[−period/2, period/2)`, up to the same rounding statement
+    /// [`Real::reduce_periodic`] carries.
+    ///
+    /// This is the reduction for a **signed** periodic quantity — a
+    /// difference of two angular coordinates, where "a little backward"
+    /// must read as a small negative number and not as almost a whole
+    /// period. [`Real::reduce_periodic`]'s `[0, period)` window is the
+    /// reduction for an *extent*, which is forward by construction.
+    ///
+    /// # Fold the raw difference; never a `[0, period)` reduction first
+    ///
+    /// Both windows are discontinuous, and which reduction to use is
+    /// decided by **where each one puts its jump**. `reduce_periodic`
+    /// jumps at multiples of the period — at a difference of ZERO,
+    /// which is precisely the value a coincidence gate is built to
+    /// recognise. This reduction jumps at half-period offsets instead,
+    /// so a difference near zero is in the window's interior and comes
+    /// straight back: `⌊x/p + ½⌋` is `0` there, and the result is
+    /// `x − p·0 = x`, exactly.
+    ///
+    /// **Where "there" ends, in floating point.** The identity holds
+    /// for every `x` with `fl(fl(x/p) + ½) < 1`, which is very nearly
+    /// but not exactly `(−p/2, p/2)`: rounding can carry the sum up to
+    /// `1` a float or two BELOW the half period. At `p = τ` the top two
+    /// floats of `[0, π]` do exactly that — `fl(π/τ)` is exactly `0.5`
+    /// (τ is `2·fl(π)`, doubling is exact) and `nextbelow(π)/τ` rounds
+    /// to `0.49999999999999994`, which `+ ½` rounds half-to-even back
+    /// up to `1.0` — so both return `x − p` rather than `x`. State the
+    /// rounding condition, not the mathematical interval, wherever a
+    /// gate is made to depend on this identity. One further caveat:
+    /// `x = −0.0` returns `−0.0` here and `+0.0` from
+    /// [`Real::reduce_periodic`]; equal in value, different in bits.
+    ///
+    /// The consequence at interval type is the reason this helper is
+    /// named rather than open-coded at each site: an argument box
+    /// straddling zero reduces to a box of the SAME WIDTH, where
+    /// composing this fold on top of a `[0, period)` reduction of the
+    /// same quantity would hand the outer fold a box already widened to
+    /// a whole period by the inner one. The composition is the shape to
+    /// avoid; folding the raw difference once is the shape to write.
+    ///
+    /// Its own jump, at `±period/2`, is a real discontinuity of the
+    /// signed representative and a box straddling it honestly encloses
+    /// both signs — a consumer that cannot accept that classifies the
+    /// distance to the half-period through the predicate layer.
+    fn reduce_periodic_centred(self, period: Self) -> Self {
+        self - period * self.periodic_branch(period)
+    }
 }
 
 /// Bound extraction for **certification and driver code** — deliberately a
@@ -431,10 +506,10 @@ pub trait Real:
 /// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
 /// the PR 11 precedent; retroactive Evan review per the self-merge
 /// convention):** the
-/// **fillet-validity battery** — `sweep::fillet::battery`, the M6-1
-/// in-place surgery (`sweep::fillet::surgery` — the same lane, the same
+/// **fillet-validity battery** — `sweep::blend::battery`, the M6-1
+/// in-place surgery (`sweep::blend::surgery` — the same lane, the same
 /// clearance-margin class; extended under the same ruling), and the
-/// assembly it licenses, `sweep::fillet::build` — joins the compound
+/// assembly it licenses, `sweep::blend::build` — joins the compound
 /// allowlist. It is the same class as the quadrature seam on both
 /// counts. It simultaneously decides (its six `fillet3_*` funnel
 /// margins) and CONSUMES ENCLOSURES: the quantities it classifies are
@@ -443,6 +518,13 @@ pub trait Real:
 /// analytic arm — and every refusal reports the offending margin as an
 /// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
 /// its honest signature.
+///
+/// Since VERBS-CHAMFER this seam is the one BOTH edge-blend front
+/// doors sit in: `chamfer_edges` is written inside these same three
+/// files deliberately — the chamfer runs the same battery and the
+/// same surgery — rather than allowlisting a fourth file, so
+/// "fillet-battery seam" names the seam's home, and what the
+/// ratification covers is the shared edge-blend lane.
 ///
 /// What differed from PR 11 was only the SPLIT, and it differed because
 /// there was nothing to split: no dual-scalar path could reach this

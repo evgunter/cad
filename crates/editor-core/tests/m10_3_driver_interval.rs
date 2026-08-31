@@ -393,8 +393,20 @@ fn the_certification_width_is_a_small_fraction_of_epsilon() {
 ///
 /// This is the honest state of the deliverable and it is a regression
 /// pin in both directions: the day the certification predicates stop
-/// widening with the box (the issue-1191 class), this row fails and
-/// the number it is asserting becomes a real answer.
+/// widening with the box, this row fails and the number it is
+/// asserting becomes a real answer.
+///
+/// **What the widening here IS, said precisely, because the obvious
+/// candidate has been ruled out.** It is not a period fold enclosing
+/// two integers: the floor-based folds that did that were closed
+/// (issue 1191, and the fold now folds a raw difference once through a
+/// window whose jump is at a half period), and this row did not move
+/// when they were. What remains is the dependency problem — a
+/// certification identity mentions its parameter several times, and an
+/// interval evaluation cannot see that the occurrences are the same
+/// number, so the enclosure grows with the box whatever the algebra
+/// says. Closing THAT is a different deliverable from closing a fold,
+/// and this row is the pin that says so.
 #[test]
 fn a_macroscopic_box_refuses_all_of_its_mass_as_budget_today() {
     let doc = slab(1.0, 0.05);
@@ -487,9 +499,20 @@ fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
         Tol::witness(),
     )
     .unwrap();
-    // Not a vacuous comparison: this drive has certified leaves, at
-    // least two refusal classes, and hundreds of splits.
+    // Not a vacuous comparison: hundreds of splits and a full frontier
+    // of leaves, compared row for row. It is NOT a drive with certified
+    // leaves — at 256 leaves this fixture certifies none, because the
+    // sign flip keeps every box indeterminate past the frontier bound
+    // (the planted-flip row above pays 4096 leaves for exactly that
+    // reason). What this row pins is that the same subdivision comes
+    // out identical twice and under both schedules, and refusals are
+    // rows like any other.
     assert!(seq.receipt().splits > 8, "{:?}", seq.receipt());
+    assert!(
+        seq.receipt().certified + seq.receipt().refused > 8,
+        "{:?}",
+        seq.receipt()
+    );
     assert_eq!(seq.serialize(), again.serialize());
     assert_eq!(seq.serialize(), par.serialize());
     assert_eq!(seq.content_key(), par.content_key());
@@ -887,5 +910,52 @@ fn an_unused_box_seam_changes_no_decision() {
             .iter()
             .any(|r| !r.verdicts.is_empty()),
         "the comparison must have decisions in it to compare"
+    );
+}
+
+// ---------------------------------------------------------------------
+// R1 review probe (CERT-4): what the driver's widening is actually made
+// of. A period-fold widening is CONSTANT (~a period) whatever the box;
+// a dependency-problem widening SCALES with the box. This row drives the
+// certification predicate across decades of half-width and reports
+// which shape the measurement has.
+// ---------------------------------------------------------------------
+#[test]
+fn cert4r1_the_driver_widening_scales_with_the_box_not_with_a_period() {
+    let e = eps();
+    let mut certified_any = false;
+    let mut refused_any = false;
+    for k in [1.0f64, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6] {
+        let half = e * k;
+        let doc = slab(1.0, half);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        let r = v.receipt();
+        println!(
+            "cert4r1 half={half:e} (eps*{k:e}): splits {} certified {} refused {}",
+            r.splits,
+            r.certified,
+            v.refused().len()
+        );
+        if r.certified > 0 {
+            certified_any = true;
+        } else {
+            refused_any = true;
+        }
+    }
+    // The discriminator: a floor-straddle widening would be period-wide
+    // at EVERY half-width and would never certify. It certifies once the
+    // box is small enough, so the widening is a function of the box.
+    let _ = refused_any;
+    // Measured: every half-width at or below eps certifies (whole, with
+    // no splits, below eps/10), while the macroscopic box of the pin row
+    // above (half = 0.05, ~5e7 eps) certifies nothing. The widening is a
+    // function of the box, which is what a dependency problem looks like
+    // and is not what a floor straddle looks like — a period-wide
+    // enclosure would refuse at every half-width here.
+    assert!(
+        certified_any,
+        "nothing certified at any half-width — the widening is box-independent, \
+         which would be the period-fold shape the PR says it is not"
     );
 }

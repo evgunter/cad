@@ -749,7 +749,7 @@ fn row7_v7_round_trips_and_v6_refuses() {
     // took v14, and M10-1's parameter distributions took v15. The row's subject is the
     // round trip and the v6 refusal, both unaffected; only the number
     // moved.
-    assert_eq!(editor_core::SCHEMA_VERSION, 17);
+    assert_eq!(editor_core::SCHEMA_VERSION, 19);
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);

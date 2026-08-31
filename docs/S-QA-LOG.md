@@ -144,3 +144,284 @@ messaged mid-flight); QA-3 unblocked but sequenced AFTER QA-2 lands
 — both edit `ci-filter.py`/`ci.yml` and two lanes on one file is a
 conflict by construction. QA-5's shape is settled; its dispatch
 still waits on the K/P/W fence coordination.
+
+## QA-1 merged (2026-08-30)
+
+The issue-888 residue and the census broken-pipe class, landed on a
+green hosted head (run 33275703002, all 21 jobs) after the v6 dual
+and a nine-for-nine fix pass. The dual's headline is the program's
+own charter enacted on itself: the unit's `gate-roster.sh` conversion
+could print a matcher-death diagnosis and still exit 0 — the one gate
+never calling `gate_ok` — found by a reviewer's shim, not by the
+author or the selftest; and the "too expensive" deterministic
+regression arm was built independently by both reviewers in ~3 s.
+Both are fixed and armed. Issue 888 closes on the combined record;
+`check_step.sh:92` and the `find`-in-process-substitution class have
+durable homes on that issue. Recorded for a future unit: the census
+script is now 1,100+ lines carrying five modes in one `gate()` (a
+reviewer's Q8 finding — a split candidate, not this unit's).
+
+Operational note at merge: the first gating run of the merged head
+(33332490436) went red with both default-eps test shards "failing"
+in one second each, runner_id 0, no logs — the Actions budget had
+run out, so the jobs never executed. A ghost failure wearing a red
+run's clothes is this program's charter one level down the stack;
+re-rolled with this commit once the budget was restored, pinning
+the same point by trailer so the ghost-failed configuration is the
+one re-proven.
+
+Process corrections this unit earned: lane branches now carry ONLY
+their own spec (QA-2's spec rode this PR from the shared dispatch
+commit — harmless here, sloppy in general); and the fable usage
+limit can kill lanes mid-flight — resumed with zero loss because the
+lane had pushed first, which is the push-early rule doing exactly
+what it is for.
+
+## QA-2 merged (2026-08-30)
+
+The matrix now says what it did: a red run reports its whole failure
+surface and names its mode (nextest's fail-fast default measured, not
+assumed, on the pinned version); a pinned lane says so in
+`CONFIG_SOURCE` and the basename pin itself is gone per the Q2 ruling
+— the request convention lives in the discipline doc, the
+`interval-transcendentals/` pin and the fail-closed arm stay; a draft
+run prints that it gated nothing, with the `ready_for_review` escape
+beside it; and the request-a-point door is verified end-to-end, so
+issue 1051 closes with 1128, 1122 and 1204. The dual found no MAJORs
+and one §D-rule-5 instance (the skip step asserting a false cause —
+fixed by deriving one cause in producer order, all eight combinations
+executed). The fix pass beat its instructions once: instead of gating
+four hand-synced advisory spellings it made the filter compose its
+notices into a file ci.yml relays, so the copies ceased to exist.
+Residues with homes: issue 1295 (the parity checker compares checks,
+never flags), and the not-hosted-verified tripwire disclosed at the
+site. The Actions budget outage that ghost-failed three branches'
+runs mid-unit is recorded in both units' PRs — a red run whose jobs
+never executed is this program's charter one layer down, and worth a
+future thought about whether the filter can notice a zero-step
+"failure".
+
+Next: QA-3 (the tools-scope k-lint path pin, Q1's ruling) into the
+now-freed `ci-filter.py`/`ci.yml`; QA-4 close-out verification; QA-5
+awaits the K/P/W coordination.
+
+## QA-4 closed out (2026-08-30)
+
+The landed-fix verification unit (block QA-B2 slot 1; verification-
+shaped, so it produced no A/B row — the one residue it landed is the
+nine doc-comment lines on this PR recording the ratified
+proptest-regressions decision: a written-out fixture over a seed,
+because a `cc` seed re-derives its input only through the strategy
+that drew it, and that strategy is what the rewrite replaced). All
+three verifications PAID: the panic-hook race structurally
+unrepresentable and 0-in-200 empirically (plus a load-shaped leg,
+against ~15-in-200 pre-fix); the generator's docstring and pinned
+counterexample in place; the issue-808 finish complete with the
+guard the issue said was missing. Issues 882, 1134, 774 and 808
+close on this record. Class noted for a future sweep, not acted on:
+three test files still do per-call panic-hook take/set swaps
+(topo/src/review_m1_pr2/release_corruption.rs:290,
+mesh/tests/profile_overrides.rs:140,
+sweep/tests/review_d2_adv_probes.rs:435) — each single-binary-safe
+today, all issue-882's shape; and `caught`'s `unwrap_or_default()`
+still folds a lost message to the empty string, unreachable now but
+the reintroduction path if a second set_hook caller ever lands in
+that binary.
+
+## QA-3 merged (2026-08-30); block QA-B1 complete
+
+Evan's Q1 ruling is live: a `tools/` change pins the k-lint row that
+runs that crate's own suite, announced in `CONFIG_SOURCE` and the
+notices relay, with the draw untouched everywhere else — and the pin
+caught D183's failure shape on its own PR three times (each pinned
+head would have drawn a row that builds the changed crate without
+running an assertion about it). Issue 1023 closes on this plus
+QA-2's visibility work. The dual's headline is a lesson this
+program should keep: the filter's BEHAVIOR survived fourteen
+mutations across two arms, and both MAJORs were in the WRITTEN
+record — a derivation that said "compiles" and meant "runs the
+suite", and a debt-resolution pointer that vouched for a still-false
+comment. In a program whose deliverables are instruments, the record
+is part of the instrument, and it now has its own guard
+(`_selftest_klint_workflow` parses ci.yml and reds when the mapping,
+the row roster, or the fallback's premise drifts). Also earned here:
+a debt whose locator is a phrase-grep will point at true sentences
+and miss false ones — re-derive the claim set before trusting the
+citations (the unit did, found one cited line TRUE and two uncited
+lines false, and then committed the same class itself one site over
+— caught by the dual). Track Q's declared count (18) disagrees with
+its table (16), pre-existing, verified at merge base by both
+reviewers independently — flagged for whoever owns the schedule's
+bookkeeping next.
+
+Block QA-B1 is complete: three units, three duals, ordinals 800-802,
+samples 53/54/56.
+
+## QA-9 merged (2026-08-30)
+
+The slot status line now states only what it can verify: which slots
+THIS request polls (one width-home consulted by loop and status
+alike), which it just tried, what a dead record over a still-busy
+slot actually means (the inherited-fd leak, named), and when the
+blocker has no record at all. The dual earned its keep in miniature:
+both arms independently reproduced the fix's own new line predicting
+"can take it" about a slot the request had just failed to take — the
+issue-1139 class re-minted inside its fix, §D rule 5 for the fourth
+S-QA unit out of four reviewed. Every prediction is gone; the
+transcripts in the PR body are the verification of record, since CI
+deletes local-scripts by design. Issue 1139 closes on this record.
+Two operational notes: a reviewer probe misfired into the REAL lock
+dir once (one stale holder file, orchestrator-cleaned — synthetic
+lock dirs are mandatory and both briefs said so; the classifier
+blocked the reviewer's own cleanup, which is the right failure), and
+the fix pass ran one pattern-match `pkill -x sleep` during cleanup —
+the kill-by-recorded-PIDs rule's exact violation, disclosed, with
+possible clipped sleeps in sibling lanes' poll loops (recoverable;
+none reported damage).
+
+## QA-6 merged (2026-08-31): the sweep's first PR, and the charter biting its own tail
+
+Issue 681's uncontested legs are swept, every claim bucketed at its
+site, and the instrument is committed with its blind spots in its
+own header. The unit's story is the program's thesis in miniature:
+its dual found the sweep unit itself minting the defect it sweeps
+for — a written reason calling a live register a dated write-up, an
+instrument docstring carrying undated counts, a tally taken over
+the wrong tree — and the fix pass then found a SECOND instance of
+the false-reason class unprompted. Merged with one red row,
+established as main's (the k-lint eps=1e-6 probe panic, issues
+1296/1304, M10-3's ground) and deliberately not re-rolled — a
+re-push re-draws the sampled row, and laundering a known red
+through a fresh draw is precisely the class this program closes.
+Issue 681 stays open for PR 2 (the workflows/scripts/tools/tests
+legs), which dispatches once qa/7 and qa/8 land.
+
+## QA-5 merged (2026-08-31)
+
+Q3 is live: tess-lint refuses corpus growth it is not comparing —
+the uncovered scene is a failing finding with its recourse spelled
+out, the baseline carries its cut commit (and refuses a re-stamp of
+unmoved data, so the record cannot age forward silently), and the
+world-check found nothing uncovered on main (VERBS' fold had paid
+it), so the red-first evidence is synthetic plus the hosted pair.
+The dual's sharpest catches were both about promises: a graceful
+fallback that could never execute (dead under errexit) and a lead
+that nothing pinned. The unit also paid the sibling's fourth-copy
+finding: TESS-BUDGET's rule prose now points at tess-lint's module
+docs as the roster of record instead of enumerating a copy that
+drifts. Issue 1038 closes on this record. One orchestrator note for
+the dispatch discipline: both reviewer briefs carried an inverted
+mechanism for the parity fix (my error, both arms caught it) — a
+dispatch is a hypothesis, and the reviewers treating it as one is
+the system working.
+
+## QA-8 merged (2026-08-31): Track J is empty
+
+The doc gate now derives what it cannot see: every crate declaring a
+`not(feature)`-family module gets its inert half re-documented, the
+root set greps the tree instead of trusting a roster, and the three
+mesh link errors that no instrument had ever compiled were shown red
+under the widened gate before being fixed. The dual's keep was
+double: both arms mutation-proved the selftest arms can actually
+fail, and both caught the unit's new pinned measurement already
+drifted from the run — the header's own doctrine applied to its own
+new section (§D rule 5, again). The fix pass twice beat its
+instructions: it found F6's billed-minutes claim had lapsed before
+this PR existed (fmt-job growth, not pass 3, took the first minute),
+and its new selftest arm overturned the header's own claim about the
+default-features root. Issue #1317 registers the two blind-spot axes
+with measurements. Operationally the unit closed the loop on the
+program's thesis: its run was the first code-tier CI since BLEND-5
+merged, which is the only reason anyone learned main was latently
+red (`reader_census` tripping on prose in an assertion message —
+every intervening run was docs-tier). Evan fixed that directly
+(#1323) within the hour; the k-lint 1-of-5 row remains row-dependent
+red on main per issues 1296/1304, M10's ground. Track J: 3→0, rows
+deleted, fence kept; D301 leaves Track R. With this merge the QA-B2
+block's A/B slots are all recorded.
+
+## QA-7 merged (2026-08-31): CI reports what tests cost
+
+Issue 469's reports are live: every test job prints its slowest ~20
+(summed per test across the legs it ran, and saying which), and every
+PR is told what its added tests cost, from a base listing looked up
+by tree key so the answer is exact or an honestly stated skip — never
+a guess, never a gate. The dual's signature finding was the program's
+class caught one layer deeper: R2 found `filter.out | tee` taking
+tee's exit status at the top of ci.yml — a green run that gated
+nothing, sitting in the very file, forty lines below the comment
+warning about it, while the PR fixed four instances of the same class
+elsewhere. The fix pass took all fourteen union items and then found
+three of its own, including a selftest case that had been silently
+appending a real `TEST_LIST_TREE` into the hosted job's environment
+— caught by reading the run log, which is this unit's whole thesis.
+The base-listing lookup now lives once, in a script with its own
+selftest, instead of twice in shell nothing tested; the three
+vacuous-pass fixes each carry an old-guard-passes/new-guard-reds
+transcript. The gate of record ran the interval lane by request —
+the copy the draw had left untested. One dispatch note for the
+record: both arms corrected my conflated fixture-provenance premise,
+the program's fourth dispatch-premise correction; the discipline
+holds. Issue 469 closes on this record. Block QA-B3 is complete:
+QA-6, QA-7, QA-9 — ordinals 804, 807, 803.
+
+## Seam: QA-6 PR 2 dispatched (2026-08-31)
+
+The gate on the remaining legs lifted with QA-7 and QA-8 both
+merged; qa/6-measured-claims-2 branched from main carrying only its
+spec (docs/QA-6-PR2-SPEC.md). Two live legs (workflows+scripts,
+tools provenance) and two written-disposition legs (crates/*/tests
+is Track W's ground with issue 651 as the class home; docs prose
+stays deferred). Unilateral decision, logged: PR 2 runs on the
+QA-6 implementer's arm as a unit continuation — the same rule that
+gives a fix pass its implementer's arm — rather than drawing a
+fresh triple block for one unit; its dual claims ordinal 808 at
+review dispatch. Issue 681 closes at PR 2's merge on the combined
+record.
+
+## QA-6 PR 2 merged (2026-08-31): issue 681 closes, and the slate is empty
+
+The sweep's remaining legs are paid: every measured claim in the
+workflows, the composite actions, the scripts, and the tools crates'
+threshold docs now carries its bucket at the site, the tally table
+shows a zero no-bucket column per leg, and the two legs this program
+could not take are closed by written disposition instead of silence
+(crates/*/tests is Track W's ground with issue 651 as the class
+home and the instrument proven ready on it; docs prose stays
+deferred on the plan's stated reason). The dual earned five MAJORs
+on one arm — all of them the unit's charter applied to its own new
+prose: a headline finding its own committed instrument falsifies in
+one command, an incomplete leg with the residue dropped from the
+table, a stale billed-minutes claim wearing a register's name, and
+the check-for-a-register clause skipped a third time in this unit.
+One of the five was partly this orchestrator's: the spec's "do not
+re-litigate register figures" stated the rule too broadly — the
+credit is owed to a register's COLUMNS, not its name — the
+program's fifth dispatch-premise correction and its first in a
+ratified spec rather than a reviewer brief. The fix pass took all
+eleven items and swept fourteen more sites to zero residue. Issue
+681 closes on PR #1311 + PR #1331 + the two dispositions. With
+this merge the slate is empty: #470 and #466 stay parked with
+their recorded reasons, and the program moves to its exit walk.
+
+## Seam: exit walk drafted (2026-08-31)
+
+The slate emptied at QA-6 PR 2's merge, and the walk is drafted:
+docs/S-QA-EXIT-WALK.md rides PR 1341 as a ratification
+conversation, per the standing rule that exit walks wait for
+Evan's sign-off. Thirteen clauses walked verbatim against the
+exit shape — nine MET, four MET-WITH-RECORDED-HONESTY, the two
+carries with named owners (Track W; issue 1317's register). The
+program stays open, and this log's tail stays live, until the
+walk is ratified; nothing else is scheduled.
+
+## Program closed (2026-08-31): exit walk ratified
+
+Evan ratified the walk in-session (the one point discussed before
+sign-off was row 5's demos-exclusion honesty note — the ~29%
+firing-rate cost his Q1 ruling accepted, restated not re-litigated).
+docs/S-QA-EXIT-WALK.md is the done-state of record; this log is
+closed. Standing residue lives where the walk names it: Track W
+carries the tests-leg sweep with issue 651 as class home, issue
+1317 registers the doc-gate's two remaining axes, #470 and #466
+stay parked with their reasons.

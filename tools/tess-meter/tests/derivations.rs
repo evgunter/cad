@@ -183,7 +183,11 @@ enum Shape {
 /// `mildly anisotropic` and therefore lands on the same sample: on THIS
 /// quantity it distinguishes nothing. It is kept because it is
 /// load-bearing on the CELL COUNT, where it scores 5.8824% at the
-/// shipped pair — it is `S160`'s sixth family member, whose deletion
+/// shipped pair (the figure and its provenance are
+/// [`tess_meter::SPLIT_SCAN_DECADES`]'s, which says it is a SAMPLED
+/// reading nothing re-takes and why that is right; this row's own
+/// assertions are what keep the member honest) — it is `S160`'s sixth
+/// family member, whose deletion
 /// with #783's instrument is what made that finding's table
 /// unreproducible from the tree. And `cross term only` is
 /// [`Shape::Flat`]: its cost is exactly `U·V·2·muv/δ_s` on the whole
@@ -457,9 +461,12 @@ fn optimum_sits_on_the_floor(muu: f64, muv: f64, mvv: f64) -> bool {
 /// nothing about the helper, says that it is: three retunes at that one
 /// call site — a sample count of its own, a range of its own, a dropped
 /// seed — passed `fmt`, `clippy -D warnings` and every other row in
-/// this file. Measured on the shipped `ceil`'d count over 200,000
-/// random bounds, the sample-count retune alone moves the reported
-/// cell count by +14.93% on average and +100% at worst.
+/// this file. How far the sample-count retune alone moves the reported
+/// cell count was measured once and is stated once, at
+/// [`best_split_scan`]'s own docs, together with the fact
+/// that nothing re-takes it; it is not restated here, because a
+/// measurement written in two places is two things to keep in step and
+/// this row is the half that is meant to stay live.
 ///
 /// So this row spells the intended composition itself and compares bit
 /// for bit, **sample index included** — the seed retune is the one that

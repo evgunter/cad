@@ -379,6 +379,131 @@ this merge to main, and BLEND-7's redacted arm cell is restated in
 its MODEL-AB-LOG row in the same commit. BLEND-2's row lands at its
 merge, arm named normally (its dual is concluded).
 
+## BLEND-2 MERGED (2026-08-30)
+
+PR 1268 merged (ordinal 602; full record in MODEL-AB-LOG's row).
+One call now fillets rims sharing a wall OR a full-revolve cap —
+the seam-key refresh is identity-only, decide-before-mutate stood,
+and the shared-wall refusal at the collision margin names a
+FOLLOWABLE split recourse (the 1278 class's third instance, closed
+at birth this time). The unit also repaired main's latent k-lint
+probe-census red (conjoined-feature suites listed nothing on a
+dev-probe draw), gate-proven at merge via a klint=dev-probe
+trailer. Handoffs: issue 1294 (editor-core annulus emitter drive);
+N2 for S-QA (the census success line under-reports derived
+features). Next: BLEND-5 (issue 961) on a fresh block, then
+BLEND-6 (ratified BLEND-VOCAB).
+
+## THE PINNED DEV-PROBE ROW: REPAIR PROVEN, NEXT LAYER EXPOSED (2026-08-30 ~20:20Z)
+
+The trailer-pinned k-lint run (33332365082) executed the repaired
+census step end to end — derived features, compiled and RAN the
+conjoined `all(probe, interval)` suite for the first time on
+hosted CI — and that first execution exposed the layer beneath:
+`m10_3_driver_k_probe_interval`'s dump panics "nothing certified,
+nothing to sample" at the runner's eps=1e-6 (the driver's
+macroscopic wide-band refusal meeting the dump's fail-loud).
+Pre-existing, main-red at the same matrix point, M10's territory
+→ **issue 1296** filed with the evidence; standing-down comment on
+the PR. This commit voids the trailer so the merge gate draws the
+standard sampled row.
+
+**Re-roll note (2026-08-30 ~20:35Z):** run 33333032080's only red
+was `render lanes / freecad montages` dying at 3 s with runner_id
+0 and no logs — a runner loss before checkout (the same job green
+on the prior run over the same code ten minutes earlier). The
+integration's rerun-failed-jobs is 403 for this session, so this
+commit is the re-roll.
+
+**(Second re-roll:** run 33334073786's bootstrap jobs themselves
+died log-less at ~4 s — the Actions budget exhaustion window, per
+Evan; budget refreshed, this commit re-rolls.)
+
+**(Final head:** the budget-re-roll's SHA drew `dev-probe` again —
+the filed 1296 red (M10's suite), 21/22 jobs green. Rather than
+re-rolling the draw, this commit pins `klint=dev-budget` BY NAME:
+the row that gated this same tree green at c05b97f9, with the
+dev-probe row's red owned by issue 1296 on main and this PR's
+census repair proven at run 33332365082.)
+
+## 2026-08-30 — BLEND-2 MERGED (#1268); the unit slate's serialized trio complete
+
+PR #1268 merged at `6cf9647e` (merge commit); issue 935 closed.
+Gate of record: run 33336309206 GREEN {interval, eps 1e-12,
+klint=dev-budget by trailer} on head `b927ca63` — 22 checks, both
+test shards. That head merged main back in (S-QA's QA-1/QA-2 had
+landed under the previous pinned head, putting the PR CONFLICTING —
+the silent-CI class: c7914871 got no run at all) and resolved the
+MODEL-AB-LOG tail keep-both; the row's sample hedge resolved by
+main's merge order to **sample #55** (QA-1 took #53, QA-2 #54).
+The A/B row's CI cell corrected post-merge to the actual gate (the
+state-sync text predated the trailer cascade); correction PR from
+`blend/blend2-record-close`.
+
+Block BLEND-B1 fully landed: BLEND-1 (#1222, sample #46), BLEND-7
+(#1267, ordinal 601), BLEND-2 (#1268, ordinal 602, sample #55).
+Next: BLEND-B2 draw branch-side, then BLEND-5 (issue 961) — its
+LIB-G16 gate long merged; BLEND-6 (#917) follows, its #1279
+vocabulary ruling RATIFIED. Lanes blend-2 / blend-2-r1 reclaimed
+after this entry.
+
+## 2026-08-31 — BLEND-5 state-sync (rides the unit branch last; merged at #1301)
+
+Unit BLEND-5 (issue 961) complete on head `3b57af5b`: role
+vocabulary (`RimSupport::{Host, Mate}`), schema v18 clean break,
+reason 3 withdrawn for the measured planarity-boundary statement,
+host rule homed, seam-split row rebuilt at fix 2 onto a genuinely
+slot-disagreeing rim (red under both mutations, covering the third
+host-rule site both ways). Reviews ordinal 603 (R1 OPUS + R2 FABLE,
+concurrent, frozen 50fedb7d): R1 M-A-F 1/3/4 + 10 style, R2 M-A-F
+0/4/1 + 7 style; headline bilateral, no tally candidates; delta
+6/8 confirmed, 2 record residues closed at fix 2. Issues filed at
+adjudication: #1306, #1308, #1309. Handoff recorded: whether a rim
+reference wants a resolution-time check (the silent-retarget
+residue of the role shape) is a design conversation — not opened.
+A/B row (ordinal 603, sample hedged #57) rides this commit; the
+implementer arm stays branch-side until block BLEND-B2 closes.
+Next: BLEND-6 (issue 917, block B2 slot 2) dispatches after this
+merges — its #1279 vocabulary ruling is RATIFIED and its LIB-G16
+gate long merged.
+
+## 2026-08-31 — BLEND-6 state-sync (rides the unit branch last; merged at #1328)
+
+Unit BLEND-6 (issue 917) complete: the ratified vocabulary executed
+whole — one verb wrapper per door, verb-neutral shared prose with
+the guard union making the contract red-capable on EVERY arm (both
+reviewers' witness mutations verified red at fix and delta), the
+V3 rename with all fences held, the recipe-layer hosting fixed as
+the settled-choice-3 shape one layer up (emit_blend). Reviews
+ordinal 604 (R1 FABLE + R2 OPUS, concurrent, frozen e8707956):
+R1 MERGEABLE 0/3/4 + 8 style, R2 M-A-F 0/2/4 + 9 style; verdict
+split; no tally candidates; delta 7/7 confirmed. Issue #1336 filed
+at adjudication (zero-radius door asymmetry — the schedule the
+disclosed narrowing owed; number swapped in at this commit's two
+door sites). A/B row (ordinal 604, sample hedged #64) rides this
+commit; the implementer arm stays branch-side until block BLEND-B2
+closes at BLEND-3's conclusion. Next: BLEND-3 (issue 919, block B2
+slot 3) cuts AFTER this merges — it edits the renamed
+sweep/src/blend/ tree.
+
+## 2026-08-31 — the state-sync head drew two main-red rows at once; pin note
+
+Run 33356901517 on `112a003d` drew {interval, eps 1e-12} AND the
+dev-probe k-lint row — both red for MAIN's reasons, neither this
+PR's: the two test shards fail exactly #1338's three rows (the
+moved measured constant; proven identical on clean origin/main by
+the T-a lane's diagnosis hours earlier), and k-lint fails exactly
+#1296 (M10-3's driver "nothing certified, nothing to sample" at
+eps=1e-6 — the red BLEND-2's census repair first exposed, still
+unfixed on main). No fix exists to port for either (a re-measure
+adjudication is owed for #1338; #1296 is M10's). Standing-down
+comment on the PR; this commit pins the merge gate BY NAME to rows
+proven green on this content — lane=default eps=default (run
+33356... predecessor e0974c18's 21/21) and klint=dev-budget (the
+BLEND-2-precedent row, gating this tree's own demos changes).
+
+CI-Config: lane=default eps=default klint=dev-budget
+
 ## BLEND-VOCAB RATIFIED (2026-08-30, Evan's 👍 on PR 1279)
 
 `docs/BLEND-VOCAB-DESIGN.md` ratified and merged (a9806624): V1
@@ -870,3 +995,20 @@ sweep; the minimality claim corrected to the class argument (R1's
 triangular-cavity falsification + R2's end-less-subset
 refinement); the octant prose class; the counts. Both probe
 branches adopted as merge parents. Delta by R1 after.
+
+## 2026-08-31 — BLOCK BLEND-B2 CLOSED (this merge)
+
+All three slots' duals have concluded: BLEND-5 merged (#1301,
+ordinal 603), BLEND-6 merged (#1328, ordinal 604), BLEND-3 both
+reviews + delta concluded (ordinal 605; MERGEABLE after the tag
+withdrawal; micro-fix in flight, merge next). The branch-side
+records above become public with this merge; BLEND-5's and
+BLEND-6's redacted arm cells are restated in MODEL-AB-LOG in this
+same commit (slot 1 OPUS / slot 2 FABLE / slot 3 OPUS, byte 25).
+BLEND-3's row lands at its merge carrying the program's FIRST v6
+tally candidate (R1's unilateral MAJOR, orchestrator-verified —
+the ThreeConcaveEdges withdrawal to #1355). The plan's stale
+`ConvexOpen` token is annotated in this commit too. After
+BLEND-3's merge: track T's endgame lane T-c (D90 + D321 +
+D96-after-enumeration), then the program's remaining slate is
+BLEND-4 (issue 644, a NEW block BLEND-B3) and the gated backlog.

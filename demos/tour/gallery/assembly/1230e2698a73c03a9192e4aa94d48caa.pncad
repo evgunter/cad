@@ -1,0 +1,165 @@
+schema: 17
+id: 1230e2698a73c03a9192e4aa94d48caa
+{
+  "snapshot": {
+    "id": "1230e2698a73c03a9192e4aa94d48caa",
+    "next_id": 2,
+    "nodes": {
+      "0": {
+        "Profile": {
+          "plane": {
+            "basis": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ],
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "loops": [
+            {
+              "Chain": [
+                {
+                  "At": [
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "mm"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length",
+                        "unit": "mm"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Param": {
+                          "name": "length",
+                          "dim": "Length"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "mm"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Param": {
+                          "name": "length",
+                          "dim": "Length"
+                        }
+                      },
+                      {
+                        "Param": {
+                          "name": "depth",
+                          "dim": "Length"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length",
+                          "unit": "mm"
+                        }
+                      },
+                      {
+                        "Param": {
+                          "name": "depth",
+                          "dim": "Length"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": "Start"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "1": {
+        "Extrude": {
+          "profile": 0,
+          "distance": {
+            "Param": {
+              "name": "thickness",
+              "dim": "Length"
+            }
+          }
+        }
+      }
+    },
+    "order": [
+      0,
+      1
+    ],
+    "roots": [
+      1
+    ],
+    "placements": {},
+    "params": {
+      "depth": {
+        "Continuous": {
+          "dim": "Length",
+          "value": 0.3
+        }
+      },
+      "length": {
+        "Continuous": {
+          "dim": "Length",
+          "value": 0.9
+        }
+      },
+      "thickness": {
+        "Continuous": {
+          "dim": "Length",
+          "value": 0.04
+        }
+      }
+    },
+    "epsilon": 1e-9,
+    "witnesses": {},
+    "metadata": {},
+    "appearance": []
+  },
+  "edits": []
+}
