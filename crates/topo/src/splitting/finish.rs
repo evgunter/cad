@@ -463,6 +463,16 @@ fn describe_section_boundary<T: Decide>(
                 // chart, which the edge lies in by construction.
                 // Carrier and interval travel verbatim (restated,
                 // never rebuilt), as does a declared authority.
+                //
+                // No second-order ladder here (the boolean's smooth
+                // arm runs one): a DETERMINATE smooth pair at the
+                // section boundary would be the split plane tangent to
+                // a curved wall, and the operand gate (planes and
+                // cylinders) plus the classifier's typed refusal of
+                // degenerate plane–conic crossings keep that edge from
+                // ever reaching this arm — every smooth pair here is a
+                // flush plane pair, whose exactly-zero jet is the
+                // under-determined regime.
                 Ok(geom_brep::DihedralClass::Smooth) => {
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
                         geom_brep::EdgeDescription::Chart(ref ch) => {
