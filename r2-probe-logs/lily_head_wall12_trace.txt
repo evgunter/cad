@@ -1,5 +1,0 @@
-R2-TRACE curved_face_arm: x_is=A edge=EdgeKey(8v1) face=FaceKey(4v1) covered=false
-R2-TRACE curved_face_arm: x_is=A edge=EdgeKey(8v1) face=FaceKey(5v1) covered=false
-R2-TRACE curved_face_arm: x_is=B edge=EdgeKey(4v1) face=FaceKey(3v1) covered=true
-R2-TRACE vertex_on_curved_face: face=FaceKey(3v1) verdict=None
-R2-TRACE vertex_on_curved_face: face=FaceKey(3v1) verdict=None

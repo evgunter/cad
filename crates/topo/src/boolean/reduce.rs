@@ -1041,10 +1041,6 @@ fn curved_face_arm<T: Decide>(
             .flatten()
             .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
     };
-    // R2 REVIEW TRACE (probe branch only, env-gated; not for merge).
-    if std::env::var_os("MATE2_R2_TRACE").is_some() {
-        eprintln!("R2-TRACE curved_face_arm: x_is={x_is:?} edge={edge_key:?} face={face:?} covered={covered}");
-    }
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
     // but the boolean's CROSSING layer for the kind — edge×NURBS-face
@@ -1697,10 +1693,6 @@ fn vertex_on_curved_face<T: Decide>(
 ) -> Result<Placement, BooleanError> {
     let verdict = super::contain::curved_face_containment(y, face, px, band)
         .map_err(|e| esc(e, x_is.other()))?;
-    // R2 REVIEW TRACE (probe branch only, env-gated; not for merge).
-    if std::env::var_os("MATE2_R2_TRACE").is_some() {
-        eprintln!("R2-TRACE vertex_on_curved_face: face={face:?} verdict={verdict:?}");
-    }
     match verdict {
         Some(FaceContainment::OnVertex(vy)) => {
             push_vv(contacts, x_is, vx, vy);

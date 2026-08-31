@@ -753,12 +753,6 @@ fn main() {
     // document-authored scene saved as a `.pncad` the viewer can open.
     // Not behind a feature — it authors the same documents the ordinary
     // run does and links nothing extra.
-    // R2 REVIEW DISPATCH (probe branch only; not for merge): run the
-    // lily wall probes alone, to re-measure wall 12 on both trees.
-    if outdir == "lily-walls" {
-        lily::wall_probes::<f64>(tol);
-        return;
-    }
     if outdir == "gallery" {
         gallery::run(std::env::args().nth(2), tol);
         return;
