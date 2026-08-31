@@ -51,7 +51,7 @@ fn schema_version_is_current() {
     // precedent): M9-1's own bump was v11; LIB-PLACEDUNION took v12,
     // ASM-R2a v13, ASM-R2b v14, M10-1 v15, LIB-G16 v16 and M10-2 v17,
     // and the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 18);
+    assert_eq!(SCHEMA_VERSION, 19);
 }
 
 /// The IMMEDIATE prior version refuses, from the real file. Named

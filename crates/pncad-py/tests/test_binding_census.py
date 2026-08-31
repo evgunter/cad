@@ -366,11 +366,13 @@ def audit_gap_ids():
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
-#:   `inch` because `in` is a Python keyword, a shift the stub comments
-#:   on at the declaration. (Not counted here: the table grows a row
-#:   whenever `quantity` does, and a number written beside it would
-#:   date at the next one.)
+#:   NOT: an arena key). The unit constants are lower-cased, and two
+#:   whose symbols are not Python identifiers shift further: `IN` is
+#:   `inch` because `in` is a keyword, and `PI` is `pi_rad` because its
+#:   symbol `pi rad` is two words. The stub comments on both at the
+#:   declaration. (Not counted here: the table grows a row whenever
+#:   `quantity` does, and a number written beside it would date at the
+#:   next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
@@ -383,7 +385,7 @@ BOUND_AS = {
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     "UnevaluatedReason": "Verdict.reason",
-    "PI": "pi",
+    "PI": "pi_rad",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -1052,6 +1054,7 @@ NOT_BOUND = {
     "eval": f"{GAP}: B-EXPR-READ an expression's value",
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",

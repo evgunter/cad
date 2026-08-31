@@ -150,7 +150,9 @@ pub use stl::{
 
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door: the checking
-// parser whose every reduction runs the Expr smart constructors.
+// parser whose every reduction runs the Expr smart constructors;
+// `unparse` is the same door outward, source text the parser reads
+// back as the same tree.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
 // surface (`crate::document`). `Datum` and `ParamEnv` ride here
@@ -166,7 +168,7 @@ pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
     Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
-    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
+    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
 
