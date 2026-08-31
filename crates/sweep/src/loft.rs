@@ -54,6 +54,7 @@ use std::sync::Arc;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError, newell_plane};
+use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
@@ -133,7 +134,16 @@ pub enum LoftError {
     /// The wall-boundary carrier extraction failed to re-wrap — a
     /// structurally corrupt skinned surface (unreachable from
     /// [`loft_geometry`] output; surfaced rather than swallowed).
-    SeamStructure,
+    ///
+    /// The payload is `geom_brep::boundary_iso_u`'s own refusal, which
+    /// says WHICH structural invariant the extracted row broke; that
+    /// door's `# Errors` section promises it is surfaced, and a
+    /// discarded one would make a kernel-bug report say only that a
+    /// kernel bug happened.
+    SeamStructure {
+        /// The iso-extraction refusal, carried rather than discarded.
+        source: SplineError,
+    },
     /// The end sections' loop/segment structure disagrees with the
     /// skinned geometry's — unreachable when both come from the same
     /// inputs; surfaced rather than swallowed.
@@ -164,10 +174,10 @@ impl fmt::Display for LoftError {
             Self::Euler(e) => write!(f, "loft assembly: {e}"),
             Self::CapPlane(e) => write!(f, "loft cap plane: {e}"),
             Self::Pcurve(e) => write!(f, "loft pcurve mint: {e}"),
-            Self::SeamStructure => write!(
+            Self::SeamStructure { source } => write!(
                 f,
                 "loft seam: a wall's boundary iso-curve failed to re-wrap (corrupt \
-                 skinned surface — kernel bug, not an input fault)"
+                 skinned surface — kernel bug, not an input fault): {source}"
             ),
             Self::SectionStructure => write!(
                 f,
@@ -534,7 +544,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         for j in 0..n {
             let wall_key = face_surface_key(&body, side_faces[li][j])?;
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
-                .map_err(|_| LoftError::SeamStructure)?;
+                .map_err(|source| LoftError::SeamStructure { source })?;
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(
                     wall_key,
