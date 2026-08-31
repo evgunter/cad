@@ -357,6 +357,22 @@ discipline() {
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
   fi
+  # The parsers behind the hosted test-cost REPORTS, against fixtures captured
+  # from real runs. The reports themselves have no local half and are not
+  # supposed to: their subject is what a hosted run cost and what a PULL
+  # REQUEST added to it — a `$GITHUB_STEP_SUMMARY` and a base tree, neither of
+  # which exists on this box. What DOES belong in both halves is the check that
+  # the parsers still read nextest's output, because a report that gates
+  # nothing has no red run to announce a parser that stopped matching.
+  # The same argument covers `base-test-listing.sh`, whose subject is even more
+  # hosted-only — an artifacts-API lookup — and whose selftest is therefore
+  # written against stub `cargo`, `gh` and `curl` and runs anywhere.
+  # HOSTED MIRROR: discipline / test cost report parsers (selftest)
+  if ! (python3 scripts/slowest-tests.py --selftest \
+        && python3 scripts/pr-added-tests.py --selftest \
+        && scripts/base-test-listing.sh --selftest); then
+    rc=1
+  fi
   return $rc
 }
 
@@ -726,7 +742,15 @@ interval_backend() {
     && cargo fmt --check \
     && cargo clippy --all-targets -- -D warnings \
     && cargo test) || return 1
-  if (cd interval-transcendentals && cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'); then
+  # The producer is tested before its output is — the argument is at the hosted
+  # copy of this row. `cargo tree | grep` takes grep's verdict, and grep with no
+  # input finds no match, so a failed `cargo tree` reads as a clean graph.
+  local tree
+  if ! tree=$(cd interval-transcendentals && cargo tree); then
+    echo "ERROR: \`cargo tree\` failed in interval-transcendentals — an unread graph is not a clean one"
+    return 1
+  fi
+  if printf '%s\n' "$tree" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
     echo "ERROR: the interval backend's default feature set reaches the gmp stack"
     return 1
   fi

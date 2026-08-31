@@ -376,3 +376,48 @@ disclosed in the method note). CERT-7 was sequenced AHEAD of CERT-6
 (orchestrator decision: CERT-6 calibrates on area lanes CERT-5
 rewrites, so it waits for CERT-5's merge; CERT-7 is file-disjoint).
 Reviews dispatch next, ordinals claimed at dispatch.
+
+## CERT-7 merged (2026-08-31) — issues 1005, 1007, 1008 closed; the offset_fit family certifies
+
+PR 1319 at ab8b6bad, gate green at BOTH lanes on the reviewed head
+d839dcef (run 33347440242, ε default) and the fix head (run
+33355836576, ε 1e-6) — four of six matrix points across the two
+runs, ε 1e-12 unsampled and no claim resting on it. The weighted
+composite certifies rational fits (the exact rational offset at
+2.837e-14 on one cell); recentring makes the certificate
+translation-honest (a micron offset a kilometre out went
+inf-refusal → the origin's own number, with the domain settled by a
+decade ladder to 1e6 and an honest refusal endpoint at 1e10);
+directional refinement takes the thin patch 308 → 14 cells with the
+stall guard's admission set now structural. RationalFitUnsupported
+removed under D2 row 0; RefinementStalled classified row 1 with the
+recorded row-2 minority reading (reclassify when A9.10's banked
+half lands).
+
+**The dual (ordinal 704, sample assigned at the row — see
+MODEL-AB-LOG)**: R1 opus 0/5/8, R2 fable 0/1/5, both A-W-F, ZERO
+MAJORs, no tally candidates. Notable convergences: both re-derived
+the composite algebra independently; R2's planted revert reproduced
+R1's 424× re-measurement exactly; both corroborated the stall
+guard's unreachability (~100 adversarial requests, zero stalls) —
+reframed by the fix pass as a PREDICATE-SHAPE verdict recorded at
+the site. Notable divergence settled by measurement: far-origin
+behavior at 1e7 (1.286×) vs 1e8 (tighter) — both correct, the
+bound is not monotone in the shift; the row now claims only what
+the ladder shows. Fix pass IMPLEMENTER-INHERITED, all 11 union
+items, one class instance found beyond the reviews' four (the
+sweep earning its keep); ceilings re-engineered to actually bind
+(tolerances raised 4×→8× first — recorded as a deviation with the
+argument); three planted corruptions verified the guards
+load-bearing in BOTH directions (floor and ceiling separately).
+
+En route, orchestrator-direct: the rustdoc broken-link red on the
+delivered head (the removal's one orphaned doc citation — the
+unit's variant sweep covered pins, not prose; CERT-7's dual brief
+was amended to ask for the full citation surface, and the fix
+pass's five-instance prose sweep closed the class). Issue 1321
+gained the achieved:inf fourth face from R2.
+
+Slate: CERT-5's fix pass is in flight (NMAI from its R2 — three
+bilateral MAJORs; delta re-review follows before its merge);
+CERT-6 dispatches after CERT-5 lands. CERT-8/9/10 then per plan.

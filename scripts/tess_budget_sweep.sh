@@ -21,6 +21,16 @@
 # debug-assertions (demos/tour/Cargo.toml), so this is not a lane with
 # the postconditions compiled out.
 #
+# THAT RATIO IS THIS FILE'S, AND IT IS UNGUARDED ON PURPOSE. It is an
+# undated reading on a developer box; nothing re-takes it, and nothing
+# could usefully — the hosted lane only ever runs the release arm, so
+# there is no debug number in any register to compare against, and a
+# threshold on a build-profile choice would be a timing assertion in a
+# gate's input. What the decision rests on is the SIGN and the decade,
+# not the endpoints. It is stated here rather than at the caller because
+# `.github/workflows/ci.yml`'s tess-budget step used to restate it and
+# the two copies were free to drift; that step now points here.
+#
 # By default the sweep also resamples |S - Pi| on every emitted
 # triangle, which is what fills `worst_dev` and so the report's `total`
 # column; `--sizing-only` skips it. The certified cell-count columns —

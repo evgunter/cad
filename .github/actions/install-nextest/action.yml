@@ -1,9 +1,22 @@
 # Install the PINNED cargo-nextest prebuilt, cached and retried.
 #
-# Every test-carrying job in ci.yml needs this binary (2 build jobs + 8
-# matrix legs across `test` / `test-interval`), so before this action each
-# CI run made ~10 independent fetches of get.nexte.st on the critical path
-# with no retry: one bad minute on that host red-lined the whole gate.
+# Every test-carrying job in ci.yml needs this binary — the build jobs
+# and every run leg across `test` / `test-interval` — so before this
+# action a CI run made one independent fetch of get.nexte.st per such job,
+# all on the critical path and none retried: one bad minute on that host
+# red-lined the whole gate.
+#
+# THE COUNT IS NOT WRITTEN HERE, and this line is why. It used to read
+# "2 build jobs + 8 matrix legs … ~10 fetches", which was true of the
+# unsampled matrix and stopped being true on 2026-08-22, when a run began
+# drawing ONE lane and ONE ε row (ci.yml's matrix note and
+# `scripts/ci-filter.py`'s CONFIGURATION SAMPLING note own that
+# arithmetic). Nothing re-took the number and nothing would have gone red
+# when it moved — a stale extracted count in a justification, which is
+# the shape this repository keeps finding. What the argument rests on is
+# that MORE THAN ONE job fetches concurrently on the critical path, which
+# both the sampled and the unsampled matrix satisfy.
+#
 # Two layers now stand between the gate and that host:
 #
 #   1. CACHE — same pattern as the FreeCAD AppImage in ci.yml (`step

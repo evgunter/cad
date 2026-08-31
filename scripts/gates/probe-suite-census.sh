@@ -224,7 +224,10 @@ CITING_FILES=(
 # or a milestone log RECORDS what CI did on the day it was written; the
 # step name in it is history and stays correct when the step is renamed.
 # `docs/SMELL-SCAN-2026-08.md` used to sit in CITING_FILES, which made a
-# 12,000-line living document a hard CI dependency on a literal string —
+# living document — 12,000 lines when this was written, and growing daily,
+# which is the point rather than the figure: nothing re-takes that count
+# and the argument is about the document's rate of change, not its size —
+# a hard CI dependency on a literal string —
 # every lane on every concurrent track edits it daily, and archiving or
 # reorganising it would have reddened the build for a reason its diff
 # could not explain. Removing it is not narrowing the guard: the rename

@@ -34,6 +34,25 @@ bvh = { path = "../bvh" }
 # anything now that it did not compile before.
 editor-core = { path = "../editor-core" }
 
+# The preferences document's format (`crates/viewer/src/prefs.rs`).
+#
+# A real dependency rather than a hand-rolled parser: TOML is not the
+# trivial grammar it looks like, and a format chosen BECAUSE people
+# hand-edit it is the last place to want a parser nobody has fuzzed.
+# Read through `toml::Table` — the dynamic door — and written by hand,
+# so no `serde` derive machinery enters for four keys and so the
+# emitted file keeps the comments that are its whole justification
+# over an opaque blob.
+#
+# Chosen over eframe's own `persistence` feature, which was the other
+# way to get preferences: that pulls `ron` AND `directories` and
+# writes a blob no person can open, which forfeits the reason to keep
+# preferences in a file at all.
+#
+# 1.1.4 (2026-07-28, a month old — past the ~2-week age policy),
+# MIT OR Apache-2.0, MSRV 1.85 under the pinned 1.97.0, 55 kB.
+toml = "1.1.4"
+
 # --- the `app` feature's toolkit graph (GQ6: egui; OQ-b: egui_tiles) ---
 #
 # Every entry here is optional and reached only through `app`. The
