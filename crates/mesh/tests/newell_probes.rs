@@ -171,7 +171,13 @@ fn probe_d_huge_offset_tiny_face() {
     let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");
     // `signed_volume` recentres on the mesh's bbox centre, so its
     // fold operands scale with the body, not the placement — it is
-    // the honest oracle here directly.
+    // the honest oracle here directly. Diagnostic locality: a
+    // signed_volume regression therefore reds this chart-frame-named
+    // probe too. Near-duplicate of the huge-offset row in
+    // `issue303_signed_volume_recentring.rs` (same fixture, oracle,
+    // bar), kept deliberately: this probe reads the value inside the
+    // newell-probe family's tessellate-or-typed harness; that row is
+    // the defect's dedicated gate.
     let v = signed_volume(&m);
     // Positions are ~1e8 with ulp ~1.5e-8 against 1e-3 edges: ~1.5e-5
     // relative slop per coordinate — accept 1e-4.

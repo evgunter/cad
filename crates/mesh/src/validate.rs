@@ -96,12 +96,34 @@ pub fn check_mesh(mesh: &Mesh) -> Result<(), MeshError> {
 /// positions' bbox centre — positive for outward-wound closed meshes
 /// (the global orientation invariant).
 ///
-/// Recentring on `o` is exact over ℝ: for a closed mesh the sum is
-/// translation-invariant (the anchor's extra terms assemble the
-/// surface's total area vector, which is zero), so any `o` measures
-/// the same volume — and a body-interior `o` keeps the fold's
-/// operands at the body's own scale, where a world-origin anchor
-/// pays cancellation proportional to the placement distance.
+/// Two distinct properties, with distinct premises:
+///
+/// * **Translation invariance holds unconditionally** — open or
+///   closed: `o` is derived from the positions, so translating the
+///   mesh translates `o` with it and every operand `p − o` is
+///   unchanged (equivariance).
+/// * **Equality to the enclosed volume needs a CLOSED mesh.** Over ℝ
+///   the sum is anchor-independent exactly when the anchor's extra
+///   terms assemble the surface's total area vector — zero iff the
+///   mesh is closed — so for a closed mesh any `o` measures the
+///   enclosed volume. For an OPEN mesh the value is the signed volume
+///   of the cone from `o` over the triangles: placement-stable (see
+///   above) but anchor-dependent, and NOT an enclosed volume.
+///
+/// Numerically, the position-derived anchor keeps the fold's operands
+/// at the body's own scale (body-SCALE, not necessarily interior — a
+/// non-convex body's bbox centre can sit outside the material), where
+/// a world-origin anchor pays cancellation proportional to the
+/// placement distance. The bbox folds over ALL positions rather than
+/// only triangle-referenced ones: in meshes this crate mints every
+/// position lies on the body's surface (topology vertices, edge chord
+/// points, face grid points), so the two sets share a bbox — and any
+/// body-scale anchor serves regardless.
+///
+/// Validity is [`check_mesh`]'s contract, not this fold's: a corrupt
+/// mesh whose triangles reference a missing position gets
+/// `IndexOutOfRange` there, while here it panics on the index — except
+/// the empty-positions case, which returns a quiet 0.0.
 pub fn signed_volume(mesh: &Mesh) -> f64 {
     let Some(&first) = mesh.positions.first() else {
         return 0.0;
