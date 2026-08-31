@@ -461,24 +461,18 @@ fn a_consistent_sibling_loop_declares_and_verifies() {
 
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev, Tol::witness());
-    match &result {
-        Ok(assembly) => {
-            assert_eq!(
-                assembly.minted.len(),
-                2,
-                "both seats minted their declarations"
-            );
-        }
-        Err(AssemblyError::Uncertified { findings, .. }) => {
-            assert!(
-                findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, editor_core::Attribution::Declined(_))),
-                "an uncertified frontier is declines only — nothing refuted: {findings:?}"
-            );
-        }
-        Err(other) => panic!("a consistent loop verifies; the gate said: {other}"),
-    }
+    // The branch this fixture takes is `Ok` with both declarations
+    // minted — asserted hard, so the row reds if loop verification
+    // degrades to an uncertified frontier (or any refusal) rather than
+    // absorbing the degradation.
+    let Ok(assembly) = &result else {
+        panic!("a consistent loop verifies; the gate said: {result:?}");
+    };
+    assert_eq!(
+        assembly.minted.len(),
+        2,
+        "both seats minted their declarations"
+    );
 }
 
 /// INVARIANT (the same clause, the other direction): an INCONSISTENT
@@ -519,18 +513,20 @@ fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
 /// INVARIANT (ratified pin): a seat satisfiable only at a DIFFERENT
 /// spacing is refused with the measured clash — the recourse is to
 /// edit the parameter, and nothing anywhere back-solves it. The
-/// pattern is authored at spacing 3 under a `[0, 2]` top whose sibling
-/// seat would hold only at spacing 1: the gate refuses naming that
-/// seat, the document's spacing expression is untouched, and the
-/// solved poses sit at the AUTHORED spacing.
+/// pattern is authored at spacing 3 under a `[0, 2.5]` top whose
+/// sibling seat holds at spacing 1.5: the gate refuses naming that
+/// seat, the document's spacing expression is untouched, the solved
+/// poses sit at the AUTHORED spacing — and the parameter EDIT (the
+/// pin's recourse) verifies the same seat.
 #[test]
 fn mates_never_solve_pattern_parameters() {
-    let (doc, pattern, [m0, m1], store) = two_seats("mate1-pin-spacing", 3.0, (0.0, 2.0));
+    let (doc, pattern, [m0, m1], store) = two_seats("mate1-pin-spacing", 3.0, (0.0, 2.5));
     let poses = solve_document(&doc, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
 
-    let ev = run(&doc, &opts(store));
+    let o = opts(store);
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("the unsatisfiable seat refuses at verification, got {result:?}");
@@ -553,6 +549,88 @@ fn mates_never_solve_pattern_parameters() {
         spacing.bit_eq(&len(3.0)),
         "the spacing expression is untouched: {spacing:?}"
     );
+
+    // The recourse the pin promises: EDIT the parameter. At the
+    // satisfiable spacing the same seat verifies — the gate certifies
+    // the document with both declarations minted.
+    let (repaired, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: pattern,
+            slot: editor_core::SlotId::Spacing,
+            expr: len(1.5),
+        },
+    );
+    let ev = run(&repaired, &o);
+    let result = assemble(&repaired, &ev, Tol::witness());
+    let Ok(assembly) = &result else {
+        panic!("the edited spacing satisfies the seat, got {result:?}");
+    };
+    assert_eq!(
+        assembly.minted.len(),
+        2,
+        "both seats verify at the edited spacing"
+    );
+}
+
+/// INVARIANT: the literal CONTRADICTORY refusal is reachable through a
+/// pattern-member pair — two mates on the SAME copy whose cosets
+/// cannot meet die in the per-pair fold with the measured clash,
+/// exactly as a plain pair's would. The derived offset is a static
+/// left factor OUTSIDE the fold, so it cannot absorb the clash.
+#[test]
+fn conflicting_mates_on_one_copy_refuse_contradictory() {
+    let mut store = StubStore::default();
+    let leg_ref = store.insert(leg_part("mate1-contra-leg"), Tol::witness());
+    let top_ref = store.insert(leg_part("mate1-contra-top"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
+    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: leg,
+            count: Expr::count(2),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
+    let seat = |origin| {
+        seat_mate(
+            in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
+            in_part(top, CapEnd::Bottom),
+            origin,
+            AxisSense::Aligned,
+        )
+    };
+    let (doc, m0) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: seat([0.0, 0.0, 1.0]),
+        },
+    );
+    let (doc, m1) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: seat([0.5, 0.0, 1.0]),
+        },
+    );
+    let m0 = m0.expect("mate 0 mints");
+    let m1 = m1.expect("mate 1 mints");
+
+    let poses = solve_document(&doc, Tol::witness());
+    let fault = poses.fault(m0).expect("the pair's fold refuses");
+    assert!(
+        matches!(
+            fault,
+            editor_core::MateFault::Contradictory { held, added, .. }
+                if *held == m0 && *added == m1
+        ),
+        "two seats on one copy that cannot both hold die in the fold: {fault:?}"
+    );
+    let _ = store;
 }
 
 // ---- Pin 2: `Instance(i)` heads are canonical ----
