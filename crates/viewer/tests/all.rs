@@ -62,6 +62,8 @@ mod focus_highlight;
 mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
+#[path = "instance_authoring.rs"]
+mod instance_authoring;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "panel_display.rs"]
