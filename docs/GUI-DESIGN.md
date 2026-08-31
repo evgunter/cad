@@ -206,6 +206,23 @@ Because the marks are *mixed over* the body colour rather than
 replacing it, what any such check must measure is the composited
 colour, never the raw tint.
 
+**Preferences are remembered in a file people can open**, at
+`$XDG_CONFIG_HOME/pncad/viewer.toml` — hand-editable TOML, chosen over
+eframe's `persistence` blob for exactly that reason. The document is a
+value and the storage is one thin edge over a `String`, so the browser
+build's `localStorage` store is a second impl rather than a retrofit;
+until it exists the web arm reports `Absent` and disables saving, the
+same posture `frame::chooser_backend` takes where no portal exists.
+
+The failure posture is deliberately **softer than the document
+path's**, because a preferences file holds no work: malformed TOML
+refuses, an unknown KEY reports and the rest of the file still
+applies, and an unknown VALUE reports and falls back to the default. A
+name typed on the command line is refused instead of falling back —
+same word, different provenance, different answer: a file is a memory
+of an older session and may name a theme since renamed, where a
+typed name is a typo worth showing.
+
 ## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16 and its remaining rows settled in the v1 GUI units; GQ7 slimmed by the SELECT-DESIGN re-homing, its remainder deferred to sketcher/tree design)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection

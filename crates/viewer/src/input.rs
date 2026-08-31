@@ -220,16 +220,59 @@ pub struct InputMap {
 
 impl Default for InputMap {
     fn default() -> Self {
-        Self {
-            // A full turn across roughly 800 px of drag.
-            orbit_radians_per_px: 0.008,
-            zoom_rate_per_notch: 0.1,
-            orbit_button: PointerButton::Middle,
-            alt_orbit_button: PointerButton::Primary,
-            pan_button: PointerButton::Secondary,
-            select_button: PointerButton::Primary,
-        }
+        Self::DEFAULT
     }
+}
+
+impl InputMap {
+    /// The bindings a viewer starts with.
+    ///
+    /// A `const` so [`PRESETS`] can name it, with [`Default`] above
+    /// returning it: one set of numbers, reachable both ways, rather
+    /// than a registry entry that can drift from the default it
+    /// claims to be.
+    pub const DEFAULT: Self = Self {
+        // A full turn across roughly 800 px of drag.
+        orbit_radians_per_px: 0.008,
+        zoom_rate_per_notch: 0.1,
+        orbit_button: PointerButton::Middle,
+        alt_orbit_button: PointerButton::Primary,
+        pan_button: PointerButton::Secondary,
+        select_button: PointerButton::Primary,
+    };
+}
+
+/// The registered input presets, by the name a preferences file uses.
+///
+/// **A registry of one, and deliberately shaped like
+/// [`crate::theme::Theme::ALL`]** — same lookup, same refusal on a
+/// name nobody registered, same place a second entry goes.
+///
+/// It is worth being exact about what this does and does not reserve,
+/// because the name "preset" invites the wrong reading. [`InputMap`]
+/// binds MICE: two rate scalars and four buttons. **There is no
+/// keyboard-binding vocabulary in this crate at all** — no key
+/// denotes an operation anywhere, so a modal or vim-shaped preset is
+/// not a row that can be added here. It needs that vocabulary built
+/// first: which key means which `CameraOp`/`SessionOp`, how modal
+/// state is held, how a chord is represented.
+///
+/// What this reserves is the door and the naming: a preferences file
+/// may say which preset it wants, an unknown name is refused rather
+/// than silently ignored, and the day a real second preset exists it
+/// plugs in here without the file format changing shape.
+pub const PRESETS: &[(&str, InputMap)] = &[("default", InputMap::DEFAULT)];
+
+/// The registered preset called `name`, if there is one.
+///
+/// `None` rather than a fallback, for [`crate::theme::Theme::by_name`]'s
+/// reason: a name nobody registered is a typo, and silently binding
+/// something else would hide it.
+pub fn preset_by_name(name: &str) -> Option<InputMap> {
+    PRESETS
+        .iter()
+        .find(|(registered, _)| *registered == name)
+        .map(|(_, map)| *map)
 }
 
 impl InputMap {
