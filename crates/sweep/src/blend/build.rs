@@ -224,29 +224,22 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 ///
 /// **The pick always yields, over one corner.** [`CornerLinks`] carries
 /// at least one link and [`CornerFaces::third`] is total over the
-/// corner's own three distinct faces, so there is no "no candidate
-/// here" state to refuse.
+/// corner's own three faces, so there is no "no candidate" state left.
 ///
-/// **The two tokens are checked to describe the same corner**, because
-/// nothing in their types says so: `faces` is walked from a vertex
-/// orbit, `links` comes from the battery's resolved arms, and
-/// [`CornerLinks`] proves only that each link TERMINATES at its
-/// vertex. **Today's one call site derives both from the same vertex
-/// two statements apart** ([`super::surgery`]'s corner plan), so the
-/// check cannot fire — it is here so that a future caller assembling
-/// them from further apart fails loudly instead of silently, which is
-/// the direction this particular value fails in: the chart is a sphere
-/// face's `u_ref`/`axis`, so a wrong one still closes, still passes
-/// tiers 1 and 2, and would surface only as a tier-3
-/// `NotIsoRectangle` at a corner whose geometry is right.
+/// **That the two tokens are ONE corner's is checked, not assumed** —
+/// no type says it, and [`CornerLinks`] proves only that a link
+/// terminates at its vertex. Today's one call site pairs them by
+/// construction ([`super::surgery`]'s corner plan), so the check
+/// cannot fire; it guards future mis-wiring, and this value is worth
+/// guarding because it fails silently — a wrong `u_ref`/`axis` still
+/// closes and still passes tiers 1 and 2.
 ///
 /// # Errors
 ///
 /// [`BlendError::BodyNotIntact`] when `faces` and `links` are not the
-/// same corner's, or when an incident link's supports are not two of
-/// this corner's three faces;
-/// [`BlendError::UnsupportedGeometry`] when a support of this corner
-/// is not a plane.
+/// same corner's, or when a link's supports are not two of this
+/// corner's three; [`BlendError::UnsupportedGeometry`] when a support
+/// of this corner is not a plane.
 pub(super) fn octant_chart<T: Decide + Bounds>(
     body: &Body<T>,
     faces: &CornerFaces,
