@@ -2565,14 +2565,39 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
     }
 }
 
-/// The lever arms that turn a chart-space overshoot into metres: the
-/// azimuth arm of a periodic chart, and the second parameter's.
+/// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
+/// the lever arms that turn a chart-space overshoot into metres, one
+/// per chart parameter, valid over the WHOLE chart.
+///
+/// # What this bounds, and what it must not be used for
+///
+/// Each component **dominates** the true local stretch everywhere on
+/// the chart: `|S_u(u, v)| ≤ arm_u` and `|S_v(u, v)| ≤ arm_v` at
+/// every `(u, v)` of the chart's domain. It is therefore
+/// **sup-side by construction and is NOT a lower bound**. Quoting it
+/// where an `inf` is wanted is unsound, and the two uses split like
+/// this:
+///
+/// - **ESCAPE metering (sound).** A claim of the form *"this
+///   chart-space displacement does not move the point out of the
+///   band"* — trim containment, loop continuity, an azimuth-period
+///   headroom. Over-stating the arm inflates the metred displacement,
+///   which can only make the in-band verdict HARDER to obtain: the
+///   error direction refuses, it never falsely certifies.
+/// - **POSITIVE-extent claims (UNSOUND).** A claim of the form *"this
+///   chart-space region has definitely-positive model-space extent"*.
+///   An over-stated arm inflates the extent and would certify a
+///   model-space sliver as definitely positive. That direction needs
+///   certified LOWER bounds (`inf |S_u|`, `inf |S_v|`), which are a
+///   different derivation and carry a different name; nothing here
+///   may be read as one.
 ///
 /// A sphere's true azimuth arm is `r·cos v ≤ r`, so quoting `r`
 /// **over**-states the escape and can only make containment harder —
 /// the safe direction, and the same posture the cylinder arm takes
-/// exactly. A plane chart's parameters are already metres.
-fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
+/// exactly. A plane chart's parameters are already metres, so its
+/// arms are exactly `(1, 1)` by construction rather than by default.
+pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (T, T) {
     match *surface {
         Surface::Cylinder { radius, .. } => (radius, T::one()),
         // The sphere/torus second parameter IS an angle (M6-3): its
@@ -2619,11 +2644,11 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
     }
 }
 
-/// [`chart_arms`] with the containment check's own boxes in hand: the
-/// cone's azimuth arm becomes `v_sup·sin α` with `v_sup` the larger
-/// `|v|` reach of the pcurve's box and the window (dominating the
+/// [`chart_stretch_sup`] with the containment check's own boxes in
+/// hand: the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup`
+/// the larger `|v|` reach of the pcurve's box and the window (dominating the
 /// local arm everywhere either object lives — the safe direction);
-/// every other kind answers as [`chart_arms`].
+/// every other kind answers as [`chart_stretch_sup`].
 fn chart_arms_at<T: Real>(
     surface: &Surface<T>,
     boxed: &ChartWindow<T>,
@@ -2639,7 +2664,7 @@ fn chart_arms_at<T: Real>(
                 .max(window.v_max.abs());
             (azimuth_lever(surface, v_sup), T::one())
         }
-        _ => chart_arms(surface),
+        _ => chart_stretch_sup(surface),
     }
 }
 

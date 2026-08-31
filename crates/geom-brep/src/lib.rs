@@ -110,7 +110,7 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
-    PcurveCheck, PcurveFittedLane, chart_pcurve,
+    PcurveCheck, PcurveFittedLane, chart_pcurve, chart_stretch_sup,
 };
 pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
 pub use ssi::{

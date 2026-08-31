@@ -932,27 +932,47 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Result<bool, Pc
     Ok(edge.he_plus == half_edge)
 }
 
-/// The azimuth lever arm of a chart (metres per radian) — how an
-/// azimuth discrepancy is metered against the linear band (D4 ¶1: no
-/// UV-space tolerance ever reaches ε).
+/// The FIRST-CHANNEL lever arm of a chart at second-parameter value
+/// `v` — the metres a unit step of the chart's `u` moves the mapped
+/// point (D4 ¶1: no UV-space tolerance ever reaches ε).
 ///
-/// NURBS charts take the unit arm deliberately: the iso lane's loop
-/// corners are EXACT chart values by construction (`0`/`1` boundary
-/// isos meeting cap rims whose affine maps are pinned at `t0 ↦ 0`,
-/// `t1 ↦ 1`), so the continuity margins metered here are exactly zero
-/// on every minted body and the arm never converts a real
-/// displacement. The honest per-chart stretch arm exists
-/// (`geom_brep`'s iso-lane certification uses it); threading it here
-/// would change no decision on any mintable input.
-/// The LOCAL azimuth lever arm of a chart at second-parameter value
-/// `v` — the metres an azimuth radian moves the mapped point *at that
-/// latitude*: cylinder `r`, sphere `|r·cos v|`, torus `|R + r·cos v|`,
-/// cone `|v·sin α|`. This is the honest metering for a joint gap
-/// (D4 ¶1): at a sphere pole or a cone apex the lever is exactly
-/// zero, because the chart azimuth genuinely does not move the point
-/// there — a loop meeting itself at a pole has no azimuth-continuity
-/// obligation, and pretending otherwise (a global sup arm) refuses
-/// every octant corner.
+/// On the azimuth charts this is the LOCAL lever at that latitude:
+/// cylinder `r`, sphere `|r·cos v|`, torus `|R + r·cos v|`, cone
+/// `|v·sin α|`. Local is the honest metering for a joint gap — at a
+/// sphere pole or a cone apex the lever is exactly zero, because the
+/// chart azimuth genuinely does not move the point there, so a loop
+/// meeting itself at a pole has no azimuth-continuity obligation and
+/// a global sup arm would refuse every octant corner.
+///
+/// On the non-azimuth charts there is no latitude and the arm is a
+/// chart constant: a plane's `u` IS metres, so its arm is exactly 1
+/// by construction; a spline chart's `u` is the net's own parameter,
+/// whose metre stretch is whatever the net says.
+///
+/// # Direction of error: why the spline arm is the SUP bound
+///
+/// Every caller of this function divides a chart-space discrepancy
+/// against the linear band and asks whether the mapped points are
+/// within ε — an ESCAPE claim in both of its two uses, and the sup
+/// bound is the conservative side of each:
+///
+/// - `pcurve_loop_continuity` asks *"does this joint gap keep the
+///   loop closed?"*. An OVER-stated arm over-states the metre gap,
+///   which can only turn a `Zero` (closed) into a definite
+///   discontinuity or an escalation. It refuses; it cannot certify a
+///   loop closed across a gap the model can see. An UNDER-stated arm
+///   does the reverse, and `1` on a chart whose stretch is 100 m per
+///   chart unit under-states by exactly that factor.
+/// - `pcurve_loop_pole_joint` asks *"is this lever zero, so that no
+///   azimuth shift can select a branch?"*. Here too sup is the safe
+///   side: `Zero` under the SUP bound means no `u` displacement
+///   anywhere on the chart moves the point past the band, so skipping
+///   the branch shift is honest. Under an inf reading the same
+///   verdict would claim a collapsed lever on a chart that has one.
+///
+/// `geom_brep::chart_stretch_sup` is that bound and states the same
+/// split at the export; it is emphatically not a lower bound, and
+/// nothing here may be read as one.
 fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } => radius,
@@ -963,9 +983,13 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
             ..
         } => (major_radius + minor_radius * v.cos()).abs(),
         Surface::Cone { half_angle, .. } => (v * half_angle.sin()).abs(),
-        // Non-periodic charts: the plane's parameters are metres, and
-        // both spline kinds' are the net's own — no azimuth to lever.
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::one(),
+        // The plane answers exactly 1 through this door (its chart
+        // parameters ARE metres), and each spline kind answers its
+        // net's own `sup |S_u|` — a placeholder payload, which has no
+        // net to bound, answers 1 there too.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            geom_brep::chart_stretch_sup(surface).0
+        }
     }
 }
 
@@ -1046,6 +1070,21 @@ fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
         | Surface::Nurbs(_)
         | Surface::Approx(_) => None,
     }
+}
+
+/// The SECOND channel's metre rate for a loop-continuity gap — the
+/// `v` companion of [`azimuth_arm`], and the same escape claim.
+///
+/// Where the channel is an angle ([`polar_arm`]: sphere, torus) the
+/// arm is that exact radius. Where it is not, the channel's metre
+/// rate is the chart's `sup |S_v|`: exactly 1 on a plane, cylinder or
+/// cone, where `v` IS a length, and the net's own stretch on a spline
+/// chart, where it is not. The direction argument is
+/// [`azimuth_arm`]'s — an over-stated rate can only refuse a closure,
+/// while `1` on a chart with a 100 m/unit stretch under-states the
+/// metre gap by that factor and certifies a loop closed across it.
+fn v_meter<T: Real>(surface: &Surface<T>) -> T {
+    polar_arm(surface).unwrap_or_else(|| geom_brep::chart_stretch_sup(surface).1)
 }
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
@@ -1383,7 +1422,7 @@ fn walk_loop<T: PcurveFittedLane>(
         // second channel directly where it is a length, through the
         // polar arm where it is an angle (sphere/torus, M6-3).
         let v_arm = polar_arm(surface);
-        let v_meter = v_arm.unwrap_or_else(T::one);
+        let v_meter = v_meter(surface);
         let pcurve = match prev_exit {
             None => base,
             Some(prev) => {
@@ -1628,7 +1667,7 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
             }
         }
         // Pass 3: the one-branch loop continuity of the STORED pcurves.
-        let v_meter = polar_arm(&surface).unwrap_or_else(T::one);
+        let v_meter = v_meter(&surface);
         for cycle in &cycles {
             let mut prev_exit: Option<geom_core::Point2<T>> = None;
             let mut first_entry: Option<geom_core::Point2<T>> = None;
@@ -1939,5 +1978,154 @@ pub(crate) mod staleness_posture {
             minting.len(),
             declared.len(),
         );
+    }
+}
+
+/// The chart-stretch meter rows: the arms these loop-continuity
+/// margins are metred by, and the direction each claim needs.
+#[cfg(test)]
+mod stretch_meter {
+    #![allow(clippy::unwrap_used, clippy::float_cmp)]
+
+    use super::{azimuth_arm, v_meter};
+    use geom::{NurbsSurface, Surface};
+    use geom_core::k_stats::decide;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Margin, Point3, Sign, Vec3};
+    use std::sync::Arc;
+
+    /// The band every row here pins explicitly: `zero = 1e-9`,
+    /// `escalate = 1e-8`. Pinned rather than read from the run's
+    /// tolerance so the digits below mean the same thing at every ε
+    /// the sweep runs.
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// A bilinear NURBS chart on `[0, 1]²` whose image is a flat
+    /// `span × span` metre square: `S(u, v) = (span·u, span·v, 0)`,
+    /// so `|S_u| = |S_v| = span` EVERYWHERE — the chart's metre
+    /// stretch is exactly `span`, not 1.
+    fn flat_chart(span: f64) -> Surface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, span, 0.0),
+            Point3::new(span, 0.0, 0.0),
+            Point3::new(span, span, 0.0),
+        ];
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+        ))
+    }
+
+    fn plane() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **The red-first row, azimuth channel.** A 100× chart maps a
+    /// `1e-10` chart-unit u gap to `1e-8` metres — a DEFINITE
+    /// discontinuity at the pinned band. Metred by 1 it reads `1e-10`
+    /// and certifies `Zero`: the loop closes on a gap the kernel can
+    /// see. The arm is the whole of the defect.
+    #[test]
+    fn a_stretched_nurbs_chart_meters_its_azimuth_gap_in_metres() {
+        let s = flat_chart(100.0);
+        let arm = azimuth_arm(&s, 0.0);
+        assert_eq!(arm, 100.0, "the chart's own metre stretch, not 1");
+        let gap = 1e-10;
+        assert_eq!(
+            decide("pcurve_loop_continuity", Margin::levered(gap, arm), band()),
+            Ok(Sign::Positive),
+            "1e-10 chart units × 100 m/unit = 1e-8 m, at the escalate edge"
+        );
+        assert_eq!(
+            decide("pcurve_loop_continuity", Margin::levered(gap, 1.0), band()),
+            Ok(Sign::Zero),
+            "the under-stated arm certifies the same loop closed"
+        );
+    }
+
+    /// **The red-first row, second channel.** Same digits, `v_meter`.
+    #[test]
+    fn a_stretched_nurbs_chart_meters_its_second_channel_in_metres() {
+        let s = flat_chart(100.0);
+        let meter = v_meter(&s);
+        assert_eq!(meter, 100.0);
+        let gap = 1e-10;
+        assert_eq!(
+            decide(
+                "pcurve_loop_continuity",
+                Margin::metered(gap, meter),
+                band()
+            ),
+            Ok(Sign::Positive)
+        );
+        assert_eq!(
+            decide("pcurve_loop_continuity", Margin::metered(gap, 1.0), band()),
+            Ok(Sign::Zero)
+        );
+    }
+
+    /// **The scale twin.** The same loop at a uniform 1e3 scale: the
+    /// arm scales exactly with the model, so a chart gap that was
+    /// `1e-8` m is `1e-5` m — the metering carries the scale rather
+    /// than fixing a metre size into the chart.
+    #[test]
+    fn the_stretch_arm_carries_a_uniform_scale() {
+        let small = flat_chart(100.0);
+        let large = flat_chart(100.0e3);
+        assert_eq!(azimuth_arm(&large, 0.0), azimuth_arm(&small, 0.0) * 1e3);
+        assert_eq!(v_meter(&large), v_meter(&small) * 1e3);
+    }
+
+    /// **The plane arm is 1 by construction, not by default**, and
+    /// stays bit-identical: a plane chart's u and v ARE metres.
+    #[test]
+    fn a_plane_chart_keeps_its_exact_unit_arms() {
+        let p = plane();
+        assert_eq!(azimuth_arm(&p, 0.0), 1.0);
+        assert_eq!(azimuth_arm(&p, 0.7), 1.0);
+        assert_eq!(v_meter(&p), 1.0);
+    }
+
+    /// **Three-outcome posture on the newly-honest arm.** A chart gap
+    /// whose metred size lands INSIDE the band escalates typed rather
+    /// than picking a side: `5e-11 × 100 = 5e-9 ∈ (1e-9, 1e-8)`.
+    #[test]
+    fn an_in_band_metred_gap_escalates_rather_than_deciding() {
+        let s = flat_chart(100.0);
+        let arm = azimuth_arm(&s, 0.0);
+        assert!(
+            decide(
+                "pcurve_loop_continuity",
+                Margin::levered(5e-11, arm),
+                band()
+            )
+            .is_err(),
+            "in-band residue is the third outcome, not a verdict"
+        );
+        assert_eq!(
+            decide(
+                "pcurve_loop_continuity",
+                Margin::levered(5e-12, arm),
+                band()
+            ),
+            Ok(Sign::Zero),
+            "5e-10 m is honestly closed"
+        );
+    }
+
+    /// A placeholder payload has no net to bound, so it keeps the
+    /// unit arms — the one NURBS chart for which 1 is not a default.
+    #[test]
+    fn a_placeholder_chart_keeps_unit_arms() {
+        let s: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
+        assert_eq!(azimuth_arm(&s, 0.0), 1.0);
+        assert_eq!(v_meter(&s), 1.0);
     }
 }
