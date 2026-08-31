@@ -89,6 +89,8 @@ mod blend2_r2_probes;
 mod blend3_concave_chamfer;
 #[path = "blend3_r2_probes.rs"]
 mod blend3_r2_probes;
+#[path = "blend4_concave_fillet.rs"]
+mod blend4_concave_fillet;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
 #[path = "blend_seam_split_rim.rs"]
