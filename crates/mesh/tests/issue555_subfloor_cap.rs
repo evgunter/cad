@@ -50,13 +50,24 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 /// position carries off-plane noise `z = x·ν` and no exactly-equal
 /// input column exists — the signature's minimal carrier.
 fn skewed_prism(nu: f64, poly: &[(f64, f64)], h: f64) -> Body<f64> {
+    skewed_prism_ringed(nu, poly, &[], h)
+}
+
+/// The same, with an optional inner ring — the ringed/concentric
+/// geometry that seats boundary vertices on anchor→through-chord
+/// diagonals by symmetry rather than by accident.
+fn skewed_prism_ringed(nu: f64, outer: &[(f64, f64)], ring: &[(f64, f64)], h: f64) -> Body<f64> {
     let plane = SketchPlane::from_frame(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, nu),
         Vec3::new(0.0, 1.0, 0.0),
     );
+    let mut loops = vec![lp(outer)];
+    if !ring.is_empty() {
+        loops.push(lp(ring));
+    }
     extrude(
-        &validated(plane, vec![lp(poly)]),
+        &validated(plane, loops),
         Extrusion::Distance(h),
         Tol::witness(),
     )
@@ -88,6 +99,50 @@ fn subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta() {
             assert_eq!(check_mesh(&m), Ok(()), "{label}: not watertight");
             let v = signed_volume(&m);
             assert!((v - 2.0).abs() < 1e-9, "{label}: volume {v}");
+        }
+    }
+}
+
+/// The RINGED half of the class, which the sited far-point write does
+/// NOT reach and the `mitigate_underflow` floor does.
+///
+/// A point lying on an anchor→through-chord diagonal has an exact-zero
+/// v by GEOMETRY rather than by the frame's construction, so it carries
+/// the same ~ν² residue and lands in the same sub-floor band — but the
+/// frame does not know which point that is, and the write is scoped to
+/// the one point it can name. On concentric geometry those points are
+/// seated by SYMMETRY, not by accident: both fixtures below put ring
+/// vertices on such diagonals, and both refused across the ν ladder
+/// with the far-point write alone.
+///
+/// Same ν² law and same ~1e-20…1e-22 threshold as the far-point defect,
+/// which is the evidence that it is one class and not two.
+#[test]
+fn ringed_and_concentric_charts_no_longer_refuse_sub_floor() {
+    // A 2x1 plate with a rectangular hole, and a square annulus.
+    let plate_ring = [(0.5, 0.25), (1.5, 0.25), (1.5, 0.75), (0.5, 0.75)];
+    let sq_outer = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let sq_ring = [(-0.4, -0.4), (-0.4, 0.4), (0.4, 0.4), (0.4, -0.4)];
+    for exp in [-15i32, -20, -22, -25, -30, -45, -50, -60] {
+        let nu = 10.0f64.powi(exp);
+        for (name, body, want) in [
+            (
+                "plate-with-hole",
+                skewed_prism_ringed(nu, &RECT, &plate_ring, 1.0),
+                2.0 - 0.5,
+            ),
+            (
+                "square-annulus",
+                skewed_prism_ringed(nu, &sq_outer, &sq_ring, 1.0),
+                4.0 - 0.64,
+            ),
+        ] {
+            let label = format!("{name} noise-1e{exp}");
+            let m = tessellate(&body, 1e-2, Tol::witness())
+                .unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
+            assert_eq!(check_mesh(&m), Ok(()), "{label}: not watertight");
+            let v = signed_volume(&m);
+            assert!((v - want).abs() < 1e-9, "{label}: volume {v}, want {want}");
         }
     }
 }
