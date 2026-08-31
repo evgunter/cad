@@ -781,7 +781,10 @@ pub fn highlight(
 /// parameter is every face of every feature that parameter drives.
 /// Selecting an extrude in the feature tree lights its walls; clicking
 /// one of those walls lights the same set, with the picked patch
-/// additionally tinted by `highlight`.
+/// additionally tinted by `highlight` — and that holds however many
+/// features later carried the wall, because a click resolves to the
+/// feature that MADE the face (`FaceSelection::feature`) rather than
+/// to whichever root drew it.
 ///
 /// **Made, not merely drawn under.** A patch belongs to the node that
 /// MINTED the entity its name denotes, which
@@ -833,7 +836,11 @@ pub fn focus(
     let nodes: Vec<RecipeNodeId> = match selection {
         Selection::None => Vec::new(),
         Selection::Node(node) => vec![*node],
-        Selection::Face(face) => vec![face.node],
+        // The feature the face IS, not the root that drew it — the
+        // same inversion the tree and the panel read
+        // (`FaceSelection::feature`), so a click and a tree selection
+        // of one feature mark one set.
+        Selection::Face(face) => vec![face.feature()],
         // Every node the parameter drives. A parameter is the one
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".

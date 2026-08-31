@@ -442,3 +442,62 @@ fn a_node_that_made_nothing_marks_what_passed_through_it() {
     assert_eq!(of(die.pip), of(die.ball), "a copy belongs to the master");
     assert_eq!(of(die.pip).len(), DIE_CAVITIES);
 }
+
+/// **The click path, which is the one Evan reported.** Every face of
+/// the die is drawn under the outer fillet, so a pick that inverted to
+/// "whose body did the ray meet" answered that fillet for a flat, a
+/// blend and a band alike. It inverts to the feature that MADE the
+/// face instead, and the tree highlight, the property rows and the
+/// picture all read that one answer.
+#[test]
+fn clicking_a_die_face_reaches_the_feature_that_made_it() {
+    let tol = Tol::witness();
+    let mut die = die(tol);
+    let index = index_of(&die.session);
+    let of = |node| pick::focus(&index, die.session.doc(), &Selection::Node(node));
+    let flats = of(die.cube);
+    let bands = of(die.composed);
+
+    let selection_for = |id: u32| {
+        let patch = index.ids().key_of(id).expect("the id maps back");
+        assert_eq!(
+            patch.node, die.composed,
+            "every patch of the die is DRAWN under the outer fillet"
+        );
+        Selection::Face(viewer::session::FaceSelection {
+            node: patch.node,
+            body: patch.body,
+            name: index
+                .name_of(id)
+                .and_then(|n| n.as_ref().ok())
+                .cloned()
+                .expect("a drawn patch is named"),
+        })
+    };
+
+    // A flat: made by the cube's extrude, carried through the cut and
+    // both fillets.
+    let flat = selection_for(*flats.first().expect("the die has flats"));
+    die.session.perform(SessionOp::Select(flat));
+    assert_eq!(
+        die.session.selection().node(),
+        Some(die.cube),
+        "the flat's feature is the extrude that swept it"
+    );
+    let lit = pick::focus(&index, die.session.doc(), die.session.selection());
+    assert_eq!(lit, flats, "and the picture marks that feature's faces");
+    assert!(
+        lit.intersection(&bands).next().is_none(),
+        "clicking a flat lights no band"
+    );
+
+    // A band: made by the rim fillet, which also happens to draw it.
+    let band = selection_for(*bands.first().expect("the die has bands"));
+    die.session.perform(SessionOp::Select(band));
+    assert_eq!(die.session.selection().node(), Some(die.composed));
+    assert_eq!(
+        pick::focus(&index, die.session.doc(), die.session.selection()),
+        bands,
+        "the fillet's extent is the blends it made"
+    );
+}

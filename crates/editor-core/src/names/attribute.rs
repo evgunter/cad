@@ -111,7 +111,6 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // crossing faces, a section's operand face — and the entity
         // named is none of them.
         RoleSeg::Seam { .. }
-        | RoleSeg::Merged(_)
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::BlendFace(_)
@@ -124,6 +123,13 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross(_)
         | RoleSeg::BandSlit(_) => SegOrigin::Minted,
+
+        // A merged face has SEVERAL parents and is identical to none
+        // of them, so there is no single operand entity to descend
+        // into and the merge itself is what made this face. The cost
+        // of the reading, stated: a merged face answers the boolean
+        // rather than either operand it retired.
+        RoleSeg::Merged(_) => SegOrigin::Minted,
 
         // The instantiate node is where a referenced part's entity
         // enters THIS document, and the walk stops there on purpose:

@@ -1161,15 +1161,17 @@ impl ViewerBehavior<'_> {
                 }
             }
             Selection::Face(face) => {
-                // Slot rows for the OWNING node: a face pick is a way
-                // of reaching the feature that made it, which is what
-                // G3's click-to-select is for.
+                // Slot rows for the feature that MADE the face — the
+                // node `slot_groups` itself answered for, so the rows
+                // shown and the node an edit lands on are one answer.
+                // A face pick is a way of reaching that feature, which
+                // is what G3's click-to-select is for.
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
                 for group in &groups {
-                    self.slot_group_ui(ui, face.node, group);
+                    self.slot_group_ui(ui, face.feature(), group);
                 }
             }
             Selection::Param(name) => {
@@ -1343,10 +1345,12 @@ impl ViewerBehavior<'_> {
                     // Always a face: edge and vertex picking is out
                     // of scope for v1 selection, so the kind is not a
                     // variable to render.
-                    ui.label(format!("face of feature {}", face.node.0));
-                    if standing.live() && ui.button(delete_label(self.session, face.node)).clicked()
-                    {
-                        self.ops.push(SessionOp::DeleteNode { node: face.node });
+                    // The feature that MADE the face, so the button
+                    // deletes what the label names.
+                    let feature = face.feature();
+                    ui.label(format!("face of feature {}", feature.0));
+                    if standing.live() && ui.button(delete_label(self.session, feature)).clicked() {
+                        self.ops.push(SessionOp::DeleteNode { node: feature });
                     }
                 });
                 // The typed verdict, rendered from the resolution

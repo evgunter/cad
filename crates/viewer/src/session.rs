@@ -40,7 +40,7 @@ use pncad::document::{
     product, run_checks,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::StableName;
+use pncad::prelude::{StableName, attribute};
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 
@@ -61,12 +61,15 @@ use crate::tree::{self, TreeRow};
 /// for a question the pick already answered. G1's rule is satisfied
 /// exactly: a `StableName` and a `RecipeNodeId`, no arena key.
 ///
-/// The node is the one whose evaluated body was hit, which is not
-/// necessarily `name.node` (the node whose operation MINTED the
-/// entity): a face minted by a profile's extrude and passed through a
-/// later transform is hit on the transform's body and named after the
-/// extrude. Both are true and they answer different questions; this
-/// field answers "whose body did the ray meet".
+/// The node is the one whose evaluated body was hit, which is not the
+/// node that MADE the face: a face swept by an extrude, cut by a
+/// boolean and carried through a fillet is hit on the fillet's body
+/// and made by the extrude. Both are true and they answer different
+/// questions — this field answers "whose body did the ray meet", and
+/// [`FaceSelection::feature`] answers "which feature is this face's".
+/// Every consumer that means the second must call it: on a model whose
+/// history ends in one outer feature, this field is that feature for
+/// every face of the body.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FaceSelection {
     /// The picked face's stable name — what survives re-evaluation.
@@ -75,6 +78,29 @@ pub struct FaceSelection {
     pub node: RecipeNodeId,
     /// The output body index within that node's value.
     pub body: u32,
+}
+
+impl FaceSelection {
+    /// **The feature this face is**: the node whose operation minted
+    /// the entity the name denotes, read off the name's own
+    /// carry-through segments (`pncad::select::attribute`).
+    ///
+    /// A fillet's `FromTarget(f)` face is still the target's face `f`,
+    /// so clicking a flat on a filleted body reaches the feature that
+    /// swept the flat and not the fillet that shrank it. That is the
+    /// question the feature tree's highlight, the property panel's
+    /// rows and the picture's focus all ask; [`FaceSelection::node`] —
+    /// whose body the ray met — is a different one, and the only
+    /// consumers that want it are the ones addressing the DRAWN body
+    /// (`PickIndex::ids_of_target`, and the resolution check, which
+    /// looks the name up in that body's own table).
+    ///
+    /// Falls back to [`FaceSelection::node`] for a name the vocabulary
+    /// walk cannot classify, so an unclassified role degrades to the
+    /// drawn root rather than to no feature at all.
+    pub fn feature(&self) -> RecipeNodeId {
+        attribute(&self.name).minted_by().unwrap_or(self.node)
+    }
 }
 
 /// What the session has selected. A typed layer-3 value: stable
@@ -105,7 +131,9 @@ pub enum Selection {
 
 impl Selection {
     /// The recipe node this selection is about, when it is about one:
-    /// the node itself, or a picked face's owning node.
+    /// the node itself, or the feature a picked face belongs to
+    /// ([`FaceSelection::feature`] — the node that MADE the face, not
+    /// the root that drew it).
     ///
     /// **The one home for the viewport→tree inversion.** The feature
     /// tree's highlight and the property panel's slot rows both read
@@ -114,7 +142,7 @@ impl Selection {
     pub fn node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),
-            Self::Face(face) => Some(face.node),
+            Self::Face(face) => Some(face.feature()),
             Self::None | Self::Param(_) => None,
         }
     }
