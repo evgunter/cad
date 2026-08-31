@@ -419,9 +419,15 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 }
 
 /// Normalizes a direction-valued vector; decided-zero length refuses,
-/// in-band indeterminacy escalates (all through the one door).
-fn unit<T: Decide>(v: Vec3<T>, role: &'static str, tol: Tol) -> Result<Vec3<T>, NodeErrorKind> {
-    match decide("eval_direction_norm", Margin::norm3(v), band(tol)?) {
+/// in-band indeterminacy escalates (all through the one door). Shared
+/// with the mate solve's derived-offset derivation, so a direction is
+/// decided under the same predicate wherever it is read.
+pub(crate) fn unit<T: Decide>(
+    v: Vec3<T>,
+    role: &'static str,
+    band: Band,
+) -> Result<Vec3<T>, NodeErrorKind> {
+    match decide("eval_direction_norm", Margin::norm3(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
         Err(source) => Err(NodeErrorKind::Escalated {
@@ -459,14 +465,18 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
-            normal: unit(need_vec3(vals, SlotId::Normal)?, "datum plane normal", tol)?,
+            normal: unit(
+                need_vec3(vals, SlotId::Normal)?,
+                "datum plane normal",
+                band(tol)?,
+            )?,
         },
         Datum::Axis { .. } => DatumValue::Axis {
             origin: need_point3(vals, SlotId::Origin)?,
             dir: unit(
                 need_vec3(vals, SlotId::Direction)?,
                 "datum axis direction",
-                tol,
+                band(tol)?,
             )?,
         },
         Datum::Point { .. } => DatumValue::Point {
@@ -1575,7 +1585,7 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
         "transform rotation axis",
-        tol,
+        band(tol)?,
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
     // PR 1's die convention: rotate about the axis THROUGH THE WORLD
@@ -1598,17 +1608,56 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table))
 }
 
+/// The resolved operands of a stepped placement rule: what the rule's
+/// math consumes once every slot or expression is evaluated and every
+/// direction is unit (through [`unit()`]'s decided normalization).
+pub(crate) enum SteppedOperands<T: geom_core::Real> {
+    /// A linear rule: unit direction, spacing per step.
+    Linear {
+        /// The stepping direction, already unit.
+        direction: Vec3<T>,
+        /// The per-step translation distance along it.
+        spacing: T,
+    },
+    /// A circular rule: the datum axis and the angle per step.
+    Circular {
+        /// A point on the rotation axis.
+        origin: Point3<T>,
+        /// The axis direction, already unit.
+        dir: Vec3<T>,
+        /// The rotation angle per step.
+        step: T,
+    },
+}
+
 /// The rigid map of placement `i` under a STEPPED rule (linear or
-/// circular) — the one derivation both placement-rule nodes read, so a
-/// pattern and a placed union of the same rule place their copies bit
-/// for bit alike.
+/// circular) — **the one home of the stepped placement rule's math**,
+/// read by both placement-rule nodes (through [`stepped_map`]) and by
+/// the mate solve's derived-offset derivation, so a pattern, a placed
+/// union, and a mate to a pattern-placed member all derive one and the
+/// same copy map, bit for bit.
 ///
 /// Index 0 is the identity by construction (`i = 0` scales the step to
-/// zero), which is why both callers may take the prototype VERBATIM as
+/// zero), which is why callers may take the prototype VERBATIM as
 /// instance 0 rather than mapping it. `i as f64` is exact far beyond
-/// any representable pattern (2^53). Slot reads stay INSIDE this
-/// function so a rule's operands are demanded exactly when a step
-/// actually uses them.
+/// any representable pattern (2^53).
+pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> Affine3<T> {
+    let step = T::from_f64(i as f64);
+    match ops {
+        SteppedOperands::Linear { direction, spacing } => {
+            Affine3::translation(*direction * (*spacing * step))
+        }
+        SteppedOperands::Circular {
+            origin,
+            dir,
+            step: angle,
+        } => Affine3::rotation_about_axis(*origin, *dir, *angle * step),
+    }
+}
+
+/// [`stepped_rule_map`] behind the evaluation's slot reads. Slot reads
+/// stay INSIDE this function so a rule's operands are demanded exactly
+/// when a step actually uses them.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
     i: i64,
@@ -1616,17 +1665,15 @@ fn stepped_map<T: Decide>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> Result<Affine3<T>, NodeErrorKind> {
-    let step = T::from_f64(i as f64);
-    match kind {
-        PatternKind::Linear { .. } => {
-            let dir = unit(
+    let ops = match kind {
+        PatternKind::Linear { .. } => SteppedOperands::Linear {
+            direction: unit(
                 need_vec3(vals, SlotId::Direction)?,
                 "pattern direction",
-                tol,
-            )?;
-            let spacing = need_scalar(vals, SlotId::Spacing)?;
-            Ok(Affine3::translation(dir * (spacing * step)))
-        }
+                band(tol)?,
+            )?,
+            spacing: need_scalar(vals, SlotId::Spacing)?,
+        },
         PatternKind::Circular { axis, .. } => {
             let av = value_of(results, *axis)?;
             let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
@@ -1636,15 +1683,21 @@ fn stepped_map<T: Decide>(
                     found: av.payload.kind_name(),
                 });
             };
-            let angle = need_scalar(vals, SlotId::Step)?;
-            Ok(Affine3::rotation_about_axis(*origin, *dir, angle * step))
+            SteppedOperands::Circular {
+                origin: *origin,
+                dir: *dir,
+                step: need_scalar(vals, SlotId::Step)?,
+            }
         }
         // An explicit rule steps nothing: its frames ARE the maps, and
         // a caller that reached here read the rule wrong.
-        PatternKind::Explicit(_) => Err(NodeErrorKind::PlacementRule(
-            crate::node::PlacementRuleFault::CountSpelling,
-        )),
-    }
+        PatternKind::Explicit(_) => {
+            return Err(NodeErrorKind::PlacementRule(
+                crate::node::PlacementRuleFault::CountSpelling,
+            ));
+        }
+    };
+    Ok(stepped_rule_map(&ops, i))
 }
 
 fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(

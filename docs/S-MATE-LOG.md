@@ -44,3 +44,20 @@ merge. No S-MATE ordinal had been claimed on main, so only the band
 moves: **S-MATE = 1300–1399**; plan, banding entry and the cut's
 graduation marker all updated in the resolving merge. MATE-1's
 review-dispatch ordinal will claim 1300.
+
+**2026-08-31 — MATE-1 MERGED (PR #1400; issue 945 closed).** The A11
+member-vocabulary rider is implemented: pattern-placed mate heads
+resolve, the derived offset enters the solve as the pair's static
+left factor, and the loop clause falls out of member-keyed pairs.
+Dual ordinal 1300 (sample #78 at merge), both arms
+MERGEABLE-AFTER-FIXES converging on the under-toothed conjugation;
+at fix the stepped rule was RE-HOMED onto eval's single home (the
+review's drift hazard closed by construction) and both probe suites
+adopted. Filed: issue 1405 (split crossing collection skips pattern
+heads), issue 1411 (nested/transform head narrowing — small ruling
+or extension), issue 1412 (viewer pick gate, GAUTH ground). Process
+notes: three gate runs died to the exhausted Actions spending limit
+(memory updated); the fix pass ran as a FRESH lane on the same arm
+(the implementer lane's worktree was reclaimed at report — reclaim
+only after the fix pass, next time). Next: MATE-2 (issue 1032) spec
++ dispatch on block slot 2.
