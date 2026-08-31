@@ -153,9 +153,12 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // bought. Nothing in the kernel METERS it — by ruling, not by
     // omission (S-CERT Q1) — but `props/quad.rs`'s A2 gauge asserts a
     // generous outer ceiling on it. Widening every face's bracket by a
-    // common factor reds THIS row at 1.58x and trips that assert at
-    // 470x: the acceptance row is the tight meter, the assert is the
-    // tripwire ~300x outside it, and neither substitutes for the other.
+    // common factor reds THIS row at 1.58x and trips that assert two
+    // and a half orders further out: the acceptance row is the tight
+    // meter, the assert is the tripwire outside it, and neither
+    // substitutes for the other. The tripwire's own figures are not
+    // restated here — `props/quad.rs`'s `area_gauge_ok` is their one
+    // home, and every restatement of them has gone stale once already.
     //
     // Spelled as a bare absolute because this loft has no closed-form
     // area to scale to (its walls are degree-2 skins); the cut-cylinder

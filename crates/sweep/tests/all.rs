@@ -402,3 +402,6 @@ mod verbs_shell_r2b;
 
 #[path = "r1_p2_probes.rs"]
 mod r1_p2_probes;
+
+#[path = "r1_area_gauge_probes.rs"]
+mod r1_area_gauge_probes;

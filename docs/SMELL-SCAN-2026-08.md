@@ -2279,11 +2279,16 @@ longer true, but what reads it is a **tripwire, not a meter**: the A2 gauge
 (`area.width()` over a certified perimeter lower bound — a mean edge
 displacement, the direct analogue of `mean_boundary_displacement`) asserted as
 a D2-addendum row-5-boundary `debug_assert` at the patch lanes' certified
-returns, with a ceiling calibrated 52x above the observed corpus. The rest of
+returns, with a generous calibrated ceiling. The rest of
 the opening paragraph still describes the kernel exactly: the area is still
 computed once before the rounds, still frozen at `QUAD2_AREA_PIECES`, and still
 not metered. Purchasable tightness (a caller-requested area target with a typed
 refusal) is filed as a demand-triggered valve, not built — no consumer asks.
+**The gauge's calibration figures are deliberately not restated in this
+document**: `props/quad.rs`'s `area_gauge_ok` is their one home. CERT-5 moved
+them once and CERT-6's own fix pass moved them again, and each restatement
+went stale in place — this is the `#651` shape, and the fix for it is a
+pointer, not a fresher copy.
 
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
@@ -7327,12 +7332,14 @@ bracket is `value ± pad` — so each figure below is half the bracket it names.
   all three ε legs** because that width is resolution-driven, not
   tolerance-driven. The Python door therefore reports a certified area of
   25.32 ± 0.19 m² with no row that would notice the pad growing.
-  **Re-derived at CERT-6 (issue 870), post-CERT-5**: was 0.1986 on a 25.31 m²
-  surface at `5d4b88ab`; CERT-5's pad∩hull intersection tightened it 4.7%, and
-  the halving factor that comment used to call exact is now 1.81, not 2. The
+  **Re-derived at CERT-6 (issue 870), post-CERT-5**: CERT-5's pad∩hull
+  intersection tightened it, and the halving factor that comment used to call
+  exact is no longer exactly 2. The live figures are the ones
+  `sweep/tests/m6_loft_body.rs` measures at its own claim site; they are not
+  copied here again, for the reason S26's close-out gives. The
   row is still uncovered — CERT-6's gauge is a kernel-side `debug_assert` at
-  the patch lanes' returns and reds this fixture only at 470x the honest
-  width, so it does not close this member.
+  the patch lanes' returns and reds this fixture only two and a half orders
+  above the honest width, so it does not close this member.
 
 - **`crates/editor-core/tests/review_m5_pr9_doc_probe.rs:151`** — the curved
   boolean's `Interval` union row, containment only on the volume enclosure,
@@ -7996,7 +8003,7 @@ because `mesh` is what consumes it; Q keeps the four paths it names.
 | **C3** | `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block (S27). **NOT TAKEABLE until #723 is fixed** — a wrong certified volume lives in the file this row consolidates, and consolidating first bakes it in or moves it away from its reproduction. The lane is described in a comment on #723 | Track C |
 | **D30** | `quad.rs` holds a second span search and a second index clamp, because `KnotVector` cannot represent what the module needs. **Same file as `C3` and gated with it** | Track C |
 | **C11** | #726 and #727 — fold the iso-rectangle SHAPE question onto the named predicate, and decide which door owns the refusal now that `mesh` and the boolean are protected only transitively | Track C |
-| **S26** | The certified area enclosure is never metered against anything, now measured: 7.5e-3 relative on an ordinary loft where the same body's volume bracket is 1.2e-14 (issue 870). **RULED and landed as S-CERT CERT-6**: metering declined (Q1 — a wide-but-sound bracket is sound), the A2 gauge landed instead as a row-5-boundary `debug_assert` calibrated 52x above the corpus; purchasable tightness filed as a valve, not built | Track C |
+| **S26** | The certified area enclosure is never metered against anything, now measured: 7.5e-3 relative on an ordinary loft where the same body's volume bracket is 1.2e-14 (issue 870). **RULED and landed as S-CERT CERT-6**: metering declined (Q1 — a wide-but-sound bracket is sound), the A2 gauge landed instead as a row-5-boundary `debug_assert` with a generously calibrated ceiling; purchasable tightness filed as a valve, not built | Track C |
 | **S28** | Three tessellation lanes are parallel pipelines with no shared core — the duplication half, now that #648/#674 have settled the ordering and column questions | Track C |
 | **S236** | `cert_cylinder` is falsified by nothing, in any build — and closing it changes `budget::FaceMeasure`, whose consumers are in `tools/`. **The `tools/` half is Track K's row** | Track I |
 | **S237** | The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one | Track I |

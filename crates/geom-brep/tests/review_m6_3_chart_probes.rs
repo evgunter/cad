@@ -365,13 +365,13 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     // drive this width down and the row is a standing invariant rather
     // than a dependency waiting on a fix.
     //
-    // This face is the widest bracket in the corpus the A2 gauge was
-    // calibrated on by BOTH readings — relative width 1.42, and the
-    // integral lane's largest gauge value — and the gauge is silent on
-    // it: 1.23e-2 of a perimeter against a ceiling of 1, an 81x margin.
-    // A row that must stay wide and a tripwire for widths that mean a
-    // bug are not in tension; that separation is what the ceiling's
-    // generosity buys.
+    // A row that must stay WIDE and a tripwire for widths that mean a
+    // bug are not in tension: this face is among the widest brackets in
+    // the corpus the A2 gauge is calibrated on, and the gauge is silent
+    // on it by well over an order of magnitude. That separation is what
+    // the ceiling's generosity buys. The gauge's figures live at
+    // `props/quad.rs`'s `area_gauge_ok` and are deliberately not
+    // restated here.
     assert!(
         out.area.width() > 1e-3,
         "a violent patch at fixed resolution must pay a visible O(h) width, got {}",
