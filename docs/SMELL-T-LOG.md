@@ -52,7 +52,7 @@ it for later lanes if style work should be instrumented.
 |---|---|---|
 | **T-a** | C20 (turning-path orientation pins), D104 (the two hand-run diff artefacts) | **REVIEWED (style, per T-R5)** — 7 findings, **none correctness**; the lane's mutation table was reproduced 5/5 by the reviewer's own execution, both retirement arguments judged correct, the C20 closure judged honestly scoped. Fix pass taken on `smellt/a`: `main` merged (carrying the #1330 doc-gate fix that was the CI red), three dangling `S110` citations re-aimed and the ledger's own deletion-sweep rule written down, the §D retirement footnote deleted per the delete-don't-annotate rule, the lily-spine exclusion re-argued as the PLANAR-arc class, the unreachable outer floor assert removed, the "must all fit" wording qualified to what it can catch, `C25`'s row extended to schedule the frame-recipe twin, and this log's mutation sentence corrected. Plus the orchestrator's `S390` adjudication (TAKE, by message rather than as a numbered ruling): `S390` discharged in fence by a `# Correspondence` paragraph at both public doors. **PR #1329 open, not merged.** |
 | **T-b** | D124 (re-home the struck-lane findings), C25 (the six-times-built swept body + the frame-recipe twin), D91 (the swallowed `SplineError`) | **PR open, not merged.** All three closed; see the lane record below |
-| **T-c** | D90 (the corner chart's unchecked faces — **ADV**), D321 (`admit.rs`'s `include_str!` self-reader), D96 (the `unreachable!` row-0 candidates, enumerated first) | **PR open, not merged.** All three closed; see the lane record below. `D96` is struck with its out-of-fence members re-homed (`D242`, `D243`, `D304`) and its one unaffordable in-fence arm rowed as `D325` |
+| **T-c** | D90 (the corner chart's unchecked faces — **ADV**), D321 (`admit.rs`'s `include_str!` self-reader), D96 (the `unreachable!` row-0 candidates, enumerated first) | **PR #1359 open, not merged.** All three closed; see the lane record below. `D96` is struck with its out-of-fence members re-homed (`D242`, `D243`, `D304`) and its one unaffordable in-fence arm rowed as `D325` |
 | (unstaffed) | **`D322`, `D323`, `D324`** — `D124`'s three re-homes, all inside `crates/sweep/src/blend/`. **`T-R1`'s hold on them is lifted** (`T-R7`); `D323` and `D324` are the same file and cheaper taken together | queued, takeable |
 | (was kept out per `T-R1`/`T-R2`) | — | **spent.** `D91` was taken and closed by `T-b`; `D90` and `D321` were taken and closed by `T-c` once `T-R7` lifted the class. Nothing is held out of this track today |
 | (not takeable) | D320 | waits on D240 |
@@ -322,7 +322,7 @@ document-wide citation sweep after a module rename is the shape of an
 so the next dispatch starts from the hit list rather than rediscovering
 it.
 
-### T-c — D90, D321, D96 (branch `smellt/c`)
+### T-c — D90, D321, D96 (branch `smellt/c`, PR #1359)
 
 **D90 — still live after BLEND-3's rework, and fixed.** The row says
 `octant_chart` scores a chart off two faces it never checks belong to
