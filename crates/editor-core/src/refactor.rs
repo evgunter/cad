@@ -1151,11 +1151,16 @@ pub fn split(
     // order, which is what makes the record D9-deterministic.
     //
     // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
-    // A4 says "every mate EDGE crossing the cut", and an A12 reading
-    // edge exists only when BOTH heads are live instances. A mate with
-    // a DANGLING head — a reference to non-instance geometry, or to a
-    // node not in the document — is therefore not an edge and
-    // contributes NO crossing, however its names fall across the cut.
+    // A4 says "every mate EDGE crossing the cut". An A12 reading edge
+    // exists when both heads resolve to live MEMBERS — a live
+    // instance, or a pattern-placed instance (A11's member
+    // vocabulary) — but this collector still gates on plain
+    // `InstantiatePart` heads only: a mate whose edge end is a
+    // pattern-placed head contributes no crossing record, and so loses
+    // the pin-move re-verification the record buys (issue 1405 —
+    // split/refactor ground). A mate with a DANGLING head — one
+    // resolving to no member at all — is not an edge and contributes
+    // NO crossing, however its names fall across the cut.
     // The ruling's reason is the one that matters here: such a mate
     // never solved, so a record minted from it would be
     // trusted-at-rest state, which AQ8's ratification condition

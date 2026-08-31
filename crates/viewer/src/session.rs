@@ -47,6 +47,7 @@ use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
 
+use crate::blend::BlendKindChoice;
 use crate::bounds;
 use crate::combine;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
@@ -1280,6 +1281,55 @@ pub enum SessionOp {
         /// picked with.
         rule: PatternRuleSpec,
     },
+    /// Insert one constant-radius fillet on a SET of an existing
+    /// body's edges — the blend tool's one committed edit, as a
+    /// fillet.
+    ///
+    /// **The selection is a frozen commitment** (`Node::Fillet`'s
+    /// ratified #217 semantics): what is authored here is what the
+    /// node keeps, and `Node::fillet` canonicalizes it (sorted,
+    /// deduplicated) so two recipes selecting the same edges are
+    /// bit-identical.
+    ///
+    /// **The names are NOT checked against the evaluation here**, and
+    /// that is the freeze rule rather than an omission. Whether a name
+    /// still resolves through the target's table is evaluation's
+    /// question, answered typed on the node's own badge
+    /// (`NodeErrorKind::BlendSelectionResolve`, and
+    /// `BlendSelectionEmpty` for an empty set) — a door that
+    /// pre-screened it would be a second authority on the same fact,
+    /// and would refuse to author the node whose refusal is the honest
+    /// thing to show. The target's KIND is a fact about the committed
+    /// document alone, so that one does refuse here
+    /// ([`Refusal::WrongNodeKind`]).
+    AddFillet {
+        /// The body whose edges are blended.
+        target: RecipeNodeId,
+        /// The blend radius, metres (a literal Length slot).
+        radius: f64,
+        /// The edges to blend, by stable name.
+        selection: Vec<StableName>,
+    },
+    /// Insert one equal-setback chamfer on a SET of an existing body's
+    /// edges — [`SessionOp::AddFillet`]'s twin, and the blend tool's
+    /// other committed edit.
+    ///
+    /// A separate op for the reason `Node::Chamfer` is a separate
+    /// variant: the size means a SETBACK along both supports rather
+    /// than a rolling ball's radius, it lands in a different slot
+    /// (`SlotId::ChamferDistance`), and a recipe whose size changed
+    /// meaning on a boolean's value would be a document a reader can
+    /// misread. Everything [`SessionOp::AddFillet`] says about the
+    /// selection holds here unaltered.
+    AddChamfer {
+        /// The body whose edges are chamfered.
+        target: RecipeNodeId,
+        /// The setback along both supports, metres (a literal Length
+        /// slot).
+        distance: f64,
+        /// The edges to chamfer, by stable name.
+        selection: Vec<StableName>,
+    },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
     /// insert door after the mate tool's.
@@ -2005,6 +2055,16 @@ impl DocSession {
                 rotation_angle,
             } => self.add_transform(input, translation, rotation_axis, rotation_angle),
             SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule),
+            SessionOp::AddFillet {
+                target,
+                radius,
+                selection,
+            } => self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
+            SessionOp::AddChamfer {
+                target,
+                distance,
+                selection,
+            } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
             SessionOp::AddInstance { id } => {
                 if self.gesture.is_some() {
                     return OpOutcome::refused(Refusal::GestureInFlight);
@@ -2693,6 +2753,48 @@ impl DocSession {
             Ok(node) => self.commit(DocEdit::InsertNode { node }),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }
+    }
+
+    /// Insert one blend — fillet or chamfer — on a set of an existing
+    /// body's edges ([`SessionOp::AddFillet`],
+    /// [`SessionOp::AddChamfer`]).
+    ///
+    /// **One function for the two ops**, because everything a door
+    /// does is the same for both: the same gesture guard, the same
+    /// body seat, the same Length literal, the same commit. What
+    /// differs is which node is minted and which slot the size lands
+    /// in, and that difference is `kind`'s alone — spelled once in the
+    /// match below, where a reader can see the two side by side
+    /// instead of comparing two near-identical functions for the line
+    /// that is not the same.
+    fn add_blend(
+        &mut self,
+        target: RecipeNodeId,
+        size: f64,
+        selection: Vec<StableName>,
+        kind: BlendKindChoice,
+    ) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        // Both sizes are Lengths — a radius and a setback — so the
+        // literal is minted once and the meaning is the node's.
+        let size = match Expr::literal(size, Dimension::Length) {
+            Ok(size) => size,
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        // The CANONICALIZING constructors, never the struct literals:
+        // canonical form is what makes two recipes over the same edges
+        // bit-identical, and `persist`'s strict door treats a
+        // non-canonical set on the wire as a corrupt file.
+        let node = match kind {
+            BlendKindChoice::Fillet => Node::fillet(target, size, selection),
+            BlendKindChoice::Chamfer => Node::chamfer(target, size, selection),
+        };
+        self.commit(DocEdit::InsertNode { node })
     }
 
     /// The node-kind gate every creation seat shares: the named node

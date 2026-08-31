@@ -11,7 +11,7 @@
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Band, Point2, Tol, Vec2};
+use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, Open, ProfileLoop, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
@@ -19,10 +19,6 @@ use pncad::topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// A bored vase: base annulus, lower cylinder, conical waist, upper
@@ -169,7 +165,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
         assert_eq!(r.len(), 1, "one closed rim at y = {y}, got {}", r.len());
         all.extend(r);
     }
-    let one = fillet_edges(&src, &all, ROLL, band(), tol())
+    let one = fillet_edges(&src, &all, ROLL, tol())
         .unwrap_or_else(|e| panic!("four chained rims in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 4, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -179,7 +175,7 @@ fn p1_four_chained_rims_carve_in_one_call_through_the_facade() {
         for &(y, rad) in order {
             let r = rim_at(&b, y, rad);
             assert_eq!(r.len(), 1, "one rim at y = {y} before its carve");
-            b = fillet_edges(&b, &r, ROLL, band(), tol())
+            b = fillet_edges(&b, &r, ROLL, tol())
                 .unwrap_or_else(|e| panic!("the y = {y} rim fillets sequentially, got {e:?}"))
                 .body;
         }
@@ -206,10 +202,10 @@ fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
     let src = vase();
     let ys = [(0.0, 0.8), (0.6, 1.0), (1.2, 1.0), (1.8, 0.7)];
     let all: Vec<EdgeKey> = ys.iter().flat_map(|&(y, r)| rim_at(&src, y, r)).collect();
-    let one = fillet_edges(&src, &all, ROLL, band(), tol()).expect("one call");
+    let one = fillet_edges(&src, &all, ROLL, tol()).expect("one call");
     let mut b = vase();
     for &(y, rad) in &ys {
-        b = fillet_edges(&b, &rim_at(&b, y, rad), ROLL, band(), tol())
+        b = fillet_edges(&b, &rim_at(&b, y, rad), ROLL, tol())
             .expect("sequential")
             .body;
     }
@@ -248,7 +244,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut found = None;
     let mut r = 0.05f64;
     while r < 0.45 {
-        if let Err(e) = fillet_edges(&src, &all, r, band(), tol()) {
+        if let Err(e) = fillet_edges(&src, &all, r, tol()) {
             found = Some((r, e));
             break;
         }
@@ -260,7 +256,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let mut b = vase();
     let mut sequential_ok = true;
     for &(y, rad) in &ys {
-        match fillet_edges(&b, &rim_at(&b, y, rad), r, band(), tol()) {
+        match fillet_edges(&b, &rim_at(&b, y, rad), r, tol()) {
             Ok(out) => b = out.body,
             Err(e) => {
                 println!("   [blend2-r1] sequential also refuses at y = {y}: {e}");
@@ -367,11 +363,11 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
     let mut first_seq: Option<f64> = None;
     let mut r = 0.30f64;
     while r < 0.60 {
-        let one = fillet_edges(&src, &both, r, band(), tol());
+        let one = fillet_edges(&src, &both, r, tol());
         let mut b = pinched_vase();
         let mut seq_ok = true;
         for &(y, rad) in &pair {
-            match fillet_edges(&b, &rim_at(&b, y, rad), r, band(), tol()) {
+            match fillet_edges(&b, &rim_at(&b, y, rad), r, tol()) {
                 Ok(out) => b = out.body,
                 Err(_) => {
                     seq_ok = false;

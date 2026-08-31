@@ -24,16 +24,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::blend::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A unit cube through the real profile → extrude path (the die blank's
 /// shape; `test_support::cube` is feature-gated and not nameable here).
@@ -79,7 +75,7 @@ fn main() {
     );
 
     let edges: Vec<EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&blank, &edges, r, band(), Tol::witness()) {
+    match fillet_edges(&blank, &edges, r, Tol::witness()) {
         Err(e) => {
             // ARM B's interesting outcome: if reinstating the conversion
             // makes the fillet refuse, the refusal (and its site) is the

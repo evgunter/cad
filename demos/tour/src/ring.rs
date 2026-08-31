@@ -319,7 +319,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "hollowring",
         caption: "THE ONE-CALL HOLLOW RING (a holed profile, fully revolved)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // 2026-08-30), with `hollowelbow` and `hollowtorus` beside it.
+        // A cavity is invisible in an opaque render at every camera and
+        // the see-through render is only a partial answer — Evan's
+        // ruling: "they just aren't that interesting-looking". This is
+        // `voidbox`'s own precedent one door over: its panel was
+        // retired at the #91 refresh because an opaque void is
+        // indistinguishable from a cube, and `crate::cutaway` — which
+        // shows an interior by splitting rather than by translucency —
+        // is what replaced it (see `bool_bodies::voidbox_narration`). The hollowness evidence was never the pixels: two
+        // shells, `Revolved::cavities`, and the torus closed forms are
+        // printed, and they stay, as does the standalone render and the
+        // STEP-frontier declaration.
+        montage: false,
         story: "a tube bent into a closed circle, hollow the whole way round — two \
                 concentric circles and a full turn, in ONE revolve call",
         ops: "revolve(annulus, axis, Revolution::Full): the outer circle sweeps the \

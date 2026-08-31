@@ -201,9 +201,9 @@ mod tests {
             Shape {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
-                roots: 2,
-                separation: 5,
-                why: "KNOWN AND NOT FIXED HERE: the base and the five-fin pattern are                       two roots that genuinely interpenetrate, because the union that                       makes them one solid lives in this demo's `solidify()` and never                       in the recipe. Unlike the die's, this is a missing feature in the                       scene, not a spare body: the fix is to author the union, which                       changes what the scene demonstrates",
+                roots: 1,
+                separation: 0,
+                why: "one root, and nothing in the document interpenetrates: the fin                       group is a PlacedUnion and a Boolean folds it into the base, so                       the whole part is in the recipe (#1344)",
             },
         ];
 

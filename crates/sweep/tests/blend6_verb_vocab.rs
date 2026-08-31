@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
@@ -29,11 +29,6 @@ use topo::{Body, EdgeKey};
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -130,7 +125,7 @@ fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     let body = cube(L, Tol::witness());
     let edges = all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
@@ -149,7 +144,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
 #[test]
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_chain_break() {
     let body = cube(L, Tol::witness());
-    let err = chamfer_edges(&body, &top_loop(&body), D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &top_loop(&body), D, Tol::witness())
         .expect_err("square junctions are not tangent-continuous");
     assert!(
         matches!(err.error, BlendError::ChainNotG1 { .. }),
@@ -165,7 +160,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_chain_break() {
 fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
     let body = cube(L, Tol::witness());
     let edges = all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], D, band(), Tol::witness())
+    let err = fillet_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
@@ -180,7 +175,7 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
 fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
     let cyl = cylinder(0.5, 1.0);
     let edges = all_edges(&cyl);
-    let err = chamfer_edges(&cyl, &edges, D, band(), Tol::witness())
+    let err = chamfer_edges(&cyl, &edges, D, Tol::witness())
         .expect_err("a curved support has no ruled strip");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
@@ -201,8 +196,8 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     let t = Tol::witness();
 
     // Invalid input, checked at the door: a nonpositive setback.
-    let nonpositive = chamfer_edges(&body, &edges[..1], 0.0, band(), t)
-        .expect_err("a zero setback has no band to build");
+    let nonpositive =
+        chamfer_edges(&body, &edges[..1], 0.0, t).expect_err("a zero setback has no band to build");
     assert!(matches!(
         nonpositive.error,
         BlendError::NonpositiveSize { .. }
@@ -210,14 +205,14 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     assert_speaks_as_the_chamfer(&nonpositive, "nonpositive-size");
 
     // Invalid input: a repeated edge.
-    let repeated = chamfer_edges(&body, &[edges[0], edges[0]], D, band(), t)
+    let repeated = chamfer_edges(&body, &[edges[0], edges[0]], D, t)
         .expect_err("a repeated edge would double a link");
     assert!(matches!(repeated.error, BlendError::RepeatedEdge { .. }));
     assert_speaks_as_the_chamfer(&repeated, "repeated-edge");
 
     // The shared clearance screen, on the chamfer's own setbacks: all
     // twelve edges at a setback too deep for the cube's faces.
-    let clearance = chamfer_edges(&body, &edges, 0.55, band(), t)
+    let clearance = chamfer_edges(&body, &edges, 0.55, t)
         .expect_err("two 0.55 m setbacks do not fit a 1 m face");
     assert!(matches!(
         clearance.error,
@@ -230,7 +225,7 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     // the corner CONFIGURATION case (distinct from the run-out row
     // above, which is about the REQUEST's coverage).
     let bracket = l_bracket();
-    let corner = chamfer_edges(&bracket, &[concave_edge(&bracket)], D, band(), t)
+    let corner = chamfer_edges(&bracket, &[concave_edge(&bracket)], D, t)
         .expect_err("a mixed-convexity corner is out of the corner-patch scope");
     assert!(matches!(corner.error, BlendError::UnsupportedCorner { .. }));
     assert_speaks_as_the_chamfer(&corner, "corner-config");
@@ -253,25 +248,25 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
     let edges = all_edges(&body);
     let t = Tol::witness();
 
-    let refused = chamfer_edges(&body, &edges, 0.55, band(), t)
+    let refused = chamfer_edges(&body, &edges, 0.55, t)
         .expect_err("two 0.55 m setbacks do not fit a 1 m face");
     assert!(matches!(
         refused.error,
         BlendError::FaceClearanceUncertified { .. }
     ));
     assert!(
-        chamfer_edges(&body, &edges, D, band(), t).is_ok(),
+        chamfer_edges(&body, &edges, D, t).is_ok(),
         "the reduced blend size the recourse names must build"
     );
 
-    let run_out = chamfer_edges(&body, &edges[..1], D, band(), t)
+    let run_out = chamfer_edges(&body, &edges[..1], D, t)
         .expect_err("a partially-requested corner is a run-out");
     assert!(matches!(
         run_out.error,
         BlendError::UnsupportedRunOut { .. }
     ));
     assert!(
-        chamfer_edges(&body, &edges, D, band(), t).is_ok(),
+        chamfer_edges(&body, &edges, D, t).is_ok(),
         "the fully-requested-corner request the recourse names must build"
     );
 }
@@ -296,7 +291,7 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
         .map(|(k, _)| k)
         .find(|k| both_sides_spheres(&ball, *k))
         .expect("a full ball carries a co-surface seam meridian");
-    let err = chamfer_edges(&ball, &[seam], 0.05, band(), Tol::witness())
+    let err = chamfer_edges(&ball, &[seam], 0.05, Tol::witness())
         .expect_err("a co-surface seam has no definite wedge side");
     match err.error {
         BlendError::TangentialEdge { margin, .. } => {
@@ -317,7 +312,7 @@ fn a_chamfer_on_a_two_solid_body_refuses_the_body_frontier_as_the_chamfer() {
     topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
         .expect("a disjoint graft");
     let edges = all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(
         matches!(err.error, BlendError::UnsupportedBody { solids, .. } if solids == 2),
@@ -337,7 +332,7 @@ fn a_chamfer_escalation_speaks_as_the_chamfer() {
     let eps = Tol::witness().get().eps;
     // gap 1.0, two setbacks: margin = 1.0 − 2d = 5·eps, inside the band.
     let d = 0.5 - 2.5 * eps;
-    let err = chamfer_edges(&body, &edges, d, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges, d, Tol::witness())
         .expect_err("an in-band clearance margin escalates");
     match err.error {
         BlendError::Escalated { ref source, .. } => {
@@ -363,7 +358,7 @@ fn a_chamfer_on_a_seam_split_rim_arc_refuses_at_the_arm_table_not_the_seam_verte
         .map(|(k, _)| k)
         .find(|k| plane_sphere_sides(&body, *k))
         .expect("the lantern carries plane–sphere mouth arcs");
-    let err = chamfer_edges(&body, &[arc], 0.02, band(), Tol::witness())
+    let err = chamfer_edges(&body, &[arc], 0.02, Tol::witness())
         .expect_err("a plane–sphere arc has no ruled strip");
     assert!(
         matches!(err.error, BlendError::ChamferArmUnsupported { .. }),

@@ -9,18 +9,13 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
@@ -67,8 +62,7 @@ fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
     let body = hexagonal_prism();
     let edges = all_edges(&body);
     assert_eq!(edges.len(), 18, "a hexagonal prism has 18 edges");
-    let f = fillet_edges(&body, &edges, 0.3, band(), Tol::witness())
-        .expect("the hexagonal prism fillets");
+    let f = fillet_edges(&body, &edges, 0.3, Tol::witness()).expect("the hexagonal prism fillets");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");
     assert_eq!(
@@ -96,8 +90,8 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
         3.0,
     );
     let edges = all_edges(&body);
-    let f = fillet_edges(&body, &edges, 0.12, band(), Tol::witness())
-        .expect("the pentagonal prism fillets");
+    let f =
+        fillet_edges(&body, &edges, 0.12, Tol::witness()).expect("the pentagonal prism fillets");
     assert_eq!(
         topo::validate_geometric(&f.body, Tol::witness()),
         Ok(()),
@@ -128,7 +122,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let edges = all_edges(&body);
 
     for r in [0.30, 0.45, 0.499] {
-        let f = fillet_edges(&body, &edges, r, band(), Tol::witness())
+        let f = fillet_edges(&body, &edges, r, Tol::witness())
             .unwrap_or_else(|e| panic!("r = {r} is well inside the screen: {e}"));
         assert_eq!(
             topo::validate_geometric(&f.body, Tol::witness()),
@@ -142,7 +136,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let apothem = 3.0_f64.sqrt() / 2.0;
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
-        match fillet_edges(&body, &edges, r, band(), Tol::witness()).map_err(|r| r.error) {
+        match fillet_edges(&body, &edges, r, Tol::witness()).map_err(|r| r.error) {
             Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
                 assert!(margin < 0.0);
                 assert!(
@@ -201,7 +195,7 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     .body
     .clone();
     let edges = all_edges(&clipped);
-    let f = fillet_edges(&clipped, &edges, 0.08, band(), Tol::witness())
+    let f = fillet_edges(&clipped, &edges, 0.08, Tol::witness())
         .expect("an oblique trihedron still builds");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&f.body), Ok(()), "tier 2");

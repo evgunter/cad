@@ -518,7 +518,6 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
 /// r = 0.12 — 6 shrunk planes, 12 quarter-cylinders, 8 sphere octants.
 pub fn filleted_die() -> Body<f64> {
     let tol = geom_core::Tol::witness();
-    let band = geom_core::Band::new(tol.eps(), tol.k() * tol.eps()).expect("band");
     let lp = profile::ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -532,7 +531,7 @@ pub fn filleted_die() -> Body<f64> {
         .expect("the cube")
         .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    sweep::blend::build::fillet_edges(&body, &edges, 0.12, band, Tol::witness())
+    sweep::blend::build::fillet_edges(&body, &edges, 0.12, Tol::witness())
         .expect("the die blank")
         .body
 }
@@ -703,8 +702,6 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
 pub fn composed_die() -> Body<f64> {
     use sweep::blend::build::fillet_edges;
 
-    let tol = Tol::witness();
-    let band = geom_core::Band::new(tol.eps(), tol.k() * tol.eps()).expect("band");
     let (die_r, rim_r) = (0.12, 0.02);
     let pipped = die_pips();
     let box_edges: Vec<topo::EdgeKey> = pipped
@@ -717,7 +714,7 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    let blanked = fillet_edges(&pipped, &box_edges, die_r, band, Tol::witness())
+    let blanked = fillet_edges(&pipped, &box_edges, die_r, Tol::witness())
         .expect("the box edges blend in place")
         .body;
     let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
@@ -748,7 +745,7 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    fillet_edges(&blanked, &rims, rim_r, band, Tol::witness())
+    fillet_edges(&blanked, &rims, rim_r, Tol::witness())
         .expect("the rims blend to torus bands")
         .body
 }
