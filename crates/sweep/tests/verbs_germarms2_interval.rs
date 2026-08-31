@@ -123,8 +123,12 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     .unwrap();
     let err = union_err(&a, &skew);
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "{err:?}"
+        matches!(
+            err,
+            BooleanError::CurvedPierceUnsupported { .. }
+                | BooleanError::CurvedSectorSideUnsupported { .. }
+        ),
+        "a skew pair must stop at a crossing-layer door, never a join one: {err:?}"
     );
 }
 
