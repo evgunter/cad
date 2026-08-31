@@ -3,10 +3,22 @@
 //!
 //! This lint is a gate: a finding fails the CI row. That only works if
 //! the three outcomes stay mechanically distinguishable — a finding, a
-//! harness that could not run, and a clean comparison. The fourth
-//! thing pinned here is the one that is easy to lose: WITHOUT a
-//! baseline the tool is a report, and a report is never a verdict, so
-//! it exits 0 no matter how large the slack it prints.
+//! harness that could not run, and a clean comparison. Three voices,
+//! five finding KINDS. Also pinned here, each because it is easy to
+//! lose:
+//!
+//! * WITHOUT a baseline the tool is a report, and a report is never a
+//!   verdict, so it exits 0 no matter how large the slack it prints.
+//! * Rule 5 speaks in the harness-breakage REGISTER while exiting as a
+//!   FINDING — the one place a voice and an exit code deliberately
+//!   disagree, for the reason `main.rs`'s module docs give.
+//! * Which failure LEAD prints, the both-kinds case included.
+//! * That the recourse quotes `docs/TESS-BUDGET.md` verbatim. **Only
+//!   half of that pin is here**: this file asserts the string the
+//!   binary emits; nothing in the tree asserts the document still
+//!   contains it. There is no cross-file gate, the doc is the other
+//!   half, and a reflow of that sentence would break the quote in
+//!   silence — said plainly rather than left looking pinned.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -194,13 +206,63 @@ fn an_uncovered_scene_exits_two_in_the_harness_voice() {
         "could not COMPARE 1 scene(s)",
         "scripts/tess_budget_sweep.sh",
         "check the diff is ADDITIVE",
-        "coverage restored is not coverage verified",
+        // Quoted from docs/TESS-BUDGET.md. This half of the pin is the
+        // only half there is — see the module docs.
+        "restores coverage, it does not verify it",
     ] {
         assert!(e.contains(phrase), "stderr missing {phrase:?}: {e}");
     }
     assert!(
         !e.contains("Do NOT coarsen delta"),
         "the measurement lead does not belong on a comparison that never ran: {e}"
+    );
+}
+
+/// BOTH leads, when both kinds fire. The two are independent arms and
+/// not an `if`/`else`: a sweep that adds one scene while another grows
+/// is an ordinary PR, and printing only the first lead would leave the
+/// second finding's author with advice about the other one's problem.
+/// Written because flipping the second arm to `else if` passes every
+/// other test in this file.
+#[test]
+fn a_sweep_that_grows_one_scene_and_uncovers_another_prints_both_leads() {
+    // One scene in both sweeps, four times the triangles; a second
+    // scene the fresh sweep alone has.
+    let base = csv("both-base.csv", &scene(100, 2.5e1));
+    let fresh = csv(
+        "both-fresh.csv",
+        &format!(
+            "{}{}",
+            scene(400, 2.5e1),
+            scene(50, 2.5e1)
+                .replace("s/b", "new/scene")
+                .replace(HEADER, "")
+        ),
+    );
+    let out = run(&[
+        fresh.to_str().unwrap(),
+        "--baseline",
+        base.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(2), "{}", out_of(&out));
+    let o = out_of(&out);
+    assert!(o.contains("2 finding(s)"), "{o}");
+    assert!(o.contains("FINDING s/b: triangles"), "{o}");
+    assert!(o.contains("FINDING new/scene:"), "{o}");
+    let e = err_of(&out);
+    assert!(
+        e.contains("could not COMPARE 1 scene(s)"),
+        "the uncovered lead is missing: {e}"
+    );
+    assert!(
+        e.contains("Do NOT coarsen delta"),
+        "the measurement lead is missing: {e}"
+    );
+    // Order matters only in that the mechanical fix comes first; what
+    // must never happen is one arm swallowing the other.
+    assert!(
+        e.find("could not COMPARE").unwrap() < e.find("Do NOT coarsen delta").unwrap(),
+        "{e}"
     );
 }
 

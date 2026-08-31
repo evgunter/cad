@@ -389,16 +389,20 @@ uncompared faces above it were doing. Where the scene carries no
 Hessian-sized face the same event is a NOTE rather than a finding —
 rule 1 still runs over its total, so no comparison was lost.
 
-**A re-cut that FOLDS IN uncovered scenes restores coverage, it does
-not verify it.** This is the sentence to read before treating a fold as
-good news, whoever is doing it. Folding an uncovered scene into the
-baseline buys comparison FROM NOW ON; it cannot recover the window the
-scene spent outside the gate. Whatever happened to its sizing in that
-interval is unaudited and is not recoverable from the sweep data, so the
-values a fold blesses are **current-state, not verified-optimal** — if
-the scene regressed in the window, the fold enshrines the regression as
-the new reference. *Coverage restored* is not *coverage verified*, and
-only an audit closes the gap.
+**A re-cut that FOLDS IN uncovered scenes
+restores coverage, it does not verify it.** This is the sentence to
+read before treating a fold as good news, whoever is doing it. It is
+also the sentence `tools/tess-lint` quotes back at whoever the gate
+just stopped, so the line break above is load-bearing: the quoted
+clause has to survive a `grep` for it as one string. Folding an
+uncovered scene into the baseline buys comparison FROM NOW ON; it
+cannot recover the window the scene spent outside the gate. Whatever
+happened to its sizing in that interval is unaudited and is not
+recoverable from the sweep data, so the values a fold blesses are
+**current-state, not verified-optimal** — if the scene regressed in the
+window, the fold enshrines the regression as the new reference.
+*Coverage restored* is not *coverage verified*, and only an audit
+closes the gap.
 
 Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
 predated five scenes already on the tour — `diechamfer` 68,

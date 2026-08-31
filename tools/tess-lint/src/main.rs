@@ -9,10 +9,20 @@
 //! * **gate** (`--baseline`) — additionally compares against a
 //!   committed sweep; findings exit [`EXIT_FINDINGS`].
 //!
-//! Harness breakage (no input, unreadable file, malformed CSV) exits
-//! [`EXIT_HARNESS`] in its own voice — `k-lint`'s three-voice split,
-//! and for its reason: a sweep-format drift must never read as a
-//! geometry finding.
+//! Harness breakage (no input, unreadable file, malformed CSV, an
+//! unreadable `# tess-budget-cut:` line) exits [`EXIT_HARNESS`] in its
+//! own voice — `k-lint`'s three-voice split, and for its reason: a
+//! sweep-format drift must never read as a geometry finding.
+//!
+//! **Three EXIT voices, five finding KINDS, and the two do not line
+//! up one to one.** Rule 5 — a scene the baseline has no rows for — is
+//! the case that makes the distinction worth stating: it speaks in the
+//! harness-breakage register, because nothing about that scene's
+//! budget was read, and it still exits [`EXIT_FINDINGS`], because the
+//! sweep and the lint agree perfectly about the format and the thing
+//! that is missing is a REFERENCE, which the author supplies by
+//! folding. Reading it as exit 1 would file corpus growth as a broken
+//! instrument.
 
 use tess_lint::{Cut, Kind, Observation, Rekey, Row, SceneTotals, compare, cut, parse, totals};
 
@@ -64,7 +74,21 @@ fn provenance(cut: Option<&Cut>) -> String {
 /// measurement, and the tempting wrong move is to move it back. A
 /// scene the baseline does not cover is a comparison that never
 /// happened, and telling its author not to coarsen delta would be
-/// advice about a number nobody read.
+/// advice about a number nobody read. **Both print when both fire**,
+/// in that order; neither is an `else` for the other, because a sweep
+/// can easily carry one of each and dropping either lead would leave
+/// half the findings unaddressed.
+///
+/// **The split is by RECOURSE, not by whether a comparison happened**,
+/// and rule 3 is where that distinction earns its keep. A vanished
+/// scene is also a stopped comparison, and it leads with the
+/// measurement discipline anyway — because what its author must do is
+/// read WHY the scene left before touching the baseline, which is the
+/// same "do not move the number back" instruction one level up, and is
+/// the opposite of rule 5's *"Nothing about the SCENE is at fault"*.
+/// Rule 4 sits with rule 3 for the same reason: recourse item 4 says
+/// establish what changed in the MODEL first. Rule 5 is alone on its
+/// lead because it is the only finding here whose fix is mechanical.
 fn discipline(findings: &[Observation], cut: Option<&Cut>) -> String {
     let provenance = provenance(cut);
     let uncovered = findings
@@ -130,8 +154,8 @@ fn discipline(findings: &[Observation], cut: Option<&Cut>) -> String {
          \x20    A scene older than that cut has been outside the gate ever since —\n\
          \x20    swept, measured and compared against nothing — and the fold buys\n\
          \x20    comparison FROM NOW ON only. It cannot audit the window, so the\n\
-         \x20    values it blesses are current-state, not verified-optimal:\n\
-         \x20    docs/TESS-BUDGET.md, `coverage restored is not coverage verified`.\n"
+         \x20    values it blesses are current-state, not verified-optimal —\n\
+         \x20    docs/TESS-BUDGET.md, `restores coverage, it does not verify it`.\n"
     )
 }
 

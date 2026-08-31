@@ -101,9 +101,22 @@
 //! the cut already predated has been uncovered for however long that
 //! is, and the fold it needs restores comparison from now on without
 //! recovering the window — `docs/TESS-BUDGET.md`'s standing sentence,
-//! *coverage restored is not coverage verified*. Without a recorded
+//! *"restores coverage, it does not verify it"*. Without a recorded
 //! cut those two are one undifferentiated "absent", which is why the
 //! sweep writes one and the CLI prints it.
+//!
+//! **The lint PRINTS the cut and stops there; it does not classify a
+//! scene as added-after or predated-by.** That is deliberate and it is
+//! less than it sounds. Deciding which of the two a scene is needs the
+//! scene's own first appearance, and the CSV carries no such column —
+//! the sweep records what the corpus HAS, never when it got it — so
+//! the lint would have to reach outside its inputs, into git, over a
+//! `<stop>/<body>` name that is not a path and often not a file. A
+//! reader who knows when the scene landed can date the window from
+//! the printed cut in one step; a lint that guessed at it would be
+//! stating as a reading something it inferred. Closing the gap
+//! properly means a first-appearance column, which is the sweep's
+//! half of the contract, not this one's.
 //!
 //! ## Rule 2 joins on the face ORDINAL, and rule 4 is its precondition
 //!
@@ -152,15 +165,16 @@
 //! learn to route around. Rule 3 only looks like a counter-example: a
 //! vanished scene loses rule 1 with it.
 //!
-//! **A measurement that could not be read is none of the four, and
+//! **A measurement that could not be read is none of the five, and
 //! must not be resolved into one.** Rules 1 and 2 fire on GROWTH
 //! only, so any in-band fallback for an unreadable value is the
 //! smallest movement expressible and passes by construction. The
 //! sizing columns are therefore admitted or refused where they are
 //! read (`Admissible`, private), per column, and a refused one leaves in the
 //! harness voice — a sweep the lint cannot read is not a tessellation
-//! that got better. Rules 3 and 4 say the same thing one level up: a
-//! comparison that stopped HAPPENING is not growth of any size.
+//! that got better. Rules 3, 4 and 5 say the same thing one level up:
+//! a comparison that stopped HAPPENING — or never started — is not
+//! growth of any size.
 //!
 //! # Reading a firing gate
 //!
@@ -576,6 +590,13 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
     let mut seen: std::collections::HashSet<(&str, usize)> = std::collections::HashSet::new();
     for (i, line) in lines {
         let n = i + 1;
+        // A blank line is not a row, and skipping it is the one place
+        // in this file where a `continue` discards input. Stated
+        // because the module docs name an uncommented skip as this
+        // gate's own blind-spot shape: what is dropped here carries no
+        // measurement at all — a trailing newline, or the blank a
+        // hand-edit leaves — while every line with a field on it goes
+        // to the width check below and is refused if it is short.
         if line.trim().is_empty() {
             continue;
         }
@@ -839,6 +860,14 @@ pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
         .into_iter()
         .map(|scene| {
             let mut t = SceneTotals::default();
+            // `order` and `map` come from ONE `by_scene` call over one
+            // slice, so the miss this `flat_map` folds away cannot
+            // happen: every name in the order has an index. It is
+            // spelled as an empty fold rather than an `expect` because
+            // an absent scene and an empty scene total to the same
+            // thing here, and there is no reading to lose — unlike the
+            // sizing columns, where an unreadable value becomes a
+            // passing one and is refused at the read instead.
             for r in map.get(scene).into_iter().flat_map(FaceIndex::values) {
                 t.add(r);
             }
@@ -1035,7 +1064,7 @@ pub struct Report {
     pub notes: Vec<Observation>,
 }
 
-/// The gate: fresh against baseline, per the four rules in the module
+/// The gate: fresh against baseline, per the five rules in the module
 /// docs.
 ///
 /// Both slices must come from [`parse`], which is what makes the
