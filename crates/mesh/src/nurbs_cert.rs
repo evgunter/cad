@@ -177,8 +177,6 @@
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
-use geom_core::spline::hull::derivative_coeffs;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -193,42 +191,50 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
     }
 }
 
-/// The RATIONAL arm of [`nurbs_face_bound`]: the whole-patch max over
-/// the lifted per-cell enclosures' magnitude reading
-/// ([`patch_bound::PatchCell`]).
+/// **The whole-patch bound as a fold over the per-cell enclosures**
+/// ([`patch_bound::PatchCell`]) — the one arm, both patch classes.
+///
+/// Per-cell-then-union is tighter or equal, never wider: a cell's
+/// window is a SUBSET of the whole net's, so no cell can report more
+/// than the whole net. It reports LESS wherever the three channels'
+/// extremes live in different cells — the whole-net reading adds three
+/// per-channel maxima that no single point of the patch attains
+/// together, while the fold takes the largest sum any one cell
+/// realises.
 ///
 /// The accumulation is hull-then-`m`, at the ring level and in cell
 /// order, because that is what makes a poisoned cell reach the shared
 /// finite check: `m` maps poison to NaN, and an f64 `max` over NaN
 /// would drop it.
-fn rational_face_bound(
+fn folded_face_bound(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<NurbsFaceBound, TessellateError> {
     let cells = patch_bound::patch_cells(n).map_err(|e| face_err(fk, e))?;
-    let (mut sq_uu, mut sq_uv, mut sq_vv) = (None, None, None);
-    let (mut sq_u, mut sq_v) = (None, None);
-    let acc = |slot: &mut Option<RingInterval>, v: RingInterval| {
-        *slot = Some(match *slot {
-            None => v,
-            Some(h) => RingInterval::hull(h, v),
-        });
-    };
+    let mut acc: [Option<RingInterval>; 5] = [None; 5];
     for c in &cells {
-        acc(&mut sq_uu, c.sq_uu);
-        acc(&mut sq_uv, c.sq_uv);
-        acc(&mut sq_vv, c.sq_vv);
-        acc(&mut sq_u, c.sq_u);
-        acc(&mut sq_v, c.sq_v);
+        for (slot, v) in acc.iter_mut().zip(cell_readings(c)) {
+            *slot = Some(match *slot {
+                None => v,
+                Some(h) => RingInterval::hull(h, v),
+            });
+        }
     }
     let m = |sq: Option<RingInterval>| sq.map_or(f64::NAN, cell_component);
     Ok(NurbsFaceBound {
-        muu: m(sq_uu),
-        muv: m(sq_uv),
-        mvv: m(sq_vv),
-        mu1: m(sq_u),
-        mv1: m(sq_v),
+        muu: m(acc[0]),
+        muv: m(acc[1]),
+        mvv: m(acc[2]),
+        mu1: m(acc[3]),
+        mv1: m(acc[4]),
     })
+}
+
+/// One cell's five squared-sum readings, in [`NurbsFaceBound`]'s field
+/// order (`uu, uv, vv, u, v`) — the single place this crate names which
+/// enclosure feeds which bound.
+fn cell_readings(c: &patch_bound::PatchCell) -> [RingInterval; 5] {
+    [c.sq_uu, c.sq_uv, c.sq_vv, c.sq_u, c.sq_v]
 }
 
 /// Certified sup bounds on the three second partials of one described
@@ -555,12 +561,15 @@ pub(crate) fn nurbs_cell_bounds(
         .map(|c| CellBound {
             u: c.u,
             v: c.v,
-            bound: NurbsFaceBound {
-                muu: cell_component(c.sq_uu),
-                muv: cell_component(c.sq_uv),
-                mvv: cell_component(c.sq_vv),
-                mu1: cell_component(c.sq_u),
-                mv1: cell_component(c.sq_v),
+            bound: {
+                let r = cell_readings(&c);
+                NurbsFaceBound {
+                    muu: cell_component(r[0]),
+                    muv: cell_component(r[1]),
+                    mvv: cell_component(r[2]),
+                    mu1: cell_component(r[3]),
+                    mv1: cell_component(r[4]),
+                }
             },
         })
         .collect())
@@ -694,6 +703,43 @@ pub(crate) struct NurbsCellGrid {
     v_cuts: Vec<f64>,
     /// Per-cell bounds, u-major: `bounds[ci * rows + ri]`.
     bounds: Vec<NurbsFaceBound>,
+}
+
+impl NurbsCellGrid {
+    /// **The whole-patch bound, folded off the cells already
+    /// assembled** — componentwise max over this grid's own cells.
+    ///
+    /// Identical to [`nurbs_face_bound`] on the same face, and the
+    /// identity is exact rather than approximate: that function hulls
+    /// the per-cell squared-sum ENCLOSURES and collapses once, this one
+    /// collapses per cell and takes the f64 max, and
+    /// [`cell_component`] is monotone in the enclosure's `hi` — so
+    /// `max_c sqrt(hi_c)` and `sqrt(max_c hi_c)` are the same f64. The
+    /// NaN asymmetry that makes the ring-level accumulation
+    /// load-bearing there does not arise here: [`nurbs_cell_grid`] has
+    /// already refused a face with any non-finite cell.
+    ///
+    /// It exists so a caller that needs BOTH readings of a face pays
+    /// for one assembly. The fold made the whole-patch bound a reading
+    /// of the cells rather than a second pass over the net, and this is
+    /// where that shows up as work not done.
+    pub(crate) fn patch(&self) -> NurbsFaceBound {
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+            mu1: 0.0,
+            mv1: 0.0,
+        };
+        for b in &self.bounds {
+            m.muu = m.muu.max(b.muu);
+            m.muv = m.muv.max(b.muv);
+            m.mvv = m.mvv.max(b.mvv);
+            m.mu1 = m.mu1.max(b.mu1);
+            m.mv1 = m.mv1.max(b.mv1);
+        }
+        m
+    }
 }
 
 /// The shipped lane's entry to per-cell sizing: [`nurbs_cell_bounds`]
@@ -1144,11 +1190,7 @@ pub(crate) fn nurbs_face_bound(
 ) -> Result<NurbsFaceBound, TessellateError> {
     patch_bound::check_direction(n.knots_u()).map_err(|e| face_err(fk, e))?;
     patch_bound::check_direction(n.knots_v()).map_err(|e| face_err(fk, e))?;
-    let bound = if patch_bound::is_rational(n) {
-        rational_face_bound(n, fk)?
-    } else {
-        integral_face_bound(n, fk)?
-    };
+    let bound = folded_face_bound(n, fk)?;
     if !(bound.muu.is_finite()
         && bound.muv.is_finite()
         && bound.mvv.is_finite()
@@ -1164,167 +1206,13 @@ pub(crate) fn nurbs_face_bound(
     Ok(bound)
 }
 
-/// The integral (all-unit-weight) arm of [`nurbs_face_bound`]: the
-/// direct control-hull convexity assembly (module docs), including
-/// the first-derivative sups the split selection's aspect cap reads.
-///
-/// **Why this stayed behind when the per-cell assembly was lifted**
-/// into `geom_brep::patch_bound`: it computes a different quantity.
-/// The lifted one hulls each partial over one knot-span cell's ACTIVE
-/// coefficient window; this one hulls the whole net at once, which is
-/// not the max of the cell bounds — it is a coarser single number,
-/// and it is the number `nurbs_face_bound`'s integral arm has always
-/// returned. Folding it into a max over `patch_cells` would be
-/// tighter and would move every integral face's grid, so the
-/// consolidation is scheduled with that baseline move attached
-/// (#1006) rather than done in passing. The differencing recurrence
-/// itself is shared: `derivative_coeffs` is the one spelling, here
-/// and there.
-fn integral_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    let (nu, nv) = n.control_counts();
-    let comp = |c: usize| -> Vec<RingInterval> {
-        n.control()
-            .iter()
-            .map(|p| {
-                RingInterval::point(match c {
-                    0 => p.x,
-                    1 => p.y,
-                    _ => p.z,
-                })
-            })
-            .collect()
-    };
-    let mut sq_uu = RingInterval::zero();
-    let mut sq_uv = RingInterval::zero();
-    let mut sq_vv = RingInterval::zero();
-    let mut sq_u = RingInterval::zero();
-    let mut sq_v = RingInterval::zero();
-    for c in 0..3 {
-        // Row-major layout: control[iu·nv + iv] (NurbsSurface docs).
-        let grid = comp(c);
-        let u_rows: Vec<Vec<RingInterval>> = (0..nv)
-            .map(|j| (0..nu).map(|i| grid[i * nv + j]).collect())
-            .collect();
-        let v_rows: Vec<Vec<RingInterval>> = (0..nu)
-            .map(|i| (0..nv).map(|j| grid[i * nv + j]).collect())
-            .collect();
-        sq_uu = sq_uu + second_derivative_hull(n.knots_u(), &u_rows, fk)?.sqr();
-        sq_vv = sq_vv + second_derivative_hull(n.knots_v(), &v_rows, fk)?.sqr();
-        sq_uv = sq_uv + mixed_derivative_hull(n.knots_u(), n.knots_v(), &u_rows)?.sqr();
-        sq_u = sq_u + first_derivative_hull(n.knots_u(), &u_rows)?.sqr();
-        sq_v = sq_v + first_derivative_hull(n.knots_v(), &v_rows)?.sqr();
-    }
-    Ok(NurbsFaceBound {
-        muu: cell_component(sq_uu),
-        muv: cell_component(sq_uv),
-        mvv: cell_component(sq_vv),
-        mu1: cell_component(sq_u),
-        mv1: cell_component(sq_v),
-    })
-}
-
-/// Hull of ALL first-derivative coefficients along one direction: each
-/// `rows[k]` is the coefficient row of one fixed cross-direction
-/// index, differenced ONCE against `kv` — the first-fundamental-form
-/// sup the split selection's aspect cap reads, by the same convexity
-/// fact as the second-derivative hulls. Needs only degree ≥ 1, which
-/// `patch_bound::check_direction` guarantees.
-fn first_derivative_hull(
-    kv: &KnotVector,
-    rows: &[Vec<RingInterval>],
-) -> Result<RingInterval, TessellateError> {
-    let mut acc: Option<RingInterval> = None;
-    for row in rows {
-        for q in derivative_coeffs(kv, row) {
-            acc = Some(match acc {
-                None => q,
-                Some(a) => RingInterval::hull(a, q),
-            });
-        }
-    }
-    acc.ok_or(TessellateError::MissingEntity {
-        what: "empty NURBS control net",
-    })
-}
-
-/// Hull of ALL second-derivative coefficients along one direction:
-/// each `rows[k]` is the coefficient row of one fixed cross-direction
-/// index, differenced twice against `kv` (module docs). A degree-1
-/// single-span direction answers the exact zero.
-fn second_derivative_hull(
-    kv: &KnotVector,
-    rows: &[Vec<RingInterval>],
-    fk: FaceKey,
-) -> Result<RingInterval, TessellateError> {
-    if kv.degree() < 2 {
-        return Ok(RingInterval::zero());
-    }
-    let kv1 = patch_bound::derived_knots(kv).map_err(|e| face_err(fk, e))?;
-    let mut acc: Option<RingInterval> = None;
-    for row in rows {
-        let q1 = derivative_coeffs(kv, row);
-        let q2 = derivative_coeffs(&kv1, &q1);
-        for q in q2 {
-            acc = Some(match acc {
-                None => q,
-                Some(a) => RingInterval::hull(a, q),
-            });
-        }
-    }
-    acc.ok_or(TessellateError::MissingEntity {
-        what: "empty NURBS control net",
-    })
-}
-
-/// Hull of ALL mixed-derivative coefficients: difference once along
-/// `kv_u` (per `u_rows` row, i.e. per fixed v index), then once along
-/// `kv_v` across the resulting net (module docs — one application per
-/// direction, so only degree ≥ 1 is needed on each, which
-/// `patch_bound::check_direction` guarantees).
-fn mixed_derivative_hull(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    u_rows: &[Vec<RingInterval>],
-) -> Result<RingInterval, TessellateError> {
-    // q_u[j][i'] : derivative-in-u coefficients at v index j.
-    let q_u: Vec<Vec<RingInterval>> = u_rows
-        .iter()
-        .map(|row| derivative_coeffs(kv_u, row))
-        .collect();
-    let nu1 = q_u.first().map_or(0, Vec::len);
-    let nv = q_u.len();
-    if nu1 == 0 || nv == 0 {
-        return Err(TessellateError::MissingEntity {
-            what: "empty NURBS control net",
-        });
-    }
-    let mut acc: Option<RingInterval> = None;
-    // Walked column-wise on purpose (transposing the row-major
-    // intermediate net), so `i` indexes across the OUTER Vec.
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..nu1 {
-        let v_row: Vec<RingInterval> = (0..nv).map(|j| q_u[j][i]).collect();
-        for q in derivative_coeffs(kv_v, &v_row) {
-            acc = Some(match acc {
-                None => q,
-                Some(a) => RingInterval::hull(a, q),
-            });
-        }
-    }
-    acc.ok_or(TessellateError::MissingEntity {
-        what: "empty NURBS control net",
-    })
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use geom_core::Point3;
     use geom_core::Tol;
+    use geom_core::spline::KnotVector;
     use profile::RawLoop;
     use test_utils::fuzz;
 
@@ -2778,17 +2666,67 @@ mod tests {
         NurbsSurface::new(kv_u, kv_v, control, w).unwrap()
     }
 
-    /// The whole-net hull assembly, kept alive for the measurement even
-    /// after the shipped arm folds: this is the number the fold is
-    /// compared against. INTEGRAL faces only — the spelling reads the
-    /// control net with no weights at all, so calling it on a rational
-    /// description answers a different surface's bound.
+    /// **The whole-net hull, as the fold's counterfactual.** This is
+    /// not a third spelling of the differencing: it assembles the very
+    /// same derivative nets through the shared home
+    /// ([`geom_core::spline::net::TensorNet`]) and reads them with ONE
+    /// window instead of one per cell — which is exactly what the
+    /// retired whole-face arm did. Kept in the test module because the
+    /// only remaining consumer is the measurement that chose the
+    /// fold's shape.
+    ///
+    /// INTEGRAL faces only: the spelling reads the control net with no
+    /// weights at all, so on a rational description it answers a
+    /// different surface's bound. The rational arm never had a
+    /// whole-net counterpart — it has always been a fold.
     fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
+        use geom_core::spline::net::TensorNet;
         assert!(
             !patch_bound::is_rational(s),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
         );
-        integral_face_bound(s, FaceKey::default()).ok()
+        let (kv_u, kv_v) = (s.knots_u(), s.knots_v());
+        patch_bound::check_direction(kv_u).ok()?;
+        patch_bound::check_direction(kv_v).ok()?;
+        let kv_u1 = (kv_u.degree() >= 2)
+            .then(|| patch_bound::derived_knots(kv_u))
+            .transpose()
+            .ok()?;
+        let kv_v1 = (kv_v.degree() >= 2)
+            .then(|| patch_bound::derived_knots(kv_v))
+            .transpose()
+            .ok()?;
+        let (nu, nv) = s.control_counts();
+        let zero = RingInterval::zero();
+        let mut sq = [zero; 5];
+        for c in 0..3 {
+            let base = TensorNet::from_fn(nu, nv, |i, j| {
+                let p = s.control()[i * nv + j];
+                RingInterval::point(match c {
+                    0 => p.x,
+                    1 => p.y,
+                    _ => p.z,
+                })
+            });
+            let d10 = base.diff_u_knots(kv_u);
+            let d01 = base.diff_v_knots(kv_v);
+            let d11 = d10.diff_v_knots(kv_v);
+            let g20 = kv_u1.as_ref().map_or(zero, |k| d10.diff_u_knots(k).hull());
+            let g02 = kv_v1.as_ref().map_or(zero, |k| d01.diff_v_knots(k).hull());
+            for (slot, h) in sq
+                .iter_mut()
+                .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])
+            {
+                *slot = *slot + h.sqr();
+            }
+        }
+        Some(NurbsFaceBound {
+            muu: cell_component(sq[0]),
+            muv: cell_component(sq[1]),
+            mvv: cell_component(sq[2]),
+            mu1: cell_component(sq[3]),
+            mv1: cell_component(sq[4]),
+        })
     }
 
     /// The per-cell fold: the componentwise max over `patch_cells`'

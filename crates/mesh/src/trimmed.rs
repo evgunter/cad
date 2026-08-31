@@ -99,7 +99,7 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::types::TessellateError;
@@ -186,20 +186,23 @@ pub(crate) fn tessellate_trimmed(
         // An approximating surface takes the spline lane on its fit
         // (there is no placeholder state to screen: it is certified by
         // construction).
-        Surface::Approx(ref a) => Lane::Nurbs {
-            grid: nurbs_cell_grid(a.fit(), fk)?,
-            patch: face_bound(bounds, a.fit(), fk)?,
-        },
+        // The whole-patch bound is a READING of the cells this line
+        // just assembled (`NurbsCellGrid::patch`), memoized for the
+        // chord pass — not a second assembly over the same net.
+        Surface::Approx(ref a) => {
+            let grid = nurbs_cell_grid(a.fit(), fk)?;
+            let patch = *bounds.entry(fk).or_insert_with(|| grid.patch());
+            Lane::Nurbs { grid, patch }
+        }
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 // The mvfs "no description yet" state — the historical
                 // refusal, kept for exactly this class (types docs).
                 return Err(TessellateError::UnsupportedSurface { face: fk });
             }
-            Lane::Nurbs {
-                grid: nurbs_cell_grid(payload, fk)?,
-                patch: face_bound(bounds, payload, fk)?,
-            }
+            let grid = nurbs_cell_grid(payload, fk)?;
+            let patch = *bounds.entry(fk).or_insert_with(|| grid.patch());
+            Lane::Nurbs { grid, patch }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
