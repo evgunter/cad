@@ -41,26 +41,38 @@
 //! ([`FREEZE_NOTE`], which the panel shows) and to hand the
 //! canonicalizing constructor a set the user actually chose.
 //!
-//! It is also why the survival step here is all-or-nothing. A seated
-//! tool drops the one pick whose node left the document; this one
-//! cannot, because a set that quietly shrank while the panel showed a
-//! count would be exactly the silent shrink #217 forbids, one layer
-//! early. The only thing that can happen to the set is the loss of the
-//! body it is about, and then the whole set goes at once and says so
-//! ([`BlendEvent::TargetLost`]).
+//! # What the survival step does, and why it is not a #217 breach
+//!
+//! **#217 governs the COMMITTED node, not the accumulator.** A stored
+//! selection must never shrink silently, because it is a commitment
+//! the document records and the user can no longer see being edited.
+//! Tool state is the opposite: it is what the user is looking at right
+//! now, and the panel is showing a count. So a held name whose edge no
+//! longer exists must not be carried on as if it did — committing it
+//! would author a node that refuses on arrival, which is the worst of
+//! both rules.
+//!
+//! [`BlendTool::reconcile`] therefore re-reads the held names against
+//! the target's CURRENT edge names on every document change and drops
+//! the strands, loudly ([`BlendEvent::EdgesLost`]), alongside the
+//! whole-set drop when the target node itself goes
+//! ([`BlendEvent::TargetLost`]). Nothing here is silent: every drop is
+//! a typed event the chrome shows, and the count the panel reads is
+//! the count a commit would author.
 
 use std::collections::BTreeSet;
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
-use crate::session::{EdgeSelection, SessionOp};
+use crate::session::{EdgeSelection, Selection, SessionOp};
 
 /// **What the tool's panel says about the freeze**, so the ratified
 /// #217 semantics reach the user at the moment they are committing to
 /// a set rather than only in the node's docs.
-pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: a later edit that adds an edge does not extend this \
-     blend, and one that removes a picked edge refuses on the node rather than shrinking it";
+pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: an upstream edit that adds an edge does not extend this \
+     blend, and one that removes a picked edge refuses on the node rather than shrinking it \
+     (only a deliberate rebind rewrites a stored selection)";
 
 /// The drawn body a blend's edges belong to: the node whose value it
 /// is, and which of that node's output bodies.
@@ -85,6 +97,26 @@ impl BlendTarget {
         Self {
             node: edge.node,
             body: edge.body,
+        }
+    }
+
+    /// **The drawn body a selection is a pick on**, when it is one.
+    ///
+    /// A face pick and an edge pick both carry `(node, body)` — they
+    /// name something DRAWN, which is the only kind of selection that
+    /// can say which body. `Selection::Node` is a feature picked in
+    /// the tree and names no body at all; answering `body: 0` for it
+    /// would be a guess, and precisely on the multi-body nodes where
+    /// the narrowing matters it would be the wrong one. So it answers
+    /// `None` and the affordance that needs a body says what it wants.
+    pub fn of_selection(selection: &Selection) -> Option<Self> {
+        match selection {
+            Selection::Edge(edge) => Some(Self::of(edge)),
+            Selection::Face(face) => Some(Self {
+                node: face.node,
+                body: face.body,
+            }),
+            Selection::None | Selection::Node(_) | Selection::Param(_) => None,
         }
     }
 }
@@ -178,12 +210,26 @@ pub enum BlendEvent {
     },
     /// The target node is no longer in the document, so every held
     /// edge is about a body that is gone: the whole set is dropped at
-    /// once (module docs: why this is all-or-nothing).
+    /// once.
     TargetLost {
         /// The body the set was about.
         target: BlendTarget,
         /// How many edges went with it.
         edges: usize,
+    },
+    /// The target survived an upstream edit but some held edges did
+    /// not — the strand case, dropped loudly rather than carried to a
+    /// commit that would refuse on arrival (module docs: why this is
+    /// not the silent shrink #217 forbids).
+    EdgesLost {
+        /// The body the set is about.
+        target: BlendTarget,
+        /// The names that stopped being edges of it, in canonical
+        /// order — carried rather than counted, so a chrome that wants
+        /// to say WHICH can, and a row can assert on them.
+        names: Vec<StableName>,
+        /// How many are still held.
+        kept: usize,
     },
 }
 
@@ -202,6 +248,16 @@ impl core::fmt::Display for BlendEvent {
                 f,
                 "{target} is no longer in the document; the tool dropped all {edges} picked edges"
             ),
+            Self::EdgesLost {
+                target,
+                names,
+                kept,
+            } => write!(
+                f,
+                "an edit removed {} of the picked edges from {target}; the tool dropped them and \
+                 still holds {kept}",
+                names.len()
+            ),
         }
     }
 }
@@ -216,6 +272,19 @@ impl core::fmt::Display for BlendEvent {
 /// already in canonical order. Picking a held edge again REMOVES it —
 /// the per-pick add/remove the plan asks for, and the only correction
 /// a set-valued pick needs.
+///
+/// # The invariant the two fields keep together
+///
+/// **A target is held exactly while an edge is** — `target.is_some()`
+/// iff `!edges.is_empty()`, maintained by every door that writes
+/// either. A tool whose last edge was un-picked releases its target
+/// and is indistinguishable from a fresh one, so the next click may
+/// start on any body; without that, un-picking down to zero left the
+/// tool latched to a body it was no longer holding anything on, and
+/// the cross-target refusal would have fired on a set of nothing.
+/// [`BlendTool::require_target`] reads the invariant rather than
+/// re-checking both halves, which is what makes
+/// [`BlendError::NoEdges`]'s one sentence true of the one state.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlendTool {
     target: Option<BlendTarget>,
@@ -250,12 +319,15 @@ impl BlendTool {
         self.edges.iter().cloned().collect()
     }
 
-    /// **The held edges as pick selections**, for the marks the
-    /// picture draws: each is the held name on the tool's own target,
-    /// which is the (node, body) narrowing `crate::pick::edge_segments`
-    /// applies — so an edge whose name this evaluation does not draw
-    /// there marks nothing, and the set marks exactly its live
-    /// members.
+    /// **The held edges as pick selections** — which edges are held,
+    /// as the value vocabulary the rest of the crate speaks. Each is a
+    /// held name on the tool's own target, so a consumer that resolves
+    /// one gets the same (node, body) narrowing a single selection
+    /// gets.
+    ///
+    /// This is the value claim; [`BlendTool::mark_segments`] is the
+    /// per-frame path, and `a_held_set_marks_exactly_the_edges_it_names`
+    /// asserts the two agree so they cannot drift.
     pub fn marks(&self) -> Vec<EdgeSelection> {
         let Some(target) = self.target else {
             return Vec::new();
@@ -270,11 +342,50 @@ impl BlendTool {
             .collect()
     }
 
+    /// **The drawn segments of the whole held set**, as the line-list
+    /// pairs a renderer consumes — what the viewport marks while this
+    /// tool is open.
+    ///
+    /// **One pass over the target's drawn edges**, testing set
+    /// membership per drawn edge, rather than one
+    /// `crate::pick::edge_segments` search per held name: the search
+    /// scans the body's whole edge run for each name, so the obvious
+    /// spelling costs `O(E²)` name comparisons every frame on a body
+    /// with `E` edges — fine for a cube, not for a real part. This is
+    /// `O(E log E)` and allocates nothing but the output.
+    ///
+    /// The narrowing is exactly what a single selection gets: scoped
+    /// to the tool's own (node, body), empty for a target this index
+    /// does not draw, and silent about a held name the index has no
+    /// edge for — so the picture shows the live members and nothing
+    /// else.
+    pub fn mark_segments(
+        &self,
+        index: &crate::pick::PickIndex,
+        display: &crate::display::DisplayView,
+    ) -> Vec<[f32; 3]> {
+        let Some(target) = self.target else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for &id in index.edges_in(target.node, target.body) {
+            if index
+                .edge_name_of(id)
+                .is_ok_and(|name| self.edges.contains(name))
+            {
+                out.extend(crate::pick::edge_id_segments(index, display, id));
+            }
+        }
+        out
+    }
+
     /// **Feed one edge pick**: add it, or REMOVE it when it is already
     /// held.
     ///
-    /// The first pick fixes the target. A pick on another body is
-    /// refused ([`BlendEvent::OtherTarget`]) and changes nothing.
+    /// The first pick fixes the target; un-picking the last edge
+    /// releases it again (the struct's invariant). A pick on another
+    /// body is refused ([`BlendEvent::OtherTarget`]) and changes
+    /// nothing.
     pub fn pick(&mut self, edge: &EdgeSelection) -> Option<BlendEvent> {
         let picked = BlendTarget::of(edge);
         match self.target {
@@ -287,6 +398,7 @@ impl BlendTool {
         if !self.edges.remove(&edge.name) {
             self.edges.insert(edge.name.clone());
         }
+        self.release_if_empty();
         None
     }
 
@@ -305,23 +417,49 @@ impl BlendTool {
     /// the inside. A target with no edges loads nothing and says so,
     /// rather than emptying the set on the way to a refusal.
     ///
-    /// **The door answers per NODE, and this tool asks per (node,
-    /// body).** `all_edges` reads one node's name table, which for a
-    /// node whose value is several bodies covers all of them. The two
-    /// agree today because a blend's target must be a SINGLE body
-    /// (`crate::combine::denotes_body`, the seat the session door
-    /// applies), so every node this can usefully be asked about has
-    /// one body and the `body` field is 0. A vocabulary that let a
-    /// split's side or a pattern's instance be named as an operand
-    /// (issue #1394) is where the difference would start to matter,
-    /// and the honest place to widen this is here.
+    /// # The door answers per NODE, so the answer is NARROWED here
+    ///
+    /// `all_edges` reads one node's name table, and a node whose value
+    /// is several bodies has one table covering all of them: asked
+    /// about a split it answers both halves, about a pattern every
+    /// instance. Loading that unnarrowed broke this tool's own
+    /// one-target rule from the inside — the panel counted 24 edges
+    /// where the picture drew 12, and no `denotes_body` gate applies
+    /// here because that gate is the COMMIT door's.
+    ///
+    /// So the door's answer is intersected with the names the index
+    /// draws for `(node, body)` — the same narrowing a single
+    /// selection and [`BlendTool::mark_segments`] already apply — and
+    /// the count the panel shows is the set the picture marks, on
+    /// every target rather than only on the ones a commit would
+    /// accept. This is not a display-tolerance dependency: the mesh
+    /// carries one boundary polyline per topological edge, so δ
+    /// changes how many POINTS each drawn edge has and never how many
+    /// there are.
+    ///
+    /// # Loading a set is not a promise that it builds
+    ///
+    /// The kernel's blend assembly admits a fully-requested chain set
+    /// and refuses the rest by name — mixed convexity, tangential
+    /// runs, and a blend of a blend are all typed refusals on the
+    /// node's own badge. This door hands over the edges that EXIST,
+    /// which is a different claim, and the panel says so beside the
+    /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(
         &mut self,
         target: BlendTarget,
         eval: &Evaluation<f64>,
+        index: &crate::pick::PickIndex,
     ) -> Option<BlendEvent> {
-        let edges: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+        let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
+            .collect();
+        let edges: BTreeSet<StableName> = index
+            .edges_in(target.node, target.body)
+            .iter()
+            .filter_map(|&id| index.edge_name_of(id).ok())
+            .filter(|name| named.contains(*name))
+            .cloned()
             .collect();
         if edges.is_empty() {
             return Some(BlendEvent::NoEdgesOnTarget { target });
@@ -331,29 +469,104 @@ impl BlendTool {
         None
     }
 
-    /// Drop every pick — the chrome's "start over" door, and Cancel's
-    /// effect by another route.
+    /// Drop every pick — the panel's `Clear picks` button, and what
+    /// Cancel's whole-tool replacement amounts to for the picks alone.
     pub fn clear(&mut self) {
         self.target = None;
         self.edges.clear();
     }
 
-    /// **The survival step**, once per frame (module docs: why it is
-    /// all-or-nothing). The target node leaving the document voids the
-    /// whole set; nothing else here drops anything.
-    ///
-    /// It covers the DELETED-node case only, and the id-reuse hazard
-    /// it does not cover is the one [`crate::seats`] states for every
-    /// tool holding a `RecipeNodeId` across a history rewind (issue
-    /// #1384) — not restated here, and no narrower for holding a set.
-    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Option<BlendEvent> {
-        let target = self.target?;
-        if doc.node(target.node).is_some() {
-            return None;
+    /// Release the target when the last edge leaves, keeping the
+    /// struct's bilateral invariant in the one place both writers
+    /// reach.
+    fn release_if_empty(&mut self) {
+        if self.edges.is_empty() {
+            self.target = None;
         }
-        let edges = self.edges.len();
-        self.clear();
-        Some(BlendEvent::TargetLost { target, edges })
+    }
+
+    /// **The survival step**, once per frame — and it is TWO
+    /// questions, because a held set can be wrong in two ways.
+    ///
+    /// 1. The target node left the document: every held edge is about
+    ///    a body that is gone, so the whole set goes at once
+    ///    ([`BlendEvent::TargetLost`]). Answered from the document,
+    ///    which is the only thing that can be asked with nothing
+    ///    landed.
+    /// 2. The target survived an upstream edit that changed which
+    ///    edges it has — moving a boolean's operand, re-sizing a
+    ///    profile — and some held names are no longer edges of it.
+    ///    Those are dropped and named ([`BlendEvent::EdgesLost`]).
+    ///    Answered from the LANDED evaluation, because "which edges
+    ///    does this body have" is an evaluation's question.
+    ///
+    /// Without (2) the panel went on counting edges that no longer
+    /// existed and the commit authored a node that refused on arrival
+    /// — the freeze rule inverted, since #217 governs the stored
+    /// selection and not the accumulator (module docs).
+    ///
+    /// **With nothing landed, (2) is not asked**, which is the honest
+    /// answer: "we cannot tell" is not "it is gone", the same rule the
+    /// mate tool's survival step takes.
+    ///
+    /// The membership test is the target NODE's edge names
+    /// (`all_edges`), not the drawn body's: a name that survived on
+    /// another body of a multi-body node is therefore not flagged
+    /// here. That gap cannot reach a document — the commit door admits
+    /// only single-body targets (`crate::combine::denotes_body`) — and
+    /// closing it would need the pick index, which the survival step
+    /// runs before this frame's is built.
+    ///
+    /// The id-reuse hazard it does not cover is the one
+    /// [`crate::seats`] states for every tool holding a
+    /// `RecipeNodeId` across a history rewind (issue #1384) — not
+    /// restated here, and no narrower for holding a set.
+    pub fn reconcile(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    ) -> Vec<BlendEvent> {
+        let Some(target) = self.target else {
+            return Vec::new();
+        };
+        if doc.node(target.node).is_none() {
+            let edges = self.edges.len();
+            self.clear();
+            return vec![BlendEvent::TargetLost { target, edges }];
+        }
+        let Some((_, eval)) = landed else {
+            return Vec::new();
+        };
+        let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+            .into_iter()
+            .collect();
+        // A target that has no edges AT ALL in this evaluation is a
+        // node that failed or was never run, not a body that lost
+        // every edge: dropping the whole set on a transient failure
+        // would cost the picks the moment an upstream slot went
+        // momentarily bad. Say nothing and wait for a run that has an
+        // answer.
+        if live.is_empty() {
+            return Vec::new();
+        }
+        let names: Vec<StableName> = self
+            .edges
+            .iter()
+            .filter(|name| !live.contains(*name))
+            .cloned()
+            .collect();
+        if names.is_empty() {
+            return Vec::new();
+        }
+        for name in &names {
+            self.edges.remove(name);
+        }
+        self.release_if_empty();
+        vec![BlendEvent::EdgesLost {
+            target,
+            names,
+            kept: self.edges.len(),
+        }]
     }
 
     /// **The one committed edit, as a fillet**: the session op that
@@ -391,14 +604,19 @@ impl BlendTool {
 
     /// The target a commit needs, or the typed "nothing picked yet".
     ///
-    /// One check for both doors: the target is `Some` exactly when a
-    /// pick landed, and a pick that landed put a name in the set, so
-    /// "no target" and "no edges" are the same state and get the one
-    /// sentence.
+    /// One check for both doors, and one check for both halves: the
+    /// struct's invariant makes "no target" and "no edges" the same
+    /// state, so reading the target alone is reading both, and
+    /// [`BlendError::NoEdges`]'s single sentence is true of it.
     fn require_target(&self) -> Result<RecipeNodeId, BlendError> {
+        debug_assert_eq!(
+            self.target.is_some(),
+            !self.edges.is_empty(),
+            "a target is held exactly while an edge is"
+        );
         match self.target {
-            Some(target) if !self.edges.is_empty() => Ok(target.node),
-            _ => Err(BlendError::NoEdges),
+            Some(target) => Ok(target.node),
+            None => Err(BlendError::NoEdges),
         }
     }
 }

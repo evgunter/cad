@@ -1693,6 +1693,12 @@ pub fn edge_overlay(
 /// selection's own (node, body), empty for a name this index does not
 /// draw there — so a set marks exactly the members that still denote
 /// something.
+///
+/// **A SET is marked through [`edge_id_segments`] instead.** This door
+/// SEARCHES the target's whole edge run for the name, so one call per
+/// held name costs `O(E²)` name comparisons on a body with `E` edges,
+/// every frame. A set-held tool walks the run once and tests
+/// membership — `crate::blend::BlendTool::mark_segments`.
 pub fn edge_segments(
     index: &PickIndex,
     display: &DisplayView,
@@ -1701,8 +1707,19 @@ pub fn edge_segments(
     index
         .edges_of_target(edge)
         .first()
-        .map(|id| segments_of(&index.edge_polyline_for(*id, display)))
+        .map(|id| edge_id_segments(index, display, *id))
         .unwrap_or_default()
+}
+
+/// **One DRAWN edge's segments**, addressed by the id this index
+/// assigned it — [`edge_segments`] without the name search, for a
+/// caller already walking the index's own edge run.
+///
+/// Empty for an id this index did not assign and for an edge whose
+/// part is hidden: [`PickIndex::edge_polyline_for`]'s rule unaltered,
+/// so the two doors cannot disagree about what is in the picture.
+pub fn edge_id_segments(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Vec<[f32; 3]> {
+    segments_of(&index.edge_polyline_for(id, display))
 }
 
 /// A polyline as the line-list pairs a GPU draws.

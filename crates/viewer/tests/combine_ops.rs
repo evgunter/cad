@@ -622,11 +622,18 @@ fn the_pattern_door_spells_its_count_structurally() {
     );
 }
 
-/// Every combining door refuses mid-gesture and records nothing when
-/// it refuses — the creation vocabulary's rule, held by the four new
-/// arms too.
+/// Every door that takes an existing BODY refuses mid-gesture and
+/// records nothing when it refuses — the creation vocabulary's rule,
+/// held by GAUTH-4's four arms and GAUTH-5's two.
+///
+/// The list below is hand-written, which is the reason it is worth
+/// saying what it is a list OF: every `SessionOp` arm whose seat is a
+/// node that must already exist. A door added to that family and not
+/// added here is a door with no gesture row and no
+/// nothing-was-recorded row, which is exactly how the blend doors
+/// first shipped.
 #[test]
-fn a_refusal_at_any_combining_door_leaves_no_history_state() {
+fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
@@ -640,6 +647,17 @@ fn a_refusal_at_any_combining_door_leaves_no_history_state() {
         },
     );
     let other = boxed(&mut session, B);
+    // Real edge names for the two blend doors: their seat refusals are
+    // about the TARGET, so the selection has to be the kind of thing a
+    // user would actually have picked rather than an empty vector that
+    // could refuse for its own reason.
+    let edges = {
+        session.pump();
+        let eval = session.evaluation().expect("the inline seam landed");
+        let edges = pncad::select::all_edges(eval, body);
+        assert!(!edges.is_empty(), "the box has edges");
+        edges
+    };
     let states = session.history().len();
     let doc = session.committed_doc().clone();
 
@@ -677,6 +695,16 @@ fn a_refusal_at_any_combining_door_leaves_no_history_state() {
                 direction: [1.0, 0.0, 0.0],
                 spacing: 0.05,
             },
+        },
+        SessionOp::AddFillet {
+            target: body,
+            radius: 0.001,
+            selection: edges.clone(),
+        },
+        SessionOp::AddChamfer {
+            target: body,
+            distance: 0.001,
+            selection: edges.clone(),
         },
     ] {
         let refused = session.perform(op);
@@ -731,6 +759,16 @@ fn a_refusal_at_any_combining_door_leaves_no_history_state() {
                 axis: body,
                 step: 1.0,
             },
+        },
+        SessionOp::AddFillet {
+            target: plane,
+            radius: 0.001,
+            selection: edges.clone(),
+        },
+        SessionOp::AddChamfer {
+            target: plane,
+            distance: 0.001,
+            selection: edges.clone(),
         },
     ] {
         let refused = session.perform(op);
@@ -992,11 +1030,11 @@ fn the_open_tool_consumes_the_selection_stream() {
 
     let mut tools = Tools::new();
     // Nothing open: the stream reaches nothing.
-    tools.feed(&picks);
+    assert!(tools.feed(&picks).is_empty(), "every pick landed");
     assert_eq!(tools.open_kind(), None);
 
     tools.open(ToolKind::Boolean);
-    tools.feed(&picks);
+    assert!(tools.feed(&picks).is_empty(), "every pick landed");
     let boolean = tools.boolean().expect("the boolean tool is open");
     assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(b)));
 
@@ -1004,7 +1042,7 @@ fn the_open_tool_consumes_the_selection_stream() {
     // the tool that held them.
     tools.open(ToolKind::Pattern);
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), None);
-    tools.feed(&picks[..1]);
+    assert!(tools.feed(&picks[..1]).is_empty(), "the pick landed");
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), Some(a));
 
     // The survival step reaches whichever tool is open, from the

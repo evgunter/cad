@@ -36,12 +36,14 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
 use pncad::profile::SketchPlane;
+use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
+use viewer::display::DisplayView;
 use viewer::pick::{PickIndex, PickKinds};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{
-    DatumSpec, DocSession, EdgeSelection, NodeKindWanted, ProfileShape, Refusal, Selection,
-    SessionOp,
+    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfileShape, Refusal,
+    Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
 use viewer::tree::{self, RowStatus};
@@ -137,6 +139,23 @@ fn drawn_edges(session: &DocSession, node: RecipeNodeId) -> Vec<EdgeSelection> {
 fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
     let eval = session.evaluation().expect("the inline seam landed");
     pncad::select::all_edges(eval, node)
+}
+
+/// Drive the all-edges affordance the way the panel does: the landed
+/// evaluation for the names, the pick index for the (node, body)
+/// narrowing.
+fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
+    let index = index_of(session);
+    let eval = session.evaluation().expect("the inline seam landed");
+    tools
+        .blend_mut()
+        .expect("the blend tool is open")
+        .load_all_edges(target, eval, &index)
+}
+
+/// The whole body of a node, as the blend tool's target.
+fn whole(node: RecipeNodeId) -> BlendTarget {
+    BlendTarget { node, body: 0 }
 }
 
 /// Feed one edge pick to the open tool the way the application does —
@@ -337,17 +356,10 @@ fn the_all_edges_door_loads_the_set_twelve_clicks_would_have() {
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
     session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
-    let loaded = tools.blend_mut().expect("the tool is open").load_all_edges(
-        BlendTarget {
-            node: target,
-            body: 0,
-        },
-        eval,
-    );
+    let loaded = load_all(&mut tools, &session, whole(target));
     assert!(loaded.is_none(), "the box has edges to load: {loaded:?}");
     assert_eq!(blend(&tools).count(), BOX_EDGES);
 
@@ -384,14 +396,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     session.pump();
 
     let mut tools = picked_all(&session, target);
-    let eval = session.evaluation().expect("the inline seam landed");
-    let refused = tools.blend_mut().expect("open").load_all_edges(
-        BlendTarget {
-            node: datum,
-            body: 0,
-        },
-        eval,
-    );
+    let refused = load_all(&mut tools, &session, whole(datum));
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
@@ -838,4 +843,373 @@ fn the_kind_choice_names_what_the_one_field_means() {
         ]
     );
     assert_eq!(BlendKindChoice::default(), BlendKindChoice::Fillet);
+}
+
+// --- the fix pass -----------------------------------------------------
+
+/// **The all-edges door narrows to the DRAWN body it was asked about.**
+///
+/// `all_edges` reads one node's name table, and a split's table covers
+/// both halves: unnarrowed, the panel counted every edge of both sides
+/// while the picture marked one, which is this tool's own one-target
+/// rule broken from the inside. The count the panel shows and the set
+/// the picture marks are asserted to be the same number here, per body
+/// and on a node the commit door would refuse — because the lie was
+/// visible long before any commit.
+#[test]
+fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: [0.0, 0.0, SIDE / 2.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target,
+            tool: plane,
+        },
+    );
+    session.pump();
+
+    // The node-wide door sees both halves at once; each drawn half has
+    // fewer edges than that.
+    let node_wide = all_edge_names(&session, split).len();
+    let index = index_of(&session);
+    let mut tools = Tools::new();
+    for body in [0u32, 1] {
+        let drawn = index.edges_in(split, body).len();
+        assert!(drawn > 0, "the split draws body {body}");
+        assert!(
+            drawn < node_wide,
+            "body {body} draws {drawn} of the node's {node_wide} edge names"
+        );
+        tools.open(ToolKind::Blend);
+        let loaded = load_all(&mut tools, &session, BlendTarget { node: split, body });
+        assert!(loaded.is_none(), "{loaded:?}");
+        assert_eq!(
+            blend(&tools).count(),
+            drawn,
+            "the count the panel shows is the set the picture marks"
+        );
+        assert_eq!(
+            blend(&tools).marks().len(),
+            drawn,
+            "and the marks are that same set"
+        );
+    }
+}
+
+/// **The held set marks exactly the edges it names** — the value claim
+/// (`marks`) and the per-frame path (`mark_segments`) agree, so the
+/// fast one cannot drift from the one the rest of the crate reads.
+#[test]
+fn a_held_set_marks_exactly_the_edges_it_names() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let index = index_of(&session);
+    let display = DisplayView::none();
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    assert!(
+        blend(&tools).marks().is_empty()
+            && blend(&tools).mark_segments(&index, &display).is_empty(),
+        "a tool holding nothing marks nothing"
+    );
+
+    let edges = drawn_edges(&session, target);
+    for edge in &edges[..5] {
+        assert!(pick(&mut tools, edge).is_empty());
+    }
+    let tool = blend(&tools);
+    let named = tool.marks();
+    assert_eq!(named.len(), 5, "five held, five named");
+    // The per-name door and the one-pass door produce the same
+    // segments, in the index's own edge order either way.
+    let mut per_name: Vec<[f32; 3]> = Vec::new();
+    for id in index.edges_in(target, 0) {
+        if let Ok(name) = index.edge_name_of(*id)
+            && named.iter().any(|mark| mark.name == *name)
+        {
+            per_name.extend(viewer::pick::edge_id_segments(&index, &display, *id));
+        }
+    }
+    assert!(!per_name.is_empty(), "five box edges draw segments");
+    assert_eq!(tool.mark_segments(&index, &display), per_name);
+}
+
+/// **An upstream edit that strands a held edge drops it, loudly.**
+///
+/// The demonstrated degrade direction: a union of two boxes, every
+/// edge of the result held, then one operand MOVED so the two no
+/// longer meet the same way. The union node survives — so the
+/// deleted-target arm says nothing — but six of the held names are no
+/// longer edges of it. Before the fix the panel went on counting
+/// thirty and the commit authored a node that refused on arrival.
+#[test]
+fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let a = boxed(&mut session, SIDE);
+    let raw_b = boxed(&mut session, SIDE);
+    let b = insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: raw_b,
+            translation: [SIDE * 0.5, SIDE * 0.25, SIDE * 0.25],
+            rotation_axis: [0.0, 0.0, 1.0],
+            rotation_angle: 0.0,
+        },
+    );
+    let union = insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: pncad::document::BooleanOp::Union,
+            a,
+            b,
+        },
+    );
+    session.pump();
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    assert!(load_all(&mut tools, &session, whole(union)).is_none());
+    let held = blend(&tools).count();
+    assert!(
+        held > BOX_EDGES,
+        "an overlapping union has more edges than a box: {held}"
+    );
+    assert!(
+        tools
+            .reconcile(session.doc(), session.landed_pair())
+            .is_empty(),
+        "an untouched document drops nothing"
+    );
+
+    // Move the operand clear of the other box: the union still
+    // evaluates — nothing is deleted, so the target-lost arm has
+    // nothing to say — but the six edges the two solids met along are
+    // gone, and six of the held names with them.
+    assert!(
+        session
+            .perform(SessionOp::SetSlot {
+                node: b,
+                slot: SlotId::Translation(pncad::document::Axis3::X),
+                value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0),
+            })
+            .refusal
+            .is_none()
+    );
+    session.pump();
+    assert!(
+        session.committed_doc().node(union).is_some(),
+        "the target survived the edit"
+    );
+    let live = all_edge_names(&session, union);
+    assert_eq!(
+        live.len(),
+        BOX_EDGES * 2,
+        "two disjoint boxes: no intersection edges left"
+    );
+    assert!(
+        blend(&tools).selection().iter().any(|n| !live.contains(n)),
+        "the move stranded held names"
+    );
+
+    let notices = tools.reconcile(session.doc(), session.landed_pair());
+    assert_eq!(notices.len(), 1, "one notice for the drop: {notices:?}");
+    let ToolNotice::Blend(BlendEvent::EdgesLost {
+        target,
+        names,
+        kept,
+    }) = &notices[0]
+    else {
+        panic!("expected a strand drop, got {notices:?}");
+    };
+    assert_eq!(target.node, union);
+    assert!(!names.is_empty());
+    assert_eq!(*kept, blend(&tools).count());
+    assert_eq!(
+        *kept + names.len(),
+        held,
+        "every held edge is kept or named"
+    );
+    // And what is still held is exactly what the target still has —
+    // so the commit authors a node with no strand in it.
+    assert!(
+        blend(&tools).selection().iter().all(|n| live.contains(n)),
+        "no strand survives the drop"
+    );
+    assert!(
+        notices[0].to_string().starts_with("blend tool: "),
+        "{}",
+        notices[0]
+    );
+}
+
+/// **Nothing landed is not "it is gone"**, and a target that failed
+/// outright costs no picks: the strand test needs an evaluation with
+/// an answer, and a run that has none says nothing rather than
+/// emptying the set.
+#[test]
+fn the_strand_check_is_not_asked_without_an_answer() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+
+    // No landed pair at all.
+    assert!(
+        tools.reconcile(session.doc(), None).is_empty(),
+        "we cannot tell is not it is gone"
+    );
+    assert_eq!(blend(&tools).count(), BOX_EDGES);
+
+    // A target that FAILS: the extrude's distance goes to zero, the
+    // node has no value, and `all_edges` answers empty for a reason
+    // that is not "the body lost every edge".
+    assert!(
+        session
+            .perform(SessionOp::SetSlot {
+                node: target,
+                slot: SlotId::Distance,
+                value: viewer::props::SlotValue::of(Dimension::Length, 0.0),
+            })
+            .refusal
+            .is_none()
+    );
+    session.pump();
+    assert!(
+        all_edge_names(&session, target).is_empty(),
+        "the failed target names no edges"
+    );
+    assert!(
+        tools
+            .reconcile(session.doc(), session.landed_pair())
+            .is_empty(),
+        "a failed run costs no picks"
+    );
+    assert_eq!(blend(&tools).count(), BOX_EDGES, "the set is intact");
+}
+
+/// **Un-picking the last edge releases the target**, so the next click
+/// may start on any body and the commit door's one sentence is true of
+/// the one state.
+#[test]
+fn an_emptied_set_releases_its_target() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let first = boxed(&mut session, SIDE);
+    let second = boxed(&mut session, SIDE * 0.5);
+    session.pump();
+    let one = drawn_edges(&session, first)
+        .into_iter()
+        .next()
+        .expect("edges");
+    let other = drawn_edges(&session, second)
+        .into_iter()
+        .next()
+        .expect("edges");
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    assert!(pick(&mut tools, &one).is_empty());
+    assert_eq!(blend(&tools).target(), Some(whole(first)));
+    // Un-pick it: the tool is holding nothing, so it is latched to
+    // nothing.
+    assert!(pick(&mut tools, &one).is_empty());
+    assert_eq!(blend(&tools).count(), 0);
+    assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
+    assert_eq!(
+        blend(&tools)
+            .fillet_op(BLEND)
+            .expect_err("a tool holding no edges refuses"),
+        BlendError::NoEdges
+    );
+    // And the next click starts wherever the user aims it.
+    assert!(pick(&mut tools, &other).is_empty());
+    assert_eq!(blend(&tools).target(), Some(whole(second)));
+    assert_eq!(blend(&tools).count(), 1);
+
+    // `clear` is the same state by the panel's own door.
+    tools.blend_mut().expect("open").clear();
+    assert_eq!(blend(&tools).target(), None);
+    assert_eq!(blend(&tools).count(), 0);
+}
+
+/// **A drawn pick names a body; a tree click does not.** The all-edges
+/// affordance's fallback target reads the selection, and answering
+/// `body: 0` for a feature would be a guess that reads wrong on
+/// exactly the multi-body nodes the narrowing is for.
+#[test]
+fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let index = index_of(&session);
+    let edge = drawn_edges(&session, target)
+        .into_iter()
+        .next()
+        .expect("edges");
+    let face = index
+        .ids_in(target, 0)
+        .first()
+        .and_then(|&id| index.name_of(id))
+        .and_then(|named| named.as_ref().ok())
+        .map(|name| FaceSelection {
+            name: name.clone(),
+            node: target,
+            body: 0,
+        })
+        .expect("the box draws named patches");
+
+    assert_eq!(
+        BlendTarget::of_selection(&Selection::Edge(edge.clone())),
+        Some(whole(target))
+    );
+    assert_eq!(
+        BlendTarget::of_selection(&Selection::Face(face)),
+        Some(whole(target))
+    );
+    assert_eq!(
+        BlendTarget::of_selection(&Selection::Node(target)),
+        None,
+        "a feature picked in the tree does not say which body"
+    );
+    assert_eq!(BlendTarget::of_selection(&Selection::None), None);
+}
+
+/// **The freeze sentence the panel shows is true of the node it is
+/// about.** It says the set does not grow on an upstream edit, that a
+/// removed edge refuses rather than shrinking the stored set, and that
+/// a rebind is the one thing that rewrites one — `Node::Fillet`'s
+/// three clauses, no wider.
+#[test]
+fn the_freeze_note_states_the_ratified_semantics_and_no_more() {
+    // Not a spelling check: each clause is a claim `Node::Fillet`'s
+    // docs make, and the fourth clause the note used to imply — that
+    // nothing shrinks a stored selection — is one they do NOT, because
+    // a rebind onto an already-selected name shrinks it by one.
+    assert!(FREEZE_NOTE.contains("upstream edit that adds an edge does not extend"));
+    assert!(FREEZE_NOTE.contains("refuses on the node rather than shrinking it"));
+    assert!(
+        FREEZE_NOTE.contains("rebind"),
+        "the one door that rewrites a stored selection is named: {FREEZE_NOTE}"
+    );
+    assert!(
+        !FREEZE_NOTE.contains("never"),
+        "no unqualified never-shrinks claim: {FREEZE_NOTE}"
+    );
 }

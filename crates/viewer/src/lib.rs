@@ -97,7 +97,7 @@ pub use parts::{PartChooser, PartEntry};
 pub use pick::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeOverlay, EdgePick, Highlight, IdMap,
     IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds, cursor_projection,
-    edge_overlay, edge_segments, highlight,
+    edge_id_segments, edge_overlay, edge_segments, highlight,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};

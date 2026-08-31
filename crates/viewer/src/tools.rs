@@ -329,6 +329,11 @@ impl Tools {
     /// dropping it silently. The returned notices are the same values
     /// [`Tools::reconcile`] answers with and are shown the same way; a
     /// frame in which every pick landed answers with none.
+    ///
+    /// `#[must_use]`: the notices ARE the refusal — dropping them is
+    /// how a declined pick becomes a click that silently did nothing,
+    /// which is the bug this return value exists to prevent.
+    #[must_use = "a declined pick is only reported if its notice is shown"]
     pub fn feed(&mut self, ops: &[SessionOp]) -> Vec<ToolNotice> {
         let mut notices = Vec::new();
         for op in ops {
@@ -368,11 +373,11 @@ impl Tools {
     /// picks alone, which is the honest answer: "we cannot tell" is not
     /// "it is gone".
     ///
-    /// The blend tool answers from the document too, but about its
-    /// TARGET and not its edges: a held edge set never shrinks on its
-    /// own (`crate::blend`'s all-or-nothing rule, which is #217's
-    /// freeze one layer early), and the body going is the one thing
-    /// that voids it.
+    /// The blend tool needs BOTH: the document says whether its target
+    /// still exists, and the landed evaluation says which edges that
+    /// target still has — two questions, two answers, one per event
+    /// arm (`crate::blend::BlendTool::reconcile`).
+    #[must_use = "a dropped pick is only reported if its notice is shown"]
     pub fn reconcile(
         &mut self,
         doc: &Doc<ProfileProgram>,
@@ -401,9 +406,10 @@ impl Tools {
                 return self
                     .blend
                     .as_mut()
-                    .and_then(|tool| tool.reconcile(doc))
-                    .map(ToolNotice::Blend)
+                    .map(|tool| tool.reconcile(doc, landed))
+                    .unwrap_or_default()
                     .into_iter()
+                    .map(ToolNotice::Blend)
                     .collect();
             }
         };
