@@ -55,6 +55,8 @@ mod issue303_signed_volume_recentring;
 
 #[path = "issue1362_band_placement.rs"]
 mod issue1362_band_placement;
+#[path = "issue555_subfloor_cap.rs"]
+mod issue555_subfloor_cap;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]

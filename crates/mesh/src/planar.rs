@@ -92,23 +92,63 @@
 //! floor, the very refusal this frame exists to remove (measured on
 //! the wild OLED's bottom face while this fix was being built).
 //!
-//! That guarantee is deliberately NOT claimed for noisy boundary
-//! POSITIONS (R1 review of #301): when the points themselves carry
-//! off-plane noise ν, no exactly-equal column exists, and the far
-//! point's own v-coordinate is an *engineered* exact-zero whose float
-//! residue is ~ν² — for ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that is nonzero
-//! sub-floor and the face refuses typed. In-contract (typed
-//! `Triangulation`, fail-loud), synthetic today (no corpus body hits
-//! it; wild translator noise observed so far is axis noise), pinned
-//! in `tests/newell_probes.rs`, and banked as a follow-up candidate —
-//! it is the same "valid body refuses tessellation" shape #284 itself
-//! had.
+//! # The far point's v-coordinate is WRITTEN as the zero it is
+//!
+//! That construction guarantee covers the noisy-AXES class and only
+//! it. When the boundary POSITIONS themselves carry off-plane noise ν
+//! there is no exactly-equal input column to lean on — and one chart
+//! coordinate is an exact zero regardless: `u` is the far point's own
+//! rejection from the normal, so `far` lies in span{normal, u} and its
+//! `v = far · (normal × u)` is a determinant with a repeated row, zero
+//! in exact arithmetic. Evaluated in floats it lands at ~ν², and for
+//! ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that is nonzero BELOW spade's coordinate
+//! floor — which `insert` refuses, so the face returns
+//! [`TessellateError::Triangulation`] at **every** δ and no caller can
+//! turn a tolerance to escape it.
+//!
+//! So [`tessellate_planar`] WRITES that one coordinate as `0.0`
+//! instead of reading it back off the dot product.
+//!
+//! **That is not the value snapping this module refuses.** Value
+//! snapping moves a coordinate the construction genuinely produced
+//! onto a nearby one it did not: it manufactures an agreement, and a
+//! manufactured agreement is indistinguishable downstream from a real
+//! one. The far point's v is the opposite case. The construction
+//! produced zero — exactly, and for a stated structural reason — and
+//! it is the float residue that is invented. Writing `0.0` there
+//! refuses to invent a nonzero the frame never had, which is the
+//! doctrine's own argument rather than an exception carved out of it.
+//!
+//! That argument is also what SITES the write here, at the one
+//! coordinate whose exactness is known from how the frame was built,
+//! rather than as a blanket `mitigate_underflow` filter over every
+//! chart coordinate. A blanket filter cannot tell the far point's
+//! structural zero from a neighbouring point's small-but-real
+//! v-coordinate, so it would snap the second on the strength of an
+//! argument that holds only for the first — value snapping exactly as
+//! banned, wearing the structural zero's justification. Nor would it
+//! rescue the case it looks built for: a near-degenerate chart (#284's
+//! class) hands the CDT a zero-area region whether or not its
+//! coordinates are snapped, which is why the fix there had to be the
+//! frame, and was.
+//!
+//! What the write does NOT claim is that every chart coordinate now
+//! clears the floor. A boundary point that happens to lie on the
+//! anchor→far diagonal has an exact-zero v as well — but by GEOMETRY,
+//! not by construction: the frame does not know it, this write does
+//! not reach it, and its residue may still refuse typed (held to
+//! tessellate-or-typed by `probe_e2` in `tests/newell_probes.rs`). The
+//! anchor needs no write at all: its `w` is the exactly-zero vector,
+//! so both its coordinates are already float `0.0`.
 //!
 //! Deterministic (D9): fixed evaluation order over the walk, so the
 //! frame is bit-identical across rebuilds and debug/release. Once the
 //! frame is fixed the projection is a pure per-point function, so a
 //! repeated 3-D point projects to bitwise-identical chart coordinates
-//! — the slit cancellation below depends on exactly that. A
+//! — the slit cancellation below depends on exactly that, and it is
+//! why the write above selects its point by the BITS of the position
+//! rather than by walk index: the slit's two traversals of the far
+//! point are one 3-D point met twice and must stay one chart point. A
 //! degenerate outer loop (zero extent or zero area vector) yields
 //! non-finite frame components, which spade's `insert` refuses — the
 //! typed [`TessellateError::Triangulation`] path, fail-loud.
@@ -182,11 +222,8 @@ pub(crate) fn tessellate_planar(
     // The frame from the outer boundary alone (rings lie inside the
     // outer loop, so its extent governs the conditioning), then the
     // pure per-point projection of every loop.
-    let (origin, u_ref, v_ref) = chart_frame(&loops[0], positions);
-    let project = |id: &u32| -> [f64; 2] {
-        let w = positions[*id as usize] - origin;
-        [w.dot(u_ref), w.dot(v_ref)]
-    };
+    let frame = chart_frame(&loops[0], positions);
+    let project = |id: &u32| -> [f64; 2] { frame.project(positions[*id as usize]) };
     let polygons: Vec<Vec<[f64; 2]>> = loops
         .iter()
         .map(|ids| ids.iter().map(project).collect())
@@ -195,11 +232,54 @@ pub(crate) fn tessellate_planar(
     triangulate_chart(fk, &loops, &polygons)
 }
 
-/// The boundary-derived chart frame `(anchor, u, v)` of a planar face
-/// — a pure function of the outer loop's chord points in walk order
-/// (module docs: the convention, why the anchor is an input point,
-/// conditioning, determinism, and why the stored axes are not
-/// consulted).
+/// Bitwise position identity: two mesh ids denote the same 3-D point
+/// when their coordinates agree bit for bit. Stricter than `==` (which
+/// equates ±0.0 and refuses NaN), and deliberately so — it is what
+/// makes [`ChartFrame::project`] a pure function of the point rather
+/// than of its walk position.
+fn same_position(a: Point3<f64>, b: Point3<f64>) -> bool {
+    a.x.to_bits() == b.x.to_bits()
+        && a.y.to_bits() == b.y.to_bits()
+        && a.z.to_bits() == b.z.to_bits()
+}
+
+/// The boundary-derived chart of a planar face: anchor, in-plane axes,
+/// and the far point `u` was built from.
+struct ChartFrame {
+    origin: Point3<f64>,
+    u_ref: Vec3<f64>,
+    v_ref: Vec3<f64>,
+    /// The point `u_ref` is the rejection of, verbatim. Its
+    /// v-coordinate is an exact zero by that construction, so
+    /// [`ChartFrame::project`] writes it rather than reading the
+    /// sub-floor residue back off the dot product (module docs).
+    far_at: Point3<f64>,
+}
+
+impl ChartFrame {
+    /// One point's chart coordinates. Pure in the point: equal
+    /// positions project to bitwise-equal coordinates, which is what
+    /// lets the CDT dedupe a slit seam's two traversals.
+    fn project(&self, p: Point3<f64>) -> [f64; 2] {
+        let w = p - self.origin;
+        // The far point's v is an engineered exact zero: `u_ref` is
+        // that point's own rejection from the normal, so the dot
+        // product is a determinant with a repeated row (module docs).
+        // Written, not read back — the float residue is ~ν², which
+        // goes sub-floor for spade and refuses the whole face.
+        let v = if same_position(p, self.far_at) {
+            0.0
+        } else {
+            w.dot(self.v_ref)
+        };
+        [w.dot(self.u_ref), v]
+    }
+}
+
+/// The boundary-derived chart frame of a planar face — a pure function
+/// of the outer loop's chord points in walk order (module docs: the
+/// convention, why the anchor is an input point, conditioning,
+/// determinism, and why the stored axes are not consulted).
 ///
 /// The Newell cross-sum follows `geom_brep::newell_plane`'s fixed
 /// left-to-right evaluation order (D9) but translates to the walk's
@@ -210,7 +290,7 @@ pub(crate) fn tessellate_planar(
 /// `newell_plane`'s ambient `orthonormal_basis` pick. A degenerate
 /// loop propagates non-finite components to the CDT, which refuses
 /// typed.
-fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> ChartFrame {
     let at = |id: u32| positions[id as usize];
     // Anchor: the walk's first point, verbatim.
     let origin = at(outer[0]);
@@ -227,6 +307,7 @@ fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> (Point3<f64>, Vec3<f
     // keeps the FIRST maximum in walk order — deterministic on exact
     // ties), shed of its off-plane component.
     let mut far = Vec3::zero();
+    let mut far_at = origin;
     let mut far_d2 = f64::NEG_INFINITY;
     for &id in outer {
         let d = at(id) - origin;
@@ -234,10 +315,16 @@ fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> (Point3<f64>, Vec3<f
         if d2 > far_d2 {
             far_d2 = d2;
             far = d;
+            far_at = at(id);
         }
     }
     let u_ref = far.reject_from(normal).normalize();
-    (origin, u_ref, normal.cross(u_ref))
+    ChartFrame {
+        origin,
+        u_ref,
+        v_ref: normal.cross(u_ref),
+        far_at,
+    }
 }
 
 /// Triangulates a face already reduced to its chart: `loops[i][j]` is
@@ -652,7 +739,8 @@ mod tests {
             "loop no longer discriminates the centroid anchor — pick new coordinates"
         );
 
-        let (origin, u_ref, v_ref) = super::chart_frame(&outer, &positions);
+        let frame = super::chart_frame(&outer, &positions);
+        let (origin, u_ref, v_ref) = (frame.origin, frame.u_ref, frame.v_ref);
         assert_eq!(
             (origin.x.to_bits(), origin.y.to_bits(), origin.z.to_bits()),
             (
@@ -674,6 +762,92 @@ mod tests {
                     "chart coordinate {c:e} in spade's forbidden (0, 2^-142) band"
                 );
             }
+        }
+        // The far point is a real boundary point of this loop, and its
+        // v is the coordinate the projection writes rather than reads.
+        assert!(
+            positions
+                .iter()
+                .any(|p| super::same_position(*p, frame.far_at)),
+            "far must be an input point, verbatim"
+        );
+    }
+
+    /// Issue 555, the MECHANISM rather than the outcome: on a boundary
+    /// carrying off-plane position noise ν the far point's raw
+    /// `w · v_ref` lands in spade's forbidden `(0, 2⁻¹⁴²)` band — the
+    /// residue of an exact zero — and the projection emits `0.0`
+    /// there instead. Both halves are asserted, because asserting only
+    /// the second would still pass if the frame stopped producing a
+    /// sub-floor residue for some unrelated reason, and the row would
+    /// then be pinning nothing.
+    #[test]
+    fn the_far_points_subfloor_v_residue_is_written_as_zero() {
+        use geom_core::Point3;
+        let floor = 2.0_f64.powi(-142);
+        for exp in [-30i32, -45, -60] {
+            let nu = 10.0f64.powi(exp);
+            // The skewed rectangle: z = x·ν, no exactly-equal column.
+            let positions: Vec<Point3<f64>> = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
+                .iter()
+                .map(|&(x, y)| Point3::new(x, y, x * nu))
+                .collect();
+            #[allow(clippy::cast_possible_truncation)]
+            let outer: Vec<u32> = (0..positions.len() as u32).collect();
+            let frame = super::chart_frame(&outer, &positions);
+
+            // The far point is (2, 1, 2ν) — the diagonal corner.
+            let far = frame.far_at;
+            assert!(
+                super::same_position(far, positions[2]),
+                "1e{exp}: far drifted off the diagonal corner: {far:?}"
+            );
+
+            // Half one: the raw residue is sub-floor, so an unwritten
+            // projection would hand spade a coordinate it refuses.
+            let raw = (far - frame.origin).dot(frame.v_ref);
+            assert!(
+                raw != 0.0 && raw.abs() < floor,
+                "1e{exp}: raw v residue {raw:e} is not sub-floor — this row \
+                 no longer exercises the defect, pick a new noise scale"
+            );
+
+            // Half two: what the projection actually emits.
+            let [_, v] = frame.project(far);
+            assert_eq!(v, 0.0, "1e{exp}: far point's v must be written zero");
+
+            // Purity in the point: the same position, met again (a
+            // slit seam's second traversal), projects identically.
+            assert_eq!(frame.project(far), frame.project(positions[2]));
+        }
+    }
+
+    /// The write is scoped to the far point alone: every other
+    /// boundary point keeps the v its dot product produced. A blanket
+    /// filter would flatten these too, which is the difference the
+    /// module docs' siting argument turns on.
+    #[test]
+    fn only_the_far_points_v_is_written() {
+        use geom_core::Point3;
+        let nu = 1.0e-30;
+        let positions: Vec<Point3<f64>> = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
+            .iter()
+            .map(|&(x, y)| Point3::new(x, y, x * nu))
+            .collect();
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<u32> = (0..positions.len() as u32).collect();
+        let frame = super::chart_frame(&outer, &positions);
+        for (i, p) in positions.iter().enumerate() {
+            let [_, v] = frame.project(*p);
+            if super::same_position(*p, frame.far_at) {
+                continue;
+            }
+            let raw = (*p - frame.origin).dot(frame.v_ref);
+            assert_eq!(
+                v.to_bits(),
+                raw.to_bits(),
+                "point {i}: v was rewritten but is not the far point"
+            );
         }
     }
 
