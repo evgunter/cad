@@ -341,9 +341,13 @@ discipline() {
   # which exists on this box. What DOES belong in both halves is the check that
   # the parsers still read nextest's output, because a report that gates
   # nothing has no red run to announce a parser that stopped matching.
+  # The same argument covers `base-test-listing.sh`, whose subject is even more
+  # hosted-only — an artifacts-API lookup — and whose selftest is therefore
+  # written against stub `cargo`, `gh` and `curl` and runs anywhere.
   # HOSTED MIRROR: discipline / test cost report parsers (selftest)
   if ! (python3 scripts/slowest-tests.py --selftest \
-        && python3 scripts/pr-added-tests.py --selftest); then
+        && python3 scripts/pr-added-tests.py --selftest \
+        && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
   return $rc

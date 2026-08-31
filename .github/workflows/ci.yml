@@ -923,10 +923,22 @@ jobs:
       # captured output from real runs (green, red including the failure recap
       # nextest prints after its `Summary` line, and a retried test), so this
       # row costs milliseconds and cannot end up testing a fossil.
+      #
+      # SCOPED TO WHAT THIS JOB IS, because "no failing run to announce it"
+      # reads as unconditional and is not: `discipline` runs on non-push events
+      # with `run_build=true`, so what this row covers is exactly the change
+      # sets the test jobs themselves run on. A push, or a docs-tier change,
+      # runs neither the reports nor this — which is the right pairing, and it
+      # is a pairing rather than total coverage.
+      #
+      # THE LOOKUP'S SELFTEST RIDES THE SAME ROW. `base-test-listing.sh` is the
+      # shell the two test jobs share; its guards are the ones that fired on a
+      # real hosted 403, and inline in a `run:` block nothing could red them.
       - name: test cost report parsers (selftest)
         run: |
           python3 scripts/slowest-tests.py --selftest
           python3 scripts/pr-added-tests.py --selftest
+          scripts/base-test-listing.sh --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: on an interval draw the default lane does not run at
       # all, so this lane stands in for it (see `test-interval`'s header),
@@ -1729,12 +1741,24 @@ jobs:
     needs: [filter, build]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
-    # MEASURED, NOT ASSUMED: without this block the cost report's base-listing
-    # lookup got `Resource not accessible by integration (HTTP 403)` from the
-    # artifacts API on run 33343519165 — the default token here can read the
-    # repository and not the Actions API. `actions: read` is the whole grant,
-    # it is what `download-artifact` already needs, and nothing in this job
-    # writes anything: the block is narrower than the default it replaces.
+    # THE MINIMAL GRANT THIS JOB CAN DO ITS WORK WITH — and it WIDENS one
+    # scope, which is the point of it. A `permissions:` block replaces the
+    # workflow's default token scopes outright, so the delta runs both ways:
+    # `actions` goes from NONE to `read`, and every other scope the default
+    # carried is pinned off. Nothing in this job writes anything.
+    #
+    # MEASURED, NOT ASSUMED, and the measurement is what the widening rests on:
+    # without `actions: read` the cost report's base-listing lookup got
+    # `Resource not accessible by integration (HTTP 403)` from the artifacts
+    # API on run 33343519165. The default token could read the repository and
+    # not the Actions API.
+    #
+    # IT IS NOT WHAT `download-artifact` NEEDS. A v4 download of an artifact
+    # from the SAME run goes through the runner's own runtime token and no REST
+    # call, which is why every download step in this workflow has always worked
+    # without it. What needs the scope is the CROSS-RUN artifacts-API lookup in
+    # `scripts/base-test-listing.sh` — so the grant is on the two test jobs
+    # that run it, and on nothing else in this file.
     permissions:
       contents: read
       actions: read
@@ -1900,13 +1924,30 @@ jobs:
       # missing or partial block in the summary, and the job's red/green is
       # exactly what the test step said.
       #
+      # `success() || failure()` AND NOT `always()`, which differ on exactly one
+      # job state: CANCELLED. The three sentences above are about a RED run and
+      # still hold — `failure()` is what keeps this reporting on one — but a
+      # cancelled job is a runner being torn down, and starting a `cargo nextest
+      # list` on it buys a report nobody asked for out of a job someone stopped.
+      #
       # ~0 BILLED MINUTES, which is the whole reason it is shaped this way: no
       # new job (the billing model rounds per JOB — docs/CI-MINUTES-2026-08.md),
-      # no extra runner, no permissions of its own. The slowest-N half parses
-      # output this job already produced. The listing half costs one archive
-      # extraction (~0.5 s, measured in the `Extracted 37 files … in 0.50s` line
-      # every run prints) plus a listing pass — seconds inside a job that
-      # already runs for minutes.
+      # no extra runner. The slowest-N half parses output this job already
+      # produced. The listing half costs one archive extraction (~0.5 s,
+      # measured in the `Extracted 37 files … in 0.50s` line every run prints)
+      # plus a listing pass — seconds inside a job that already runs for
+      # minutes.
+      #
+      # WHY THAT FIGURE HAS NO REGISTER AND NO GUARD, since this repo's
+      # convention is that a measured claim gets one: it is a ONE-SHOT BOUND,
+      # not a tracked quantity. What it asserts is that these seconds cannot
+      # reach the granularity the billing model charges in — a whole job-minute
+      # — and the honest caveat is stated rather than watched: seconds added to
+      # a job already sitting within seconds of a minute boundary can round up
+      # once. Nothing in it varies with the suite, so there is no series to
+      # register and no threshold a guard could hold; the number that WOULD
+      # need one is a per-job minute count, which docs/CI-MINUTES-2026-08.md
+      # already tracks for the whole workflow.
       #
       # WHERE A BASE LISTING COMES FROM. There is no cheap way to LIST the base
       # tree — it would mean building it — so each run publishes its own
@@ -1918,13 +1959,20 @@ jobs:
       # lands, a base tree nobody listed, an expired artifact, a token without
       # `actions: read` — the report prints a STATED SKIP naming which of those
       # it was. It never prints a number it could not derive, and never a red.
+      #
+      # THE LOOKUP ITSELF IS `scripts/base-test-listing.sh`, ONE COPY FOR BOTH
+      # LANES, and its header carries the argument: a sampled run executes one
+      # lane, so a second copy of this shell would be untested by construction,
+      # and the guards that refuse `gh`'s error text as a tree SHA or a URL
+      # would be exactly the code no test can red. In the script they have a
+      # `--selftest` that drives them against stub `cargo`, `gh` and `curl`,
+      # gated in `discipline` beside the two parsers.
       - name: test cost report (slowest tests + what this PR adds)
-        if: always()
+        if: success() || failure()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          LANE: default
           JOB: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
         run: |
           set +e
@@ -1937,59 +1985,21 @@ jobs:
           mkdir -p "$COST"
           python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
             --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
-          cargo nextest list --archive-file nextest-default.tar.zst --workspace-remap . \
-            --message-format json > "$COST/test-list.json"
-          HEAD_TREE=$(git rev-parse "HEAD^{tree}")
-          BASE_LIST=""
-          REASON="no base listing was looked for"
-          if [ -z "$BASE_SHA" ]; then
-            REASON="this run is not a pull_request run, so it has no base tree to diff against"
-          else
-            # NEITHER CAPTURE IS TRUSTED UNTIL IT HAS THE SHAPE OF AN ANSWER.
-            # On run 33343519165 `gh` put `Resource not accessible by
-            # integration (HTTP 403)` somewhere the substitution below picked
-            # it up, and that string went on to be spliced into a URL and
-            # reported as "found but could not be downloaded" — a report
-            # inventing a reading out of a failure, which is the one thing
-            # these blocks must not do. So: stderr is discarded, and a value
-            # that is not a tree SHA (or not an https URL) is not a value.
-            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha 2>/dev/null)
-            echo "$BASE_TREE" | grep -qE '^[0-9a-f]{40}$' || BASE_TREE=""
-            NAME="test-list-$LANE-$BASE_TREE"
-            if [ -z "$BASE_TREE" ]; then
-              REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed (this report has no permissions of its own)"
-            else
-              URL=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$NAME&per_page=1" \
-                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' 2>/dev/null | head -n 1)
-              case "$URL" in https://*) ;; *) URL="" ;; esac
-              if [ -z "$URL" ]; then
-                REASON="no run has published a test listing named \`$NAME\`, so the base tree \`$BASE_TREE\` has never been listed — it was tested before this report existed, its listing's retention has expired, or the lookup had no \`actions: read\`"
-              elif curl -sSL -H "Authorization: Bearer $GH_TOKEN" -o "$COST/base.zip" "$URL" &&
-                   unzip -o -q "$COST/base.zip" -d "$COST/base" &&
-                   [ -f "$COST/base/test-list.json" ]; then
-                BASE_LIST="$COST/base/test-list.json"
-              else
-                REASON="the listing artifact \`$NAME\` was found but could not be downloaded or unpacked"
-              fi
-            fi
-          fi
-          if [ -n "$BASE_LIST" ]; then
-            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
-              --base "$BASE_LIST" --base-source "the published listing for base tree \`$BASE_TREE\`" \
-              --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
-          else
-            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
-              --no-base "$REASON" | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "TEST_LIST_TREE=$HEAD_TREE" >> "$GITHUB_ENV"
+          scripts/base-test-listing.sh --archive nextest-default.tar.zst --lane default \
+            --job "$JOB" --cost-dir "$COST" \
+            --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
           exit 0
       # Shard 1 only: both shards download the same archive and would publish
       # the same listing under the same name, and a duplicate artifact name is
       # an error. 7 days because this is a convenience for the NEXT pull
       # request's report and this repo's artifact quota is small (500 MB); a
       # base tree older than a week is one nothing is being opened against.
+      #
+      # `TEST_LIST_TREE` IS THE GATE, and the helper sets it only for a listing
+      # that parsed — see its header on why a squatted name is worse than no
+      # name at all.
       - name: publish this tree's test listing (the next PR's base)
-        if: always() && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        if: (success() || failure()) && matrix.shard == 1 && env.TEST_LIST_TREE != ''
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -2340,8 +2350,10 @@ jobs:
     needs: [filter, build-interval]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
-    # `actions: read` for the cost report's base-listing lookup — the argument
-    # is at the default lane's copy of this block, where the 403 was measured.
+    # `actions: read` for the cost report's cross-run base-listing lookup, and
+    # everything else pinned off. The argument — what this block widens, what
+    # it narrows, and why `download-artifact` is not the reason — is at the
+    # default lane's copy, where the 403 was measured.
     permissions:
       contents: read
       actions: read
@@ -2457,15 +2469,17 @@ jobs:
       # rather than quietly reporting a two-leg job as a three-leg one.
       #
       # Everything else about this step — why it cannot alter the test verdict,
-      # what it costs, where a base listing comes from — is at the default
-      # lane's copy, which is the same step against the other archive.
+      # why it is not `always()`, what it costs, where a base listing comes
+      # from — is at the default lane's copy. What used to be a verbatim copy
+      # of ~60 lines of lookup shell is now one call to the script both lanes
+      # share, so the two differ only in the archive, the lane name and the leg
+      # list, and there is no second copy for a sampled run to leave untested.
       - name: test cost report (slowest tests + what this PR adds)
-        if: always()
+        if: success() || failure()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          LANE: interval
           JOB: test (interval, eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
         run: |
           set +e
@@ -2480,56 +2494,14 @@ jobs:
             --leg "run archived tests=$COST/archived-tests.log" \
             --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
             --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
-          cargo nextest list --archive-file nextest-interval.tar.zst --workspace-remap . \
-            --message-format json > "$COST/test-list.json"
-          HEAD_TREE=$(git rev-parse "HEAD^{tree}")
-          BASE_LIST=""
-          REASON="no base listing was looked for"
-          if [ -z "$BASE_SHA" ]; then
-            REASON="this run is not a pull_request run, so it has no base tree to diff against"
-          else
-            # NEITHER CAPTURE IS TRUSTED UNTIL IT HAS THE SHAPE OF AN ANSWER.
-            # On run 33343519165 `gh` put `Resource not accessible by
-            # integration (HTTP 403)` somewhere the substitution below picked
-            # it up, and that string went on to be spliced into a URL and
-            # reported as "found but could not be downloaded" — a report
-            # inventing a reading out of a failure, which is the one thing
-            # these blocks must not do. So: stderr is discarded, and a value
-            # that is not a tree SHA (or not an https URL) is not a value.
-            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha 2>/dev/null)
-            echo "$BASE_TREE" | grep -qE '^[0-9a-f]{40}$' || BASE_TREE=""
-            NAME="test-list-$LANE-$BASE_TREE"
-            if [ -z "$BASE_TREE" ]; then
-              REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed (this report has no permissions of its own)"
-            else
-              URL=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$NAME&per_page=1" \
-                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' 2>/dev/null | head -n 1)
-              case "$URL" in https://*) ;; *) URL="" ;; esac
-              if [ -z "$URL" ]; then
-                REASON="no run has published a test listing named \`$NAME\`, so the base tree \`$BASE_TREE\` has never been listed in this lane — it was tested before this report existed, its listing's retention has expired, the run that tested it drew the other lane, or the lookup had no \`actions: read\`"
-              elif curl -sSL -H "Authorization: Bearer $GH_TOKEN" -o "$COST/base.zip" "$URL" &&
-                   unzip -o -q "$COST/base.zip" -d "$COST/base" &&
-                   [ -f "$COST/base/test-list.json" ]; then
-                BASE_LIST="$COST/base/test-list.json"
-              else
-                REASON="the listing artifact \`$NAME\` was found but could not be downloaded or unpacked"
-              fi
-            fi
-          fi
-          if [ -n "$BASE_LIST" ]; then
-            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
-              --base "$BASE_LIST" --base-source "the published listing for base tree \`$BASE_TREE\`" \
-              --leg "run archived tests=$COST/archived-tests.log" \
-              --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
-              --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
-          else
-            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
-              --no-base "$REASON" | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "TEST_LIST_TREE=$HEAD_TREE" >> "$GITHUB_ENV"
+          scripts/base-test-listing.sh --archive nextest-interval.tar.zst --lane interval \
+            --job "$JOB" --cost-dir "$COST" \
+            --leg "run archived tests=$COST/archived-tests.log" \
+            --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
           exit 0
       - name: publish this tree's test listing (the next PR's base)
-        if: always() && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        if: (success() || failure()) && matrix.shard == 1 && env.TEST_LIST_TREE != ''
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
