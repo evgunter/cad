@@ -748,3 +748,45 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         );
     }
 }
+
+/// **The anisotropy row.** A quarter cylinder of near-zero height:
+/// the `u` direction carries a quarter arc, the `v` direction is an
+/// exact ruling a millimetre long that the very first fit reproduces.
+/// Bisecting both directions on every failing cell buys a quadratic
+/// grid for a linear need; bisecting the direction whose model-space
+/// extent `h_d · sup‖S_d‖` is larger spends the rounds where the
+/// error is.
+///
+/// The row asserts the shape of the answer, not a cell count: the
+/// certificate contains, and the schedule stays within a small
+/// multiple of the `v` direction's seed rather than growing with it.
+#[test]
+fn refinement_follows_the_anisotropy_on_a_thin_patch() {
+    let base = quarter_cylinder(1.0, 1.0e-3);
+    let d = 0.1;
+    let tol = 1e-5;
+    let (fit, cert) = fit_offset(&base, d, tol, band())
+        .unwrap_or_else(|e| panic!("the thin patch refused at {tol}: {e}"));
+    let mut worst = 0.0f64;
+    for (u, v) in dense_grid() {
+        let target = offset_point(&base, d, u, v).unwrap();
+        worst = worst.max((fit.eval(u, v) - target).norm());
+    }
+    assert!(
+        worst <= cert.hull_sup,
+        "certified sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+    // The `v` direction needs no refinement at all, so the schedule
+    // must not have paid for any: a both-directions loop reaching
+    // this tolerance would square its cell count against this one.
+    assert!(
+        cert.cells <= 64,
+        "the schedule grew in the direction that carries no error: {} cells",
+        cert.cells
+    );
+    eprintln!(
+        "anisotropic: cells={} rounds={} hull_sup={:.3e} sampled={worst:.3e}",
+        cert.cells, cert.rounds, cert.hull_sup
+    );
+}

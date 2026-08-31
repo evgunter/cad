@@ -263,6 +263,27 @@ pub enum OffsetFitError {
         /// The tolerance it had to reach.
         tolerance: f64,
     },
+    /// The refinement loop stopped IMPROVING before the budget ran
+    /// out: a round that bisected every failing cell in both
+    /// directions did not lower the bound its predecessor reached.
+    ///
+    /// A different finding from [`Self::BudgetExhausted`], and the
+    /// distinction is what the caller does next. Exhaustion says the
+    /// loop was still converging and ran out of rounds — more budget
+    /// is the answer. This says the loop stopped converging while it
+    /// still had rounds in hand, so more of them will not help: the
+    /// tolerance is below what this fit's structure can reach on this
+    /// patch.
+    RefinementStalled {
+        /// How many refinement rounds ran before the stall.
+        rounds: u32,
+        /// The sample grid the loop stalled on, per direction.
+        grid: (usize, usize),
+        /// The certified sup bound at the stall, in metres.
+        achieved: f64,
+        /// The tolerance it had to reach.
+        tolerance: f64,
+    },
     /// The storage door was asked to certify over a window that is not
     /// the base's own chart rectangle. The certificate this module
     /// derives covers that rectangle and nothing narrower, so a
@@ -341,6 +362,20 @@ impl core::fmt::Display for OffsetFitError {
                  uncertified is returned",
                 grid.0, grid.1, OFFSET_FIT_SAMPLE_CAP
             ),
+            Self::RefinementStalled {
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+            } => write!(
+                f,
+                "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
+                 {rounds} rounds — bisecting every failing cell in both directions did \
+                 not lower the achieved sup bound of {achieved} m, against a tolerance \
+                 of {tolerance} m, so the remaining round budget cannot reach it; \
+                 nothing uncertified is returned",
+                grid.0, grid.1
+            ),
             Self::WindowUnsupported { window } => write!(
                 f,
                 "approx_offset_surface: the window asked for (u {:?}, v {:?}) is not the base's \
@@ -402,6 +437,11 @@ pub fn fit_offset(
 
     let (mut us, mut vs) = seed_params(base);
     let mut achieved = f64::INFINITY;
+    // The stall guard's state: the previous round's bound, and
+    // whether the marking that produced this grid was the
+    // both-directions fallback.
+    let mut prev_sup = f64::INFINITY;
+    let mut marked_both = false;
     for round in 0..=OFFSET_FIT_BUDGET {
         let fit = interpolate_offset_grid(base, d, &us, &vs)?;
         let report = measure(base, &fit, d, reg.floor)?;
@@ -428,18 +468,43 @@ pub fn fit_offset(
         // insertion on the worst spans" step (module docs), which
         // reaches the fitted knot vector through Eq. 9.8.
         //
-        // **Both directions are bisected, always.** A failing cell
-        // marks its `u` interval AND its `v` interval, so a patch
-        // whose error lives in one direction still pays a quadratic
-        // grid — on the quarter cylinder, whose `v` is an exact
-        // ruling the first fit already reproduces, that is most of
-        // the cells. This is a SIMPLIFICATION, not a deferral: the
-        // directional rule (mark the direction whose model-space cell
-        // extent `h·sup‖S_d‖` is larger — the tessellation split
-        // selection's own principle) is a small change to this block,
-        // filed as perf work (#1007), not a design question.
-        let next_u = bisect(&us, &mark(&us, report.failing.iter().map(|c| c.0)));
-        let next_v = bisect(&vs, &mark(&vs, report.failing.iter().map(|c| c.1)));
+        // **The direction is chosen, not both taken.** A failing cell
+        // bisects the direction whose model-space extent
+        // `h_d · sup‖S_d‖` is larger — the tessellation split
+        // selection's own rule. A patch whose error is anisotropic
+        // then pays a linear grid for a linear need instead of a
+        // quadratic one.
+        //
+        // **The stall guard is what makes that safe.** The speed
+        // ratio is a prediction, and a residual it mispredicts would
+        // otherwise refine the useless direction until the budget
+        // ran out. A round that did not improve on its predecessor
+        // falls back to marking BOTH directions; a both-directions
+        // round that still does not improve is not a budget problem
+        // and does not become one — it refuses, named.
+        match stall_verdict(prev_sup, report.hull_sup, marked_both) {
+            Refine::Refuse => {
+                #[allow(clippy::cast_possible_truncation)]
+                return Err(OffsetFitError::RefinementStalled {
+                    rounds: round as u32,
+                    grid: (us.len(), vs.len()),
+                    achieved,
+                    tolerance,
+                });
+            }
+            v => marked_both = v == Refine::BothDirections,
+        }
+        prev_sup = report.hull_sup;
+        let (mu, mv) = if marked_both {
+            (
+                mark(&us, report.failing.iter().map(|c| c.0)),
+                mark(&vs, report.failing.iter().map(|c| c.1)),
+            )
+        } else {
+            directional_mark(&us, &vs, &report.failing, reg.speed_u, reg.speed_v)
+        };
+        let next_u = bisect(&us, &mu);
+        let next_v = bisect(&vs, &mv);
         if (next_u.len() == us.len() && next_v.len() == vs.len())
             || next_u.len() > OFFSET_FIT_SAMPLE_CAP
             || next_v.len() > OFFSET_FIT_SAMPLE_CAP
@@ -782,6 +847,15 @@ fn interpolate_offset_grid(
 // The certificate's two limbs
 // ---------------------------------------------------------------------
 
+/// One cell's `(u, v)` rectangle, as `((u_lo, u_hi), (v_lo, v_hi))`.
+///
+/// Homed here, in the one module that reads it. `patch_bound` names
+/// the same shape for its own cells and the two are not unified: the
+/// consolidation that would give the patch-cell vocabulary a shared
+/// home is #1006's, sequenced after this unit precisely so its seam
+/// stays clean.
+type CellBox = ((f64, f64), (f64, f64));
+
 /// What one measurement pass proved, plus which sample intervals the
 /// next refinement round must bisect.
 struct Report {
@@ -790,7 +864,7 @@ struct Report {
     hull_sup: f64,
     /// The `(u, v)` rectangles of the cells that carry the sup — what
     /// the next refinement round attacks.
-    failing: Vec<((f64, f64), (f64, f64))>,
+    failing: Vec<CellBox>,
 }
 
 /// Both limbs, over the merged Bézier cell schedule.
@@ -831,7 +905,7 @@ fn measure(
     // cell always qualifies).
     let cut = hull_sup * 0.5;
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let failing: Vec<((f64, f64), (f64, f64))> = bounds
+    let failing: Vec<CellBox> = bounds
         .iter()
         .filter(|(_, _, b)| !(*b < cut))
         .map(|(u, v, _)| (*u, *v))
@@ -843,6 +917,80 @@ fn measure(
         hull_sup,
         failing,
     })
+}
+
+/// What the stall guard says about a round that did not certify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refine {
+    /// Bisect each failing cell in the one direction its model-space
+    /// extent names.
+    Directional,
+    /// Bisect every failing cell in BOTH directions: the last round
+    /// did not lower the bound, so the direction rule's prediction is
+    /// not to be trusted on this patch.
+    BothDirections,
+    /// Refuse: a both-directions round did not lower the bound
+    /// either.
+    Refuse,
+}
+
+/// **The stall guard.** `prev_sup` is the bound the previous round
+/// reached, `hull_sup` this round's, and `marked_both` whether the
+/// marking that produced this round's grid was the both-directions
+/// fallback.
+///
+/// The admission set of [`Refine::Refuse`] — what
+/// [`OffsetFitError::RefinementStalled`] refuses — is exactly this: a
+/// round whose grid came from bisecting every failing cell in both
+/// directions, reporting a bound that did not fall below a finite
+/// predecessor. Bisecting everything is the strongest step the loop
+/// has, so a round that takes it and gains nothing is telling the
+/// caller that the remaining rounds cannot reach the tolerance
+/// either. That is a different finding from running out of rounds
+/// while still converging, and the two are not merged.
+///
+/// **`+∞` is not a failure to improve.** A cell whose sign witness or
+/// weight hull is not yet proved bounds at `+∞`, which early rounds
+/// routinely report; a loop on its way from `+∞` to a finite bound is
+/// converging. So the comparison is made only against a FINITE
+/// predecessor, and the guard stays silent until there is one.
+fn stall_verdict(prev_sup: f64, hull_sup: f64, marked_both: bool) -> Refine {
+    if !prev_sup.is_finite() || hull_sup < prev_sup {
+        Refine::Directional
+    } else if marked_both {
+        Refine::Refuse
+    } else {
+        Refine::BothDirections
+    }
+}
+
+/// Marks each failing cell in ONE direction: the one whose
+/// model-space extent `h_d · sup‖S_d‖` is larger.
+///
+/// The rule is the tessellation split selection's. `speed_u` and
+/// `speed_v` are the whole-patch chart speeds
+/// ([`crate::offset_meters::PatchRegularity`]), so the comparison is
+/// between cell extents measured in metres rather than in chart
+/// parameters — which is what makes it invariant to how the two
+/// directions happen to be parameterized. Ties go to `u`, on
+/// structure (D9: deterministic, never data-dependent tuning).
+fn directional_mark(
+    us: &[f64],
+    vs: &[f64],
+    failing: &[CellBox],
+    speed_u: f64,
+    speed_v: f64,
+) -> (Vec<bool>, Vec<bool>) {
+    let mut fu: Vec<(f64, f64)> = Vec::new();
+    let mut fv: Vec<(f64, f64)> = Vec::new();
+    for (ub, vb) in failing {
+        if (ub.1 - ub.0) * speed_u >= (vb.1 - vb.0) * speed_v {
+            fu.push(*ub);
+        } else {
+            fv.push(*vb);
+        }
+    }
+    (mark(us, fu.into_iter()), mark(vs, fv.into_iter()))
 }
 
 /// Marks every interval of `params` that overlaps one of the ranges.
@@ -1249,5 +1397,83 @@ impl Composite {
         let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
         let hi = bound.hi();
         if hi.is_finite() { hi } else { f64::INFINITY }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Refine, directional_mark, stall_verdict};
+
+    /// The guard is silent while the bound is still `+∞`: an
+    /// unbounded round is unproved, not unimproved, and a loop on its
+    /// way from `+∞` to a finite bound is converging.
+    #[test]
+    fn an_infinite_predecessor_is_never_a_stall() {
+        for marked_both in [false, true] {
+            assert_eq!(
+                stall_verdict(f64::INFINITY, f64::INFINITY, marked_both),
+                Refine::Directional
+            );
+            assert_eq!(
+                stall_verdict(f64::INFINITY, 1e-3, marked_both),
+                Refine::Directional
+            );
+        }
+    }
+
+    /// A round that lowered the bound keeps refining directionally,
+    /// whichever marking produced it.
+    #[test]
+    fn an_improving_round_stays_directional() {
+        assert_eq!(stall_verdict(1e-3, 1e-4, false), Refine::Directional);
+        assert_eq!(stall_verdict(1e-3, 1e-4, true), Refine::Directional);
+    }
+
+    /// A directional round that gained nothing does not refuse — it
+    /// falls back to bisecting both directions, which is the answer
+    /// when the speed ratio mispredicted where the error lives.
+    /// Equality counts as no gain: a bound that held still is a bound
+    /// that did not fall.
+    #[test]
+    fn a_directional_round_that_gains_nothing_falls_back_to_both() {
+        assert_eq!(stall_verdict(1e-3, 1e-3, false), Refine::BothDirections);
+        assert_eq!(stall_verdict(1e-3, 2e-3, false), Refine::BothDirections);
+        assert_eq!(
+            stall_verdict(1e-3, f64::INFINITY, false),
+            Refine::BothDirections
+        );
+    }
+
+    /// **The refusal's admission set.** Only a BOTH-directions round
+    /// that still gains nothing refuses: the loop took the strongest
+    /// step it has and got nothing, so the rounds it has left cannot
+    /// reach the tolerance either.
+    #[test]
+    fn only_a_both_directions_round_that_gains_nothing_refuses() {
+        assert_eq!(stall_verdict(1e-3, 1e-3, true), Refine::Refuse);
+        assert_eq!(stall_verdict(1e-3, 2e-3, true), Refine::Refuse);
+        assert_eq!(stall_verdict(1e-3, f64::INFINITY, true), Refine::Refuse);
+    }
+
+    /// The direction rule reads model-space extent, not chart extent:
+    /// the same cell box marks `u` or `v` depending only on which
+    /// chart speed makes its side longer in metres.
+    #[test]
+    fn the_direction_rule_compares_metres_not_parameters() {
+        let us = vec![0.0, 0.5, 1.0];
+        let vs = vec![0.0, 0.5, 1.0];
+        let failing = [((0.0, 0.5), (0.0, 0.5))];
+        // Equal chart extents, u ten times faster: u is marked.
+        let (mu, mv) = directional_mark(&us, &vs, &failing, 10.0, 1.0);
+        assert_eq!(mu, vec![true, false]);
+        assert_eq!(mv, vec![false, false]);
+        // The same cell, v ten times faster: v is marked instead.
+        let (mu, mv) = directional_mark(&us, &vs, &failing, 1.0, 10.0);
+        assert_eq!(mu, vec![false, false]);
+        assert_eq!(mv, vec![true, false]);
+        // A tie goes to u, on structure (D9).
+        let (mu, mv) = directional_mark(&us, &vs, &failing, 3.0, 3.0);
+        assert_eq!(mu, vec![true, false]);
+        assert_eq!(mv, vec![false, false]);
     }
 }
