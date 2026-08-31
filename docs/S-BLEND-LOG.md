@@ -446,3 +446,23 @@ Next: BLEND-B2 draw branch-side, then BLEND-5 (issue 961) — its
 LIB-G16 gate long merged; BLEND-6 (#917) follows, its #1279
 vocabulary ruling RATIFIED. Lanes blend-2 / blend-2-r1 reclaimed
 after this entry.
+
+## 2026-08-31 — BLEND-5 state-sync (rides the unit branch last; merged at #1301)
+
+Unit BLEND-5 (issue 961) complete on head `3b57af5b`: role
+vocabulary (`RimSupport::{Host, Mate}`), schema v18 clean break,
+reason 3 withdrawn for the measured planarity-boundary statement,
+host rule homed, seam-split row rebuilt at fix 2 onto a genuinely
+slot-disagreeing rim (red under both mutations, covering the third
+host-rule site both ways). Reviews ordinal 603 (R1 OPUS + R2 FABLE,
+concurrent, frozen 50fedb7d): R1 M-A-F 1/3/4 + 10 style, R2 M-A-F
+0/4/1 + 7 style; headline bilateral, no tally candidates; delta
+6/8 confirmed, 2 record residues closed at fix 2. Issues filed at
+adjudication: #1306, #1308, #1309. Handoff recorded: whether a rim
+reference wants a resolution-time check (the silent-retarget
+residue of the role shape) is a design conversation — not opened.
+A/B row (ordinal 603, sample hedged #57) rides this commit; the
+implementer arm stays branch-side until block BLEND-B2 closes.
+Next: BLEND-6 (issue 917, block B2 slot 2) dispatches after this
+merges — its #1279 vocabulary ruling is RATIFIED and its LIB-G16
+gate long merged.

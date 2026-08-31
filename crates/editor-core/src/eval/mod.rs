@@ -2632,8 +2632,8 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         SplitHalf::Below => 2,
     };
     let rim = |s: crate::names::RimSupport| match s {
-        crate::names::RimSupport::Plane => 1u64,
-        crate::names::RimSupport::Curved => 2,
+        crate::names::RimSupport::Host => 1u64,
+        crate::names::RimSupport::Mate => 2,
     };
     let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
         h.write_u64(u64::from(e.loop_index));

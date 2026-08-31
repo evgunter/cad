@@ -2006,7 +2006,7 @@ fn invert_carrier<T: Real>(carrier: &Curve3<T>, p: Point3<T>, near: T) -> Option
             // had: the stored range is the traversed arc, not a
             // canonical one.
             let tau = T::tau();
-            let k = ((near - theta) / tau + T::from_f64(0.5)).floor();
+            let k = (near - theta).periodic_branch(tau);
             Some(theta + k * tau)
         }
         Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
