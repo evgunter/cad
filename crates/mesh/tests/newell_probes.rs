@@ -169,20 +169,10 @@ fn probe_d_huge_offset_tiny_face() {
     let poly = [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)];
     let body = prism_on(plane, &poly, 1.0e-3);
     let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");
-    // The global `signed_volume` cancels catastrophically at 1e8
-    // offsets (terms ~1e24 for a 1e-9 volume) — recentre first: the
-    // divergence sum is translation-invariant for a CLOSED mesh, so
-    // the recentred value is the honest volume oracle.
-    let rc = |i: u32| {
-        let p = m.positions[i as usize];
-        Vec3::new(p.x - 1.0e8, p.y - 1.0e8, p.z - 1.0e8)
-    };
-    let mut v = 0.0f64;
-    for patch in &m.patches {
-        for t in &patch.triangles {
-            v += rc(t[0]).dot(rc(t[1]).cross(rc(t[2]))) / 6.0;
-        }
-    }
+    // `signed_volume` recentres on the mesh's bbox centre, so its
+    // fold operands scale with the body, not the placement — it is
+    // the honest oracle here directly.
+    let v = signed_volume(&m);
     // Positions are ~1e8 with ulp ~1.5e-8 against 1e-3 edges: ~1.5e-5
     // relative slop per coordinate — accept 1e-4.
     assert!(

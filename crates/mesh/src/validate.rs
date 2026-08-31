@@ -4,8 +4,6 @@
 
 use std::collections::BTreeMap;
 
-use geom_core::Point3;
-
 use crate::types::Mesh;
 
 /// Typed mesh-validity failure (closed enum).
@@ -94,11 +92,26 @@ pub fn check_mesh(mesh: &Mesh) -> Result<(), MeshError> {
 }
 
 /// The mesh's signed volume by the divergence theorem,
-/// `V = (1/6)·Σ det[a, b, c]` over all triangles — positive for
-/// outward-wound closed meshes (the global orientation invariant).
+/// `V = (1/6)·Σ det[a−o, b−o, c−o]` over all triangles, with `o` the
+/// positions' bbox centre — positive for outward-wound closed meshes
+/// (the global orientation invariant).
+///
+/// Recentring on `o` is exact over ℝ: for a closed mesh the sum is
+/// translation-invariant (the anchor's extra terms assemble the
+/// surface's total area vector, which is zero), so any `o` measures
+/// the same volume — and a body-interior `o` keeps the fold's
+/// operands at the body's own scale, where a world-origin anchor
+/// pays cancellation proportional to the placement distance.
 pub fn signed_volume(mesh: &Mesh) -> f64 {
+    let Some(&first) = mesh.positions.first() else {
+        return 0.0;
+    };
+    let (lo, hi) = mesh
+        .positions
+        .iter()
+        .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
+    let o = lo + (hi - lo) * 0.5;
     let mut six_v = 0.0;
-    let o = Point3::origin();
     for patch in &mesh.patches {
         for tri in &patch.triangles {
             let a = mesh.positions[tri[0] as usize] - o;
