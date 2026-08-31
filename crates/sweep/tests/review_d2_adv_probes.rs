@@ -182,7 +182,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
-        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, band(), Tol::witness()) {
+        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, Tol::witness()) {
             out.push(("die_one_pip_blended", f.body));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
@@ -454,7 +454,7 @@ fn d2_no_input_reaches_a_panic() {
                 // is the only outcome-level proof available from outside
                 // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fillet_edges(body, &req, r, band(), Tol::witness())
+                    fillet_edges(body, &req, r, Tol::witness())
                         .map(|f| f.band_faces.len())
                         .unwrap_or(0)
                 }));
@@ -522,7 +522,7 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, band(), Tol::witness()).map_err(|r| r.error) {
+                match fillet_edges(&body, &req, r, Tol::witness()).map_err(|r| r.error) {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -576,7 +576,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
     // inside the front door, so any refusal below is the graft's doing
     // and not the request's.
     assert!(
-        fillet_edges(&base, &edges, 0.12, band(), Tol::witness()).is_ok(),
+        fillet_edges(&base, &edges, 0.12, Tol::witness()).is_ok(),
         "the control request must pass, or this row proves nothing"
     );
 
@@ -593,7 +593,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()).map_err(|r| r.error) {
+    match fillet_edges(&dst, &after, 0.12, Tol::witness()).map_err(|r| r.error) {
         Err(BlendError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \

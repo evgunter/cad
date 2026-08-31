@@ -109,3 +109,34 @@ pattern's instance cannot be named as operands — the authoring
 vocabulary's next wall) and the #1386 conversation (which gained
 the app.rs and Tools-shape data points). Ledger row: ordinal 903,
 sample #74. Block GAUTH-B1 concluded balanced.
+
+## 2026-08-31 — GAUTH-5 delivered (PR #1407, merged); PROGRAM CLOSED
+
+The blend tool landed: canonical-by-construction edge accumulation,
+both blend doors through the canonicalizing constructors,
+`EdgesOnly` narrowing, the all-edges affordance with its
+loading-is-not-a-promise honesty section, and the #217 freeze note
+in chrome. The dual found three MAJOR-grade seams, every one
+demonstrated by execution, and the fix pass closed each red-first:
+the same-frame notice erasure (frame policy now owns notice
+ranking), the per-node all-edges load breaking the tool's own
+one-target invariant, and strand-blind reconcile. R2's review was
+interrupted by a usage limit after verification and delivered from
+held state on resume — flagged in the ledger row, pair counts.
+Ledger row: ordinal 904, sample #79.
+
+**The program is CLOSED per Evan's in-chat ruling (2026-08-31): no
+exit walk.** That ruling is this program's done-state of record in
+place of a ratified walk. All five units merged: the GUI authors
+parts from nothing (GAUTH-1), picks edges (GAUTH-2), places pinned
+instances (GAUTH-3), combines bodies (GAUTH-4), and blends edges
+(GAUTH-5). Residue, each with a durable home: #1374 (face-frame
+profile placement), #1379 (GQ7's filter vocabulary, two data
+points in), #1384 (id-reuse aliasing class in tool state), #1385
+(chrome-coverage gap — the CI archive builds without
+`--features app`), #1387 (Reevaluate cannot observe store
+changes), #1394 (split sides / pattern instances not nameable as
+operands), #1395 (pick window-bookkeeping class), #1386 (the
+session.rs/app.rs/Tools accretion split conversation, four data
+points in). Blocks B1 concluded balanced, B2 closed short (records
+in docs/MODEL-AB-LOG.md).

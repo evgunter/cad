@@ -13,17 +13,13 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 const FIT_TOL: f64 = 1e-6;
@@ -127,7 +123,7 @@ fn two_chord_area(r: f64, t: f64) -> f64 {
 /// a relative one flatters itself by eight orders of magnitude.
 fn wall(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
-    let hollow = topo::shell(body, T, FIT_TOL, band(), tol)
+    let hollow = topo::shell(body, T, FIT_TOL, tol)
         .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"));
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
@@ -253,7 +249,7 @@ fn the_axial_door_names_its_own_boundary() {
         ]),
         Revolution::Full,
     );
-    let e = topo::shell(&torus_vase, T, FIT_TOL, band(), tol)
+    let e = topo::shell(&torus_vase, T, FIT_TOL, tol)
         .expect_err("a torus wall is outside the axial kinds");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -278,7 +274,7 @@ fn the_axial_door_names_its_own_boundary() {
         .with_tangent_joints(vec![2]),
         Revolution::Full,
     );
-    let e = topo::shell(&dome, T, FIT_TOL, band(), tol)
+    let e = topo::shell(&dome, T, FIT_TOL, tol)
         .expect_err("a tangent junction has no transversal corner");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");

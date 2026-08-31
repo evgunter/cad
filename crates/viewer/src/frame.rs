@@ -63,6 +63,60 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
     }
 }
 
+/// **The status line after a whole FRAME**: what the open tool said
+/// about the frame's picks, composed with what the batch of operations
+/// did.
+///
+/// # Why this composition has to exist
+///
+/// A tool notice and a batch verdict are produced by the SAME frame,
+/// from the SAME ops, and they disagree by construction. A pick the
+/// blend tool declines is still a `Select` that the session performs
+/// cleanly — so [`batch_status`] sees an acting op and no refusal,
+/// answers [`StatusUpdate::Clear`], and wipes the notice that was
+/// written a few lines earlier. The user's mis-aimed click moved the
+/// selection to another body and the sentence explaining why it did
+/// not join the blend was on screen for zero frames.
+///
+/// Every other notice path survived only because nothing else in its
+/// frame acted: a survival drop happens on a document change the user
+/// did not click for. That is luck, not a rule, so the rule is here.
+///
+/// # The ranking
+///
+/// 1. A **refusal** wins, alone. It is the answer to the action the
+///    user asked the DOCUMENT for, and it is the louder of the two.
+/// 2. Else **every notice the frame produced**, in the order they
+///    happened, joined with the separator the preferences path already
+///    joins its startup notices with. Not the last one: assigning
+///    `status` from each in turn keeps the last and loses the rest,
+///    which is the same keep-last defect [`batch_status`] exists to
+///    stop for refusals. Not the first one either — a frame CAN drop
+///    two picks (a seated tool has two seats), and both drops are news.
+/// 3. Else the batch's own verdict — [`StatusUpdate::Clear`] for a
+///    clean acting batch, [`StatusUpdate::Keep`] otherwise.
+///
+/// Joining is a SEPARATOR, not a composed sentence: each notice is
+/// still its own typed value's own rendering, which is what the error
+/// micro-decision asks. Nothing here writes prose about someone else's
+/// failure.
+pub fn frame_status(
+    notices: &[String],
+    ops: &[SessionOp],
+    refusal: Option<&Refusal>,
+) -> StatusUpdate {
+    match batch_status(ops, refusal) {
+        refused @ StatusUpdate::Show(_) => refused,
+        verdict if notices.is_empty() => verdict,
+        _ => StatusUpdate::Show(notices.join(NOTICE_SEPARATOR)),
+    }
+}
+
+/// What several notices in one frame are joined with — one spelling,
+/// shared with the preferences path's startup notices so the status
+/// line reads the same however many things it is carrying.
+pub const NOTICE_SEPARATOR: &str = "; ";
+
 /// The name a refused batch offers to CREATE.
 ///
 /// The parse door's unknown-parameter refusal is deliberate

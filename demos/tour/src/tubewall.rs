@@ -284,7 +284,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     out.push(Stop {
         name: "hollowelbow",
         caption: "THE WINDOWED HOLLOW ELBOW (a wall, and an open bore)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // 2026-08-30), with `hollowtorus` and `hollowring`. This was
+        // the sheet's one picture of a WALL THICKNESS without a
+        // translucency trick, and it goes with the cavity panels it
+        // was the contrast for: the trio spent three cells on one
+        // idea. Everything the panel pinned is a number or an export,
+        // not a pixel — the stored `minor_radius`/`minor_radius - wall`
+        // bits, the triangle-count identity against the solid tube —
+        // and all of it stays, on the standalone render.
+        montage: false,
         story: "the tube door's hollow sibling over `tube`'s own wedge — same spine, \
                 same outer radius, same window, plus a wall. The ends are OPEN, so the \
                 annular section is on screen and the bore reads without any \
@@ -402,7 +411,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     out.push(Stop {
         name: "hollowtorus",
         caption: "THE FULL-PERIOD HOLLOW TUBE (the bore becomes a cavity)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // 2026-08-30) — see `hollowelbow` above and `ring::hollowring`,
+        // which is this same shape through the profile door and goes
+        // with it. The cavity, its `Void` shell role and the negated
+        // bore volume are printed; the STEP standing gate still runs
+        // on every pass.
+        montage: false,
         story: "the SAME door, the same spine and the same wall, closed on itself. At \
                 the full period the inner wall stops being a visible surface and \
                 becomes a toroidal CAVITY — a second shell the caller never named",

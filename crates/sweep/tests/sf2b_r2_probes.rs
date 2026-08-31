@@ -119,7 +119,7 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
         let body = frustum(r0, r1, h);
         describe_cones(what, &body);
         let v_out = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&body, T, FIT_TOL, band(), tol) {
+        match topo::shell(&body, T, FIT_TOL, tol) {
             Ok(hollow) => {
                 assert_eq!(
                     topo::validate_geometric(&hollow, tol),
@@ -202,7 +202,7 @@ fn r2_a_conical_wedge_meridian_edge() {
             Revolution::Partial(turn),
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&body, T, FIT_TOL, band(), tol) {
+        match topo::shell(&body, T, FIT_TOL, tol) {
             Ok(hollow) => {
                 let v = topo::mass_properties(&hollow, tol).expect("props").volume;
                 println!(
@@ -251,7 +251,7 @@ fn r2_wedge_at_degenerate_turns() {
             Revolution::Partial(turn),
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&body, T, FIT_TOL, band(), tol) {
+        match topo::shell(&body, T, FIT_TOL, tol) {
             Ok(hollow) => {
                 let v = topo::mass_properties(&hollow, tol).expect("props").volume;
                 let valid = topo::validate_geometric(&hollow, tol);
@@ -310,7 +310,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .filter_map(|(_, vd)| pot.get_point(vd.point).copied())
         .map(|p| p.z.atan2(p.x))
         .collect();
-    let hollow = topo::shell(&pot, T, FIT_TOL, band(), tol).expect("the bellied pot hollows");
+    let hollow = topo::shell(&pot, T, FIT_TOL, tol).expect("the bellied pot hollows");
     let after: Vec<f64> = hollow
         .vertices()
         .filter_map(|(_, vd)| hollow.get_point(vd.point).copied())
@@ -334,7 +334,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         })
         .map(|(k, _)| k)
         .collect();
-    match topo::shell_open(&pot, T, &mouth, FIT_TOL, band(), tol) {
+    match topo::shell_open(&pot, T, &mouth, FIT_TOL, tol) {
         Ok(cup) => {
             let props = topo::mass_properties(&cup, tol).expect("props");
             println!(
@@ -364,7 +364,7 @@ fn r2_stepped_vase_lift_branch() {
         ]),
         Revolution::Full,
     );
-    match topo::shell(&body, t, FIT_TOL, band(), tol) {
+    match topo::shell(&body, t, FIT_TOL, tol) {
         Ok(_) => println!("[r2] stepped vase SEALED: ok"),
         Err(e) => println!("[r2] stepped vase SEALED: REFUSED {e}"),
     }
@@ -376,7 +376,7 @@ fn r2_stepped_vase_lift_branch() {
         })
         .map(|(k, _)| k)
         .collect();
-    match topo::shell_open(&body, t, &mouth, FIT_TOL, band(), tol) {
+    match topo::shell_open(&body, t, &mouth, FIT_TOL, tol) {
         Ok(cup) => println!(
             "[r2] stepped vase OPENED: ok, shells {} tier3 {:?}",
             cup.shells().count(),

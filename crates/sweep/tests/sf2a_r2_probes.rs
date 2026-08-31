@@ -115,15 +115,15 @@ fn shoelace(pts: &[(f64, f64)]) -> f64 {
 fn r2a_valence4_nonconcurring_corner_refuses_typed() {
     let tol = Tol::witness();
     let body = cube(1.0, tol);
-    let out = chamfer_edges(&body, &all_edges(&body), 0.2, band(), tol)
-        .expect("a cube's twelve edges chamfer");
+    let out =
+        chamfer_edges(&body, &all_edges(&body), 0.2, tol).expect("a cube's twelve edges chamfer");
     let chamfered = out.body;
     assert_eq!(
         (chamfered.vertices().count(), chamfered.edges().count()),
         (24, 48),
         "every vertex 4-valent (2E/V = 4)"
     );
-    let e = topo::shell(&chamfered, 0.02, FIT_TOL, band(), tol)
+    let e = topo::shell(&chamfered, 0.02, FIT_TOL, tol)
         .expect_err("a chamfered cube's corners do not concur under a uniform inset");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
@@ -160,8 +160,8 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let (a, d, t, s) = (1.0, 0.2, 0.02, 0.02);
     let c = (2.0 * s * core::f64::consts::SQRT_2 - t) / 3.0_f64.sqrt();
     let body = cube(a, tol);
-    let out = chamfer_edges(&body, &all_edges(&body), d, band(), tol)
-        .expect("a cube's twelve edges chamfer");
+    let out =
+        chamfer_edges(&body, &all_edges(&body), d, tol).expect("a cube's twelve edges chamfer");
     let mut chamfered = out.body;
 
     // One ChartMove per face (each face its own plane), the distance
@@ -249,7 +249,7 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         ),
     ] {
         let body = prism(&pts, h);
-        let hollow = topo::shell(&body, t, FIT_TOL, band(), tol)
+        let hollow = topo::shell(&body, t, FIT_TOL, tol)
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
         let props = topo::mass_properties(&hollow, tol).expect("props");
         let want = shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t);
@@ -392,7 +392,7 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
         .count();
     assert!(curved > 0, "the bore is a curved chart");
-    let e = topo::shell(&body, 0.02, FIT_TOL, band(), tol)
+    let e = topo::shell(&body, 0.02, FIT_TOL, tol)
         .expect_err("one curved face puts the whole body outside the simultaneous door");
     println!("[r2a] one-arc hexagon: {e}");
     if let ShellError::Face { ref error, .. } = e {
@@ -425,7 +425,7 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
         &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         0.4,
     );
-    match topo::shell(&body, 0.05, FIT_TOL, band(), tol) {
+    match topo::shell(&body, 0.05, FIT_TOL, tol) {
         Ok(hollow) => {
             let props = topo::mass_properties(&hollow, tol).expect("props");
             println!(
