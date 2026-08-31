@@ -4,6 +4,8 @@
 //! minted, a transverse re-split of a restated product, and a
 //! bitwise carrier comparison across the restatement.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_brep::EdgeDescription;
 use geom_core::{Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
