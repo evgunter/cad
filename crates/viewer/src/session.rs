@@ -34,11 +34,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame,
-    LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate, parse_expr, product,
-    run_checks,
+    Alignment, BooleanOp, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension,
+    DimensionError, Doc, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
+    Expr, Frame, LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate,
+    parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
@@ -48,6 +48,7 @@ use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
 
 use crate::bounds;
+use crate::combine;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -386,6 +387,12 @@ pub enum NodeKindWanted {
     Profile,
     /// A `Node::Datum(Datum::Axis)`.
     Axis,
+    /// A `Node::Datum(Datum::Plane)`.
+    Plane,
+    /// A node whose value is ONE body — the combining seats' kind
+    /// ([`combine::denotes_body`] carries the admissible set and why a
+    /// split's sides and a pattern's instances are not in it).
+    Body,
 }
 
 impl NodeKindWanted {
@@ -394,6 +401,8 @@ impl NodeKindWanted {
         match self {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
+            Self::Plane => "a plane datum",
+            Self::Body => "a body",
         }
     }
 }
@@ -455,6 +464,21 @@ pub enum Refusal {
         node: RecipeNodeId,
         /// The kind the seat requires.
         wanted: NodeKindWanted,
+    },
+    /// A boolean was authored with one node in both operand seats.
+    ///
+    /// The DAG admits it — an id in two input positions is neither a
+    /// cycle nor a dangling reference — and the kernel would be asked
+    /// to regularize a body against itself, whose answer is the body
+    /// (or, for a subtraction, ∅) and whose faces are all coincident.
+    /// It is a mis-pick every time, so the door says so rather than
+    /// letting a degenerate operand pair reach the classifier. Two
+    /// DIFFERENT nodes denoting the same geometry are not this
+    /// refusal: it is a fact about the authored references, which is
+    /// the only thing a door can be sure of.
+    SelfBoolean {
+        /// The node picked into both seats.
+        node: RecipeNodeId,
     },
     /// `apply` refused the edit.
     ///
@@ -541,6 +565,7 @@ impl Refusal {
             | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::SelfBoolean { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -608,6 +633,13 @@ impl core::fmt::Display for Refusal {
                     "node {} is not {} in this document",
                     node.0,
                     wanted.name()
+                )
+            }
+            Self::SelfBoolean { node } => {
+                write!(
+                    f,
+                    "a boolean needs two different bodies; node {} is in both operand seats",
+                    node.0
                 )
             }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
@@ -840,6 +872,32 @@ pub enum ProfileShape {
         width: f64,
         /// The height (y extent), metres.
         height: f64,
+    },
+}
+
+/// The literal payload of one pattern form (GAUTH-4), beside the other
+/// two authoring specs for the reason they are here at all: the SESSION
+/// mints the `Expr` slots, so the form hands it plain numbers in
+/// canonical units and one node reference — the axis, which is a PICK
+/// rather than a field.
+///
+/// `Explicit` has no arm by the plan's ruling: a list of absolute
+/// frames is not a form's job.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PatternRuleSpec {
+    /// Stepped along a direction (`PatternKind::Linear`).
+    Linear {
+        /// Step direction components, dimensionless.
+        direction: [f64; 3],
+        /// Distance between instances, metres.
+        spacing: f64,
+    },
+    /// Stepped around a datum axis (`PatternKind::Circular`).
+    Circular {
+        /// The datum-axis node stepped around.
+        axis: RecipeNodeId,
+        /// Angular step between instances, radians.
+        step: f64,
     },
 }
 
@@ -1153,6 +1211,74 @@ pub enum SessionOp {
         /// The sweep angle, radians (a literal Angle slot; the
         /// chrome's default is a full turn).
         angle: f64,
+    },
+    /// Insert one regularized boolean of two existing bodies — the
+    /// boolean tool's one committed edit (GAUTH-4).
+    ///
+    /// **The operand order is data**: `Subtract` keeps `a` and removes
+    /// `b`, so the two seats are not interchangeable and the form says
+    /// which pick is which. Either seat's non-body pick refuses
+    /// [`Refusal::WrongNodeKind`]; one node in both seats refuses
+    /// [`Refusal::SelfBoolean`].
+    ///
+    /// `declare` is authored `None`: coincidence intent is a
+    /// `Node::Declare` input, and authoring one needs the entity picks
+    /// (a face pair) that this tool does not take. A declaration is
+    /// added afterwards through the vocabulary that owns it, never
+    /// guessed at here.
+    AddBoolean {
+        /// The operation — the KERNEL's enum, which the recipe node
+        /// carries unconverted.
+        op: BooleanOp,
+        /// The first operand: the body a subtraction keeps.
+        a: RecipeNodeId,
+        /// The second operand: the body a subtraction removes.
+        b: RecipeNodeId,
+    },
+    /// Insert one split of an existing body by an existing datum
+    /// plane — the split tool's one committed edit.
+    ///
+    /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
+    /// operand is the plane the cut is taken on. Both seats refuse
+    /// [`Refusal::WrongNodeKind`] for the wrong kind.
+    AddSplit {
+        /// The body split.
+        target: RecipeNodeId,
+        /// The `Datum::Plane` node it is cut by.
+        tool: RecipeNodeId,
+    },
+    /// Insert one rigid placement of an existing body — the transform
+    /// tool's one committed edit. Literal slots throughout
+    /// (translation Length, rotation axis Scalar, angle Angle); the
+    /// property panel is the editor for all of them afterwards.
+    AddTransform {
+        /// The body placed.
+        input: RecipeNodeId,
+        /// Translation components, metres.
+        translation: [f64; 3],
+        /// Rotation-axis components, dimensionless.
+        rotation_axis: [f64; 3],
+        /// Rotation angle, radians.
+        rotation_angle: f64,
+    },
+    /// Insert one pattern of an existing body — the pattern tool's one
+    /// committed edit.
+    ///
+    /// The count is an `i64` and lands as an exact Count literal: it
+    /// is the node's STRUCTURAL slot (spec D3), edited afterwards
+    /// through `SetStructuralParam` and never through the continuous
+    /// door. A count of zero or less is admitted here and refuses at
+    /// evaluation on the node's own badge — the same division of
+    /// labour a degenerate profile takes, one rule for authored and
+    /// hand-written documents.
+    AddPattern {
+        /// The body replicated.
+        input: RecipeNodeId,
+        /// Instance count.
+        count: i64,
+        /// The replication rule, with the axis a circular rule was
+        /// picked with.
+        rule: PatternRuleSpec,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
@@ -1870,6 +1996,15 @@ impl DocSession {
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
+            SessionOp::AddBoolean { op, a, b } => self.add_boolean(op, a, b),
+            SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
+            SessionOp::AddTransform {
+                input,
+                translation,
+                rotation_axis,
+                rotation_angle,
+            } => self.add_transform(input, translation, rotation_axis, rotation_angle),
+            SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule),
             SessionOp::AddInstance { id } => {
                 if self.gesture.is_some() {
                     return OpOutcome::refused(Refusal::GestureInFlight);
@@ -2475,6 +2610,91 @@ impl DocSession {
         }
     }
 
+    /// Insert one regularized boolean of two existing bodies
+    /// ([`SessionOp::AddBoolean`]).
+    fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        for seat in [a, b] {
+            if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
+                return OpOutcome::refused(refusal);
+            }
+        }
+        // AFTER the kind gate, so a self-boolean of two profiles is
+        // reported as "that is not a body" — the fact the user can act
+        // on — rather than as the narrower complaint about the pair.
+        if a == b {
+            return OpOutcome::refused(Refusal::SelfBoolean { node: a });
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Boolean {
+                op,
+                a,
+                b,
+                declare: None,
+            },
+        })
+    }
+
+    /// Insert one split of an existing body by an existing datum plane
+    /// ([`SessionOp::AddSplit`]).
+    fn add_split(&mut self, target: RecipeNodeId, tool: RecipeNodeId) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        if let Err(refusal) = self.require_kind(tool, NodeKindWanted::Plane) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Split { target, tool },
+        })
+    }
+
+    /// Insert one rigid placement of an existing body
+    /// ([`SessionOp::AddTransform`]).
+    fn add_transform(
+        &mut self,
+        input: RecipeNodeId,
+        translation: [f64; 3],
+        rotation_axis: [f64; 3],
+        rotation_angle: f64,
+    ) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        match combine::transform_node(input, translation, rotation_axis, rotation_angle) {
+            Ok(node) => self.commit(DocEdit::InsertNode { node }),
+            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// Insert one pattern of an existing body
+    /// ([`SessionOp::AddPattern`]).
+    fn add_pattern(&mut self, input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        if let PatternRuleSpec::Circular { axis, .. } = rule
+            && let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis)
+        {
+            return OpOutcome::refused(refusal);
+        }
+        match combine::pattern_node(input, count, rule) {
+            Ok(node) => self.commit(DocEdit::InsertNode { node }),
+            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
     /// The node-kind gate every creation seat shares: the named node
     /// must be the wanted kind in the committed document — absent and
     /// wrong-kind refuse the same arm, because both mean "there is
@@ -2484,6 +2704,8 @@ impl DocSession {
         let ok = match wanted {
             NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
             NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+            NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
+            NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
         };
         if ok {
             Ok(())

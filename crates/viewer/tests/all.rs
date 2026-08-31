@@ -48,6 +48,8 @@ mod camera_ops;
 mod cascade_delete;
 #[path = "chrome_labels.rs"]
 mod chrome_labels;
+#[path = "combine_ops.rs"]
+mod combine_ops;
 #[path = "creation_ops.rs"]
 mod creation_ops;
 #[path = "display_budget.rs"]

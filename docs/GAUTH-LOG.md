@@ -93,3 +93,19 @@ faces-only; issue #1379 carries the corrected measurements and
 GQ7's still-open filter vocabulary. Issue #1395 owns the
 window-bookkeeping class (seven edge/patch twins) before a third
 entity kind mints more. Ledger row: ordinal 902, sample #73.
+
+## 2026-08-31 — GAUTH-4 delivered (PR #1397, merged); block B1 closed
+
+Phase B landed: boolean/split/transform/pattern doors over
+role-typed seats, and the modal tools restructured into one
+`Tools` value whose one-open rule is structural and whose routing
+is exhaustive on `ToolKind` — the shape GAUTH-5's blend tool plugs
+into. The fix pass caught a semantic regression the textual main
+merge hid (the mate tool's faces-only pick narrowing deleted by
+the migration; restored structurally with a row). `denotes_body`
+now carries an evaluator-tripwire row with Sweep as the named
+exception. Residue owned by issue #1394 (a split's side and a
+pattern's instance cannot be named as operands — the authoring
+vocabulary's next wall) and the #1386 conversation (which gained
+the app.rs and Tools-shape data points). Ledger row: ordinal 903,
+sample #74. Block GAUTH-B1 concluded balanced.
