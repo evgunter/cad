@@ -86,6 +86,9 @@ pub enum ProgramStep {
     },
     /// `.tangent()` — structural, no arguments.
     Tangent,
+    /// `.cusp()` — structural, no arguments: the declared
+    /// reverse-tangent junction (D1's wedge-0/2π authoring door).
+    Cusp,
     /// `.turn(δ)`.
     Turn(Expr),
     /// `line(len)`.
@@ -428,7 +431,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::At(_) | P::FarEndTo(_) => out.extend([A::PointX, A::PointY]),
         P::Angle(_) => out.push(A::AngleVal),
         P::Toward { .. } => out.extend([A::DirX, A::DirY]),
-        P::Tangent | P::CloseTo => {}
+        P::Tangent | P::Cusp | P::CloseTo => {}
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
@@ -713,6 +716,7 @@ fn res_step<T: Decide>(
             dy: res(dy, env, loop_, i, A::DirY)?,
         },
         ProgramStep::Tangent => Step::Tangent,
+        ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
@@ -1050,7 +1054,7 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::Toward { dx: xa, dy: ya }, P::Toward { dx: xb, dy: yb }) => {
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
-        (P::Tangent, P::Tangent) | (P::CloseTo, P::CloseTo) => true,
+        (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
         (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
             target_bit_eq(x, y)
         }
@@ -1179,14 +1183,6 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
-    /// A recorded verb the PROGRAM vocabulary does not spell. The
-    /// PATHS algebra's `.cusp()` — the declared reverse-tangent
-    /// junction — is such a verb: it records a step, so a chain
-    /// carrying one is a real recorded program, and there is no
-    /// [`ProgramStep`] to carry it into the recipe layer. Refused by
-    /// name rather than dropped, because a dropped step lowers to a
-    /// DIFFERENT loop: the junction would come back undeclared.
-    UnspelledVerb(profile::Verb),
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1205,11 +1201,6 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
-            Self::UnspelledVerb(verb) => write!(
-                f,
-                "the recorded verb {verb:?} has no program spelling — the recipe layer \
-                 cannot carry this chain until it gains one"
-            ),
         }
     }
 }
@@ -1333,9 +1324,7 @@ impl LoopProgram {
                     dy: scalar_lit(*dy)?,
                 },
                 Step::Tangent => ProgramStep::Tangent,
-                Step::Cusp => {
-                    return Err(RecordedProgramError::UnspelledVerb(profile::Verb::Cusp));
-                }
+                Step::Cusp => ProgramStep::Cusp,
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),

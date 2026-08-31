@@ -2158,13 +2158,30 @@ pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
+    contact_marks_declared(body, &[], tol)
+}
+
+/// [`contact_marks`] with the body's declared contacts in hand — the
+/// door a body carrying a declared cusp or slit derives its marks
+/// through, for the same reason [`validate_geometric_declared`]
+/// exists: marks are only meaningful on a valid body, and a legal
+/// declared cusp is valid only where its declaration is read.
+///
+/// # Errors
+///
+/// As [`validate_geometric_declared`].
+pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let mut marks = slotmap::SecondaryMap::new();
-    let errors = tier3_local_checks_marked(body, &[], band, &mut marks, tol);
+    let errors = tier3_local_checks_marked(body, declarations, band, &mut marks, tol);
     if errors.is_empty() {
         Ok(marks)
     } else {
