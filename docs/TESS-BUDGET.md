@@ -95,12 +95,20 @@ of the time, where the committed file's own `grid_cells` sum was
 and grows with the tour like the row count, and the total-slack
 figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
 figures below as the pre-fix record they are labelled as. CI runs the
-sweep `--sizing-only` and gates on REGRESSION against it: a scene's
-mesh growing, a face's sizing getting wastefuller, a scene silently
-dropping out of the sweep, or a scene the baseline has no rows for at
-all. The gate reads triangle counts and the
-sizing columns only, so the resampling is a cost the gate has no use
-for; re-cutting the baseline drops the flag.
+sweep `--sizing-only` and gates on REGRESSION against it; what the
+rules ARE is rostered in `tools/tess-lint`'s module docs and nowhere
+else, this document included.
+
+What the gate READS is the part worth stating here, because it is what
+makes `--sizing-only` sound: triangle counts, the sizing columns, and
+the identity columns its per-face join checks itself against — chart,
+trim box, the whole-patch divisions, and whether the row carries a
+sizing block at all. (It read *"triangle counts and the sizing columns
+only"* here until this edit. That has been false since the join gained
+its precondition, and every added rule made it more so.) It never
+reads `worst_dev` or `dev_samples`, which is why the resampling pass
+is a cost the gate has no use for, and why re-cutting the baseline
+drops the flag.
 
 ## The columns after TESS-SPAN
 
@@ -197,10 +205,10 @@ removed.
 
 `grid_cells` remains and is still the schedule's own sum; what it is
 is stated where it is declared. The report prints `held / split /
-total`; `tess-lint`'s gate rules are triangle growth, per-face
-recoverable slack growth, vanished scenes, the re-keyed face that says
-the per-face join could not run, and the uncovered scene the baseline
-has no rows for.
+total`. **The gate's rules are rostered in one place —
+`tools/tess-lint`'s module docs — and this document does not keep a
+second copy.** A roster restated here is a roster that drifts: read it
+there, where the rules and the code that runs them cannot disagree.
 
 ## What the four numbers meant (pre-fix record)
 
@@ -348,7 +356,9 @@ without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
 
 **An `uncovered` scene FAILS the gate, and the PR that grows the
-corpus is the PR that folds it.** A scene the fresh sweep has and the
+corpus is the PR that folds it.** (One rule, described here for its
+RECOURSE, as the two paragraphs above describe theirs. The roster of
+rules stays in `tools/tess-lint`'s module docs.) A scene the fresh sweep has and the
 baseline does not is a scene the gate never looked at: swept, measured,
 printed and compared against nothing, with the verdict staying green
 because there was nothing to compare it to. That is the decay #1038
