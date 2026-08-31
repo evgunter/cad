@@ -677,3 +677,67 @@ lanes on the 2-build-slot budget — its PR cannot go green before
 (test rows + retirements; a row that reds is visible), to be
 ruled as T-R5 in the track log when it can ride without
 conflicting T-a's own log edits.
+
+## 2026-08-31 — BLEND-6 reviews concluded (ordinal 604); adjudication + fix-pass dispatch
+
+Both arms delivered, uninterrupted, concurrent on frozen `e8707956`
+(pair COUNTS; no relaxations). R1: MERGEABLE 0/3/4 + 8 style,
+rubric 4/4/4, ~300k / ~55m, probes `blend/verbvocab-r1-probes` @
+92b63ac8. R2: MERGEABLE-AFTER-FIXES 0/2/4 + 9 style, rubric 4/5/5,
+~200k / ~40m, probes `blend/verbvocab-r2-probes` @ 8a8104bb.
+VERDICT SPLIT recorded; NO MAJOR either arm — no tally candidates;
+**v6 tally unchanged.**
+
+**Correspondence.** The headline is BILATERAL and COMPLEMENTARY:
+the suite's verb-guard is narrower than the stated contract on two
+independent axes — R1's mutation (old "fillet chain: " prefix
+re-inserted on UnsupportedChain) survived ALL 1673 tests (the
+contract is red-capable only on fixture-reached arms); R2's
+mutation ("fillet assembly: " on the run-out arm) proved the
+fillet door's single-render row blind to the exact pre-fix shape
+while the chamfer row caught it. Both supplied guard probes; the
+union closes both axes. Also bilateral: the examples path
+straggler (R2 M2 ≡ R1 N1, found by the same differently-shaped
+grep independently); the cross-body EdgeKey fixture + its stale
+four-edge comment (R2 S3/S4 ≡ R1 S6); the shared module's
+"Constant-radius rolling-ball fillets" headline (R1 S1 ≡ R2 S5);
+the verb-worded shared-doc-prose class (R1 S2's five-instance
+list + R2 N2's public CornerConfig "sphere-octant" Display).
+R1 unique: the §5 sweep's continuation-line blindness — FIVE
+"fillet them in SEQUENTIAL calls" instruction literals in shared
+surgery escaped the line-anchored pattern (each verified
+fillet-only-reachable today); the zero-radius fillet FALSE-FACT
+refusal executed ("radius 0 m exceeds headroom... reduce the
+radius" — the 1278-unfollowable shape; disclosed narrowing with
+no schedule); naming.rs's stale "one production consumer".
+R2 unique: the recipe-layer hosting asymmetry (name_blend lives
+in emit_fillet, chamfer reaches across — the SAME class settled
+choice 3 fixed one layer down); the wire_fillet/wire_chamfer
+byte-twins; the byte-freeze row's name overpromise; the closed-
+chamfer would-speak-other-verb tension pinned by probe; the PR's
+stale-base diff-reporting note (merge verified safe). Both
+independently CONFIRMED the #917 marker judgment call as the
+ratified doc's plain text (the PR's hedge unnecessary).
+
+**Fix pass: IMPLEMENTER-INHERITED**, resumed on the kept blend-6
+lane; both probe branches adopted as merge parents. Union:
+(1) adopt BOTH guard suites — the whole-contract verb-neutrality
+guard (every arm, both doors, red under either witness mutation)
++ the ball-only/chamfer-only reachability guards; (2) the
+straggler + the five continuation-line literals dispositioned
+(verb-neutral or conditioned) + the sweep receipt's blind spot
+restated honestly; (3) zero-radius: issue to be filed at close
+(the schedule the disclosure owes), R1's characterization probe
+adopted, cited at both doors; (4) recipe-layer hosting: take if
+genuinely mechanical (emit_blend home, thin doors — the settled-
+choice-3 shape), else decline WITH argument and the orchestrator
+files the class issue; (5) wire twins collapsed via the
+four-parameter helper or declined with argument; (6) fixture
+same-instance fix + comment correction; (7) headline + doc-prose
+instance list + CornerConfig Display + naming.rs sentence +
+byte-freeze row name; (8) re-export symmetry or argument;
+(9) marker comment trimmed to the doc citation; (10) merge main
+fresh and re-validate (R2's N3), state-sync rides last as always.
+T-a's style review dispatched in the freed slot (per-lane emphasis
+per the 03:26 spec); T-R5 ruling to ride the track log at #1329's
+close.
