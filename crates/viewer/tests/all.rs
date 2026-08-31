@@ -42,6 +42,8 @@
 mod assembly_display;
 #[path = "assembly_walk.rs"]
 mod assembly_walk;
+#[path = "blend_authoring.rs"]
+mod blend_authoring;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "cascade_delete.rs"]

@@ -789,3 +789,80 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
         .expect("un-projects");
     assert!(matches!(hovered, Some(Hovered::Face(_))), "{hovered:?}");
 }
+
+/// **The mirror narrowing**: an edges-only cursor answers the edge
+/// where the bare cursor does, and answers NOTHING where the bare
+/// cursor falls back to the face.
+///
+/// That is what the blend tool needs: it consumes edges and nothing
+/// else, so a cursor that missed every edge must not quietly
+/// re-select the wall behind the one the user was aiming at. Hover
+/// obeys the same rule, so the picture and the click agree about what
+/// the open tool is about to get.
+#[test]
+fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let (_, points) = hole_rim(&index, extrude);
+    let (a, b) = middle_segment(&camera, &points);
+    let inward = plate_centre_px(&camera);
+
+    let pick_at = |cursor: [f64; 2], kinds: PickKinds| {
+        index
+            .op_under(
+                eval,
+                &camera,
+                pane(),
+                PickAction::Select(cursor),
+                &DisplayView::none(),
+                kinds,
+            )
+            .expect("un-projects")
+    };
+
+    // On the rim: both rules answer the same edge. Compared as the
+    // typed selections they are — `EdgeSelection` is `PartialEq`, and
+    // two `Debug` strings agreeing is a weaker claim that would also
+    // hold for two values that merely print alike.
+    let near = offset_from(a, b, inward, 1.0);
+    let selected = |op: &SessionOp| match op {
+        SessionOp::Select(selection) => selection.clone(),
+        other => panic!("a click emits a selection, got {other:?}"),
+    };
+    let bare = selected(&pick_at(near, PickKinds::Any));
+    let filtered = selected(&pick_at(near, PickKinds::EdgesOnly));
+    assert!(matches!(&bare, Selection::Edge(_)), "{bare:?}");
+    assert_eq!(bare, filtered, "on an edge the narrowing changes nothing");
+
+    // Well inside the plate, off every edge: the bare cursor means the
+    // top face, and the edges-only cursor means nothing at all.
+    let far = offset_from(a, b, inward, EDGE_PICK_RADIUS_PX * 4.0);
+    let bare_far = selected(&pick_at(far, PickKinds::Any));
+    assert!(
+        matches!(&bare_far, Selection::Face(_)),
+        "the bare cursor falls back to the face, got {bare_far:?}"
+    );
+    assert_eq!(
+        selected(&pick_at(far, PickKinds::EdgesOnly)),
+        Selection::None,
+        "an edges-only cursor off every edge picks nothing"
+    );
+    assert!(
+        index
+            .hovered_for(
+                eval,
+                &camera,
+                pane(),
+                far,
+                &DisplayView::none(),
+                PickKinds::EdgesOnly,
+            )
+            .expect("un-projects")
+            .is_none(),
+        "and hovers nothing, so the picture agrees with the click"
+    );
+}

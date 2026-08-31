@@ -30,6 +30,7 @@
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 
+use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, PatternTool, SplitTool, TransformTool};
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pick::PickKinds;
@@ -53,6 +54,8 @@ pub enum ToolKind {
     Transform,
     /// The pattern tool: a body and (circular only) an axis.
     Pattern,
+    /// The blend tool: one body and a SET of its edges.
+    Blend,
 }
 
 impl ToolKind {
@@ -63,13 +66,14 @@ impl ToolKind {
     /// `tools::every_kind_is_listed_in_all` reads the two against each
     /// other, so a variant added to the enum and forgotten here fails a
     /// row rather than quietly narrowing every sweep.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Mate,
         Self::Revolve,
         Self::Boolean,
         Self::Split,
         Self::Transform,
         Self::Pattern,
+        Self::Blend,
     ];
 
     /// A place in [`ToolKind::ALL`], as an exhaustive match — the
@@ -82,6 +86,7 @@ impl ToolKind {
             Self::Split => 3,
             Self::Transform => 4,
             Self::Pattern => 5,
+            Self::Blend => 6,
         }
     }
 
@@ -94,6 +99,7 @@ impl ToolKind {
             Self::Split => "split tool",
             Self::Transform => "transform tool",
             Self::Pattern => "pattern tool",
+            Self::Blend => "blend tool",
         }
     }
 
@@ -111,13 +117,17 @@ impl ToolKind {
     /// The mate tool takes faces, and on a real part whole faces sit
     /// within the edge radius of their own boundary — a narrow shelf, a
     /// small hole's wall — so with edges always winning those faces
-    /// were unpickable for as long as the tool was open. Every other
-    /// tool holds NODE picks, which a face and an edge answer equally
-    /// well (`Selection::node` reaches the feature either way), so
-    /// none of them narrows anything.
+    /// were unpickable for as long as the tool was open. The blend tool
+    /// is the mirror case: it takes EDGES and nothing else, so a cursor
+    /// no edge wins answers NOTHING rather than re-selecting the wall
+    /// behind the edge the user was aiming at. Every other tool holds
+    /// NODE picks, which a face and an edge answer equally well
+    /// (`Selection::node` reaches the feature either way), so none of
+    /// them narrows anything.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
             Self::Mate => PickKinds::FacesOnly,
+            Self::Blend => PickKinds::EdgesOnly,
             Self::Revolve | Self::Boolean | Self::Split | Self::Transform | Self::Pattern => {
                 PickKinds::Any
             }
@@ -139,18 +149,29 @@ impl ToolKind {
             Self::Split => matches!(op, SessionOp::AddSplit { .. }),
             Self::Transform => matches!(op, SessionOp::AddTransform { .. }),
             Self::Pattern => matches!(op, SessionOp::AddPattern { .. }),
+            // Two ops, one tool: the kind choice picks the door, and
+            // either one landing is this tool's edit committed.
+            Self::Blend => matches!(
+                op,
+                SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. }
+            ),
         }
     }
 }
 
-/// Something a tool did on its own — always a survival drop today —
-/// carrying which tool it was about, so the sentence a chrome shows is
-/// composed once ([`ToolKind::says`]) rather than at each call site.
+/// Something a tool did on its own — a survival drop, or a pick it
+/// declined — carrying which tool it was about, so the sentence a
+/// chrome shows is composed once ([`ToolKind::says`]) rather than at
+/// each call site.
 #[derive(Debug)]
 pub enum ToolNotice {
     /// The mate tool lost a pick — its own event vocabulary, which
     /// degrades by STEP rather than by seat.
     Mate(MateToolEvent),
+    /// The blend tool has something to say about a pick or its
+    /// target — its own event vocabulary, which is about a SET rather
+    /// than about seats.
+    Blend(BlendEvent),
     /// A seated tool lost a pick.
     Seated {
         /// Which tool.
@@ -164,6 +185,7 @@ impl core::fmt::Display for ToolNotice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let said = match self {
             Self::Mate(event) => ToolKind::Mate.says(event),
+            Self::Blend(event) => ToolKind::Blend.says(event),
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
@@ -180,6 +202,7 @@ pub struct Tools {
     split: Option<SplitTool>,
     transform: Option<TransformTool>,
     pattern: Option<PatternTool>,
+    blend: Option<BlendTool>,
 }
 
 impl Tools {
@@ -207,6 +230,7 @@ impl Tools {
             ToolKind::Split => self.split = Some(SplitTool::new()),
             ToolKind::Transform => self.transform = Some(TransformTool::new()),
             ToolKind::Pattern => self.pattern = Some(PatternTool::new()),
+            ToolKind::Blend => self.blend = Some(BlendTool::new()),
         }
     }
 
@@ -225,6 +249,7 @@ impl Tools {
             ToolKind::Split => self.split.is_some(),
             ToolKind::Transform => self.transform.is_some(),
             ToolKind::Pattern => self.pattern.is_some(),
+            ToolKind::Blend => self.blend.is_some(),
         })
     }
 
@@ -258,6 +283,19 @@ impl Tools {
         self.pattern
     }
 
+    /// The open blend tool, by reference: it holds a SET, so it is the
+    /// one tool value too large to hand back by copy.
+    pub fn blend(&self) -> Option<&BlendTool> {
+        self.blend.as_ref()
+    }
+
+    /// The open blend tool, mutably — the door the all-edges
+    /// affordance loads its set through, that being a tool-state
+    /// operation and not a document edit.
+    pub fn blend_mut(&mut self) -> Option<&mut BlendTool> {
+        self.blend.as_mut()
+    }
+
     /// **What the cursor may pick right now** ([`ToolKind::pick_kinds`]
     /// carries the rule); the bare cursor's rule with nothing open.
     pub fn pick_kinds(&self) -> PickKinds {
@@ -279,11 +317,25 @@ impl Tools {
     /// A selection is the only op a tool consumes, and the two
     /// vocabularies are the ones the tools were written against: the
     /// mate tool takes the FACE (its alignment frames are derived from
-    /// face geometry, so an edge pick is not one of its picks), and
-    /// every seated tool takes `Selection::node` — a tree click
-    /// directly, a face or edge pick through the one viewport→tree
-    /// inversion.
-    pub fn feed(&mut self, ops: &[SessionOp]) {
+    /// face geometry, so an edge pick is not one of its picks), the
+    /// blend tool takes the EDGE (it blends edges, and its target is
+    /// the drawn body the edge was picked on rather than the feature
+    /// that minted it), and every seated tool takes `Selection::node`
+    /// — a tree click directly, a face or edge pick through the one
+    /// viewport→tree inversion.
+    ///
+    /// **Feeding answers**, because a pick can be DECLINED: the blend
+    /// tool refuses an edge on a second body rather than taking it or
+    /// dropping it silently. The returned notices are the same values
+    /// [`Tools::reconcile`] answers with and are shown the same way; a
+    /// frame in which every pick landed answers with none.
+    ///
+    /// `#[must_use]`: the notices ARE the refusal — dropping them is
+    /// how a declined pick becomes a click that silently did nothing,
+    /// which is the bug this return value exists to prevent.
+    #[must_use = "a declined pick is only reported if its notice is shown"]
+    pub fn feed(&mut self, ops: &[SessionOp]) -> Vec<ToolNotice> {
+        let mut notices = Vec::new();
         for op in ops {
             let SessionOp::Select(selection) = op else {
                 continue;
@@ -295,6 +347,11 @@ impl Tools {
                         tool.pick(face.clone());
                     }
                 }
+                Some(ToolKind::Blend) => {
+                    if let (Some(tool), Some(edge)) = (self.blend.as_mut(), selection.edge()) {
+                        notices.extend(tool.pick(edge).map(ToolNotice::Blend));
+                    }
+                }
                 Some(ToolKind::Revolve) => seat(self.revolve.as_mut(), selection.node()),
                 Some(ToolKind::Boolean) => seat(self.boolean.as_mut(), selection.node()),
                 Some(ToolKind::Split) => seat(self.split.as_mut(), selection.node()),
@@ -302,6 +359,7 @@ impl Tools {
                 Some(ToolKind::Pattern) => seat(self.pattern.as_mut(), selection.node()),
             }
         }
+        notices
     }
 
     /// **The survival step, once per frame** — the consumer obligation
@@ -314,6 +372,12 @@ impl Tools {
     /// therefore reconciles the seated tools and leaves the mate tool's
     /// picks alone, which is the honest answer: "we cannot tell" is not
     /// "it is gone".
+    ///
+    /// The blend tool needs BOTH: the document says whether its target
+    /// still exists, and the landed evaluation says which edges that
+    /// target still has — two questions, two answers, one per event
+    /// arm (`crate::blend::BlendTool::reconcile`).
+    #[must_use = "a dropped pick is only reported if its notice is shown"]
     pub fn reconcile(
         &mut self,
         doc: &Doc<ProfileProgram>,
@@ -338,6 +402,16 @@ impl Tools {
             ToolKind::Split => drop_lost(self.split.as_mut(), doc),
             ToolKind::Transform => drop_lost(self.transform.as_mut(), doc),
             ToolKind::Pattern => drop_lost(self.pattern.as_mut(), doc),
+            ToolKind::Blend => {
+                return self
+                    .blend
+                    .as_mut()
+                    .map(|tool| tool.reconcile(doc, landed))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(ToolNotice::Blend)
+                    .collect();
+            }
         };
         dropped
             .into_iter()

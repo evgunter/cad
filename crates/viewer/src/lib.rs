@@ -50,6 +50,7 @@
 //! in this crate (the ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
+pub mod blend;
 pub mod bounds;
 pub mod camera;
 pub mod combine;
@@ -77,6 +78,7 @@ pub mod app;
 #[cfg(feature = "app")]
 mod gpu;
 
+pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
 pub use docio::DocIoError;
 pub use evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -95,7 +97,7 @@ pub use parts::{PartChooser, PartEntry};
 pub use pick::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeOverlay, EdgePick, Highlight, IdMap,
     IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds, cursor_projection,
-    edge_overlay, edge_segments, highlight,
+    edge_id_segments, edge_overlay, edge_segments, highlight,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
