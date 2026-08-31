@@ -304,6 +304,18 @@ pub struct ViewerApp {
     /// viewer whose config directory moved mid-session would be
     /// stranger than one that kept writing where it started.
     store: Store,
+    /// The input preset the loaded file named, carried so that saving
+    /// a theme change writes it back rather than dropping it.
+    ///
+    /// **The name as WRITTEN, not the resolved [`InputMap`]** — a
+    /// preset this viewer does not recognise falls back for the
+    /// session (`prefs::Notice::UnknownPreset`) but must survive in
+    /// the file, or opening an older viewer once would silently
+    /// delete a newer one's choice. Kept as a field rather than
+    /// re-read at save time because the save happens on a UI event
+    /// and reading the file there would race the very write it is
+    /// about to do.
+    keys_pref: Option<String>,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -492,6 +504,7 @@ impl ViewerApp {
             status: (!notices.is_empty()).then(|| notices.join("; ")),
             chooser: frame::chooser_backend(),
             store,
+            keys_pref: saved.keys,
         })
     }
 
@@ -683,18 +696,19 @@ impl ViewerApp {
     /// work. Refusing the switch because it could not be recorded
     /// would be the worse trade.
     ///
-    /// The whole document is rewritten rather than patched, which
-    /// means a key this viewer does not understand does NOT survive a
-    /// save. That is stated rather than hidden — it is the price of
-    /// a hand-written renderer that keeps its comments, and the
-    /// unknown key was already reported on load.
+    /// The whole document is rewritten rather than patched, so every
+    /// setting this viewer understands has to be carried across —
+    /// which is why [`Self::keys_pref`] exists. A key it does NOT
+    /// understand is lost, and that is stated rather than hidden: it
+    /// is the price of a hand-written renderer that keeps its
+    /// comments, and such a key was already reported on load.
     fn remember_theme(&mut self) {
         if !self.store.usable() {
             return;
         }
         let prefs = Prefs {
             theme: Some(self.theme.name.to_owned()),
-            keys: None,
+            keys: self.keys_pref.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
             self.status = Some(error.to_string());
