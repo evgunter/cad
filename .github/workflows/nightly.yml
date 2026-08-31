@@ -506,7 +506,13 @@ jobs:
   # the next night's opt-0 arm would restore them. Separate
   # `CARGO_TARGET_DIR` values, each
   # named in its own `workspaces:` mapping, make the two stores disjoint. The
-  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree.
+  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree —
+  # an undated one-shot reading that nothing re-takes, and deliberately so.
+  # It grows with the workspace, and what a guard would have to assert is a
+  # runner's free disk, which is not this repository's property and moves
+  # with every image bump. The figure is here to size the decision — two
+  # stores fit where one did — and a night that outgrew the disk would fail
+  # in its own voice rather than through a number maintained here.
   #
   # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
   # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's
@@ -737,6 +743,11 @@ jobs:
           cat "$RUNNER_TEMP/arm-opt0.json"
           # The archive is ~1 GB and nothing reads it again. Two measured arms
           # share one runner disk, so each drops its own before the next runs.
+          # The size is an undated reading and the `rm` does not depend on it:
+          # the archive is dropped because nothing reads it, at any size. It
+          # is written only so the next reader knows the order of what this
+          # line reclaims, and it shares the disk budget stated in this job's
+          # cache note above, which is where the sizing argument lives.
           rm -f "$RUNNER_TEMP/opt0.tar.zst"
           echo "measured=true" >> "$GITHUB_OUTPUT"
 

@@ -701,6 +701,17 @@ jobs:
   # before `filter`, so the added critical-path latency on a docs PR is
   # zero and the cost is one extra billed job-minute.
   #
+  # THIS JOB'S WALL CLOCK IS RE-TAKEN BY NOTHING, and this is the one
+  # place it is written down — the `python-lint` step below sends its
+  # billing argument here rather than restating the range. It is left
+  # unguarded on the same reasoning docs/CI-MINUTES-2026-08.md gives for
+  # its own figures: seconds on a hosted runner are a property of a box
+  # on a day, so a pin would red on noise and a bound would pass through
+  # the drift it exists to catch. What the two arguments that read this
+  # figure actually need is only that the job stays FAR under a minute,
+  # and the BILLED minute — the number that would change a decision — is
+  # what that register tracks for the whole workflow.
+  #
   # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
   # exception is the reason it exists: its subject IS the agreement
   # between the hosted half and local-scripts/ci-local.sh, so it has to
@@ -797,8 +808,10 @@ jobs:
       #      S61's defect. `check-ci-mirror-parity.py`'s TIER_BLIND list
       #      names this invocation, so claim 7 now enforces the siting.
       #
-      # BILLING: this job measures 8-12 s wall and already bills a whole
+      # BILLING: this job runs in seconds and already bills a whole
       # minute (docs/CI-MINUTES-2026-08.md: per job, rounded UP). The
+      # reading itself, and why nothing re-takes it, are at this job's
+      # own header — one home, so the two cannot drift apart. The
       # install is a ~10 MB prebuilt and ruff over the tree is
       # milliseconds, so the row lands inside the minute this job already
       # costs. A standalone `python-lint` job would bill a second whole
@@ -1935,7 +1948,13 @@ jobs:
       # summaries, both REPORTS and neither a gate — the issue's own ruling,
       # restated at the bottom of each block so a future "add teeth" is a
       # decision rather than drift: a budget needs a baseline and the baseline
-      # is moving (the suite went 10,482 -> ~1,243 cpu-s in a day).
+      # is moving. The reading that says so — the 2026-08-13 audit's, and how
+      # far the suite moved in a day — is stated once, in
+      # `scripts/slowest-tests.py`'s header, and not restated here: it is an
+      # undated one-shot that nothing re-takes, so a second copy of it would be
+      # a second thing to keep true. What this note needs from it is that the
+      # baseline MOVES, which is a claim about the suite's traffic and not
+      # about either endpoint.
       #
       # A REPORT MUST NOT BE ABLE TO MASK OR ALTER A TEST VERDICT, and three
       # things enforce that rather than one. The step is separate from the run
@@ -2102,7 +2121,12 @@ jobs:
   # build of the workspace: `-p topo --lib` compiles topo's closure plus
   # its dev-dependencies and links one binary. The rows execute in
   # milliseconds — the compile IS the cost of this job (93 s hosted on a
-  # cold cache, measured on this job's first run).
+  # cold cache, measured on this job's first run, and never since: it is a
+  # one-shot reading with no register and no guard, kept because the SHAPE
+  # it supports — that scoping to one crate's lib is what keeps this job
+  # cheap — is what the next reader needs, and that shape does not turn on
+  # the second. This job's billed minutes, which is the figure a cost
+  # decision would actually read, are docs/CI-MINUTES-2026-08.md's).
   release-corruption:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
@@ -2978,7 +3002,15 @@ jobs:
     # left to the draw, argued at the same site.
     #
     # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
-    # largest line item in the gate — and the cost is not one slow check: the
+    # largest line item in the gate, and BOTH halves of that sentence are
+    # docs/CI-MINUTES-2026-08.md's, which carries this job's billed minutes in
+    # its per-job table and ranks it against the two build jobs. That register
+    # is maintained by hand and says at its own Method why it has to be; it is
+    # what a reader should re-read before quoting this range, and it is the
+    # thing that moves when the sampling ruling below changes the cost. What
+    # this comment needs from it is only the ORDER — this job is expensive
+    # enough that running fewer unifications is the lever — and the cost is
+    # not one slow check: the
     # steps below compile demos/tour and the kernel crates FIVE TIMES, once
     # per unification, and the five share almost nothing. `--release` and dev
     # are different profiles; `budget` and `probe` are opt-in features gated
@@ -3231,11 +3263,14 @@ jobs:
       # someone else has already built it. That is the tour binary, not
       # its dependencies: tens of seconds against this job's own
       # critical path, not the workflow's. It is
-      # deliberately not a debug run (the k-probe sweep's profile):
-      # debug tessellates the same scenes 5-10x slower, which spends
-      # more wall clock than the build it would avoid. The `--features
-      # budget` that arms the meter at all lives in the sweep script,
-      # once, beside the k-probe sweep's `--features probe`.
+      # deliberately not a debug run (the k-probe sweep's profile), and
+      # the release/debug cost ratio that decides that is stated ONCE, in
+      # `scripts/tess_budget_sweep.sh`'s RELEASE paragraph, which is also
+      # where the `--features budget` flag lives. Not restated here: this
+      # file used to carry its own copy of that ratio, and two copies of
+      # an unguarded measurement are two things to keep in step. The
+      # `--features budget` that arms the meter at all lives in the sweep
+      # script, once, beside the k-probe sweep's `--features probe`.
       #
       # It gates REGRESSION,
       # not absolute slack: the head's factors are large and known
@@ -3417,7 +3452,19 @@ jobs:
   # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
-  # workflow's ~460 s critical path (the test shards) — and since the
+  # workflow's ~460 s critical path (the test shards) — two undated
+  # readings that nothing re-takes, and THIS FILE DOES NOT AGREE WITH
+  # ITSELF ABOUT THE SECOND ONE. Three other places state the same
+  # quantity: the `fmt` job and the wasm32 step both say `build + archive
+  # (interval)` is ~88% of a ~13 min run, and the OPT LEVEL note records
+  # 1065 s -> 840 s across the opt-2 flip. They were taken at different
+  # times, under different sampling and opt-level rulings, and they do not
+  # reconcile — which is what four undated copies of a moving quantity look
+  # like, and is exactly why none of them is guarded. The critical path is
+  # a property of a run rather than of this tree; what is tracked
+  # deliberately is billed minutes, in docs/CI-MINUTES-2026-08.md. The
+  # claim THIS note makes survives all four copies, because it is an
+  # inequality with a decade in hand rather than a ratio — and since the
   # 2026-08-22 lane merges they do it in two jobs rather than five, so they
   # cost fewer runner minutes and nothing else, and only on the same condition
   # `k-lint` uses — a render depends on the whole kernel, so "whenever

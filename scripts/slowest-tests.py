@@ -15,6 +15,16 @@ would be wrong next week. Nothing in this file compares a number against a
 limit, and the step that runs it cannot fail its job — see the wiring in
 `.github/workflows/ci.yml` for how a failure here presents.
 
+EVERY FIGURE IN THIS HEADER IS THE 2026-08-13 AUDIT'S, RE-TAKEN BY NOTHING,
+AND THAT IS WHAT THEY ARE FOR. They are the evidence that produced this
+script, not a description of the suite today — the suite's cost is exactly
+what the script PRINTS on every run, derived, and a number written here
+would be a second and worse answer to the question the output already
+answers. So none of them is guarded and none should be: what would go red
+if they stopped being true is nothing, and what would notice is any run's
+own summary. `.github/workflows/ci.yml`'s cost-report note points here for
+this reading rather than restating it, for the same reason.
+
 THE TWO MEASUREMENT TRAPS THE AUDIT PAID FOR, honoured HERE rather than in
 prose somewhere:
 

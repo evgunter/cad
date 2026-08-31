@@ -80,7 +80,13 @@
 # `cargo metadata`, so pass 2 would `cargo doc --manifest-path
 # .claude/worktrees/agent-X/Cargo.toml` under DEFAULT features — which
 # is the exact misread the `Cargo.toml` skip in the loop below exists
-# to prevent, wearing a path prefix, ninety-two times over. Pruning the
+# to prevent, wearing a path prefix, ninety-two times over. THOSE THREE
+# NUMBERS ARE ONE BOX ON ONE DAY AND NOTHING RE-TAKES THEM: 115 is a
+# count of whatever worktrees happened to be checked out, so it is not a
+# property of this repository at all and there is nothing a guard could
+# assert. What IS invariant is the direction — untracked trees can only
+# add manifests, never remove one — and the argument below rests on that
+# and not on the gap being 92. Pruning the
 # offending directory names is the weaker answer: the prune list has to
 # grow every time the checkout learns to grow a new directory, and the
 # gate is wrong-and-quiet in the interval. `git ls-files` cannot be
@@ -112,6 +118,16 @@
 # reported 12 CORRECT links as broken while the prose on those items
 # went unchecked entirely. Documenting the full feature set is also what
 # docs.rs does by default.
+#
+# THAT 12 IS AN UNDATED ONE-TIME READING and it is left standing as one
+# rather than re-taken: it is the population that existed when the flag
+# was adopted, nothing re-measures it, and no run would go red if it were
+# wrong today. The flag's argument does not turn on the magnitude — one
+# correct link reported broken is the whole case — so the honest bucket
+# here is a written reason and not a number kept alive. The SAME
+# population counted from the other side IS dated and re-taken by hand:
+# see the pass-3 lint paragraph below, which carries its count, its date
+# and the site names, and says at the count why it is dated.
 #
 # THE EXCEPTION IS ONE ROOT, AND IT IS NAMED. `interval-transcendentals`
 # is documented under DEFAULT features, a ruling this repo has already
@@ -970,8 +986,17 @@ plant_excepted_root_paired_module_plus_a_gated_break() {
 # link is correct — it resolves in the docs --all-features builds — and
 # it cannot resolve in a pass whose whole point is that the feature is
 # off. Turn `rustdoc::broken_intra_doc_links` back on in pass 3 and this
-# reds, which is the 14-correct-links measurement in the header
-# arriving as a test rather than as a paragraph.
+# reds, which is the header's correct-link-site measurement arriving as a
+# test rather than as a paragraph.
+#
+# THE COUNT IS NOT RESTATED HERE, and this line is the reason. It used to
+# say "14"; the header re-took that reading on 2026-08-31 and recorded a
+# different number, and only the copy that was re-taken moved. A restated
+# measurement is a second copy of a figure that nothing keeps in step
+# with the first — the drift is silent, because neither copy is a
+# statement any run checks. The header owns the count, its date and the
+# site names; this planted case is what makes the population a test
+# rather than a paragraph, and it needs no number to do that.
 plant_link_from_the_disarmed_half_into_the_gated_one() {
   {
     printf '\n#[cfg(feature = "probe")]\n'

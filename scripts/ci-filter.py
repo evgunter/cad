@@ -341,6 +341,15 @@ def _compiled_markdown(root: str) -> frozenset[str]:
     source does the same. The scan is a regex over every `.rs` file outside
     `target/` — measured 0.43 s on this tree, against a whole classification
     of 0.65 s — and it runs before the docs branch is taken.
+
+    BOTH SECONDS ARE ONE UNDATED LOCAL READING, re-taken by nothing, and
+    they are here as a SHAPE rather than as a budget: the point is that the
+    scan is a fraction of a classification that itself runs in under a
+    second, so no tier's latency turns on it. Nothing asserts either, and a
+    guard would be a wall-clock pin inside the filter that decides what CI
+    runs — the one place a timing flake must not be able to change what a
+    run gates. The figure that IS tracked, because it is the one anyone
+    acts on, is the job's billed minute in docs/CI-MINUTES-2026-08.md.
     """
     out: set[str] = set()
     for tree in _RUST_TREES:
@@ -738,7 +747,12 @@ LANES: tuple[str, ...] = ("default", "interval")
 EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 
 # `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS, sampled one per run
-# (2026-08-22). That job bills 8-10 minutes and the reason is not one slow
+# (2026-08-22). That job is one of the gate's largest billed line items —
+# docs/CI-MINUTES-2026-08.md's per-job table is the register that carries the
+# figure and ranks it, and the number is deliberately not restated here: this
+# comment and ci.yml's `k-lint` header both used to spell the same range, and a
+# range spelled twice is a second copy nothing keeps in step. The reason it
+# costs that is not one slow
 # check: it compiles demos/tour and the kernel crates FIVE TIMES OVER, once
 # per unification below, and those five share almost no artifacts —
 # `--release` and dev are different profiles, and `budget` and `probe` are
