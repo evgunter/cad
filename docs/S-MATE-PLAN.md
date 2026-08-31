@@ -1,7 +1,8 @@
 # S-MATE — contacts, rest, and assembly composition (plan)
 
-**STATUS: DRAFT (design conversation for the Rulings sought section;
-the ruling-independent units below are dispatchable
+**STATUS: DRAFT (design conversation; Q1, Q2(a) and Q4 RULED
+in-chat 2026-08-31 and recorded in §Rulings; Q2(b) directed; Q3's
+scheduling half open. Ruling-independent units are dispatchable
 pre-ratification).** Opened on Evan's direction (in-chat, 2026-08-31:
 "can you pick up S-MATE as the orchestrator?") from the ratified
 stream cut in `docs/WORK-STREAMS-2026-08.md` (§S-MATE) — verified at
@@ -159,23 +160,54 @@ pre-logged here per the protocol (pre-draw).
   `PathError::JunctionCusp`'s no-door text and its pin). Revert
   symmetry is a test obligation. Items 3–5 recorded as handoffs at
   landing, not absorbed.
-- **MATE-4 — #973, the at-rest backing question (design S, then
-  impl M; opens with Q2).** One census-side design pass covering (a)
-  `ef_bound_backed`'s interior arm and (b) the "categorically
-  undeclarable" crossings, then the implementation under whatever Q2
-  ratifies. (a)'s pinned probe goes red when it closes, by design.
+- **MATE-4 — #973 (Q2: (a) RULED, (b) DIRECTED). (a) impl M,
+  dispatchable**: extend the face rung to `ef_bound_backed`'s
+  interior arm at the existing rung strength; the pinned lemma
+  probe goes red and re-blesses, by design. **(b) design S**: the
+  side/region-aware crossing machinery is needed eventually
+  (Evan's direction), so the design pass proposes its SHAPE and
+  STAGING, not whether. Forward constraint recorded with it:
+  interpenetration may eventually be ALLOWED when explicitly
+  declared (Evan, same conversation; A5/C6's interference-fit
+  gate-skips are the ratified anchor) — (b)'s vocabulary must not
+  foreclose a declared-interpenetration class.
 - **MATE-5 — #943's curved residue, the certified-ε overlap
-  enclosure rung (L; contingent on Q3; serialized with MATE-4 on
-  `census.rs`; sequenced after MATE-2, whose measurement says which
-  door a shaft-in-bore pair meets first).** Door 1 stays
-  exact/certified; Door 2 gains the sanctioned certified
-  everywhere-within-ε overlap enclosure on the shared curved
-  carrier. New metered rows, NUMERIC class.
-- **MATE-6 — #946, the instantiation seam (M; after Q1).** Implement
-  whichever semantics Q1 ratifies, with the inner-declaration
-  survival rows and the outer-gate re-verification rows either way.
+  enclosure rung (L; scheduling awaits Q3's confirmation;
+  serialized with MATE-4 on `census.rs`; sequenced after MATE-2,
+  whose measurement says which door a shaft-in-bore pair meets
+  first).** Door 1 stays exact/certified; Door 2 gains the
+  sanctioned certified everywhere-within-ε overlap enclosure on
+  the shared curved carrier. New metered rows, NUMERIC class.
+  Q3's dependency half is answered: **no M10 dependency** — the
+  enclosure builds on the existing interval-scalar /
+  certified-predicate substrate (the `carrier_eq`/`tangent_locus`
+  class), not M10's parameter door or its bvh lift. Soft
+  touchpoint: S-CERT's #1191 (period-fold widening) on the
+  angular coordinate when one trim maps across the two
+  descriptions' `u_ref` offset — consumed when it lands, never
+  co-designed; until then conservative widening is honest (it
+  widens toward escalation, never toward certification).
+  Cylinder-first; other curved kinds stay refused with the
+  residue restated per kind.
+- **MATE-6 — #946, minting moves to evaluation (M; RULED — Q1,
+  dispatchable).** A drift-closure, not a semantics change: A3's
+  ratified "Declaration minting" paragraph already states that
+  EVALUATION carries each mate's declaration into the evaluated
+  body's contact record set — the code implemented minting in
+  `assemble` and the seam inherited the gap. Minting moves into
+  the product gather universally; `assemble` = product + tier-3′;
+  construction composes, verification runs once at the outermost
+  gate. Rows: the three-stands-in-a-row shape (inner mates, outer
+  gate); a carried declaration the outer geometry refutes lands
+  `StaleContactDeclaration → Refuted` naming its mate. The
+  persistence check (by-eye at ruling, re-verified at spec):
+  minted records are evaluation-side, the persisted recipe carries
+  the Mate node only — no schema bump; if the unit finds
+  otherwise it STOPS and reports. Seam: `product.rs`'s Dual arms
+  are M10-4's — touch the gather/mint path only, merge main
+  frequently.
 - **MATE-7 — #968, the torus declared-Rest lane (L/XL; last;
-  contingent on Q4).** The three measured needs from the issue:
+  RULED — Q4: scheduled).** The three measured needs from the issue:
   torus through the operand gate under covered declarations (the
   VERBS-GATE posture consulted, klein walls 3/4 re-pinned), a torus
   rung in `carrier_eq` for the declared-Rest descent, and the
@@ -186,44 +218,40 @@ pre-logged here per the protocol (pre-draw).
 - **Not scheduled**: #944 (LIB hand-off gate), #750 consumption
   (recorded when BOOL-4 lands).
 
-## Rulings sought (Evan)
+## Rulings (Evan, in-chat, 2026-08-31)
 
-1. **Q1 — #946's A2 semantics.** Recommendation: the instantiation
-   seam CARRIES the referenced document's minted mate declarations
-   without running the gate — instantiation stays a gather, the gate
-   stays `assemble`'s act in the outer document, and an instance of a
-   frontier document instantiates instead of refusing. Honest
-   counterarguments: carrying declarations the inner gate never
-   re-verified could import a stale declaration — mitigated because
-   the outer gate re-verifies everything it consumes (a refuted
-   declaration refutes there, naming its mate); and gate-at-the-seam
-   gives errors nearer the authoring act, at tier-3′ cost per
-   instantiation. Not implemented until ruled.
-2. **Q2 — #973's backing question.** May `EdgeFaceOverlap` bounds
-   (a) and the `EdgeEdgeCross`/`EdgeFacePierce` classes (b) be
-   face-pair-backed at rest? Lean: (a) yes — it is U-R1's own
-   pattern extended to the one arm it visibly stopped short of, the
-   same rung strength, dominant-argument shaped with the standard
-   pushback window; (b) is genuinely open — an overhanging seat is
-   ordinary authoring, but a crossing is more than a touch, and the
-   honest answer may be that (b) stays categorical with its
-   justification restated on an at-rest premise. MATE-4's design
-   pass opens by putting a concrete proposal up rather than
-   re-deriving the issue.
-3. **Q3 — #943's curved residue: build now or hold?**
-   Recommendation: build it in this program (MATE-5) — the
-   shaft-in-bore class #1032 documents is the standing demand, and
-   the closing shape is already sanctioned in principle, so the open
-   question is scheduling, not design. Counterargument: the residue
-   is typed and honest today, and the enclosure is real certified-
-   numerics work that could wait for a consumer with a face; if held,
-   it stays a named residue with its closing shape re-recorded here.
-4. **Q4 — #968's pickup condition.** The #966 ruling deferred the
-   torus lane "assuming this remains recorded to pick up later."
-   Recommendation: this program's opening satisfies the condition,
-   with MATE-7 last on the slate and its tangency disposition
-   returning to Evan separately. Alternative: it stays banked and
-   the slate ends at MATE-6.
+1. **Q1 — #946: RULED, minting moves to evaluation.** Of the
+   alternatives surveyed in the conversation (carry the minted
+   records across the seam; mint at the seam only; gate at the
+   seam; gate at pin time memoized by the content pin; a typed
+   interim refusal), Evan ruled for minting in the product gather
+   UNIVERSALLY: `assemble` = product + tier-3′ — construction
+   composes, verification runs once at the outermost gate. The
+   ruling turned out to be a drift-closure: A3's ratified
+   "Declaration minting" paragraph already assigns minting to
+   EVALUATION, so ASSEMBLY-DESIGN needs no edit and the drift was
+   the code's (the #945 shape). Soundness: the outer census
+   re-verifies everything it consumes — crossings re-verify
+   (#591), and a refuted carried declaration lands
+   `StaleContactDeclaration → Refuted` naming its mate. Executed
+   by MATE-6.
+2. **Q2 — #973: (a) RULED, (b) DIRECTED.** (a) The face rung
+   extends to `ef_bound_backed`'s interior arm at the existing
+   rung strength — dispatchable. (b) The side/region-aware
+   crossing machinery is needed eventually; MATE-4's design pass
+   proposes shape and staging. Recorded constraint from the same
+   conversation: interpenetration may eventually be legal WHEN
+   EXPLICITLY DECLARED (A5/C6's interference-fit gate-skips are
+   the ratified anchor) — (b)'s vocabulary must not foreclose it.
+3. **Q3 — #943's curved residue: dependency half ANSWERED
+   (no M10 dependency; the S-CERT #1191 touchpoint is recorded at
+   MATE-5). Scheduling half OPEN**: the recommendation stands —
+   build in this program, cylinder-first, #1032's shaft-in-bore
+   class as the named demand — awaiting Evan's confirmation.
+4. **Q4 — #968: RULED, scheduled.** This program's opening
+   satisfies the #966 ruling's recorded-pickup condition; MATE-7
+   is last on the slate and its torus×torus tangency disposition
+   returns to Evan as its own conversation before implementation.
 
 ## Process
 
