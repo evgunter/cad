@@ -14,8 +14,8 @@
 //! edges meeting at eight all-concave trihedra, vented by a round
 //! chimney so the body stays one shell. Its builders are restated
 //! here (the suite-tree fixture-copy class the chamfer suite already
-//! declares; a shared home is a test-support change no row here
-//! needs).
+//! declares; evgunter/cad issue 1364 owns the shared test-support
+//! home for the builders and the volume oracles together).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -240,44 +240,56 @@ fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
 /// **MEASUREMENT 3, closed — the stored chart follows the side.** As
 /// measured at the unit's opening (this row's first committed form),
 /// the surface `corner_ball` carried aimed its pole along `+Σn` under
-/// EITHER arm — the convex apex direction, antipodal to the concave
-/// patch's own apex (whose feet lie along `−n_i`). The unit folds the
-/// side into the stored chart, and this row now pins the closed
-/// state: each ball's pole aims at its own apex foot.
+/// EITHER arm — toward the CONVEX patch's centre, away from the
+/// concave patch (whose feet lie along `−n_i`, its centre along
+/// `−Σn`). The unit folds the side into the stored chart, and this
+/// row now pins the closed state: each ball's stored pole aims at its
+/// own side's patch centre. ("Patch centre", not "apex": the point of
+/// the patch farthest from its three boundary circles, which is not a
+/// foot — the production chart's pole, `octant_chart`'s, is the third
+/// FOOT up to sign, a different point with its own pins.)
 #[test]
-fn the_stored_chart_pole_aims_at_each_sides_own_apex() {
+fn the_stored_chart_pole_aims_at_each_sides_own_patch_centre() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
     let mean = (normals[0] + normals[1] + normals[2]).normalize();
-    for (convex, apex) in [(true, mean), (false, -mean)] {
+    for (convex, patch_centre) in [(true, mean), (false, -mean)] {
         let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, convex);
         let Surface::Sphere { axis, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
         };
-        let aim = axis.dot(apex);
+        let aim = axis.dot(patch_centre);
         assert!(
             (aim - 1.0).abs() < 1e-15,
-            "the pole aims at this side's apex foot (convex {convex}, dot {aim})"
+            "the stored pole aims at this side's patch centre (convex {convex}, dot {aim})"
         );
     }
 }
 
-/// **The volume the filleted cavity's void encloses** — the rolling
-/// ball's mirror of the chamfer suite's closed form. A concave fillet
+/// **The volume THIS FIXTURE's filleted void encloses at radius
+/// [`R`]** — deliberately argument-free, because every other number
+/// in it (block `4³`, cavity side `2`, the vent's radius and reach)
+/// is the fixture's own; a half-parametric form with the block
+/// hardcoded would read as more general than it is. A concave fillet
 /// on every edge and corner of the cavity leaves exactly the void the
 /// ball can sweep: the Minkowski sum of the shrunk box (side
-/// `a − 2r`) with the ball, whose Steiner decomposition is exact —
-/// `L³ + 6L²r + 3πLr² + (4/3)πr³` with `L = a − 2r`. The material
-/// volume is the block, less that rounded void, less the vent's
-/// cylinder above the cavity ceiling.
-fn filleted_cavity_volume(a: f64, r: f64) -> f64 {
+/// `2 − 2R`) with the ball, whose Steiner decomposition is exact —
+/// `L³ + 6L²R + 3πLR² + (4/3)πR³`. The material volume is the block,
+/// less that rounded void, less the vent's cylinder above the cavity
+/// ceiling.
+///
+/// The Steiner form is a declared copy class (rounded-box siblings in
+/// the two-sided row of the blend3 R1 probes, the R1 blend4 probes'
+/// prism generalization, and the die suites); evgunter/cad issue 1364
+/// owns the shared oracle home.
+fn filleted_cavity_volume() -> f64 {
     let block = 4.0_f64.powi(3);
     let vent = core::f64::consts::PI * 0.5 * 0.5 * (4.0 - 3.0);
-    let l = a - 2.0 * r;
+    let l = 2.0 - 2.0 * R;
     let rounded_void = l.powi(3)
-        + 6.0 * l * l * r
-        + 3.0 * core::f64::consts::PI * l * r * r
-        + (4.0 / 3.0) * core::f64::consts::PI * r.powi(3);
+        + 6.0 * l * l * R
+        + 3.0 * core::f64::consts::PI * l * R * R
+        + (4.0 / 3.0) * core::f64::consts::PI * R.powi(3);
     block - rounded_void - vent
 }
 
@@ -286,12 +298,15 @@ fn filleted_cavity_volume(a: f64, r: f64) -> f64 {
 /// corners, tiers 1–3, the census, the Euler relation, the certified
 /// volume against the Steiner closed form, and a watertight mesh.
 ///
-/// The volume row is also the CHART pin: the closed-form curved-face
-/// inventory computes a sphere patch only as an iso-parameter
-/// rectangle in its own chart, so a concave octant charted with the
-/// convex aim (pole antipodal to the patch, feet a half-turn off the
-/// seam) does not integrate — the carve would land, and this row
-/// would still redden on `VolumeUncomputable`.
+/// This row is NOT a chart pin, and saying so is the point (an
+/// earlier draft claimed the volume would redden on a convex-aimed
+/// concave chart; execution shows it stays green — with axis-aligned
+/// walls the patch is an iso-parameter rectangle wherever the chart
+/// aims, so the downstream machinery is chart-placement-tolerant).
+/// The chart fold's guards are the plan-level mirror pin
+/// (`blend::surgery::tests::a_corner_plan_takes_its_links_convexity`)
+/// and the carved-body seam/quarter-turn pin
+/// (`review_blend4_r2_probes::r2_the_octant_charts_seam_and_quarter_turn_are_feet_on_both_sides`).
 #[test]
 fn the_filleted_cavity() {
     let body = vented_cavity();
@@ -342,7 +357,7 @@ fn the_filleted_cavity() {
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );
 
-    let want = filleted_cavity_volume(2.0, R);
+    let want = filleted_cavity_volume();
     let props = topo::mass_properties(&out_body, Tol::witness()).expect("closed-form props");
     assert!(
         (props.volume - want).abs() <= 1e-12 * want,

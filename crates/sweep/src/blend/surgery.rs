@@ -701,6 +701,13 @@ fn corner_plan<'a, T: Decide + Bounds>(
             // concave one. Either way the foot is on both of the
             // support's trimlines, because the centre is on both
             // incident spines.
+            //
+            // ONE fold, two named spellings, cross-cited so neither
+            // drifts alone: this `toward` is the same sign the band
+            // arm folds into its feet (`plane_plane_blend`'s
+            // `signed`), and the NEGATIVE of `corner_ball`'s `signed`
+            // — which is the rest DEPTH (`c·n = p·n + signed`), the
+            // displacement's opposite by definition of tangency.
             let toward = if convex { radius } else { -radius };
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
@@ -3734,7 +3741,7 @@ mod tests {
         }
         assert!(
             (ax + kx).norm() < 1e-14,
-            "the chart pole aims at each patch's own apex, so the two are antipodal"
+            "the two verdicts' chart poles are antipodal (the fold's sign)"
         );
     }
 }

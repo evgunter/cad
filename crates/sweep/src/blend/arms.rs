@@ -111,14 +111,23 @@ pub struct EdgeBlend<T: Real> {
 /// convex corner and in the void at a concave one.
 #[derive(Clone, Debug)]
 pub struct CornerBall<T: Real> {
-    /// The sphere the octant patch lies on.
+    /// The sphere the octant patch lies on — **measurement-only**: the
+    /// carve reads [`CornerBall::center`] and mints the production
+    /// chart one level up (`build`'s octant chart pick), because the
+    /// iso-rectangle criterion needs the corner's incident LINKS and
+    /// third support, which three normals cannot see. This chart (pole
+    /// at the side's own `±Σn` contact) exists so the arm is
+    /// measurable as a value, coherent on both sides.
     pub surface: Surface<T>,
     /// The ball centre — the point at distance `r` from all three
-    /// support planes, on the side the corner's convexity picks.
+    /// support planes, on the side the corner's convexity picks. The
+    /// one field the carve consumes.
     pub center: Point3<T>,
     /// `|det(n₁, n₂, n₃)|` for the three outward support normals —
-    /// the independence margin predicate 6 classifies (times the
-    /// radius, which the battery supplies as the lever arm).
+    /// **measurement-only**: predicate 6 classifies this margin
+    /// BEFORE any ball exists (the C8 ordering), from the same
+    /// determinant recomputed on the battery's own inputs; the field
+    /// exposes the solve's conditioning to rows that measure the arm.
     pub independence: T,
 }
 
@@ -888,12 +897,14 @@ impl<T: Real> Ruling<T> {
 /// it holds on either side: only which side of each plane the tangency
 /// circles sit on follows the sign.
 ///
-/// **The stored chart follows the side too.** The patch's apex foot —
-/// the contact point opposite the walls' mean — lies along `+Σn` from
-/// the centre at a convex corner and along `−Σn` at a concave one, so
-/// the chart's pole aims at `±Σn` with the same sign as the feet: a
-/// chart whose pole is antipodal to the patch it charts is the
-/// half-derived corner issue 644 names.
+/// **The stored chart follows the side too.** Its pole aims at the
+/// patch's CENTRE — the point of the patch farthest from all three
+/// boundary circles, along `+Σn` from the ball centre at a convex
+/// corner and `−Σn` at a concave one; deliberately not any foot, and
+/// not the production chart (whose pole is the third foot up to
+/// sign — `build`'s pick, which needs the corner's links). A stored
+/// chart whose pole aimed away from the patch it charts under one arm
+/// is the half-derived corner issue 644 names.
 #[must_use]
 pub fn corner_ball<T: Real>(
     verts: [Point3<T>; 3],
@@ -902,6 +913,10 @@ pub fn corner_ball<T: Real>(
     convex: bool,
 ) -> CornerBall<T> {
     let [n1, n2, n3] = normals;
+    // The rest DEPTH: the NEGATIVE of the foot-displacement fold its
+    // consumers spell (`corner_plan`'s `toward`, `plane_plane_blend`'s
+    // `signed`) — a foot displaces opposite the depth by definition
+    // of tangency. Cross-cited at those sites.
     let signed = if convex { -radius } else { radius };
     // Right-hand sides: c·n_i = p_i·n_i + signed.
     let rhs = [
@@ -913,16 +928,16 @@ pub fn corner_ball<T: Real>(
     // Cramer: c = (rhs₁·(n₂×n₃) + rhs₂·(n₃×n₁) + rhs₃·(n₁×n₂)) / det.
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
     let c = Point3::new(num.x / det, num.y / det, num.z / det);
-    // The apex direction: toward the feet, which lie along `n_i` at a
-    // convex rest and along `−n_i` at a concave one — the same fold as
-    // the centre's, `−signed/r`.
-    let apex = ((n1 + n2 + n3) * (-signed / radius)).normalize();
+    // The patch-centre direction: toward the feet, which lie along
+    // `n_i` at a convex rest and along `−n_i` at a concave one — the
+    // same fold as the centre's, `−signed/r`.
+    let patch_centre = ((n1 + n2 + n3) * (-signed / radius)).normalize();
     CornerBall {
         surface: Surface::Sphere {
             center: c,
             radius,
-            axis: apex,
-            u_ref: perp_unit(n1, apex),
+            axis: patch_centre,
+            u_ref: perp_unit(n1, patch_centre),
         },
         center: c,
         independence: det.abs(),

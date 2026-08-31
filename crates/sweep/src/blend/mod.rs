@@ -107,12 +107,13 @@ pub use naming::{BlendNaming, RimSide};
 /// rides on the [`BatteryVerdict`] so no assembly step has to be told
 /// twice.
 ///
-/// The two differ in exactly three places, each named on the arm that
-/// takes it: the analytic arm a link resolves to
-/// ([`battery::run_battery_for`]), which of C8's predicates are facts
-/// about the request at all (the rolling ball's radius-vs-curvature
-/// headroom and spine regularity are ball facts, and a chamfer meters
-/// neither), and the corner geometry the surgery grafts
+/// Where the two differ is named on each arm that takes the bit
+/// rather than counted here (a count in this doc has already gone
+/// stale once): the analytic arm a link resolves to and which of
+/// C8's predicates are facts about the request at all
+/// ([`battery::run_battery_for`]), the corner geometry the surgery
+/// grafts and its face-sense fold, the closed-chain arm (the
+/// fillet's alone), and the carve's contact-carrier kind
 /// ([`surgery`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlendKind {

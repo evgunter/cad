@@ -444,13 +444,21 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
 /// silently wrong: every one either carves a valid body or refuses
 /// with a finite, typed diagnostic.**
 ///
-/// The unit argues that every division and normalization on the
-/// fillet corner path degenerates only where `det(n₁, n₂, n₃) = 0` or
-/// the dihedral decides Zero, and that both are metered upstream
-/// (`fillet3_corner_independence`, `fillet3_convexity_sign`). The
-/// argument is sound on paper — `1 ± n_a·n_b`, `n_a × n_b`, `Σn` and
-/// the Cramer `det` all vanish only there — and this row executes it
-/// against a family of poses that walk straight at the singularity.
+/// Every division and normalization on the fillet corner path
+/// degenerates only where `det(n₁, n₂, n₃) = 0` or the dihedral
+/// decides Zero — `1 ± n_a·n_b`, `n_a × n_b`, `Σn` and the Cramer
+/// `det` all vanish only there, and the exact singularities are what
+/// `fillet3_corner_independence` and the dihedral sign refuse. But
+/// the net that actually catches NEAR-singular poses is elsewhere,
+/// and this row is where that is measured rather than argued: every
+/// refusing pose of this grid refuses at the battery's clearance
+/// screen (`FaceClearanceUncertified` — the sliver's setbacks explode
+/// faster than its wedge closes), and the pose family that slips past
+/// screening refuses MID-assembly at the description-attachment
+/// certification gate (`Op { site: "surgery contact edge", .. }`
+/// carrying a `TangentSecondOrder` escalation — the R1 probes' 0.2°
+/// skew). The independence and dihedral gates are the guards of the
+/// exact zero, not the working frontier.
 ///
 /// A triangular prism with a closing apex drives the apex dihedral to
 /// zero, which drives the plane–plane spine's `1 + d`, the chart's

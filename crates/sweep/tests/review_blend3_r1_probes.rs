@@ -614,7 +614,9 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     // What a full twelve-edge fillet at radius r removes from a cube
     // of side a is the complement of the Minkowski (Steiner) closed
     // form; the concave side ADDS the same complement at its own
-    // scale.
+    // scale. A declared copy class (siblings: the concave-fillet
+    // suite's fixture oracle, the blend4 R1 probes' prism form, the
+    // die suites); evgunter/cad issue 1364 owns the shared home.
     let rounded = |a: f64| {
         let l = a - 2.0 * D;
         l.powi(3)

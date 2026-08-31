@@ -221,20 +221,20 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
 /// none does. Returns `(u_ref, axis)`.
 ///
-/// **The chart follows the corner's convexity.** A convex octant's
-/// feet lie along `+n_i` from the ball centre, so the picked link's
-/// chart is `(u_ref, axis) = (n_a, n_a × n_b)`: the seam meridian is
-/// the foot on the first support and the pole is the apex foot. A
-/// concave octant's feet lie along `−n_i`, and its chart is the same
-/// derivation under the mirror substitution `(n_a, n_b, n_c) ↦
-/// (−n_b, −n_a, −n_c)` — a relabelling that preserves every dot
-/// product and the triple product's sign — giving
-/// `(−n_b, n_b × n_a)`. Both charts therefore stand in the SAME
-/// relation to their own feet: apex at the pole, one foot on the
-/// seam, the third a quarter-turn along the equator, so the patch is
-/// the same iso-rectangle in either chart and everything downstream
-/// (the pcurve images, the props inventory's rectangle check) reads
-/// one configuration.
+/// **The chart follows the corner's convexity, and the invariant it
+/// keeps is about the EQUATOR**: the seam meridian (`u_ref`) and its
+/// quarter-turn (`axis × u_ref`) each pass exactly through a foot, on
+/// either material side — a convex octant's feet lie along `+n_i`
+/// from the centre, so `(u_ref, axis) = (n_a, n_a × n_b)`; a concave
+/// one's lie along `−n_i`, so `(−n_b, n_b × n_a)`. The POLE is
+/// parallel to the third foot only UP TO SIGN, inherently: the score
+/// `|n_c × axis|` is even in `axis`, so the pick cannot constrain the
+/// sign, which falls out of the winning link's stored face order
+/// (measured split: 7:1 over a cube's convex octants, 6:2 over the
+/// cavity's concave ones —
+/// `review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`,
+/// beside the seam/quarter-turn pin that holds both halves of the
+/// concave fold).
 ///
 /// **The pick always yields.** A candidate needs an incident link and
 /// a third support: [`CornerLinks`] carries at least one link, and
