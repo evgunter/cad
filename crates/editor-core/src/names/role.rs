@@ -239,6 +239,25 @@ pub enum Qualifier {
 /// makes a stored selection stop resolving, loudly, where a swapped
 /// ROLE silently retargets it to the other arc of the same rim.
 /// Pinned by `blend5_r1_probes` and `blend5_r2_probes`.
+///
+/// # The kernel twin, and why this is not it
+///
+/// `sweep::fillet::naming::RimSide` is the same two roles, recorded by
+/// the surgery as it carves; `names::emit_fillet` maps one onto the
+/// other by an identity match. The duplication is deliberate and the
+/// emitter's match is the SEAM.
+///
+/// This side is what a file remembers: persisted and VERSIONED, so its
+/// spelling is file data and cannot move without a schema break (v18
+/// is that break). The kernel side is a birth record of arena keys
+/// with no serde and no version, free to be re-spelled with the
+/// surgery. Collapsing them would either drag serde and a schema
+/// number down into the kernel — which G1 layering forbids the other
+/// way round too, since the kernel must not depend on `editor-core` —
+/// or let a surgery refactor silently re-spell every saved document.
+/// With the seam, a rename on the kernel side that the emitter still
+/// maps costs no version bump at all. The fuller statement lives at
+/// `RimSide`'s own declaration.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]

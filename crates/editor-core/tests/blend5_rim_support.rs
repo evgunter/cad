@@ -317,30 +317,52 @@ fn support_surface_key(body: &Body<f64>, e: EdgeKey) -> SurfaceKey {
 }
 
 /// **The seam-split rim: several arcs, ONE pair of roles.** A
-/// pole-touching profile splits every wall into half-bands, so this
-/// rim reaches the surgery as TWO arcs meeting at chart-seam vertices
-/// and must be requested whole (the ARMS-3 recourse). It is carved by
-/// `resolve_seam_split_rim`, the THIRD site that decides the host —
-/// the one the other rows here do not reach.
+/// profile touching the axis at BOTH ends splits every wall into
+/// half-bands, so this rim reaches the surgery as TWO arcs meeting at
+/// chart-seam vertices and must be requested whole (the ARMS-3
+/// recourse). It is carved by `resolve_seam_split_rim`, the THIRD site
+/// that decides the host — the one the other rows here do not reach.
 ///
-/// What makes it worth a row: that site chooses a host SURFACE once
-/// for the whole chain and then re-tests, per link, which slot carries
-/// it, precisely because the links of one seam-split rim need not
-/// agree on slot order. So the claim is not "each arc has two roles"
-/// (trivially true) but that the two arcs AGREE: both `Host` trims lie
-/// on one support surface and both `Mate` trims on the other. A
-/// per-link slot reading would satisfy the first and break this.
+/// **The rim is chosen so its two links DISAGREE on slot order**,
+/// which is what gives this row its discrimination. That site picks a
+/// host SURFACE once for the whole chain and then re-tests, per link,
+/// which slot carries it, precisely because the links need not agree.
+/// On this rim they do not: the base disk is `face_a` of one link and
+/// `face_b` of the other. So the claim is not "each arc has two roles"
+/// (trivially true) but that the two arcs AGREE ON GEOMETRY — both
+/// `Host` trims on one support surface, both `Mate` trims on the
+/// other.
+///
+/// Verified by mutation, both ways, because the first draft of this
+/// row used a rim whose links happened to agree and discriminated
+/// nothing:
+///
+/// * delete the per-link slot re-test (`a_is_host = true` always) and
+///   this row goes RED — on the earlier fixture all 21 rows stayed
+///   green;
+/// * delete the planar preference from
+///   `naming::second_support_is_host` and it goes RED too, because
+///   this rim HAS a planar support (the base disk) and the surgery
+///   must prefer it. That is the seam-split arm's own spelling of the
+///   host rule, which no other row here reaches.
 #[test]
 fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
-    // Pole-touching at the top: the upper wall splits into half-bands.
+    // Both ends on the axis, so every wall is a pair of half-bands and
+    // every rim a pair of arcs (BLEND-1's lantern shape).
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
             [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (0.8, 0.6), (0.0, 1.1)]],
+            vec![vec![
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (0.8, 0.6),
+                (0.2, 1.2),
+                (0.0, 1.2),
+            ]],
         )),
     );
     let (doc, axis) = insert(
@@ -363,9 +385,11 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
         node: revolve,
         path: vec![seg],
     };
+    // The BASE rim (disk meets the lower cone): the one whose two
+    // links disagree on slot order, and which has a planar support.
     let pv = ProfileVertexRef {
         loop_index: 0,
-        vertex: MOUTH,
+        vertex: 1,
     };
     // The rim WHOLE: both of its arcs, which is the only request the
     // surgery accepts here (one alone terminates at a seam vertex).
@@ -418,4 +442,20 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
         "both arcs' MATE trims lie on one support surface: {by_role:?}"
     );
     assert_ne!(hosts[0], mates[0], "the two roles are two supports");
+    // This rim HAS a planar support, so the host rule's third spelling
+    // must prefer it — the half the slot re-test alone cannot give.
+    assert!(
+        matches!(
+            body.get_surface(hosts[0]).expect("a carrier"),
+            Surface::Plane { .. }
+        ),
+        "the host is the base disk"
+    );
+    assert!(
+        matches!(
+            body.get_surface(mates[0]).expect("a carrier"),
+            Surface::Cone { .. }
+        ),
+        "the mate is the cone"
+    );
 }
