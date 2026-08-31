@@ -2010,7 +2010,7 @@ fn area_gauge_ok(area: RingInterval, perimeter_lo: f64) -> bool {
         return false;
     }
     if perimeter_lo.is_finite() && perimeter_lo > 0.0 {
-        width <= AREA_GAUGE_CEILING * perimeter_lo * perimeter_lo
+        width <= AREA_GAUGE_CEILING * perimeter_lo.powi(2)
     } else if area.lo() > 0.0 {
         // FALLBACK: no certified perimeter — the relative gauge on
         // the certified-conservative endpoint (issue 472's named one).
@@ -2834,7 +2834,7 @@ fn rational_patch_face<T: Decide>(
                     area.width(),
                     p_lo,
                     area.width() / p_lo,
-                    area.width() / (p_lo * p_lo),
+                    area.width() / p_lo.powi(2),
                     AREA_GAUGE_CEILING
                 );
             }
@@ -3088,7 +3088,7 @@ pub fn nurbs_patch_face<T: Decide>(
                     area.width(),
                     p_lo,
                     area.width() / p_lo,
-                    area.width() / (p_lo * p_lo),
+                    area.width() / p_lo.powi(2),
                     AREA_GAUGE_CEILING
                 );
             }
@@ -3170,7 +3170,7 @@ pub fn nurbs_patch_face<T: Decide>(
                     area.width(),
                     p_lo,
                     area.width() / p_lo,
-                    area.width() / (p_lo * p_lo),
+                    area.width() / p_lo.powi(2),
                     AREA_GAUGE_CEILING
                 );
             }
