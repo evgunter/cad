@@ -1303,3 +1303,28 @@ With this merge all seven S-BLEND units are on main: BLEND-1
 (#961), BLEND-6 (#917), BLEND-7 (#827) — plus track T executed
 whole. Next and last: the EXIT-WALK draft for Evan's ratification
 (NOT self-merged).
+
+## 2026-08-31 — ledger uniqueness sweep (#1369 merged); EXIT WALK DRAFTED (PR #1370, Evan's)
+
+Pre-draft sweep for the exit walk checked every BLEND sample
+number for uniqueness against the ledger and main's merge order.
+Two more duplicates found beyond the BLEND-3/CERT-5 one, both
+BLEND rows the later merge of their pair: #57 was QA-9's (BLEND-5
+→ **#70**) and #64 was CERT-7's (BLEND-6 → **#71**). Repaired by
+docs-only PR #1369, self-merged after the fast run per the
+standing practice; renumber notes quote each row's original text.
+The 600-band samples are now #46, #52, #55, #68, #69, #70, #71 —
+all verified unique on main. The class (concurrent recorders
+writing "ledger max at this writing + 1" in a busy merge window)
+is named in the walk for the analysis.
+
+**docs/S-BLEND-EXIT-WALK.md DRAFTED — PR #1370, awaiting Evan's
+ratification, NOT self-merged.** Eleven rows quoting the plan
+verbatim (charter, seven units, track T, the 987 gate, protocol);
+dispositions MET ×6, MET-WITH-RECORDED-HONESTY ×4, CARRIED ×1.
+Five items put to Evan in the walk's last section: #1355, the
+rim-reference resolution-time check, #1359's per-site row-0
+question, the block-B3 close-short recommendation (restate slot
+1's arm at ratification), the lapsed-pause caveat. The program
+closes at ratification; until then the plan stays OPEN and this
+log stays live.
