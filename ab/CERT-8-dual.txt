@@ -108,3 +108,15 @@ space nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
 NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
 severities, executed-vs-inspected marked per item, and the rubric
 scores per the style lane. Report <=150 lines.
+
+AMENDMENT (pre-R1, per the note's own rule, 2026-08-31): the frozen
+review head is 1a2574b0, not 085ddf8f — the hosted discipline gate's
+interval-square-allowlist redded the delivered head on ONE site
+(pcurve_cache.rs:2943, `ratio * ratio` in chart_stretch_inf's
+area_inf) and the tip commit is a one-site ORCHESTRATOR-DIRECT
+powi(2) respell (value-identical; ratio >= 1 by construction),
+disclosed here; reviewers verify that delta themselves. Dispatch
+remains CONDITIONAL on 1a2574b0's gate concluding green on PR 1398.
+The stored brief's item 1(c) numerical-direction question now has a
+live pointer: the gate itself flagged the rational bracket's square —
+attack the REST of that assembly's rounding the same way.
