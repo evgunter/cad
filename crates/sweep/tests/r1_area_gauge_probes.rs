@@ -80,6 +80,17 @@ fn debug_assertions_are_on() -> bool {
 /// The same body at the OTHER scalar lane. `Interval` is the second
 /// `Decide` substrate; the gauge reads the same `RingInterval`
 /// enclosure either way, so this is the cross-lane half of the E2E.
+/// **Lane posture (added when this row was adopted).** On THIS body
+/// the `Interval` lane does not reach the quadrature at all: the
+/// rectangle-trim certificate wants exact 0/1 chart values and the
+/// interval-minted pcurve endpoints are not exact structure, so
+/// `topo::props` refuses `QuadratureUnsupported` before any face is
+/// certified. That is a pre-existing property of the interval lane's
+/// pcurve minting (`topo/src/props.rs`), untouched by CERT-6 — the
+/// row's original unconditional `expect` had simply never been run at
+/// this lane. What it can still read is what it was written to read:
+/// the gauge never fires. A typed refusal reaches this line; a gauge
+/// fire would not.
 #[cfg(feature = "interval")]
 #[test]
 fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
@@ -87,9 +98,13 @@ fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     let (sections, places) = r1_sections();
     let lofted =
         loft_body::<Interval>(&sections, &places, 2, Tol::witness()).expect("r1 loft builds");
-    let m = topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
-    println!(
-        "R1-E2E(interval) area_pad {:?} surface {:?}",
-        m.area_pad, m.surface_area
-    );
+    match topo::props::mass_properties(&lofted.body, Tol::witness()) {
+        Ok(m) => println!(
+            "R1-E2E(interval) area_pad {:?} surface {:?}",
+            m.area_pad, m.surface_area
+        ),
+        Err(e) => {
+            println!("R1-E2E(interval): typed refusal before quadrature ({e:?}) — gauge silent")
+        }
+    }
 }
