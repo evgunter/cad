@@ -321,7 +321,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "table",
             caption: String::new(),
-            montage: true,
+            // Montage cell RETIRED by the montage-v3 curation (Evan,
+            // 2026-08-30). Its one visual claim is corner-ALIGNED legs
+            // — and the assembly layer's table next door is now the
+            // same geometry, four legs on the corners, so the picture
+            // is the same picture and this cell adds nothing the sheet
+            // can see. What is NOT duplicated is this scene's four
+            // narrated union variants (coplanar-undeclared refusing at
+            // the coincidence door; inset overlap; the straddle
+            // workaround; the shipped declared-flush rung) — narration,
+            // which the standalone render keeps.
+            montage: false,
             story: "a table: tabletop unioned with four corner-straddling legs",
             ops: "extrude 5 boxes (one shared builder) -> 4 sequential union nodes (Seamed)",
             delta: 1e-2,

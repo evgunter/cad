@@ -504,7 +504,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "budfillet",
         caption: "THE FILLETED BUD (three curved-support arms, one body)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // 2026-08-30) on this module's OWN stated grounds: "at montage
+        // scale the fillets barely move the silhouette ... so the
+        // scene's evidence is stated in numbers that a picture cannot
+        // fake". The sheet's rule is that a scene is `montage: false`
+        // when it is a PROOF rather than a part, and this one says so
+        // about itself. The three coaxial arms are not leaving the
+        // sheet: the teapot's LID carries them, on a bored revolve
+        // whose rims are closed by the same steam vent that makes its
+        // knob filletable. Standalone render and every number here
+        // stay.
+        montage: false,
         story: "the calochortus bud as a bored solid of revolution — sphere zone, \
                 conical pucker, lip disk, bore — with its mouth (sphere x cone), its \
                 lip (cone x plane) and its bore's base (cylinder x plane) rolled. \
