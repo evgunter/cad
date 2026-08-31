@@ -326,6 +326,14 @@ pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
     split_points(kv, RATIONAL_CERT_SPLITS)
 }
 
+/// **Near-twin, recorded and deliberately not unified**:
+/// `geom_brep::props::quad`'s `knot_aligned_cuts` builds the same
+/// concept for the rational patch-flux composite — a knot-aligned
+/// subdivision of a parameter range, with its own sliver guard — and
+/// arrived at the same sliver lesson independently. Unifying the two
+/// is Track R's consolidation ground (C-m/D30, gated behind #723),
+/// not either caller's.
+///
 /// The interior split points that cut every nonempty span of `kv`
 /// into `splits` equal pieces, skipping any point floating point
 /// collapses onto a span end — refinement is a tightening, never a

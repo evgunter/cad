@@ -126,9 +126,11 @@
 //! refuse at BUILD time and no file of them exists to import. The
 //! round-trippable class today is uniformly-spaced lofts with polyline
 //! profiles (non-rational, full tier 3). Arc-bearing profiles export
-//! and read, but their rational walls have no volume quadrature yet
-//! (the banked rational-patch-flux lane), so the at-rest gate below
-//! refuses them at import until that lane lands.
+//! and read, and their rational walls now have a volume quadrature
+//! that converges through interior knots — but it is a composite on a
+//! fixed round budget, so a large or strongly curved rational wall can
+//! still exhaust that budget and the at-rest gate below refuses it,
+//! carrying the measured width.
 //!
 //! # The wild (M7-4)
 //!
@@ -498,9 +500,9 @@ pub enum StepImport {
         /// invariant is a flux SUM: on a multi-solid body an
         /// inside-out solid can hide behind a right-side-out one.)
         ///
-        /// A body whose native twin refuses tier 3 (the
-        /// rational-walled loft, whose volume quadrature names the
-        /// banked rational lane) does not arrive here at all; the gate
+        /// A body whose native twin refuses tier 3 (a rational-walled
+        /// loft whose volume quadrature exhausts its round budget, say)
+        /// does not arrive here at all; the gate
         /// hands back its verdicts as
         /// [`StepImportError::TierInvalid`]. Nothing imports into a
         /// state its native twin does not occupy — and nothing imports
