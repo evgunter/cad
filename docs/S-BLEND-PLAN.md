@@ -94,7 +94,8 @@ parallel with anything.
 3. **BLEND-3 — concave plane-plane chamfers (issue 919).** The
    geometry already handles both sides; the unit widens the two
    admission doors (`corner_config`'s all-convex requirement,
-   `ConvexOpen`), authors the concave-corner fixture through the
+   `ConvexOpen` — renamed `AdmittedOpen` by the unit), authors the
+   concave-corner fixture through the
    public API, and checks the carve walk is orientation-agnostic.
 4. **BLEND-4 — convexity-parametric fillet corners (issue 644).**
    The harder twin, deliberately after BLEND-3: ball admissibility,

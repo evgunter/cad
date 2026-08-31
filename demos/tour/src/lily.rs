@@ -86,9 +86,11 @@
 //! **Every blade section here is straight lines, and that is
 //! OUTSTANDING WORK rather than a constraint.** Giving the blades
 //! their lanceolate arcs back is a real follow-up, not a settled
-//! choice — and it wants checking against the QUADRATURE half of the
-//! rational bank, which is not retired (`QuadratureUnsupported` keeps
-//! its own pins, and this stop prints an exact volume for every body).
+//! choice, and nothing in the kernel stands in its way any more: the
+//! rational wall an arc-margined blade skins converges through the
+//! interior knots its swept spine puts there, and a blade of this
+//! stop's proportions prints an exact volume like every other body
+//! here.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -752,11 +754,13 @@ const SEPAL_STATIONS: usize = 13;
 ///
 /// **Restoring the lanceolate arcs is outstanding work on this
 /// stop** — the kite is what the blade was given, not a limit of the
-/// vocabulary — with one thing to check first: the span meter's half
-/// of the rational bank is retired and the QUADRATURE half is not,
-/// and every body in this stop prints an exact volume, so an
-/// arc-walled blade may meet `QuadratureUnsupported` where the kite
-/// does not.
+/// vocabulary — and the quadrature that used to stand in its way no
+/// longer does. The blade this stop would draw has been built and
+/// measured: a crescent section on this spine, at [`LEAF_STATIONS`]
+/// stations and [`LEAF_V_DEGREE`], certifies an exact volume like
+/// every other body here. That measurement is a standing row, not a
+/// claim — `sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_
+/// blade_certifies` rebuilds exactly this geometry and re-takes it.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.

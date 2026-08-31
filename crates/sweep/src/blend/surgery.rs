@@ -27,18 +27,19 @@
 //!
 //! **Open chains** (plane–plane links, the box edges): every open
 //! chain must be a single link terminating at trivalent corners
-//! whose THREE incident edges are all requested — the sphere-octant
-//! configuration, reached in place. Per support face: one strut
-//! `mev` per boundary vertex (to the corner ball's foot on that
-//! face) and one trimline `mef` per blended edge carve the face
+//! whose THREE incident edges are all requested — one uniform
+//! trihedron, reached in place, whichever band fills it. Per support
+//! face: one strut `mev` per boundary vertex (to the corner patch's
+//! foot on that face) and one trimline `mef` per blended edge carve
+//! the face
 //! into the SHRUNK face plus one strip per edge — the shrunk face
 //! keeps its `FaceKey`, its surface, its sense bit (S12
 //! parent-sense inheritance) **and its rings**, which is what
 //! carries a face's rings through the fillet. Then per edge one
 //! `kef` merges the two strips across the dying sharp edge; per
 //! corner three arc `mef`s split the corner triangles off, two
-//! `kef`s and one `kev` fuse them into the octant and retire the
-//! struts and the sharp vertex.
+//! `kef`s and one `kev` fuse them into the corner patch and retire
+//! the struts and the sharp vertex.
 //!
 //! **Closed chains** (any link whose blend is a TORUS) come in TWO
 //! shapes, which
@@ -99,8 +100,10 @@
 //!
 //! # Out of scope, refused typed
 //!
-//! Multi-link open chains (junction carry-through), concave chains
-//! (material-adding blends), partially-requested corners (run-outs),
+//! Multi-link open chains (junction carry-through), open chains whose
+//! material-adding side the requested BAND does not build (the rolling
+//! ball's; the ruled strip carves either),
+//! partially-requested corners (run-outs),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
 //! one edge, or of several arcs a chart seam split), and a LADDER rim
@@ -151,7 +154,7 @@ use topo::{
     SurfaceKey, VertexKey,
 };
 
-use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::arms::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::build::{Blended, face_cycle, outward_of};
@@ -178,8 +181,9 @@ pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> BlendError {
     BlendError::UnsupportedChain { edge, detail }
 }
 
-/// **Row 2** — the corner's own CONFIGURATION is not the sphere octant
-/// (the OQ6 vocabulary, shared with the battery's classifier).
+/// **Row 2** — the corner's own CONFIGURATION is not one the running
+/// band fills (the OQ6 vocabulary, shared with the battery's
+/// classifier).
 ///
 /// The one mint of this refusal, so the policy it advertises is always
 /// the tag's own ([`CornerConfig::policy`]) and can never be a second,
@@ -192,7 +196,7 @@ pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> 
     }
 }
 
-/// **Row 2** — the REQUEST does not cover a termination the octant
+/// **Row 2** — the REQUEST does not cover a termination the corner
 /// assembly needs. A run-out, not a corner configuration.
 pub(super) fn unbuilt_run_out(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::UnsupportedRunOut { at, detail }
@@ -235,8 +239,8 @@ const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 
 /// One corner: a trivalent vertex all of whose edges are requested.
 struct Corner<'a, T: Real> {
-    /// The admitted open links terminating here — at least one, every
-    /// one convex ([`CornerLinks`]).
+    /// The admitted open links terminating here — at least one, and
+    /// all of one convexity ([`CornerLinks`]).
     links: CornerLinks<'a, T>,
     /// The three incident support faces, in orbit order.
     faces: CornerFaces,
@@ -255,14 +259,19 @@ struct Corner<'a, T: Real> {
     /// order-free pick, [`super::build::octant_chart`]), or the
     /// chamfer's plane through the three feet.
     surface: Surface<T>,
-    /// The octant's orientation bit, read exactly as a blend reads its
+    /// The corner patch's orientation bit, read exactly as a blend reads its
     /// own — off the stored convexity verdict
     /// ([`Convexity::blend_sense`]), never a sampled normal. A corner
     /// patch is a sphere about the rolling ball's rest centre whose
     /// chart normal is the outward radial, and the centre lies on the
-    /// material side precisely when the corner is convex. Any one
-    /// incident link answers for all of them: the surgery's door
-    /// admits convex links only, so they cannot disagree.
+    /// material side precisely when the corner is convex.
+    ///
+    /// **Any one incident link answers for all of them**, and what
+    /// makes that sound is the BATTERY, not this module's door: a
+    /// termination reaches the carve only through predicate 6, which
+    /// runs at every open chain's two ends and admits a trihedron
+    /// only where its three edges carry ONE convexity. So the three
+    /// links here cannot disagree — on either side of the material.
     convexity: Convexity,
 }
 
@@ -401,13 +410,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let kind = verdict.kind;
 
     // ---- Classify the verdict's chains (structural only). The open
-    // chains go through the door as [`ConvexOpen`], which IS the
+    // chains go through the door as [`AdmittedOpen`], which IS the
     // three-clause admission below. ----
-    let mut opens: Vec<ConvexOpen<'_, T>> = Vec::new();
+    let mut opens: Vec<AdmittedOpen<'_, T>> = Vec::new();
     let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
     for chain in &verdict.chains {
         match chain.closure {
-            ChainClosure::Open { .. } => opens.push(ConvexOpen::admit(chain)?),
+            ChainClosure::Open { .. } => opens.push(AdmittedOpen::admit(chain, kind)?),
             // The band replacement is the rolling ball's torus over a
             // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
             // all — its one arm is plane–plane, whose closed chains
@@ -426,7 +435,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             },
         }
     }
-    opens.sort_by_key(ConvexOpen::edge);
+    opens.sort_by_key(AdmittedOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
     shared_support_gate(&rims)?;
 
@@ -663,7 +672,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
     // `vertex_faces` adds is a stored reference nothing here proves.
-    // The valence the octant derivation needs is the FACE orbit's; on a
+    // The valence the corner derivation needs is the FACE orbit's; on a
     // manifold body it is the edge valence the door checked, and a
     // disagreement is itself the refusal.
     let faces = CornerFaces::admit(body, vertex)?;
@@ -677,7 +686,8 @@ fn corner_plan<'a, T: Decide + Bounds>(
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?;
     }
     // Any one incident link answers for all of them (`Corner`'s field
-    // doc): the door admits convex links only.
+    // doc): the battery's corner predicate admits a termination only
+    // where all three of its edges carry one convexity.
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {
         BlendKind::Fillet => {
@@ -820,7 +830,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         if !matches!(link.convexity, Convexity::Convex) {
             return Err(unbuilt_chain(
                 link.edge,
-                "a concave chain adds material, which the surgery does not build — \
+                "a concave chain adds material, which no closed-rim carve builds — \
                  not implemented",
             ));
         }
@@ -1731,7 +1741,7 @@ pub fn ring_clearance<T: Decide + Bounds>(
 /// margin, in closed form.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
-    opens: &[ConvexOpen<'_, T>],
+    opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
     band: Band,
 ) -> Result<(), BlendError> {
@@ -1940,7 +1950,7 @@ type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
 #[allow(clippy::type_complexity)]
 fn blank_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
-    opens: &[ConvexOpen<'_, T>],
+    opens: &[AdmittedOpen<'_, T>],
     corners: &[Corner<'_, T>],
     supports: &[RequestedBoundary<T>],
     rec: &mut BlendNaming,
@@ -2096,7 +2106,7 @@ fn blank_phase<T: Decide + Bounds>(
         Some(body.get_loop(lp)?.face)
     };
 
-    // ---- Per corner: three arcs, then the octant fusion. ----
+    // ---- Per corner: three arcs, then the corner fusion. ----
     let mut corner_faces = Vec::with_capacity(corners.len());
     for c in corners {
         let vertex = c.links.vertex();
@@ -2214,8 +2224,8 @@ fn blank_phase<T: Decide + Bounds>(
             hp
         };
         body.kev(dying).map_err(|e| op("corner kev", e))?;
-        // The octant is whatever face the first arc's non-blend half
-        // now bounds.
+        // The corner patch is whatever face the first arc's non-blend
+        // half now bounds.
         let Some(arc) = first_arc else {
             unreachable!(
                 "corner fusion: a corner's incidence list holds at least the link that \
@@ -2230,7 +2240,7 @@ fn blank_phase<T: Decide + Bounds>(
             )
         };
         let quad = hex_face(body, c.links.first().edge());
-        let octant = match (face_of_half(body, ahp), face_of_half(body, ahm)) {
+        let patch = match (face_of_half(body, ahp), face_of_half(body, ahm)) {
             (Some(f1), Some(f2)) => {
                 if Some(f1) == quad {
                     f2
@@ -2243,9 +2253,9 @@ fn blank_phase<T: Decide + Bounds>(
                  `mef` mints the arc into two loops and the `kev` above kills neither"
             ),
         };
-        rec.corners.push((octant, vertex));
+        rec.corners.push((patch, vertex));
         rec.dead.vertices.push(vertex);
-        corner_faces.push(octant);
+        corner_faces.push(patch);
     }
 
     let mut blend_faces = Vec::with_capacity(opens.len());
@@ -3539,7 +3549,7 @@ mod tests {
 
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
-    use super::{BlendError, BlendKind, ConvexOpen, CornerLinks, corner_plan, rim_trim_circles};
+    use super::{AdmittedOpen, BlendError, BlendKind, CornerLinks, corner_plan, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
@@ -3643,24 +3653,29 @@ mod tests {
     }
 
     /// **The surgery corner takes its links' orientation bit too**, and
-    /// the concave case never reaches the derivation at all: the door
-    /// refuses it.
+    /// the concave case reaches the derivation for ONE of the two verbs:
+    /// the open-chain door admits it under a ruled strip and refuses it
+    /// under a rolling ball.
     ///
     /// **The concave half of this probe is not a body.** The fixture
     /// FALSIFIES the battery's stored verdict on a cube whose geometry
     /// is untouched — a lie about a convex body, not a concave one.
-    /// What it pins is where that lie is caught: at
-    /// [`ConvexOpen::admit`], so `corner_plan` below cannot be handed
-    /// one and has no convexity refusal left to make.
+    /// What it pins is the DOOR's own answer to that verdict, per verb,
+    /// which is a question about [`AdmittedOpen::admit`] and not about
+    /// the cube. A real concave body carved end to end is the vented
+    /// cavity of the concave-chamfer suite.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
         let body = cube(L, Tol::witness());
         let links = all_links(&body, Tol::witness());
         let v = links[0].start;
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
-        let admitted: Vec<ConvexOpen<'_, f64>> = chains
+        let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| ConvexOpen::admit(c).expect("a cube's links are convex plane–plane"))
+            .map(|c| {
+                AdmittedOpen::admit(c, BlendKind::Fillet)
+                    .expect("a cube's links are convex plane–plane")
+            })
             .collect();
         let mut here = admitted.iter().filter(|o| {
             let l = o.link();
@@ -3680,12 +3695,18 @@ mod tests {
         let mut concave = links[0].clone();
         concave.convexity = Convexity::Concave;
         let chain = open_chain(concave);
-        let Err(err) = ConvexOpen::admit(&chain) else {
-            panic!("a concave chain must be refused at the door, not planned")
+        let Err(err) = AdmittedOpen::admit(&chain, BlendKind::Fillet) else {
+            panic!("a concave chain must be refused at the rolling ball's door, not planned")
         };
         assert!(
             matches!(err, BlendError::UnsupportedChain { .. }),
             "expected the open-chain door's typed refusal, got {err}"
+        );
+        let strip = AdmittedOpen::admit(&chain, BlendKind::Chamfer)
+            .expect("a ruled strip's door admits either convexity");
+        assert!(
+            matches!(strip.convexity(), Convexity::Concave),
+            "the token carries the verdict it was admitted with, not a convex one"
         );
     }
 }

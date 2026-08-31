@@ -421,3 +421,52 @@ gained the achieved:inf fourth face from R2.
 Slate: CERT-5's fix pass is in flight (NMAI from its R2 — three
 bilateral MAJORs; delta re-review follows before its merge);
 CERT-6 dispatches after CERT-5 lands. CERT-8/9/10 then per plan.
+
+## CERT-5 merged (2026-08-31) — issue 453 closed, issue 390 annotated; the straddle floor is gone
+
+PR 1314 at ed7a7623 after the program's first NMAI → fix → delta
+cycle. Gates: delivered head 3fc450d6 green (lanes both, ε 1e-12
+drawn); fix head ed7a7623 green (lanes both, ε default drawn); all
+six matrix points verified locally at the fix head. Knot-aligned
+cells at four sites retire the Θ(1/pieces) floor (straddle branch
+deleted, not bypassed); dm1 146× (2.7469e-4 → 1.885e-6, 1.84×
+target — honestly NOT flipped; the dial decision is issue 1315 with
+corrected figures); the lily flip is a GATE re-measured on the final
+head; the w-uniform-in-v arm taken with the ruling's "strictly
+better" softened to the measurement.
+
+**The dual (ordinal 703, sample at the row)**: R1 fable A-W-F 2/5/4;
+R2 opus NMAI 3/6/4 — all three MAJORs BILATERAL by execution
+(identical dm1 digits to 17 places; the same drop-knots mutant; the
+sliver hazard at differing severity), so the verdict split is pure
+label noise on converged findings — v4 amendment 2's expected shape,
+and the NMAI bound procedurally. Fix pass IMPLEMENTER-INHERITED:
+the dm1 discrepancy explained by bit-identical reconstruction (the
+meter's denominator moved mid-development); the blind-row gate
+found its load-bearing combination (v-degree-1 + v-varying weights
+— f_vv structurally None); the sliver attribution CORRECTED AGAINST
+BOTH REVIEWS by measurement (refine_dir's exact-equality insertion,
+pre-existing, worse on main → issue 1358; the delta lane
+re-measured and conceded plainly); one own-mis-claim admitted
+(tier_gate "corrected" when never touched — a PR-body claim
+falsified by review, the CERT-1 brief-as-claim-site lesson from the
+other side). Two refusal-class changes argued under the D2 addendum
+(both the safe direction; the #389-gap masking recorded, not
+claimed fixed). DELTA re-review by the NMAI lane: all three MAJORs
+FIXED by execution, no regressions — DELTA-APPROVE.
+
+**Cross-program consequence**: the branch's ε=1e-12 draws surfaced
+FOUR latent main reds at the never-sampled (interval, 1e-12) matrix
+point, left by CERT-3/CERT-4's merges (their gates drew other ε
+rows) — repaired as ported main fixes in this PR (per-band-honest
+re-pins, no re-baselines; delta-verified), with the CLASS filed as
+issue 1356 (recommendation: trailer-pin ε for band-sensitive units;
+distinguish "consults no tolerance" from "premise varies by band"
+in review briefs). S-CERT should adopt the ε-trailer practice for
+its remaining units — CERT-6 onward dispatch with it in the spec.
+
+Issues: 453 closes at this merge; 390 stays open annotated (route 2
+unclaimed); 1315/1316 corrected+appended; 1356 (ε-matrix class),
+1358 (refine_dir + the five-way inner copy) filed. Slate next:
+CERT-6 (area gauge, on the post-CERT-5 area lanes, B2 slot 2),
+then CERT-8/9/10 and the absorbed SMELL tracks per plan.

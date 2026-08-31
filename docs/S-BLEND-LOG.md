@@ -503,3 +503,532 @@ proven green on this content — lane=default eps=default (run
 BLEND-2-precedent row, gating this tree's own demos changes).
 
 CI-Config: lane=default eps=default klint=dev-budget
+
+## BLEND-VOCAB RATIFIED (2026-08-30, Evan's 👍 on PR 1279)
+
+`docs/BLEND-VOCAB-DESIGN.md` ratified and merged (a9806624): V1
+(the G16 wrapper shape at the kernel doors), V2 (verb-neutral inner
+prose + per-verb recourse re-measurement under the 1278 rule), V3
+(the rename with the unit, last), V4 (no parallel enum), plus the
+three choices as recommended — "edge blend", collapse-with-aliases,
+rename-with-the-unit. The impact/reversibility record is on the PR
+thread (no persisted footprint; the sticky RimSupport half stays
+BLEND-5's). BLEND-6 is now gated only on BLEND-5's merge.
+
+## 2026-08-30 — Block BLEND-B2 DRAWN (branch-side record; reaches main at the block's last dual's conclusion)
+
+**Block BLEND-B2.** v3 triple {opus, opus, fable}. Slots by the
+plan's serialized order: slot 1 = BLEND-5 (issue 961, RimSupport
+vocabulary), slot 2 = BLEND-6 (issue 917, shared refusal
+vocabulary — executes ratified `docs/BLEND-VOCAB-DESIGN.md`),
+slot 3 = BLEND-3 (issue 919, concave plane-plane chamfers).
+Draw: /dev/urandom byte **25**, no rejections ⇒ 25 mod 3 = 1 ⇒
+fable position 1 (0-indexed) ⇒ **slot 1 OPUS, slot 2 FABLE,
+slot 3 OPUS**.
+
+Difficulties, logged at this draw before any of the three
+dispatches: BLEND-5 **M-L** (persisted-vocabulary widening with an
+N-doc migration story and a schema-seam claim; assessed M-L in the
+check-in note authored before this draw), BLEND-6 **M** (the
+ratified V1-V4 execution — one wrapper at the kernel doors and the
+~255-reference rename, wide but design-settled), BLEND-3 **M**
+(two admission doors widened + the concave fixture through the
+public API + orientation-agnostic carve check).
+
+Arms stay branch-side until reviews conclude per the standing
+redaction shape. BLEND-5 dispatches next (lane blend-5, branch
+`blend/rimsupport`); its schema-seam claim rides the dispatch
+record per the plan's naming/schema seam note.
+
+## 2026-08-30 — BLEND-5 DISPATCHED (block BLEND-B2 slot 1)
+
+Lane `blend-5` (`~/.local/share/cad-work/blend-5/cad`), branch
+`blend/rimsupport` cut from main at `6cf9647e` (BLEND-2's merge —
+the serialized-slate rule satisfied). Difficulty M-L stands
+pre-logged in the draw entry above; arm per the block record.
+
+**Schema-seam claim, stated here at dispatch per the standing
+discipline:** main's `SCHEMA_VERSION` is **17** (M10-2's bump);
+BLEND-5 claims **v18** for the `RimSupport` vocabulary widening,
+with the resolution rule stated in advance per the M10-2/G16
+precedent: if a concurrent unit also claims v18, MAIN'S MERGE
+ORDER rules and the loser repays every fixture per its own
+migration story. No live rival known at this writing (S-QA is
+CI-territory; VERBS-SPHSPH is geometry; no M10 unit in flight).
+
+Brief shape: issue 961 verbatim + plan unit 5; the emitter seam is
+OPEN (LIB-G16 merged 2026-08-30, so `editor-core`'s `emit_fillet`
+is touchable); the role-vs-kind-at-emit choice is the unit's to
+measure and argue (not one of the plan's reserved design forks);
+`docs/prompts/implementer-discipline.md` by path; measured-first.
+
+## 2026-08-30 — BLEND-5 DELIVERED; reviews dispatched (ordinal 603)
+
+Unit delivered: PR #1301, frozen head `50fedb7d` (4 commits, +1507
+/−76 over 39 files). Shape taken: ROLE naming — `RimSide::{Host,
+Mate}` → `RimSupport::{Host, Mate}` — argued on three grounds
+(kind COLLIDES on cone×cone; kind-at-emit is N4-forbidden recovered
+geometry; kind is not recipe-covariant), with the meaning-
+preservation invariant (Host = the planar support wherever one
+exists) pinned. Opening measurement committed first (`dcb24024`):
+the misleading `Plane`-on-a-cone emission pinned pre-change on a
+cone×cone lantern mouth — also the first editor-core drive of the
+annulus rim phase through `emit_fillet` (the #1294 gap). Schema
+v18 clean break, fixtures repaid through their own doors. Unit CI:
+run 33339458819 GREEN on a fully drawn point {interval, 1e-6}. One
+non-reproduced viewer fuzz flake reported not absorbed (clock+pid
+seed — 180 replays green); watch for recurrence before filing.
+Impl cost (lane-reported): ~270k tokens / ~95m wall (opening ~40m,
+impl ~11m, tests+migration ~35m, CI ~20m).
+
+**Review dispatch (v6 dual, ordinal 603 — claim PR to main rides
+this dispatch):** parity byte **226** ⇒ parity 0 ⇒ **R1 OPUS +
+R2 FABLE**. Method: CONCURRENT, separate checkouts (disk 26G free
+after the impl target reclaim — the sequential fallback's disk
+bound does not apply), both frozen on `50fedb7d`. Briefs authored
+and stored symmetric BEFORE R1's dispatch
+(`orchestrator/blend5-review-brief-{r1,r2}.md`, diff-verified
+symmetric); dispatches are the stored briefs verbatim. Lanes
+`blend-5-r1` / `blend-5-r2`; probe branches
+`blend/rimsupport-r{1,2}-probes`. Reviewers blinded to the
+implementer arm as always. Impl lane's clone kept for the fix-pass
+resume (target/ reclaimed).
+
+## 2026-08-30/31 — BLEND-5 reviews concluded; adjudication + fix-pass dispatch
+
+Both arms delivered, uninterrupted, concurrent on frozen `50fedb7d`
+(pair COUNTS toward the twelve; no relaxations). R1 (ordinal 603
+R1 arm): MERGEABLE-AFTER-FIXES 1/3/4 + 10 style, rubric 5/5/4,
+~205k / ~55m, probes `blend/rimsupport-r1-probes` @ f1c9e03e (6
+rows). R2: MERGEABLE-AFTER-FIXES 0/4/1 + 7 style, rubric 5/5/4,
+~250k / ~70m lane-reported, probes `blend/rimsupport-r2-probes`
+@ 2bff4002.
+
+**Correspondence.** The headline is BILATERAL at split severity —
+adjudicated MAJOR: the PR's reason 3 ("the role does not move
+under any parameter edit") and its two permanent doc-comment
+spellings (role.rs, naming.rs) are FALSE at the planarity boundary,
+executed independently by both arms (R1's three-variant single-
+recipe probe measuring (Mate, Host, Mate); R2's flatten-the-mate
+edit). The behaviour is inherited (the retired kind vocabulary had
+the identical instability) — the defect is the committed false
+justification on a persisted vocabulary; the shape still stands on
+reasons 1–2 (the cone×cone collision was verified by BOTH arms by
+emitter mutation: typed Naming(Duplicate), a hard refusal). NO
+tally candidates (the MAJOR bilateral); **v6 tally unchanged.**
+Also bilateral: the overbroad "only from here"/first-coverage
+premise (both executed; the honest claim is ANNULUS-first, which
+is what #1294 asks); the invariant pin's fixture-luck (R2's
+branch-deletion mutation left it green; R1 S2 same substance); the
+unguarded digest-census prose (R1 supplied the mechanical guard
+row); the version-door-before-serde mechanism of the v18 break
+(R1's sharper unique half: deny_unknown_fields proven INERT on
+unit-only enums by removal). R1 unique: BandFoot/BandCross prose
+presuming a planar support (the unit's own class, 19 lines below
+its fix, executed on cone×cone); CapEnd Top-below-Bottom under
+negative extrusion (executed; sweep double-standard flagged);
+.pyi stub blindness. R2 unique: the third host-rule spelling at
+resolve_seam_split_rim uncovered; the ladder "sphere side" prose
+question — in DISPUTE with R1's S9 (ladder always has a sphere?);
+fix pass verifies against the admission gates and dispositions.
+
+**Class issues filed at adjudication:** #1306 (CapEnd spatial
+claim), #1308 (inert deny_unknown_fields sweep + ledger belief),
+#1309 (.pyi attribute-level stub blindness, S-QA-shaped).
+
+**Fix pass: IMPLEMENTER-INHERITED**, resumed on the kept blend-5
+lane. Union: (1) reason-3/role.rs/naming.rs qualified to
+covariance-off-the-planarity-boundary, R1's boundary probe adopted
+as the honest presence pin, PR body corrected; (2) "annulus"
+narrowing of the coverage premise + the S10 channel-list overclaim;
+(3) R2's two red-capable invariant rows adopted, S3's unreachable
+iff half documented, seam-split third-spelling coverage added or
+disclosed; (4) R1's executable census row adopted as the digest
+guard; (5) ledger entry rewritten to the version-door mechanism,
+inert-attribute disposition at role.rs citing #1308; (6) BandFoot/
+BandCross prose fixed + the persisted-vocab prose class swept,
+ladder dispute settled by the gates; (7) the mirror-why stated at
+both RimSide/RimSupport declarations; (8) host-rule three-
+spellings homed or declined WITH argument (the "one rule, four
+readings" precedent); (9) sweep-table wording: OpGroup not-
+persisted caveat, CapEnd row cites #1306; (10) optional: S8
+readability, #1309 noted at the tripwire. Reviewer probe branches
+adopted as merge parents authorship-preserving. Review lane
+TARGETS reclaimed at report per the standing rule; clones kept
+until delta.
+
+## 2026-08-31 — BLEND-5 fix pass delivered; delta dispatched; a trailer flag resolved
+
+Fix pass delivered on head `9eb980e2` (~55k / ~48m): all 10 union
+items, one argued partial decline (the inert attribute KEPT citing
+#1308 — stripping one of a five-enum family pre-empts the sweep
+inconsistently). Reason 3 WITHDRAWN, not softened, with the
+reviewers' silent-retarget corollary written into the record (a
+kind rename fails loud, a role swap silently retargets — the shape
+is worse on that axis and stands on the collision argument);
+offered as a handoff: whether a rim reference wants a resolution-
+time check is a design conversation, not this unit's. The ladder
+DISPUTE settled in R2's favor against the gates (no clause tests a
+kind; a cone half-cap satisfies all four) — prose and op-site
+string went kind-neutral, the (Sphere, Plane) arm identifier kept.
+Item 3 went better than asked: the seam-split third spelling got a
+real public-doors row (pole-touching profile) instead of a
+disclosed gap. Fix CI: run 33342571322 GREEN, 21 jobs zero
+non-green, freshly drawn point {interval, default eps} — two of
+six points now covered across the two runs.
+
+**Trailer flag resolved (implementer raised it; verified by
+orchestrator git-log):** both probe branches and all six fix-pass
+commits are CLEAN — the trailers the implementer saw are MAIN's
+own commits arriving via its merge, including two S-CERT/S-QA
+orchestrator dispatch-record commits (59c9bbd0, 7e8a7aa8) that
+carry a MODEL-NAMED trailer. That identifies only the orchestrator
+role, which the protocol itself publishes (design/reviews/
+orchestration are Fable by design) — zero arm exposure for any
+lane; noted here as hygiene for the sibling program, not acted on.
+
+**Delta re-verification dispatched:** R1 resumed in its kept lane
+on `9eb980e2`, narrow scope (the MAJOR's record fix, the mutation
+re-run, the seam-split row, the ladder ruling re-checked against
+the gate clauses, the decline's argument judged, tip-state trailer
+spot-check). State-sync (A/B row ordinal 603 + unit log) rides the
+unit branch LAST after the delta, then the merge sequence.
+
+## 2026-08-31 — Delta verdict: 6/8 CONFIRMED; two record residues sent back
+
+R1's delta (~80k / ~40m; cumulative ~285k / ~95m): items 1, 2, 4,
+5, 6, 8 CONFIRMED by execution — the M1 mutation reproduced the
+fix pass's red/green table EXACTLY (both R2 rows + both covariance
+probes red, the disclosed fixture-lucky invariant row green); the
+#1308 partial decline judged SOUND on three checks; the ladder
+ruling CONFIRMED with R1 reversing its own S9 judgment against the
+gate clauses (no kind test anywhere in the admission span;
+Surface::Sphere occurs once in surgery.rs, minting the octant
+patch — R2's dispute was right); tip trailer state clean. TWO
+residues, both record accuracy: (a) the new seam-split row claims
+a per-link-slot discrimination it lacks (M2 mutation survives all
+21 rows; reachability witness shows the else branch never fires on
+the fixture) — the fix pass's own fixture-luck diagnosis repeated
+in the same commit, asserted instead of disclosed; (b) the
+mirror-why landed at naming.rs only while the PR body claims both
+declarations. Micro-fix dispatched to the implementer (fixture-or-
+relabel for (a); the role.rs side + PR body corrections for (b)).
+State-sync rides after.
+
+## 2026-08-31 — BLEND-5 MERGED (#1301); BLEND-6 DISPATCHED (block BLEND-B2 slot 2)
+
+PR #1301 merged at `e0aef5c9`; issue 961 closed. Gate of record:
+run 33345044024 GREEN (21 jobs) on the state-sync head `bdf93527`,
+drawn point {default, eps 1e-12} — across the four heads the draw
+covered FOUR of six matrix points including both compile lanes and
+a 1e-12 row. A/B row (ordinal 603, sample hedged #57) rode the
+state-sync; the implementer arm stays branch-side until the block
+closes. Lanes blend-5 / blend-5-r1 / blend-5-r2 reclaimed (28G
+free).
+
+**BLEND-6 dispatched:** lane `blend-6`, branch `blend/verbvocab`
+cut from main at `e0aef5c9` (the serialized-slate rule: same
+files, single-owner order, BLEND-5 in). Arm per the block B2
+branch-side draw (slot 2); difficulty **M** stands pre-logged at
+the draw. No schema seam: refusals are not persisted, and V3's
+fences keep the persisted RoleSeg/RimSupport vocabulary and the
+fillet3_* predicate names untouched. Brief = the ratified
+`docs/BLEND-VOCAB-DESIGN.md` V1-V4 with the three settled choices,
++ the G16 `// #917` marker discharge at `OpGroup::Fillet`, +
+`docs/prompts/implementer-discipline.md` by path; the #1278 rule
+governs every shared recourse constant's re-measurement under both
+verbs.
+
+## 2026-08-31 — BLEND-5 residue on main: the probe prose tripped the reader-census needle (fixed by #1323, another session's PR)
+
+Evan relayed a sibling agent's report of main red after BLEND-5;
+verified against the runs: main itself never went red (the merge
+commit's run was concurrency-cancelled and the commits after were
+docs-only), but the FIRST code-tier full-suite run since the merge
+(the GUI-theming lane's) hit `reader_census` red with two
+independent causes. (1) OURS: the adopted R1 probe file names
+`blend5_rim_support.rs` inside an assertion MESSAGE, and the census
+needle counts `.rs"` string occurrences against `#[path]` mounts —
+prose naming a file read as an unledgered source-reading site.
+CLASS NOTE: probe-suite prose that names .rs files trips
+source-census needles; the honest fix is at the site (reword),
+never a needle exemption or a prose Disposition variant. (2) NOT
+ours, pre-existing: the census's hidden-component skip tested the
+ABSOLUTE path, so `.mngr` in every worktree path filtered the whole
+tree — which is also why nobody could run the census locally to
+catch (1). Both fixed by PR #1323 (mngr lane, merged by its owner
+01:38Z; our file's sentence reworded to "from the blend5_rim_support
+suite", same assertion). WHY OUR FOUR GREEN RUNS MISSED IT: the
+census row was in none of the drawn points and main ran no
+code-tier job between the merge and the GUI run — the one-point
+sampling residue, on the record here. BLEND-6's lane told to merge
+main before its first push so its runs carry the fix.
+
+## 2026-08-31 — BLEND-6 DELIVERED; reviews dispatched (ordinal 604); T-a delivered; #1330 fix PR
+
+**BLEND-6 delivered**: PR #1328, frozen head `e8707956`, hosted CI
+21/21 GREEN on drawn {default, 1e-12}. V1 wrapper
+(`BlendRefusal { verb, error }`) at both doors, double-prefix
+measured absent; measured ball-only list with gate citations;
+1278-followability pins EXECUTED for clearance and run-out;
+V3 rename landed LAST (489 refs / 80 files — grown from the
+issue's ~255 with BLEND-5), fences held incl. schema v18
+byte-untouched; #917 marker discharged with a flagged judgment
+call (OpGroup::Fillet tag name kept). Impl cost ~420k / ~2h45m
+(lane-reported).
+
+**Review dispatch (v6 dual, ordinal 604 — claim PR rides this
+dispatch):** parity byte **65** ⇒ parity 1 ⇒ **R1 FABLE +
+R2 OPUS**. CONCURRENT, separate checkouts (disk 20G free after
+reclaiming both finished lane targets), frozen `e8707956`. Briefs
+authored+stored symmetric BEFORE R1
+(`orchestrator/blend6-review-brief-{r1,r2}.md`, diff-verified);
+dispatches verbatim. Lanes blend-6-r{1,2}; probe branches
+`blend/verbvocab-r{1,2}-probes`. Impl clone kept for the fix-pass
+resume.
+
+**Track T, T-a delivered** (outside the A/B): PR #1329 — C20
+closed (three unpinned turning shapes pinned, mutations red both
+ways: sense-flip, mirror, hand-swap), D104 both artefacts retired
+with reasons, C-e/H13 verified-closed ledger edit riding, S390/
+S391 recorded, ~210k / ~1h55m. Its one CI red is MAIN's #1330
+(doc-gate --skip-viewer-toolkit vs theme.rs's app-feature links —
+drawn DETERMINISTICALLY by sweep-only diffs, conclusively proven
+by a docs-only-head reproduction). Orchestrator fix PR #1332
+opened (theme.rs names-not-links, verified both gate paths
+locally); T-a's style review queues behind the BLEND-6 review
+lanes on the 2-build-slot budget — its PR cannot go green before
+#1332 propagates anyway. Style-only review intended per C-R12
+(test rows + retirements; a row that reds is visible), to be
+ruled as T-R5 in the track log when it can ride without
+conflicting T-a's own log edits.
+
+## 2026-08-31 — BLEND-6 reviews concluded (ordinal 604); adjudication + fix-pass dispatch
+
+Both arms delivered, uninterrupted, concurrent on frozen `e8707956`
+(pair COUNTS; no relaxations). R1: MERGEABLE 0/3/4 + 8 style,
+rubric 4/4/4, ~300k / ~55m, probes `blend/verbvocab-r1-probes` @
+92b63ac8. R2: MERGEABLE-AFTER-FIXES 0/2/4 + 9 style, rubric 4/5/5,
+~200k / ~40m, probes `blend/verbvocab-r2-probes` @ 8a8104bb.
+VERDICT SPLIT recorded; NO MAJOR either arm — no tally candidates;
+**v6 tally unchanged.**
+
+**Correspondence.** The headline is BILATERAL and COMPLEMENTARY:
+the suite's verb-guard is narrower than the stated contract on two
+independent axes — R1's mutation (old "fillet chain: " prefix
+re-inserted on UnsupportedChain) survived ALL 1673 tests (the
+contract is red-capable only on fixture-reached arms); R2's
+mutation ("fillet assembly: " on the run-out arm) proved the
+fillet door's single-render row blind to the exact pre-fix shape
+while the chamfer row caught it. Both supplied guard probes; the
+union closes both axes. Also bilateral: the examples path
+straggler (R2 M2 ≡ R1 N1, found by the same differently-shaped
+grep independently); the cross-body EdgeKey fixture + its stale
+four-edge comment (R2 S3/S4 ≡ R1 S6); the shared module's
+"Constant-radius rolling-ball fillets" headline (R1 S1 ≡ R2 S5);
+the verb-worded shared-doc-prose class (R1 S2's five-instance
+list + R2 N2's public CornerConfig "sphere-octant" Display).
+R1 unique: the §5 sweep's continuation-line blindness — FIVE
+"fillet them in SEQUENTIAL calls" instruction literals in shared
+surgery escaped the line-anchored pattern (each verified
+fillet-only-reachable today); the zero-radius fillet FALSE-FACT
+refusal executed ("radius 0 m exceeds headroom... reduce the
+radius" — the 1278-unfollowable shape; disclosed narrowing with
+no schedule); naming.rs's stale "one production consumer".
+R2 unique: the recipe-layer hosting asymmetry (name_blend lives
+in emit_fillet, chamfer reaches across — the SAME class settled
+choice 3 fixed one layer down); the wire_fillet/wire_chamfer
+byte-twins; the byte-freeze row's name overpromise; the closed-
+chamfer would-speak-other-verb tension pinned by probe; the PR's
+stale-base diff-reporting note (merge verified safe). Both
+independently CONFIRMED the #917 marker judgment call as the
+ratified doc's plain text (the PR's hedge unnecessary).
+
+**Fix pass: IMPLEMENTER-INHERITED**, resumed on the kept blend-6
+lane; both probe branches adopted as merge parents. Union:
+(1) adopt BOTH guard suites — the whole-contract verb-neutrality
+guard (every arm, both doors, red under either witness mutation)
++ the ball-only/chamfer-only reachability guards; (2) the
+straggler + the five continuation-line literals dispositioned
+(verb-neutral or conditioned) + the sweep receipt's blind spot
+restated honestly; (3) zero-radius: issue to be filed at close
+(the schedule the disclosure owes), R1's characterization probe
+adopted, cited at both doors; (4) recipe-layer hosting: take if
+genuinely mechanical (emit_blend home, thin doors — the settled-
+choice-3 shape), else decline WITH argument and the orchestrator
+files the class issue; (5) wire twins collapsed via the
+four-parameter helper or declined with argument; (6) fixture
+same-instance fix + comment correction; (7) headline + doc-prose
+instance list + CornerConfig Display + naming.rs sentence +
+byte-freeze row name; (8) re-export symmetry or argument;
+(9) marker comment trimmed to the doc citation; (10) merge main
+fresh and re-validate (R2's N3), state-sync rides last as always.
+T-a's style review dispatched in the freed slot (per-lane emphasis
+per the 03:26 spec); T-R5 ruling to ride the track log at #1329's
+close.
+
+## 2026-08-31 — BLEND-6 MERGED (#1328); BLEND-3 DISPATCHED (block BLEND-B2 slot 3, the block's last)
+
+PR #1328 merged at `82a3a424`; issue 917 closed. Gate of record:
+run 33358585304 GREEN (21 checks) on the API-replicated pin head
+`554914cf` — the requested rows all held ({default, default} both
+shards; k-lint dev-budget). The pin commit itself was pushed BY
+API (`push_files`, content verified byte-identical to the local
+twin by blob SHA) through a git-auth outage window that also
+blocked fetch and workflow_dispatch (403); auth recovered at the
+merge, locals realigned. The stood-down reds on the prior head
+(#1338 interval/1e-12; #1296 dev-probe) are documented in the PR's
+standing-down comment with per-test evidence.
+
+**BLEND-3 dispatched:** lane `blend-3`, branch `blend/concavecham`
+cut from main at `82a3a424` (the renamed sweep/src/blend tree).
+Arm per the block B2 branch-side draw (slot 3 — the block's last;
+the block record merges to main when this unit's reviews conclude,
+restating the redacted sibling arms). Difficulty **M** stands
+pre-logged at the draw. No schema seam. Brief carries: the fresh
+rename (BlendError / sweep::blend paths), the #1338 caveat (an
+{interval, 1e-12} draw is red on main itself — diagnose against
+main before owning any such red), measured-first (pin the current
+concave refusals before widening), and the #1336 note (the fillet
+door's size-validation asymmetry is SCHEDULED there, not this
+unit's to absorb unless its own work touches those doors).
+
+Meanwhile track T: T-a's lane told to absorb the rename (merge
+main, resolve, push); PR #1329 merges when green — the ordering
+hold (BLEND-6 first) worked as intended.
+
+## 2026-08-31 — BLEND-3 DELIVERED; reviews dispatched (ordinal 605, SEQUENTIAL method note recorded pre-R1)
+
+Unit delivered: PR #1347, frozen head `01f6f41d`, gate run 3864
+GREEN at REQUESTED {interval, 1e-6} (reason stated: the new
+classifier arm is a Decide predicate at Interval; the drawn
+{interval, 1e-12} red on the prior head diagnosed as #1338's three
+rows verbatim on clean main, the unit's own six rows passing
+there). Measured-first done in depth: THREE doors surfaced in
+sequence (corner_config's false "mixed" label on a uniform corner;
+ConvexOpen reachable for exactly one commit; ring clearance
+forcing the round vent). Central finding: M1 (band sense folds
+convexity) is INVISIBLE to all 9 convex rows and red only on the
+concave rows — the orientation-agnostic clause earning its place.
+ConvexOpen → AdmittedOpen (the token's claim); new
+CornerConfig::ThreeConcaveEdges checked against CURVED-DESIGN OQ6
++ the SeamVertex precedent. Impl cost ~360k / ~85m (lane-reported).
+
+**Review dispatch (v6 dual, ordinal 605 — claim PR rides this
+dispatch):** parity byte **126** ⇒ parity 0 ⇒ **R1 OPUS +
+R2 FABLE**. **METHOD NOTE, recorded BEFORE R1 runs: SEQUENTIAL
+same-head on frozen `01f6f41d`** — the build-slot budget holds one
+slot for track T's live style review (T-b's), so R1 dispatches now
+and R2 dispatches from the stored brief VERBATIM at R1's report
+(the BLEND-1/7 shape; briefs authored+stored symmetric before this
+entry, diff-verified: orchestrator/blend3-review-brief-{r1,r2}.md).
+Lanes blend-3-r{1,2} created; probe branches
+`blend/concavecham-r{1,2}-probes`. Impl clone kept, target
+reclaimed. This unit concluding CLOSES BLOCK BLEND-B2: at its
+merge the block record (byte 25 ⇒ slots OPUS/FABLE/OPUS) goes to
+main and the BLEND5/BLEND6 rows' redacted arm cells are restated.
+
+## 2026-08-31 — BLEND-3 R1 IN; R2 DISPATCHED (sequential slot 2)
+
+R1 (ordinal 605 slot 1): **MERGEABLE-AFTER-FIXES 1/4/~6 + style,
+rubric 5/5/4** (~245k / ~40m; probes
+`blend/concavecham-r1-probes` @ f0e7a3c7, 8 rows incl. a
+falsification-by-construction). All nine behavioural claims
+CONFIRMED by execution (both intermediate commits checked out; the
+1e-12 interval lane re-run locally with exactly #1338's three rows
+red and the unit's six green; the volume re-derived twice). The
+MAJOR is a JUSTIFICATION defect with process weight: deviation 1
+cites the SeamVertex precedent BACKWARDS (ARMS3-DESIGN ratified it
+with Evan's sign-off the day BEFORE implementation), the new
+`CornerConfig::ThreeConcaveEdges` tag is NOT forced (a
+`(0, Chamfer)` arm widens the chamfer with the fillet's refusal
+byte-identical), and CURVED-DESIGN's ratified enumeration is what
+the tag extends. Disposition options recorded for adjudication:
+(a) drop the tag — strictly smaller diff, stays execution, file
+the fillet's misleading `MixedConvexity{convex:0}` label as a
+design-conversation issue for Evan (it is the misleading-name
+class, pre-existing); (b) keep it and take the vocabulary
+extension to Evan pre-merge. DECISION DEFERRED to the blinded
+adjudication after R2. MINORs: the retired "convex links only"
+premise live at three surgery consumer sites (half-fix class);
+the composed refusal sentence self-contradicting under a comment
+claiming it cannot; the OQ6 scope box restated beyond #85 under
+its attribution; minimality falsified by a 9-edge triangular
+cavity that carves. R2 dispatched from the STORED brief verbatim
+(lane blend-3-r2, same frozen head) per the pre-recorded
+sequential note; R1's target reclaimed.
+
+## 2026-08-31 — BLEND-3 R2 IN; adjudication: THE TAG COMES OUT; first tally candidate
+
+R2 (ordinal 605 slot 2): **MERGEABLE 0/1/4 + 5 style, rubric
+5/5/4** (~300k / ~55m; probes `blend/concavecham-r2-probes` @
+8c1e625c, 4 rows). Its executions: the convex geometry verified
+BIT-IDENTICAL base→head (52/52 dump lines); the mutation table
+reproduced on the full suite; the volume re-derived by an
+independent exact polytope computation; the #1338 diagnosis
+re-reproduced on both trees; the pocket attack pinned the real
+refusal pair. VERDICT SPLIT with R1 again.
+
+**THE ADJUDICATION.** R1's M1 (deviation 1's precedent inverted;
+the tag not forced) is UNILATERAL — R2 examined the same deviation
+and judged it sound WITHOUT executing the ratification timeline.
+Orchestrator verified against the tree: ARMS3-DESIGN ratified by
+Evan 2026-08-25 under OQ6's explicit reservation; the SeamVertex
+implementation landed 2026-08-26. **R1's finding STANDS —
+TALLY CANDIDATE #1 for the program's v6 duals** (unilateral MAJOR
+by judgment; the blinded adjudication codes it standing on
+orchestrator-verified evidence). Disposition: **option (a)** —
+the fix pass DROPS `CornerConfig::ThreeConcaveEdges` (the chamfer
+widening needs no vocabulary; the fillet's refusal returns
+byte-identical to base), and the honest-label question goes to
+Evan as design-conversation **issue #1355** (options mapped; the
+reviewed shape cited so a future mint is cheap). The unit stays
+execution-shaped; nothing blocks on Evan.
+
+Union dispatched to the implementer-inherited fix pass: the tag
+drop + its free consequences (the self-contradicting sentence, the
+falsified invariant comment, the policy misdescription all
+evaporate); the verb-blind classifier both arms independently
+preferred (take-if-clean); the bilateral "convex links only"
+stale-premise class at three surgery sites + its doc-comment
+sweep; the minimality claim corrected to the class argument (R1's
+triangular-cavity falsification + R2's end-less-subset
+refinement); the octant prose class; the counts. Both probe
+branches adopted as merge parents. Delta by R1 after.
+
+## 2026-08-31 — BLOCK BLEND-B2 CLOSED (this merge)
+
+All three slots' duals have concluded: BLEND-5 merged (#1301,
+ordinal 603), BLEND-6 merged (#1328, ordinal 604), BLEND-3 both
+reviews + delta concluded (ordinal 605; MERGEABLE after the tag
+withdrawal; micro-fix in flight, merge next). The branch-side
+records above become public with this merge; BLEND-5's and
+BLEND-6's redacted arm cells are restated in MODEL-AB-LOG in this
+same commit (slot 1 OPUS / slot 2 FABLE / slot 3 OPUS, byte 25).
+BLEND-3's row lands at its merge carrying the program's FIRST v6
+tally candidate (R1's unilateral MAJOR, orchestrator-verified —
+the ThreeConcaveEdges withdrawal to #1355). The plan's stale
+`ConvexOpen` token is annotated in this commit too. After
+BLEND-3's merge: track T's endgame lane T-c (D90 + D321 +
+D96-after-enumeration), then the program's remaining slate is
+BLEND-4 (issue 644, a NEW block BLEND-B3) and the gated backlog.
+
+## 2026-08-31 — BLEND-3 state-sync (rides the unit branch last; merged at #1347)
+
+Unit BLEND-3 (issue 919) complete on head `889c30c5`: concave
+plane–plane chamfers carve end to end; the classifier verb-blind
+with base's public signature restored; the minted tag WITHDRAWN to
+design-conversation #1355 per the adjudication (the verified
+SeamVertex path: ratify then mint); the fillet's refusal proven
+byte-identical to base. Reviews ordinal 605 (R1 OPUS + R2 FABLE,
+sequential same-head per the pre-recorded note): R1 M-A-F 1/4/~6
+→ MERGEABLE at delta; R2 MERGEABLE 0/1/4; **TALLY CANDIDATE #1
+coded standing** (R1's unilateral MAJOR, orchestrator-verified
+timeline) — the program's v6 tally moves 0 → 1. A/B row (ordinal
+605, sample hedged #66, arm OPUS named normally — the block closed
+at #1357) rides this commit. Block BLEND-B2 is fully landed at
+this unit's merge. Next: track T endgame lane T-c (D90 + D321 +
+D96-after-enumeration), and BLEND-4 (issue 644) on a NEW block
+draw BLEND-B3 branch-side.
+
+CI-Config: lane=interval eps=1e-6

@@ -48,6 +48,10 @@ mod cert1_r1_probes;
 mod cert1_sphere_polar;
 #[path = "cert3r1_e2e.rs"]
 mod cert3r1_e2e;
+#[path = "cert5_arm_and_cells.rs"]
+mod cert5_arm_and_cells;
+#[path = "cert5_r1_patch_probes.rs"]
+mod cert5_r1_patch_probes;
 
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
@@ -88,6 +92,8 @@ mod cert7_r2_probes;
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
+#[path = "cert5_r2_probes.rs"]
+mod cert5_r2_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
