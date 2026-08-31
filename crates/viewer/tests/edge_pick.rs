@@ -24,14 +24,14 @@
 
 mod common;
 
-use pncad::document::{Evaluation, RecipeNodeId};
+use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::select::{Resolution, RunCtx, resolve};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
 use viewer::pick;
-use viewer::pick::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex};
+use viewer::pick::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
 
@@ -430,6 +430,13 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         // How far along the ray the edge's own midpoint sits.
         let midpoint = Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5);
         let depth = ray.dir.dot(midpoint - ray.origin);
+        // The 1e-6 band is this row's OWN reading of "the same depth",
+        // spelled here rather than imported from the implementation's
+        // `OCCLUSION_SLACK_REL` (which is private, and would make the
+        // row agree with the code by construction). An independent
+        // number is the point: it says the two populations this row
+        // sorts are far enough apart that any sane threshold separates
+        // them.
         if front.t >= depth * (1.0 - 1.0e-6) {
             continue; // visible at its own pixel — not this row's subject
         }
@@ -619,16 +626,166 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     );
     // The picture is rebuilt from the surviving document, and the
     // vanished selection marks nothing in it.
-    if let Some((doc, eval)) = session.landed_pair() {
-        let generation = session.landed_generation().expect("a generation");
-        if let Ok(after) = PickIndex::build(doc, eval, generation, delta(), session.tol()) {
-            let overlay = pick::edge_overlay(
-                &after,
-                &DisplayView::none(),
-                session.selection(),
-                session.hover(),
-            );
-            assert!(overlay.is_empty(), "a vanished edge lights nothing");
-        }
-    }
+    //
+    // Un-nested deliberately: written as `if let Some(pair)` around
+    // the assertion, a session that stopped landing an evaluation
+    // would skip the check and the row would stay green having tested
+    // nothing. Both steps are expectations, so both are failures.
+    let after = index_of(&session);
+    let overlay = pick::edge_overlay(
+        &after,
+        &DisplayView::none(),
+        session.selection(),
+        session.hover(),
+    );
+    assert!(overlay.is_empty(), "a vanished edge lights nothing");
+}
+
+// --- the display view ------------------------------------------------
+
+/// **The pick obeys the picture.** A hidden root is out of the pick
+/// exactly as it is out of the scene, and a free-moved instance is
+/// picked WHERE IT IS DRAWN — both statements about the same
+/// `DisplayView` the viewport draws under, and neither reachable
+/// through the display-view-less wrappers the rows above use.
+#[test]
+fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let (id, points) = hole_rim(&index, extrude);
+    let at = (points.len() - 1) / 2;
+    let midpoint = Point3::new(
+        (points[at].x + points[at + 1].x) * 0.5,
+        (points[at].y + points[at + 1].y) * 0.5,
+        (points[at].z + points[at + 1].z) * 0.5,
+    );
+
+    // Hidden: nothing is drawn there, so nothing is picked there.
+    let hidden = DisplayView {
+        hidden_roots: std::collections::BTreeSet::from([extrude]),
+        ..DisplayView::none()
+    };
+    assert!(
+        index
+            .edge_at_for(eval, &camera, pane(), pixel_of(&camera, midpoint), &hidden)
+            .expect("un-projects")
+            .is_none(),
+        "a hidden root is out of the pick as it is out of the picture"
+    );
+    assert!(
+        index.edge_polyline_for(id, &hidden).is_empty(),
+        "and it marks nothing either"
+    );
+
+    // Free-moved: the edge is picked at the DISPLACED midpoint, and
+    // not at the tessellated one.
+    let shift = [0.0, 0.0, 0.05];
+    let probed = DisplayView {
+        moved_roots: std::collections::BTreeMap::from([(extrude, Frame::translation(shift))]),
+        ..DisplayView::none()
+    };
+    let moved = Point3::new(
+        midpoint.x + shift[0],
+        midpoint.y + shift[1],
+        midpoint.z + shift[2],
+    );
+    let pick = index
+        .edge_at_for(eval, &camera, pane(), pixel_of(&camera, moved), &probed)
+        .expect("un-projects")
+        .expect("the probed edge is picked where it is drawn");
+    assert_eq!(pick.id(), id);
+    assert!(
+        (pick.point.z - moved.z).abs() < 1.0e-9,
+        "the pick point rides the probe frame: {} vs {}",
+        pick.point.z,
+        moved.z
+    );
+    let marked = index.edge_polyline_for(id, &probed);
+    assert!(
+        marked
+            .iter()
+            .zip(&points)
+            .all(|(drawn, tessellated)| (drawn.z - tessellated.z - shift[2]).abs() < 1.0e-12),
+        "the mark is drawn under the same probe frame the pick used"
+    );
+}
+
+// --- the kind filter -------------------------------------------------
+
+/// **A faces-only tool gets its face inside the edge radius.**
+///
+/// Without the filter the mate tool could not take a face wherever the
+/// cursor came within `EDGE_PICK_RADIUS_PX` of that face's own
+/// boundary — which on a narrow face is everywhere. The row drives the
+/// same op door the application drives, at one cursor, under both
+/// filters.
+#[test]
+fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let (_, points) = hole_rim(&index, extrude);
+    let (a, b) = middle_segment(&camera, &points);
+    let cursor = offset_from(a, b, plate_centre_px(&camera), 1.0);
+
+    let unfiltered = index
+        .op_under(
+            eval,
+            &camera,
+            pane(),
+            PickAction::Select(cursor),
+            &DisplayView::none(),
+            PickKinds::Any,
+        )
+        .expect("un-projects");
+    assert!(
+        matches!(unfiltered, SessionOp::Select(Selection::Edge(_))),
+        "one pixel from the rim the bare cursor means the edge, got {unfiltered:?}"
+    );
+
+    let faces_only = index
+        .op_under(
+            eval,
+            &camera,
+            pane(),
+            PickAction::Select(cursor),
+            &DisplayView::none(),
+            PickKinds::FacesOnly,
+        )
+        .expect("un-projects");
+    let SessionOp::Select(Selection::Face(face)) = &faces_only else {
+        panic!("a faces-only pick answers a face or nothing, got {faces_only:?}");
+    };
+    assert_eq!(face.node, extrude, "and it is the face the ray hit");
+    // The mate tool's feed matches exactly this shape, which is what
+    // the filter exists to keep reachable.
+    assert_eq!(
+        index
+            .face_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+            .expect("un-projects")
+            .map(|under| under.name),
+        Some(face.name.clone()),
+        "the filtered answer is the ray path's own face, unnarrowed"
+    );
+
+    // Hover obeys the same rule, so the picture and the click agree
+    // about what the open tool will get.
+    let hovered = index
+        .hovered_for(
+            eval,
+            &camera,
+            pane(),
+            cursor,
+            &DisplayView::none(),
+            PickKinds::FacesOnly,
+        )
+        .expect("un-projects");
+    assert!(matches!(hovered, Some(Hovered::Face(_))), "{hovered:?}");
 }
