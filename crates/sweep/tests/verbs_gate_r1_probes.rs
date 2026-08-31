@@ -160,12 +160,12 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 /// because a ray from the query point crosses the whole boundary and
 /// box reach does not enter that question. So the admitted union
 /// still refuses, naming the KIND and saying the body is healthy:
-/// `KindUnsupported { kind: Torus }` for the sphere-capped vase — the
-/// caps themselves are served now, through the sphere chart's own
-/// rectangle, so the band is what is left — and
-/// `KindUnsupported { kind: Cone }` for the cone-capped one. What
-/// this row pins is that the refusal is a capability statement and
-/// never a corruption claim.
+/// `KindUnsupported { kind: Torus }` for BOTH vases. The caps are
+/// served either way now — the sphere-capped one through the sphere
+/// chart's own rectangle, the cone-capped one through the ray×cone
+/// arm — so in both the band is what is left. What this row pins is
+/// that the refusal is a capability statement and never a corruption
+/// claim.
 ///
 /// Both arms carry the aspirational branch: if the union ever
 /// completes, its volume must be the reviewer's own closed form.

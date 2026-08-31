@@ -998,13 +998,23 @@ fn wrapped_cone_group<T: Decide>(
 /// the guard that the window is narrower than a period, the
 /// `r̂·m̂ ≥ cos(w/2)` comparison, the lever metering, and ledger row
 /// F8's deferred narrow-window fix — is one construction, so a change
-/// to any of it is a change to all of them. The ray lane's two windowed
-/// arms (this one and [`point_on_cone_in_face`]) share the one body,
-/// [`chart_azimuth_margin`], and cannot drift; the two boundary-walk
-/// sites restate it — [`super::contain::point_on_arc`] (a rim ARC's own
-/// angular span) and [`super::contain::curved_face_containment`] (the
-/// same period guard asked as a chart-form question, which is why its
-/// answer is `None` where this one escalates).
+/// to any of it is a change to every site below. Two of them SHARE one
+/// body and cannot drift; three RESTATE it and must be edited by hand.
+///
+/// Shared, through [`chart_azimuth_margin`]:
+/// - this arm (a cylinder wall's azimuth trim, ray lane);
+/// - [`point_on_cone_in_face`] (a cone wall's, same lane).
+///
+/// Restated:
+/// - [`point_on_sphere_in_face`] — the same `mid`/`m̂`/`cos(w/2)`
+///   algebra written out inline, because its window is optional and is
+///   guarded by a POLE test that skips it entirely; the control flow
+///   differs even though the margin does not;
+/// - [`super::contain::point_on_arc`] (a rim ARC's own angular span,
+///   boundary walk);
+/// - [`super::contain::curved_face_containment`] (the same period
+///   guard asked as a chart-form question, which is why its answer is
+///   `None` where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
@@ -1116,6 +1126,23 @@ fn chart_azimuth_margin<T: Decide>(
 /// It is decided AFTER the slant window, not before, because the apex
 /// of a face the window excludes is not this face's apex to graze on —
 /// see the note at the site.
+///
+/// # The refusal is a SHELL, not a point — and it is √ε-wide
+///
+/// A caller reading "the apex grazes" will assume a measure-zero
+/// nuisance. It is not. The ray×cone discriminant decays QUADRATICALLY
+/// as a query approaches the apex — the two roots merge there — so the
+/// radius within which `point_in_solid` declines to answer goes like
+/// `√(K·ε·v_ext)`, not like `ε`. On a unit cone at the default ε that
+/// is **≈2.4e-4 metres**, some four orders wider than the linear
+/// band the other arms escalate in, and it widens as `√ε` (≈7.4e-6 at
+/// ε = 1e-12, ≈7.2e-3 at ε = 1e-6) and as `√K`.
+///
+/// So: near a cone tip this door refuses over a small BALL, and a
+/// caller that needs an answer there must pose the query further out
+/// or accept the typed refusal. The numbers are measured and guarded,
+/// not asserted — `bool2_cone_doors::the_clamp_floor_clears_the_apex_
+/// escalation_shell` re-measures the shell on every run.
 ///
 /// Away from the apex the two nappes are told apart by
 /// `bool_ray_cone_nappe`, the issue's `(p − apex)·axis` sign taken
@@ -1612,11 +1639,17 @@ fn latitude_extremes<T: Decide>(
 /// Is the ON-SPHERE point `p` within the sphere face's chart trim?
 /// `Some(true/false)` definite, `None` a boundary graze.
 ///
-/// The azimuth half is THE cosine-window construction verbatim — the
-/// argument (period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering,
-/// ledger row F8) lives at [`point_on_wall_in_face`] and is shared,
-/// so a change to any of it is a change to all of its sites. A face
-/// with no azimuth window attains every azimuth and skips it.
+/// The azimuth half is THE cosine-window construction — the argument
+/// (period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering, ledger row
+/// F8) is stated at [`point_on_wall_in_face`], which enumerates every
+/// site. This one RESTATES it inline rather than calling the shared
+/// [`chart_azimuth_margin`]: the window here is optional and is
+/// guarded by a pole test that skips it, so the control flow differs
+/// even though the margin does not. A change to the construction is
+/// therefore a change HERE TOO, by hand — sharing the body would buy
+/// that automatically and is the obvious follow-on, not done in
+/// passing because it moves a shipped margin's call site. A face with
+/// no azimuth window attains every azimuth and skips the test.
 ///
 /// The latitude half is the sine margin of [`sphere_chart_trim`]'s
 /// header: `R sin(v − v_lo)` and `R sin(v_hi − v)`, both arc lengths,
@@ -2143,7 +2176,12 @@ fn cast_ray<T: Decide>(
             // two. That is not a miss and not a tangency, so it is
             // neither skipped nor answered — the ray abandons and the
             // schedule retries, and exhaustion is `RayExhausted` like
-            // every other ill-conditioned direction. The margin is
+            // every other ill-conditioned direction. Reached, not
+            // hypothetical: a cone whose axis is (1,1,0)/√2 at α = π/4
+            // puts two schedule members along a generator, and
+            // `bool2_r1_probes::probe_generator_parallel_schedule_rays_
+            // graze_and_the_door_recovers` is this branch's row — red
+            // if the degenerate quadratic is ever ANSWERED. The margin is
             // `A` levered by the face's own slant extent (D4's θ·r
             // form: `A` is a difference of squared cosines and the
             // extent is the length over which the near-parallel ray
@@ -2222,6 +2260,22 @@ fn cast_ray<T: Decide>(
                     // clear of the apex, where that radius vanishes).
                     // The face's sense then says whether chart-outward
                     // is material-outward (S10).
+                    //
+                    // **This Zero is a band case only, and no
+                    // deterministic row can pin it.** An EXACTLY
+                    // tangent ray is caught upstream: `d·n̂ = 0` at a
+                    // hit means the ray touches without crossing,
+                    // which is a double root, which
+                    // `bool_ray_cone_disc` already decided Zero and
+                    // grazed on. What can still reach here is a ray
+                    // whose incidence is in-band while the
+                    // discriminant is definitely positive — the two
+                    // margins are metered differently, so the shells
+                    // do not coincide — and that is a fixture tuned to
+                    // one ε row, not a geometric configuration. The
+                    // arm is written for it regardless: a `Zero` here
+                    // grazes rather than folding a crossing whose
+                    // material side is not decidable.
                     let wp = p - apex;
                     let hp = wp.dot(axis);
                     let rad = wp - axis * hp;

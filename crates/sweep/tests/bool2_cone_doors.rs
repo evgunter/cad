@@ -117,21 +117,104 @@ fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).unwrap()
 }
 
-/// The probe offset: derived from the RESOLVED band, so each ε lane
-/// probes at its own scale rather than at a hard-coded distance, and
-/// CLAMPED at both ends because a probe has two jobs at once and the
-/// bodies here are of unit size.
+/// **The fixture scale these bodies are built at.** Every body in this
+/// suite is a unit revolve of the `revolve_cone` triangle or its
+/// trapezoid sibling, so the cone's slant extent is `√2` and no feature
+/// is further than about that from the axis. [`away`]'s ceiling is
+/// stated against this number, and
+/// [`the_clamp_floor_clears_the_apex_escalation_shell`] asserts it
+/// rather than leaving it as prose a later fixture edit could falsify.
+const CONE_SLANT: f64 = core::f64::consts::SQRT_2;
+
+/// The probe offset, and the two shells it has to clear.
 ///
-/// The floor keeps the offset definitely outside the ambiguity band on
-/// the fine lanes (`escalate` is within an order or two of `eps`, so
-/// `1e-3` clears every row in the matrix by five orders). The ceiling
-/// keeps it INSIDE the body on the coarse ones: an offset that scales
-/// freely with `eps` reaches 1.0 at the 1e-6 row, and a probe "just
-/// inside the wall" of a unit cone at that distance is not inside the
+/// # The binding constraint is the APEX shell, and it is √ε-sized
+///
+/// A probe has two jobs — definitely outside the ambiguity band, and
+/// definitely inside the body — and the first one is set by the
+/// SHARPEST escalation near it, which for a cone is not the linear one.
+/// Two shells surround the geometry:
+///
+/// - the **wall/plane** shell, where a residual compared against `Zero`
+///   escalates: linear in ε, about `K·ε` (1e-8 at the default row);
+/// - the **apex** shell, where the ray×cone discriminant escalates.
+///   `disc` decays QUADRATICALLY as the query approaches the apex — the
+///   two roots merge there — so the escalation radius goes like
+///   `√(K·ε·v_ext)`, not like `ε`. At the default row that is
+///   `√(10·1e-9·√2) ≈ 1.2e-4`, nearly FOUR ORDERS wider than the linear
+///   shell, and it is what the floor actually has to clear.
+///
+/// Measured on this fixture (the on-axis probe at
+/// `(0, 1 − d, 0)`, walked inward until the door stops answering
+/// definitely — [`apex_shell`]):
+///
+/// | ε | `away()` | apex shell | `√(K·ε·√2)` | clearance |
+/// |---|---|---|---|---|
+/// | 1e-12 | 1e-3 (floor) | 7.4e-6 | 3.8e-6 | 135.6× |
+/// | 1e-9 (default) | 1e-3 (floor) | 2.4e-4 | 1.2e-4 | **4.2×** |
+/// | 1e-6 | 1e-1 (ceiling) | 7.2e-3 | 3.8e-3 | 13.9× |
+///
+/// So the default row is the tight one and it clears by a **factor of
+/// four**, not by five orders — which is what the first draft of this
+/// comment claimed, from the linear shell, for a constraint that is not
+/// the binding one. The measured shell tracks the law at a constant
+/// ≈1.96 across all three decades, and it scales as `√ε` (7.4e-6 →
+/// 2.4e-4 → 7.2e-3 is a factor of ≈31 per ε decade, i.e. √1000). It
+/// scales as `√K` too, so raising `CAD_AMBIGUITY_K` two decades puts
+/// the shell past this floor — measured: at K = 1000 the shell is
+/// 2.3e-3 and the clearance is 0.4×, and the guard row below goes red
+/// saying so. That is a real dependency, not a hypothetical, and
+/// it is GUARDED rather than asserted in prose:
+/// [`the_clamp_floor_clears_the_apex_escalation_shell`] measures the
+/// shell on every run and goes red if it widens past the derivation.
+///
+/// # The clamp saturates, so the ε-derivation is mostly decorative
+///
+/// Stated plainly because the obvious reading of the expression is
+/// wrong: `1e6·ε` lands inside `[1e-3, 0.1]` only for
+/// `ε ∈ (1e-9, 1e-7)`, and **no row in the matrix draws an ε in that
+/// interval**. At all three shipped rows the clamp saturates — floor at
+/// 1e-9 and 1e-12, ceiling at 1e-6 — so what governs the offsets these
+/// rows actually use is the clamp, not the derivation. The ε-scaling is
+/// kept because it is the right law between the bounds, not because any
+/// gated run exercises it.
+///
+/// The ceiling's own job: an offset scaling freely with ε reaches 1.0 at
+/// the 1e-6 row, and a probe "just inside the wall" of a body whose
+/// slant extent is [`CONE_SLANT`] at that distance is not inside the
 /// cone at all — it is out the other side, and the row would be
 /// asserting about geometry it did not mean.
 fn away() -> f64 {
     (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
+}
+
+/// The measured radius of the apex escalation shell on the unit cone:
+/// the largest on-axis offset from the apex at which `point_in_solid`
+/// still declines to answer definitely.
+///
+/// Walked multiplicatively inward from a definitely-answered offset, so
+/// the result is the OUTER edge of the shell — the number [`away`] has
+/// to beat — rather than the first escalation found going outward.
+fn apex_shell() -> f64 {
+    let body = cone();
+    let mut worst = 0.0_f64;
+    let mut d = 0.5_f64;
+    while d > 1e-11 {
+        let answered = matches!(
+            point_in_solid(
+                &body,
+                Point3::new(0.0, 1.0 - d, 0.0),
+                band(),
+                Tol::witness()
+            ),
+            Ok(SolidContainment::In)
+        );
+        if !answered {
+            worst = worst.max(d);
+        }
+        d /= 1.05;
+    }
+    worst
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
@@ -449,5 +532,72 @@ fn the_kind_refusal_no_longer_names_the_cone() {
     assert!(
         msg.contains("apex"),
         "the refusal must name the junction it is about: {msg}"
+    );
+}
+
+/// **The guard for [`away`]'s derivation** (Q6: a claim about ε
+/// behaviour is either mechanically checked or carries the written
+/// reason it cannot be).
+///
+/// Three things are asserted, and each is a way the derivation could go
+/// silently wrong:
+///
+/// 1. the fixture is still the size the ceiling is stated against —
+///    prose about "unit-sized bodies" that nothing enforces is exactly
+///    what a later fixture edit falsifies;
+/// 2. the measured apex shell still obeys `√(K·ε·v_ext)`. If the arm's
+///    discriminant metering changes, the shell moves, and the table in
+///    [`away`] becomes fiction;
+/// 3. the floor still CLEARS that shell — asserted at 3×, against a
+///    measured 4.2× at the default row, so the guard has headroom for
+///    a small metering change but not for a lost order. It is the
+///    assertion that goes red if
+///    `CAD_AMBIGUITY_K` is raised: the shell grows like `√K`, so two
+///    decades of K put it past a 1e-3 floor. The failure message says
+///    so, because the fix is to raise the floor, never to widen the
+///    band or move the probe.
+#[test]
+fn the_clamp_floor_clears_the_apex_escalation_shell() {
+    // (1) the fixture-size invariant the ceiling is stated against.
+    let body = cone();
+    let apex = Point3::new(0.0, 1.0, 0.0);
+    let mut extent = 0.0_f64;
+    for (_, v) in body.vertices() {
+        if let Some(p) = body.get_point(v.point) {
+            extent = extent.max(p.distance(apex));
+        }
+    }
+    assert!(
+        (extent - CONE_SLANT).abs() < 1e-12,
+        "the fixture's slant extent moved to {extent}: away()'s ceiling is stated \
+         against CONE_SLANT = {CONE_SLANT}, so re-derive it before changing the body"
+    );
+
+    let t = Tol::witness().get();
+    let (eps, k) = (t.eps, t.k);
+    let shell = apex_shell();
+    let law = (k * eps * CONE_SLANT).sqrt();
+    println!(
+        "apex shell: eps={eps:e} k={k} measured={shell:e} law=sqrt(k*eps*slant)={law:e} away()={:e} clearance={:.1}x",
+        away(),
+        away() / shell
+    );
+
+    // (2) the shell obeys the square-root law, within the constant the
+    // table's numbers carry (measured ≈ 1.5·law across three decades).
+    assert!(
+        shell > 0.0 && shell < 3.0 * law,
+        "the apex escalation shell is {shell:e}, outside sqrt(K*eps*slant) = {law:e} \
+         by more than the constant away()'s table records — the discriminant's \
+         metering moved and that table is now fiction"
+    );
+    // (3) the floor clears it. Single digits at the default row.
+    assert!(
+        away() >= 3.0 * shell,
+        "away() = {:e} no longer clears the apex escalation shell {shell:e} \
+         (K = {k}, eps = {eps:e}). The shell grows like sqrt(K), so this fires \
+         when K is raised. The fix is to raise away()'s FLOOR — never to widen \
+         the band, and never to move the probe off the geometry it means",
+        away()
     );
 }
