@@ -149,7 +149,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         };
         match &e.kind {
             NodeErrorKind::Blend {
-                error: sweep::fillet::FilletError::TangentialEdge { margin, .. },
+                error: sweep::fillet::BlendError::TangentialEdge { margin, .. },
                 ..
             } => {
                 assert_eq!(*margin, 0.0, "a co-surface seam has exactly no wedge");

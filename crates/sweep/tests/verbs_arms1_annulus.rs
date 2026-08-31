@@ -40,7 +40,7 @@ use geom::Surface;
 use geom_core::{Band, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
+use sweep::fillet::BlendError;
 use sweep::fillet::battery::chain_g1;
 use sweep::fillet::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
@@ -309,7 +309,7 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
         .normalize();
     let kinked = tau_in + off * (0.02 * tau_in.norm());
     match chain_g1(tau_in, kinked, arm, vertex, band()) {
-        Err(FilletError::ChainNotG1 { .. }) => {}
+        Err(BlendError::ChainNotG1 { .. }) => {}
         other => panic!("a kinked wrap-around must refuse, got {other:?}"),
     }
 }
@@ -428,8 +428,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         "the partial revolve leaves open plane–sphere arcs"
     );
     match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
-        }
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),
     }
 }

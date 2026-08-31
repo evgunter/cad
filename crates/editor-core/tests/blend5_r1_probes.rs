@@ -10,7 +10,7 @@
 //!    them.
 //!
 //! 2. That same count contradicts `blend5_rim_support.rs`'s module
-//!    doc, which says the rim-phase channels of `FilletNaming` reach
+//!    doc, which says the rim-phase channels of `BlendNaming` reach
 //!    `names::emit_fillet` "only from here". `die_composed` is a
 //!    registered corpus document that already drove `rim_phase` — the
 //!    LADDER arm, which writes the same `rim_trims` / `rim_feet` /

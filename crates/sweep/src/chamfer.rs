@@ -14,7 +14,7 @@
 //! 1. **The arm table** ([`crate::fillet::battery::run_battery_for`]):
 //!    plane–plane resolves to [`crate::fillet::blend::chamfer_strip`]
 //!    instead of the rolling-ball cylinder, and every other support
-//!    pair refuses [`crate::fillet::FilletError::ChamferArmUnsupported`].
+//!    pair refuses [`crate::fillet::BlendError::ChamferArmUnsupported`].
 //! 2. **Which predicates are questions.** C8's six are the fillet's;
 //!    two of them (radius-vs-curvature headroom, spine regularity) are
 //!    facts about a rolling BALL, and a ruled strip has neither
@@ -34,12 +34,12 @@
 //! trivalent corners whose three edges are all requested — the same
 //! door the fillet's blank phase carves, since it is the same carve.
 //! Everything else refuses typed and names itself: a curved support
-//! ([`crate::fillet::FilletError::ChamferArmUnsupported`] — the chamfer over curved
+//! ([`crate::fillet::BlendError::ChamferArmUnsupported`] — the chamfer over curved
 //! supports is VERBS-ARMS' machinery), a corner whose CONFIGURATION is
-//! out of scope ([`crate::fillet::FilletError::FilletCornerUnsupported`] with the
+//! out of scope ([`crate::fillet::BlendError::UnsupportedCorner`] with the
 //! OQ6 corner tags), a request that does not cover a supported
-//! corner's other edges ([`crate::fillet::FilletError::UnsupportedRunOut`]), and a
-//! CONCAVE chain ([`crate::fillet::FilletError::UnsupportedChain`]).
+//! corner's other edges ([`crate::fillet::BlendError::UnsupportedRunOut`]), and a
+//! CONCAVE chain ([`crate::fillet::BlendError::UnsupportedChain`]).
 //!
 //! The symmetric setback is the whole parameter surface at v1. A
 //! distance–distance or distance–angle chamfer is a widening of this

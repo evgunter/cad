@@ -40,7 +40,7 @@ use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
     unbuilt_run_out,
 };
-use super::{CornerConfig, FilletError};
+use super::{BlendError, CornerConfig};
 
 /// **A chain admitted through the open-chain door**: exactly one link,
 /// plane–plane supports, convex.
@@ -68,10 +68,10 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
     ///
     /// # Errors
     ///
-    /// [`FilletError::UnsupportedChain`] when the chain has more than
+    /// [`BlendError::UnsupportedChain`] when the chain has more than
     /// one link (junction carry-through), when its supports are not
     /// plane–plane, or when it is concave.
-    pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, FilletError> {
+    pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, BlendError> {
         let link = chain.first();
         if !chain.rest().is_empty() {
             return Err(unbuilt_chain(
@@ -138,7 +138,7 @@ pub(super) struct CornerLinks<'a, T: Real> {
 impl<'a, T: Real> CornerLinks<'a, T> {
     /// A link terminates at `vertex`, or the plan's own data disagrees
     /// with itself.
-    fn incident(vertex: VertexKey, link: ConvexOpen<'a, T>) -> Result<(), FilletError> {
+    fn incident(vertex: VertexKey, link: ConvexOpen<'a, T>) -> Result<(), BlendError> {
         let l = link.link();
         if l.start == vertex || l.end == vertex {
             return Ok(());
@@ -153,9 +153,9 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     ///
     /// # Errors
     ///
-    /// [`FilletError::BodyNotIntact`] when `first` does not terminate at
+    /// [`BlendError::BodyNotIntact`] when `first` does not terminate at
     /// `vertex`.
-    pub(super) fn seed(vertex: VertexKey, first: ConvexOpen<'a, T>) -> Result<Self, FilletError> {
+    pub(super) fn seed(vertex: VertexKey, first: ConvexOpen<'a, T>) -> Result<Self, BlendError> {
         Self::incident(vertex, first)?;
         Ok(Self {
             vertex,
@@ -168,9 +168,9 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     ///
     /// # Errors
     ///
-    /// [`FilletError::BodyNotIntact`] when `link` does not terminate at
+    /// [`BlendError::BodyNotIntact`] when `link` does not terminate at
     /// this corner's vertex.
-    pub(super) fn also(&mut self, link: ConvexOpen<'a, T>) -> Result<(), FilletError> {
+    pub(super) fn also(&mut self, link: ConvexOpen<'a, T>) -> Result<(), BlendError> {
         Self::incident(self.vertex, link)?;
         self.rest.push(link);
         Ok(())
@@ -232,11 +232,11 @@ impl CornerFaces {
     ///
     /// # Errors
     ///
-    /// [`FilletError::BodyNotIntact`] when the orbit does not walk, or
+    /// [`BlendError::BodyNotIntact`] when the orbit does not walk, or
     /// when it returns a face twice;
-    /// [`FilletError::FilletCornerUnsupported`] when the corner is not
+    /// [`BlendError::UnsupportedCorner`] when the corner is not
     /// trivalent.
-    pub(super) fn admit<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Self, FilletError> {
+    pub(super) fn admit<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Self, BlendError> {
         let faces = vertex_faces(body, vertex).ok_or_else(|| {
             not_intact(
                 EntityId::Vertex(vertex),
@@ -347,10 +347,10 @@ impl<T: Decide> RequestedBoundary<T> {
     ///
     /// # Errors
     ///
-    /// [`FilletError::BodyNotIntact`] when the face has no outer cycle
+    /// [`BlendError::BodyNotIntact`] when the face has no outer cycle
     /// that walks, or a planned corner does not carry a foot on this
-    /// face; [`FilletError::UnsupportedGeometry`] when the face is not
-    /// a plane; [`FilletError::UnsupportedRunOut`] when a boundary edge
+    /// face; [`BlendError::UnsupportedGeometry`] when the face is not
+    /// a plane; [`BlendError::UnsupportedRunOut`] when a boundary edge
     /// is not requested, or a boundary vertex is not a planned corner
     /// of this face.
     pub(super) fn admit(
@@ -358,7 +358,7 @@ impl<T: Decide> RequestedBoundary<T> {
         face: FaceKey,
         opens: &[ConvexOpen<'_, T>],
         corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
-    ) -> Result<Self, FilletError> {
+    ) -> Result<Self, BlendError> {
         // Read once so a face that is not a plane refuses at this door
         // rather than deeper in the carve.
         outward_of(body, face)
@@ -437,7 +437,7 @@ mod tests {
     use geom_core::Tol;
     use topo::FaceKey;
 
-    use super::super::FilletError;
+    use super::super::BlendError;
     use super::super::battery::{Chain, ChainClosure, Link};
     use super::{ConvexOpen, CornerFaces, CornerLinks};
     use crate::test_support::{L, all_links, cube};
@@ -513,7 +513,7 @@ mod tests {
         assert!(
             matches!(
                 CornerLinks::seed(vertex, stranger),
-                Err(FilletError::BodyNotIntact { .. })
+                Err(BlendError::BodyNotIntact { .. })
             ),
             "seed must refuse a link that does not terminate at the corner"
         );
@@ -523,7 +523,7 @@ mod tests {
             .expect("a link at this vertex");
         let mut c = CornerLinks::seed(vertex, seed).expect("the seed terminates here");
         assert!(
-            matches!(c.also(stranger), Err(FilletError::BodyNotIntact { .. })),
+            matches!(c.also(stranger), Err(BlendError::BodyNotIntact { .. })),
             "also must refuse it too"
         );
     }

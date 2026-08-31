@@ -126,7 +126,7 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // The named gap below (`section_loops`): the raw loop door is kernel
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
-use pncad::sweep::fillet::FilletError;
+use pncad::sweep::fillet::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
@@ -2152,7 +2152,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         ),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
-        |e| matches!(e, FilletError::TangentialEdge { margin, .. } if *margin == 0.0),
+        |e| matches!(e, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
         "soften the tepal-tip rim",
     );
 

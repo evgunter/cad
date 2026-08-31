@@ -34,7 +34,7 @@
 //! # Naming
 //!
 //! The surgery emits per-entity birth records
-//! ([`super::naming::FilletNaming`]) as it mutates, from the plan that
+//! ([`super::naming::BlendNaming`]) as it mutates, from the plan that
 //! decided each mint — never recovered afterwards by matching
 //! geometry, which is what N4 forbids.
 //!
@@ -63,15 +63,16 @@ use topo::{
 };
 
 use super::admit::{CornerFaces, CornerLinks};
-use super::battery::{FilletRequest, Link, run_battery};
+use super::battery::{BlendRequest, Link, run_battery};
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
-use super::{BlendKind, BlendRefusal, FilletError};
+use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
-/// A filleted body: the rounded solid plus the keys of the faces the
-/// blend introduced.
+/// A blended body — the one result type both verbs return: the
+/// carved solid plus the keys of the faces the blend introduced.
+/// [`Filleted`] and [`Chamfered`] alias it for call-site readability.
 #[derive(Clone, Debug)]
-pub struct Filleted<T: Real> {
+pub struct Blended<T: Real> {
     /// The rounded solid.
     pub body: Body<T>,
     /// Its (only) solid.
@@ -94,13 +95,13 @@ pub struct Filleted<T: Real> {
     /// producer, so `None` is never constructed. It is a **permanent
     /// `Option` over a value that is always `Some`**, and deliberately
     /// so: `Filleted` is public, and the alternative — a bare
-    /// `FilletNaming` with `Default` — would let a caller or a future
+    /// `BlendNaming` with `Default` — would let a caller or a future
     /// assembly ship an EMPTY table indistinguishable from a full one.
     /// `None` is the state that says "this body has no birth records",
     /// which `editor-core` refuses as a kernel bug rather than falling
     /// back to unnamed geometry; an empty struct would be refused by
     /// nothing.
-    pub naming: Option<super::naming::FilletNaming>,
+    pub naming: Option<super::naming::BlendNaming>,
 }
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.
@@ -113,20 +114,20 @@ pub struct Filleted<T: Real> {
 /// # Errors
 ///
 /// A [`BlendRefusal`] carrying [`BlendKind::Fillet`] — the verb
-/// crosses HERE, once, and the inner [`FilletError`] stays
+/// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: any refusal the battery produces;
-/// [`FilletError::RepeatedEdge`] when the request names one edge
-/// twice; [`FilletError::UnsupportedBody`],
-/// [`FilletError::UnsupportedChain`], [`FilletError::UnsupportedRunOut`],
-/// [`FilletError::UnsupportedGeometry`] or
-/// [`FilletError::FilletCornerUnsupported`] when the request is outside
+/// [`BlendError::RepeatedEdge`] when the request names one edge
+/// twice; [`BlendError::UnsupportedBody`],
+/// [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
+/// [`BlendError::UnsupportedGeometry`] or
+/// [`BlendError::UnsupportedCorner`] when the request is outside
 /// the assembly's front door ([`super::surgery`] names each case);
-/// [`FilletError::BodyNotIntact`] when the body does not hold together
+/// [`BlendError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it;
-/// [`FilletError::RingClearance`] when a carried-through ring does not
-/// clear a trimline; [`FilletError::Op`], carrying the operator's own
+/// [`BlendError::RingClearance`] when a carried-through ring does not
+/// clear a trimline; [`BlendError::Op`], carrying the operator's own
 /// typed refusal, when an Euler operator refuses;
-/// [`FilletError::Certify`], carrying the pass's own typed refusal,
+/// [`BlendError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
@@ -150,7 +151,7 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     radius: T,
     band: Band,
     tol: Tol,
-) -> Result<Filleted<T>, FilletError> {
+) -> Result<Filleted<T>, BlendError> {
     // A repeated edge is malformed for the chain walk (it would
     // double a link), so it refuses before the battery samples
     // anything.
@@ -158,14 +159,14 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     requested.sort_unstable();
     let repeated = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]);
     if let Some(edge) = repeated {
-        return Err(FilletError::RepeatedEdge { edge });
+        return Err(BlendError::RepeatedEdge { edge });
     }
 
     // ---- The ordering contract: verdict first, unchanged. ----
-    let request = FilletRequest {
+    let request = BlendRequest {
         body,
         edges: edges.to_vec(),
-        radius,
+        size: radius,
     };
     let verdict = run_battery(&request, band)?;
 
@@ -215,17 +216,17 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 ///
 /// # Errors
 ///
-/// [`FilletError::UnsupportedGeometry`] when a support of this corner
+/// [`BlendError::UnsupportedGeometry`] when a support of this corner
 /// is not a plane.
 pub(super) fn octant_chart<T: Decide + Bounds>(
     body: &Body<T>,
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
-) -> Result<(Vec3<T>, Vec3<T>), FilletError> {
+) -> Result<(Vec3<T>, Vec3<T>), BlendError> {
     // `(score, u_ref, axis)` for one candidate edge: the chart aimed
     // along it, scored by how nearly the third support's normal is
     // parallel to its axis.
-    let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), FilletError> {
+    let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), BlendError> {
         let planar = |f: FaceKey| {
             outward_of(body, f)
                 .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))
@@ -269,10 +270,13 @@ pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
 // the verb's documented module and re-exports what is written here.
 // ------------------------------------------------------------------
 
+/// A filleted body: [`Blended`] under the fillet's own noun.
+pub type Filleted<T> = Blended<T>;
+
 /// A chamfered body. The same record the fillet's assembly returns —
 /// `blend_faces` are the strips, `corner_faces` the flat patches, and
 /// `band_faces` is empty, since a chamfer has no closed-chain band.
-pub type Chamfered<T> = Filleted<T>;
+pub type Chamfered<T> = Blended<T>;
 
 /// **Chamfer a set of a body's edges** at equal setback `distance`
 /// along both supports.
@@ -284,21 +288,21 @@ pub type Chamfered<T> = Filleted<T>;
 /// # Errors
 ///
 /// A [`BlendRefusal`] carrying [`BlendKind::Chamfer`] — the verb
-/// crosses HERE, once, and the inner [`FilletError`] stays
+/// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around:
-/// [`FilletError::NonpositiveSize`] when `distance` is not definitely
-/// positive; [`FilletError::RepeatedEdge`] when the request names one
-/// edge twice; [`FilletError::ChamferArmUnsupported`] when a requested
+/// [`BlendError::NonpositiveSize`] when `distance` is not definitely
+/// positive; [`BlendError::RepeatedEdge`] when the request names one
+/// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
 /// edge's supports are not both planes; any predicate refusal the
-/// battery raises, or [`FilletError::Escalated`] carrying the margin;
-/// [`FilletError::UnsupportedBody`], [`FilletError::UnsupportedChain`],
-/// [`FilletError::UnsupportedRunOut`],
-/// [`FilletError::UnsupportedGeometry`] or
-/// [`FilletError::FilletCornerUnsupported`] when the request is outside
-/// the assembly's front door; [`FilletError::BodyNotIntact`] when the
+/// battery raises, or [`BlendError::Escalated`] carrying the margin;
+/// [`BlendError::UnsupportedBody`], [`BlendError::UnsupportedChain`],
+/// [`BlendError::UnsupportedRunOut`],
+/// [`BlendError::UnsupportedGeometry`] or
+/// [`BlendError::UnsupportedCorner`] when the request is outside
+/// the assembly's front door; [`BlendError::BodyNotIntact`] when the
 /// body does not hold together where the plan reads it;
-/// [`FilletError::RingClearance`] when a carried-through ring does not
-/// clear a trimline; [`FilletError::Op`] / [`FilletError::Certify`]
+/// [`BlendError::RingClearance`] when a carried-through ring does not
+/// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
 pub fn chamfer_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
@@ -322,7 +326,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     distance: T,
     band: Band,
     tol: Tol,
-) -> Result<Chamfered<T>, FilletError> {
+) -> Result<Chamfered<T>, BlendError> {
     // The setback must be definitely positive, and that is a fact
     // about the REQUEST, so it is read off the bracket's low end
     // rather than metered: a `Zero`/`Negative` here is not a geometric
@@ -336,7 +340,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         distance.lo().partial_cmp(&0.0),
         Some(core::cmp::Ordering::Greater)
     ) {
-        return Err(FilletError::NonpositiveSize {
+        return Err(BlendError::NonpositiveSize {
             size: distance.lo(),
         });
     }
@@ -345,13 +349,13 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut requested = edges.to_vec();
     requested.sort_unstable();
     if let Some(edge) = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]) {
-        return Err(FilletError::RepeatedEdge { edge });
+        return Err(BlendError::RepeatedEdge { edge });
     }
 
-    let request = FilletRequest {
+    let request = BlendRequest {
         body,
         edges: edges.to_vec(),
-        radius: distance,
+        size: distance,
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
     super::surgery::blend_surgery(body, &verdict, band, tol)

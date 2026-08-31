@@ -58,7 +58,7 @@ use core::f64::consts::PI;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::{FilletError, fillet_edges};
+use sweep::fillet::{BlendError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
@@ -388,30 +388,30 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
 
 /// The class name of a refusal — the partition's own vocabulary, so
 /// the evidence row reads as the addendum's rows.
-fn class(e: &FilletError) -> &'static str {
+fn class(e: &BlendError) -> &'static str {
     match e {
-        FilletError::Band(_) => "Band",
-        FilletError::ChainNotConnected { .. } => "ChainNotConnected",
-        FilletError::RadiusHeadroom { .. } => "RadiusHeadroom",
-        FilletError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
-        FilletError::TangentialEdge { .. } => "TangentialEdge",
-        FilletError::SpineIrregular { .. } => "SpineIrregular",
-        FilletError::ChainNotG1 { .. } => "ChainNotG1",
-        FilletError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
-        FilletError::FilletCornerUnsupported { .. } => "FilletCornerUnsupported",
-        FilletError::SpineUnsupported { .. } => "SpineUnsupported",
-        FilletError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
-        FilletError::Escalated { .. } => "Escalated",
-        FilletError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
-        FilletError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
-        FilletError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
-        FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
-        FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
-        FilletError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
-        FilletError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
-        FilletError::RingClearance { .. } => "RingClearance",
-        FilletError::Certify { .. } => "Certify",
-        FilletError::Op { .. } => "Op",
+        BlendError::Band(_) => "Band",
+        BlendError::ChainNotConnected { .. } => "ChainNotConnected",
+        BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
+        BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
+        BlendError::TangentialEdge { .. } => "TangentialEdge",
+        BlendError::SpineIrregular { .. } => "SpineIrregular",
+        BlendError::ChainNotG1 { .. } => "ChainNotG1",
+        BlendError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
+        BlendError::UnsupportedCorner { .. } => "UnsupportedCorner",
+        BlendError::SpineUnsupported { .. } => "SpineUnsupported",
+        BlendError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
+        BlendError::Escalated { .. } => "Escalated",
+        BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
+        BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
+        BlendError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
+        BlendError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
+        BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
+        BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
+        BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::RingClearance { .. } => "RingClearance",
+        BlendError::Certify { .. } => "Certify",
+        BlendError::Op { .. } => "Op",
     }
 }
 
@@ -594,7 +594,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
     match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()).map_err(|r| r.error) {
-        Err(FilletError::UnsupportedBody { solids, shells }) => {
+        Err(BlendError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
                  {solids} solid(s), {shells} shell(s) — refused at surgery.rs:212, \

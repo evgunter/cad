@@ -15,7 +15,7 @@
 //! surgery's output through the emitter, which is what issue #1294
 //! asks for.
 //!
-//! Of the rim-phase channels of `sweep::fillet::naming::FilletNaming`,
+//! Of the rim-phase channels of `sweep::fillet::naming::BlendNaming`,
 //! these rows ASSERT on three — `bands`, `rim_trims` and `slits`. The
 //! other three (`rim_feet`, `meridian_splits`, `meridian_remnants`)
 //! ride `check_total`: the emitter refuses a table that does not name

@@ -7,7 +7,7 @@
 //! rolling-ball predicates), the same admission tokens, and the same
 //! composition surgery, discriminated by [`BlendKind`] on the verdict
 //! — and both doors refuse through the one verb-neutral
-//! [`FilletError`], wrapped in a [`BlendRefusal`] that names the verb
+//! [`BlendError`], wrapped in a [`BlendRefusal`] that names the verb
 //! once. The rolling-ball prose below is the fillet's arm of that
 //! shared machinery.
 //!
@@ -43,7 +43,7 @@
 //! curved arm needs — the surface kinds, the nappe, the material side —
 //! is read structurally off stored data; "these two stored axes are the
 //! same axis" is the one that is placed geometry and cannot be. A
-//! definite miss refuses [`FilletError::SpineUnsupported`], because a
+//! definite miss refuses [`BlendError::SpineUnsupported`], because a
 //! pair that is not coaxial has a spine that is neither line nor circle
 //! and belongs to the canal unit.
 //!
@@ -69,15 +69,15 @@
 //! In: closed smooth chains, and open chains terminating in the
 //! three-convex-edge vertex whose corner patch is a sphere octant.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
-//! corner CONFIGURATION ([`FilletError::FilletCornerUnsupported`],
+//! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
 //! assembly's valence and convexity doors both), and every link whose
 //! support pair is outside the analytic-arm table
-//! ([`FilletError::SpineUnsupported`] — the canal-surface
+//! ([`BlendError::SpineUnsupported`] — the canal-surface
 //! approximating-blend lane, banked as its own reviewed unit). A corner whose configuration is the supported one
 //! but whose edges are not all requested is a **run-out**, which is
 //! about the request rather than the configuration and refuses as
-//! [`FilletError::UnsupportedRunOut`].
+//! [`BlendError::UnsupportedRunOut`].
 
 mod admit;
 pub mod battery;
@@ -92,11 +92,11 @@ use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Sign};
 use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use battery::{
-    BatteryVerdict, ChainClosure, Convexity, FilletRequest, Link, run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, run_battery, run_battery_for,
 };
 pub use blend::{BlendArm, CornerBall, EdgeBlend, RimBlend};
-pub use build::{Filleted, fillet_edges};
-pub use naming::{FilletNaming, RimSide};
+pub use build::{Blended, Filleted, fillet_edges};
+pub use naming::{BlendNaming, RimSide};
 
 /// **Which band a request grafts onto its edges.** The battery, the
 /// admission doors and the composition surgery are shared by both
@@ -136,7 +136,7 @@ impl fmt::Display for BlendKind {
 ///
 /// The two doors share one error vocabulary by design (the
 /// near-parallel-enum failure class is what the reuse avoids), so the
-/// inner [`FilletError`]'s prose is verb-neutral and the door is the
+/// inner [`BlendError`]'s prose is verb-neutral and the door is the
 /// one place that knows the verb. This is the kernel-direct twin of
 /// the recipe layer's `Blend { verb, error }` wrapper: one
 /// discrimination point per layer, never a verb field threaded
@@ -152,7 +152,7 @@ pub struct BlendRefusal {
     /// Which verb the refusing door is.
     pub verb: BlendKind,
     /// The shared refusal, in verb-neutral prose.
-    pub error: FilletError,
+    pub error: BlendError,
 }
 
 impl fmt::Display for BlendRefusal {
@@ -179,7 +179,7 @@ pub(crate) fn decide<T: Decide>(
 /// two-tolerance shape (D4 ¶1 addendum): one message and one recourse
 /// per user situation, margins riding along as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FilletSite {
+pub enum BlendSite {
     /// At one link of the chain (its edge names the site).
     Link {
         /// The link's edge.
@@ -449,7 +449,7 @@ pub const FILLET3_RING_RECOURSE: &str =
 /// The recourse for a support pair outside the analytic-arm table —
 /// it names the banked unit. Only a fillet caller reads it: the
 /// chamfer's arm table is its own early return
-/// ([`FilletError::ChamferArmUnsupported`]), taken before any
+/// ([`BlendError::ChamferArmUnsupported`]), taken before any
 /// analytic-arm classification.
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
      plane–sphere); other pairs need the canal-surface approximating blend, which is \
@@ -480,13 +480,13 @@ pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are bot
 ///
 /// | The branch reads | Variant |
 /// |---|---|
-/// | the body's solid/shell inventory | [`FilletError::UnsupportedBody`] |
-/// | a stored `Surface`, carrier or trimline | [`FilletError::UnsupportedGeometry`] |
-/// | a corner's own valence or convexity mix | [`FilletError::FilletCornerUnsupported`] |
-/// | which edges the REQUEST covers at a termination | [`FilletError::UnsupportedRunOut`] |
-/// | any other property of the chain or how it sits on its supports | [`FilletError::UnsupportedChain`] |
+/// | the body's solid/shell inventory | [`BlendError::UnsupportedBody`] |
+/// | a stored `Surface`, carrier or trimline | [`BlendError::UnsupportedGeometry`] |
+/// | a corner's own valence or convexity mix | [`BlendError::UnsupportedCorner`] |
+/// | which edges the REQUEST covers at a termination | [`BlendError::UnsupportedRunOut`] |
+/// | any other property of the chain or how it sits on its supports | [`BlendError::UnsupportedChain`] |
 #[derive(Clone, Debug)]
-pub enum FilletError {
+pub enum BlendError {
     /// The run's tolerance did not yield a valid band.
     Band(BandError),
     /// The chain's edges do not form a connected path, or an edge is
@@ -546,7 +546,7 @@ pub enum FilletError {
     /// supports sharing a tangent plane along the edge — is one cause
     /// (a co-surface seam produces it at a margin of exactly zero),
     /// not a fact this refusal establishes. Distinct from
-    /// [`FilletError::ConvexitySignFlip`]: a `Zero` edge does not
+    /// [`BlendError::ConvexitySignFlip`]: a `Zero` edge does not
     /// disagree with the chain's convexity — none was decided.
     TangentialEdge {
         /// The edge whose dihedral decided Zero.
@@ -575,7 +575,7 @@ pub enum FilletError {
     },
     /// **Predicate 5**: the dihedral's convexity sign is not constant
     /// along the chain. (An edge whose sign decided Zero is not a
-    /// flip — it refuses as [`FilletError::TangentialEdge`].)
+    /// flip — it refuses as [`BlendError::TangentialEdge`].)
     ConvexitySignFlip {
         /// The edge whose sign disagrees with the chain's.
         edge: EdgeKey,
@@ -588,7 +588,7 @@ pub enum FilletError {
     /// **Predicate 6** and the OQ6 refusal vocabulary: the corner
     /// configuration at a chain termination is not the sphere-octant
     /// case.
-    FilletCornerUnsupported {
+    UnsupportedCorner {
         /// The vertex whose configuration is out of scope.
         vertex: VertexKey,
         /// Which configuration was found.
@@ -614,7 +614,7 @@ pub enum FilletError {
     /// **The CHAMFER's arm table**: the link's support pair is not
     /// plane–plane, which is the one pair the ruled strip is built
     /// over. Its own variant rather than
-    /// [`FilletError::SpineUnsupported`] because the two name
+    /// [`BlendError::SpineUnsupported`] because the two name
     /// different missing doors — a chamfer over a curved support is
     /// VERBS-ARMS' machinery, not the canal-surface approximating
     /// blend — and one recourse per user situation is the rule
@@ -630,7 +630,7 @@ pub enum FilletError {
     /// margin as data (two-tolerance, D4 ¶1 addendum).
     Escalated {
         /// Where.
-        site: FilletSite,
+        site: BlendSite,
         /// The margin diagnosis and the predicate that produced it.
         source: Indeterminate,
     },
@@ -693,7 +693,7 @@ pub enum FilletError {
     /// chain termination the way the octant assembly needs — a
     /// run-out.
     ///
-    /// This is deliberately *not* [`FilletError::FilletCornerUnsupported`],
+    /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a corner's own
     /// CONFIGURATION is (valence, convexity mix) and which every such
     /// refusal here does use. A corner whose shape is exactly the
@@ -772,7 +772,7 @@ pub enum FilletError {
     },
 }
 
-impl From<BandError> for FilletError {
+impl From<BandError> for BlendError {
     fn from(source: BandError) -> Self {
         Self::Band(source)
     }
@@ -787,7 +787,7 @@ impl From<BandError> for FilletError {
 /// proves the rule: an arm only a fillet run can mint (the rolling
 /// ball's headroom and spine) speaks of the ball, because the ball is
 /// the fact, not the verb.
-impl fmt::Display for FilletError {
+impl fmt::Display for BlendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
@@ -855,7 +855,7 @@ impl fmt::Display for FilletError {
                 "edge {edge:?} is not {chain} like the rest of the chain \
                  — margin {margin} m; {FILLET3_CONVEXITY_RECOURSE}"
             ),
-            Self::FilletCornerUnsupported { vertex, corner, .. } => {
+            Self::UnsupportedCorner { vertex, corner, .. } => {
                 // Both halves of this sentence come from the TAG — the
                 // policy it names and the recourse that is true of it —
                 // so the message cannot contradict itself, and the
@@ -955,7 +955,7 @@ impl fmt::Display for FilletError {
     }
 }
 
-impl core::error::Error for FilletError {}
+impl core::error::Error for BlendError {}
 
 #[cfg(test)]
 #[allow(clippy::panic)]
@@ -965,12 +965,12 @@ mod recourse_tests {
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
     use super::{
-        CHAMFER_ARM_RECOURSE, Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
-        FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-        FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
-        FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-        FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
-        FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
+        BlendError, BlendSite, CHAMFER_ARM_RECOURSE, Convexity, CornerConfig,
+        FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+        FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
+        FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
+        FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
+        FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
     };
 
     /// Every recourse sentence this module can append.
@@ -1029,44 +1029,42 @@ mod recourse_tests {
     /// list independently and reaches refusals through `fillet_edges`,
     /// which is the check on whether a SITE picks the right class;
     /// neither suite enumerates the constants.
-    fn contract(err: &FilletError) -> Recourse {
+    fn contract(err: &BlendError) -> Recourse {
         match err {
-            FilletError::Band(_) => Recourse::None,
-            FilletError::ChainNotConnected { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
-            FilletError::RadiusHeadroom { .. } => Recourse::Exactly(FILLET3_RADIUS_RECOURSE),
-            FilletError::FaceClearanceUncertified { cross_chain, .. } => {
+            BlendError::Band(_) => Recourse::None,
+            BlendError::ChainNotConnected { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
+            BlendError::RadiusHeadroom { .. } => Recourse::Exactly(FILLET3_RADIUS_RECOURSE),
+            BlendError::FaceClearanceUncertified { cross_chain, .. } => {
                 Recourse::Exactly(if *cross_chain {
                     FILLET3_CLEARANCE_SPLIT_RECOURSE
                 } else {
                     FILLET3_CLEARANCE_RECOURSE
                 })
             }
-            FilletError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
-            FilletError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
-            FilletError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
-            FilletError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
-            FilletError::FilletCornerUnsupported { corner, .. } => {
-                Recourse::Exactly(corner.recourse())
-            }
-            FilletError::SpineUnsupported { .. } => Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE),
-            FilletError::ChamferArmUnsupported { .. } => Recourse::Exactly(CHAMFER_ARM_RECOURSE),
-            FilletError::Escalated { .. } => Recourse::RoutedByPredicate,
+            BlendError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
+            BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
+            BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
+            BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
+            BlendError::UnsupportedCorner { corner, .. } => Recourse::Exactly(corner.recourse()),
+            BlendError::SpineUnsupported { .. } => Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE),
+            BlendError::ChamferArmUnsupported { .. } => Recourse::Exactly(CHAMFER_ARM_RECOURSE),
+            BlendError::Escalated { .. } => Recourse::RoutedByPredicate,
             // The surgery's own frontiers (D2 addendum row 2).
-            FilletError::UnsupportedBody { .. } => Recourse::Exactly(FILLET3_BODY_RECOURSE),
-            FilletError::UnsupportedChain { .. } => Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE),
-            FilletError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
-            FilletError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
-            FilletError::RingClearance { .. } => Recourse::Exactly(FILLET3_RING_RECOURSE),
+            BlendError::UnsupportedBody { .. } => Recourse::Exactly(FILLET3_BODY_RECOURSE),
+            BlendError::UnsupportedChain { .. } => Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE),
+            BlendError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
+            BlendError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
+            BlendError::RingClearance { .. } => Recourse::Exactly(FILLET3_RING_RECOURSE),
             // Invalid input (row 1), and the two forwarding variants.
-            FilletError::RepeatedEdge { .. } => Recourse::None,
-            FilletError::NonpositiveSize { .. } => Recourse::None,
-            FilletError::BodyNotIntact { .. } => Recourse::None,
-            FilletError::Certify { .. } => Recourse::None,
-            FilletError::Op { .. } => Recourse::None,
+            BlendError::RepeatedEdge { .. } => Recourse::None,
+            BlendError::NonpositiveSize { .. } => Recourse::None,
+            BlendError::BodyNotIntact { .. } => Recourse::None,
+            BlendError::Certify { .. } => Recourse::None,
+            BlendError::Op { .. } => Recourse::None,
         }
     }
 
-    /// **One value of every `FilletError` variant**, in the enum's
+    /// **One value of every `BlendError` variant**, in the enum's
     /// own declaration order so the two lists read side by side.
     ///
     /// Rust cannot enumerate a type's variants, so this list is
@@ -1077,115 +1075,115 @@ mod recourse_tests {
     /// the sentences they render are checked against `ALL` by
     /// `every_recourse_sentence_is_rendered_by_some_variant`.
     ///
-    /// `FilletCornerUnsupported` appears twice on purpose: the recourse
+    /// `UnsupportedCorner` appears twice on purpose: the recourse
     /// that variant appends is chosen by its TAG, so one witness would
     /// leave the other route unrendered and unchecked.
     /// `FaceClearanceUncertified` appears twice for the same reason —
     /// its recourse is chosen by `cross_chain`.
-    fn seeds() -> Vec<FilletError> {
+    fn seeds() -> Vec<BlendError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         vec![
-            FilletError::Band(BandError::Empty {
+            BlendError::Band(BandError::Empty {
                 zero: 1.0,
                 escalate: 0.5,
             }),
-            FilletError::ChainNotConnected {
+            BlendError::ChainNotConnected {
                 edge: EdgeKey::default(),
             },
-            FilletError::RadiusHeadroom {
+            BlendError::RadiusHeadroom {
                 face: FaceKey::default(),
                 margin: -1e-3,
                 radius: 0.5,
             },
-            FilletError::FaceClearanceUncertified {
+            BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
                 margin: -1e-3,
                 gap: 0.2,
                 cross_chain: false,
             },
-            FilletError::FaceClearanceUncertified {
+            BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
                 margin: -1e-3,
                 gap: 0.2,
                 cross_chain: true,
             },
-            FilletError::TangentialEdge {
+            BlendError::TangentialEdge {
                 edge: EdgeKey::default(),
                 margin: 0.0,
             },
-            FilletError::SpineIrregular {
+            BlendError::SpineIrregular {
                 margin: -1e-3,
                 radius: 0.5,
             },
-            FilletError::ChainNotG1 {
+            BlendError::ChainNotG1 {
                 vertex: VertexKey::default(),
                 margin: -1e-3,
                 arm: 0.5,
             },
-            FilletError::ConvexitySignFlip {
+            BlendError::ConvexitySignFlip {
                 edge: EdgeKey::default(),
                 margin: -1e-3,
                 chain: Convexity::Convex,
             },
-            FilletError::FilletCornerUnsupported {
+            BlendError::UnsupportedCorner {
                 vertex: VertexKey::default(),
                 corner: CornerConfig::NEdgeVertex { valence: 4 },
                 policy: CornerConfig::NEdgeVertex { valence: 4 }.policy(),
             },
-            FilletError::FilletCornerUnsupported {
+            BlendError::UnsupportedCorner {
                 vertex: VertexKey::default(),
                 corner: CornerConfig::SeamVertex,
                 policy: CornerConfig::SeamVertex.policy(),
             },
-            FilletError::SpineUnsupported {
+            BlendError::SpineUnsupported {
                 edge: EdgeKey::default(),
                 supports: "a support pair with no analytic arm",
             },
-            FilletError::ChamferArmUnsupported {
+            BlendError::ChamferArmUnsupported {
                 edge: EdgeKey::default(),
                 supports: "non-(plane–plane)",
             },
-            FilletError::Escalated {
-                site: FilletSite::Chain,
+            BlendError::Escalated {
+                site: BlendSite::Chain,
                 source: Indeterminate {
                     margin: MarginDiag::Value(0.0),
                     band,
                     predicate: Some("fillet3_ring_clearance"),
                 },
             },
-            FilletError::RepeatedEdge {
+            BlendError::RepeatedEdge {
                 edge: EdgeKey::default(),
             },
-            FilletError::NonpositiveSize { size: 0.0 },
-            FilletError::UnsupportedBody {
+            BlendError::NonpositiveSize { size: 0.0 },
+            BlendError::UnsupportedBody {
                 solids: 2,
                 shells: 2,
             },
-            FilletError::UnsupportedChain {
+            BlendError::UnsupportedChain {
                 edge: EdgeKey::default(),
                 detail: "a chain shape that is not built",
             },
-            FilletError::UnsupportedRunOut {
+            BlendError::UnsupportedRunOut {
                 at: EntityId::Vertex(VertexKey::default()),
                 detail: "a termination the request does not cover",
             },
-            FilletError::UnsupportedGeometry {
+            BlendError::UnsupportedGeometry {
                 at: EntityId::Face(FaceKey::default()),
                 detail: "a stored shape the closed forms do not cover",
             },
-            FilletError::BodyNotIntact {
+            BlendError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
             },
-            FilletError::RingClearance {
+            BlendError::RingClearance {
                 face: FaceKey::default(),
                 margin: -1e-3,
             },
-            FilletError::Certify {
+            BlendError::Certify {
                 site: "blend face pcurves",
                 source: topo::PcurveMintError::Corrupt,
             },
-            FilletError::Op {
+            BlendError::Op {
                 site: "strut mev",
                 source: topo::EulerOpError::StaleKey {
                     key: EntityId::Edge(EdgeKey::default()),

@@ -93,9 +93,9 @@ pub use ::profile::{
 };
 
 // --- 3. The four body operations ------------------------------
-pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
+pub use sweep::fillet::{BlendError, Filleted, fillet_edges};
 // The fillet's ruled sibling shares its refusal vocabulary
-// (`FilletError`, above): one verb, one edge-blend front door, the
+// (`BlendError`, above): one verb, one edge-blend front door, the
 // band the only difference.
 pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // `BlendKind` names WHICH blend a shared refusal came from — the

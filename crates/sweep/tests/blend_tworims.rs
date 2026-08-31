@@ -49,7 +49,7 @@
 
 use geom_core::{Band, Tol};
 use sweep::Revolution;
-use sweep::fillet::FilletError;
+use sweep::fillet::BlendError;
 use sweep::fillet::build::{Filleted, fillet_edges};
 use sweep::test_support::{lantern as test_support_lantern, rim_arcs_at, sphere_zone};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
@@ -398,7 +398,7 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     for r in [0.749, 0.8] {
         match fillet_edges(&body, &rims, r, band(), tol()).map_err(|r| r.error) {
             Err(
-                e @ FilletError::FaceClearanceUncertified {
+                e @ BlendError::FaceClearanceUncertified {
                     margin,
                     cross_chain,
                     ..

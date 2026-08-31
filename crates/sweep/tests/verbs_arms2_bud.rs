@@ -41,8 +41,8 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::battery::{FilletRequest, run_battery};
+use sweep::fillet::BlendError;
+use sweep::fillet::battery::{BlendRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, mass_properties, validate_geometric};
@@ -372,10 +372,10 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     let mut source = bud();
     let mouth = closed_rim(&source, 0.8);
     // Baseline: coaxial, and the battery passes.
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &source,
         edges: vec![mouth],
-        radius: R,
+        size: R,
     };
     run_battery(&req, band()).expect("the coaxial mouth passes the battery");
 
@@ -405,13 +405,13 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
         )
         .expect("planting a surface certifies nothing");
 
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &source,
         edges: vec![mouth],
-        radius: R,
+        size: R,
     };
     match run_battery(&req, band()) {
-        Err(e @ FilletError::SpineUnsupported { .. }) => {
+        Err(e @ BlendError::SpineUnsupported { .. }) => {
             let text = format!("{e}");
             assert!(
                 text.contains("do not share one axis of revolution"),
@@ -445,8 +445,7 @@ fn the_partial_revolve_of_the_bud_still_refuses() {
         .map(|(k, _)| k)
         .expect("the partial bud carries a mouth arc");
     match fillet_edges(&source, &[arc], R, band(), tol()).map_err(|r| r.error) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
-        }
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("a partial revolve's open mouth arc must refuse, got {other:?}"),
     }
 }

@@ -144,7 +144,7 @@ fn the_fillets_refusal_messages_are_byte_frozen() {
         assert_eq!(actual, expected, "the fillet's {label} refusal text moved");
     }
     // The op row is pinned by PREFIX, not whole. Its tail is the
-    // kernel's own `FilletError` message, which quotes an arena key
+    // kernel's own `BlendError` message, which quotes an arena key
     // (`FaceKey(3v1)`) — deterministic under D9 replay identity, but a
     // key is the kernel's business and freezing one here would make
     // this row fail for an unrelated allocation change. The claim that

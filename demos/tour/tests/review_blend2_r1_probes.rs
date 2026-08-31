@@ -12,7 +12,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Band, Point2, Tol, Vec2};
-use pncad::prelude::{ArcSweep, Center, FilletError, Open, ProfileLoop, SketchPlane, Start};
+use pncad::prelude::{ArcSweep, Center, BlendError, Open, ProfileLoop, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
@@ -277,7 +277,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
          refuse it too, and a build here means the boundary moved — re-measure"
     );
     match &err {
-        FilletError::FaceClearanceUncertified { cross_chain, .. } => {
+        BlendError::FaceClearanceUncertified { cross_chain, .. } => {
             let text = format!("{err}");
             assert_eq!(
                 *cross_chain,

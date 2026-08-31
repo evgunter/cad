@@ -18,7 +18,7 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
+use sweep::fillet::BlendError;
 use sweep::fillet::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, validate_geometric};
@@ -324,7 +324,7 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = closed_rim_at(&source, 0.8, 0.6);
     match fillet_edges(&source, &[waist], 0.05, band(), tol()).map_err(|r| r.error) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
+        Err(BlendError::UnsupportedChain { detail, .. }) => {
             assert!(
                 detail.contains("concave"),
                 "the waist is a valley, so the refusal is the concave chain's: {detail}"

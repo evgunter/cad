@@ -1,7 +1,7 @@
 //! **The fillet naming emitter** (M6-5 PR-1) — the composition
 //! surgery's output, named from BIRTH data.
 //!
-//! The kernel hands over [`FilletNaming`]: rows written by the
+//! The kernel hands over [`BlendNaming`]: rows written by the
 //! surgery as it minted each entity, each naming the SOURCE entity the
 //! mint was made for. This pass is a mechanical translation of those
 //! rows into [`RoleSeg`]s — no geometry is read, nothing is matched.
@@ -21,7 +21,7 @@
 //! # The provenance channels, and the totality that closes them
 //!
 //! An output entity is either a recorded mint or a survivor keeping
-//! its source arena key ([`FilletNaming`]'s module docs). Survivors
+//! its source arena key ([`BlendNaming`]'s module docs). Survivors
 //! take [`RoleSeg::FromTarget`] of their upstream name; mints take
 //! their role. Anything that is neither — a key minted without a
 //! record — has no upstream name and surfaces as
@@ -69,7 +69,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use sweep::fillet::naming::{FilletNaming, RimSide};
+use sweep::fillet::naming::{BlendNaming, RimSide};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 use super::defer::{TieRows, put as put_row, upstream_name};
@@ -95,7 +95,7 @@ pub(crate) fn name_fillet<T: geom_core::Real>(
     target_node: RecipeNodeId,
     target: &NameTable,
     body: &Body<T>,
-    rec: &FilletNaming,
+    rec: &BlendNaming,
 ) -> Result<Arc<NameTable>, NamingError> {
     name_blend(node, target_node, target, body, rec)
 }
@@ -112,7 +112,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
     target_node: RecipeNodeId,
     target: &NameTable,
     body: &Body<T>,
-    rec: &FilletNaming,
+    rec: &BlendNaming,
 ) -> Result<Arc<NameTable>, NamingError> {
     // Every upstream read goes through the deferral's own reader, so
     // the tie bit travels with the name it belongs to and no call site

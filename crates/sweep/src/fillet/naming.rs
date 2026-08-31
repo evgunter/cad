@@ -26,7 +26,7 @@
 //! A shrunk support is therefore a survivor and needs no row of its
 //! own: the fact that it is the same face is carried by key identity.
 //!
-//! [`FilletNaming::dead`] closes the loop: it lists the source keys
+//! [`BlendNaming::dead`] closes the loop: it lists the source keys
 //! the fillet RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
 //! directions (`sweep/tests/m6_5_fillet_naming.rs` executes both). A
@@ -130,7 +130,7 @@ pub struct Retired {
 /// `trims`, `feet`, `arcs` and `dead`, leaving every rim field empty;
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
-pub struct FilletNaming {
+pub struct BlendNaming {
     // ---- The blank phase (open plane–plane chains). ----
     /// Blend face ← the source edge it replaces (the fillet's rolling
     /// band, or the chamfer's ruled strip).

@@ -6,7 +6,7 @@ use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{FilletRequest, run_battery};
+use sweep::fillet::battery::{BlendRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -78,10 +78,10 @@ fn probe_a_pipped_cube_all_edges() {
     .clone();
     let edges = all_edges(&pipped);
     println!("PROBE A: pipped cube has {} edges", edges.len());
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &pipped,
         edges: edges.clone(),
-        radius: 0.12,
+        size: 0.12,
     };
     match run_battery(&req, band()) {
         Ok(v) => {
@@ -163,10 +163,10 @@ fn probe_d_rim_arc_orientation() {
         let aligned = (c0 - sp).norm() <= (c1e - sp).norm();
         let is_circle = matches!(carrier, geom::Curve3::Circle { .. });
         if is_circle {
-            let req = FilletRequest {
+            let req = BlendRequest {
                 body: &pipped,
                 edges: vec![k],
-                radius: 0.02,
+                size: 0.02,
             };
             let verdict = run_battery(&req, band());
             let conv = verdict.as_ref().ok().map(|v| v.chains[0].first().convexity);

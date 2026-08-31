@@ -44,7 +44,7 @@ use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use topo::{Body, EdgeKey};
 
-use crate::fillet::battery::{FilletRequest, Link, run_battery};
+use crate::fillet::battery::{BlendRequest, Link, run_battery};
 use crate::{Extrusion, extrude};
 use geom_core::Tol;
 
@@ -74,10 +74,10 @@ pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
     let tol = tol.get();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let verdict = run_battery(
-        &FilletRequest {
+        &BlendRequest {
             body,
             edges,
-            radius: R,
+            size: R,
         },
         Band::new(tol.eps, tol.k * tol.eps).unwrap(),
     )

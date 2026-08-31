@@ -433,7 +433,7 @@ pub enum NodeErrorKind {
     /// numbered predicates, a corner or spine class the in-place
     /// surgery has not been built for, or an escalation. Which door
     /// refused, and what it refused about, is stated on
-    /// [`sweep::fillet::FilletError`]'s own variants and rendered by
+    /// [`sweep::fillet::BlendError`]'s own variants and rendered by
     /// its `Display` — this doc names no predicate of its own, so it
     /// cannot drift from one.
     ///
@@ -447,7 +447,7 @@ pub enum NodeErrorKind {
         /// Which blend the refusing node is.
         verb: sweep::fillet::BlendKind,
         /// The kernel's own refusal.
-        error: sweep::fillet::FilletError,
+        error: sweep::fillet::BlendError,
     },
     /// The boolean op refused.
     Boolean(BooleanError),

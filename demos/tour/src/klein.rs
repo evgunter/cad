@@ -220,7 +220,7 @@ use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Band, Mat3, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
-use pncad::sweep::fillet::{FilletError, fillet_edges};
+use pncad::sweep::fillet::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
@@ -792,7 +792,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        |e| matches!(e, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
     crate::walls::wall(
@@ -811,7 +811,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // and what stops both is the ball's own size against the neck
         // wall's curvature — not the closedness of the rim, and no
         // longer a missing arm.
-        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        |e| matches!(e, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
 

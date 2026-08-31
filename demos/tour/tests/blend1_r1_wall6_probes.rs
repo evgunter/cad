@@ -23,7 +23,7 @@
 use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
 use pncad::geom_core::{Band, Tol, Vec2};
-use pncad::prelude::{FilletError, Open, Start, fillet_edges};
+use pncad::prelude::{BlendError, Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
@@ -110,7 +110,7 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let lant = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     match fillet_edges(&lant, &all, 0.02, Band::linear(tol).expect("band"), tol) {
-        Err(FilletError::TangentialEdge { margin, .. }) => {
+        Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam, not a near-tangency");
         }
         other => panic!("wall 6 as authored refuses tangential, got {other:?}"),
@@ -152,7 +152,7 @@ fn t3_the_mouth_rim_refuses_concave() {
     let arcs = rims_of_radius(&lant, r_mouth);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
     match fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
+        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "the mouth refuses as concave, got {detail}"
         ),
@@ -182,7 +182,7 @@ fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() 
         Band::linear(tol).expect("band"),
         tol,
     ) {
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
+        Err(BlendError::UnsupportedCorner { corner, .. }) => {
             let shown = format!("{corner}");
             assert!(
                 shown.contains("seam"),

@@ -306,7 +306,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         K::Loft(sweep::LoftError::SeamStructure),
         K::Blend {
             verb: sweep::fillet::BlendKind::Chamfer,
-            error: sweep::fillet::FilletError::RepeatedEdge {
+            error: sweep::fillet::BlendError::RepeatedEdge {
                 edge: topo::EdgeKey::default(),
             },
         },

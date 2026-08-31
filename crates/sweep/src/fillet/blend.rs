@@ -77,7 +77,7 @@
 //!
 //! Everything a general spine would need — a canal surface, the
 //! kernel's first approximating SURFACE — is refused typed by
-//! [`super::FilletError::SpineUnsupported`], which names that banked
+//! [`super::BlendError::SpineUnsupported`], which names that banked
 //! unit as the front door that does not exist yet.
 
 use geom::Curve3;
@@ -193,7 +193,7 @@ impl BlendArm {
     }
 
     /// The arm's name, for refusal text and report rows. The
-    /// [`super::FilletError::SpineUnsupported`] payload's hand-written
+    /// [`super::BlendError::SpineUnsupported`] payload's hand-written
     /// roster is checked against exactly these strings, so a new arm
     /// that is not advertised there fails a test rather than shipping a
     /// stale refusal.
@@ -653,7 +653,7 @@ impl<T: Real> Meridian<T> {
     /// from coaxiality** it contributes (meters, at [`Self::lever`]).
     ///
     /// `None` for a surface kind this family does not cover; the caller
-    /// refuses [`super::FilletError::SpineUnsupported`] on it.
+    /// refuses [`super::BlendError::SpineUnsupported`] on it.
     ///
     /// The departure is what makes the coaxiality hypothesis checkable
     /// rather than assumed: a plane and a cone contribute their axis

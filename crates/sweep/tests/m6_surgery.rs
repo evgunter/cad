@@ -453,7 +453,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     // Definite refuse, typed with the margin as payload.
     let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
     match err {
-        sweep::fillet::FilletError::RingClearance { margin, .. } => {
+        sweep::fillet::BlendError::RingClearance { margin, .. } => {
             assert!((margin - -0.05).abs() < 1e-15)
         }
         other => panic!("expected RingClearance, got {other}"),
@@ -466,7 +466,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     // In band: escalates through the funnel with the SAME recourse.
     let err = ring_clearance(face, 5.0 * tol.eps, band()).expect_err("in-band escalates");
     match &err {
-        sweep::fillet::FilletError::Escalated { source, .. } => {
+        sweep::fillet::BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
         }
         other => panic!("expected Escalated, got {other}"),

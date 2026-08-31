@@ -15,7 +15,7 @@ use core::f64::consts::PI;
 use geom_brep::EdgeDescription;
 use geom_core::Band;
 use geom_core::Tol;
-use sweep::fillet::{FilletError, Filleted, fillet_edges};
+use sweep::fillet::{BlendError, Filleted, fillet_edges};
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};
 
@@ -148,7 +148,7 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let err = fillet_edges(&body, &edges[..1], 0.15, band(), Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
-        matches!(err.error, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(

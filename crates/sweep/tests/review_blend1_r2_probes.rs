@@ -56,7 +56,7 @@ use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE, FilletError};
+use sweep::fillet::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
@@ -259,7 +259,7 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         for one in &arcs {
             match fillet_edges(&source, &[*one], 0.05, band(), tol()).map_err(|r| r.error) {
-                Err(FilletError::FilletCornerUnsupported { .. }) => {}
+                Err(BlendError::UnsupportedCorner { .. }) => {}
                 Err(other) => {
                     panic!("{name}: one arc alone should refuse at the seam vertex, got {other:?}")
                 }
@@ -519,7 +519,7 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     // The refusal fires...
     let refused = fillet_edges(&source, &arcs[..1], 0.1, band(), tol()).map_err(|r| r.error);
     match refused {
-        Err(e @ FilletError::FilletCornerUnsupported { .. }) => {
+        Err(e @ BlendError::UnsupportedCorner { .. }) => {
             let msg = format!("{e}");
             println!("recourse: {msg}");
             assert!(
@@ -630,7 +630,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         assert!(
             matches!(
                 one,
-                FilletError::FilletCornerUnsupported {
+                BlendError::UnsupportedCorner {
                     corner: CornerConfig::SeamVertex,
                     policy: None,
                     ..
@@ -653,7 +653,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
         } else {
-            let Err(FilletError::UnsupportedChain { detail, .. }) = whole else {
+            let Err(BlendError::UnsupportedChain { detail, .. }) = whole else {
                 panic!("{name}: the whole-rim request meets the material-side refusal")
             };
             assert!(
