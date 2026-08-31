@@ -901,8 +901,21 @@ impl fmt::Display for BlendError {
             Self::UnsupportedCorner { vertex, corner, .. } => {
                 // Both halves of this sentence come from the TAG — the
                 // policy it names and the recourse that is true of it —
-                // so the message cannot contradict itself, and the
-                // payload's `policy` cannot make it lie.
+                // so the payload's `policy` field cannot make the
+                // message say something the tag does not.
+                //
+                // That is a claim about the MECHANISM, and it is the
+                // only one available here: whether the two halves
+                // actually cohere is each tag's own burden, not this
+                // match's. `MixedConvexity { convex: 0 }` is where
+                // they currently do not — it renders as "only a
+                // run-out policy would handle" and then names the
+                // flat corner patch, which carves that corner, since
+                // no edge of three being convex IS the uniform
+                // concave trihedron. The tag is a poor fit for that
+                // configuration and naming it properly is
+                // evgunter/cad issue 1355; the composed sentence
+                // straightens out when it lands.
                 let recourse = corner.recourse();
                 match corner.policy() {
                     Some(policy) => write!(
