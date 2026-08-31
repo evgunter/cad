@@ -529,7 +529,8 @@ impl core::fmt::Display for MateFault {
             ),
             Self::SelfMate { mate, instance } => write!(
                 f,
-                "mate {} names instance {} on both sides; a mate relates a PAIR",
+                "mate {} names one member on both sides (it stands on instance {}); a mate \
+                 relates a PAIR",
                 mate.0, instance.0
             ),
         }
