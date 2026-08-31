@@ -79,6 +79,9 @@ mod r2_probe_sphere_polar;
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;
 
+#[path = "cert7_r1_probes.rs"]
+mod cert7_r1_probes;
+
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
