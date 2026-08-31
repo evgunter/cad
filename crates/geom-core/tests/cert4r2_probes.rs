@@ -22,7 +22,7 @@ const PI: f64 = core::f64::consts::PI;
 #[test]
 fn the_two_windows_disagree_at_the_top_ulp_of_the_shared_interior() {
     let d = f64::from_bits(PI.to_bits() - 1); // largest f64 < pi
-    assert!(d < PI && d >= 0.0, "d is in [0, pi)");
+    assert!((0.0..PI).contains(&d), "d is in [0, pi)");
     let extent = <f64 as Real>::reduce_periodic(d, TAU);
     let setback = <f64 as Real>::reduce_periodic_centred(d, TAU);
     // The claim would demand bit-equality here; the truth:

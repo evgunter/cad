@@ -142,6 +142,12 @@ fn the_two_windows_agree_bitwise_below_the_boundary_and_not_at_it() {
 /// clockwise leg is `(+0.0)·(−1.0)`.
 #[test]
 fn the_two_windows_return_oppositely_signed_zeros_at_negative_zero() {
+    // The multiplication is the SUBJECT of this row, not a clumsy way
+    // to write a literal: `(+0.0)·turn` with a clockwise `turn = −1` is
+    // how a zero swept angle acquires a negative sign in the fillet
+    // path. Spelling `-0.0` here would assert the caveat while deleting
+    // the evidence that anything reaches it.
+    #[allow(clippy::neg_multiply)]
     let neg_zero = 0.0f64 * -1.0f64;
     assert_eq!(neg_zero.to_bits(), (-0.0f64).to_bits(), "the route is real");
 

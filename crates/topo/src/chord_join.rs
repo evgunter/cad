@@ -2826,7 +2826,11 @@ fn cert4r1_the_centred_anchoring_widens_at_its_own_jump_for_a_near_whole_window(
 
     // A window just under a whole period, and a start box sitting at
     // its antipode -- i.e. on the centred window's own jump.
-    for width in [core::f64::consts::PI, 6.0, 6.28, 6.283_185_307_179_5] {
+    // Written relative to TAU rather than as decimal literals that
+    // approximate it: what the row varies is the window's MARGIN to a
+    // full period, and the last two are that margin made small.
+    let tau_f = core::f64::consts::TAU;
+    for width in [core::f64::consts::PI, 6.0, tau_f - 0.0032, tau_f - 1e-13] {
         let w_min = 0.7_f64;
         let half_w = ex(width) * ex(0.5);
         let centre = w_min + width / 2.0;
