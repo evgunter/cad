@@ -293,8 +293,10 @@ pub(super) fn split_finish<T: Decide>(
     // faces were just promoted; the other side of every boundary edge
     // is an operand face). Definitely-transverse edges get
     // `Intersection`; definitely-smooth ones (a flush ON-face
-    // neighbor: the surfaces under-determine the locus) keep their
-    // conventional chord per D2; escalations refuse typed. ----
+    // neighbor: the surfaces under-determine the locus) carry a
+    // conventional description in an adjacent chart per D2 — kept
+    // where the edge already has one, stated in the section chart
+    // where it does not; escalations refuse typed. ----
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let section_faces: Vec<FaceKey> = section_side.keys().collect();
     for face in section_faces {
@@ -344,9 +346,18 @@ pub(super) fn split_finish<T: Decide>(
 /// section face as the transverse `Intersection` of its two faces'
 /// surfaces (witness at the chord midpoint), through the certified
 /// [`crate::Body::set_edge_curve`] lane. Smooth neighbors (flush
-/// ON-faces — parallel planes under-determine the locus) keep their
-/// conventional chord description (D2's conventional split);
-/// escalations are typed ([`SplitFinishError::DescribeEscalated`]).
+/// ON-faces — parallel planes under-determine the locus) carry a
+/// conventional description (D2's conventional split): one already
+/// drawn in an adjacent chart is kept verbatim (a stated image
+/// travels exactly — deriving a replacement would trade a statement
+/// for a guess), and any other description is restated as an image in
+/// the section chart, which every section-boundary edge lies in by
+/// construction. That covers the citation this split itself made
+/// stale: on a face-coplanar cut an operand edge lands on the section
+/// boundary with its transverse partner reassigned to the OTHER
+/// product, so the `Intersection` it honestly carried now names a
+/// surface that is not adjacent (and not even present) on this side.
+/// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
 fn describe_section_boundary<T: Decide>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -443,8 +454,43 @@ fn describe_section_boundary<T: Decide>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                // Smooth: the conventional chord stays (D2).
-                Ok(geom_brep::DihedralClass::Smooth) => {}
+                // Smooth: the surfaces under-determine the locus, so
+                // the honest class is conventional (D2). A description
+                // already drawn in one of the edge's two charts stays
+                // verbatim; anything else — a citation whose partner
+                // this split reassigned to the other product, or a
+                // scaffold — is restated as an image in the section
+                // chart, which the edge lies in by construction.
+                // Carrier and interval travel verbatim (restated,
+                // never rebuilt), as does a declared authority.
+                Ok(geom_brep::DihedralClass::Smooth) => {
+                    let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
+                        geom_brep::EdgeDescription::Chart(ref ch) => {
+                            ch.surface == s_self || ch.surface == s_other
+                        }
+                        geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                            (s1 == s_self && s2 == s_other) || (s1 == s_other && s2 == s_self)
+                        }
+                        // A transverse citation on a definitely-smooth
+                        // pair is wrong whatever it names, and a
+                        // scaffold at rest is fenced — both restate.
+                        geom_brep::EdgeDescription::Intersection { .. }
+                        | geom_brep::EdgeDescription::Scaffold(_) => false,
+                    });
+                    if !coherent {
+                        let mut spec = match &existing {
+                            Some(c) => c.restated_spec(),
+                            None => geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                        };
+                        spec.description = geom_brep::EdgeDescriptionSpec::chart(s_self);
+                        if let Some(geom_brep::EdgeAuthority::Declared(mc)) =
+                            existing.as_ref().map(|c| c.authority())
+                        {
+                            spec.description = spec.description.declared_by(mc);
+                        }
+                        body.set_edge_curve(edge, spec, tol)?;
+                    }
+                }
                 Err(diag) => return Err(SplitFinishError::DescribeEscalated { edge, diag }),
             }
         }
