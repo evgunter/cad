@@ -287,3 +287,14 @@ fn r2_issue_1321_cap_stop_reports_budget_six() {
         other => eprintln!("d=1e-7 tol=1e-9: {other:?}"),
     }
 }
+
+/// The PR body cites "80 cells at tol 1e-4" for the cylinder oracle;
+/// the shipped row runs at 3e-4 (OFF-B's trim). Which tol gives 80?
+#[test]
+fn r2_cylinder_cells_at_both_tolerances() {
+    let base = quarter_cylinder(1.25, 0.75);
+    for tol in [1e-4, 3e-4] {
+        let (_, cert) = fit_offset(&base, 0.3, tol, band()).unwrap();
+        eprintln!("cylinder d=0.3 tol={tol:e}: cells={} rounds={}", cert.cells, cert.rounds);
+    }
+}
