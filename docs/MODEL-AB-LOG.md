@@ -2295,3 +2295,31 @@ R1, identical stored briefs (method note + brief PRE-R1 on
 cert/ab-state at 8da8f3b0). Implementer difficulty L (logged at
 spec). Sample number at merge, per the banding entry's rule. Row at
 merge.
+
+| QA-9 | 2026-08-30 | QA-9 (PR #1307; spec docs/QA-9-SPEC.md; issue 1139): the build-slot status line made reader-relative — `polls_slot`/`tried_slot_now` answer per (MODE, WIDTH, PHASE), every acquirability PREDICTION removed in favour of verifiable facts, held-by-this-request detected, the absent-record blocker named, WIDTH validated once with the width test given one home; the full 12-site output audit dispositioned | XS (pre-draw) | FABLE (block QA-B3 slot 3) | **DUAL (ordinal 803; sample #57 at merge; parity byte 251 ⇒ R1 FABLE + R2 OPUS, concurrent, separate checkouts, frozen `c00c072e`; v5 instrument).** BILATERAL MAJOR, independently reproduced by both arms with the same leak-seat construction: the new "can take it" clause prints only AFTER the request failed flock on that slot, so it is false exactly when it persists (the file's own documented fd-leak the standing trigger) — the issue-1139 class re-created inside its own fix, more confidently worded than the line it replaced; R2 supplied the structural diagnosis (the predicate answered "ever polls" where the call sites need now-actionable states) and three unique MINORs (exclusive phase seats incl. self-in-blocker-list; the stderr-without-echo sweep blind spot with the diff's own new bash-noise site; the partial-record seat); R1 unique: the stale header "-x acquires ALL slots" reaching two dispatch briefs; an R1 probe misfire polluted the real lock dir with one stale holder (orchestrator-cleaned, disclosed). TALLY: no unilateral MAJOR (the MAJOR bilateral) | fix pass (implementer's agent): all seven union items, no declines — predictions removed for per-seat facts (state table rewritten), pid==$$ self-detection, startup WIDTH validation naming the variable, `shared_polls_slot2` as the single width home consulted by loop and predicate both, absent-record blocker named, article/width phrasing fixed, header corrected, PR-body record fixes. Fix-pass incident disclosed: one `pkill -x sleep` during demo cleanup (pattern-match kill, the standing rule's exact violation) possibly clipped sibling lanes' poll sleeps; subsequent cleanup PID-targeted | impl CI 33341684907 SUCCESS (docs tier, honestly non-code); fix CI 33342455109 SUCCESS (docs tier). The demonstration transcripts in the PR body are the verification of record — CI deletes local-scripts by design | impl ~84K / ~10m; fix ~120K / ~6m; R1 ~83K / ~8m; R2 ~84K / ~8m |
+
+QA-6 (PR #1311) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 804** (S-QA band 800–899). v6 dual: slot byte 72, parity
+0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `91364029`,
+separate checkouts (sweep lane: python/toml/prose, no cargo).
+Identical stored briefs; R2 gets no access to R1's report or probes.
+Implementer difficulty M/L (pre-drawn at spec). Sample number at
+merge. Row at merge.
+
+QA-5 (PR #1310) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 805** (S-QA band 800–899). v6 dual: slot byte 117, parity
+1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `8f0c9aee`,
+separate checkouts (tess-lint tool crate — small cargo per
+reviewer, targets deleted at report). Identical stored briefs; R2
+gets no access to R1's report or probes. Implementer difficulty M
+(pre-drawn at spec). Sample number at merge. Row at merge.
+
+QA-8 (PR #1313) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 806** (S-QA band 800–899). v6 dual: slot byte 237, parity
+1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `ecce0ca0`,
+separate checkouts (doc-gate lane: shell + one mesh doc build per
+reviewer, targets deleted at report). Identical stored briefs; R2
+gets no access to R1's report or probes. Implementer difficulty S/M
+(pre-drawn at spec). Sample number at merge. Row at merge.
+
+| QA-6 | 2026-08-31 | QA-6 (PR #1311; spec docs/QA-6-SPEC.md; issue 681's uncontested legs, PR 1 of 2): the measured-claim sweep over manifests, pncad-py (+docstring pass), interval-transcendentals, local-scripts and the include_str! guide files — every claim Q6-bucketed AT the site, the instrument committed with its variants and blind spots, per-leg tallies with a found-by-reading column | M/L (pre-draw) | OPUS (block QA-B3 slot 1) | **DUAL (ordinal 804; sample #58 at merge; parity byte 72 ⇒ R1 OPUS + R2 FABLE, concurrent, separate checkouts, frozen `91364029`; v5 instrument).** R1 unique + UNILATERAL MAJOR, the charter applied to the unit's own diff: a landed written reason called the LIVE nightly opt-level register "a dated write-up" — Q6's own check-for-a-register clause skipped in the one leg where it mattered (the register re-takes exactly that block's subject). R2 unique: the leg-4 tally's irreproducibility DIAGNOSED (a head count including the committed instrument's own docstring, against the body's at-the-base promise) and the one real undisclosed find (a usage-heredoc default drifted 150-vs-200). Bilateral: the instrument minting its own undated numbers; the variant blind spots living only in the PR body; the qa/9 deferral's premise expiring mid-review. TALLY CANDIDATE: R1's unilateral MAJOR (record/derivation class) | fix pass: all nine union items, no declines — and it found a SECOND instance of the MAJOR's class itself (the criterion nightly register re-takes benches' assertions-OFF column; both leg tables corrected); the heredoc default made mechanically undriftable (usage prints the variable); the 19% guide figure proven DERIVED, not measured; the four with-build-slot dispositions taken post-merge of qa/9; the per-register enumeration now names per-row which figures refresh where | impl CI 33342101339 GREEN all 21 (interval/1e-12 drawn); fix CI 33343918618 20 green + ONE RED on the drawn k-lint probe row — established not this PR's (zero Rust/workflow/scripts in the diff; the row's panic is issues 1296/1304, pre-existing on main, M10-3's ground) and deliberately NOT re-rolled: a re-push re-draws the row and launders a known red into a green by changing the SHA. Merged citing the issues per the pre-existing-main-red pattern | impl ~226K / ~35m; fix ~326K / ~27m; R1 ~158K / ~10m; R2 ~145K / ~11m |
