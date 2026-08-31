@@ -44,7 +44,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{Axis3, Dimension, DocumentId, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
@@ -57,6 +57,7 @@ use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
+use crate::parts::PartChooser;
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
@@ -420,6 +421,10 @@ pub struct ViewerApp {
     /// The modal revolve tool, when active — the same shape as the
     /// mate tool, holding node picks instead of face picks.
     revolve_tool: Option<RevolveTool>,
+    /// The `Add part…` chooser, when open. `None` is "no chooser"; the
+    /// scanned catalogue it is showing lives inside it, taken once when
+    /// it opened.
+    part_chooser: Option<PartChooser>,
     camera: Camera,
     input: InputMap,
     /// The palette in force — a USER preference, held in the
@@ -644,6 +649,7 @@ impl ViewerApp {
             budget_delta: None,
             mate_tool: None,
             revolve_tool: None,
+            part_chooser: None,
             camera,
             input,
             theme,
@@ -1203,6 +1209,7 @@ impl eframe::App for ViewerApp {
                 display: &display,
                 mate_tool: &mut self.mate_tool,
                 revolve_tool: &mut self.revolve_tool,
+                part_chooser: &mut self.part_chooser,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -1282,6 +1289,8 @@ struct ViewerBehavior<'a> {
     mate_tool: &'a mut Option<MateTool>,
     /// The modal revolve tool, if active.
     revolve_tool: &'a mut Option<RevolveTool>,
+    /// The `Add part…` chooser, if open.
+    part_chooser: &'a mut Option<PartChooser>,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -1501,6 +1510,19 @@ impl ViewerBehavior<'_> {
         // rule — lives in `pick::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
+        // **An open tool narrows the priority rule, it does not
+        // re-decide it.** The mate tool takes faces, and on a real
+        // part whole faces sit within the edge radius of their own
+        // boundary — a narrow shelf, a small hole's wall — so with
+        // edges always winning those faces were unpickable for as long
+        // as the tool was open. The narrowing travels through
+        // `hovered_for`, the one door that answers what a cursor
+        // means, so the tool cannot end up on a different rule.
+        let kinds = if self.mate_tool.is_some() {
+            pick::PickKinds::FacesOnly
+        } else {
+            pick::PickKinds::Any
+        };
         if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
             for action in actions {
                 // A hover over an unchanged picture at an unmoved
@@ -1510,7 +1532,7 @@ impl ViewerBehavior<'_> {
                 if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
                     continue;
                 }
-                match index.op_under(eval, self.camera, viewport, action, self.display) {
+                match index.op_under(eval, self.camera, viewport, action, self.display, kinds) {
                     // A hover that changes nothing is not queued: an
                     // operation per frame that performs no transition
                     // is churn in the one log a test reads.
@@ -1526,6 +1548,19 @@ impl ViewerBehavior<'_> {
         let highlight = self
             .index
             .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+        // The edge half of the same question, and the same discipline:
+        // recomputed every frame from state that lives in one place.
+        let edges = self
+            .index
+            .map(|index| {
+                pick::edge_overlay(
+                    index,
+                    self.display,
+                    self.session.selection(),
+                    self.session.hover(),
+                )
+            })
+            .unwrap_or_default();
 
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
@@ -1539,12 +1574,34 @@ impl ViewerBehavior<'_> {
         // disagreement` says why ids are the wrong currency, and
         // records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
+        //
+        // **The ray side of this comparison is the FACE under the
+        // cursor, not the hover.** An id buffer can answer with a
+        // patch and nothing else, so the question both sides must
+        // answer is "which patch is here"; the hover answers a
+        // different one as soon as the priority rule picks an edge,
+        // and feeding it would report a disagreement between two
+        // questions on every frame the cursor came within
+        // `EDGE_PICK_RADIUS_PX` of an edge. So the face is re-derived
+        // through `face_under_cursor`, and only where there is a fresh
+        // answer waiting for it — `disagreement` still owns the
+        // freshness rule, this only declines to do the work when no
+        // question is outstanding at all.
+        let outstanding = self.id_log.outstanding();
+        let from_ray = outstanding.and_then(|_| {
+            let index = self.index?;
+            let eval = self.session.evaluation()?;
+            index
+                .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                .ok()
+                .flatten()
+        });
         if let Some(report) = self.index.and_then(|index| {
             frame::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
-                self.id_log.outstanding(),
-                self.session.hover().map(|face| &face.name),
+                outstanding,
+                from_ray.as_ref().map(|face| &face.name),
             )
         }) {
             *self.status = Some(report.to_string());
@@ -1571,6 +1628,7 @@ impl ViewerBehavior<'_> {
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
                 highlight: highlight.unwrap_or_default(),
+                edges,
                 id_query,
             },
         ));
@@ -1654,6 +1712,7 @@ impl ViewerBehavior<'_> {
         ui.separator();
         self.mate_tool_ui(ui);
         self.create_ui(ui);
+        self.add_part_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
@@ -1672,18 +1731,25 @@ impl ViewerBehavior<'_> {
                     self.slot_group_ui(ui, node, group);
                 }
             }
-            Selection::Face(face) => {
-                // Slot rows for the feature that MADE the face — the
-                // node `slot_groups` itself answered for, so the rows
-                // shown and the node an edit lands on are one answer.
-                // A face pick is a way of reaching that feature, which
-                // is what G3's click-to-select is for.
+            // Slot rows for the feature that MADE the picked entity —
+            // the node `slot_groups` itself answered for, so the rows
+            // shown and the node an edit lands on are one answer. A
+            // pick is a way of reaching that feature, which is what
+            // G3's click-to-select is for, and an edge reaches it the
+            // same way a face does.
+            Selection::Face(_) | Selection::Edge(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
-                for group in &groups {
-                    self.slot_group_ui(ui, face.feature(), group);
+                // `Selection::node()` is the one inversion — always
+                // `Some` on these two arms, and read rather than
+                // re-derived so the rows and the edits land on the
+                // node `slot_groups` answered for.
+                if let Some(feature) = self.session.selection().node() {
+                    for group in &groups {
+                        self.slot_group_ui(ui, feature, group);
+                    }
                 }
             }
             Selection::Param(name) => {
@@ -1853,45 +1919,75 @@ impl ViewerBehavior<'_> {
                 }
             }
             Standing::Face { face, resolution } => {
-                ui.horizontal(|ui| {
-                    // Always a face: edge and vertex picking is out
-                    // of scope for v1 selection, so the kind is not a
-                    // variable to render.
-                    // The feature that MADE the face, so the button
-                    // deletes what the label names.
-                    let feature = face.feature();
-                    ui.label(format!("face of feature {}", feature.0));
-                    if standing.live() && delete_button(ui, self.session, feature) {
-                        self.ops.push(SessionOp::DeleteNode { node: feature });
-                    }
-                });
-                // The typed verdict, rendered from the resolution
-                // machinery's own payload — never a sentence composed
-                // here about somebody else's refusal.
-                match resolution.as_deref() {
-                    None => {
-                        ui.weak("no evaluation yet to resolve this against");
-                    }
-                    Some(pncad::select::Resolution::Resolved(_)) => {}
-                    Some(pncad::select::Resolution::Failed(failure)) => {
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("this face is gone: {}", failure.error),
-                        );
-                        if !failure.offers.is_empty() {
-                            ui.weak(format!(
-                                "{} rebind candidate(s) offered",
-                                failure.offers.len()
-                            ));
-                        }
-                    }
-                    Some(pncad::select::Resolution::Indeterminate(cause)) => {
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("this face cannot be resolved right now: {cause:?}"),
-                        );
-                    }
+                self.entity_standing_ui(
+                    ui,
+                    "face",
+                    face.feature(),
+                    resolution.as_deref(),
+                    standing.live(),
+                );
+            }
+            Standing::Edge { edge, resolution } => {
+                self.entity_standing_ui(
+                    ui,
+                    "edge",
+                    edge.feature(),
+                    resolution.as_deref(),
+                    standing.live(),
+                );
+            }
+        }
+    }
+
+    /// A picked entity's header: which feature it belongs to, the
+    /// delete that feature offers, and the typed resolution verdict.
+    ///
+    /// **One rendering for every kind of picked entity**, taking the
+    /// noun as an argument: a face and an edge differ in what they are
+    /// called and in nothing else this panel does, and two copies of
+    /// the verdict ladder is how the two come to report a vanished
+    /// referent differently.
+    fn entity_standing_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        noun: &str,
+        feature: RecipeNodeId,
+        resolution: Option<&pncad::select::Resolution>,
+        live: bool,
+    ) {
+        ui.horizontal(|ui| {
+            // The feature that MADE the entity, so the button deletes
+            // what the label names.
+            ui.label(format!("{noun} of feature {}", feature.0));
+            if live && delete_button(ui, self.session, feature) {
+                self.ops.push(SessionOp::DeleteNode { node: feature });
+            }
+        });
+        // The typed verdict, rendered from the resolution machinery's
+        // own payload — never a sentence composed here about somebody
+        // else's refusal.
+        match resolution {
+            None => {
+                ui.weak("no evaluation yet to resolve this against");
+            }
+            Some(pncad::select::Resolution::Resolved(_)) => {}
+            Some(pncad::select::Resolution::Failed(failure)) => {
+                ui.colored_label(
+                    chrome(self.theme.unresolved),
+                    format!("this {noun} is gone: {}", failure.error),
+                );
+                if !failure.offers.is_empty() {
+                    ui.weak(format!(
+                        "{} rebind candidate(s) offered",
+                        failure.offers.len()
+                    ));
                 }
+            }
+            Some(pncad::select::Resolution::Indeterminate(cause)) => {
+                ui.colored_label(
+                    chrome(self.theme.unresolved),
+                    format!("this {noun} cannot be resolved right now: {cause:?}"),
+                );
             }
         }
     }
@@ -2326,6 +2422,123 @@ impl ViewerBehavior<'_> {
         if close {
             *self.revolve_tool = None;
         }
+    }
+
+    /// The `Add part…` door: the open document's own directory,
+    /// listed as parts, one click inserting an instance of one.
+    ///
+    /// **The listing is a snapshot the chooser holds**, not a scan per
+    /// frame: opening a workspace reads every `.pncad` header, which is
+    /// a click's worth of work and not a frame's. Rescan re-takes it.
+    ///
+    /// **A door that cannot open says so.** With no backing file there
+    /// is no directory to list, and with a directory that will not scan
+    /// (duplicate id, unreadable sibling) there is no honest list — so
+    /// the chooser opens either way and shows the typed refusal where
+    /// the list would be. That is also where a scan refusal belongs
+    /// rather than on a tree badge: no node exists yet to badge.
+    fn add_part_ui(&mut self, ui: &mut egui::Ui) {
+        if self.part_chooser.is_none() {
+            if ui
+                .button("Add part…")
+                .on_hover_text("insert an instance of another document in this one's directory")
+                .clicked()
+            {
+                // NOT part of the one-modal-tool-at-a-time rule the
+                // mate and revolve activations keep, deliberately: that
+                // rule exists because those two consume the same
+                // SELECTION stream, so a pick would fill two seats. A
+                // chooser consumes no picks — it reads a directory and
+                // emits its op from a button — so it neither closes a
+                // pick tool nor is closed by one, and a pick made while
+                // it is open lands exactly where it would have.
+                *self.part_chooser = Some(PartChooser::opened(self.session));
+            }
+            return;
+        }
+        let mut chosen: Option<DocumentId> = None;
+        let mut rescan = false;
+        let mut close = false;
+        if let Some(chooser) = self.part_chooser.as_ref() {
+            egui::Window::new("Add part")
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    match chooser.dir() {
+                        Some(dir) => ui.weak(format!("parts in {}", dir.display())),
+                        None => ui.weak("no directory"),
+                    };
+                    match chooser.offered() {
+                        // An EMPTY listing is not "no parts here": a
+                        // saved session's own file is in its own
+                        // directory, so the only way to scan clean and
+                        // find nothing is for that file to have gone
+                        // away underneath the session. Say that, since
+                        // it is also why the instances already placed
+                        // will stop resolving.
+                        Ok([]) => {
+                            ui.weak(
+                                "this directory holds no documents at all — not even the open \
+                                 document's own file, which has gone from it",
+                            );
+                        }
+                        Ok(entries) => {
+                            for entry in entries {
+                                ui.horizontal(|ui| {
+                                    // An entry that cannot be picked
+                                    // stays VISIBLE and disabled,
+                                    // carrying the op's own refusal —
+                                    // read off the entry, not minted
+                                    // here.
+                                    let refusal = entry.refusal();
+                                    let mut pick = ui.add_enabled(
+                                        refusal.is_none(),
+                                        egui::Button::new(entry.file_name()),
+                                    );
+                                    if let Some(refusal) = refusal {
+                                        pick = pick.on_disabled_hover_text(refusal.to_string());
+                                    }
+                                    if pick.clicked() {
+                                        chosen = Some(entry.id);
+                                    }
+                                    ui.weak(entry.id.to_string());
+                                });
+                            }
+                        }
+                        // The refusing layer's own sentence — the
+                        // store's or the directory rule's — never one
+                        // composed here.
+                        Err(refusal) => {
+                            ui.label(refusal.to_string());
+                        }
+                    }
+                    ui.horizontal(|ui| {
+                        if ui
+                            .button("Rescan")
+                            .on_hover_text("re-read this directory")
+                            .clicked()
+                        {
+                            rescan = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            close = true;
+                        }
+                    });
+                });
+        }
+        if let Some(id) = chosen {
+            // Exactly one committed edit, and the chooser closes with
+            // it — the mate tool's shape.
+            self.ops.push(SessionOp::AddInstance { id });
+            close = true;
+        }
+        if rescan && let Some(chooser) = self.part_chooser.as_mut() {
+            chooser.rescan(self.session);
+        }
+        if close {
+            *self.part_chooser = None;
+        }
+        ui.separator();
     }
 
     /// One PANEL ROW: a scalar slot on its own, or a 3-vector's three

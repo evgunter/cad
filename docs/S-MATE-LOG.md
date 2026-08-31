@@ -1,7 +1,7 @@
 # S-MATE log
 
 Newest entries at the bottom; the tail is the program's live status.
-Plan: `docs/S-MATE-PLAN.md`. A/B band 1200–1299
+Plan: `docs/S-MATE-PLAN.md`. A/B band 1300–1399
 (`docs/MODEL-AB-LOG.md` owns every live experiment number).
 
 ---
@@ -32,3 +32,15 @@ declared-interpenetration forward constraint recorded), Q4 RULED
 S-CERT #1191 touchpoint recorded at MATE-5); its scheduling half
 awaits confirmation. MATE-1 lane in flight (fable arm, block
 MATE-B1 slot 1, branch `mate/1-member-vocab`).
+
+**2026-08-31 — Q3 scheduling half RULED (in-chat): build now.**
+MATE-5 proceeds as scoped (cylinder-first), sequenced after MATE-2
+and serialized with MATE-4 on `census.rs`.
+
+**2026-08-31 — band renumber 1200→1300 (main-is-authority).**
+While PR #1392 awaited sign-off, SEAT claimed 1000–1099 on main and
+S-MESH renumbered onto 1200–1299, reaching main via PR #1373's
+merge. No S-MATE ordinal had been claimed on main, so only the band
+moves: **S-MATE = 1300–1399**; plan, banding entry and the cut's
+graduation marker all updated in the resolving merge. MATE-1's
+review-dispatch ordinal will claim 1300.

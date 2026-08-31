@@ -54,6 +54,8 @@ mod creation_ops;
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "edge_pick.rs"]
+mod edge_pick;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]
@@ -64,6 +66,8 @@ mod focus_highlight;
 mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
+#[path = "instance_authoring.rs"]
+mod instance_authoring;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "panel_display.rs"]

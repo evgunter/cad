@@ -67,11 +67,28 @@ impl DirResolver {
     pub fn dir(&self) -> &Path {
         &self.dir
     }
+
+    /// **The store, opened.** Every read of the session's directory
+    /// goes through here — resolution below, and the authoring doors
+    /// that list it or mint a pin from it — so the directory rule owns
+    /// store access rather than merely describing it, and no second
+    /// route can come to consult a different directory.
+    ///
+    /// The scan happens per call, which is the scan-at-resolution
+    /// posture above: this type holds a path, never a cached store.
+    ///
+    /// # Errors
+    ///
+    /// The scan's own refusal — [`pncad::workspace::WorkspaceError::Io`],
+    /// `Header`, `DuplicateId` — which every caller surfaces verbatim.
+    pub fn workspace(&self) -> Result<Workspace, pncad::workspace::WorkspaceError> {
+        Workspace::open(&self.dir)
+    }
 }
 
 impl PartResolver for DirResolver {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let workspace = Workspace::open(&self.dir).map_err(|error| ResolveFailure {
+        let workspace = self.workspace().map_err(|error| ResolveFailure {
             // The scan's refusal is the store's, verbatim; the fault
             // classification is `Unresolved` because the reference
             // itself was never reached.

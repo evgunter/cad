@@ -15,7 +15,9 @@ Branch prefix (the #396 convention): **`mate/`** — unit branches
 `mate/<unit>-<slug>`, orchestrator branch `mate/orchestrator` (this
 opening rides the harness-assigned session branch; program branches
 follow the prefix from the first unit). Away-channel tag
-`(S-MATE orchestrator)`. A/B ordinal band **S-MATE = 1200–1299**,
+`(S-MATE orchestrator)`. A/B ordinal band **S-MATE = 1300–1399**
+(opened claiming 1200; renumbered per the main-is-authority
+tiebreak when S-MESH's 1200–1299 reached main first),
 claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this same PR;
 implementer blocks are named `MATE-B1, …` (unit names occupy
 `MATE-<n>`). Live state is `docs/S-MATE-LOG.md`'s tail, never this
@@ -172,7 +174,7 @@ pre-logged here per the protocol (pre-draw).
   gate-skips are the ratified anchor) — (b)'s vocabulary must not
   foreclose a declared-interpenetration class.
 - **MATE-5 — #943's curved residue, the certified-ε overlap
-  enclosure rung (L; scheduling awaits Q3's confirmation;
+  enclosure rung (L; RULED — Q3: build now;
   serialized with MATE-4 on `census.rs`; sequenced after MATE-2,
   whose measurement says which door a shaft-in-bore pair meets
   first).** Door 1 stays exact/certified; Door 2 gains the
@@ -243,11 +245,11 @@ pre-logged here per the protocol (pre-draw).
    conversation: interpenetration may eventually be legal WHEN
    EXPLICITLY DECLARED (A5/C6's interference-fit gate-skips are
    the ratified anchor) — (b)'s vocabulary must not foreclose it.
-3. **Q3 — #943's curved residue: dependency half ANSWERED
-   (no M10 dependency; the S-CERT #1191 touchpoint is recorded at
-   MATE-5). Scheduling half OPEN**: the recommendation stands —
-   build in this program, cylinder-first, #1032's shaft-in-bore
-   class as the named demand — awaiting Evan's confirmation.
+3. **Q3 — #943's curved residue: RULED (both halves).** No M10
+   dependency (the S-CERT #1191 touchpoint is recorded at MATE-5),
+   and the scheduling half confirmed in-chat: build in this
+   program, cylinder-first, #1032's shaft-in-bore class as the
+   named demand. MATE-5 proceeds as scoped.
 4. **Q4 — #968: RULED, scheduled.** This program's opening
    satisfies the #966 ruling's recorded-pickup condition; MATE-7
    is last on the slate and its torus×torus tangency disposition
@@ -260,7 +262,7 @@ As S-MESH/S-BOOL's, verbatim in substance (`docs/S-MESH-PLAN.md`
 the cross-model dual review + union fix pass; arms drawn per the
 current block rule in `docs/MODEL-AB-LOG.md` (read on main at each
 dispatch); ordinals claimed on main at review dispatch from band
-1200–1299; record-at-merge with per-phase tokens/wall; blinding
+1300–1399; record-at-merge with per-phase tokens/wall; blinding
 discipline verbatim. Hosted CI is the only gate; every new row
 ε-three-outcome honest; the #1356 ε-trailer practice from the first
 dispatch. Implementer dispatches point at

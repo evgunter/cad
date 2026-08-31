@@ -35,21 +35,24 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, EditError, EvalOptions, Evaluation, Expr, Frame, LoopProgram, Node,
-    ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, apply,
-    assemble, cascade_delete_order, evaluate, parse_expr, product, run_checks,
+    DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame,
+    LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate, parse_expr, product,
+    run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
 use pncad::profile::SketchPlane;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
+use pncad::workspace::WorkspaceError;
 
 use crate::bounds;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
+use crate::parts;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -104,6 +107,102 @@ impl FaceSelection {
     }
 }
 
+/// A picked edge: the stable name it is, and the node whose body
+/// carried it when it was picked.
+///
+/// The face selection's twin, field for field, and deliberately a
+/// DISTINCT type rather than a kind tag on one struct: the consumers
+/// differ in what they accept — a blend selects edges, a mate selects
+/// faces — so a value that could be either defers a refusal to run
+/// time for no gain. The name is still the selection and no arena key
+/// appears, which is all G1 asks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeSelection {
+    /// The picked edge's stable name — what survives re-evaluation.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+}
+
+impl EdgeSelection {
+    /// **The feature this edge is**: the node whose operation minted
+    /// the entity the name denotes — [`FaceSelection::feature`]'s
+    /// argument, unchanged. An edge carried through a later boolean is
+    /// still the edge the earlier feature made.
+    pub fn feature(&self) -> RecipeNodeId {
+        attribute(&self.name).minted_by().unwrap_or(self.node)
+    }
+}
+
+/// What the cursor is over — the one transient pick, whichever kind of
+/// entity it landed on.
+///
+/// One value rather than a field per kind, because the cursor is over
+/// AT MOST ONE thing: two fields could both be set, and then the
+/// picture and the status line would disagree about what the pointer
+/// means.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Hovered {
+    /// A face under the cursor.
+    Face(FaceSelection),
+    /// An edge under the cursor — within
+    /// [`crate::pick::EDGE_PICK_RADIUS_PX`] of it, which is what makes
+    /// an edge reachable at all where its own face fills the pixel.
+    Edge(EdgeSelection),
+}
+
+impl Hovered {
+    /// The hovered entity's stable name.
+    pub fn name(&self) -> &StableName {
+        match self {
+            Self::Face(face) => &face.name,
+            Self::Edge(edge) => &edge.name,
+        }
+    }
+
+    /// The node whose drawn body the cursor is over.
+    pub fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node,
+            Self::Edge(edge) => edge.node,
+        }
+    }
+
+    /// The feature the hovered entity belongs to.
+    pub fn feature(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.feature(),
+            Self::Edge(edge) => edge.feature(),
+        }
+    }
+
+    /// The hovered face, when the cursor is over one.
+    pub fn face(&self) -> Option<&FaceSelection> {
+        match self {
+            Self::Face(face) => Some(face),
+            Self::Edge(_) => None,
+        }
+    }
+
+    /// The hovered edge, when the cursor is over one.
+    pub fn edge(&self) -> Option<&EdgeSelection> {
+        match self {
+            Self::Edge(edge) => Some(edge),
+            Self::Face(_) => None,
+        }
+    }
+
+    /// This hover as the selection a click on it would make.
+    pub fn selection(&self) -> Selection {
+        match self {
+            Self::Face(face) => Selection::Face(face.clone()),
+            Self::Edge(edge) => Selection::Edge(edge.clone()),
+        }
+    }
+}
+
 /// What the session has selected. A typed layer-3 value: stable
 /// names, recipe node ids and parameter names, never an arena key.
 ///
@@ -128,6 +227,9 @@ pub enum Selection {
     Param(ParamName),
     /// A face, picked in the viewport.
     Face(FaceSelection),
+    /// An edge, picked in the viewport — what a blend is authored
+    /// against.
+    Edge(EdgeSelection),
 }
 
 impl Selection {
@@ -144,6 +246,7 @@ impl Selection {
         match self {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.feature()),
+            Self::Edge(edge) => Some(edge.feature()),
             Self::None | Self::Param(_) => None,
         }
     }
@@ -152,6 +255,25 @@ impl Selection {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
+            Self::None | Self::Node(_) | Self::Param(_) | Self::Edge(_) => None,
+        }
+    }
+
+    /// The picked edge, when the selection is one.
+    pub fn edge(&self) -> Option<&EdgeSelection> {
+        match self {
+            Self::Edge(edge) => Some(edge),
+            Self::None | Self::Node(_) | Self::Param(_) | Self::Face(_) => None,
+        }
+    }
+
+    /// The selected entity's stable name, when the selection is a
+    /// picked entity — the one question the resolution check asks that
+    /// does not care which kind was picked.
+    pub fn entity_name(&self) -> Option<&StableName> {
+        match self {
+            Self::Face(face) => Some(&face.name),
+            Self::Edge(edge) => Some(&edge.name),
             Self::None | Self::Node(_) | Self::Param(_) => None,
         }
     }
@@ -201,6 +323,20 @@ pub enum Standing {
         /// returned by value on every frame.
         resolution: Option<Box<Resolution>>,
     },
+    /// An edge selection, and the resolution verdict its name got.
+    ///
+    /// The same shape as [`Standing::Face`] because it is the same
+    /// question asked of the same machinery: `resolve` takes a stable
+    /// name and does not care which kind of entity minted it, so an
+    /// edge selection survives its referent vanishing by exactly the
+    /// face arm's rule rather than by a second implementation of it.
+    Edge {
+        /// The selection.
+        edge: EdgeSelection,
+        /// What the shipped resolution machinery answered — `None`
+        /// when there is no evaluation to answer against yet.
+        resolution: Option<Box<Resolution>>,
+    },
 }
 
 impl Standing {
@@ -215,7 +351,7 @@ impl Standing {
         match self {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
-            Self::Face { resolution, .. } => {
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
                 matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
             }
         }
@@ -223,12 +359,16 @@ impl Standing {
 
     /// The typed unresolved verdict, when the selection has one.
     ///
-    /// `Some` exactly when a face selection's name failed to resolve
-    /// or the evaluation could not answer for it — the two arms that
-    /// render distinctly.
+    /// `Some` exactly when a picked entity's name failed to resolve or
+    /// the evaluation could not answer for it — the two arms that
+    /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
             Self::Face {
+                resolution: Some(resolution),
+                ..
+            }
+            | Self::Edge {
                 resolution: Some(resolution),
                 ..
             } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
@@ -343,6 +483,38 @@ pub enum Refusal {
     /// A written-unit change refused — the panel model's own typed
     /// vocabulary, unaltered.
     SlotUnit(props::SlotUnitFault),
+    /// The session has no backing file, so there is no directory for a
+    /// part reference to be picked from or to resolve against — the
+    /// directory rule's consequence at authoring time. Its recourse
+    /// rides the sentence, composed in `Display` like every other arm
+    /// here.
+    NoDocumentDirectory,
+    /// The workspace refused — the scan (duplicate id, unreadable
+    /// sibling) or the read of the part being referenced — in the
+    /// store's own words.
+    ///
+    /// Boxed for [`Refusal::Edit`]'s reason: its widest arms carry two
+    /// paths (a duplicate id names both claimants) or a path with two
+    /// pins (a mismatch names what was wanted and what was found).
+    Workspace(Box<WorkspaceError>),
+    /// The open document was asked to instantiate ITSELF.
+    ///
+    /// Refused at the door rather than left to fail later. A
+    /// self-reference pins the file's content as it stands, and what
+    /// happens next depends on what that file then does: a save moves
+    /// the content and the pin stops holding, while a pin that still
+    /// holds sends the evaluation back into the document it started
+    /// in, where the descent refuses the cycle by name. Neither
+    /// outcome is one anybody asked for. `refactor`'s split door
+    /// refuses a self-referencing identity in the same spirit, though
+    /// for its own first reason — the produced pair could not both
+    /// live in one store — with the evaluation cycle recorded beside
+    /// it.
+    SelfInstance {
+        /// The identity that is both the open document and the part
+        /// asked for.
+        id: DocumentId,
+    },
 }
 
 impl Refusal {
@@ -373,6 +545,9 @@ impl Refusal {
             | Self::Dimension(_)
             | Self::Parse(_)
             | Self::SlotUnit(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
             | Self::Io(_) => 1,
             // The two gesture-order arms rank with their document
             // twins; the substantive display refusals rank with the
@@ -444,6 +619,16 @@ impl core::fmt::Display for Refusal {
             Self::NothingToDo => write!(f, "nothing to undo or redo"),
             Self::Display(fault) => write!(f, "{fault}"),
             Self::SlotUnit(fault) => write!(f, "{fault}"),
+            Self::NoDocumentDirectory => write!(
+                f,
+                "save the document first — references resolve against the file's directory"
+            ),
+            Self::Workspace(error) => write!(f, "{error}"),
+            Self::SelfInstance { id } => write!(
+                f,
+                "document {id} is the open document — a document cannot be an instance of \
+                 itself; pick another part"
+            ),
         }
     }
 }
@@ -451,6 +636,17 @@ impl core::fmt::Display for Refusal {
 impl core::error::Error for Refusal {}
 
 impl Refusal {
+    /// **The self-instance rule and its refusal, in one place**:
+    /// `Some` exactly when `id` is the open document `open`.
+    ///
+    /// Both consumers of the rule call this — the op, which refuses,
+    /// and the catalogue, which marks the entry it cannot offer — so
+    /// the predicate has one home and the chrome's disabled reason is
+    /// the same value the click would have been answered with.
+    pub fn self_instance(open: DocumentId, id: DocumentId) -> Option<Self> {
+        (open == id).then_some(Self::SelfInstance { id })
+    }
+
     /// **The ratified affordance sentence, and its one home.**
     ///
     /// "Dragging an expression-driven dimension → refuse, with an
@@ -660,7 +856,7 @@ pub enum SessionOp {
     /// the same reason every other move here is one (G1's
     /// operations-are-API rule) — a headless test hovers by naming
     /// this op.
-    Hover(Option<FaceSelection>),
+    Hover(Option<Hovered>),
     /// Delete a recipe node **and every node downstream of it**, as
     /// one action and one undo.
     ///
@@ -821,6 +1017,14 @@ pub enum SessionOp {
     /// the file's, so a cheap rename-on-save cannot fix it without
     /// forking the document; the issue carries the design question.
     /// Save over the original, or save into a different directory.
+    ///
+    /// **A save-as MOVES the document seam**: the directory rule
+    /// follows the file, so an assembly saved into a directory that
+    /// does not hold its parts silently rebinds to that directory and
+    /// its instances refuse at the next evaluation — typed on the tree
+    /// badges, and recoverable by saving back, but nothing warns
+    /// first. Recorded with the rest of the seam's newly-reachable
+    /// edges in issue #1387.
     Save(PathBuf),
     /// Hide or show one instance (G3): a DISPLAY operation — the
     /// scene and the pick index drop a hidden instance; the document
@@ -950,6 +1154,33 @@ pub enum SessionOp {
         /// chrome's default is a full turn).
         angle: f64,
     },
+    /// Commit **exactly one** `DocEdit` inserting an instance of
+    /// another document — the assembly-authoring door, and the second
+    /// insert door after the mate tool's.
+    ///
+    /// **The pin is minted HERE, not carried in.** The op names only
+    /// which part (`id`); the version it pins is the store's content
+    /// at the moment of the commit
+    /// (`Workspace::current_pin`), so an authored reference always
+    /// starts life resolving. From then on A4's Cargo.lock semantics
+    /// hold: the pin moves by its own recorded edit and by nothing
+    /// else.
+    ///
+    /// **The directory is the open file's own** — the same one every
+    /// reference resolves against ([`crate::docio::DirResolver`]), so
+    /// a session with no backing file refuses
+    /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
+    /// reference into a store it has not got.
+    ///
+    /// No placement is authored: A11 puts placement on the cluster and
+    /// an instance carries no frame of its own, so the inserted node
+    /// is complete with its reference and an empty interface record
+    /// (an authored instance crosses no split seam). Hiding, the
+    /// free-move probe and the mate tool take it from there.
+    AddInstance {
+        /// Which document in the open document's own directory.
+        id: DocumentId,
+    },
 }
 
 /// What an operation did.
@@ -1051,7 +1282,7 @@ pub struct DocSession {
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
     /// per-widget shadow the panels' inventory discipline forbids.
-    hover: Option<FaceSelection>,
+    hover: Option<Hovered>,
     gesture: Option<Gesture>,
     scratch: Option<Doc<ProfileProgram>>,
     eval: Box<dyn EvalService>,
@@ -1260,7 +1491,7 @@ impl DocSession {
     }
 
     /// What the cursor is over, if anything.
-    pub fn hover(&self) -> Option<&FaceSelection> {
+    pub fn hover(&self) -> Option<&Hovered> {
         self.hover.as_ref()
     }
 
@@ -1286,11 +1517,21 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self
-                    .landed_pair()
-                    .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, &face.name))),
+                resolution: self.entity_resolution(&face.name),
+            },
+            Selection::Edge(edge) => Standing::Edge {
+                edge: edge.clone(),
+                resolution: self.entity_resolution(&edge.name),
             },
         }
+    }
+
+    /// One picked name's verdict against the landed run — the shipped
+    /// `resolve` door, asked once and spelled once for both entity
+    /// kinds.
+    fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
+        self.landed_pair()
+            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
     }
 
     /// The most recent evaluation that answered the current document.
@@ -1629,7 +1870,71 @@ impl DocSession {
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
+            SessionOp::AddInstance { id } => {
+                if self.gesture.is_some() {
+                    return OpOutcome::refused(Refusal::GestureInFlight);
+                }
+                self.add_instance(id)
+            }
         }
+    }
+
+    /// The documents the open document's own directory offers as
+    /// parts — the `Add part…` chooser's listing, as a value.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::NoDocumentDirectory`] for a session with no backing
+    /// file (there is no store to list), and [`Refusal::Workspace`]
+    /// carrying the scan's own refusal — which is where a duplicate id
+    /// or an unreadable sibling surfaces, at the chooser rather than
+    /// at a tree badge, since no node exists yet to badge.
+    pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
+        let resolver = self
+            .resolver
+            .as_deref()
+            .ok_or(Refusal::NoDocumentDirectory)?;
+        parts::catalogue(resolver, self.committed_doc().id())
+            .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
+    /// Insert an instance of the part `id` names, minting its
+    /// reference through the store: identity as asked for, version
+    /// from the directory's content NOW.
+    ///
+    /// The store is reached through the resolver, which is the
+    /// directory rule's home ([`DirResolver::workspace`]) — the same
+    /// object every resolution consults, so the door a reference is
+    /// authored through and the door it is later resolved through
+    /// cannot come apart.
+    ///
+    /// The pin read is a full load of the referenced file (the store's
+    /// own door), so a part that does not load refuses HERE — before a
+    /// node exists — rather than as an unresolvable instance the user
+    /// then has to delete.
+    ///
+    /// **Identity is checked before the directory**, deliberately: a
+    /// document is its own document wherever its file lives, so the
+    /// self-instance refusal is the one that survives saving, and
+    /// naming the recoverable problem first would send a user off to
+    /// save for nothing.
+    fn add_instance(&mut self, id: DocumentId) -> OpOutcome {
+        if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
+            return OpOutcome::refused(refusal);
+        }
+        let Some(resolver) = self.resolver.as_deref() else {
+            return OpOutcome::refused(Refusal::NoDocumentDirectory);
+        };
+        let pin = match resolver
+            .workspace()
+            .and_then(|ws| ws.current_pin(id, self.tol))
+        {
+            Ok(pin) => pin,
+            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+        };
+        self.commit(DocEdit::InsertNode {
+            node: Node::instantiate_part(DocRef { id, pin }),
+        })
     }
 
     /// The slot's driver and current value, or the refusal that says
