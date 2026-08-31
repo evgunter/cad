@@ -355,7 +355,10 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
             let Some(FaceContainment::OnEdge(e)) = v else {
                 panic!("on the meridian boundary at az={az}, polar={polar}: {v:?}");
             };
-            assert!(meridians.contains(&e), "az={az}: names a meridian, got {e:?}");
+            assert!(
+                meridians.contains(&e),
+                "az={az}: names a meridian, got {e:?}"
+            );
         }
     }
     // At a RIM: the rimmed ball's own latitude edge. Each band is asked
@@ -375,8 +378,8 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
                 continue; // the other band's azimuth
             }
             owned_seen += 1;
-            let v = topo::curved_face_containment(&rimmed, f, at(ch, az, rim_polar, 1.0), b)
-                .unwrap();
+            let v =
+                topo::curved_face_containment(&rimmed, f, at(ch, az, rim_polar, 1.0), b).unwrap();
             let Some(FaceContainment::OnEdge(e)) = v else {
                 panic!("on the owning band's own rim at az={az}: {v:?}");
             };
@@ -408,8 +411,7 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
             let geom::Curve3::Circle { axis: n, .. } = *c.carrier() else {
                 return None;
             };
-            ((n.dot(axis).abs() < 1e-9) == meridian)
-                .then(|| body.get_half_edge(he).unwrap().edge)
+            ((n.dot(axis).abs() < 1e-9) == meridian).then(|| body.get_half_edge(he).unwrap().edge)
         })
         .collect()
 }
@@ -587,7 +589,10 @@ fn a_meridian_edge_with_a_pole_strictly_inside_refuses_at_both_doors() {
         topo::curved_face_containment(&base, f, on, b).unwrap(),
         Some(FaceContainment::In)
     );
-    assert_eq!(point_in_solid(&base, inside, b, t).unwrap(), SolidContainment::In);
+    assert_eq!(
+        point_in_solid(&base, inside, b, t).unwrap(),
+        SolidContainment::In
+    );
 
     let mut planted = base.clone();
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
@@ -761,7 +766,9 @@ fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_fac
     let mut planted = rimmed_ball(1.0, Revolution::Full);
     let seam = seam_meridian(&planted, sphere_faces(&planted)[0]).0;
     let he = planted.get_edge(seam).unwrap().he_plus;
-    planted.kef(he).expect("the two half-bands merge into one face");
+    planted
+        .kef(he)
+        .expect("the two half-bands merge into one face");
     let faces = sphere_faces(&planted);
     assert_eq!(faces.len(), 1, "one sphere face spanning the whole period");
     let (f, ch) = (faces[0], chart(&planted, faces[0]));
@@ -795,7 +802,9 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
     let f = sphere_faces(&planted)[0];
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
-    planted.kfmrh(f, disc).expect("the disc's loop re-homes as a ring");
+    planted
+        .kfmrh(f, disc)
+        .expect("the disc's loop re-homes as a ring");
     assert_eq!(planted.get_face(f).unwrap().rings.len(), 1);
     assert_eq!(
         topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
