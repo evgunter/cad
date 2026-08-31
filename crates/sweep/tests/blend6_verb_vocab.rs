@@ -238,6 +238,184 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     assert_speaks_as_the_chamfer(&corner, "corner-config");
 }
 
+/// **Followability, per verb (the issue-1278 rule)**: a recourse is a
+/// claim about a SECOND request, so the pin executes that second
+/// request as the same verb and asserts the promised outcome.
+///
+/// - clearance: "reduce the blend size" — the chamfer that refused at
+///   0.55 m builds at 0.1 m;
+/// - corner/run-out: "blend a chain that terminates in a
+///   three-convex-edge vertex" — on a cube that is the request whose
+///   every corner is fully requested, and it builds;
+/// - tangential: "blend an edge whose supports meet at a definite
+///   angle" — the cube's edges are such edges, and they build.
+#[test]
+fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
+    let body = cube(L, Tol::witness());
+    let edges = all_edges(&body);
+    let t = Tol::witness();
+
+    let refused = chamfer_edges(&body, &edges, 0.55, band(), t)
+        .expect_err("two 0.55 m setbacks do not fit a 1 m face");
+    assert!(matches!(
+        refused.error,
+        FilletError::FaceClearanceUncertified { .. }
+    ));
+    assert!(
+        chamfer_edges(&body, &edges, D, band(), t).is_ok(),
+        "the reduced blend size the recourse names must build"
+    );
+
+    let run_out = chamfer_edges(&body, &edges[..1], D, band(), t)
+        .expect_err("a partially-requested corner is a run-out");
+    assert!(matches!(
+        run_out.error,
+        FilletError::UnsupportedRunOut { .. }
+    ));
+    assert!(
+        chamfer_edges(&body, &edges, D, band(), t).is_ok(),
+        "the fully-requested-corner request the recourse names must build"
+    );
+}
+
+/// **The shared TANGENTIAL arm is chamfer-reachable, and speaks as the
+/// chamfer**: the dihedral sign is metered during link RESOLUTION,
+/// before the arm table, so a co-surface seam meridian (one sphere on
+/// both sides, sine exactly zero) refuses `TangentialEdge` through
+/// `chamfer_edges` too — not the arm-table refusal.
+#[test]
+fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
+    let ball = sweep::test_support::revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
+            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+        ],
+        sweep::Revolution::Full,
+        Tol::witness(),
+    );
+    let seam = ball
+        .edges()
+        .map(|(k, _)| k)
+        .find(|k| both_sides_spheres(&ball, *k))
+        .expect("a full ball carries a co-surface seam meridian");
+    let err = chamfer_edges(&ball, &[seam], 0.05, band(), Tol::witness())
+        .expect_err("a co-surface seam has no definite wedge side");
+    match err.error {
+        FilletError::TangentialEdge { margin, .. } => {
+            assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
+        }
+        ref other => panic!("expected the shared tangential arm, got {other:?}"),
+    }
+    assert_speaks_as_the_chamfer(&err, "tangential");
+}
+
+/// **The shared BODY frontier under the chamfer's verb**: two disjoint
+/// cubes in one body are valid input the in-place surgery has not been
+/// built for, whichever verb asks.
+#[test]
+fn a_chamfer_on_a_two_solid_body_refuses_the_body_frontier_as_the_chamfer() {
+    let mut body = cube(L, Tol::witness());
+    let other = cube(L, Tol::witness());
+    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
+        .expect("a disjoint graft");
+    let edges = all_edges(&body);
+    let err = chamfer_edges(&body, &edges[..1], D, band(), Tol::witness())
+        .expect_err("the in-place surgery is built for one solid");
+    assert!(
+        matches!(err.error, FilletError::UnsupportedBody { solids, .. } if solids == 2),
+        "the body frontier carries the solid count: {err:?}"
+    );
+    assert_speaks_as_the_chamfer(&err, "two-solid-body");
+}
+
+/// **An ESCALATED margin under the chamfer's verb**: a setback whose
+/// clearance margin lands inside the band escalates through the
+/// funnel, and the message — which names the `fillet3_*` predicate,
+/// a roster name both verbs meter under — still opens as the chamfer.
+#[test]
+fn a_chamfer_escalation_speaks_as_the_chamfer() {
+    let body = cube(L, Tol::witness());
+    let edges = all_edges(&body);
+    let eps = Tol::witness().get().eps;
+    // gap 1.0, two setbacks: margin = 1.0 − 2d = 5·eps, inside the band.
+    let d = 0.5 - 2.5 * eps;
+    let err = chamfer_edges(&body, &edges, d, band(), Tol::witness())
+        .expect_err("an in-band clearance margin escalates");
+    match err.error {
+        FilletError::Escalated { ref source, .. } => {
+            assert_eq!(source.predicate, Some("fillet3_face_clearance"));
+        }
+        ref other => panic!("expected the clearance escalation, got {other:?}"),
+    }
+    assert_speaks_as_the_chamfer(&err, "escalated");
+}
+
+/// **The seam-vertex tag is battery-shadowed for the chamfer on the
+/// rim family** (the measured half of the seam recourse's per-verb
+/// disposition): a seam-split rim's arcs are plane–sphere, and a
+/// chamfer request on one refuses at the ARM TABLE during resolution
+/// — before predicate 6 could ever classify the seam vertex. So the
+/// seam recourse's carve promise, which names the fillet's closed-rim
+/// band, is read by fillet callers alone on these fixtures.
+#[test]
+fn a_chamfer_on_a_seam_split_rim_arc_refuses_at_the_arm_table_not_the_seam_vertex() {
+    let body = sweep::test_support::lantern(Tol::witness());
+    let arc = body
+        .edges()
+        .map(|(k, _)| k)
+        .find(|k| plane_sphere_sides(&body, *k))
+        .expect("the lantern carries plane–sphere mouth arcs");
+    let err = chamfer_edges(&body, &[arc], 0.02, band(), Tol::witness())
+        .expect_err("a plane–sphere arc has no ruled strip");
+    assert!(
+        matches!(err.error, FilletError::ChamferArmUnsupported { .. }),
+        "the arm table shadows the seam-vertex classification: {err:?}"
+    );
+    assert_speaks_as_the_chamfer(&err, "seam-rim-arc");
+}
+
+/// Both of `edge`'s supports are spheres (a co-surface seam meridian
+/// candidate), and the edge is open.
+fn both_sides_spheres(body: &Body<f64>, edge: EdgeKey) -> bool {
+    match edge_surfaces(body, edge) {
+        Some((a, b)) => {
+            matches!(a, geom::Surface::Sphere { .. }) && matches!(b, geom::Surface::Sphere { .. })
+        }
+        None => false,
+    }
+}
+
+/// One plane and one sphere support: the rim-arc family.
+fn plane_sphere_sides(body: &Body<f64>, edge: EdgeKey) -> bool {
+    match edge_surfaces(body, edge) {
+        Some((a, b)) => {
+            (matches!(a, geom::Surface::Plane { .. }) && matches!(b, geom::Surface::Sphere { .. }))
+                || (matches!(a, geom::Surface::Sphere { .. })
+                    && matches!(b, geom::Surface::Plane { .. }))
+        }
+        None => false,
+    }
+}
+
+/// The two stored support surfaces of an OPEN edge, by structural
+/// reads only.
+fn edge_surfaces(
+    body: &Body<f64>,
+    edge: EdgeKey,
+) -> Option<(geom::Surface<f64>, geom::Surface<f64>)> {
+    let e = body.get_edge(edge)?;
+    let start = body.get_half_edge(e.he_plus)?.start;
+    if Some(start) == body.half_edge_end(e.he_plus) {
+        return None; // closed rim, not the open-arc family
+    }
+    let face_of = |he: topo::HalfEdgeKey| -> Option<geom::Surface<f64>> {
+        let l = body.get_half_edge(he)?.parent_loop;
+        let f = body.get_loop(l)?.face;
+        body.get_surface(body.get_face(f)?.surface).cloned()
+    };
+    Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
+}
+
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
 /// reflex profile corner becomes the body's one concave edge.
 fn l_bracket() -> Body<f64> {
