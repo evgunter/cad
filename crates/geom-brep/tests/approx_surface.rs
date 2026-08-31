@@ -179,23 +179,39 @@ fn a_degenerate_request_refuses_typed() {
     }
 }
 
-/// The `RationalFitUnsupported` refusal is never bypassed: the
-/// certification door refuses a rational fit, and the storage door is
-/// built on that door, so no rational fit can reach an
-/// `ApproxSurface`.
+/// A RATIONAL fit reaches the certification door and is bounded as
+/// the surface it is — the capability a consumer that fits an offset
+/// some other way, or stores a rational `ApproxSurface`, needs to
+/// re-derive its certificate.
+///
+/// The fixture is the sharpest case available: the offset of an exact
+/// rational quarter cylinder at `d` IS the exact rational quarter
+/// cylinder of radius `r + d`, sharing knots and weights. So `‖E‖`
+/// equals `|d|` identically, `X ≡ 0`, and a door that reads the fit's
+/// weights certifies it at essentially the ring's own noise. A door
+/// that read the net flat could not certify it at all.
 #[test]
-fn a_rational_fit_never_reaches_the_stored_surface() {
-    // `fit_offset` never mints a rational fit, so the refusal is
-    // exercised through `certify_offset` — the door the storage layer
-    // calls. What this row pins is that the storage door has no path
-    // that skips it.
+fn a_rational_fit_is_certified_as_the_surface_it_is() {
     let base = quarter_cylinder(1.0, 1.0);
-    let rational_fit = quarter_cylinder(1.2, 1.0);
-    let e = certify_offset(&base, &rational_fit, 0.2, 1e-3, band())
-        .expect_err("a rational fit cannot be certified by the hull limb");
+    let exact_offset = quarter_cylinder(1.2, 1.0);
+    let cert = certify_offset(&base, &exact_offset, 0.2, 1e-3, band())
+        .expect("the exact rational offset is a fit the hull limb can bound");
+    let mut worst = 0.0f64;
+    for i in 0..=20 {
+        for j in 0..=20 {
+            let (u, v) = (f64::from(i) / 20.0, f64::from(j) / 20.0);
+            let target = offset_point(&base, 0.2, u, v).unwrap();
+            worst = worst.max((exact_offset.eval(u, v) - target).norm());
+        }
+    }
     assert!(
-        matches!(e, OffsetFitError::RationalFitUnsupported { .. }),
-        "got {e}"
+        cert.hull_sup >= worst,
+        "hull_sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+    eprintln!(
+        "exact rational offset: hull_sup={:.3e} sampled={worst:.3e} cells={}",
+        cert.hull_sup, cert.cells
     );
     // And the storage door's own fits are non-rational, so it mints.
     let s = approx_offset_surface(Arc::new(base), 0.2, 1e-4, band()).unwrap();

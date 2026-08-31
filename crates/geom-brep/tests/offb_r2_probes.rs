@@ -12,12 +12,12 @@
 //!   patch, and both `d` signs.
 //! - **P3 — extreme `d`**: just inside the certified collapse reach.
 //! - **P4 — `certify_offset` and the fitted surface's weights.** The
-//!   composite reads the fit's control net as a POLYNOMIAL
-//!   (`channel(fit, c, false)`), i.e. it ignores `fit.weights()`
-//!   entirely, while limb 1 evaluates the fit through `eval` and DOES
-//!   respect them. `certify_offset` is a public door that takes the
-//!   fit as an argument, so this row asks what the certificate says
-//!   about a rational fit.
+//!   composite reads the fit's net HOMOGENEOUSLY, so both limbs
+//!   describe the same surface: limb 1 evaluates the fit through
+//!   `eval`, limb 2 bounds `w̃ = w_base·w_fit` times the residual.
+//!   `certify_offset` is a public door that takes the fit as an
+//!   argument, so this row asks what the certificate says about a
+//!   rational fit.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // `!(x > y)` is the kernel's NaN-catching idiom (a NaN makes the
@@ -401,8 +401,8 @@ fn p6b_a_near_degenerate_chart_passes_the_floor_at_large_d_and_fails_at_small_d(
 // ---------------------------------------------------------------------
 
 /// `certify_offset` is a public door taking the fit as an argument.
-/// Limb 2's composite reads the fit's control net as a POLYNOMIAL and
-/// never looks at `fit.weights()`; limb 1 evaluates the fit and does.
+/// Both limbs describe the SAME surface: limb 1 evaluates the fit,
+/// limb 2's composite carries the fit's weights homogeneously.
 ///
 /// This row hands the door a fit whose weights are non-unit and asks
 /// what comes back. It goes RED if a certificate is issued whose
@@ -438,27 +438,20 @@ fn p4_certify_offset_on_a_rational_fit() {
     // A tolerance ABOVE the true residual: limb 1 cannot refuse, so
     // whatever limb 2 reports is what certifies.
     let tol = worst * 4.0;
-    // AMENDED at adoption: this row was written to accept EITHER a
-    // refusal or a containing certificate, and it went red — the door
-    // issued a certificate whose hull_sup under-reported the handed-in
-    // surface's residual by ~1800x. The fix makes the refusal the only
-    // sound answer, so the row now pins it by name rather than
-    // tolerating the accept branch.
-    match certify_offset(&base, &rational_fit, d, tol, band()) {
-        Err(OffsetFitError::RationalFitUnsupported { non_unit_weights }) => {
-            assert!(non_unit_weights > 0);
-            eprintln!(
-                "P4: refused typed on {non_unit_weights} non-unit weights \
-                 (the surface's true sampled residual is {worst:.3e})"
-            );
-        }
-        other => panic!(
-            "P4: certify_offset did not refuse a rational fit — limb 2 reads the \
-             fitted net unweighted, so anything but a typed refusal certifies a \
-             DIFFERENT surface than the one handed in (true residual {worst}): \
-             {other:?}"
-        ),
-    }
+    let cert = certify_offset(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
+        panic!("P4: certify_offset refused a rational fit it can now bound (residual {worst}): {e}")
+    });
+    assert!(
+        cert.hull_sup >= worst,
+        "P4: limb 2 certified a DIFFERENT surface than the one handed in — hull_sup \
+         {} under-reports the supplied surface's sampled residual {worst}",
+        cert.hull_sup
+    );
+    eprintln!(
+        "P4: rational fit certified, hull_sup={:.3e} sampled={worst:.3e} (ratio {:.1}x)",
+        cert.hull_sup,
+        cert.hull_sup / worst
+    );
 }
 
 /// A quarter cylinder, exact (the shipped suite's fixture, re-spelled

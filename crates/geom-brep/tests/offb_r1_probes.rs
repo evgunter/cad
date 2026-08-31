@@ -4,12 +4,11 @@
 //!
 //! What these rows push on, beyond the shipped suite:
 //!
-//! - **`certify_offset` on a RATIONAL fit**: the composite's fitted
-//!   net is read unweighted (`channel(fit, c, false)`), so a fit with
-//!   non-unit weights is polynomialized as the WRONG surface. The row
-//!   asserts the sound direction (a returned certificate's `hull_sup`
-//!   contains a dense sample's max, or the door refuses) — it goes
-//!   red if the hull limb under-reports on an accepted input.
+//! - **`certify_offset` on a RATIONAL fit**: the composite reads the
+//!   fitted net homogeneously, so a fit with non-unit weights is
+//!   bounded as the surface it is. The row asserts the sound
+//!   direction — a returned certificate's `hull_sup` contains a dense
+//!   sample's max — and goes red if the hull limb under-reports.
 //! - **The sign witness**: a fit built for `−d` certified against
 //!   `+d` must refuse, never report a finite wrong bound.
 //! - **A tangentially slid fit**: pushes the `τ` limb of the
@@ -108,11 +107,12 @@ fn sampled_residual(base: &NurbsSurface<f64>, candidate: &NurbsSurface<f64>, d: 
 }
 
 /// `certify_offset` accepts an externally supplied fit with ANY
-/// weights, but the hull limb reads the fitted net unweighted. The
-/// sound behaviours are: refuse, or return a certificate whose
-/// `hull_sup` contains a dense sample's max. Anything else is a
-/// finite wrong bound — the one failure the module promises never to
-/// produce.
+/// weights, and the hull limb reads the fitted net HOMOGENEOUSLY —
+/// the composite is homogeneous in `w̃ = w_base·w_fit`, so the surface
+/// it bounds is the one that was handed in. The row asserts
+/// containment: the certificate's `hull_sup` is at or above a dense
+/// sample's max on the supplied surface. A finite bound below it is
+/// the one failure the module promises never to produce.
 #[test]
 fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
@@ -132,23 +132,28 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     .unwrap();
     let true_residual = sampled_residual(&base, &warped, d);
     // A tolerance the warped surface's on-locus samples clear, so the
-    // hull limb is the deciding one.
-    let tol = true_residual * 2.0;
-    // AMENDED at adoption: written to accept a refusal OR a
-    // containing certificate, this row went red — the accepted
-    // certificate's hull limb under-reported by ~230x. The fix makes
-    // the typed refusal the only answer, so the row pins it by name.
-    match certify_offset(&base, &warped, d, tol, band()) {
-        Err(OffsetFitError::RationalFitUnsupported { non_unit_weights }) => {
-            assert_eq!(non_unit_weights, 1, "one weight was perturbed");
-            eprintln!("rational fit refused typed (true residual {true_residual:.3e})");
-        }
-        other => panic!(
-            "certify_offset did not refuse a rational fit: the hull limb reads the \
-             fitted net unweighted, so any certificate here describes a different \
-             surface than the one supplied (true residual {true_residual}): {other:?}"
-        ),
-    }
+    // hull limb is the deciding one — and above the bound that limb
+    // reaches on this fixture (measured at 2.49x the sampled max), so
+    // what the row pins is the CERTIFICATE, not a limb refusal.
+    let tol = true_residual * 4.0;
+    let cert = certify_offset(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
+        panic!(
+            "certify_offset refused a rational fit it can now bound \
+             (true residual {true_residual}): {e}"
+        )
+    });
+    assert!(
+        cert.hull_sup >= true_residual,
+        "the hull limb UNDER-reports the supplied surface's residual: \
+         hull_sup {} < sampled {true_residual}",
+        cert.hull_sup
+    );
+    eprintln!(
+        "R1: rational fit certified, hull_sup={:.3e} sampled={true_residual:.3e} \
+         (ratio {:.1}x)",
+        cert.hull_sup,
+        cert.hull_sup / true_residual
+    );
 }
 
 /// A fit built for `−d`, certified against `+d`: `E·n` carries the

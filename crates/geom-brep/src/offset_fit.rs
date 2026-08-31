@@ -84,15 +84,21 @@
 //! `sign(E·n) = sign(E·m)` and `E·m` is one of the polynomials below).
 //!
 //! Both ingredients are quotients of **polynomials whose coefficients
-//! cancel**. With the base written homogeneously as `S = A/w`:
+//! cancel**. With the base written homogeneously as `S = A/w` and the
+//! fit as `S_fit = F̃/w_fit`, everything is homogeneous in the PRODUCT
+//! `w̃ = w·w_fit` — so a rational fit is bounded as the surface it is,
+//! not as its control net read flat:
 //!
 //! ```text
-//! Ẽ = F·w − A                (F the fitted net; Ẽ = w·E)
+//! Ẽ = F̃·w − A·w_fit         (Ẽ = w̃·E)
 //! M̃ = w·(A_u × A_v) − w_v·(A_u × A) − w_u·(A × A_v)      (M̃ = w³·m)
-//! X = Ẽ·Ẽ − d²·w²           ( = w²·(‖E‖² − d²) )
-//! Y = Ẽ × M̃                 ( = w⁴·(E × m) )
-//! D = Ẽ · M̃                 ( = w⁴·(E · m) )
+//! X = Ẽ·Ẽ − d²·w̃²           ( = w̃²·(‖E‖² − d²) )
+//! Y = Ẽ × M̃                 ( = w̃·w³·(E × m) )
+//! D = Ẽ · M̃                 ( = w̃·w³·(E · m) )
 //! ```
+//!
+//! `M̃` carries the base's weight alone: `m = S_u × S_v` is the base's
+//! own, and the fit's weights do not enter it.
 //!
 //! `X` and `Y` are the cancellation: `‖E‖ ≈ |d|` and `E ∥ m` are what
 //! a good fit MEANS, so both polynomials are small — and a Bernstein
@@ -109,7 +115,7 @@
 //! [`geom_core::spline::compose::patch`].
 //!
 //! **The small-`|d|` denominator, and the limit that remains.** The
-//! normal component divides `|X|` by `w²·(‖E‖ + |d|)`. Bounding that
+//! normal component divides `|X|` by `w̃²·(‖E‖ + |d|)`. Bounding that
 //! below by `2|d|` alone is both loose and brittle: once `dist`
 //! reaches `|d|` the cell collapses to `+∞`, so a micron-scale offset
 //! on a metre-scale patch certified as `inf`. The composite therefore
@@ -126,7 +132,7 @@
 //! cell) is #1008.
 //!
 //! **Where the regularity floor enters.** `τ` and `D` both divide by
-//! `‖m‖`, and `X`'s reading divides by `w²`. The weight hull is
+//! `‖m‖`, and `X`'s reading divides by `w̃²`. Both weight hulls are
 //! positive by the rational licence; `‖m‖` is positive only because
 //! [`crate::offset_meters`]' floor says so — `‖M̃‖ ≥ floor·w³`. That
 //! is the sense in which meter 1 "makes `1/‖S_u × S_v‖` boundable",
@@ -243,25 +249,6 @@ pub enum OffsetFitError {
         /// The tolerance it had to reach.
         tolerance: f64,
     },
-    /// The fit handed in is RATIONAL, and limb 2 cannot certify it.
-    ///
-    /// The hull limb's composite reads the fitted net as a
-    /// polynomial (`Ẽ = F·w_base − A`, with `F` the fitted control
-    /// net): it never consults `fit.weights()`, so on a rational fit
-    /// it would bound a DIFFERENT surface than the one handed in —
-    /// and measurably so, by two to three orders on the reviewers'
-    /// rows. [`fit_offset`] never mints a rational fit (every fit it
-    /// returns carries unit weights), so this refusal is reachable
-    /// only through [`certify_offset`]'s public door.
-    ///
-    /// The weighted composite is SCHEDULED, not built (#1005): `Ẽ`
-    /// would become `F̃·w_base − A·w_fit` with `F̃` the fitted
-    /// homogeneous net, raising every downstream degree by the fit's
-    /// own.
-    RationalFitUnsupported {
-        /// How many of the fit's weights are not bitwise `1.0`.
-        non_unit_weights: usize,
-    },
     /// The storage door was asked to certify over a window that is not
     /// the base's own chart rectangle. The certificate this module
     /// derives covers that rectangle and nothing narrower, so a
@@ -339,14 +326,6 @@ impl core::fmt::Display for OffsetFitError {
                  sup bound is {achieved} m against a tolerance of {tolerance} m; nothing \
                  uncertified is returned",
                 grid.0, grid.1, OFFSET_FIT_SAMPLE_CAP
-            ),
-            Self::RationalFitUnsupported { non_unit_weights } => write!(
-                f,
-                "fit_offset: the fitted surface handed in is rational ({non_unit_weights} \
-                 non-unit weights), and the certificate's hull limb reads a fitted net as \
-                 a POLYNOMIAL — certifying it would bound a different surface than the one \
-                 supplied. The weighted composite is scheduled, not built; fit_offset's own \
-                 fits are always non-rational, so this door refuses rather than under-report"
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
@@ -898,16 +877,20 @@ fn on_locus_cell(
 /// The polynomial parts of the residual, in per-cell Bernstein form
 /// on one merged break structure (module docs).
 struct Composite {
-    /// `X = Ẽ·Ẽ − d²·w²`.
+    /// `X = Ẽ·Ẽ − d²·w̃²`.
     x: PatchSpans,
     /// `Y = Ẽ × M̃`.
     y: [PatchSpans; 3],
     /// `D = Ẽ · M̃`, the sign witness of `E·n`.
     dd: PatchSpans,
-    /// The weight channel `w` (a positive constant `1` patch when the
-    /// base is non-rational).
+    /// The BASE's weight channel `w` (a positive constant `1` patch
+    /// when the base is non-rational). `M̃ = w³·m` is scaled by this
+    /// one alone, because `m` is the base's own.
     w: PatchSpans,
-    /// `Ẽ = w·E` itself, kept so the residual's normal component can
+    /// `w̃ = w·w_fit`, the weight `Ẽ` is homogeneous in. Equal to `w`
+    /// exactly when the fit carries unit weights.
+    wt: PatchSpans,
+    /// `Ẽ = w̃·E` itself, kept so the residual's normal component can
     /// divide by a DIRECT lower bound on `‖E‖` (module docs, "the
     /// small-`|d|` denominator") instead of by `2|d|`.
     e: [PatchSpans; 3],
@@ -979,17 +962,6 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
-        // The composite polynomializes the FITTED net (`channel(fit,
-        // c, false)`), so a rational fit would be bounded as a
-        // different surface. Refused here, at the site that cannot
-        // read the weights, rather than at the door — every path to
-        // limb 2 runs through this constructor.
-        let non_unit = fit.weights().iter().filter(|w| **w != 1.0).count();
-        if non_unit > 0 {
-            return Err(OffsetFitError::RationalFitUnsupported {
-                non_unit_weights: non_unit,
-            });
-        }
         // A degree-1 direction has no derived KNOT VECTOR (degree 0
         // is not a clamped vector), and the composite needs one to
         // decompose the derivative nets. Degree elevation is exact in
@@ -1026,13 +998,24 @@ impl Composite {
         let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[RingInterval]| {
             PatchSpans::decompose(kku, kkv, grid, &extra_u, &extra_v)
         };
-        // The fitted net (unit weights, so its spatial net IS its
-        // homogeneous net).
+        // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
+        // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
+        // IS the homogeneous one and `wf` is not formed: the identity
+        // product would widen the ring for nothing.
+        let fit_rational = is_rational(fit);
         let f: [PatchSpans; 3] = [
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 0, false)),
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 1, false)),
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 2, false)),
+            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 0, fit_rational)),
+            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 1, fit_rational)),
+            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 2, fit_rational)),
         ];
+        let wf = fit_rational.then(|| {
+            let g: Vec<RingInterval> = fit
+                .weights()
+                .iter()
+                .map(|x| RingInterval::point(*x))
+                .collect();
+            dec(fit.knots_u(), fit.knots_v(), &g)
+        });
         // The base's homogeneous nets and their first derivatives.
         let a_grid: Vec<Vec<RingInterval>> = (0..3).map(|c| channel(base, c, rational)).collect();
         let ku1 = derived_knots(ku)?;
@@ -1064,12 +1047,24 @@ impl Composite {
         } else {
             a[0].constant(RingInterval::one())
         };
-        // Ẽ = F·w − A.
+        // Ẽ = F̃·w − A·w_fit = w·w_fit·(S_fit − S). The composite is
+        // homogeneous in the PRODUCT of the two weights, which is
+        // what `wt` carries: reading a rational fit's net as a
+        // polynomial would bound a different surface than the one
+        // supplied.
+        let scaled_a = |c: usize| match &wf {
+            Some(wf) => a[c].mul(wf),
+            None => a[c].clone(),
+        };
         let e: [PatchSpans; 3] = [
-            f[0].mul(&w).sub(&a[0]),
-            f[1].mul(&w).sub(&a[1]),
-            f[2].mul(&w).sub(&a[2]),
+            f[0].mul(&w).sub(&scaled_a(0)),
+            f[1].mul(&w).sub(&scaled_a(1)),
+            f[2].mul(&w).sub(&scaled_a(2)),
         ];
+        let wt = match &wf {
+            Some(wf) => w.mul(wf),
+            None => w.clone(),
+        };
         // M̃ = w·(A_u × A_v) − w_v·(A_u × A) − w_u·(A × A_v). The last
         // two terms vanish identically for a non-rational base
         // (`w ≡ 1`), and are not formed there.
@@ -1093,7 +1088,7 @@ impl Composite {
         } else {
             auav
         };
-        let x = dot_spans(&e, &e).sub(&w.mul(&w).scale(RingInterval::point(d).sqr()));
+        let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(RingInterval::point(d).sqr()));
         let y = cross_spans(&e, &m_tilde);
         let dd = dot_spans(&e, &m_tilde);
         let (bu, bv) = x.breaks();
@@ -1103,6 +1098,7 @@ impl Composite {
             y,
             dd,
             w,
+            wt,
             e,
             breaks_u,
             breaks_v,
@@ -1134,6 +1130,14 @@ impl Composite {
         if !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
+        // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
+        // homogeneous in. Its positivity is the rational licence's on
+        // both factors, and it is proved here rather than assumed.
+        let wt = self.wt.cell_hull(su, sv);
+        let wt_lo = wt.lo();
+        if !(wt_lo > 0.0) || !wt_lo.is_finite() {
+            return f64::INFINITY;
+        }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
         // needs `E·n` to carry `d`'s sign.
@@ -1157,17 +1161,17 @@ impl Composite {
         let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_lo_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / w;
-        // | ‖E‖ − |d| | = |X| / (w²·(‖E‖ + |d|)).
+        let e_lo_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (w.sqr() * (e_lo_iv + abs_d));
-        // τ = ‖Y‖ / (w·‖M̃‖) ≤ sup‖Y‖ / (floor·w⁴), using
+        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
+        // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
         // ‖M̃‖ = w³·‖m‖ ≥ w³·floor.
         let y_sq = self.y[0].cell_hull(su, sv).mag().powi(2)
             + self.y[1].cell_hull(su, sv).mag().powi(2)
             + self.y[2].cell_hull(su, sv).mag().powi(2);
         let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
-        let tau_iv = y_mag / (RingInterval::point(floor) * w.powi(4));
+        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
         // direct bound, or `|d| − dist` when that is larger.
         let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
