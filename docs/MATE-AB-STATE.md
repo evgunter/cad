@@ -12,3 +12,7 @@ MATE-1 dispatch consumed slot 1 (FABLE) — 2026-08-31, spec
 recorded numeric M. Dual drawn at review dispatch: byte 180,
 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent on frozen 1e5cf098
 (the claim is on main). Slots 2–3 unconsumed.
+
+MATE-2 dispatch consumes slot 2 (OPUS) — 2026-08-31, difficulty M
+(pre-logged in the plan). Spec docs/MATE-2-SPEC.md on main
+(PR #1413). Slot 3 (OPUS) unconsumed.
