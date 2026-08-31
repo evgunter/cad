@@ -227,7 +227,7 @@ mod cvd {
     /// visible, and low enough that a palette has somewhere to live.
     /// The claimed theme clears it by about a quarter, which is the
     /// headroom that stops an incidental edit from flipping CI.
-    pub const MIN_SEPARATION: f64 = 0.06;
+    pub(super) const MIN_SEPARATION: f64 = 0.06;
 
     /// Every vision type the claim covers, at full severity — the
     /// worst case, and the only severity a claim can honestly be
@@ -281,7 +281,7 @@ mod cvd {
 
     /// Euclidean OKLab distance — the whole point of the space is
     /// that this is a perceptual one.
-    pub fn distance(a: Color, b: Color) -> f64 {
+    pub(super) fn distance(a: Color, b: Color) -> f64 {
         let (x, y) = (oklab(a), oklab(b));
         ((x[0] - y[0]).powi(2) + (x[1] - y[1]).powi(2) + (x[2] - y[2]).powi(2)).sqrt()
     }
@@ -311,7 +311,7 @@ mod cvd {
 
     /// The closest any two of a theme's swatches come, over every
     /// vision type and across the shading range, with the pair named.
-    pub fn worst_separation(theme: &Theme) -> (f64, String) {
+    pub(super) fn worst_separation(theme: &Theme) -> (f64, String) {
         let ambient = f64::from(theme.ambient);
         // The shading term's floor, midpoint and ceiling. Three
         // levels rather than a sweep: the term is linear in

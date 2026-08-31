@@ -291,7 +291,7 @@ const LIGHT_NEUTRAL: Theme = Theme {
 ///
 /// # What the claim cost
 ///
-/// Three of this palette's choices are consequences of the claim
+/// Four of this palette's choices are consequences of the claim
 /// rather than taste, and each gives something up:
 ///
 /// 1. **The marks separate on LIGHTNESS first.** Lightness is the one
@@ -309,7 +309,14 @@ const LIGHT_NEUTRAL: Theme = Theme {
 ///    single hue axis survives all three, so the pair had to move
 ///    apart on the ladder instead, and hue became the second signal
 ///    rather than the only one.
-/// 3. **The ambient floor is high (0.42).** A mark is discriminable
+/// 3. **The strengths are high — 0.70 and 0.78 on hover and probe.**
+///    A mark that nearly replaces the body colour would be the wrong
+///    move if it cost the shading, and it does not: the fragment
+///    shader multiplies by the shading term AFTER the mix, so facets
+///    read at any strength. What a high strength actually spends is
+///    the body colour's own contribution, and on a palette whose job
+///    is telling four states apart that is the right thing to spend.
+/// 4. **The ambient floor is high (0.42).** A mark is discriminable
 ///    in shadow only to the extent there is light there at all: every
 ///    swatch scales with the shading term, so a deep floor compresses
 ///    the whole palette toward black and the worst pair fails there
@@ -328,28 +335,28 @@ const COLORBLIND_SAFE: Theme = Theme {
     // below it for four marks to occupy.
     body: Rgba8::opaque(120, 119, 117),
     ambient: 0.42,
-    // The top of the ladder — a light amber.
+    // The top rung — a light amber.
     selected: Mark {
-        tint: Rgba8::opaque(255, 214, 90),
-        strength: 0.72,
+        tint: Rgba8::opaque(255, 221, 110),
+        strength: 0.75,
     },
-    // A step DOWN in lightness, where the neutral themes' hover is a
-    // step up. Blue against the body's neutral is the second signal;
-    // the lightness drop is the first.
+    // A deep blue, a clear step DOWN from the body where the neutral
+    // themes' hover is a step up. This is the pair the check binds
+    // on: body against hover under tritanopia, at 0.0872.
     hovered: Mark {
-        tint: Rgba8::opaque(58, 110, 205),
-        strength: 0.55,
+        tint: Rgba8::opaque(28, 66, 158),
+        strength: 0.70,
     },
-    // The darkest thing on screen. G3 asks that a probed placement be
-    // unmistakable, and under every vision type in scope what makes
-    // it so is that nothing else is this dark.
+    // The bottom rung, and the darkest thing on screen. G3 asks that
+    // a probed placement be unmistakable; under every vision type in
+    // scope, what makes it so is that nothing else is this dark.
     probe: Mark {
-        tint: Rgba8::opaque(42, 24, 60),
-        strength: 0.66,
+        tint: Rgba8::opaque(16, 10, 26),
+        strength: 0.78,
     },
-    // Pale and cool, at the lowest strength in the palette: still the
-    // quietest mark, but now a full rung below the selection rather
-    // than beside it.
+    // Pale and cool at the lowest strength in the palette: still the
+    // quietest mark, but a full rung below the selection rather than
+    // beside it.
     focus: Mark {
         tint: Rgba8::opaque(214, 224, 238),
         strength: 0.38,
