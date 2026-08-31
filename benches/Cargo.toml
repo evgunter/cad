@@ -102,10 +102,12 @@ harness = false
 # one 4-core box, and this repo REPORTS timings rather than gating them
 # (PERF-PLAN) — a suite that asserted 18.5 µs would fail on a different
 # machine and say nothing about the kernel. What the numbers justify is the
-# one-line decision below, and that decision is stable under any plausible
-# drift in them: the ratio would have to fall to ~1 before leaving
-# assertions on stopped hiding algorithmic wins. So the table is a dated
-# reason, not a live constraint — re-take it before arguing FROM it, and do
-# not restore an old figure by tuning anything here.
+# one-line decision below. What that decision takes from the table is its
+# DIRECTION — assertions cost enough on the topology-surgery rows to swamp
+# the wins §2.1 is chasing — and no threshold is derived here for a drifted
+# ratio to cross, because inventing one would be another unmeasured claim
+# in a comment about unmeasured claims. So the table is a dated reason, not
+# a live constraint: re-take it before arguing FROM it, and do not restore
+# an old figure by tuning anything here.
 [profile.bench]
 debug-assertions = false

@@ -99,12 +99,18 @@ INSTALL=1
 VERIFY=0
 # Outer stop. The merged FreeCAD job is capped at 150 min by the workflow
 # (two lanes on one runner) and the scene-inputs job at 75; queueing on top
-# of that is the slack.
+# of that is the slack. Both caps are COPIES of `render.yml`'s own
+# `timeout-minutes:` and nothing checks that they still agree — they are
+# quoted to show the arithmetic, and if they drift it is this comment that
+# is wrong, never the workflow. The default below is not a copy of
+# anything, and the usage text prints it rather than restating it: the one
+# drift this file had was exactly there, a heredoc claiming 150 while this
+# line said 200.
 POLL_BUDGET_MIN=200
 POLL_INTERVAL=20
 
 usage() {
-    cat <<'EOF'
+    cat <<EOF
 usage: local-scripts/render-hosted.sh [options]
 
   (default)                             install the render your branch's
@@ -113,11 +119,14 @@ usage: local-scripts/render-hosted.sh [options]
   --lane <kernel|freecad|uv|wild|all>   which lane(s) (default: all)
   --ref <branch|tag|sha>                which branch (default: current)
   --run <id>                            take a specific run; no new render
-  --scene-timeout <seconds>             FreeCAD per-scene budget (default: 300)
+  --scene-timeout <seconds>             FreeCAD per-scene budget (unset: the
+                                        render.yml input's own default)
   --no-install                          download to a temp dir, do not touch the tree
   --verify                              round-trip proof: assert the pulled bytes
                                         equal the committed ones (wild/uv lanes)
-  --budget-min <n>                      give up polling after n minutes (default: 150)
+  --budget-min <n>                      give up polling after n minutes
+                                        (default: $POLL_BUDGET_MIN, printed from
+                                        the variable so it cannot drift)
   -h, --help
 
 Artifacts land at their committed paths:
