@@ -93,7 +93,7 @@ use core::f64::consts::PI;
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Band, Point2, Tol, Vec2};
+use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
@@ -267,8 +267,6 @@ fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let band = Band::linear(tol).expect("the run's band");
-
     // The unfilleted twin, kept alive: every claim below is against
     // THIS body rather than against a remembered number.
     let sharp = bud(tol);
@@ -313,13 +311,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // mouth and the lip share the pucker cone. #935's seam refresh
     // serves exactly this, so the natural spelling is the one the
     // scene ships.
-    let rolled =
-        fillet_edges(&sharp, &[mouth, lip, bore_base], ROLL, tol).unwrap_or_else(|e| {
-            panic!(
-                "all three rims roll in ONE call — the shared pucker cone is served by \
+    let rolled = fillet_edges(&sharp, &[mouth, lip, bore_base], ROLL, tol).unwrap_or_else(|e| {
+        panic!(
+            "all three rims roll in ONE call — the shared pucker cone is served by \
                  the #935 seam refresh; got {e:?}"
-            )
-        });
+        )
+    });
     println!("   [budfillet] all three rims in ONE call — three bands, one request");
 
     // ---- finding 1, cross-checked: the one call IS the sequential
@@ -346,13 +343,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 .expect("finite stations")
         })
         .expect("two bore rims");
-    let sequential =
-        fillet_edges(&first.body, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
-            panic!(
-                "the lip and the bore's base share no support face, so they roll \
+    let sequential = fillet_edges(&first.body, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
+        panic!(
+            "the lip and the bore's base share no support face, so they roll \
                  TOGETHER on the mouth's result; got {e:?}"
-            )
-        });
+        )
+    });
     let one_call_volume = pncad::topo::mass_properties(&rolled.body, tol)
         .expect("the one-call bud's props")
         .volume;

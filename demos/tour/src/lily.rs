@@ -2147,12 +2147,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         6,
         "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        pncad::sweep::blend::fillet_edges(
-            lant,
-            &rim,
-            S::from_f64(0.02),
-            tol,
-        ),
+        pncad::sweep::blend::fillet_edges(lant, &rim, S::from_f64(0.02), tol),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
         |e| matches!(&e.error, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),

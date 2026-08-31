@@ -156,7 +156,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
@@ -577,8 +577,6 @@ fn pot_area(d: f64) -> f64 {
 // ---------------------------------------------------------------------
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let band = Band::linear(tol).expect("the run's band");
-
     // ---- the vessel, before the wall ----
     let bellied = revolved(vessel_meridian(tol), tol);
     assert_eq!(

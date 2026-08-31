@@ -11,7 +11,7 @@
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{
@@ -223,7 +223,6 @@ fn bore_base(body: &Body<f64>) -> EdgeKey {
 #[test]
 fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     let tol = Tol::witness();
-    let band = Band::linear(tol).expect("band");
     let sharp = bud(tol);
     let mouth = {
         let hits = rims_between(&sharp, SurfaceKind::Sphere, SurfaceKind::Cone);
@@ -248,8 +247,7 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
         assert_eq!(hits.len(), 1);
         hits[0]
     };
-    let second =
-        fillet_edges(&first.body, &[lip2], ROLL, tol).expect("the lip on the result");
+    let second = fillet_edges(&first.body, &[lip2], ROLL, tol).expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(b, tol)
             .expect("mass properties")

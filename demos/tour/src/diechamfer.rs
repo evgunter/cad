@@ -74,14 +74,13 @@
 //! 3. **`CurveGeom` is not in the prelude**, so that loop names
 //!    `pncad::topo` for the one type it needs to read a carrier's
 //!    kind, while `Curve3` beside it comes from the prelude.
-//! 4. The `Band`-beside-`Tol` argument and the missing whole-body
-//!    edge selector are the same two frictions `bodies::spacer`
-//!    already records; this scene hits both again and does not
-//!    re-litigate them.
+//! 4. The missing whole-body edge selector is a friction
+//!    `bodies::spacer` already records; this scene hits it again and
+//!    does not re-litigate it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Band, Tol};
+use pncad::geom_core::Tol;
 use pncad::prelude::{Curve3, EdgeKey, chamfer_edges, fillet_edges};
 use pncad::topo::{Body, CurveGeom};
 
@@ -91,13 +90,6 @@ use crate::{SceneBody, Stop, View};
 /// The setback. The point of the pair is that this IS the fillet's
 /// radius, so the panels compare verbs rather than parameters.
 const D: f64 = R;
-
-/// The band every blend call wants beside the tolerance it is already
-/// given (the `spacer` finding, hit again).
-fn band(tol: Tol) -> Band {
-    let t = tol.get();
-    Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance")
-}
 
 /// Every edge of a body — "all of them", spelled by enumerating the
 /// arena because the plain-body door has no materializer for it.
@@ -230,8 +222,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         12,
         "the only LINES are the twelve box edges"
     );
-    let die = chamfer_edges(&pipped, &box_edges, D, tol)
-        .expect("the pipped cube's box edges chamfer");
+    let die =
+        chamfer_edges(&pipped, &box_edges, D, tol).expect("the pipped cube's box edges chamfer");
     assert_eq!(die.blend_faces.len(), 12, "one strip per edge");
     assert_eq!(die.corner_faces.len(), 8, "one patch per corner");
     assert!(

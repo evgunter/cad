@@ -377,8 +377,6 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     // "Every edge of it" — spelled the only way the plain-body door
     // allows (see the note above).
     let edges: Vec<pncad::topo::EdgeKey> = pad.edges().map(|(k, _)| k).collect();
-    let t = tol.get();
-    let band = pncad::geom_core::Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance");
     let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), tol)
         .expect("every edge of a rectangular pad breaks at 0.15");
     let note = format!(
@@ -387,10 +385,7 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
          so `all twelve` is spelled by enumerating arena keys — the RECIPE path has one \
          (`Node::chamfer` over `all_edges`, since LIB-G16); this seat does not; (2) the \
          kernel verb takes arena KEYS, so a document's own selection cannot be handed to \
-         it — `diechamfer` prices that one; (3) the call wants BOTH \
-         a `Tol` and a `Band`, and the `Band` this scene passes is derived from that same \
-         `Tol` — every caller in the tour writes the same three-line derivation, so the \
-         second argument carries no information the first did not.",
+         it — `diechamfer` prices that one.",
         broken.blend_faces.len(),
         broken.corner_faces.len()
     );
@@ -590,12 +585,7 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
-    pncad::sweep::blend::fillet_edges(
-        &body,
-        &mouth,
-        S::from_f64(0.05),
-        tol,
-    )
-    .expect("the sphere-cone mouth rim fillets")
-    .body
+    pncad::sweep::blend::fillet_edges(&body, &mouth, S::from_f64(0.05), tol)
+        .expect("the sphere-cone mouth rim fillets")
+        .body
 }

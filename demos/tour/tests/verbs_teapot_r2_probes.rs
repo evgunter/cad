@@ -25,7 +25,7 @@ use core::f64::consts::FRAC_PI_2;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
-use pncad::geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{
@@ -46,10 +46,6 @@ macro_rules! poly {
 }
 
 const FIT_TOL: f64 = 1e-6;
-
-fn band(tol: Tol) -> Band {
-    Band::linear(tol).expect("band")
-}
 
 fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
@@ -329,8 +325,7 @@ fn r2_ring_anatomy_on_a_drum() {
         .into();
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, h);
-    let cup =
-        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the drum opens");
+    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the drum opens");
     println!(
         "[r2-4] drum cup: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}",
         cup.vertices().count(),
@@ -436,8 +431,8 @@ fn r2_box_control_is_right() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, t, &top, FIT_TOL, tol)
-        .expect("a box opens at its top");
+    let cup =
+        pncad::topo::shell_open(&body, t, &top, FIT_TOL, tol).expect("a box opens at its top");
     println!(
         "[r2-5] box cup: rings = {}, genus = {}, shells = {}, tier3 = {:?}",
         rings(&cup),
@@ -770,8 +765,7 @@ fn r2_annular_mouth_anatomy() {
             .sum::<usize>())
     );
     let chart = plane_chart_at(&body, h);
-    let cup =
-        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the tube opens");
+    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the tube opens");
     println!(
         "[r2-10] OPEN: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}, tier3 = {:?}",
         cup.vertices().count(),

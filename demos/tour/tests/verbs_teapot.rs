@@ -93,7 +93,7 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_core::{Band, Point2, Tol, Vec2};
+use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -104,10 +104,6 @@ use pncad::topo::{Body, ReplaceFaceError, ShellError};
 const FIT_TOL: f64 = 1e-6;
 /// Every fixture's mouth plane.
 const TOP: f64 = 8.0 / 64.0;
-
-fn band(tol: Tol) -> Band {
-    Band::linear(tol).expect("the run's band")
-}
 
 fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
@@ -658,8 +654,8 @@ fn the_opened_rim_is_right_on_a_box() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, 0.02, &top, FIT_TOL, tol)
-        .expect("a box opens at its top");
+    let cup =
+        pncad::topo::shell_open(&body, 0.02, &top, FIT_TOL, tol).expect("a box opens at its top");
     assert_eq!(
         (rings(&cup), genus(&cup)),
         (1, 0),
@@ -901,8 +897,8 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
         "a closed OFF-AXIS meridian closes its own seam, so this cap is ONE face — \
          which is the whole point of the row"
     );
-    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol)
-        .expect("the annular mouth opens");
+    let cup =
+        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the annular mouth opens");
     assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),
