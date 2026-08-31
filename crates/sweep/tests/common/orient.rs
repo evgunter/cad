@@ -72,7 +72,11 @@ pub fn chart_at(
 /// `sense`, a winding or a normal to be circular with. It also keeps
 /// `normalize()` — poison on a degenerate jet — out of a path that only
 /// ever wants `S(u, v)`.
-fn wall_point_at(body: &Body<f64>, face: FaceKey, su: f64, sv: f64) -> Point3<f64> {
+///
+/// Public for the same reason: a suite stating what its FIXTURE is —
+/// which way a roll turns, how far a ring rotates — wants positions and
+/// must not reach for a normal to say it with.
+pub fn wall_point_at(body: &Body<f64>, face: FaceKey, su: f64, sv: f64) -> Point3<f64> {
     let (s, u, v) = chart_at(body, face, su, sv);
     s.eval(u, v)
 }
@@ -215,8 +219,11 @@ pub fn assert_caps_face_out(lofted: &Lofted<f64>, oracle: &Oracle<'_>, delta: f6
 
 /// The centroid of the outer ring's mid-`u` samples at `v`-fraction
 /// `t` — an interior point of the cap for a section that contains its
-/// own centroid.
-fn ring_centroid(lofted: &Lofted<f64>, t: f64) -> Point3<f64> {
+/// own centroid, under the precondition [`assert_caps_face_out`]
+/// states. Public so a suite measuring a ring's rotation about the
+/// stack has one spelling of "the middle of the level" to measure
+/// from.
+pub fn ring_centroid(lofted: &Lofted<f64>, t: f64) -> Point3<f64> {
     let walls = &lofted.side_faces[0];
     let mut acc = Vec3::new(0.0, 0.0, 0.0);
     for &fk in walls {
