@@ -537,10 +537,14 @@ pub enum PathError<T: Real> {
         arm: T,
     },
     /// §4 item 1, reverse class: the departure is within ε_input of
-    /// the REVERSE of the incoming tangent — a cusp. No declaration
-    /// door exists: the kernel's material-wedge invariant refuses cusp
-    /// wedges in any solid built from such a profile; #131 is the
-    /// tabled front door that does not exist yet.
+    /// the REVERSE of the incoming tangent — a cusp. One refusal, one
+    /// recourse, and it is now the same SHAPE as the tangent class's:
+    /// if the cusp is intended, author it structurally with
+    /// `.cusp()`, which reverses the incoming ray exactly and DECLARES
+    /// the joint; otherwise move the geometry. The declaration is what
+    /// the kernel's material-wedge invariant asks for at rest (D1's
+    /// tier-3 arm), and it is never inferred from a margin — which is
+    /// why an authored near-reverse still refuses here.
     JunctionCusp {
         /// The classified turn margin sin φ · arm, meters.
         margin: T,
@@ -892,10 +896,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
-                "this junction reverses onto the incoming direction (turn margin {margin:?} m \
-                 on a {arm:?} m arm): a cusp, which the material-wedge invariant refuses in \
-                 any solid built from such a profile — there is no declaration door for cusps \
-                 — move the geometry"
+                "this junction reverses onto the incoming direction at any precision you \
+                 could care about (turn margin {margin:?} m on a {arm:?} m arm): a cusp, and \
+                 the material-wedge invariant admits one only where it is DECLARED — if \
+                 intended, author it structurally: .cusp() at an interior junction (exact by \
+                 construction, and it emits the declaration); otherwise move the geometry"
             ),
             Self::TangentLineClose { margin } => write!(
                 f,
@@ -1228,6 +1233,19 @@ impl<T: Real> Dir<T> {
             ang: u.y.atan2(u.x),
             unit: u,
         }
+    }
+
+    /// The exact REVERSE of this director — the cusp door's departure.
+    ///
+    /// The ray is NEGATED, never re-derived as `ang + π`: negation is
+    /// exact in every backend, so a reverse-tangent junction authored
+    /// through this is exactly reverse-tangent and there is nothing
+    /// for verification to contradict. That is the same guarantee
+    /// `.tangent()` gets by inheriting the incoming ray verbatim, and
+    /// it is why a DECLARED cusp is a structural fact rather than a
+    /// value coincidence.
+    fn reversed(self) -> Self {
+        Self::from_unit(-self.unit)
     }
 }
 
@@ -2203,6 +2221,24 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             .as_ref()
             .and_then(|p| p.incoming.as_ref())
             .map(|inc| inc.ang);
+        self.tip.ang_by_tangent = true;
+        self.core.declare_last();
+        in_state(self.core, self.tip)
+    }
+
+    /// The kernel behind the table's cusp row (recording is the row's,
+    /// not the kernel's): the tangent kernel with the ray reversed.
+    /// The declaration it emits is the SAME one `.tangent()` emits —
+    /// the profile data gate judges declared joints by carrier
+    /// tangency, which is direction-agnostic, so a reverse-tangent
+    /// joint needs no second flag to be accepted there.
+    fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
+        self.tip.ang = self
+            .tip
+            .pos
+            .as_ref()
+            .and_then(|p| p.incoming.as_ref())
+            .map(|inc| inc.ang.reversed());
         self.tip.ang_by_tangent = true;
         self.core.declare_last();
         in_state(self.core, self.tip)

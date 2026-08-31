@@ -457,7 +457,27 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         )
         .unwrap();
 
-    // 9/10. The complete-loop program forms.
+    // 9. The DECLARED cusp: the lune between two internally tangent
+    //    circles, cut on the y axis so the region is the one lip —
+    //    the cross-section of D1's kissing-cylinders figure. The
+    //    junction at the kiss is authored by `.cusp()`, which reverses
+    //    the arriving ray exactly; every other corner is a right
+    //    angle, so nothing but the cusp is declared.
+    let lune = Open
+        .at(p2(0.0, 4.0))
+        .angle(-FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .tangent_arc_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, Tol::witness())
+        .unwrap();
+
+    // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
 
@@ -470,6 +490,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         subdivided,
         far_end,
         eye,
+        lune,
         circle,
         split,
     ]

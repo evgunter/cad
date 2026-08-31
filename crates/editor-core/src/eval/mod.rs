@@ -2180,6 +2180,7 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::Angle => 12,
         V::Toward => 13,
         V::Tangent => 14,
+        V::Cusp => 41,
         V::Turn => 15,
         V::Line => 16,
         V::LineTo => 17,
@@ -2305,7 +2306,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, *dx);
             f(h, *dy);
         }
-        Step::Tangent | Step::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
         Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
@@ -2417,7 +2418,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
             f(h, dx);
             f(h, dy);
         }
-        Step::Tangent | Step::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
         Step::ArcTo(s) => spec(h, s),
         Step::Fillet { radius } => f(h, radius),

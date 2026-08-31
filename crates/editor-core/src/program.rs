@@ -1179,6 +1179,14 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
+    /// A recorded verb the PROGRAM vocabulary does not spell. The
+    /// PATHS algebra's `.cusp()` — the declared reverse-tangent
+    /// junction — is such a verb: it records a step, so a chain
+    /// carrying one is a real recorded program, and there is no
+    /// [`ProgramStep`] to carry it into the recipe layer. Refused by
+    /// name rather than dropped, because a dropped step lowers to a
+    /// DIFFERENT loop: the junction would come back undeclared.
+    UnspelledVerb(profile::Verb),
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1197,6 +1205,11 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
+            Self::UnspelledVerb(verb) => write!(
+                f,
+                "the recorded verb {verb:?} has no program spelling — the recipe layer \
+                 cannot carry this chain until it gains one"
+            ),
         }
     }
 }
@@ -1320,6 +1333,9 @@ impl LoopProgram {
                     dy: scalar_lit(*dy)?,
                 },
                 Step::Tangent => ProgramStep::Tangent,
+                Step::Cusp => {
+                    return Err(RecordedProgramError::UnspelledVerb(profile::Verb::Cusp));
+                }
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
