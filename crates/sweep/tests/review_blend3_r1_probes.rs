@@ -446,3 +446,146 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
         "the two spellings of the same volume must agree: {by_hand} vs {compact}"
     );
 }
+
+// ---------------------------------------------------------------
+// 5. Both signs in ONE request — the capability the widening
+//    creates and the unit's fixture never exercises.
+// ---------------------------------------------------------------
+
+/// Every edge both of whose endpoints are corners of the block
+/// `[0,4]³` — the outer, all-CONVEX component of the same body.
+fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    let corner = |p: Point3<f64>| {
+        [p.x, p.y, p.z]
+            .iter()
+            .all(|c| c.abs() < 1e-9 || (c - 4.0).abs() < 1e-9)
+    };
+    let mut found: Vec<EdgeKey> = body
+        .edges()
+        .filter(|(k, _)| {
+            let Some(e) = body.get_edge(*k) else {
+                return false;
+            };
+            let Some(h) = body.get_half_edge(e.he_plus) else {
+                return false;
+            };
+            let Some(end) = body.half_edge_end(e.he_plus) else {
+                return false;
+            };
+            let pt = |v| {
+                body.get_vertex(v)
+                    .and_then(|x| body.get_point(x.point))
+                    .copied()
+            };
+            match (pt(h.start), pt(end)) {
+                (Some(a), Some(b)) => corner(a) && corner(b),
+                _ => false,
+            }
+        })
+        .map(|(k, _)| k)
+        .collect();
+    found.sort_unstable();
+    found
+}
+
+/// **One call, both material sides.** Until this PR every chamfer
+/// request in the tree carried ONE convexity, because a concave one
+/// was refused at door 1. Widening the doors per verb makes a request
+/// spanning both signs reachable for the first time — the vented
+/// cavity's twelve concave edges AND the block's twelve convex ones,
+/// two whole components of one edge graph, in a single `chamfer_edges`
+/// call.
+///
+/// This is where a convexity read ONCE for the request rather than
+/// once per link would show: the sense bit, the trimline direction and
+/// the corner patch's outward fold are all per-link quantities, and a
+/// single-sign fixture cannot tell that apart from a per-request one.
+/// The volume is the arithmetic that settles it — the concave half must
+/// ADD its mirrored chamfer while the convex half REMOVES its own, in
+/// the same body, in the same carve.
+#[test]
+fn r1_one_request_carries_both_convexity_signs() {
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
+    let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
+    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
+    let body = cut(&cut(&block, &vent), &cavity);
+
+    let poly = [
+        Point2::new(1.0, 1.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(1.0, 3.0),
+    ];
+    let concave = cavity_edges_of(&body, &poly, 1.0, 3.0);
+    let convex = block_edges(&body);
+    assert_eq!(concave.len(), 12, "the cavity's concave component");
+    assert_eq!(convex.len(), 12, "the block's convex component");
+    assert!(
+        concave.iter().all(|k| !convex.contains(k)),
+        "the two components are disjoint"
+    );
+
+    let before = topo::mass_properties(&body, Tol::witness())
+        .expect("closed-form props")
+        .volume;
+
+    let mut both = concave;
+    both.extend(convex);
+    let out = chamfer_edges(&body, &both, D, band(), Tol::witness())
+        .expect("one request may span both material sides");
+
+    assert_eq!(out.blend_faces.len(), 24, "one strip per requested edge");
+    assert_eq!(
+        out.corner_faces.len(),
+        16,
+        "eight concave corners and eight convex"
+    );
+    assert_eq!(validate(&out.body), Ok(()), "tier 1");
+    assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+
+    // The concave half adds a cube-of-side-2's worth of chamfer; the
+    // convex half removes a cube-of-side-4's worth. Both terms are the
+    // same closed form at the two sides' own scales.
+    let chamfer_of = |a: f64| 6.0 * a * D * D - (16.0 / 3.0) * D.powi(3);
+    let after = topo::mass_properties(&out.body, Tol::witness())
+        .expect("closed-form props")
+        .volume;
+    let want = before + chamfer_of(2.0) - chamfer_of(4.0);
+    assert!(
+        (after - want).abs() <= 1e-12 * want,
+        "a two-sided carve must add on one side and remove on the other: \
+         got {after}, want {want}"
+    );
+
+    let mesh = mesh::tessellate(&out.body, 5e-3, Tol::witness()).expect("tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
+}
+
+/// **The FILLET must still refuse that same two-sided request**, and
+/// at the door that is true of it: its ball is convex-only, so the
+/// concave component is refused whether or not a convex one rides
+/// along in the same call.
+#[test]
+fn r1_the_fillet_still_refuses_the_two_sided_request() {
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
+    let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
+    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
+    let body = cut(&cut(&block, &vent), &cavity);
+    let poly = [
+        Point2::new(1.0, 1.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(1.0, 3.0),
+    ];
+    let mut both = cavity_edges_of(&body, &poly, 1.0, 3.0);
+    both.extend(block_edges(&body));
+    assert_eq!(both.len(), 24, "both components");
+
+    sweep::blend::build::fillet_edges(&body, &both, D, band(), Tol::witness())
+        .expect_err("the rolling ball has no concave side yet (#644)");
+}
