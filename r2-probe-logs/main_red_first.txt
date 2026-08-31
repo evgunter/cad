@@ -1,0 +1,7 @@
+test mate2_cyl_rest::threaded_collar_full_engagement_unions ... ok
+test mate2_cyl_rest::threaded_collar_partial_engagement_unions ... FAILED
+test mate2_cyl_rest::seated_collar_with_a_planar_rest_unions ... FAILED
+partial engagement: Some(CurvedPierceUnsupported { operand: A, face: FaceKey(3v1), edge: EdgeKey(4v3), band: Band { zero: 1e-9, escalate: 1e-8 } })
+control (planar Rest present): Some(CurvedPierceUnsupported { operand: B, face: FaceKey(7v1), edge: EdgeKey(22v5), band: Band { zero: 1e-9, escalate: 1e-8 } })
+the control mate unions: CurvedPierceUnsupported { operand: B, face: FaceKey(7v1), edge: EdgeKey(22v5), band: Band { zero: 1e-9, escalate: 1e-8 } }
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 913 filtered out; finished in 0.12s

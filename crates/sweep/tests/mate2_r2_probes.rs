@@ -316,3 +316,26 @@ fn r2_full_period_peg_still_refuses_typed() {
         None => panic!("the narrower-class claim is FALSE: a full-period peg unioned"),
     }
 }
+
+/// Claim-7 measurement: how far from BITWISE is the unit's partial-
+/// engagement additivity, in ULPs of the sum? (The unit loosened
+/// fixture (i)'s bitwise oracle to 8-ULP relative on the argument that
+/// the π terms cannot cancel.)
+#[test]
+fn r2_measure_additivity_ulp_gap() {
+    let c = collar_at(0.0);
+    let p = peg_at(0.0, 0.5, 2.0);
+    let mut decls = BooleanDeclarations::none();
+    for &fa in &walls_at(&c, 0.5) {
+        for &fb in &walls_at(&p, 0.5) {
+            decls
+                .coincident_faces
+                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
+        }
+    }
+    let out = topo::union_with(&c, &p, &decls, Tol::witness()).unwrap();
+    let BooleanResult::Body(bb) = out else { panic!() };
+    let (v, sum) = (volume(&bb.body), volume(&c) + volume(&p));
+    let ulp = (v - sum).abs() / (f64::EPSILON * sum.abs());
+    eprintln!("R2 additivity gap: v = {v:.17e}, sum = {sum:.17e}, gap = {ulp:.3} ULP(s), bitwise = {}", v == sum);
+}
