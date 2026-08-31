@@ -123,13 +123,27 @@
 //! the same inf-side shape meter 1 uses on the cross product — which
 //! makes the small-`|d|` case finite and tightens every other row.
 //!
-//! It does not make the bound SCALE with `|d|`: the fit's absolute
-//! accuracy comes from the base's coordinate magnitudes, so at
-//! `d = 1e-6` the certified sup sits near `3e-4`. Sound and finite,
-//! weak in relative terms, and refused typed below what the fit can
-//! reach. The restructure that would fix it (recentring the
-//! composite's nets, as `patch_bound`'s rational arm already does per
-//! cell) is #1008.
+//! **Recentring, and what it did and did not buy.** Every net above
+//! is built against one origin — the base control net's bbox midpoint
+//! ([`recentre_origin`]) — so the composite's intermediates are the
+//! size of the PATCH rather than of its coordinates. The identity is
+//! exact in ℝ (`Ẽ` and `M̃` are both invariant under shifting base and
+//! fit together), so nothing about the claim moves; only the rounding
+//! does. What that bought is translation invariance, which the
+//! residual always had and the bound did not: a micron offset on a
+//! metre patch a kilometre from the origin certified as `inf` and now
+//! certifies at the same `3.2e-4` the patch gives at the origin.
+//!
+//! It did NOT make the bound scale with `|d|`, and the reason is not
+//! the one that motivated the recentring. At the origin the small-`d`
+//! sup is 96% its `τ²/‖E‖` term, and that term is large because the
+//! lower bound on `‖E‖` is assembled from the componentwise
+//! mignitudes of `Ẽ`'s cell hulls: on a patch whose normal rotates
+//! across the cell each component straddles zero, so the assembly
+//! reads `1.6e-8` where `‖E‖ ≈ |d| = 1e-6`. A lower bound that saw
+//! the components together rather than one at a time is what would
+//! move this row; it is not a rounding problem and recentring cannot
+//! reach it.
 //!
 //! **Where the regularity floor enters.** `τ` and `D` both divide by
 //! `‖m‖`, and `X`'s reading divides by `w̃²`. Both weight hulls are
@@ -909,8 +923,23 @@ struct Composite {
 /// `window_hull` indexes, so a single home would still hand one
 /// caller the wrong shape. What is shared is the arithmetic —
 /// `weight · coordinate`, in that order — and the two sites are
-/// cross-referenced so a change to it is a change to both.
-fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool) -> Vec<RingInterval> {
+/// cross-referenced so a change to it is a change to both. Where they
+/// differ is WHEN the recentring happens: this one folds the centre
+/// into the net, because the net feeds polynomial products formed
+/// once for the whole patch; `patch_bound` applies it at the hull
+/// read, because it reads a cell-local centre off the cell's own
+/// control window.
+///
+/// **Recentred**, on the shared `centre` all of the composite's nets
+/// are built against: the entry is `w·(P − centre)`, so the net
+/// describes `S − centre` rather than `S`. The subtraction is the
+/// RING's, not `f64`'s, which is what makes this sound — an `f64`
+/// difference would round to a control point the base does not have,
+/// and the certificate would then be about a surface nobody supplied.
+/// The ring's outward rounding of `P − centre` is one ulp of the
+/// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
+/// carried one ulp of the coordinate.
+fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool, centre: f64) -> Vec<RingInterval> {
     n.control()
         .iter()
         .zip(n.weights().iter())
@@ -919,7 +948,7 @@ fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool) -> Vec<RingInterval>
                 0 => p.x,
                 1 => p.y,
                 _ => p.z,
-            });
+            }) - RingInterval::point(centre);
             if weighted {
                 RingInterval::point(*w) * x
             } else {
@@ -927,6 +956,41 @@ fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool) -> Vec<RingInterval>
             }
         })
         .collect()
+}
+
+/// The composite's recentring origin: the midpoint of the BASE's
+/// control-net bounding box, per coordinate.
+///
+/// Every net in the composite is built against this one point, which
+/// is what keeps the recentring exact in ℝ: `Ẽ = F̃·w − A·w_fit` and
+/// `M̃` are both invariant under `P ↦ P − c` applied to base and fit
+/// together (`Ã = A − c·w`, and knot differencing is linear, so
+/// `Ã_u = A_u − c·w_u`). Only the rounding moves.
+///
+/// A whole-patch centre, not a per-cell one: the composite's products
+/// are formed once over the merged break structure and read per cell,
+/// so a per-cell centre would mean rebuilding the cost centre per
+/// cell. What that would buy over this is the patch extent against
+/// the cell extent, and the measurement that would justify it has not
+/// been taken.
+fn recentre_origin(base: &NurbsSurface<f64>) -> [f64; 3] {
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for p in base.control() {
+        for (c, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+            lo[c] = lo[c].min(v);
+            hi[c] = hi[c].max(v);
+        }
+    }
+    let mut out = [0.0; 3];
+    for c in 0..3 {
+        // A non-finite or empty net recentres on the origin: the
+        // composite's own poison handling is what reports it, and a
+        // NaN centre would silently poison every cell instead.
+        let m = (lo[c] + hi[c]) * 0.5;
+        out[c] = if m.is_finite() { m } else { 0.0 };
+    }
+    out
 }
 
 /// A row-major flat net from the `Net` (u-major nested) shape.
@@ -1002,11 +1066,14 @@ impl Composite {
         // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
         // IS the homogeneous one and `wf` is not formed: the identity
         // product would widen the ring for nothing.
+        // The one recentring origin every net below is built against.
+        let ctr = recentre_origin(base);
         let fit_rational = is_rational(fit);
+        let fc = |c: usize| channel(fit, c, fit_rational, ctr[c]);
         let f: [PatchSpans; 3] = [
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 0, fit_rational)),
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 1, fit_rational)),
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 2, fit_rational)),
+            dec(fit.knots_u(), fit.knots_v(), &fc(0)),
+            dec(fit.knots_u(), fit.knots_v(), &fc(1)),
+            dec(fit.knots_u(), fit.knots_v(), &fc(2)),
         ];
         let wf = fit_rational.then(|| {
             let g: Vec<RingInterval> = fit
@@ -1017,7 +1084,8 @@ impl Composite {
             dec(fit.knots_u(), fit.knots_v(), &g)
         });
         // The base's homogeneous nets and their first derivatives.
-        let a_grid: Vec<Vec<RingInterval>> = (0..3).map(|c| channel(base, c, rational)).collect();
+        let a_grid: Vec<Vec<RingInterval>> =
+            (0..3).map(|c| channel(base, c, rational, ctr[c])).collect();
         let ku1 = derived_knots(ku)?;
         let kv1 = derived_knots(kv)?;
         let du = |g: &[RingInterval]| flat(&net_d_u(ku, &nest(g, nu, nv)));

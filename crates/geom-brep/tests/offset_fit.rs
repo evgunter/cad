@@ -590,10 +590,18 @@ fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
 /// mignitude lower bound on `‖E‖`, which is what makes the row below
 /// finite at all.
 ///
-/// What it does NOT do is make the bound scale with `|d|`: the fit's
-/// own absolute accuracy is set by the base's coordinate magnitudes,
-/// not by the offset distance, so at `d = 1e-6` the certified sup
-/// sits near `3e-4` — sound, finite, and hundreds of times `|d|`.
+/// What it does NOT do is make the bound scale with `|d|`: at
+/// `d = 1e-6` the certified sup sits near `3.2e-4` — sound, finite,
+/// and hundreds of times `|d|`. Recentring the composite's nets was
+/// the restructure expected to move this, and at the origin it did
+/// not: the remaining slack is not rounding on large intermediates.
+/// Measured per cell, the sup is 96% its `τ²/‖E‖` term (`3.10e-4` of
+/// `3.22e-4`), and that term is large because `‖E‖` is bounded below
+/// by a componentwise mignitude assembly reading `1.58e-8` where
+/// `‖E‖ ≈ 1e-6` — each component of `E ≈ d·n` straddles zero as the
+/// normal rotates across the cell. What moves this row is a lower
+/// bound that reads the three components together.
+///
 /// The row pins both halves: a reachable tolerance certifies, and an
 /// unreachable one refuses typed rather than reporting a number it
 /// cannot support.
@@ -676,6 +684,67 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
                 Err(OffsetFitError::InvalidRequest { .. })
             ),
             "d = {d}, tol = {tol} was accepted"
+        );
+    }
+}
+
+/// **The recentring row.** The offset residual is translation
+/// invariant — moving a part does not change how well a surface fits
+/// its own offset — so the certified bound must be too. It was not:
+/// the composite's nets were built in world coordinates, so the
+/// ring's rounding on the intermediates scaled with the base's
+/// coordinate magnitude, and a micron offset on a metre part a
+/// kilometre from the origin certified as `inf` while the same part
+/// at the origin certified at 3.2e-4.
+///
+/// The composite now builds every net against one recentring origin
+/// (the base control net's bbox midpoint), which is exact in ℝ and
+/// leaves every claim identical. The row pins the invariance, and
+/// containment at each station so the invariance cannot be bought by
+/// a bound that stopped bounding.
+#[test]
+fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
+    let d = 1e-6;
+    let mut at_origin = f64::NAN;
+    for shift in [0.0_f64, 1.0e3, 1.0e5] {
+        let c = quarter_cylinder(1.0, 1.0);
+        let control: Vec<Point3<f64>> = c
+            .control()
+            .iter()
+            .map(|p| Point3::new(p.x + shift, p.y + shift, p.z))
+            .collect();
+        let base = NurbsSurface::new(
+            c.knots_u().clone(),
+            c.knots_v().clone(),
+            control,
+            c.weights().to_vec(),
+        )
+        .unwrap();
+        let (fit, cert) = fit_offset(&base, d, 1e-2, band())
+            .unwrap_or_else(|e| panic!("shift {shift}: a micron offset refused: {e}"));
+        let mut worst = 0.0f64;
+        for (u, v) in dense_grid() {
+            let target = offset_point(&base, d, u, v).unwrap();
+            worst = worst.max((fit.eval(u, v) - target).norm());
+        }
+        assert!(
+            worst <= cert.hull_sup,
+            "shift {shift}: certified sup {} UNDER-reports the sampled max {worst}",
+            cert.hull_sup
+        );
+        if shift == 0.0 {
+            at_origin = cert.hull_sup;
+        } else {
+            assert!(
+                cert.hull_sup <= at_origin * 1.05,
+                "shift {shift}: hull_sup {} is more than 5% above the same patch at the \
+                 origin ({at_origin}) — the composite is reading world coordinates again",
+                cert.hull_sup
+            );
+        }
+        eprintln!(
+            "recentred shift={shift:.0e}: cells={} hull_sup={:.4e} sampled={worst:.3e}",
+            cert.cells, cert.hull_sup
         );
     }
 }
