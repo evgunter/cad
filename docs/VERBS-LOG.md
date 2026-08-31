@@ -2592,3 +2592,61 @@ just the agent, before re-dispatching into the same lane.
 Union fix pass out (deduped, both arms' probes offered for
 adoption). Tally: candidates 2 (pending blinded coding), tally
 still 1/8 pending; clean-pair count unchanged (MAJ-bearing).
+## ORDINAL 108 RETURNED AND ADJUDICATED (2026-08-31)
+
+R1 (opus) 2 MAJ / 4 MIN; R2 (fable, resumed once across a limit
+death — lane pristine at resume, M10-3 precedent: blemish not
+exclusion) 3 MAJ / 3 MIN, triple 4/2/2. The arms CONVERGED on
+both principal defects — identical diagnoses, independent
+mutation/probe evidence:
+
+- MAJ BILATERAL 1 (dedup single): sphere_sphere_section's
+  internal-tangency point is WRONG whenever operand A is the
+  smaller sphere — intersect.rs:882 hard-codes c₁+n̂·r₁ where the
+  signed a = −r₁ (both arms re-derived; R2's probe puts the
+  returned point 1m INSIDE sphere B; R1's residual table
+  worst=1.0). The PR-body claim "substituting either d gives
+  exactly r₁" is algebraically false; the 2-D mirror the spec
+  ordered (seg.rs:604-616) gets it right and the unit deviated
+  exactly there, undeclared; the shipped pin tests only the
+  r₁>r₂ order. Mitigation: the sole production consumer discards
+  the payload — wrong data from a new public API, no wrong
+  boolean today.
+- MAJ BILATERAL 2 (dedup single): the latitude lever is
+  UNPINNED — both arms independently mutation-tested the lever
+  to #893's axial form and the ENTIRE SUITE STAYED GREEN,
+  including the row advertised as the near-polar red (its lune
+  fixture's latitude window is (None,None) — margins come from
+  the azimuth cosine window; R1's sign-flip control reds 8/10
+  filters, proving the function is live while its lever choice
+  is untested). The §7 planted-red fixture (two genuinely
+  distinct near-polar rims) exists nowhere; R1 measured
+  Profile::validate refusing a revolve rim at polar ≤1e-4 — the
+  fixture needs a different construction layer. Right code,
+  absent pin, false claim about the pin.
+- R2 MAJ-3 UNILATERAL CANDIDATE (class: test-gap; grep-proven):
+  the bool_sphere_trim* predicate family appears in ZERO test
+  files; no ringed/non-iso/full-period None rows; §7's
+  boundary-adjacent probes absent — none declared as deviations.
+- Adjudicated disagreement (both mentioned, doc-class): R1 calls
+  the polar-gate delivery "no gate was added" (MINOR), R2 calls
+  it "honours the ruling, stricter than (a)". Ruled: the
+  delivered state is SAFE (no unchecked path — both arms traced
+  it) but the "gate at the consumers" framing describes a gate
+  that does not exist; the fix is prose.
+- MINOR union: VolumeUncertified's |_| swallows Escalated (R1);
+  sphere_chart_trim maps corruption-shaped errors to capability
+  (R2 — same genus, different site); the register's row-3
+  sentence drops its chart premise (R1) and the coincident
+  measure-zero case (R2); probe_g's "0 ulp" precision (R2);
+  klint-row coverage honesty (R1). R2's environmental note:
+  reader_census reds in ANY dot-component lane (known M10-3
+  pushback, re-confirmed).
+
+TALLY: one unilateral candidate (R2 MAJ-3) to the blinded
+coding; the bilateral MAJs are calibration signal, not
+candidates. Pair COUNTS (flagged for R2's resume). Second
+zombie-process instance in two days: R2's pre-crash detached
+cargo test found running in the verbs-azimuth lane and killed at
+resume — the sweep-the-process-table lesson now has two
+instances. Union fix pass out.
