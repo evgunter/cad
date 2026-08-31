@@ -357,6 +357,22 @@ discipline() {
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
   fi
+  # The parsers behind the hosted test-cost REPORTS, against fixtures captured
+  # from real runs. The reports themselves have no local half and are not
+  # supposed to: their subject is what a hosted run cost and what a PULL
+  # REQUEST added to it — a `$GITHUB_STEP_SUMMARY` and a base tree, neither of
+  # which exists on this box. What DOES belong in both halves is the check that
+  # the parsers still read nextest's output, because a report that gates
+  # nothing has no red run to announce a parser that stopped matching.
+  # The same argument covers `base-test-listing.sh`, whose subject is even more
+  # hosted-only — an artifacts-API lookup — and whose selftest is therefore
+  # written against stub `cargo`, `gh` and `curl` and runs anywhere.
+  # HOSTED MIRROR: discipline / test cost report parsers (selftest)
+  if ! (python3 scripts/slowest-tests.py --selftest \
+        && python3 scripts/pr-added-tests.py --selftest \
+        && scripts/base-test-listing.sh --selftest); then
+    rc=1
+  fi
   return $rc
 }
 
@@ -726,7 +742,15 @@ interval_backend() {
     && cargo fmt --check \
     && cargo clippy --all-targets -- -D warnings \
     && cargo test) || return 1
-  if (cd interval-transcendentals && cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'); then
+  # The producer is tested before its output is — the argument is at the hosted
+  # copy of this row. `cargo tree | grep` takes grep's verdict, and grep with no
+  # input finds no match, so a failed `cargo tree` reads as a clean graph.
+  local tree
+  if ! tree=$(cd interval-transcendentals && cargo tree); then
+    echo "ERROR: \`cargo tree\` failed in interval-transcendentals — an unread graph is not a clean one"
+    return 1
+  fi
+  if printf '%s\n' "$tree" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
     echo "ERROR: the interval backend's default feature set reaches the gmp stack"
     return 1
   fi
@@ -843,11 +867,15 @@ klint_gate() {
 # hygiene + tests, then the fresh per-face sweep + the GATE.
 #
 # The gate compares against docs/tess-budget-data/, and it compares
-# DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
-# whose sizing got wastefuller, or a scene that dropped out of the
-# sweep. On a failure read the tool's message: coarsening a demo's
-# delta to get the number down is the one forbidden move. What the
-# absolute factors currently are, and why: docs/TESS-BUDGET.md.
+# DIFFERENCES, not absolute slack. WHAT THE RULES ARE is rostered in
+# `tools/tess-lint`'s module docs and nowhere else, this file included:
+# the enumeration that used to stand here read THREE for as long as
+# rule 4 had existed, and the correction to four was stale within a day
+# when the uncovered-scene rule landed as rule 5. A pointer cannot go
+# stale; a roster kept beside the thing it describes drifts at that
+# thing's rate. On a failure read the tool's message: coarsening a
+# demo's delta to get the number down is the one forbidden move. What
+# the absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
   # No `cargo doc` here: it used to carry a copy of one, because
   # doc-gate.sh was `cargo doc --workspace` and could not see a
@@ -885,10 +913,14 @@ budget_meter() {
 }
 # HOSTED MIRROR: k-lint / tessellation-budget sweep (every tour scene, per face)
 # HOSTED MIRROR: k-lint / tessellation-budget lint (gate — a grown budget fails this row)
-# `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
-# the sizing columns, never `worst_dev`, so the default sweep's
-# per-triangle resampling (tens of millions of surface evaluations)
-# would be paid for nothing. Re-cutting the baseline drops the flag.
+# `--sizing-only` mirrors ci.yml: the gate never reads `worst_dev`, so
+# the default sweep's per-triangle resampling (tens of millions of
+# surface evaluations) would be paid for nothing. What it does read is
+# narrower than "the sizing columns" — `triangles` per scene and
+# `grid_cells / span_opt_cells` per face are what it COMPARES, and
+# `chart`, whether the row carries the sizing block at all, and
+# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
   (cd tools/tess-lint && cargo run -- \

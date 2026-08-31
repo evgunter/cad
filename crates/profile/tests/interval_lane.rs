@@ -226,30 +226,30 @@ fn exact_fit_arc_fillet_escalates_at_interval() {
     }
 }
 
-/// The S8 two-survivor vesica corner at the interval scalar —
-/// **ESCALATES, and that is the honest answer.**
+/// The S8 two-survivor vesica corner at the interval scalar — **the
+/// near pick is recovered, and it encloses the `f64` lane's**.
 ///
-/// The f64 twin (`arc_fillet.rs`'s lens rows) picks the near candidate
-/// and validates. The interval lane cannot, and the reason is
-/// structural rather than a widening artefact: the §2c door DERIVES
-/// its corners from the two carriers, and a lens' two carriers cross
-/// at BOTH tips — so the entry anchor is itself one of the derived
-/// candidates. Its advance along the incoming carrier is exactly zero,
-/// which f64 classifies Zero (not ahead, discarded) and an ENCLOSURE
-/// cannot: a zero swept angle straddles the `signed_swept` fold, so
-/// the enclosure spans a full turn either way and the predicate is
-/// undecidable. The algebra escalates instead of picking, which is the
-/// contract — a candidate it cannot classify is never silently
-/// dropped.
+/// The §2c door DERIVES its corners from the two carriers, and a lens'
+/// two carriers cross at BOTH tips — so the entry anchor is itself one
+/// of the derived candidates and its advance along the incoming carrier
+/// is exactly zero. `f64` classifies that Zero (not ahead, discarded);
+/// an enclosure of it straddles zero, which is the configuration the
+/// signed sweep's fold has to survive. It does: the fold reduces the
+/// raw difference once, into the window centred on zero, so a hairline
+/// difference stays a hairline and the gate classifies Zero on the
+/// enclosure too. The remaining candidate is picked and the loop
+/// validates.
 ///
-/// The row therefore pins the ESCALATION, by predicate name. Recovering
-/// the near pick at Interval means giving the derived-candidate gate a
-/// fold-free spelling near zero; that is a kernel question, recorded
-/// with this row rather than papered over.
+/// The row asserts the two lanes AGREE, which is the claim worth
+/// making: the enclosure of each emitted coordinate contains the `f64`
+/// lane's own answer for the same authored numbers. It consults no
+/// tolerance of its own — containment is exact arithmetic on the
+/// emitted bounds.
 #[test]
-fn vesica_near_pick_escalates_at_interval_on_the_coincident_candidate() {
+fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
+    use geom_core::Bounds;
     let s3 = 3.0f64.sqrt();
-    let err = profile::Open
+    let iv = profile::Open
         .arc_fillet_arc(
             profile::Center {
                 c: ip2(-1.0, 0.0),
@@ -264,13 +264,46 @@ fn vesica_near_pick_escalates_at_interval_on_the_coincident_candidate() {
             },
             Tol::witness(),
         )
-        .expect_err("the coincident candidate is undecidable on an enclosure");
-    match err {
-        profile::PathError::Escalated { source } => assert_eq!(
-            source.predicate,
-            Some("path_corner_advance_arc"),
-            "the fold-straddling gate, named"
-        ),
-        other => panic!("expected an escalation, got {other:?}"),
+        .expect("the coincident candidate classifies Zero on its enclosure too");
+    let f = profile::Open
+        .arc_fillet_arc(
+            profile::Center {
+                c: common::p2(-1.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: common::p2(0.0, -s3),
+            },
+            0.5f64,
+            profile::Center {
+                c: common::p2(1.0, 0.0),
+                winding: profile::ArcSweep::Ccw,
+                p: profile::Start,
+            },
+            Tol::witness(),
+        )
+        .expect("the f64 twin picks the near candidate");
+    assert_eq!(
+        iv.loop_.vertices().len(),
+        f.loop_.vertices().len(),
+        "the two lanes must emit the same pocket"
+    );
+    for (k, (a, b)) in f
+        .loop_
+        .vertices()
+        .iter()
+        .zip(iv.loop_.vertices())
+        .enumerate()
+    {
+        for (what, exact, enc) in [
+            ("x", a.pos().x, b.pos().x),
+            ("y", a.pos().y, b.pos().y),
+            ("bulge", a.bulge(), b.bulge()),
+        ] {
+            assert!(
+                enc.lo() <= exact && exact <= enc.hi(),
+                "vertex {k}: the {what} enclosure [{}, {}] excludes the f64 lane's {exact}",
+                enc.lo(),
+                enc.hi()
+            );
+        }
     }
 }
