@@ -407,9 +407,9 @@ fn circle_section(r: f64) -> Section {
 /// poison, so `nurbs_span_meter` had no metre-per-parameter and
 /// escalated at `CertCheck::ParamSpan`.
 ///
-/// The banked rational-wall unit landed the meter's rational arm (a
-/// quotient-rule assembly over the HOMOGENEOUS control net, derivation
-/// on `NurbsCurve3::speed_lower_bound`), so the refusal is gone and the
+/// The span meter carries a rational arm (a quotient-rule assembly
+/// over the HOMOGENEOUS control net, derivation on
+/// `NurbsCurve3::speed_lower_bound`), so the refusal is gone and the
 /// positive statement takes its place, exactly as
 /// [`the_swept_bodys_seam_carriers_meter_positively`] states it for the
 /// integral lane: the body builds, and every NURBS carrier on it
