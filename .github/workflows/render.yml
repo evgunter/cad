@@ -152,6 +152,17 @@ on:
       # rather than quietly rendering under a different regime.
       # render.sh's OWN default stays 1: it cannot know a developer
       # box's core count, and this workflow can.
+      #
+      # THE TWO CLAIMS IN THAT SENTENCE HAVE DIFFERENT BUCKETS, which is
+      # worth splitting because only one of them is watched. BYTE-IDENTITY
+      # IS GUARDED, and by this workflow itself: every lane compares its
+      # render against the committed cells on every run and re-baselines
+      # loudly when they part, so a concurrency setting that stopped
+      # producing the same bytes would show up as a neutral check on the
+      # next run rather than in this comment. THE ~20% IS NOT: it is one
+      # undated reading, nothing re-takes it, and nothing would go red if
+      # it were wrong — the setting is chosen by the runner's core count
+      # and would not change if the saving turned out to be 10%.
       render_jobs:
         description: "Scenes rendered concurrently per FreeCAD lane (1 = sequential)"
         required: false
@@ -276,6 +287,18 @@ jobs:
   #     ONE `CARGO_TARGET_DIR` (below) makes the second build reuse the
   #     first's dependency artifacts instead of compiling the whole kernel a
   #     second time.
+  #
+  # THE PACKAGE COUNTS ARE A ONE-SHOT READING AND ARE RE-DERIVABLE, WHICH IS
+  # WHY THEY CARRY NO GUARD: `cargo tree`/`cargo metadata` over the two roots
+  # answers this in seconds at any time, so a stale pair here costs a reader
+  # one command rather than a wrong decision. What the fold actually rests on
+  # is the QUALITATIVE half — the two graphs differ only in each root's own
+  # leaf crate, so the fingerprints match — and that half is watched by the
+  # arrangement itself: if the selections ever part, the second build stops
+  # reusing and this job's wall clock says so. Nothing re-takes the ~10 s
+  # either, and nothing needs to: it is an argument that the folded job's own
+  # work was smaller than the setup around it, which is a statement about
+  # shape, not a budget.
   #
   # WHY THAT IS NOT THE `CARGO_TARGET_DIR` LEVER docs/CI-MINUTES-2026-08.md's
   # F6 REJECTED. That one pointed the rustdoc gate's seven roots at one
@@ -692,11 +715,20 @@ jobs:
       # a developer box runs; the hosted lanes run 5, and the number is a
       # judgement against ONE unmeasured quantity, so here is the reasoning.
       #
-      # WHAT IS MEASURED AND SETTLED:
+      # WHAT IS MEASURED AND SETTLED — and "settled" means different things
+      # for the three, so each says which. Only the first is re-taken by
+      # anything; the other two are one-shot readings on this runner class
+      # that nothing revisits, kept because the DIRECTION they establish is
+      # what the choice rests on and neither would be worth a guard: a
+      # failure-mode census and a per-scene failure rate are properties of
+      # FreeCAD and of the image, not of this repository, so there is
+      # nothing here that could assert them.
       #   * BYTE-IDENTICAL. Verified B=1 vs B=5 vs B=35, both lanes, with a
       #     control arm passing. That is this knob's acceptance test
       #     (render.sh states it) and it is the only property a render lane
-      #     may not trade.
+      #     may not trade — and it is the one row here with a live guard,
+      #     because every lane re-compares its render against the committed
+      #     cells on every run at the B this file sets.
       #   * FAILURES ARE CRASHES, NOT HANGS. 10 of 10 observed failures were
       #     `freecadcmd rc=1`, dead in 3-5 s against a 300 s budget; 0 of 10
       #     took any timeout path. So the thing batching would amplify — a

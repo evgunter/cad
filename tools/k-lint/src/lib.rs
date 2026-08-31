@@ -211,6 +211,18 @@
 /// Ratio rules apply only to ambient (ε-scale) bands; the exact
 /// tie-break bands the kernel also records are 5e-324 / 1e-100 —
 /// dozens of decades below any supported ε (1e-6 … 1e-12).
+///
+/// **Not a measurement, and that is why it carries no register**: the
+/// two tie-break figures are values the RECORDER writes for exact
+/// predicates, not readings of a distribution, and the supported ε rows
+/// are the ratified matrix. So this separator sits in a gap between two
+/// things a sweep cannot move, and no re-measurement could shift it.
+/// What COULD falsify it is a change to the kernel's own band
+/// construction putting an exact band above 1e-13 — an edit to
+/// `Band::new`'s callers, not a drift — and nothing here watches for
+/// that: the failure would be silent, an exact row quietly answering to
+/// the ratio rules. That is the residue, stated rather than guarded,
+/// because the guard would have to live in the recorder.
 pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 
 /// "Within 10^2 of the band": the spec's proximity factor (D3).
@@ -220,6 +232,20 @@ pub const PROXIMITY_FACTOR: f64 = 1e2;
 /// docs — the M7 baseline's smallest ε-INDEPENDENT definite margin
 /// 4.7965e-5, P0, rounded down to 4.0e-5 so the baseline itself lints
 /// clean with 16.6% of headroom).
+///
+/// **MEASURED WHEN, AND REFRESHED WHERE — the half a threshold derived
+/// from a distribution owes and this one did not carry.** It was cut
+/// from the M7 sweep committed at `docs/k-report-data/m7-eps-*.csv.gz`,
+/// and the re-derivation is written up in `docs/K-REPORT.md`'s M7
+/// addendum (2026-08-07). NOTHING RE-TAKES IT ON A CADENCE, and the
+/// distinction that matters is which of the two things is watched: CI
+/// re-cuts the SWEEP against this threshold on every run that draws the
+/// `dev-probe` unification and fails on a finding, so a moved
+/// DISTRIBUTION is caught mechanically — but the threshold's own
+/// derivation is refreshed only by a human running that runbook, on a
+/// fired lint. That is why the CLI's recourse leads with re-derivation
+/// and forbids the geometry nudge: the gate can tell you the two have
+/// parted, and it cannot tell you which one moved.
 pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 
 /// The ε-coupled families: predicates whose recorded margin is a

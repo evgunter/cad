@@ -457,9 +457,12 @@ fn optimum_sits_on_the_floor(muu: f64, muv: f64, mvv: f64) -> bool {
 /// nothing about the helper, says that it is: three retunes at that one
 /// call site — a sample count of its own, a range of its own, a dropped
 /// seed — passed `fmt`, `clippy -D warnings` and every other row in
-/// this file. Measured on the shipped `ceil`'d count over 200,000
-/// random bounds, the sample-count retune alone moves the reported
-/// cell count by +14.93% on average and +100% at worst.
+/// this file. How far the sample-count retune alone moves the reported
+/// cell count was measured once and is stated once, at
+/// [`best_split_scan`]'s own docs, together with the fact
+/// that nothing re-takes it; it is not restated here, because a
+/// measurement written in two places is two things to keep in step and
+/// this row is the half that is meant to stay live.
 ///
 /// So this row spells the intended composition itself and compares bit
 /// for bit, **sample index included** — the seed retune is the one that
