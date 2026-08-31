@@ -93,15 +93,18 @@ pub use ::profile::{
 };
 
 // --- 3. The four body operations ------------------------------
-pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
+pub use sweep::blend::{BlendError, Filleted, fillet_edges};
 // The fillet's ruled sibling shares its refusal vocabulary
-// (`FilletError`, above): one verb, one edge-blend front door, the
+// (`BlendError`, above): one verb, one edge-blend front door, the
 // band the only difference.
 pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // `BlendKind` names WHICH blend a shared refusal came from — the
 // recipe layer's `Node::Chamfer` and `Node::Fillet` carry one kernel
 // error type between them, so the discriminant has to cross with it.
-pub use sweep::fillet::BlendKind;
+// `BlendRefusal` is how it crosses at the kernel doors: the refusal
+// both `fillet_edges` and `chamfer_edges` return, the verb attached
+// once around the shared verb-neutral error.
+pub use sweep::blend::{BlendKind, BlendRefusal};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
@@ -190,9 +193,9 @@ pub use crate::select::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
-    declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    NameOrigin, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame,
+    face_name, find_flush_candidates, select, select_where, vertex_position,
 };

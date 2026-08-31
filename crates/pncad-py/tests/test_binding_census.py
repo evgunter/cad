@@ -880,6 +880,8 @@ NOT_BOUND = {
     "BinaryHeader": SHAPE,
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
+    "BlendError": SHAPE,
+    "BlendRefusal": SHAPE,
     "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
@@ -892,7 +894,6 @@ NOT_BOUND = {
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
-    "FilletError": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
@@ -900,6 +901,10 @@ NOT_BOUND = {
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
     "MigrationError": SHAPE,
+    # The attribution walk's verdict, and the door that answers it.
+    # Same family as `RolePath`/`RoleSeg` and for their reason: it
+    # reads the INSIDE of a name, which nothing user-side may read.
+    "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
@@ -945,8 +950,14 @@ NOT_BOUND = {
     # not a name a Python caller needs.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
+    "attribute": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
+    # A cone-delete is composed caller-side in Python: the bound door
+    # is `Doc.apply` over one `DocEdit.delete_node` at a time, and the
+    # order this answers is what a chrome needs to state a cost before
+    # the click.
+    "cascade_delete_order": SHAPE,
     "p2": SHAPE,
     "p3": SHAPE,
     "real": SHAPE,

@@ -1,19 +1,19 @@
 //! Adversarial-review probes for the fillet naming work, sweep side.
-//! They touch no naming API, so each runs unchanged at any revision
-//! and measures rather than asserts: X4 pins where the boolean
-//! refuses a filleted operand, X3b prints a geometry fingerprint two
-//! revisions can be diffed on.
+//! They touch no naming API, so each runs unchanged at any revision:
+//! X4 pins where the boolean refuses a filleted operand, and X4b —
+//! the same operand moved off the die's own plane carriers — pins that
+//! it no longer refuses for carrying sphere octants. (The printed
+//! `Debug` fingerprint that used to live here is retired by SMELL
+//! T-a's D104 and is not reinstated.)
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use profile::RawLoop;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use geom_core::Tol;
 use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
@@ -124,21 +124,5 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
     assert!(
         (got - want).abs() <= 1e-9 * want,
         "disjoint union adds volumes: {got} vs {want}"
-    );
-}
-
-/// X3b: a stable fingerprint of the every-edge fillet's geometry —
-/// printed so the same probe at two revisions can be diffed. `Debug`
-/// of the body covers arenas, keys, surfaces, points.
-#[test]
-fn x3b_print_every_edge_fillet_geometry_fingerprint() {
-    let body = filleted_die();
-    let repr = format!("{body:?}");
-    let mut h = DefaultHasher::new();
-    repr.hash(&mut h);
-    println!(
-        "EVERY-EDGE-FILLET-FINGERPRINT len={} hash={:016x}",
-        repr.len(),
-        h.finish()
     );
 }

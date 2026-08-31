@@ -85,6 +85,8 @@ mod bitdump;
 mod blend1_r1_probes;
 #[path = "blend2_r2_probes.rs"]
 mod blend2_r2_probes;
+#[path = "blend6_verb_vocab.rs"]
+mod blend6_verb_vocab;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
@@ -191,6 +193,10 @@ mod review_arms2_r1_probes;
 mod review_arms3_r1_probes;
 #[path = "review_blend1_r2_probes.rs"]
 mod review_blend1_r2_probes;
+#[path = "review_blend6_r1_probes.rs"]
+mod review_blend6_r1_probes;
+#[path = "review_blend6_r2_probes.rs"]
+mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
@@ -261,6 +267,8 @@ mod ring_r1_probes;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "turning_orientation.rs"]
+mod turning_orientation;
 #[path = "verbs_arms1_annulus.rs"]
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]

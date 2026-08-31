@@ -502,21 +502,11 @@ pub(super) fn point_on_arc<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => return Ok(None),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    // Distance from the point to the circle: the radial miss and the
-    // axial miss are orthogonal, so their hypotenuse is exact.
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
-    match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive) => return Ok(Some(false)),
-        Ok(Sign::Negative) => {
-            return Err(ContainError::Escalated(invalid(band, "bool_contact_arc")));
-        }
-        Err(diag) => return Err(ContainError::Escalated(diag)),
-    }
+    let Some((radial, r_norm)) =
+        point_on_circle(q, center, axis, radius, band).map_err(ContainError::Escalated)?
+    else {
+        return Ok(Some(false));
+    };
     // On the carrier: the angular window decides which arc of it.
     let mid = (t0 + t1) * half;
     let (s_m, c_m) = mid.sin_cos();
@@ -816,6 +806,46 @@ fn iso_bounded_wall<T: Decide>(
         }
     }
     Ok(true)
+}
+
+/// Is `q` ON the circle `(center, axis, radius)`? `Some((radial,
+/// |radial|))` on it — the radial offset from the axis, which the
+/// angular half of an arc question is measured from — and `None`
+/// definitely off it.
+///
+/// **`bool_contact_arc` has one body, and this is it.** The row's
+/// quantity is the exact distance from the point to the circle: the
+/// radial miss and the axial miss are orthogonal, so their hypotenuse
+/// is exact and one row covers both ways off the carrier. Its NEGATIVE
+/// arm is the reason the body is shared rather than transcribed — a
+/// negative distance is impossible, so that arm is not a verdict but a
+/// broken invariant, and a copy of the row that folded it in with the
+/// definite-positive one would silently answer "off the carrier" where
+/// this one escalates.
+///
+/// Two callers, two different verdicts from the same three arms:
+/// [`point_on_arc`] turns a definite miss into `Some(false)`, and the
+/// boolean reduction's point split turns it into a broken-invariant
+/// refusal, because a split point was placed on that carrier by an
+/// exact row upstream.
+pub(super) fn point_on_circle<T: Decide>(
+    q: Point3<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
+    let w = q - center;
+    let height = w.dot(axis);
+    let radial = w - axis * height;
+    let r_norm = radial.norm();
+    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    match decide("bool_contact_arc", Margin::of(d), band) {
+        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Positive) => Ok(None),
+        Ok(Sign::Negative) => Err(invalid(band, "bool_contact_arc")),
+        Err(diag) => Err(diag),
+    }
 }
 
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {

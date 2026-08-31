@@ -55,8 +55,8 @@ use core::f64::consts::{PI, SQRT_2};
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE, FilletError};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
@@ -258,8 +258,8 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         let arcs = rim_arcs_at(&source, rr, ry);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         for one in &arcs {
-            match fillet_edges(&source, &[*one], 0.05, band(), tol()) {
-                Err(FilletError::FilletCornerUnsupported { .. }) => {}
+            match fillet_edges(&source, &[*one], 0.05, band(), tol()).map_err(|r| r.error) {
+                Err(BlendError::UnsupportedCorner { .. }) => {}
                 Err(other) => {
                     panic!("{name}: one arc alone should refuse at the seam vertex, got {other:?}")
                 }
@@ -517,9 +517,9 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 2);
     // The refusal fires...
-    let refused = fillet_edges(&source, &arcs[..1], 0.1, band(), tol());
+    let refused = fillet_edges(&source, &arcs[..1], 0.1, band(), tol()).map_err(|r| r.error);
     match refused {
-        Err(e @ FilletError::FilletCornerUnsupported { .. }) => {
+        Err(e @ BlendError::UnsupportedCorner { .. }) => {
             let msg = format!("{e}");
             println!("recourse: {msg}");
             assert!(
@@ -623,13 +623,14 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
 
         // Half one: the tag fires, and shows the conditioned sentence.
-        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, band(), tol()) else {
+        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error)
+        else {
             panic!("{name}: one arc stops at a seam vertex and must refuse")
         };
         assert!(
             matches!(
                 one,
-                FilletError::FilletCornerUnsupported {
+                BlendError::UnsupportedCorner {
                     corner: CornerConfig::SeamVertex,
                     policy: None,
                     ..
@@ -644,7 +645,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         );
 
         // Half two: the request that sentence names, answered.
-        let whole = fillet_edges(&source, &arcs, 0.05, band(), tol());
+        let whole = fillet_edges(&source, &arcs, 0.05, band(), tol()).map_err(|r| r.error);
         if convex {
             let out =
                 whole.unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
@@ -652,7 +653,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
         } else {
-            let Err(FilletError::UnsupportedChain { detail, .. }) = whole else {
+            let Err(BlendError::UnsupportedChain { detail, .. }) = whole else {
                 panic!("{name}: the whole-rim request meets the material-side refusal")
             };
             assert!(

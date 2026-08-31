@@ -20,7 +20,7 @@ fn main() {
     use geom_core::{Band, Bounds, Interval, Point2, Real, Tol};
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, SketchPlane};
-    use sweep::fillet::fillet_edges;
+    use sweep::blend::fillet_edges;
     use sweep::{Extrusion, extrude};
     use topo::{Body, EdgeKey};
 

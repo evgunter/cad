@@ -172,7 +172,7 @@ fn trims(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<(RimSupport, Surface<f64
 /// Nothing in the tree computes those numbers; this row does.
 ///
 /// Corollary: both documents carve LADDER rims, so the rim-trim channel
-/// of `FilletNaming` reached `names::emit_fillet` from registered
+/// of `BlendNaming` reached `names::emit_fillet` from registered
 /// documents before BLEND-5 — the new suite's annulus rows are the
 /// first ANNULUS-path coverage, not the first rim-phase coverage.
 #[test]

@@ -275,7 +275,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             }),
         },
         K::BlendSelectionResolve {
-            verb: sweep::fillet::BlendKind::Fillet,
+            verb: sweep::blend::BlendKind::Fillet,
             error: Box::new(editor_core::ResolveError::Ambiguous {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
@@ -305,8 +305,8 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         K::Loft(sweep::LoftError::SeamStructure),
         K::Blend {
-            verb: sweep::fillet::BlendKind::Chamfer,
-            error: sweep::fillet::FilletError::RepeatedEdge {
+            verb: sweep::blend::BlendKind::Chamfer,
+            error: sweep::blend::BlendError::RepeatedEdge {
                 edge: topo::EdgeKey::default(),
             },
         },
