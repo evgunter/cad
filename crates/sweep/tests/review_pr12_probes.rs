@@ -233,8 +233,14 @@ fn probe_e_hexagon_tier3_error() {
 /// composition stopped at; it now records that it does not stop. The
 /// blocker was the trimmed sphere face the cut leaves behind, and the
 /// sphere chart's `[azimuth] × [latitude]` window serves that class,
-/// so the containment stage answers and the operation completes with
-/// the exact closed-form volume.
+/// so the containment stage answers and the operation completes.
+///
+/// **What the volume check is, precisely.** The CAP subtraction is
+/// closed form; the filleted blank's own volume is not, and the `want`
+/// below embeds it as MEASURED. So this row pins "the cut removes
+/// exactly one spherical cap from whatever the blank was", not "the
+/// result equals a formula end to end". The fully-closed-form pin is
+/// `m5_pr12_die::deviation_1`.
 #[test]
 fn probe_g_door_a_fields() {
     let c = cube(1.0, Tol::witness());
