@@ -506,7 +506,18 @@ jobs:
   # the next night's opt-0 arm would restore them. Separate
   # `CARGO_TARGET_DIR` values, each
   # named in its own `workspaces:` mapping, make the two stores disjoint. The
-  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree.
+  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree —
+  # an undated one-shot reading that nothing re-takes, and deliberately so.
+  # It grows with the workspace, and what a guard would have to assert is a
+  # runner's free disk, which is not this repository's property and moves
+  # with every image bump. The figure is here to size the decision — two
+  # stores fit where one did. WHAT WOULD NOTICE, named rather than implied:
+  # the measured arm's own build step, which fails outright on a full disk.
+  # The `run_rc` check below then DROPS that arm, and `record` writes the
+  # sample with the remaining ones — so a night that outgrew the disk arrives
+  # as an arm MISSING from docs/perf-data/opt-level/ with a red step behind
+  # it, never as a quiet wrong verdict. That is the whole of the protection
+  # here; nothing watches the figure itself, and nothing should.
   #
   # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
   # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's
@@ -531,7 +542,11 @@ jobs:
     # cadence fires, and after an opt-level change one of them builds its
     # dependencies cold against a brand-new cache key. The ceiling is a
     # runaway guard, not a budget: on the nights nothing is re-measured this
-    # job is the free arm alone and costs ~2 minutes.
+    # job is the free arm alone and costs ~2 minutes — an undated reading
+    # that nothing re-takes, and the ceiling above does not depend on it:
+    # it is a runaway guard sized in hours-of-nothing, so it is correct at
+    # any cost that is not the runaway case. The lane's real durations are
+    # in each sample's own arms under docs/perf-data/opt-level/.
     timeout-minutes: 120
     permissions:
       # `actions: read` for the jobs API (the free arm); `contents: write`
@@ -737,6 +752,11 @@ jobs:
           cat "$RUNNER_TEMP/arm-opt0.json"
           # The archive is ~1 GB and nothing reads it again. Two measured arms
           # share one runner disk, so each drops its own before the next runs.
+          # The size is an undated reading and the `rm` does not depend on it:
+          # the archive is dropped because nothing reads it, at any size. It
+          # is written only so the next reader knows the order of what this
+          # line reclaims, and it shares the disk budget stated in this job's
+          # cache note above, which is where the sizing argument lives.
           rm -f "$RUNNER_TEMP/opt0.tar.zst"
           echo "measured=true" >> "$GITHUB_OUTPUT"
 

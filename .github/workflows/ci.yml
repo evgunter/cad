@@ -701,6 +701,17 @@ jobs:
   # before `filter`, so the added critical-path latency on a docs PR is
   # zero and the cost is one extra billed job-minute.
   #
+  # THIS JOB'S WALL CLOCK IS RE-TAKEN BY NOTHING, and this is the one
+  # place it is written down — the `python-lint` step below sends its
+  # billing argument here rather than restating the range. It is left
+  # unguarded on the same reasoning docs/CI-MINUTES-2026-08.md gives for
+  # its own figures: seconds on a hosted runner are a property of a box
+  # on a day, so a pin would red on noise and a bound would pass through
+  # the drift it exists to catch. What the two arguments that read this
+  # figure actually need is only that the job stays FAR under a minute,
+  # and the BILLED minute — the number that would change a decision — is
+  # what that register tracks for the whole workflow.
+  #
   # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
   # exception is the reason it exists: its subject IS the agreement
   # between the hosted half and local-scripts/ci-local.sh, so it has to
@@ -761,7 +772,11 @@ jobs:
       # as docs and skips the job that would have caught it. Sited here, in
       # the job that carries no `if:`, the self-test runs on that PR anyway.
       # No toolchain: the fixture ships a stub `cargo`, so this row is
-      # stdlib python and git — measured 2.9 s locally.
+      # stdlib python and git — measured 2.9 s locally. UNDATED, ON A
+      # DEVELOPER BOX, RE-TAKEN BY NOTHING: no register carries a gate
+      # step's wall clock, and this figure exists only to say the row is
+      # free enough to sit in a job with no toolchain. The siting argument
+      # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
       # The script that writes the tessellation-budget baseline's own
@@ -797,8 +812,10 @@ jobs:
       #      S61's defect. `check-ci-mirror-parity.py`'s TIER_BLIND list
       #      names this invocation, so claim 7 now enforces the siting.
       #
-      # BILLING: this job measures 8-12 s wall and already bills a whole
+      # BILLING: this job runs in seconds and already bills a whole
       # minute (docs/CI-MINUTES-2026-08.md: per job, rounded UP). The
+      # reading itself, and why nothing re-takes it, are at this job's
+      # own header — one home, so the two cannot drift apart. The
       # install is a ~10 MB prebuilt and ruff over the tree is
       # milliseconds, so the row lands inside the minute this job already
       # costs. A standalone `python-lint` job would bill a second whole
@@ -901,7 +918,15 @@ jobs:
           scripts/gates/no-extra-real-bounds.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
-      # this workflow's build job, measured (bazel-verdict report). #179
+      # this workflow's build job, measured (bazel-verdict report).
+      # THAT 96% IS THE 2026-08 BAZEL-VERDICT READING AT 261 TEST
+      # BINARIES AND NOTHING RE-TAKES IT; it is the record of the event
+      # that produced this gate, not a claim about today's build job,
+      # which has one target per crate precisely because of it.
+      # `scripts/gates/test-aggregation.sh` says the same thing at its
+      # own header and is the home of the argument: what the gate
+      # asserts is the INVARIANT, and it prints the current target total
+      # rather than pinning a number. #179
       # collapsed 249 targets to 12 on that evidence and MISSED
       # step-import, which silently kept 26 (two thirds of every remaining
       # test target in the workspace) until the 2026-08-10 build-contention
@@ -1935,7 +1960,13 @@ jobs:
       # summaries, both REPORTS and neither a gate — the issue's own ruling,
       # restated at the bottom of each block so a future "add teeth" is a
       # decision rather than drift: a budget needs a baseline and the baseline
-      # is moving (the suite went 10,482 -> ~1,243 cpu-s in a day).
+      # is moving. The reading that says so — the 2026-08-13 audit's, and how
+      # far the suite moved in a day — is stated once, in
+      # `scripts/slowest-tests.py`'s header, and not restated here: it is an
+      # undated one-shot that nothing re-takes, so a second copy of it would be
+      # a second thing to keep true. What this note needs from it is that the
+      # baseline MOVES, which is a claim about the suite's traffic and not
+      # about either endpoint.
       #
       # A REPORT MUST NOT BE ABLE TO MASK OR ALTER A TEST VERDICT, and three
       # things enforce that rather than one. The step is separate from the run
@@ -2102,7 +2133,12 @@ jobs:
   # build of the workspace: `-p topo --lib` compiles topo's closure plus
   # its dev-dependencies and links one binary. The rows execute in
   # milliseconds — the compile IS the cost of this job (93 s hosted on a
-  # cold cache, measured on this job's first run).
+  # cold cache, measured on this job's first run, and never since: it is a
+  # one-shot reading with no register and no guard, kept because the SHAPE
+  # it supports — that scoping to one crate's lib is what keeps this job
+  # cheap — is what the next reader needs, and that shape does not turn on
+  # the second. This job's billed minutes, which is the figure a cost
+  # decision would actually read, are docs/CI-MINUTES-2026-08.md's).
   release-corruption:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
@@ -2434,6 +2470,12 @@ jobs:
       # `--no-fail-fast` and its echo, for the reasons spelled out at the
       # default lane's copy of this step (#1128). This lane is where the effect
       # was measured: 22 failures locally against 1-2 here, same tree.
+      # That pair is one undated observation of one red tree; nothing
+      # re-takes it and nothing could — how many failures a broken tree
+      # shows is a property of the breakage, not of this lane. It is here
+      # as the reason the flag was reached for on THIS job first, and the
+      # flag's own justification, at the default lane's copy of this step,
+      # rests on nextest's documented fail-fast default rather than on it.
       #
       # TEE'd, WITH THE VERDICT TAKEN FROM `PIPESTATUS` — the full argument is
       # at the default lane's copy of this step. In one line: a pipeline's
@@ -2977,8 +3019,26 @@ jobs:
     # the run says `klint:pinned` in the step above). `demos/` is deliberately
     # left to the draw, argued at the same site.
     #
-    # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
-    # largest line item in the gate — and the cost is not one slow check: the
+    # WHY THIS JOB AND NOT A CACHE FIX. This note used to open "it bills
+    # 8-10 minutes — the third largest line item in the gate", and THAT
+    # FIGURE IS STALE, in the exact way this repository keeps finding.
+    # docs/CI-MINUTES-2026-08.md's per-job table does carry a `k-lint (gate)`
+    # row at 9.78 wall / 10 billed — but that column is a ONE-SHOT reading of
+    # reference run 32425890937, taken BEFORE the unification sampling this
+    # very note goes on to describe. The same document's 2026-08-22 section
+    # then derives that sampling at −7 to −8 billed minutes for this job, and
+    # its 2026-08-31 addendum states the rule that settles it: a billed-minute
+    # figure there is maintained BY HAND and is only true as of the
+    # measurement it carries the run id for. So the pre-sampling row and the
+    # post-sampling derivation are both the register's, they disagree by
+    # design, and the sentence that quoted the first as current was wrong. A
+    # reader wanting today's cost reads this job's own duration on any recent
+    # run; a reader wanting the trend reads that document's later columns, not
+    # its reference table.
+    #
+    # WHAT SURVIVES, and it is the only thing this argument needed: running
+    # FEWER UNIFICATIONS is the lever, because the cost is
+    # not one slow check: the
     # steps below compile demos/tour and the kernel crates FIVE TIMES, once
     # per unification, and the five share almost nothing. `--release` and dev
     # are different profiles; `budget` and `probe` are opt-in features gated
@@ -3069,7 +3129,17 @@ jobs:
       # ~7 s (measured on the lane's own box, warm cargo registry); the
       # build in front of them took 1m06 there from a cold target and
       # the sweep's own comment below prices such a build at "tens of
-      # seconds" on a runner with this job's cache warm. Folding the
+      # seconds" on a runner with this job's cache warm.
+      #
+      # THOSE TWO SECONDS FIGURES ARE A DEVELOPER BOX'S, UNDATED, AND
+      # RE-TAKEN BY NOTHING — no register carries a demo-tour run time,
+      # and this job's own duration is the only current reading of the
+      # pair, printed on every run that draws this row. They are kept
+      # because the SHAPE is what the siting argument uses: the runs are
+      # cheap and the release build in front of them is not, so the
+      # question is which build this row shares, not how many seconds it
+      # spends. Neither number would change that answer if it moved by a
+      # factor of two, and no threshold anywhere reads either. Folding the
       # pin into `--features budget` would share that build, and is
       # rejected: it would arm the per-face meter inside the run this
       # pin is about, so the tour under test would not be the tour that
@@ -3156,7 +3226,7 @@ jobs:
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
       # No `cargo doc` step here either, for the reason given at the
-      # tess-lint row above. This crate's ~1,050 lines of prose — the
+      # tess-lint row above. This crate's prose — the
       # slack factors, the anisotropy caveat, the boundary rule — moved
       # out of `crates/mesh/src/budget.rs` in #709 and went from covered
       # to uncovered BY MOVING; the rustdoc gate reads them now because
@@ -3223,7 +3293,11 @@ jobs:
 
       # The tessellation-budget gate (issue #320). It rides THIS job
       # because this job is the one that builds demos/tour, and the
-      # sweep IS the tour walking its own scenes (~4 s in release).
+      # sweep IS the tour walking its own scenes (~4 s in release — an
+      # undated reading on this job's own runner, re-taken by nothing but
+      # visible in this step's duration on every run that draws the row;
+      # no threshold reads it and the siting argument needs only that the
+      # sweep is cheap against the build in front of it).
       #
       # COST, stated: this step now ALWAYS pays the tour's release
       # build — the uv-drift step that used to pay it on a cache miss
@@ -3231,11 +3305,14 @@ jobs:
       # someone else has already built it. That is the tour binary, not
       # its dependencies: tens of seconds against this job's own
       # critical path, not the workflow's. It is
-      # deliberately not a debug run (the k-probe sweep's profile):
-      # debug tessellates the same scenes 5-10x slower, which spends
-      # more wall clock than the build it would avoid. The `--features
-      # budget` that arms the meter at all lives in the sweep script,
-      # once, beside the k-probe sweep's `--features probe`.
+      # deliberately not a debug run (the k-probe sweep's profile), and
+      # the release/debug cost ratio that decides that is stated ONCE, in
+      # `scripts/tess_budget_sweep.sh`'s RELEASE paragraph, which is also
+      # where the `--features budget` flag lives. Not restated here: this
+      # file used to carry its own copy of that ratio, and two copies of
+      # an unguarded measurement are two things to keep in step. The
+      # `--features budget` that arms the meter at all lives in the sweep
+      # script, once, beside the k-probe sweep's `--features probe`.
       #
       # It gates REGRESSION,
       # not absolute slack: the head's factors are large and known
@@ -3417,7 +3494,32 @@ jobs:
   # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
-  # workflow's ~460 s critical path (the test shards) — and since the
+  # workflow's ~460 s critical path (the test shards) — and THIS FILE
+  # DOES NOT AGREE WITH ITSELF ABOUT THAT SECOND FIGURE. Three other
+  # places state the same quantity, in different words and at different
+  # magnitudes: the `fmt` job's header, the wasm32 step, and the OPT
+  # LEVEL note on the default build job. They were taken at different
+  # times under different sampling and opt-level rulings and they do not
+  # reconcile. THE FIGURES ARE NOT RESTATED HERE — read them where they
+  # stand, because a fifth copy is the defect, not the fix.
+  #
+  # BUT "NOTHING RE-TAKES IT" WOULD BE FALSE, and this is the part worth
+  # getting right. The critical path is one job's archive step plus one
+  # test shard, and nightly.yml's `opt-level calibration` lane COMMITS A
+  # DATED SAMPLE OF BOTH on every firing: it reads `build test binaries +
+  # archive` and `run archived tests` off real gate runs through the jobs
+  # API and appends them to docs/perf-data/opt-level/, each carrying its
+  # `run_id`, `head_sha` and `created_at`. So the two TERMS have a live
+  # scheduled register at the runner's own box class. What that register
+  # does NOT carry is their SUM, this job's own ~150 s, or the ratio
+  # between them, and the OPT LEVEL note's own pair is dated to a named
+  # run rather than undated. So the honest statement is: the components
+  # are registered, the composition is not, and the four spellings differ
+  # because each is a composition taken on a different day.
+  #
+  # The claim THIS note makes survives all four, because it is an
+  # inequality with a factor of three in hand at the tightest of them
+  # (~150 against ~460) and more against the others — and since the
   # 2026-08-22 lane merges they do it in two jobs rather than five, so they
   # cost fewer runner minutes and nothing else, and only on the same condition
   # `k-lint` uses — a render depends on the whole kernel, so "whenever
