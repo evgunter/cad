@@ -89,6 +89,74 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     assert!(!refusal.to_string().is_empty());
 }
 
+/// **A tool's notice is not erased by the batch that carried its own
+/// pick** — the composition seam, as the rule that closes it.
+///
+/// The defect this row exists for: the blend tool declines a pick on a
+/// second body and says so, but the declined click is still a `Select`
+/// that the session performs cleanly. `batch_status` sees an acting op
+/// and no refusal, answers `Clear`, and the explanation is wiped in
+/// the same frame it was written — net effect, the selection jumps to
+/// another body and the sentence saying why it did not join the blend
+/// is shown for zero frames.
+///
+/// Both halves are asserted, because the first is what makes the
+/// second necessary rather than decorative.
+#[test]
+fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
+    let declined = [SessionOp::Select(Selection::None)];
+    let notice = "blend tool: the held edges are on feature 3 body 0".to_owned();
+
+    // The batch policy alone: the frame acted, nothing refused, so the
+    // line is cleared. This is the seam.
+    assert_eq!(
+        frame::batch_status(&declined, None),
+        StatusUpdate::Clear,
+        "a declined pick still performs cleanly, so the batch alone clears"
+    );
+
+    // The frame policy: the notice is what the line shows.
+    assert_eq!(
+        frame::frame_status(std::slice::from_ref(&notice), &declined, None),
+        StatusUpdate::Show(notice.clone())
+    );
+
+    // A refusal outranks it — the answer to what the user asked the
+    // DOCUMENT for is the louder of the two.
+    let refusal = Refusal::NothingToDo;
+    assert_eq!(
+        frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
+        StatusUpdate::Show(refusal.to_string())
+    );
+
+    // With no notices the frame policy is the batch policy, verdict
+    // for verdict — including the hover rule, which must not become a
+    // second opinion here.
+    for ops in [
+        vec![SessionOp::Hover(None)],
+        vec![SessionOp::Select(Selection::None)],
+        vec![],
+    ] {
+        assert_eq!(
+            frame::frame_status(&[], &ops, None),
+            frame::batch_status(&ops, None),
+            "{ops:?}"
+        );
+    }
+
+    // SEVERAL notices in one frame are all shown, joined. Assigning
+    // `status` from each in turn keeps the last and loses the rest,
+    // which is the keep-last defect the batch policy already exists to
+    // stop for refusals.
+    let second = "blend tool: an edit removed 6 of the picked edges".to_owned();
+    let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
+    let StatusUpdate::Show(line) = &both else {
+        panic!("two notices are shown, got {both:?}");
+    };
+    assert!(line.contains(&notice) && line.contains(&second), "{line}");
+    assert_eq!(*line, [notice, second].join(frame::NOTICE_SEPARATOR));
+}
+
 #[test]
 fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // The first-light defect (#1097, a WSL distro): with no portal
