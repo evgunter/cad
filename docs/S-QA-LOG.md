@@ -378,3 +378,28 @@ gives a fix pass its implementer's arm — rather than drawing a
 fresh triple block for one unit; its dual claims ordinal 808 at
 review dispatch. Issue 681 closes at PR 2's merge on the combined
 record.
+
+## QA-6 PR 2 merged (2026-08-31): issue 681 closes, and the slate is empty
+
+The sweep's remaining legs are paid: every measured claim in the
+workflows, the composite actions, the scripts, and the tools crates'
+threshold docs now carries its bucket at the site, the tally table
+shows a zero no-bucket column per leg, and the two legs this program
+could not take are closed by written disposition instead of silence
+(crates/*/tests is Track W's ground with issue 651 as the class
+home and the instrument proven ready on it; docs prose stays
+deferred on the plan's stated reason). The dual earned five MAJORs
+on one arm — all of them the unit's charter applied to its own new
+prose: a headline finding its own committed instrument falsifies in
+one command, an incomplete leg with the residue dropped from the
+table, a stale billed-minutes claim wearing a register's name, and
+the check-for-a-register clause skipped a third time in this unit.
+One of the five was partly this orchestrator's: the spec's "do not
+re-litigate register figures" stated the rule too broadly — the
+credit is owed to a register's COLUMNS, not its name — the
+program's fifth dispatch-premise correction and its first in a
+ratified spec rather than a reviewer brief. The fix pass took all
+eleven items and swept fourteen more sites to zero residue. Issue
+681 closes on PR #1311 + PR #1331 + the two dispositions. With
+this merge the slate is empty: #470 and #466 stay parked with
+their recorded reasons, and the program moves to its exit walk.
