@@ -222,32 +222,29 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// none does. Returns `(u_ref, axis)` — the seam is the picked
 /// link's first support normal.
 ///
-/// **The pick always yields, over candidates that are this corner's.**
-/// A candidate needs an incident link and a third support:
-/// [`CornerLinks`] carries at least one link, and
-/// [`CornerFaces::third`] is total over the corner's own three
-/// distinct faces — so there is no "no candidate here" state left to
-/// refuse, and what remains to refuse is a candidate that is not this
-/// corner's at all.
+/// **The pick always yields, over one corner.** [`CornerLinks`] carries
+/// at least one link and [`CornerFaces::third`] is total over the
+/// corner's own three distinct faces, so there is no "no candidate
+/// here" state to refuse.
 ///
-/// **Why that is checked and not assumed.** The two tokens are derived
-/// independently: `faces` from the source body's vertex orbit
-/// ([`vertex_faces`]), `links` from the battery's resolved arms, whose
-/// supports are the blended edge's two half-edge faces. On a body that
-/// holds together they name the same three faces, and
-/// [`CornerLinks`]'s own incidence check does not say so — it proves
-/// each link TERMINATES at the corner, not that its supports are the
-/// corner's. Scoring a pair that is not this corner's yields a chart
-/// aimed at nothing in particular, and **no downstream check can see
-/// it**: the chart is a sphere face's `u_ref`/`axis`, so a wrong one
-/// still closes, still passes tier 1 and 2, and shows up only as a
-/// tier-3 `NotIsoRectangle` at a corner where the geometry was right.
-/// So the disagreement refuses as the body-integrity fault it is.
+/// **The two tokens are checked to describe the same corner**, because
+/// nothing in their types says so: `faces` is walked from a vertex
+/// orbit, `links` comes from the battery's resolved arms, and
+/// [`CornerLinks`] proves only that each link TERMINATES at its
+/// vertex. **Today's one call site derives both from the same vertex
+/// two statements apart** ([`super::surgery`]'s corner plan), so the
+/// check cannot fire — it is here so that a future caller assembling
+/// them from further apart fails loudly instead of silently, which is
+/// the direction this particular value fails in: the chart is a sphere
+/// face's `u_ref`/`axis`, so a wrong one still closes, still passes
+/// tiers 1 and 2, and would surface only as a tier-3
+/// `NotIsoRectangle` at a corner whose geometry is right.
 ///
 /// # Errors
 ///
-/// [`BlendError::BodyNotIntact`] when an incident link's supports are
-/// not two of this corner's three faces;
+/// [`BlendError::BodyNotIntact`] when `faces` and `links` are not the
+/// same corner's, or when an incident link's supports are not two of
+/// this corner's three faces;
 /// [`BlendError::UnsupportedGeometry`] when a support of this corner
 /// is not a plane.
 pub(super) fn octant_chart<T: Decide + Bounds>(
@@ -255,13 +252,24 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
 ) -> Result<(Vec3<T>, Vec3<T>), BlendError> {
+    // The two tokens describe ONE corner. This is the total check:
+    // the ends of a single edge share both of its supports and differ
+    // only in the third, so a face-membership test alone cannot tell
+    // adjacent corners apart, and the third support is exactly what
+    // the score below turns on.
+    if faces.vertex() != links.vertex() {
+        return Err(not_intact(
+            EntityId::Vertex(links.vertex()),
+            "a corner's chart was offered the face orbit of a different vertex",
+        ));
+    }
     // `(score, u_ref, axis)` for one candidate edge: the chart aimed
     // along it, scored by how nearly the third support's normal is
     // parallel to its axis.
     let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), BlendError> {
-        // FIRST, before a normal is read: this link's two supports are
-        // two of THIS corner's three. A stranger pair would be scored
-        // exactly as readily as the right one (rustdoc above).
+        // Before a normal is read: this link's two supports are two of
+        // THIS corner's three. Necessary, not sufficient — the vertex
+        // check above is what identifies the corner.
         let third = faces.third(l.face_a, l.face_b).ok_or_else(|| {
             not_intact(
                 EntityId::Vertex(links.vertex()),
@@ -429,16 +437,24 @@ mod tests {
     /// independently — the corner's three faces off the source body's
     /// vertex orbit, the incident links off the battery's resolved
     /// arms — and neither type says they describe the same corner.
-    /// Handed a mismatched pair it used to score one anyway, because
-    /// excluding two strangers from three faces still names a face;
-    /// the chart that came back was aimed at a trihedron somewhere
-    /// else on the body.
+    /// Handed a mismatched pair it would score one anyway, because
+    /// excluding two faces from three still names a face.
     ///
-    /// **Nothing downstream could have caught it**, which is why this
-    /// row exists rather than an acceptance one: the chart is a sphere
-    /// face's `u_ref` and `axis`, so a wrong one closes the same
-    /// shell, passes tiers 1 and 2 unchanged, and surfaces at most as
-    /// a tier-3 `NotIsoRectangle` at a corner whose geometry is right.
+    /// **Today's one production call site pairs them by construction**
+    /// (`surgery`'s corner plan derives both from one vertex), so this
+    /// is not a live defect being pinned — it is the check that keeps
+    /// a future caller from assembling them further apart and getting
+    /// no complaint. That direction matters here because the value is
+    /// a sphere face's `u_ref`/`axis`: a wrong one closes the same
+    /// shell, passes tiers 1 and 2 unchanged, and would surface at
+    /// most as a tier-3 `NotIsoRectangle` at a corner whose geometry
+    /// is right.
+    ///
+    /// **Two mismatches, and the second is why the check is on the
+    /// VERTEX.** A far corner shares no support, so a face-membership
+    /// test catches it; the OTHER END OF THE SAME EDGE shares both
+    /// supports and differs only in the third — which is precisely the
+    /// face the score reads — so membership alone answers it happily.
     /// The positive half is asserted in the same row so the refusal
     /// cannot pass by refusing everything.
     #[test]
@@ -465,8 +481,9 @@ mod tests {
             "a corner charted against its own three supports must still yield"
         );
 
-        // A corner sharing NEITHER support of this link — on a cube,
-        // the diagonally opposite one.
+        // (1) A corner sharing NEITHER support of this link — on a
+        // cube, the diagonally opposite one. Face membership alone
+        // catches this one.
         let elsewhere = body
             .vertices()
             .map(|(v, _)| v)
@@ -480,6 +497,32 @@ mod tests {
             ),
             "a chart derived from a link whose supports are not the corner's own must \
              refuse, not score"
+        );
+
+        // (2) The OTHER END of this very edge: both supports shared, a
+        // different third — the mismatch every face-membership test
+        // admits, and the one that changes the score.
+        let adjacent = CornerFaces::admit(&body, here.link().end)
+            .expect("the far end of a cube edge is a trivalent corner too");
+        assert!(
+            adjacent.contains(here.link().face_a) && adjacent.contains(here.link().face_b),
+            "the adjacent corner must share BOTH supports, or it is case (1) again"
+        );
+        assert_ne!(
+            adjacent
+                .third(here.link().face_a, here.link().face_b)
+                .expect("both supports are this corner's"),
+            mine.third(here.link().face_a, here.link().face_b)
+                .expect("and this corner's"),
+            "the two ends must differ in the third support, or the case is vacuous"
+        );
+        assert!(
+            matches!(
+                super::octant_chart(&body, &adjacent, &corner),
+                Err(BlendError::BodyNotIntact { .. })
+            ),
+            "a chart offered the face orbit of the edge's OTHER end must refuse: both \
+             supports match and the third — the one the score reads — does not"
         );
     }
 }

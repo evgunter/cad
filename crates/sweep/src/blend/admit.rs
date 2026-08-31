@@ -241,16 +241,21 @@ fn distinct(f0: FaceKey, f1: FaceKey, f2: FaceKey) -> bool {
 }
 
 /// **A trivalent corner's three distinct support faces**, in orbit
-/// order.
+/// order, and the VERTEX they were walked from.
 ///
 /// The array is the claim: three faces, pairwise distinct. That is
 /// what makes [`CornerFaces::third`] total **over this corner's own
 /// pairs** — excluding two of three distinct faces always leaves one —
 /// and it is the fact the octant's chart pick used to fall off with a
-/// run-out refusal it could not justify. Totality stops exactly at the
-/// corner's own three: a pair from somewhere else is refused rather
-/// than answered, because the answer would be a chart.
+/// run-out refusal it could not justify.
+///
+/// **The vertex is kept because the faces alone cannot identify the
+/// corner.** Two ends of one edge share both of its supports and
+/// differ only in the third, so a consumer holding this token beside a
+/// [`CornerLinks`] can check that the two describe the same corner —
+/// and comparing the faces would not tell those two apart.
 pub(super) struct CornerFaces {
+    vertex: VertexKey,
     faces: [FaceKey; 3],
 }
 
@@ -295,8 +300,14 @@ impl CornerFaces {
             ));
         }
         Ok(Self {
+            vertex,
             faces: [f0, f1, f2],
         })
+    }
+
+    /// The vertex whose orbit these faces were walked from.
+    pub(super) fn vertex(&self) -> VertexKey {
+        self.vertex
     }
 
     /// The three faces, in orbit order.
@@ -321,16 +332,13 @@ impl CornerFaces {
     /// this corner, where excluding two of three distinct faces always
     /// leaves one.
     ///
-    /// **`None` is the answer to a pair this corner does not carry**,
-    /// and it is the point rather than a defect of totality: excluding
-    /// a face the corner does not hold leaves TWO, and naming either
-    /// would be a support pair that is not this corner's, scored as if
-    /// it were. The one consumer derives the octant's CHART from the
-    /// answer, and a wrong chart builds a shell that is valid at every
-    /// tier a caller can check — so a plausible answer here is the
-    /// failure nothing downstream catches, and the refusal is what
-    /// makes the two tokens' agreement a checked fact rather than an
-    /// assumption about how the caller paired them.
+    /// **`None` rather than a plausible answer**: excluding a face this
+    /// corner does not hold leaves TWO, and naming either would be a
+    /// support pair that is not this corner's, scored as if it were.
+    /// The consumer derives a CHART from the answer, so a plausible one
+    /// is worse than none. This is a NECESSARY condition and not the
+    /// whole check — the two ends of one edge share both its supports,
+    /// so identifying the corner is [`CornerFaces::vertex`]'s job.
     pub(super) fn third(&self, a: FaceKey, b: FaceKey) -> Option<FaceKey> {
         if a == b || !self.contains(a) || !self.contains(b) {
             return None;

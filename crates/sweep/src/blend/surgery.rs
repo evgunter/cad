@@ -131,7 +131,8 @@
 //! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
-//!   that did not resolve, or a cycle that did not close. **This is not a kernel
+//!   that did not resolve, a cycle that did not close, or a verdict
+//!   whose keys disagree with the body's own structure. **This is not a kernel
 //!   bug channel.** A body that fails referential integrity is
 //!   reachable at this door without any kernel bug in the trace —
 //!   `topo::instance::graft_disjoint_all`'s own docs record that a
@@ -170,8 +171,12 @@ use geom_core::Tol;
 
 /// **Row 1** — the body or the verdict handed to the surgery does not
 /// hold together where the plan read it: a stored reference that did
-/// not resolve, or a cycle that did not close. Invalid input, not a
-/// frontier.
+/// not resolve, a cycle that did not close, or a verdict whose keys
+/// disagree with the body's own structure. Invalid input, not a
+/// frontier. The third clause is the one the plan's own tokens use —
+/// a link offered to a corner it does not touch, a chart offered
+/// another vertex's faces — and it is why this constructor is not
+/// only about arena reads.
 pub(super) fn not_intact(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, detail }
 }
@@ -672,6 +677,10 @@ fn corner_plan<'a, T: Decide + Bounds>(
     radius: T,
     kind: BlendKind,
 ) -> Result<Corner<'a, T>, BlendError> {
+    // Both corner tokens are derived from THIS vertex, here: the
+    // faces two statements below, the links in the argument. That
+    // pairing is what `octant_chart`'s agreement check reads, and it
+    // is why that check cannot fire from this call site.
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
@@ -1654,6 +1663,10 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
         // ring, which is exact for every ring this kernel mints.
         found.get_or_insert((center, radius));
     }
+    // Row 0 (`D96`): NO — the non-emptiness is `topo::loop_cycle`'s,
+    // and carrying it locally means `loop_walk` returning a split
+    // head/tail through six call sites that index and length it. The
+    // cost is written up in `docs/SMELL-T-LOG.md`'s `T-c` record.
     let Some(circle) = found else {
         unreachable!(
             "ring_circle: `loop_walk` above returned a cycle, and a cycle always \
@@ -2217,6 +2230,10 @@ fn blank_phase<T: Decide + Bounds>(
             }
             body.kef(hp).map_err(|e| op("corner-strut kef", e))?;
         }
+        // Row 0 (`D96`): NO, for both spur arms — the premise is a
+        // COUNT this call checked immediately above, but WHICH strut
+        // survives is the outcome of three Euler operators, not a
+        // shape a type carries (`docs/SMELL-T-LOG.md`, `T-c`).
         let Some(s) = spur else {
             unreachable!(
                 "corner fusion: NO strut survived the fusion — exactly three struts on \
@@ -2240,6 +2257,10 @@ fn blank_phase<T: Decide + Bounds>(
         body.kev(dying).map_err(|e| op("corner kev", e))?;
         // The corner patch is whatever face the first arc's non-blend
         // half now bounds.
+        // Row 0 (`D96`): YES — `CornerLinks::first` already returns a
+        // link rather than an `Option`, so this state is unrepresentable
+        // one level up. Carrying that into this loop needs a seeded
+        // `sorted` and the mint body hoisted; rowed as `D325`.
         let Some(arc) = first_arc else {
             unreachable!(
                 "corner fusion: a corner's incidence list holds at least the link that \
@@ -2806,6 +2827,9 @@ fn rim_phase<T: Decide + Bounds>(
     }
 
     // The band: the face on the non-cap side of the first sphere trim.
+    // Row 0 (`D96`): NO — one row per `plane_walk` position, so the
+    // non-emptiness is the cycle's, the same cause as `ring_circle`'s
+    // (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(tb) = tb_edges.first() else {
         unreachable!(
             "rim phase: step (4) mints one sphere trim per `plane_walk` position, and a \
@@ -2831,6 +2855,9 @@ fn rim_phase<T: Decide + Bounds>(
              `mef` mints the trim into two loops and step (6) kills neither"
         ),
     };
+    // Row 0 (`D96`): NO — "exactly one strut reaches the closure case"
+    // is the outcome of a walk over the ring, not a shape a type can
+    // carry to this line (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(band_surface) = band_surface else {
         unreachable!(
             "rim phase: the ring step (6) walks is closed, so exactly one strut reaches \
