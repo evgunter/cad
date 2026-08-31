@@ -415,3 +415,5 @@ mod r1_p2_probes;
 
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;
+#[path = "bool1_r2_probes.rs"]
+mod bool1_r2_probes;
