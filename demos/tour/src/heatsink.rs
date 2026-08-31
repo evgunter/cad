@@ -8,27 +8,60 @@
 //! upstream is reused by content key). Stable names (N1
 //! `Instance(i)` wrapping) survive the edits — counted live.
 //!
-//! The pattern node yields placed instance BODIES (`transform_rigid`
-//! placements, key-stable); the printable single solid per variant is
-//! made by sequential inset-overlap unions of the fins into the base
-//! (the table-leg pattern, 1/16 overlap — flush fin bases would
-//! refuse). F4 note, probed 2026-07-25: a Boolean recipe node cannot
-//! consume a Pattern node's `Instances` payload today, so the
-//! union-to-one-solid step lives HERE in demo code, honestly outside
-//! the document.
+//! **The whole part is now IN the document** (#1344). It used to end
+//! with a `Pattern` node — N placed instance bodies — and a union chain
+//! written HERE, in demo code, under an F4 note saying a `Boolean`
+//! recipe node cannot consume a Pattern's `Instances` payload.
+//!
+//! That sentence is still true, and still by design: `body_operand`
+//! refuses `ValuePayload::Instances` typed, because Pattern's
+//! N-bodies-unfused contract is deliberate — its instances are the
+//! ASSEMBLY product's currency, gathered per-instance by
+//! `product::sources_of`, which is what `benchlayout` needs. What
+//! changed is that the heat sink was asking the wrong node.
+//! `Node::PlacedUnion` (GROUP-BOOLEAN-DESIGN, ratified A′) is the one
+//! it wanted: one prototype, a placement rule, ONE BODY out,
+//! disjointness CERTIFIED through `topo::Separation`, `Instance(i)`
+//! naming preserved, and `SlotId::Count` still the structural slot the
+//! fin-count edit drives. Its output is an ordinary `Body`, so the
+//! union into the base is an ordinary `Boolean` node beside it.
+//!
+//! The design record named this scene by name — *"the heatsink's
+//! out-of-document union moves INTO the document (the F4 note retires
+//! at its origin, both workarounds deleted per the demo doctrine)"* —
+//! and this is that move.
+//!
+//! # The 1/16 overlap is still a dodge, and still here (#1344)
+//!
+//! The fins are sketched 1/16 INSIDE the base rather than sitting flush
+//! on it, "the table-leg pattern". What that dodges is the
+//! undeclared-coincidence refusal, and `bool_bodies::table` runs the
+//! experiment live next door: a leg whose top face is EXACTLY coplanar
+//! with the tabletop's underside, undeclared, refuses at the
+//! coincidence door (rung (b) — value equality never classifies), while
+//! the same leg overlapped 0.05 into the top unions as an ordinary
+//! transversal intersection.
+//!
+//! A real extruded heat sink's fins ARE flush with its base; the 1/16
+//! embedment is a modelling fiction the part does not have. The honest
+//! version declares the contacts instead — which only became
+//! practical with `PlacedUnion`, since per-fin declarations against
+//! bit-identical `StableName`s had no per-instance discriminator before
+//! `Instance(i)`. Recorded, not fixed here: it is #1344's own
+//! follow-up, and it wants the recipe layer's `Node::Declare` path.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node, PatternKind,
-    ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
+    BooleanOp, BooleanValue, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram,
+    Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
+    parse_expr,
 };
 use pncad::geom_core::{Point3, Vec3};
 use pncad::profile::SketchPlane;
 
-use crate::booleans::{check, expect_seamed, try_union};
 use crate::scalar::Scalar;
 
 /// The U8a text door, no params in scope: the tour's expressions are
@@ -50,8 +83,12 @@ const FIN_GAIN: f64 = 0.1875 * 0.75 * (0.8125 - 0.0625);
 
 struct Recipe {
     doc: Doc<ProfileProgram>,
-    base_e: RecipeNodeId,
-    pattern: RecipeNodeId,
+    /// The `PlacedUnion` over the fin — the fin count's structural
+    /// slot, and what `SetStructuralParam` edits.
+    group: RecipeNodeId,
+    /// The `Boolean(Union)` that folds the fin group into the base:
+    /// the node that used to be a chain of unions in demo code.
+    solid: RecipeNodeId,
 }
 
 fn build_doc(tol: Tol) -> Recipe {
@@ -105,55 +142,64 @@ fn build_doc(tol: Tol) -> Recipe {
             distance: pe("812.5 mm"),
         },
     );
-    let pattern = insert(
+    // The fin group: ONE node, ONE body out. `placed_union` is the
+    // PARAMETRIC-rule constructor, so the count stays a structural slot
+    // and the tour's 5 -> 7 -> 9 edit drives it exactly as it drove
+    // Pattern's.
+    let group = insert(
         &mut doc,
-        Node::Pattern {
-            input: fin_e,
-            count: pe("5"),
-            kind: PatternKind::Linear {
+        Node::placed_union(
+            fin_e,
+            pe("5"),
+            PatternKind::Linear {
                 direction: [pe("1.0"), pe("0.0"), pe("0.0")],
                 spacing: pe("312.5 mm"),
             },
+        )
+        .expect("a Linear rule is parametric, so it carries a count"),
+    );
+    // ... and the fold into the base, in the document rather than
+    // beside it. No declarations: the fins overlap the base by 1/16, so
+    // this is an ordinary transversal union (see the module docs for
+    // why that overlap is a dodge and what retires it).
+    let solid = insert(
+        &mut doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: base_e,
+            b: group,
+            declare: None,
         },
     );
-    Recipe {
-        doc,
-        base_e,
-        pattern,
-    }
+    Recipe { doc, group, solid }
 }
 
-/// Unions the pattern's fin instances into the base — one solid, exact
-/// volume after every union (demo-side; see module docs).
+/// The document's OWN final body, read back — no demo-side boolean.
+///
+/// This function used to BE the union chain (#1344). What is left is
+/// the read plus the volume gate the chain used to run per step: the
+/// exact dyadic oracle still has to hold of the node's answer, or the
+/// group node has quietly changed what it builds.
 fn solidify<S: Scalar>(
     r: &Recipe,
     ev: &Evaluation<S>,
     n: usize,
     tol: Tol,
-) -> pncad::topo::BooleanBody<S> {
-    let base = match &ev.value(r.base_e).expect("base evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
-        other => panic!("base payload: {other:?}"),
+) -> (pncad::topo::Body<S>, pncad::topo::ContactRecords) {
+    let value = ev.value(r.solid).expect("the union node evaluated");
+    let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
+        panic!("union payload: {:?}", value.payload);
     };
-    let fins = match &ev.value(r.pattern).expect("pattern evaluated").payload {
-        ValuePayload::Instances(v) => v.clone(),
-        other => panic!("pattern payload: {other:?}"),
-    };
-    assert_eq!(fins.len(), n, "pattern instance count");
-    let mut acc = base;
-    let mut vol = BASE_VOL;
-    let mut last: Option<pncad::topo::BooleanBody<S>> = None;
-    for (i, fin) in fins.iter().enumerate() {
-        vol += FIN_GAIN;
-        let bb = expect_seamed(
-            &format!("fin[{i}] union"),
-            check(try_union(&acc, fin, tol), vol, tol),
-            vol,
-        );
-        acc = bb.body.clone();
-        last = Some(bb);
-    }
-    last.expect("at least one fin")
+    let want = BASE_VOL + n as f64 * FIN_GAIN;
+    let got = pncad::topo::mass_properties(body, tol)
+        .expect("mass properties")
+        .volume
+        .f();
+    assert!(
+        (got - want).abs() <= 1e-9,
+        "the {n}-fin solid measures {got}, and base + {n} fins is {want}"
+    );
+    ((**body).clone(), (**contacts).clone())
 }
 
 /// The recipe evaluated + solidified at every fin count the tour
@@ -164,7 +210,7 @@ fn solidify<S: Scalar>(
 /// it — otherwise a default build trips `dead_code` under CI's
 /// `-D warnings`.
 #[cfg(feature = "probe")]
-pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<pncad::topo::BooleanBody<S>> {
+pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<(pncad::topo::Body<S>, pncad::topo::ContactRecords)> {
     let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
@@ -176,7 +222,7 @@ pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<pncad::topo::BooleanBody<
         let applied = apply(
             &doc,
             &DocEdit::SetStructuralParam {
-                node: r.pattern,
+                node: r.group,
                 slot: SlotId::Count,
                 expr: pe(&format!("{n}")),
             },
@@ -208,7 +254,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Evaluate at 5, then EDIT the structural count and re-evaluate
     // against the prior — the memo counters are the demo.
     let ev5 = evaluate::<f64>(&r.doc, None, &cancel, &opts, tol);
-    let names5 = ev5.value(r.pattern).expect("pattern@5").name_table.clone();
+    let names5 = ev5.value(r.group).expect("the fin group @ 5").name_table.clone();
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
@@ -217,7 +263,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         let applied = apply(
             &doc,
             &DocEdit::SetStructuralParam {
-                node: r.pattern,
+                node: r.group,
                 slot: SlotId::Count,
                 expr: pe(&format!("{n}")),
             },
@@ -246,7 +292,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          change means the naming emission vocabulary moved - update \
          this pin deliberately"
     );
-    let names9 = &evs[2].1.value(r.pattern).expect("pattern@9").name_table;
+    let names9 = &evs[2].1.value(r.group).expect("the fin group @ 9").name_table;
     let survived = names5
         .iter()
         .filter(|(name, _)| names9.lookup(name).is_some())
@@ -268,7 +314,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     evs.into_iter()
         .zip(colors)
         .map(|((n, ev, recompute_story), color)| {
-            let bb = solidify(&r, &ev, n, tol);
+            let (body, contacts) = solidify(&r, &ev, n, tol);
             let name: &'static str = match n {
                 5 => "heatsink5",
                 7 => "heatsink7",
@@ -291,7 +337,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     BASE_VOL + n as f64 * FIN_GAIN
                 )),
                 view: View { elev: 24.0, azim: -62.0, up: 'z' },
-                bodies: vec![SceneBody::seamed(name, color, bb.body, bb.contacts)],
+                bodies: vec![SceneBody::seamed(name, color, body, contacts)],
             }
         })
         .collect()
