@@ -17,7 +17,7 @@
 #[cfg(feature = "interval")]
 fn main() {
     use geom::Surface;
-    use geom_core::{Band, Bounds, Interval, Point2, Real, Tol};
+    use geom_core::{Bounds, Interval, Point2, Real, Tol};
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, SketchPlane};
     use sweep::blend::fillet_edges;
@@ -25,7 +25,6 @@ fn main() {
     use topo::{Body, EdgeKey};
 
     let _ = <Interval as Bounds>::lo;
-    let band = Band::linear(Tol::witness()).unwrap();
     let i = Interval::from_f64;
     let (l, r) = (1.0_f64, 0.15_f64);
 
@@ -54,7 +53,7 @@ fn main() {
     );
 
     let edges: Vec<EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&blank, &edges, i(r), band, Tol::witness()) {
+    match fillet_edges(&blank, &edges, i(r), Tol::witness()) {
         Err(e) => println!("[ABI] fillet_edges REFUSED: {e:?}"),
         Ok(f) => {
             let scaffolds = f

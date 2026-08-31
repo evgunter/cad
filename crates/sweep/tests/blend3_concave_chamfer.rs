@@ -10,10 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -21,11 +20,6 @@ use topo::{Body, EdgeKey, subtract, validate, validate_closed};
 
 /// The chamfer setback, meters.
 const D: f64 = 0.25;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 /// An axis-aligned box, authored the way a user would: a rectangle
 /// profile on a translated sketch plane, extruded.
@@ -200,7 +194,7 @@ fn chamfered_cavity_volume(a: f64, d: f64) -> f64 {
 #[test]
 fn the_chamfered_cavity() {
     let body = vented_cavity();
-    let out = chamfer_edges(&body, &cavity_edges(&body), D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &cavity_edges(&body), D, Tol::witness())
         .expect("the cavity's twelve concave edges chamfer");
     let out_body = out.body;
 
@@ -281,7 +275,7 @@ fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
 #[test]
 fn every_minted_face_of_a_concave_carve_faces_the_void() {
     let body = vented_cavity();
-    let out = chamfer_edges(&body, &cavity_edges(&body), D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &cavity_edges(&body), D, Tol::witness())
         .expect("the cavity's twelve concave edges chamfer");
     let centre = Point3::new(2.0, 2.0, 2.0);
     for face in out.blend_faces.iter().chain(out.corner_faces.iter()) {
@@ -300,7 +294,7 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     // both.
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let cut = chamfer_edges(&cube_body, &cube_edges, D, band(), Tol::witness())
+    let cut = chamfer_edges(&cube_body, &cube_edges, D, Tol::witness())
         .expect("a cube's twelve edges chamfer");
     let cube_centre = Point3::new(1.0, 1.0, 1.0);
     for face in cut.blend_faces.iter().chain(cut.corner_faces.iter()) {
@@ -314,64 +308,23 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     }
 }
 
-/// **THE DIFFERENTIAL: the fillet's refusal here did not move.**
-///
-/// The chamfer's widening is the chamfer's. A fillet asked for the
-/// same twelve edges refuses at the same door with the same payload it
-/// carried before any of this — `MixedConvexity { convex: 0 }`,
-/// feather — because the corner ball, its contact feet and the octant
-/// chart are each derived on the convex side and none of them moved
-/// (evgunter/cad issue 644 is that widening).
-///
-/// The payload is asserted rather than merely the variant, since the
-/// variant alone would stay green under a relabelling. Naming the
-/// uniform concave trihedron for what it is would read better here and
-/// is deliberately NOT done: extending the corner vocabulary is a
-/// taxonomy decision OQ6 reserves for Evan, opened as evgunter/cad
-/// issue 1355.
+/// **THE DIFFERENTIAL, retired by issue 644's widening: both verbs
+/// now carve this fixture.** This suite once pinned the fillet's
+/// refusal here — `MixedConvexity { convex: 0 }`, the vocabulary's
+/// poor-fit name for the uniform concave trihedron — as the boundary
+/// the chamfer's widening did not move. The convexity-parametric
+/// fillet corner then moved it deliberately: the concave rolling
+/// ball's own carve, census, volume and orientation rows live in the
+/// concave-fillet suite, and the corner recourse's followability —
+/// now shipped only at genuinely MIXED corners — is pinned there on
+/// both of its clauses. What this row keeps is the two verbs' shared
+/// half: one fixture, both verbs, both carve.
 #[test]
-fn the_concave_fillet_refuses_exactly_as_it_did_before() {
+fn both_verbs_carve_the_cavity_the_fillet_once_refused() {
     let body = vented_cavity();
     let edges = cavity_edges(&body);
-    let err = fillet_edges(&body, &edges, D, band(), Tol::witness())
-        .expect_err("the concave fillet refuses");
-    match err.error {
-        BlendError::UnsupportedCorner {
-            corner: CornerConfig::MixedConvexity { convex },
-            policy,
-            ..
-        } => {
-            assert_eq!(convex, 0, "none of the three edges is convex");
-            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
-        }
-        ref other => panic!("expected the corner-configuration refusal, got {other:?}"),
-    }
-    assert!(
-        err.to_string()
-            .contains("is a mixed-convexity vertex (0 of 3 edges convex)"),
-        "the rendered sentence is the one it always was: {err}"
-    );
-}
-
-/// **The sentence that refusal ships is followable, here, as written.**
-///
-/// The corner recourse tells a refused caller that a trivalent corner
-/// of three CONCAVE edges is carved by a chamfer over plane–plane
-/// supports. A recourse that names a door which cannot serve the caller
-/// who was just refused is the defect this standard exists for, so the
-/// row asserts the sentence and then EXECUTES it — same body, same
-/// twelve edges, same size — and requires the promised carve.
-#[test]
-fn the_concave_corner_recourse_is_followable_as_written() {
-    let body = vented_cavity();
-    let edges = cavity_edges(&body);
-    let refused = fillet_edges(&body, &edges, D, band(), Tol::witness())
-        .expect_err("the concave fillet refuses");
-    let text = refused.error.to_string();
-    assert!(
-        text.contains(FILLET3_CORNER_RECOURSE),
-        "the corner refusal must ship the corner recourse, got {text}"
-    );
-    chamfer_edges(&body, &edges, D, band(), Tol::witness())
-        .expect("the door that sentence names must carve the request it was refused for");
+    chamfer_edges(&body, &edges, D, Tol::witness())
+        .expect("the chamfer carves its twelve concave edges");
+    fillet_edges(&body, &edges, D, Tol::witness())
+        .expect("the fillet carves the same twelve, on its own arms");
 }

@@ -122,7 +122,7 @@ fn high_bud() -> Body<f64> {
 fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
     let source = high_bud();
     let mouth = closed_rim_at(&source, 0.6, 0.8);
-    let out = fillet_edges(&source, &[mouth], R1, band(), tol())
+    let out = fillet_edges(&source, &[mouth], R1, tol())
         .unwrap_or_else(|e| panic!("the 2:1 pucker's sphere-cone seam fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     // Cone direction (−2, 1)/√5, outward normal (1, 2)/√5.
@@ -183,7 +183,7 @@ fn the_cylinder_plane_arm_carves_both_material_configurations() {
     for (rim_r, want_major, which) in [(1.0, 1.0 - r, "drum"), (0.2, 0.2 + r, "bore")] {
         let source = washer();
         let rim = closed_rim_at(&source, rim_r, 0.5);
-        let out = fillet_edges(&source, &[rim], r, band(), tol())
+        let out = fillet_edges(&source, &[rim], r, tol())
             .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{which}: tier-3 valid, got {e:?}"));
@@ -216,7 +216,7 @@ fn a_cone_cone_rim_fillets_to_the_hand_crossing() {
     let r = 0.03;
     let source = double_cone();
     let rim = closed_rim_at(&source, 0.7, 0.3);
-    let out = fillet_edges(&source, &[rim], r, band(), tol())
+    let out = fillet_edges(&source, &[rim], r, tol())
         .unwrap_or_else(|e| panic!("the cone-cone rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     // Outward normals in the meridian: cone A runs (−1,1)/√2 so
@@ -262,7 +262,7 @@ fn a_cylinder_sphere_rim_fillets_to_r_minus_r_exactly() {
     let r = 0.05;
     let source = capped_drum();
     let rim = closed_rim_at(&source, 0.8, 0.6);
-    let out = fillet_edges(&source, &[rim], r, band(), tol())
+    let out = fillet_edges(&source, &[rim], r, tol())
         .unwrap_or_else(|e| panic!("the cylinder-sphere rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     let (major, minor, band_y) = band_torus(&out.body, out.band_faces[0]);
@@ -323,7 +323,7 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     assert_eq!(sphere_centres.len(), 2, "two sphere walls");
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = closed_rim_at(&source, 0.8, 0.6);
-    match fillet_edges(&source, &[waist], 0.05, band(), tol()).map_err(|r| r.error) {
+    match fillet_edges(&source, &[waist], 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::UnsupportedChain { detail, .. }) => {
             assert!(
                 detail.contains("concave"),
@@ -404,7 +404,7 @@ fn bitdump_dome_annulus() {
         tol(),
     );
     let rim = sweep::test_support::closed_plane_sphere_rim(&source, 1.0);
-    let out = fillet_edges(&source, &[rim], 0.05, band(), tol()).unwrap();
+    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(text, "band={:?}", out.band_faces);
     std::fs::create_dir_all(&dir).unwrap();

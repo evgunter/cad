@@ -187,12 +187,10 @@ fn corner_tag_mixed_convexity_names_feather() {
 /// **The classifier reads the CORNER, and a uniform trihedron is one
 /// configuration on either side of the material.** It admits both and
 /// refuses only the mixed signs, with no verb anywhere in it — which
-/// is what lets one predicate serve two bands.
-///
-/// Which uniform side a given band carves is the caller's clause, one
-/// layer up where the verb is known, and it is pinned through the
-/// front doors instead (the concave-chamfer suite carves the concave
-/// corner and refuses the fillet at it).
+/// is what lets one predicate serve two bands, both of which now
+/// carve both uniform sides (the concave-chamfer and concave-fillet
+/// suites each carve the all-concave corner through their own front
+/// door).
 #[test]
 fn corner_config_admits_either_uniform_trihedron() {
     let body = boxy();

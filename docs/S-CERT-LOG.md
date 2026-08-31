@@ -470,3 +470,84 @@ unclaimed); 1315/1316 corrected+appended; 1356 (ε-matrix class),
 1358 (refine_dir + the five-way inner copy) filed. Slate next:
 CERT-6 (area gauge, on the post-CERT-5 area lanes, B2 slot 2),
 then CERT-8/9/10 and the absorbed SMELL tracks per plan.
+
+## CERT-9 merged (2026-08-31) — issue 303 closed; signed_volume is placement-honest
+
+PR 1361 at f5f949aa. Gates: delivered head 5593161d green (default
+lane drawn); fix head green run 33383424770 (interval/1e-6 DRAWN —
+consistent with the unit's argued lane-independence, no trailer).
+The fold recentres on the bbox centre (overflow-robust form);
+red-first digits vivid (33.3 vs the true 1e-9 at a 1e8 m offset;
+pre-fix far placements could SIGN-FLIP a volume, so seven
+orientation asserts were latently placement-dependent). S-sized
+unit, S-sized cycle: implementer ~65m, reviews ~29m+16m, fix ~65m.
+
+**The dual (ordinal 705, sample at the row)**: R1 fable APPROVE
+0/1/3; R2 opus A-W-F 0/3/4; zero MAJORs, no tally candidates. The
+brief's designed attack — the exactness argument's closed-mesh
+premise — landed bilaterally (the open-mesh answer changed,
+silently; unreachable in-repo; now defined in the doc), and R2
+proved the shipped argument UNDERSTATED the mechanism (a
+position-derived anchor gives unconditional translation invariance
+by equivariance) and caught the ε premise conflating assertions
+with fixtures. Fix pass IMPLEMENTER-INHERITED across the container
+restart (the agent resumed from its transcript); its three-ε sweep
+found and fixed a latent ε=1e-12 red in the adopted probes before
+any gate drew it — the issue-1356 practice already paying.
+
+Operational: the container restarted mid-wave (~09:20Z), killing
+the first CERT-6 lane with nothing pushed (~50m lost, fragment
+saved); re-dispatched fresh on the same arm, recorded for its row.
+
+Slate: CERT-6 (re-dispatched, running), then CERT-8, CERT-10
+(opens block CERT-B3), CERT-M/CERT-N track lanes. Issue 1362
+(walk.rs anchor class, S-MESH) filed en route.
+
+## CERT-6 merged (2026-08-31) — issue 870 closed; the area enclosure has its tripwire
+
+PR 1366 at 0696cdbe, gates green with lane=both + eps=1e-6 BOTH
+trailer-pinned — the first unit under the full issue-1356 ε
+practice. The A2 gauge landed as the Q1 ruling's row-5-boundary
+debug_assert: a certified chord-traversal bound (knot lines ∪ block
+edges ∪ two coprime grids) under a max(chord, caller) denominator
+whose failure-direction weighing lives at the claim site, ceiling
+1.0 with the margin stated against DOOR-AUTHORED anchors (79× on an
+untuned public loft, 13.1× on dm1's refusing wall, 17.6× on the
+relative arm's first live witness) rather than a corpus statistic.
+
+**The dual (ordinal 706, sample at the row)**: R1 opus A-W-F 1/6/5;
+R2 fable APPROVE 0/1/4. **R1's MAJOR was UNILATERAL AND EXECUTED**
+— the delivered 16-chord schedule ALIASED (Nyquist collapse at
+k≡0 mod 8, 16.5×/273× measured), an understated denominator being
+a release-panic path, plus a door-authored calibration
+counter-example at 2× the corpus max — a v6 TALLY CANDIDATE, coding
+deferred to the blinded adjudication. R2's unique yield: the
+balloon witness that made the fallback arm live, and every PR digit
+re-derived exactly. Fix pass IMPLEMENTER-INHERITED and unusually
+strong: it reproduced the MAJOR, then MEASURED that the adjudicated
+knot-aware fix alone was insufficient (11× under at 64 spans — the
+knots ARE the zero crossings there) and shipped the stronger
+coprime + max-denominator design; every threshold now names its
+fixture (the delivered ×80/×90 pair's provenance explained, both
+reviewers' non-reproductions being different fixtures); the
+triplicated assert block collapsed to a helper, which exposed a
+wrong relative-arm message; the calibration figures reduced to ONE
+home with pointers (the #651 shape applied).
+
+Incidents owned: the delivered head redded the discipline gate's
+interval-square-allowlist (x*x in the gauge) — orchestrator-direct
+powi(2) respell, with R1 correctly noting my commit message's
+"strictly-tighter-under-straddle" rationale misfits plain-f64
+sites (the gate matched a spelling outside its subject; the respell
+stands on the policy, not that rationale). R2 stalled once on a
+background waiter (the discipline doc's exact failure mode) and was
+nudged back to foreground polling. R2 also flagged two zero-byte
+junk files (r₁, r₂) at main's root from a verbs merge — deleted
+orchestrator-direct at aae0993e. The unit's FIRST lane died in the
+container restart with nothing pushed (~50m, fragment saved) —
+the re-dispatched lane's row records it.
+
+Slate: CERT-8 (chart-stretch honesty, issues 501+528) and CERT-10
+(patch-hull consolidation — its CERT-5/CERT-7 sequencing gate is
+now satisfied) dispatch next, opening block CERT-B3; then CERT-M/
+CERT-N track lanes and the exit walk.

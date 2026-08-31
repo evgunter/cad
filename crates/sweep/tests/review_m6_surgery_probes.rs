@@ -169,7 +169,7 @@ fn one_pip(cx: f64, cy: f64) -> (Body<f64>, Vec<EdgeKey>) {
 #[test]
 fn p1_rim_edge_orientation_recon() {
     let (pipped, box_edges) = one_pip(0.5, 0.5);
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect("box fillet")
         .body;
     let mut plane_first = 0;
@@ -204,11 +204,11 @@ fn p2_ring_touch_trio_through_the_front_door() {
     // (a) definite pass: widened circle clears the trimline by 1 cm.
     {
         let (pipped, box_edges) = one_pip(0.12 + s + 0.01, 0.5);
-        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
             .expect("box fillet")
             .body;
         let rims = rim_edges(&blanked);
-        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        let out = fillet_edges(&blanked, &rims, RIM_R, Tol::witness())
             .expect("rim fillet passes at +1cm");
         assert_eq!(
             topo::validate_geometric(&out.body, Tol::witness()),
@@ -225,22 +225,22 @@ fn p2_ring_touch_trio_through_the_front_door() {
     // (b) definite refuse: widened circle CROSSES the trimline by 5mm.
     {
         let (pipped, box_edges) = one_pip(0.12 + s - 0.005, 0.5);
-        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
             .expect("box fillet still ok")
             .body;
         let rims = rim_edges(&blanked);
-        let err = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        let err = fillet_edges(&blanked, &rims, RIM_R, Tol::witness())
             .expect_err("a crossing trim circle must refuse pre-mutation");
         println!("P2b: -5mm refuses with: {err}");
     }
     // (c) in-band: the gap sits inside [eps, K*eps).
     {
         let (pipped, box_edges) = one_pip(0.12 + s + 5.0 * tol.eps, 0.5);
-        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
             .expect("box fillet")
             .body;
         let rims = rim_edges(&blanked);
-        let err = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        let err = fillet_edges(&blanked, &rims, RIM_R, Tol::witness())
             .expect_err("an in-band clearance must escalate");
         println!("P2c: in-band refuses with: {err}");
     }
@@ -252,7 +252,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
 fn p2d_box_fillet_ring_touch_refuses() {
     let rho_rim = (PIP_R * PIP_R - (PIP_R - PIP_H).powi(2)).sqrt();
     let (pipped, box_edges) = one_pip(0.12 + rho_rim - 0.005, 0.5);
-    let err = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let err = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect_err("a ring crossing the trimline must refuse pre-mutation");
     println!("P2d: refuses with: {err}");
 }
@@ -265,12 +265,12 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
     // One pip.
     {
         let (pipped, box_edges) = one_pip(0.5, 0.5);
-        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
             .expect("box")
             .body;
         let rims = rim_edges(&blanked);
         assert_eq!(rims.len(), 2);
-        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness()).expect("rim");
+        let out = fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("rim");
         assert_eq!(out.band_faces.len(), 1);
         let die = &out.body;
         assert_eq!(
@@ -339,7 +339,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             .copied()
             .filter(|k| pipped.get_edge(*k).is_some())
             .collect();
-        let blanked = fillet_edges(&pipped, &surviving, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
             .expect("box")
             .body;
         let rims = rim_edges(&blanked);
@@ -348,8 +348,8 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             "P3: two-pip spacing 0.22, ring-ring margin = {}",
             0.22 - 2.0 * s
         );
-        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
-            .expect("both rims in one call");
+        let out =
+            fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("both rims in one call");
         assert_eq!(out.band_faces.len(), 2);
         assert_eq!(
             topo::validate_geometric(&out.body, Tol::witness()),
@@ -397,11 +397,11 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             .copied()
             .filter(|k| pipped.get_edge(*k).is_some())
             .collect();
-        let blanked = fillet_edges(&pipped, &surviving, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
             .expect("box")
             .body;
         let rims = rim_edges(&blanked);
-        let err = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        let err = fillet_edges(&blanked, &rims, RIM_R, Tol::witness())
             .expect_err("overlapping widened circles must refuse");
         println!("P3-tight: refuses with: {err}");
     }
@@ -418,7 +418,7 @@ fn p4_rim_at_a_face_edge_refuses_typed() {
         Ok(pipped) => {
             let rims = rim_edges(&pipped);
             println!("P4: boolean succeeded, {} plane-sphere edges", rims.len());
-            match fillet_edges(&pipped, &rims, RIM_R, band(), Tol::witness()) {
+            match fillet_edges(&pipped, &rims, RIM_R, Tol::witness()) {
                 Err(e) => println!("P4: fillet refuses typed: {e}"),
                 Ok(out) => {
                     assert_eq!(
@@ -461,11 +461,11 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             .copied()
             .filter(|k| pipped.get_edge(*k).is_some())
             .collect();
-        let blanked = fillet_edges(&pipped, &surviving, DIE_R, band(), Tol::witness())
+        let blanked = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
             .expect("box")
             .body;
         let rims = rim_edges(&blanked);
-        let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
+        let out = fillet_edges(&blanked, &rims, RIM_R, Tol::witness())
             .unwrap_or_else(|e| panic!("theta {theta}: rim fillet: {e}"));
         assert_eq!(
             topo::validate_geometric(&out.body, Tol::witness()),
@@ -495,7 +495,7 @@ fn p6_reversed_pip_walls_carry_through() {
         .collect();
     assert_eq!(sphere_senses.len(), 2, "two half-caps");
     println!("P6: pip wall senses pre-surgery: {sphere_senses:?}");
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect("box")
         .body;
     for (k, sense) in &sphere_senses {
@@ -505,7 +505,7 @@ fn p6_reversed_pip_walls_carry_through() {
         assert_eq!(f.sense, *sense, "cap sense bit carried");
     }
     let rims = rim_edges(&blanked);
-    let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness()).expect("rim");
+    let out = fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("rim");
     for (k, sense) in &sphere_senses {
         let f = out
             .body
@@ -525,7 +525,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     let (pipped, _) = one_pip(0.5, 0.5);
     let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
-        let err = fillet_edges(&pipped, &every, r, band(), Tol::witness())
+        let err = fillet_edges(&pipped, &every, r, Tol::witness())
             .expect_err("every-edge on a pipped body must refuse");
         match err.error {
             sweep::blend::BlendError::TangentialEdge { margin, .. } => {
@@ -546,8 +546,7 @@ fn p8_duplicate_edge_refuses() {
     let (pipped, box_edges) = one_pip(0.5, 0.5);
     let mut req = box_edges.clone();
     req.push(box_edges[0]);
-    let err =
-        fillet_edges(&pipped, &req, DIE_R, band(), Tol::witness()).expect_err("duplicate edge");
+    let err = fillet_edges(&pipped, &req, DIE_R, Tol::witness()).expect_err("duplicate edge");
     // The refusal names the repeated key, not just the situation: the
     // caller can act on it without re-deriving which edge doubled.
     assert!(

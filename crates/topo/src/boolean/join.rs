@@ -738,6 +738,54 @@ pub(super) fn pair_section_frame<T: Decide>(
                 )),
             };
         }
+        // The sphere PAIR: the C5 radical-plane Circle's frame, through
+        // THE table — same escalation plumbing as the plane×sphere arm
+        // above.
+        //
+        // **No polar gate lives here, deliberately.** The frame this
+        // dispatch names is the LOCUS's — the centre and axis the
+        // rotational-sense facing test turns about — and a sphere pair's
+        // locus is that circle whatever either chart's polar axis does.
+        // The polar premise belongs to the ARC-SIDE rule, which is a
+        // different consumer with a different question; putting it here
+        // would refuse a frame the facing test can use.
+        //
+        // **And no polar gate lives at that consumer either — said out
+        // loud so the absence reads as a decision, not an omission.**
+        // `chord_join::section_case` refuses EVERY curved×curved pair by
+        // KIND, before any germ-pair section is consulted, so a sphere
+        // section never reaches the azimuth-anchored rule at all. That
+        // blanket refusal is strictly stronger than a polar gate (which
+        // would admit the aligned pairs), and it is what makes a gate
+        // here or there dead code today; its text NAMES the sphere pair
+        // and the polar premise so a reader who arrives at it lands on
+        // the right fact. When the ring lane narrows that refusal, the
+        // premise becomes live and the gate is owed then.
+        (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
+            return match geom_brep::sphere_sphere_section(sa, sb, band) {
+                Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
+                    center,
+                    axis,
+                    ..
+                })) => Ok(Some((center, axis))),
+                Ok(geom_brep::SphereSphereSection::Circle(_)) => Err(FrameError::Desync(
+                    "sphere×sphere classification carried a non-circle",
+                )),
+                // A tangent POINT / empty gap under a minted germ is a
+                // touching configuration the reduction should not have
+                // paired — loud, typed.
+                Ok(
+                    geom_brep::SphereSphereSection::TangentPoint(_)
+                    | geom_brep::SphereSphereSection::Empty,
+                ) => Err(FrameError::Desync(
+                    "germ pair's sphere×sphere section is not a locus",
+                )),
+                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+                Err(_) => Err(FrameError::Desync(
+                    "germ pair's section refused at match time",
+                )),
+            };
+        }
         // The ONE structurally straight pair: a plane×plane section is
         // a line, so "no frame" is a proof here rather than a default.
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
@@ -1752,7 +1800,6 @@ mod frame_dispatch_tests {
                 cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
             ),
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere()),
-            (sphere(), sphere()),
         ];
         for (a, b) in curved_pairs {
             let got = pair_section_frame(&a, &b, band());
@@ -1929,5 +1976,50 @@ mod frame_dispatch_tests {
             ),
             "a parallel-axis cylinder pair is a PROVEN straight locus"
         );
+    }
+
+    /// The SPHERE pair names its section circle's frame, and it does so
+    /// with the charts left alone: the frame is the LOCUS's, and a
+    /// sphere pair's locus is the radical-plane circle whatever either
+    /// polar axis does. The three non-loci are `Desync` rather than a
+    /// frame — a germ was minted from a pair that has no curve.
+    #[test]
+    fn the_sphere_pair_names_its_circle_frame_at_any_chart_tilt() {
+        let ball = |c: Point3<f64>, r: f64, axis: Vec3<f64>| geom::Surface::Sphere {
+            center: c,
+            radius: r,
+            axis,
+            u_ref: axis.cross(Vec3::new(0.37, -0.91, 0.18)).normalize(),
+        };
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let tilted = Vec3::new(0.3, -0.5, 0.81).normalize();
+        // Crossing, and the two charts aim nowhere near the centre
+        // line: the frame is named regardless.
+        for (a_axis, b_axis) in [(z, z), (z, tilted), (tilted, z)] {
+            let got = pair_section_frame(
+                &ball(Point3::new(0.0, 0.0, 0.0), 2.0, a_axis),
+                &ball(Point3::new(2.5, 0.0, 0.0), 2.0, b_axis),
+                band(),
+            );
+            let Ok(Some((center, axis))) = got else {
+                panic!("a crossing sphere pair names its circle frame");
+            };
+            // a = (d² + r₁² − r₂²)/2d = d/2 at equal radii.
+            assert!((center - Point3::new(1.25, 0.0, 0.0)).norm() < 1e-12);
+            assert!(axis.dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999_999_999);
+        }
+        // Separated, tangent, and one sphere given twice: no locus, so
+        // no frame — and never the straight-chord `None`.
+        for (b, what) in [
+            (ball(Point3::new(9.0, 0.0, 0.0), 2.0, z), "separated"),
+            (ball(Point3::new(4.0, 0.0, 0.0), 2.0, z), "tangent"),
+            (ball(Point3::new(0.0, 0.0, 0.0), 2.0, z), "coincident"),
+        ] {
+            let got = pair_section_frame(&ball(Point3::new(0.0, 0.0, 0.0), 2.0, z), &b, band());
+            assert!(
+                matches!(got, Err(FrameError::Desync(_))),
+                "{what}: a non-locus sphere pair is a desync, not a frame and not straight"
+            );
+        }
     }
 }

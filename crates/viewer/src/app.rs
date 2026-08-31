@@ -44,10 +44,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{Axis3, BooleanOp, Dimension, DocumentId, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
+use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
@@ -56,13 +57,18 @@ use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
-use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
+use crate::matetool::{MateChoice, MateToolState, admitted_classes};
+use crate::parts::PartChooser;
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
-use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
+use crate::seats::{Seat, SeatError, seat_line};
+use crate::session::{
+    BoundsTarget, DatumSpec, DocSession, ProfileShape, Refusal, Selection, SessionOp, Standing,
+};
 use crate::theme::{Polarity, Theme};
+use crate::tools::{ToolKind, Tools};
 use crate::tree::{RowStatus, TreeRow};
 
 /// Where this build keeps preferences.
@@ -195,7 +201,7 @@ pub enum Pane {
 /// Layer-3 state that never enters the document: an expression the
 /// user is typing is not an edit until they commit it, and a draft
 /// abandoned by selecting elsewhere leaves nothing behind.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Drafts {
     /// The View pane's δ field while it has focus, in millimetres as
     /// typed. `None` whenever it does not, so an unfocused field shows
@@ -235,7 +241,214 @@ struct Drafts {
     mate_class: usize,
     mate_primitive: usize,
     mate_opposed: bool,
+    /// The toolbar's New… form: `Some(text)` while the name field is
+    /// open, `None` while it is not. The op is not emitted until
+    /// Create — a name in flight is a draft, not a document.
+    new_doc_name: Option<String>,
+    /// The add-datum form's kind choice.
+    datum_kind: DatumKind,
+    /// The add-datum form's origin/position, metres.
+    datum_origin: [f64; 3],
+    /// Its normal/direction (unitless; ignored by the point form).
+    datum_direction: [f64; 3],
+    /// The add-profile form's shape choice.
+    profile_shape: ShapeKind,
+    /// The circle form's centre, metres.
+    profile_centre: [f64; 2],
+    /// The circle form's radius, metres.
+    profile_radius: f64,
+    /// Whether the circle carries a concentric bore (a second loop
+    /// inside the first) — what lets the chrome author the ring
+    /// demo's annulus while staying a template, not a sketcher. The
+    /// form guards bore < radius (see `add_profile_ui`): the loop
+    /// ROLES come from the profile layer's containment forest, so a
+    /// bore at or beyond the outer would not fail — it would swap
+    /// which circle is the hole, silently defeating the form's own
+    /// wording.
+    profile_bored: bool,
+    /// The bore's radius, metres.
+    profile_bore: f64,
+    /// The rectangle form's width and height, metres.
+    profile_extent: [f64; 2],
+    /// The extrude form's distance, metres.
+    extrude_distance: f64,
+    /// The revolve tool's angle, radians.
+    revolve_angle: f64,
+    /// The boolean tool's operation choice.
+    boolean_op: BooleanOp,
+    /// The transform tool's translation, metres.
+    transform_translation: [f64; 3],
+    /// Its rotation axis (unitless).
+    transform_axis: [f64; 3],
+    /// Its rotation angle, radians.
+    transform_angle: f64,
+    /// The pattern tool's rule choice.
+    pattern_kind: PatternKindChoice,
+    /// Its instance count — an INTEGER all the way from the field,
+    /// because the slot it lands in is Count-typed and a number that
+    /// was rounded on the way could differ from the one on screen.
+    pattern_count: i64,
+    /// The linear rule's step direction (unitless).
+    pattern_direction: [f64; 3],
+    /// The linear rule's spacing, metres.
+    pattern_spacing: f64,
+    /// The circular rule's angular step, radians.
+    pattern_step: f64,
+    /// The blend form's kind choice — which of the two doors the
+    /// commit button calls.
+    blend_kind: BlendKindChoice,
+    /// Its one Length field, metres. ONE field for both kinds by the
+    /// unit's spec: what the number means is the kind's to say
+    /// ([`BlendKindChoice::size_label`]), and a second field would be
+    /// a second place for the same quantity to be typed into.
+    blend_size: f64,
 }
+
+impl Default for Drafts {
+    /// The creation forms' sensible defaults (the GAUTH-1 spec):
+    /// datum origin 0 with normal/direction +z, a 10 mm circle or
+    /// rectangle, a 10 mm extrude, a full-turn revolve. Everything
+    /// else starts empty.
+    fn default() -> Self {
+        Self {
+            delta_mm: None,
+            expr_target: None,
+            expr_text: String::new(),
+            new_param_name: String::new(),
+            new_param_dimension: None,
+            new_param_value: 0.0,
+            new_param_offer: None,
+            mate_class: 0,
+            mate_primitive: 0,
+            mate_opposed: false,
+            new_doc_name: None,
+            datum_kind: DatumKind::Plane,
+            datum_origin: [0.0; 3],
+            datum_direction: [0.0, 0.0, 1.0],
+            profile_shape: ShapeKind::Circle,
+            profile_centre: [0.0; 2],
+            profile_radius: 0.01,
+            profile_bored: false,
+            profile_bore: 0.005,
+            profile_extent: [0.01, 0.01],
+            extrude_distance: 0.01,
+            revolve_angle: core::f64::consts::TAU,
+            boolean_op: BooleanOp::Union,
+            transform_translation: [0.0; 3],
+            transform_axis: [0.0, 0.0, 1.0],
+            transform_angle: 0.0,
+            pattern_kind: PatternKindChoice::Linear,
+            pattern_count: 3,
+            pattern_direction: [1.0, 0.0, 0.0],
+            pattern_spacing: 0.02,
+            pattern_step: core::f64::consts::FRAC_PI_2,
+            blend_kind: BlendKindChoice::Fillet,
+            blend_size: 0.001,
+        }
+    }
+}
+
+/// The pattern form's rule choice — the two PARAMETRIC rules, an enum
+/// for the reason [`DatumKind`] is one. `Explicit` is absent by the
+/// plan's ruling: a list of absolute frames is not a form's job.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatternKindChoice {
+    /// Stepped along a direction.
+    Linear,
+    /// Stepped around a picked datum axis.
+    Circular,
+}
+
+impl PatternKindChoice {
+    /// Every rule with its radio label, in form order.
+    const ALL: [(Self, &'static str); 2] = [(Self::Linear, "linear"), (Self::Circular, "circular")];
+}
+
+/// The boolean operations the form offers, with their labels — the
+/// KERNEL's enum and its own words, so the button a user reads and the
+/// operation the node carries cannot drift into two vocabularies.
+const BOOLEAN_OPS: [(BooleanOp, &str); 3] = [
+    (BooleanOp::Union, "union"),
+    (BooleanOp::Subtract, "subtract"),
+    (BooleanOp::Intersect, "intersect"),
+];
+
+/// The add-datum form's kind choice — one form, the three
+/// [`DatumSpec`] arms. An enum rather than an index into a label
+/// list, so every consumer matches exhaustively and a fourth kind
+/// cannot leave a silent wildcard arm behind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DatumKind {
+    /// A plane datum.
+    Plane,
+    /// An axis datum.
+    Axis,
+    /// A point datum.
+    Point,
+}
+
+impl DatumKind {
+    /// Every kind with its radio label, in form order.
+    const ALL: [(Self, &'static str); 3] = [
+        (Self::Plane, "plane"),
+        (Self::Axis, "axis"),
+        (Self::Point, "point"),
+    ];
+}
+
+/// The add-profile form's template choice — the GAUTH-1 template
+/// vocabulary, an enum for the reason [`DatumKind`] is one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShapeKind {
+    /// A circle, optionally with a concentric bore.
+    Circle,
+    /// A centred rectangle.
+    Rectangle,
+}
+
+impl ShapeKind {
+    /// Every shape with its radio label, in form order.
+    const ALL: [(Self, &'static str); 2] =
+        [(Self::Circle, "circle"), (Self::Rectangle, "rectangle")];
+}
+
+/// One drag tick of a creation-form LENGTH field, in metres — half a
+/// millimetre, matching the drag feel of the shipped panel value
+/// fields. One home so the forms cannot drift apart a digit at a time.
+const FIELD_DRAG_SPEED: f64 = 0.0005;
+
+/// One drag tick of an ANGLE field, in radians — a third of a degree,
+/// so a full turn is a drag of a few hundred pixels rather than of
+/// several screens.
+///
+/// A separate constant because the unit is: dragging a radian field at
+/// the metre field's speed moves it by 0.0005 rad per pixel, which is
+/// a quarter-turn per three thousand pixels.
+const ANGLE_DRAG_SPEED: f64 = 0.005;
+
+/// One drag tick of a DIMENSIONLESS field — a direction or a normal
+/// component, whose useful range is roughly [-1, 1].
+///
+/// The length speed applied here made these fields effectively
+/// undraggable: at 0.0005 per pixel, moving a component from 0 to 1
+/// took two thousand pixels of drag. A hundredth per pixel spans the
+/// whole range in one comfortable gesture, and the exact value stays a
+/// keyboard edit either way.
+const UNIT_DRAG_SPEED: f64 = 0.01;
+
+/// One drag tick of a COUNT field — instances are whole, so the field
+/// is dragged in tenths of one and lands on integers.
+const COUNT_DRAG_SPEED: f64 = 0.1;
+
+/// **The smallest pattern count the form offers.**
+///
+/// A pattern of zero instances refuses at evaluation
+/// (`NonPositiveCount`, typed, on the node's own badge), so the form
+/// declines to author one — the same rule the bore field follows. There
+/// is deliberately NO upper bound: the property panel imposes none on
+/// the slot afterwards, and a cap here would be a limit the document
+/// does not have.
+const MIN_PATTERN_COUNT: i64 = 1;
 
 /// The primitives the chrome offers, with their labels. The op
 /// vocabulary accepts any [`MatePrimitive`]; these are the three the
@@ -300,9 +513,19 @@ pub struct ViewerApp {
     /// the number on screen is theirs and the badge would be claiming
     /// a choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
-    /// The modal mate tool, when active. `None` is "not in the mate
-    /// tool"; the tool's own state (the held picks) lives inside it.
-    mate_tool: Option<MateTool>,
+    /// **The modal tools, at most one open** — the mate tool, the
+    /// revolve tool and the four combining tools as one value, with
+    /// the exclusivity rule inside it rather than spread across the
+    /// activation sites ([`crate::tools::Tools`]).
+    tools: Tools,
+    /// The `Add part…` chooser, when open. `None` is "no chooser"; the
+    /// scanned catalogue it is showing lives inside it, taken once when
+    /// it opened.
+    ///
+    /// NOT one of [`Tools`]: the exclusivity rule there is about the
+    /// selection stream, and a chooser consumes none — it picks a
+    /// document out of a list.
+    part_chooser: Option<PartChooser>,
     camera: Camera,
     input: InputMap,
     /// The palette in force — a USER preference, held in the
@@ -329,6 +552,17 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
+    /// **What the open tool said about THIS frame** — declined picks
+    /// and survival drops, collected as they happen and applied with
+    /// the batch verdict rather than before it.
+    ///
+    /// They cannot be written straight to [`ViewerApp::status`]: the
+    /// batch of the same frame is performed afterwards, and a clean
+    /// acting batch clears the line, so a notice assigned early lives
+    /// for zero frames (`frame::frame_status` carries the argument).
+    /// Drained every frame by `perform_batch`, so nothing here
+    /// survives into the next one.
+    notices: Vec<String>,
     /// Whether the environment can show a file dialog at all — probed
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
@@ -525,7 +759,8 @@ impl ViewerApp {
             // waiting to be a bug.
             fit_delta_on_scene: true,
             budget_delta: None,
-            mate_tool: None,
+            tools: Tools::new(),
+            part_chooser: None,
             camera,
             input,
             theme,
@@ -536,7 +771,8 @@ impl ViewerApp {
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
-            status: (!notices.is_empty()).then(|| notices.join("; ")),
+            status: (!notices.is_empty()).then(|| notices.join(frame::NOTICE_SEPARATOR)),
+            notices: Vec::new(),
             chooser: frame::chooser_backend(),
             store,
             keys_pref: saved.keys,
@@ -551,15 +787,14 @@ impl ViewerApp {
     /// nothing.
     fn sync_scene(&mut self) {
         self.session.pump();
-        // The mate tool's survival step: re-read the held picks
-        // against the landed pair, reporting each typed drop.
-        if let (Some(tool), Some((doc, eval))) =
-            (self.mate_tool.as_mut(), self.session.landed_pair())
-        {
-            for event in tool.reconcile(doc, eval) {
-                self.status = Some(format!("mate tool: {event}"));
-            }
-        }
+        // **The survival step, once per frame, for whichever tool is
+        // open** — the obligation every tool's module docs put on its
+        // consumer, discharged in the one place that holds them all.
+        // Each notice already names its tool.
+        let dropped = self
+            .tools
+            .reconcile(self.session.doc(), self.session.landed_pair());
+        self.notices.extend(dropped.iter().map(ToString::to_string));
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -723,7 +958,13 @@ impl ViewerApp {
     /// ranks itself; this keeps the best-ranked, first-seen one, and
     /// clears the line only when a batch refuses nothing at all.
     fn perform_batch(&mut self, ops: Vec<SessionOp>) {
-        if ops.is_empty() {
+        // **No early return on an empty batch.** The frame's tool
+        // notices are applied here, and a frame that produced one
+        // without queueing an op — a survival drop on a document the
+        // seam just landed — is exactly the frame that needs its
+        // notice shown.
+        let notices = core::mem::take(&mut self.notices);
+        if ops.is_empty() && notices.is_empty() {
             return;
         }
         let mut refusal: Option<Refusal> = None;
@@ -735,6 +976,7 @@ impl ViewerApp {
         for op in ops {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
+            let tool_edit = self.tools.commits_open_tool(&op);
             match self.session.perform(op).refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -748,10 +990,18 @@ impl ViewerApp {
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
                 }
+                // A modal tool closes when its edit actually
+                // COMMITS, not when its button is clicked — a refusal
+                // leaves the tool open with its picks held, to be
+                // corrected (each tool panel's commit arm carries the
+                // other half of this rule). One open tool at a time is
+                // what lets this close "the" tool without asking which
+                // op came from which panel.
+                None if tool_edit => self.tools.close(),
                 None => {}
             }
         }
-        let update = frame::batch_status(&performed, refusal.as_ref());
+        let update = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown parameter
@@ -851,6 +1101,37 @@ impl eframe::App for ViewerApp {
                 // `frame::dialog_status` is that rule as a policy
                 // value, and its loud arm is the belt to this
                 // disabling's braces.
+                // The New… control (GAUTH-1): one name field, because
+                // the document id is derived from the name — see
+                // `SessionOp::NewDocument`. The field is a draft; the
+                // op is emitted only by Create, and only for a
+                // non-blank name (the typed refusal backing the
+                // disabled button is `Refusal::EmptyName`).
+                match self.drafts.new_doc_name.as_mut() {
+                    None => {
+                        if ui.button("New…").clicked() {
+                            self.drafts.new_doc_name = Some(String::new());
+                        }
+                    }
+                    Some(name) => {
+                        ui.add(
+                            egui::TextEdit::singleline(name)
+                                .hint_text("document name")
+                                .desired_width(120.0),
+                        );
+                        let typed = name.trim().to_owned();
+                        if ui
+                            .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
+                            .on_disabled_hover_text("the document id is derived from the name")
+                            .clicked()
+                        {
+                            ops.push(SessionOp::NewDocument { name: typed });
+                            self.drafts.new_doc_name = None;
+                        } else if ui.button("Cancel").clicked() {
+                            self.drafts.new_doc_name = None;
+                        }
+                    }
+                }
                 let chooser = self.chooser;
                 if ui
                     .add_enabled(chooser.usable(), egui::Button::new("Open…"))
@@ -1038,7 +1319,8 @@ impl eframe::App for ViewerApp {
                 theme: self.theme,
                 drafts: &mut self.drafts,
                 display: &display,
-                mate_tool: &mut self.mate_tool,
+                tools: &mut self.tools,
+                part_chooser: &mut self.part_chooser,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -1065,17 +1347,15 @@ impl eframe::App for ViewerApp {
             self.set_delta(delta);
         }
 
-        // The mate tool consumes the selection vocabulary: while the
-        // tool is active, a face pick this frame produced is ALSO held
-        // as a tool pick (the two-sequential-picks ruling — the same
-        // single-select value, copied into tool state).
-        if let Some(tool) = self.mate_tool.as_mut() {
-            for op in &ops {
-                if let SessionOp::Select(Selection::Face(face)) = op {
-                    tool.pick(face.clone());
-                }
-            }
-        }
+        // The open tool consumes the selection vocabulary: a pick this
+        // frame produced is ALSO held as a tool pick (the
+        // two-sequential-picks ruling — the same single-select value,
+        // copied into tool state). Which vocabulary each tool reads is
+        // `Tools::feed`'s to know, and a pick a tool DECLINED comes
+        // back as a notice shown exactly as a survival drop is.
+        let declined = self.tools.feed(&ops);
+        self.notices
+            .extend(declined.iter().map(ToString::to_string));
 
         self.perform_batch(ops);
     }
@@ -1101,8 +1381,10 @@ struct ViewerBehavior<'a> {
     drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     display: &'a DisplayView,
-    /// The modal mate tool, if active.
-    mate_tool: &'a mut Option<MateTool>,
+    /// The modal tools, at most one open.
+    tools: &'a mut Tools,
+    /// The `Add part…` chooser, if open.
+    part_chooser: &'a mut Option<PartChooser>,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -1322,6 +1604,13 @@ impl ViewerBehavior<'_> {
         // rule — lives in `pick::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
+        // **An open tool narrows the priority rule, it does not
+        // re-decide it** — which tool narrows what is
+        // `ToolKind::pick_kinds`, an exhaustive match beside the tool
+        // vocabulary, and the narrowing travels through `hovered_for`,
+        // the one door that answers what a cursor means, so a tool
+        // cannot end up on a different rule.
+        let kinds = self.tools.pick_kinds();
         if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
             for action in actions {
                 // A hover over an unchanged picture at an unmoved
@@ -1331,7 +1620,7 @@ impl ViewerBehavior<'_> {
                 if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
                     continue;
                 }
-                match index.op_under(eval, self.camera, viewport, action, self.display) {
+                match index.op_under(eval, self.camera, viewport, action, self.display, kinds) {
                     // A hover that changes nothing is not queued: an
                     // operation per frame that performs no transition
                     // is churn in the one log a test reads.
@@ -1347,6 +1636,33 @@ impl ViewerBehavior<'_> {
         let highlight = self
             .index
             .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+        // The edge half of the same question, and the same discipline:
+        // recomputed every frame from state that lives in one place.
+        let mut edges = self
+            .index
+            .map(|index| {
+                pick::edge_overlay(
+                    index,
+                    self.display,
+                    self.session.selection(),
+                    self.session.hover(),
+                )
+            })
+            .unwrap_or_default();
+        // **The open blend tool's held set is marked too** — all of
+        // it, because the set IS what the user is composing and a
+        // count alone cannot tell them WHICH twelve edges they hold.
+        //
+        // Marked as SELECTED, the mark meaning "a choice you have
+        // made". `BlendTool::mark_segments` applies the same (node,
+        // body) narrowing a single selection gets — one pass over the
+        // target's drawn edges, so the cost is the body's edge count
+        // and not its square.
+        if let (Some(index), Some(tool)) = (self.index, self.tools.blend()) {
+            edges
+                .selected
+                .extend(tool.mark_segments(index, self.display));
+        }
 
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
@@ -1360,12 +1676,34 @@ impl ViewerBehavior<'_> {
         // disagreement` says why ids are the wrong currency, and
         // records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
+        //
+        // **The ray side of this comparison is the FACE under the
+        // cursor, not the hover.** An id buffer can answer with a
+        // patch and nothing else, so the question both sides must
+        // answer is "which patch is here"; the hover answers a
+        // different one as soon as the priority rule picks an edge,
+        // and feeding it would report a disagreement between two
+        // questions on every frame the cursor came within
+        // `EDGE_PICK_RADIUS_PX` of an edge. So the face is re-derived
+        // through `face_under_cursor`, and only where there is a fresh
+        // answer waiting for it — `disagreement` still owns the
+        // freshness rule, this only declines to do the work when no
+        // question is outstanding at all.
+        let outstanding = self.id_log.outstanding();
+        let from_ray = outstanding.and_then(|_| {
+            let index = self.index?;
+            let eval = self.session.evaluation()?;
+            index
+                .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                .ok()
+                .flatten()
+        });
         if let Some(report) = self.index.and_then(|index| {
             frame::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
-                self.id_log.outstanding(),
-                self.session.hover().map(|face| &face.name),
+                outstanding,
+                from_ray.as_ref().map(|face| &face.name),
             )
         }) {
             *self.status = Some(report.to_string());
@@ -1392,6 +1730,7 @@ impl ViewerBehavior<'_> {
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
                 highlight: highlight.unwrap_or_default(),
+                edges,
                 id_query,
             },
         ));
@@ -1474,6 +1813,8 @@ impl ViewerBehavior<'_> {
         ui.heading("Properties");
         ui.separator();
         self.mate_tool_ui(ui);
+        self.create_ui(ui);
+        self.add_part_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
@@ -1492,18 +1833,25 @@ impl ViewerBehavior<'_> {
                     self.slot_group_ui(ui, node, group);
                 }
             }
-            Selection::Face(face) => {
-                // Slot rows for the feature that MADE the face — the
-                // node `slot_groups` itself answered for, so the rows
-                // shown and the node an edit lands on are one answer.
-                // A face pick is a way of reaching that feature, which
-                // is what G3's click-to-select is for.
+            // Slot rows for the feature that MADE the picked entity —
+            // the node `slot_groups` itself answered for, so the rows
+            // shown and the node an edit lands on are one answer. A
+            // pick is a way of reaching that feature, which is what
+            // G3's click-to-select is for, and an edge reaches it the
+            // same way a face does.
+            Selection::Face(_) | Selection::Edge(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
-                for group in &groups {
-                    self.slot_group_ui(ui, face.feature(), group);
+                // `Selection::node()` is the one inversion — always
+                // `Some` on these two arms, and read rather than
+                // re-derived so the rows and the edits land on the
+                // node `slot_groups` answered for.
+                if let Some(feature) = self.session.selection().node() {
+                    for group in &groups {
+                        self.slot_group_ui(ui, feature, group);
+                    }
                 }
             }
             Selection::Param(name) => {
@@ -1673,45 +2021,75 @@ impl ViewerBehavior<'_> {
                 }
             }
             Standing::Face { face, resolution } => {
-                ui.horizontal(|ui| {
-                    // Always a face: edge and vertex picking is out
-                    // of scope for v1 selection, so the kind is not a
-                    // variable to render.
-                    // The feature that MADE the face, so the button
-                    // deletes what the label names.
-                    let feature = face.feature();
-                    ui.label(format!("face of feature {}", feature.0));
-                    if standing.live() && delete_button(ui, self.session, feature) {
-                        self.ops.push(SessionOp::DeleteNode { node: feature });
-                    }
-                });
-                // The typed verdict, rendered from the resolution
-                // machinery's own payload — never a sentence composed
-                // here about somebody else's refusal.
-                match resolution.as_deref() {
-                    None => {
-                        ui.weak("no evaluation yet to resolve this against");
-                    }
-                    Some(pncad::select::Resolution::Resolved(_)) => {}
-                    Some(pncad::select::Resolution::Failed(failure)) => {
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("this face is gone: {}", failure.error),
-                        );
-                        if !failure.offers.is_empty() {
-                            ui.weak(format!(
-                                "{} rebind candidate(s) offered",
-                                failure.offers.len()
-                            ));
-                        }
-                    }
-                    Some(pncad::select::Resolution::Indeterminate(cause)) => {
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("this face cannot be resolved right now: {cause:?}"),
-                        );
-                    }
+                self.entity_standing_ui(
+                    ui,
+                    "face",
+                    face.feature(),
+                    resolution.as_deref(),
+                    standing.live(),
+                );
+            }
+            Standing::Edge { edge, resolution } => {
+                self.entity_standing_ui(
+                    ui,
+                    "edge",
+                    edge.feature(),
+                    resolution.as_deref(),
+                    standing.live(),
+                );
+            }
+        }
+    }
+
+    /// A picked entity's header: which feature it belongs to, the
+    /// delete that feature offers, and the typed resolution verdict.
+    ///
+    /// **One rendering for every kind of picked entity**, taking the
+    /// noun as an argument: a face and an edge differ in what they are
+    /// called and in nothing else this panel does, and two copies of
+    /// the verdict ladder is how the two come to report a vanished
+    /// referent differently.
+    fn entity_standing_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        noun: &str,
+        feature: RecipeNodeId,
+        resolution: Option<&pncad::select::Resolution>,
+        live: bool,
+    ) {
+        ui.horizontal(|ui| {
+            // The feature that MADE the entity, so the button deletes
+            // what the label names.
+            ui.label(format!("{noun} of feature {}", feature.0));
+            if live && delete_button(ui, self.session, feature) {
+                self.ops.push(SessionOp::DeleteNode { node: feature });
+            }
+        });
+        // The typed verdict, rendered from the resolution machinery's
+        // own payload — never a sentence composed here about somebody
+        // else's refusal.
+        match resolution {
+            None => {
+                ui.weak("no evaluation yet to resolve this against");
+            }
+            Some(pncad::select::Resolution::Resolved(_)) => {}
+            Some(pncad::select::Resolution::Failed(failure)) => {
+                ui.colored_label(
+                    chrome(self.theme.unresolved),
+                    format!("this {noun} is gone: {}", failure.error),
+                );
+                if !failure.offers.is_empty() {
+                    ui.weak(format!(
+                        "{} rebind candidate(s) offered",
+                        failure.offers.len()
+                    ));
                 }
+            }
+            Some(pncad::select::Resolution::Indeterminate(cause)) => {
+                ui.colored_label(
+                    chrome(self.theme.unresolved),
+                    format!("this {noun} cannot be resolved right now: {cause:?}"),
+                );
             }
         }
     }
@@ -1795,13 +2173,16 @@ impl ViewerBehavior<'_> {
         // while pushing ops and closing the tool — the authoritative
         // copy stays in the application and is only ever REPLACED
         // whole (activation, deactivation), never edited here.
-        let Some(tool) = self.mate_tool.clone() else {
+        let Some(tool) = self.tools.mate().cloned() else {
             if ui.button("Mate tool…").clicked() {
-                *self.mate_tool = Some(MateTool::new());
+                // ONE modal tool at a time — `Tools::open` closes
+                // whatever was open, the rule and its argument living
+                // in that value rather than at each activation.
+                self.tools.open(ToolKind::Mate);
             }
             return;
         };
-        ui.label("mate tool: pick two faces in the viewport");
+        ui.label(ToolKind::Mate.says(&"pick two faces in the viewport"));
         match tool.state() {
             MateToolState::Idle => {
                 ui.weak("no picks yet");
@@ -1872,12 +2253,14 @@ impl ViewerBehavior<'_> {
                                 self.ops.push(proposal.op());
                                 close = true;
                             }
-                            Err(error) => *self.status = Some(format!("mate tool: {error}")),
+                            Err(error) => {
+                                *self.status = Some(ToolKind::Mate.says(&error));
+                            }
                         }
                     }
                     _ => {
                         *self.status = Some(
-                            "mate tool: no landed evaluation to derive frames from".to_owned(),
+                            ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
                         );
                     }
                 }
@@ -1887,7 +2270,708 @@ impl ViewerBehavior<'_> {
             }
         });
         if close {
-            *self.mate_tool = None;
+            self.tools.close();
+        }
+        ui.separator();
+    }
+
+    /// The creation section (GAUTH-1): the add-datum, add-profile and
+    /// extrude forms plus the modal revolve tool. Each form is
+    /// minimal — its few required fields with sensible defaults — and
+    /// emits exactly one creation op; the property panel is the
+    /// editor for everything after the insert.
+    fn create_ui(&mut self, ui: &mut egui::Ui) {
+        ui.collapsing("Add feature", |ui| {
+            self.add_datum_ui(ui);
+            ui.separator();
+            self.add_profile_ui(ui);
+            ui.separator();
+            self.extrude_ui(ui);
+            ui.separator();
+            self.revolve_tool_ui(ui);
+        });
+        // The combining tools sit in their own section (GAUTH-4):
+        // everything above makes a body out of nothing, everything
+        // here takes bodies that exist and makes another one.
+        ui.collapsing("Combine bodies", |ui| {
+            self.boolean_tool_ui(ui);
+            ui.separator();
+            self.split_tool_ui(ui);
+            ui.separator();
+            self.transform_tool_ui(ui);
+            ui.separator();
+            self.pattern_tool_ui(ui);
+        });
+        // The blend tools sit in their own section (GAUTH-5): they
+        // take a body that exists and reshape its EDGES, which is a
+        // third kind of move again — and the only one whose picks are
+        // a set rather than a seat.
+        ui.collapsing("Blend edges", |ui| {
+            self.blend_tool_ui(ui);
+        });
+        ui.separator();
+    }
+
+    /// The add-datum form: one kind choice, two vector rows, one
+    /// [`SessionOp::AddDatum`] on commit.
+    fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("datum");
+            for (kind, label) in DatumKind::ALL {
+                ui.radio_value(&mut self.drafts.datum_kind, kind, label);
+            }
+        });
+        let kind = self.drafts.datum_kind;
+        vec3_row(
+            ui,
+            match kind {
+                DatumKind::Point => "position (m)",
+                DatumKind::Plane | DatumKind::Axis => "origin (m)",
+            },
+            FIELD_DRAG_SPEED,
+            &mut self.drafts.datum_origin,
+        );
+        match kind {
+            DatumKind::Plane => vec3_row(
+                ui,
+                "normal",
+                UNIT_DRAG_SPEED,
+                &mut self.drafts.datum_direction,
+            ),
+            DatumKind::Axis => vec3_row(
+                ui,
+                "direction",
+                UNIT_DRAG_SPEED,
+                &mut self.drafts.datum_direction,
+            ),
+            DatumKind::Point => {}
+        }
+        if ui.button("Add datum").clicked() {
+            let datum = match kind {
+                DatumKind::Plane => DatumSpec::Plane {
+                    origin: self.drafts.datum_origin,
+                    normal: self.drafts.datum_direction,
+                },
+                DatumKind::Axis => DatumSpec::Axis {
+                    origin: self.drafts.datum_origin,
+                    direction: self.drafts.datum_direction,
+                },
+                DatumKind::Point => DatumSpec::Point {
+                    position: self.drafts.datum_origin,
+                },
+            };
+            self.ops.push(SessionOp::AddDatum { datum });
+        }
+    }
+
+    /// The add-profile form: a template shape with Length fields, one
+    /// [`SessionOp::AddProfile`] on commit — on the world XY plane,
+    /// which the form says.
+    ///
+    /// The circle's optional bore is what lets this template author
+    /// the hollow ring's annulus (one profile node, two loops); the
+    /// face-frame placement arm is deferred as a filed issue — the
+    /// interrogation vocabulary deliberately answers no "is this face
+    /// planar" verdict for it to gate on.
+    ///
+    /// The bore field is guarded IN THE FORM: loop roles come from
+    /// the profile layer's containment forest, not from list order,
+    /// so a bore at or beyond the outer radius would not refuse — it
+    /// would silently swap which circle is the hole. The form says
+    /// "bore", so it disables Create until the bore is smaller, with
+    /// the reason shown. This is a chrome affordance guarding the
+    /// template's stated intent; the op stays unjudged and the
+    /// kernel's containment rule stays the one home.
+    fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("profile");
+            for (shape, label) in ShapeKind::ALL {
+                ui.radio_value(&mut self.drafts.profile_shape, shape, label);
+            }
+            ui.weak("on the world XY plane");
+        });
+        let mut loops = Vec::new();
+        let mut blocked: Option<&'static str> = None;
+        match self.drafts.profile_shape {
+            ShapeKind::Circle => {
+                ui.horizontal(|ui| {
+                    ui.label("centre (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_centre[0])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_centre[1])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.label("radius (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_radius)
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.drafts.profile_bored, "with bore");
+                    if self.drafts.profile_bored {
+                        ui.label("bore radius (m)");
+                        ui.add(
+                            egui::DragValue::new(&mut self.drafts.profile_bore)
+                                .speed(FIELD_DRAG_SPEED),
+                        );
+                    }
+                });
+                loops.push(ProfileShape::Circle {
+                    centre: self.drafts.profile_centre,
+                    radius: self.drafts.profile_radius,
+                });
+                if self.drafts.profile_bored {
+                    if self.drafts.profile_bore >= self.drafts.profile_radius {
+                        blocked = Some(
+                            "the bore must be smaller than the radius — which loop is the \
+                             hole is decided by containment, so a larger bore would swap \
+                             the roles rather than refuse",
+                        );
+                    }
+                    loops.push(ProfileShape::Circle {
+                        centre: self.drafts.profile_centre,
+                        radius: self.drafts.profile_bore,
+                    });
+                }
+            }
+            ShapeKind::Rectangle => {
+                ui.horizontal(|ui| {
+                    ui.label("width (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_extent[0])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.label("height (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_extent[1])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+                loops.push(ProfileShape::Rectangle {
+                    width: self.drafts.profile_extent[0],
+                    height: self.drafts.profile_extent[1],
+                });
+            }
+        }
+        if let Some(reason) = blocked {
+            ui.weak(reason);
+        }
+        if ui
+            .add_enabled(blocked.is_none(), egui::Button::new("Add profile"))
+            .clicked()
+        {
+            self.ops.push(SessionOp::AddProfile {
+                plane: pncad::profile::SketchPlane::xy(),
+                loops,
+            });
+        }
+    }
+
+    /// The extrude form: the current selection is the profile (a tree
+    /// pick, or a face pick whose feature is one — `Selection::node`),
+    /// one distance field, one [`SessionOp::AddExtrude`] on commit.
+    /// A selection that is not a profile refuses typed at the door
+    /// and lands on the status line.
+    fn extrude_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("extrude");
+            ui.label("distance (m)");
+            ui.add(egui::DragValue::new(&mut self.drafts.extrude_distance).speed(FIELD_DRAG_SPEED));
+        });
+        match self.session.selection().node() {
+            Some(node) => {
+                if ui.button(format!("Extrude feature {}", node.0)).clicked() {
+                    self.ops.push(SessionOp::AddExtrude {
+                        profile: node,
+                        distance: self.drafts.extrude_distance,
+                    });
+                }
+            }
+            None => {
+                ui.add_enabled(false, egui::Button::new("Extrude"))
+                    .on_disabled_hover_text("select the profile to extrude first");
+            }
+        }
+    }
+
+    /// The revolve tool's panel: activation, the two held picks
+    /// (profile, then axis), the angle field, and the one committed
+    /// edit — the same chrome shape as every other seated tool.
+    fn revolve_tool_ui(&mut self, ui: &mut egui::Ui) {
+        // A copy of the small tool value, for the reason the mate
+        // panel takes one: the panel reads it while pushing ops and
+        // closing the tool; the authoritative copy is only ever
+        // replaced whole.
+        let Some(tool) = self.tools.revolve() else {
+            if ui.button("Revolve tool…").clicked() {
+                // ONE modal tool at a time — `Tools::open` closes
+                // whatever was open, the rule and its argument living
+                // in that value rather than at each activation.
+                self.tools.open(ToolKind::Revolve);
+            }
+            return;
+        };
+        ui.label(ToolKind::Revolve.says(&"pick the profile, then the axis"));
+        ui.weak(seat_line(&[
+            (Seat::RevolveProfile, tool.profile()),
+            (Seat::RevolveAxis, tool.axis()),
+        ]));
+        ui.horizontal(|ui| {
+            ui.label("angle (rad)");
+            ui.add(egui::DragValue::new(&mut self.drafts.revolve_angle).speed(ANGLE_DRAG_SPEED));
+        });
+        self.tool_commit_row(ui, "Commit revolve", ToolKind::Revolve, |drafts| {
+            tool.op(drafts.revolve_angle)
+        });
+    }
+
+    /// The boolean tool's panel: activation, the two held picks named
+    /// by ROLE, the operation choice, and the one committed edit.
+    ///
+    /// The role naming is the point of the panel: `subtract` removes
+    /// the second pick from the first, so a user who cannot see which
+    /// is which cannot author the operation they mean.
+    fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.boolean() else {
+            if ui.button("Boolean tool…").clicked() {
+                self.tools.open(ToolKind::Boolean);
+            }
+            return;
+        };
+        ui.label(ToolKind::Boolean.says(&"pick the first body, then the second"));
+        ui.weak(seat_line(&[
+            (Seat::OperandA, tool.a()),
+            (Seat::OperandB, tool.b()),
+        ]));
+        ui.horizontal(|ui| {
+            ui.label("operation");
+            for (op, label) in BOOLEAN_OPS {
+                ui.radio_value(&mut self.drafts.boolean_op, op, label);
+            }
+        });
+        if self.drafts.boolean_op == BooleanOp::Subtract {
+            ui.weak("subtract removes the second pick from the first");
+        }
+        self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
+            tool.op(drafts.boolean_op)
+        });
+    }
+
+    /// The split tool's panel: a body pick, a datum-plane pick, and
+    /// the one committed edit.
+    fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.split() else {
+            if ui.button("Split tool…").clicked() {
+                self.tools.open(ToolKind::Split);
+            }
+            return;
+        };
+        ui.label(ToolKind::Split.says(&"pick the body, then the datum plane"));
+        ui.weak(seat_line(&[
+            (Seat::SplitTarget, tool.target()),
+            (Seat::SplitPlane, tool.plane()),
+        ]));
+        self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| tool.op());
+    }
+
+    /// The transform tool's panel: one body pick plus the placement
+    /// fields, and the one committed edit.
+    fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.transform() else {
+            if ui.button("Transform tool…").clicked() {
+                self.tools.open(ToolKind::Transform);
+            }
+            return;
+        };
+        ui.label(ToolKind::Transform.says(&"pick the body to place"));
+        ui.weak(seat_line(&[(Seat::TransformBody, tool.input())]));
+        vec3_row(
+            ui,
+            "translation (m)",
+            FIELD_DRAG_SPEED,
+            &mut self.drafts.transform_translation,
+        );
+        vec3_row(
+            ui,
+            "rotation axis",
+            UNIT_DRAG_SPEED,
+            &mut self.drafts.transform_axis,
+        );
+        ui.horizontal(|ui| {
+            ui.label("rotation angle (rad)");
+            ui.add(egui::DragValue::new(&mut self.drafts.transform_angle).speed(ANGLE_DRAG_SPEED));
+        });
+        self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
+            tool.op(
+                drafts.transform_translation,
+                drafts.transform_axis,
+                drafts.transform_angle,
+            )
+        });
+    }
+
+    /// The pattern tool's panel: a body pick, a rule choice with its
+    /// fields, the axis pick the circular rule needs, and the one
+    /// committed edit.
+    fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.pattern() else {
+            if ui.button("Pattern tool…").clicked() {
+                self.tools.open(ToolKind::Pattern);
+            }
+            return;
+        };
+        ui.label(ToolKind::Pattern.says(&"pick the body, then (circular) the axis"));
+        ui.weak(seat_line(&[
+            (Seat::PatternBody, tool.input()),
+            (Seat::PatternAxis, tool.axis()),
+        ]));
+        ui.horizontal(|ui| {
+            ui.label("rule");
+            for (kind, label) in PatternKindChoice::ALL {
+                ui.radio_value(&mut self.drafts.pattern_kind, kind, label);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("count");
+            // Clamped at one instance: a count is a structural slot
+            // and a non-positive one refuses at evaluation, so the
+            // form does not offer to author a node that cannot build.
+            ui.add(
+                egui::DragValue::new(&mut self.drafts.pattern_count)
+                    .speed(COUNT_DRAG_SPEED)
+                    .range(MIN_PATTERN_COUNT..=i64::MAX),
+            );
+        });
+        match self.drafts.pattern_kind {
+            PatternKindChoice::Linear => {
+                vec3_row(
+                    ui,
+                    "direction",
+                    UNIT_DRAG_SPEED,
+                    &mut self.drafts.pattern_direction,
+                );
+                ui.horizontal(|ui| {
+                    ui.label("spacing (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.pattern_spacing)
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+            }
+            PatternKindChoice::Circular => {
+                ui.horizontal(|ui| {
+                    ui.label("step (rad)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.pattern_step).speed(ANGLE_DRAG_SPEED),
+                    );
+                });
+            }
+        }
+        self.tool_commit_row(
+            ui,
+            "Commit pattern",
+            ToolKind::Pattern,
+            |drafts| match drafts.pattern_kind {
+                PatternKindChoice::Linear => tool.linear_op(
+                    drafts.pattern_count,
+                    drafts.pattern_direction,
+                    drafts.pattern_spacing,
+                ),
+                PatternKindChoice::Circular => {
+                    tool.circular_op(drafts.pattern_count, drafts.pattern_step)
+                }
+            },
+        );
+    }
+
+    /// The blend tool's panel: activation, the freeze sentence, the
+    /// live count of held edges, the all-edges affordance, the kind
+    /// choice with its one Length field, and the one committed edit.
+    ///
+    /// **The freeze sentence is not decoration.** #217 makes the
+    /// selection a commitment — a later edit that adds an edge does
+    /// not extend the blend, and one that strands a picked edge
+    /// refuses on the node — and the moment a user needs to know that
+    /// is while they are choosing the set, so it is stated here rather
+    /// than only in the node's docs.
+    fn blend_tool_ui(&mut self, ui: &mut egui::Ui) {
+        // **Read, never cloned.** The tool holds a SET, so copying it
+        // per frame is per-frame work proportional to the picks; what
+        // the panel actually needs is two small values, and the commit
+        // door is re-borrowed at the click.
+        let Some((target, count)) = self.tools.blend().map(|tool| (tool.target(), tool.count()))
+        else {
+            if ui.button("Blend tool…").clicked() {
+                self.tools.open(ToolKind::Blend);
+            }
+            return;
+        };
+        ui.label(ToolKind::Blend.says(&"pick the edges to blend"));
+        ui.weak(FREEZE_NOTE);
+        ui.weak(match target {
+            Some(target) => format!("{count} edges picked on {target}"),
+            None => "no edges picked yet".to_owned(),
+        });
+        self.all_edges_row(ui, target);
+        ui.horizontal(|ui| {
+            ui.label("blend");
+            for (kind, label) in BlendKindChoice::ALL {
+                ui.radio_value(&mut self.drafts.blend_kind, kind, label);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label(self.drafts.blend_kind.size_label());
+            ui.add(egui::DragValue::new(&mut self.drafts.blend_size).speed(FIELD_DRAG_SPEED));
+        });
+        self.blend_commit_row(ui, count);
+    }
+
+    /// **The all-edges affordance** — `editor_core::all_edges` through
+    /// the tool's own loading door, which stores what it returns as an
+    /// ordinary frozen set: indistinguishable from clicking each edge,
+    /// which is exactly why `Node::Fillet` has no every-edge variant.
+    ///
+    /// The body it is about is the one the held edges are on; with
+    /// nothing held, the DRAWN BODY the current selection is a pick
+    /// on. So "click the body, press the button" works from a standing
+    /// start, and once picking has begun the button cannot move the
+    /// tool to another body behind the user's back.
+    ///
+    /// **A tree click does not name a body.** `Selection::Node` is a
+    /// feature, and a feature is not a `(node, body)` pair — the body
+    /// index a load must narrow by only exists on a pick made against
+    /// something DRAWN. Assuming body 0 there was a guess that read
+    /// wrong on exactly the nodes the narrowing matters for, so the
+    /// button is disabled instead and says what it wants.
+    fn all_edges_row(&mut self, ui: &mut egui::Ui, held: Option<BlendTarget>) {
+        let target = held.or_else(|| BlendTarget::of_selection(self.session.selection()));
+        let ready = target.zip(self.session.evaluation()).zip(self.index);
+        let Some(((target, eval), index)) = ready else {
+            ui.add_enabled(false, egui::Button::new("Select all edges"))
+                .on_disabled_hover_text(
+                    "click an edge or a face of the body first, and let it evaluate —                      a feature picked in the tree does not say which body",
+                );
+            return;
+        };
+        let clicked = ui
+            .button("Select all edges")
+            .on_hover_text(
+                "every edge of this body as it stands now, stored as a frozen set —                  whether the kernel can BLEND that set is its own answer, on the node's badge",
+            )
+            .clicked();
+        if !clicked {
+            return;
+        }
+        // The load reads the LANDED evaluation and the index, and
+        // writes tool state: no document edit, so no op —
+        // `BlendTool::load_all_edges` is the typed operation, callable
+        // with no renderer, and this is its one widget.
+        let event = self
+            .tools
+            .blend_mut()
+            .and_then(|tool| tool.load_all_edges(target, eval, index));
+        if let Some(event) = event {
+            *self.status = Some(ToolKind::Blend.says(&event));
+        }
+    }
+
+    /// The blend tool's commit/cancel row — [`ViewerBehavior::tool_commit_row`]'s
+    /// rules, spelled here because this tool's commit door refuses in
+    /// its own vocabulary ([`BlendError`]) rather than in the seats'.
+    ///
+    /// Both halves of the close rule are unchanged: the op is QUEUED
+    /// and the application closes the tool when the edit actually
+    /// commits, so a refusal at the session door leaves every picked
+    /// edge in place to correct; Cancel closes at once.
+    ///
+    /// **`Clear picks` is this tool's third button and the seated
+    /// tools' second**: a set-valued tool needs a way to start the
+    /// PICKS over without closing the form beside them, which is what
+    /// `BlendTool::clear` is and what Cancel is not — Cancel replaces
+    /// the whole tool value.
+    fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
+        let mut close = false;
+        ui.horizontal(|ui| {
+            if ui.button("Commit blend").clicked() {
+                let size = self.drafts.blend_size;
+                let op: Option<Result<SessionOp, BlendError>> =
+                    self.tools.blend().map(|tool| match self.drafts.blend_kind {
+                        BlendKindChoice::Fillet => tool.fillet_op(size),
+                        BlendKindChoice::Chamfer => tool.chamfer_op(size),
+                    });
+                match op {
+                    Some(Ok(op)) => self.ops.push(op),
+                    Some(Err(error)) => *self.status = Some(ToolKind::Blend.says(&error)),
+                    None => {}
+                }
+            }
+            if ui
+                .add_enabled(count > 0, egui::Button::new("Clear picks"))
+                .on_hover_text("drop every picked edge and start on any body")
+                .clicked()
+                && let Some(tool) = self.tools.blend_mut()
+            {
+                tool.clear();
+            }
+            if ui.button("Cancel").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            self.tools.close();
+        }
+    }
+
+    /// **The commit/cancel row every combining tool ends with**, and
+    /// the one place their two halves of the close rule live.
+    ///
+    /// The op is QUEUED and the tool is not closed here: the
+    /// application closes it when the op actually commits
+    /// (`perform_batch`), so a refusal at the session door leaves the
+    /// held picks in place to correct instead of costing all of them.
+    /// Cancel closes immediately, being the door that means "drop
+    /// these picks".
+    fn tool_commit_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        kind: ToolKind,
+        op: impl FnOnce(&Drafts) -> Result<SessionOp, SeatError>,
+    ) {
+        let mut close = false;
+        ui.horizontal(|ui| {
+            if ui.button(label).clicked() {
+                match op(self.drafts) {
+                    Ok(op) => self.ops.push(op),
+                    Err(error) => *self.status = Some(kind.says(&error)),
+                }
+            }
+            if ui.button("Cancel").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            self.tools.close();
+        }
+    }
+
+    /// The `Add part…` door: the open document's own directory,
+    /// listed as parts, one click inserting an instance of one.
+    ///
+    /// **The listing is a snapshot the chooser holds**, not a scan per
+    /// frame: opening a workspace reads every `.pncad` header, which is
+    /// a click's worth of work and not a frame's. Rescan re-takes it.
+    ///
+    /// **A door that cannot open says so.** With no backing file there
+    /// is no directory to list, and with a directory that will not scan
+    /// (duplicate id, unreadable sibling) there is no honest list — so
+    /// the chooser opens either way and shows the typed refusal where
+    /// the list would be. That is also where a scan refusal belongs
+    /// rather than on a tree badge: no node exists yet to badge.
+    fn add_part_ui(&mut self, ui: &mut egui::Ui) {
+        if self.part_chooser.is_none() {
+            if ui
+                .button("Add part…")
+                .on_hover_text("insert an instance of another document in this one's directory")
+                .clicked()
+            {
+                // NOT part of the one-modal-tool-at-a-time rule the
+                // mate and revolve activations keep, deliberately: that
+                // rule exists because those two consume the same
+                // SELECTION stream, so a pick would fill two seats. A
+                // chooser consumes no picks — it reads a directory and
+                // emits its op from a button — so it neither closes a
+                // pick tool nor is closed by one, and a pick made while
+                // it is open lands exactly where it would have.
+                *self.part_chooser = Some(PartChooser::opened(self.session));
+            }
+            return;
+        }
+        let mut chosen: Option<DocumentId> = None;
+        let mut rescan = false;
+        let mut close = false;
+        if let Some(chooser) = self.part_chooser.as_ref() {
+            egui::Window::new("Add part")
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    match chooser.dir() {
+                        Some(dir) => ui.weak(format!("parts in {}", dir.display())),
+                        None => ui.weak("no directory"),
+                    };
+                    match chooser.offered() {
+                        // An EMPTY listing is not "no parts here": a
+                        // saved session's own file is in its own
+                        // directory, so the only way to scan clean and
+                        // find nothing is for that file to have gone
+                        // away underneath the session. Say that, since
+                        // it is also why the instances already placed
+                        // will stop resolving.
+                        Ok([]) => {
+                            ui.weak(
+                                "this directory holds no documents at all — not even the open \
+                                 document's own file, which has gone from it",
+                            );
+                        }
+                        Ok(entries) => {
+                            for entry in entries {
+                                ui.horizontal(|ui| {
+                                    // An entry that cannot be picked
+                                    // stays VISIBLE and disabled,
+                                    // carrying the op's own refusal —
+                                    // read off the entry, not minted
+                                    // here.
+                                    let refusal = entry.refusal();
+                                    let mut pick = ui.add_enabled(
+                                        refusal.is_none(),
+                                        egui::Button::new(entry.file_name()),
+                                    );
+                                    if let Some(refusal) = refusal {
+                                        pick = pick.on_disabled_hover_text(refusal.to_string());
+                                    }
+                                    if pick.clicked() {
+                                        chosen = Some(entry.id);
+                                    }
+                                    ui.weak(entry.id.to_string());
+                                });
+                            }
+                        }
+                        // The refusing layer's own sentence — the
+                        // store's or the directory rule's — never one
+                        // composed here.
+                        Err(refusal) => {
+                            ui.label(refusal.to_string());
+                        }
+                    }
+                    ui.horizontal(|ui| {
+                        if ui
+                            .button("Rescan")
+                            .on_hover_text("re-read this directory")
+                            .clicked()
+                        {
+                            rescan = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            close = true;
+                        }
+                    });
+                });
+        }
+        if let Some(id) = chosen {
+            // Exactly one committed edit, and the chooser closes with
+            // it — the mate tool's shape.
+            self.ops.push(SessionOp::AddInstance { id });
+            close = true;
+        }
+        if rescan && let Some(chooser) = self.part_chooser.as_mut() {
+            chooser.rescan(self.session);
+        }
+        if close {
+            *self.part_chooser = None;
         }
         ui.separator();
     }
@@ -2395,6 +3479,24 @@ fn drag_gesture_ops(
         return true;
     }
     false
+}
+
+/// One labeled row of three draggable components — every creation
+/// form's vector fields (a datum's origin and normal, a placement's
+/// translation and rotation axis, a pattern's direction).
+///
+/// **The speed is the caller's** because the unit is: a metre field
+/// and a dimensionless direction component want drag rates two orders
+/// of magnitude apart, and one shared rate makes one of them
+/// undraggable. [`FIELD_DRAG_SPEED`] and [`UNIT_DRAG_SPEED`] are the
+/// two values in use.
+fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        for component in value {
+            ui.add(egui::DragValue::new(component).speed(speed));
+        }
+    });
 }
 
 /// The delete button: a renderer for [`DocSession::delete_affordance`]

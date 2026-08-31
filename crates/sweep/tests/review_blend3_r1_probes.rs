@@ -29,7 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
@@ -39,11 +39,6 @@ use topo::{Body, EdgeKey, subtract, validate, validate_closed};
 
 /// The setback every row here uses, meters — BLEND-3's own.
 const D: f64 = 0.25;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn sketch_at(z: f64) -> SketchPlane<f64> {
     SketchPlane::new(Affine3::from_parts(
@@ -171,7 +166,7 @@ fn r1_a_square_vent_refuses_on_the_ring_gate_not_on_convexity() {
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the cavity's twelve edges");
 
-    let err = chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges, D, Tol::witness())
         .expect_err("a square vent's ring is not a circle");
     let text = err.error.to_string();
     assert!(
@@ -238,7 +233,7 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
         "four floor edges and four verticals — the pocket's concave set"
     );
 
-    let err = chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges, D, Tol::witness())
         .expect_err("a pocket's concave edges are not a closed component");
     assert!(
         matches!(
@@ -271,7 +266,7 @@ fn r1_an_unvented_cavity_refuses_at_the_body_door() {
     ];
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the sealed cavity still has twelve edges");
-    chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    chamfer_edges(&body, &edges, D, Tol::witness())
         .expect_err("the surgery's body door admits one shell");
 }
 
@@ -312,7 +307,7 @@ fn r1_a_nine_edge_triangular_cavity_is_a_simpler_shape_of_the_same_class() {
         "three verticals and two triangles — nine edges, against the fixture's twelve"
     );
 
-    let out = chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &edges, D, Tol::witness())
         .expect("a triangular cavity's nine concave edges chamfer");
     assert_eq!(out.blend_faces.len(), 9, "one strip per concave edge");
     assert_eq!(
@@ -355,7 +350,7 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
         let body = cut(&cut(&block, &vent), &cavity);
         let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
         assert_eq!(edges.len(), 12, "twelve cavity edges at r = {r}");
-        chamfer_edges(&body, &edges, D, band(), Tol::witness()).map(|o| o.body)
+        chamfer_edges(&body, &edges, D, Tol::witness()).map(|o| o.body)
     };
 
     // The fixture's own clearance: the ring at 2.5 against a trimline
@@ -394,7 +389,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     // (i) What the same chamfer REMOVES from a cube of side a.
     let cube_body = cube(a, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let chamfered_cube = chamfer_edges(&cube_body, &cube_edges, D, band(), Tol::witness())
+    let chamfered_cube = chamfer_edges(&cube_body, &cube_edges, D, Tol::witness())
         .expect("a cube chamfers")
         .body;
     let cube_vol = topo::mass_properties(&chamfered_cube, Tol::witness())
@@ -417,7 +412,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
         .expect("closed-form props")
         .volume;
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
-    let carved = chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    let carved = chamfer_edges(&body, &edges, D, Tol::witness())
         .expect("the cavity chamfers")
         .body;
     let gained = topo::mass_properties(&carved, Tol::witness())
@@ -531,7 +526,7 @@ fn r1_one_request_carries_both_convexity_signs() {
 
     let mut both = concave;
     both.extend(convex);
-    let out = chamfer_edges(&body, &both, D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &both, D, Tol::witness())
         .expect("one request may span both material sides");
 
     assert_eq!(out.blend_faces.len(), 24, "one strip per requested edge");
@@ -566,12 +561,17 @@ fn r1_one_request_carries_both_convexity_signs() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **The FILLET must still refuse that same two-sided request**, and
-/// at the door that is true of it: its ball is convex-only, so the
-/// concave component is refused whether or not a convex one rides
-/// along in the same call.
+/// **The FILLET carves that same two-sided request** — the widening
+/// this probe's first form pinned as missing (its assertion was the
+/// rolling ball's refusal, expected "until #644"; issue 644 then
+/// closed it). Per-request folds would still pass a one-sided
+/// fixture, so the volume is again the arithmetic that settles it:
+/// the concave component must ADD its rounded-void complement while
+/// the convex one REMOVES its own rounded-cube complement, in the
+/// same body, in the same carve — the ball's Steiner terms at each
+/// side's own scale.
 #[test]
-fn r1_the_fillet_still_refuses_the_two_sided_request() {
+fn r1_one_fillet_request_carries_both_convexity_signs() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
@@ -586,6 +586,50 @@ fn r1_the_fillet_still_refuses_the_two_sided_request() {
     both.extend(block_edges(&body));
     assert_eq!(both.len(), 24, "both components");
 
-    sweep::blend::build::fillet_edges(&body, &both, D, band(), Tol::witness())
-        .expect_err("the rolling ball has no concave side yet (#644)");
+    let before = topo::mass_properties(&body, Tol::witness())
+        .expect("closed-form props")
+        .volume;
+
+    let out = sweep::blend::build::fillet_edges(&body, &both, D, Tol::witness())
+        .expect("one fillet request may span both material sides");
+    assert_eq!(out.blend_faces.len(), 24, "one band per requested edge");
+    assert_eq!(
+        out.corner_faces.len(),
+        16,
+        "eight concave octants and eight convex"
+    );
+    assert_eq!(validate(&out.body), Ok(()), "tier 1");
+    assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+
+    // What a full twelve-edge fillet at radius r removes from a cube
+    // of side a is the complement of the Minkowski (Steiner) closed
+    // form; the concave side ADDS the same complement at its own
+    // scale. A declared copy class (siblings: the concave-fillet
+    // suite's fixture oracle, the blend4 R1 probes' prism form, the
+    // die suites); evgunter/cad issue 1364 owns the shared home.
+    let rounded = |a: f64| {
+        let l = a - 2.0 * D;
+        l.powi(3)
+            + 6.0 * l * l * D
+            + 3.0 * core::f64::consts::PI * l * D * D
+            + (4.0 / 3.0) * core::f64::consts::PI * D.powi(3)
+    };
+    let fillet_of = |a: f64| a.powi(3) - rounded(a);
+    let after = topo::mass_properties(&out.body, Tol::witness())
+        .expect("closed-form props")
+        .volume;
+    let want = before + fillet_of(2.0) - fillet_of(4.0);
+    assert!(
+        (after - want).abs() <= 1e-12 * want,
+        "a two-sided fillet must add on one side and remove on the other: \
+         got {after}, want {want}"
+    );
+
+    let mesh = mesh::tessellate(&out.body, 5e-3, Tol::witness()).expect("tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
 }

@@ -2266,10 +2266,29 @@ obligation, and containment-plus-positivity is monotone in the wrong direction
 acceptance row this finding names now pins `area_pad` to the `volume_pad` the
 kernel does meter — an identity of the lane's arithmetic, so it needs no
 metering rule to state — and both it and the loft site carry outer ceilings;
-#873's PR body carries the derivation and the numbers. **The metering half is
-still open, as issue #870** — this finding's first paragraph remains an
-accurate description of the kernel, and #870 measures what it costs. Three
-further unmetered certified widths are **S230**, now Track W's row.
+#873's PR body carries the derivation and the numbers. Three further unmetered
+certified widths are **S230**, now Track W's row.
+
+**CLOSED as far as it will be closed, by S-CERT's CERT-6 (issue 870).** The
+metering half was RULED OUT rather than built (S-CERT Q1, Evan, in-chat
+2026-08-29): any realized geometry everywhere within ε of correct is valid, so
+a wide-but-sound bracket is sound and no funnel target is warranted — and an
+ε-scale area target would cost a 10³–10⁴x piece-count multiplier under an O(h)
+rule. So the sentence *"`area.width()` appears nowhere in the file"* is no
+longer true, but what reads it is a **tripwire, not a meter**: the A2 gauge
+(`area.width()` over a certified perimeter lower bound — a mean edge
+displacement, the direct analogue of `mean_boundary_displacement`) asserted as
+a D2-addendum row-5-boundary `debug_assert` at the patch lanes' certified
+returns, with a generous calibrated ceiling. The rest of
+the opening paragraph still describes the kernel exactly: the area is still
+computed once before the rounds, still frozen at `QUAD2_AREA_PIECES`, and still
+not metered. Purchasable tightness (a caller-requested area target with a typed
+refusal) is filed as a demand-triggered valve, not built — no consumer asks.
+**The gauge's calibration figures are deliberately not restated in this
+document**: `props/quad.rs`'s `area_gauge_ok` is their one home. CERT-5 moved
+them once and CERT-6's own fix pass moved them again, and each restatement
+went stale in place — this is the `#651` shape, and the fix for it is a
+pointer, not a fresher copy.
 
 ## S27. `props/quad.rs` is four independent quadrature engines sharing a file
 
@@ -5442,12 +5461,12 @@ self-declared-dead vocabulary returns **zero** hits anywhere in
 
 ## S112. Prose that describes a world the code has left (roll-up)
 
-**Two members left, and both are rowed.** Both `file:line` citations below
-were re-derived from the tree; where a line had drifted the site is cited by
+**One member left, and it is rowed.** The `file:line` citation below
+was re-derived from the tree; where a line had drifted the site is cited by
 target name or by expression instead, which is `S176(a)`'s discipline applied
 to the entry that records it. **(a) is Track T's `D324`** — re-derived and
 re-homed there by `D124`, after riding Track E's `E-g`, which landed without
-it and whose row is struck (see `S177`). **(e) is Track Q's `D282`**.
+it and whose row is struck (see `S177`).
 
 - (a) `crates/sweep/src/blend/naming.rs:38-40`, under *"What consumes
   these rows"* — *"`editor-core`'s `names::emit_blend` … reads every
@@ -5456,16 +5475,6 @@ it and whose row is struck (see `S177`). **(e) is Track Q's `D282`**.
   The diff rewrote the paragraphs immediately above and below and left
   this one, and the BLEND-6 rename has since moved every name in the
   sentence without making it true.
-- (e) `crates/geom-brep/src/ssi/exhaust.rs:92` / `ssi.rs`'s
-  `account_chart_plane` call (**cited by expression, per S176(a)** — the
-  line moved by 13 under a merge) — `Exhaustiveness::floor`'s public
-  doc says *"The floor used, in meters"*; the chart lane stores chart
-  units (`domain.floor(band) / speed`). The sibling field on
-  `ExhaustivenessInconclusive` gets it right (*"in meters (or chart
-  units)"*), and so does `SweepCell::width`. The one place a caller
-  reads the number back out is the one place the unit is wrong. It became
-  visible when the two sweep lanes were collapsed onto one duty parameter,
-  which put both floors through the same field.
 
 ## S113. Counts and enumerations stated in prose, already drifted (roll-up)
 
@@ -7308,11 +7317,19 @@ bracket is `value ± pad` — so each figure below is half the bracket it names.
   Python door's rows on the shape (iii) loft. `:556` bounds `volume_pad` at
   `1e-6` and asserts **nothing** about `area_pad`; `:1238-1239` is containment
   only. On that same loft the measured widths are `volume_pad` =
-  **1.0725e-13 m³** and `area_pad` = **0.1986 m²** — 7.8e-3 of the body's
-  25.31 m² surface, eleven orders of magnitude apart, and **identical bits at
+  **1.0725e-13 m³** and `area_pad` = **0.1896 m²** — 7.5e-3 of the body's
+  25.32 m² surface, eleven orders of magnitude apart, and **identical bits at
   all three ε legs** because that width is resolution-driven, not
   tolerance-driven. The Python door therefore reports a certified area of
-  25.31 ± 0.20 m² with no row that would notice the pad growing.
+  25.32 ± 0.19 m² with no row that would notice the pad growing.
+  **Re-derived at CERT-6 (issue 870), post-CERT-5**: CERT-5's pad∩hull
+  intersection tightened it, and the halving factor that comment used to call
+  exact is no longer exactly 2. The live figures are the ones
+  `sweep/tests/m6_loft_body.rs` measures at its own claim site; they are not
+  copied here again, for the reason S26's close-out gives. The
+  row is still uncovered — CERT-6's gauge is a kernel-side `debug_assert` at
+  the patch lanes' returns and reds this fixture only two and a half orders
+  above the honest width, so it does not close this member.
 
 - **`crates/editor-core/tests/review_m5_pr9_doc_probe.rs:151`** — the curved
   boolean's `Interval` union row, containment only on the volume enclosure,
@@ -7800,7 +7817,7 @@ re-scoped or re-argued by being moved.
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 11 |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 *(re-derived from the track's own table, 2026-08-31; had read 18 against 16 rows)* |
-| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
+| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census)* |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
@@ -7907,6 +7924,8 @@ three sub-lanes inside the track.
 | **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
 | **D240** | Neither geometry enum can lift itself to another scalar (`S33`) — `Curve3<T>` and `Surface<T>` have no `map_scalar`/`lift`, so every caller writes its own per-variant ladder: four in `geom/src/{curves,surfaces}.rs` and roughly ten more across `topo`, `mesh` and test modules. Each is kept exhaustive by hand and each silently maps `Nurbs(_)` to the placeholder rather than lifting the payload. **The one production copy outside this fence, `sweep/src/skin.rs:774`, is Track T's `D320`** | unrowed |
 | **D241** | `geom/src/scalar_lift.rs` is named for the job it declines to do (`S100`) — it deduplicates the four leaf point/vec converters and says in its own header that the per-variant ladders stay where they are, in the same crate as four surviving ladders. `lift_to_dual` (curves) and `lift_dual` (surfaces) sit beside two unrelated `lift` functions. **`D240` is the work; this row is the name, and they want one lane** | unrowed |
+| **D242** | **`ControlPoint::channel`'s two `unreachable!` arms are row 0's own *yes* side** (`D96`'s small-domain pair, re-homed by Track T's `T-c` when that row's in-fence members were disposed; citations re-derived 2026-08-31 — `crates/geom/src/net.rs:63` and `:88`, which read `:64`/`:86` when `D96` was written). The trait is `pub(crate)` with two impls and two call sites, one of them already `for d in 0..P::CHANNELS`, so a `channels()` iterator deletes both arms with **no public API change**. The trait's own rustdoc states the precondition it cannot carry — *"`d >= CHANNELS` is a caller bug, not an input"* — which is the newtype argument written as prose | `D96`, via `T-c` |
+| **D243** | **`insert_once_ring`'s interior-knot guard announces a caller precondition a type could carry** (`D96`'s third small-domain member, re-homed by `T-c`; citation re-derived 2026-08-31 — `crates/geom-core/src/spline/compose.rs:315`, which read `:314`). `if !(u > knots[p] && u < knots[knots.len() - p - 1]) { unreachable!(…) }`, where the site's own comment says the only caller draws `u` either from `interior_knots` — strictly interior by the `KnotVector` invariant — or from extras it filters to the open domain. That is an `InteriorKnot` newtype spelled as a comment. **Row 0's question here is the propagation and not the arm**: the newtype reaches the filter and the caller, not only this function | `D96`, via `T-c` |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -7971,22 +7990,21 @@ because `mesh` is what consumes it; Q keeps the four paths it names.
 
 | # | What | Was |
 |---|---|---|
-| **C3** | `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block (S27). **NOT TAKEABLE until #723 is fixed** — a wrong certified volume lives in the file this row consolidates, and consolidating first bakes it in or moves it away from its reproduction. The lane is described in a comment on #723 | Track C |
-| **D30** | `quad.rs` holds a second span search and a second index clamp, because `KnotVector` cannot represent what the module needs. **Same file as `C3` and gated with it** | Track C |
+| **C3** | `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block (S27). **Takeable since CERT-1's merge closed #723** (the gate this row carried until 2026-08-29); the lane is described in a comment on #723, and C-m's recorded questions are answered in CERT-1's and CERT-5's PR bodies. **Sequenced behind S-CERT's remaining `quad.rs` work (CERT-10)** — same file, live claimant | Track C |
+| **D30** | `quad.rs` holds a second span search and a second index clamp, because `KnotVector` cannot represent what the module needs. **Same file as `C3` and sequenced with it** | Track C |
 | **C11** | #726 and #727 — fold the iso-rectangle SHAPE question onto the named predicate, and decide which door owns the refusal now that `mesh` and the boolean are protected only transitively | Track C |
-| **S26** | The certified area enclosure is never metered against anything, now measured: 7.8e-3 relative on an ordinary loft where the same body's volume bracket is 1.2e-14 (#870). **Wants a written proposal, not a patch** | Track C |
+| **S26** | The certified area enclosure is never metered against anything, now measured: 7.5e-3 relative on an ordinary loft where the same body's volume bracket is 1.2e-14 (issue 870). **RULED and landed as S-CERT CERT-6**: metering declined (Q1 — a wide-but-sound bracket is sound), the A2 gauge landed instead as a row-5-boundary `debug_assert` with a generously calibrated ceiling; purchasable tightness filed as a valve, not built | Track C |
 | **S28** | Three tessellation lanes are parallel pipelines with no shared core — the duplication half, now that #648/#674 have settled the ordering and column questions | Track C |
 | **S236** | `cert_cylinder` is falsified by nothing, in any build — and closing it changes `budget::FaceMeasure`, whose consumers are in `tools/`. **The `tools/` half is Track K's row** | Track I |
 | **S237** | The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one | Track I |
 | **C23** | Two rational refinement schedules, hand-synced across a crate boundary at the same value of 16 — `RATIONAL_CERT_SPLITS` and `geom`'s `RATIONAL_METER_SPLITS`. **The row's own text mislocated the first and is corrected here**: it is `geom_brep::patch_bound::RATIONAL_CERT_SPLITS` (`geom-brep/src/patch_bound.rs`), and `mesh` only cites it — from `nurbs_cert.rs` and `chords.rs` — so the constant is inside this fence but not in the crate the row named. `RATIONAL_METER_SPLITS` is private in `geom/src/curves/nurbs.rs`. **The `geom` constant is one line and is this row's, by exception to N's fence.** And the premise wants checking before the sync does: **they may not be one schedule at all** — the cert splits price a rational *patch*'s Hessian-hull assembly, the meter splits a rational *curve*'s speed lower bound, and the shared 16 may be a coincidence of two independent budgets rather than a copy. Deciding that is the first half of the work | Track C |
 | **D300** | `mesh/src/nurbs_cert.rs:1538` — `S121`'s bound-domination site inside this track's fence: `hessian_hull_dominates_sampled_second_partials` asserts the certified hull dominates the sampled second partials and asserts nothing else. **The deliverable is a measured ratio at more than one ε plus an anti-vacuity floor, with the ceiling sitting below a measured *degraded* reading** — or a written verdict that the site admits no honest ceiling. `test_utils::tightness` is the home and owns no constant; `mesh` already carries `assert_dominates`, which computes the ratio and prints it. **Filed here rather than taken with `S121`'s other sites because the fence is the file** | Track F, unplaced |
-| **D302** | `mesh::TessellateError` (`mesh/src/types.rs`) has no `Display`, and the consequence is written at the consuming site: `viewer/src/scene.rs:148` says so in a comment and renders the payload of its `NotTessellated` arm through `Debug` because there is nothing else to render it with. The *"never a `Debug` dump"* rule this defeats is Track U's `D47`; the impl is this track's, and it is one of the seven such types now identified across three crates (the `editor-core` four are Track V's `D362`) | unrowed |
-
 *(`S65` — the watertightness backstop absent from every shipping build — is
 **Evan's decision**, not this track's row. Its equipped statement, the three
 options and the measured price are at `S65`; issues #896 and #897 carry what
 #872 could route. When it is ruled, the implementation is this track's.)*
 | **D303** | **`mesh::sizing::ceil_count` answers `1` for a NEGATIVE step**, in the function about to allocate that many grid points: `raw` is negative, finite, and floors to one, so it refuses only what makes `raw` non-finite (a NaN, a zero step, a count ≥ 2^24). `tess_meter::divisions`, the consumer-side second spelling, now refuses a negative step under `D105`, so **the kernel is the laxer of the pair** — and a negative step is not a smaller grid, it is a reading that did not happen. The fail-loud side of a two-spelling pair should be the one holding the allocation. Unreachable today only because every step reaching it is `sqrt`- or `cap_angular`-derived | `D105` residue |
+| **D304** | **`walk.rs`'s rim-anchored `out.first()` — `D96`'s one non-empty-by-construction member outside `sweep/`** (re-homed by Track T's `T-c` when `D96`'s in-fence nine were disposed; citation re-derived 2026-08-31 — `crates/mesh/src/walk.rs:1200`, which read `:1132` when `D96` was written). `let Some(first) = out.first() else { unreachable!(…) }`, where the rim arm above pushes unconditionally and its own twenty-line comment proves so: the polygon is non-empty by construction and a bare `Vec` is what represents it. **The site is already argued in writing** — the comment records that the default it replaced (`0.0` for the lever arm) would have made `gap * 0 < eps` true for every gap and silently disabled the detector — so what row 0 asks is only whether the sequence can stop being a bare `Vec` on the path that reaches here | `D96`, via `T-c` |
 
 ## Track T — `sweep/`
 
@@ -7996,13 +8014,11 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 | # | What | Was |
 |---|---|---|
-| **D96** | Thirteen `unreachable!` arms are row-0 candidates — states a type change could stop spelling, `EmptyChain`'s exact shape. **Ten are this track's**; the remainder are filed as rows on the tracks that own their files | Track E |
-| **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV**. **Placed on Track P until 2026-08-29 and moved here on the fence rule** — `octant_chart` is defined at `blend/build.rs` and consumed from `blend/surgery.rs`, and no `sweep` path is among Track P's eleven files. Number, mark and provenance unchanged. **Paths re-aimed to the BLEND-6 spelling** (they read `fillet/` until 2026-08-31); the sites themselves did not move | Track E |
-| **D322** | **`crates/sweep/src/blend/surgery.rs:1712`'s `pub fn ring_clearance` is production API with no production caller** (`S111(b)`, re-homed by `D124`; verified standing 2026-08-31 against the renamed tree). Its only caller outside the module is `crates/sweep/tests/m6_surgery.rs:447`, and its own doc says so — *"Public for exactly that trio"*. Every other item in that file is `pub(super)` or private. **The remedy already exists in this crate**: `S111(b)`'s own text names the `feature = "test-support"` gate, and `crates/sweep/src/test_support.rs` is now the cross-crate home for exactly this shape, so the conversion is a visibility change plus a re-export rather than a new mechanism. **Blocked while a BLEND lane is live in `blend/`** (T-R1's class) | `S111(b)`, via `D124` |
-| **D323** | **`blend::naming::Retired` still has no face channel** (`S111(d)`, re-homed by `D124`; verified standing). `crates/sweep/src/blend/naming.rs:115` carries `edges` and `vertices` only, so the one thing the record exists to catch — a source entity destroyed without a record — is structurally uncatchable for faces, which is `S15`'s hole unchanged. **What is new since the finding was written** is that the consumer now argues the hole away rather than leaving it silent: `crates/editor-core/src/names/emit_blend.rs:259-262` says *"Faces are never retired — a support shrinks, it does not die"*. So the row is a decision, not a patch: either that argument is the answer and belongs at `Retired` itself, or it is not and the channel is owed. **Cheaper taken with `D324`** — same file, same subject. **Blocked while a BLEND lane is live in `blend/`** | `S111(d)`, via `D124` |
-| **D324** | **`naming.rs`'s *"What consumes these rows"* header is false about its one consumer** (`S112(a)`, re-homed by `D124`; verified standing, and the rename moved the name it cites). `crates/sweep/src/blend/naming.rs:38-40` says `editor-core`'s `names::emit_blend` *"reads every field EXCEPT [`Retired`]"*; `crates/editor-core/src/names/emit_blend.rs:242-243,259-260` builds `retired_e`/`retired_v` out of `rec.dead` and consults them on every row. **Sharper than the finding recorded**: the consuming site cites *"(module docs)"* straight back at the paragraph that denies it, so the two halves of one claim contradict each other across the crate boundary and each points at the other as its authority. One paragraph, and it is the same file as `D323`. **Blocked while a BLEND lane is live in `blend/`** | `S112(a)`, via `D124` |
+| **D322** | **`crates/sweep/src/blend/surgery.rs:1712`'s `pub fn ring_clearance` is production API with no production caller** (`S111(b)`, re-homed by `D124`; verified standing 2026-08-31 against the renamed tree). Its only caller outside the module is `crates/sweep/tests/m6_surgery.rs:447`, and its own doc says so — *"Public for exactly that trio"*. Every other item in that file is `pub(super)` or private. **The remedy already exists in this crate**: `S111(b)`'s own text names the `feature = "test-support"` gate, and `crates/sweep/src/test_support.rs` is now the cross-crate home for exactly this shape, so the conversion is a visibility change plus a re-export rather than a new mechanism. **Blocked while a BLEND lane is live in `blend/`** (T-R1's class; the live one is BLEND-4, PR #1360, which edits this very file — `T-R7`) | `S111(b)`, via `D124` |
+| **D323** | **`blend::naming::Retired` still has no face channel** (`S111(d)`, re-homed by `D124`; verified standing). `crates/sweep/src/blend/naming.rs:115` carries `edges` and `vertices` only, so the one thing the record exists to catch — a source entity destroyed without a record — is structurally uncatchable for faces, which is `S15`'s hole unchanged. **What is new since the finding was written** is that the consumer now argues the hole away rather than leaving it silent: `crates/editor-core/src/names/emit_blend.rs:259-262` says *"Faces are never retired — a support shrinks, it does not die"*. So the row is a decision, not a patch: either that argument is the answer and belongs at `Retired` itself, or it is not and the channel is owed. **Cheaper taken with `D324`** — same file, same subject. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S111(d)`, via `D124` |
+| **D324** | **`naming.rs`'s *"What consumes these rows"* header is false about its one consumer** (`S112(a)`, re-homed by `D124`; verified standing, and the rename moved the name it cites). `crates/sweep/src/blend/naming.rs:38-40` says `editor-core`'s `names::emit_blend` *"reads every field EXCEPT [`Retired`]"*; `crates/editor-core/src/names/emit_blend.rs:242-243,259-260` builds `retired_e`/`retired_v` out of `rec.dead` and consults them on every row. **Sharper than the finding recorded**: the consuming site cites *"(module docs)"* straight back at the paragraph that denies it, so the two halves of one claim contradict each other across the crate boundary and each points at the other as its authority. One paragraph, and it is the same file as `D323`. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S112(a)`, via `D124` |
 | **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
-| **D321** | **`crates/sweep/src/blend/admit.rs` reads its own source with no reader at all** (path re-aimed to the BLEND-6 spelling 2026-08-31; it read `fillet/admit.rs:467`, and the line is cited by target rather than number per `S176(a)` because the rename moved it) — an `include_str!` of the module's own file counting `Self {`, whose author spliced string literals to avoid self-matching rather than lex. That is the same tell as the reader `S117` calls the class's worst member, and it was outside both of that finding's sweeps. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
+| **D325** | **The corner fusion's `first_arc` is this fence's last `EmptyChain`-shaped arm** (`D96`'s ninth in-fence member, re-homed when `T-c` disposed of the other eight). `crates/sweep/src/blend/surgery.rs` holds `let Some(arc) = first_arc else { unreachable!(…) }` in the corner fusion, and its proof — *a corner's incidence list holds at least the link that discovered it* — is already a fact of the TYPE one level up: `CornerLinks::first` returns a link rather than an `Option`. **Row 0's answer is therefore yes**, and the cost is what put it outside `T-c`: `CornerLinks::sorted` hands back a `Vec`, so carrying the non-emptiness into the arc loop means a seeded return — `(first, rest)`, the shape `CornerLinks` already has in its own fields — plus hoisting a forty-line mutation body that holds `&mut Body`, across the three `sorted` call sites. **Cheaper taken with any lane that opens the corner fusion for another reason** | `D96`, via `T-c` |
 
 ## Track U — the exchange surface and the bindings
 
@@ -8017,12 +8033,11 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | **C16** | The Python STEP door exposes one of `StepOptions`' six fields, silently (#730) | Track C |
 | **D94** | The discard idiom does not stop at `crates/topo`, and `D21`'s crate clause was a scope of work rather than a finding about the class. **The sharpest instance answers the same question two incompatible ways five lines apart** | Track E |
 | **D37** | `pncad-py`'s tag map re-derives a discriminant that belongs on the kernel error, and its field-projection deferral has no owner | Track E |
-| **D47** | The *"never a `Debug` dump"* rule has two remaining violations, both blocked on kernel types with no `Display` — **the `Display` impls themselves are Track V's `D362` and Track R's `D302`** | Track E |
+| **D47** | The *"never a `Debug` dump"* rule has two remaining violations, blocked on kernel types with no `Display` — **the missing impls are Track V's `D362`** (`mesh::TessellateError`'s landed at `mesh/src/types.rs:271`, so its violation is unblocked; the consumer-side read at `viewer/src/scene.rs` is #1111's, per that site's own citation) | Track E |
 
 *(`D37` and `D47` are one crate and one class, and `D37(a)` shares a
 mechanism with Track V's `D121`. Taking them as one lane is cheaper than
-either alone. `D47`'s blocker is the missing `Display` impls, which are Track
-V's `D362` and Track R's `D302`.)*
+either alone. `D47`'s remaining blocker is Track V's `D362`.)*
 
 ## Track V — `editor-core` and `profile`
 
@@ -8042,7 +8057,7 @@ V's `D362` and Track R's `D302`.)*
 | **C6** | W2f remainder / S4 — `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core. **Genuinely blocked**, each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format); kept as a row so the block is visible rather than forgotten | Track C |
 | **D360** | A classification spelled as a let-else, which #833's type-keyed sweep could not have found (`S193`) — `editor-core/src/eval/wire.rs`'s `refusal_menu`. The site itself is benign; **the row is the sweep rule** — a lane sweeping `topo::BooleanError`, or any `topo` refusal enum, sweeps by VARIANT NAME and expects let-else and `matches!` shapes | unrowed |
 | **D361** | **`S88`'s `profile` half** — the sole-`T: Bounds` doors the D1 census enumerated in this track's crates and did not take: `fillet_select.rs::nearest_joint` (`:169`; the finding's `:98` is a doc line, not a door) and `path/arc_fillet.rs:361`'s `map_refusal<T: Bounds>`, which the finding does not name. The rest of `arc_fillet.rs` is the ratified `Decide + Bounds` seam. Routed to Track G's `G4` before that track closed; the `G4` this partition carries is `ArcCarrierScalar` alone and does not cover it | Track G, unplaced |
-| **D362** | **Four `editor-core` types have no `Display`, and each one now has a named `crates/viewer/` site blocked on it**: `HitTestError` (`resolve/hit.rs`) and `NodePickError` (`resolve/pick.rs`), both of which `viewer/src/pick.rs` records at the site as its reason for keeping a `Debug` rendering; `InterrogateError` (`names/interrogate.rs`), carried as a payload by `viewer/src/matetool.rs`'s `Frame` arm; and `ResolveIndeterminate` (`resolve/mod.rs`), **which reaches a user-read egui label** — `viewer/src/app.rs`'s *"this face cannot be resolved right now: {cause:?}"*. `ParseError` is a fifth of the same class, already disclosed at `viewer/src/session.rs:335` and carried by issue **#1103**. `editor-core`'s `finding.rs` gives the crate's six sink types a `Display`; these four are outside that set, and they are what unblocks Track U's `D47`. `mesh::TessellateError` is the same class one crate over and is Track R's `D302` | unrowed |
+| **D362** | **Four `editor-core` types have no `Display`, and each one now has a named `crates/viewer/` site blocked on it**: `HitTestError` (`resolve/hit.rs`) and `NodePickError` (`resolve/pick.rs`), both of which `viewer/src/pick.rs` records at the site as its reason for keeping a `Debug` rendering; `InterrogateError` (`names/interrogate.rs`), carried as a payload by `viewer/src/matetool.rs`'s `Frame` arm; and `ResolveIndeterminate` (`resolve/mod.rs`), **which reaches a user-read egui label** — `viewer/src/app.rs`'s *"this face cannot be resolved right now: {cause:?}"*. `ParseError` is a fifth of the same class, already disclosed at `viewer/src/session.rs:335` and carried by issue **#1103**. `editor-core`'s `finding.rs` gives the crate's six sink types a `Display`; these four are outside that set, and they are what unblocks Track U's `D47` | unrowed |
 
 ## Track W — the test targets: guards, doctests, fixtures and stand-downs
 
