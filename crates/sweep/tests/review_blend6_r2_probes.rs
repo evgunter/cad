@@ -28,7 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendKind, BlendRefusal};
@@ -41,11 +41,6 @@ use topo::{Body, EdgeKey, EntityId};
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -235,7 +230,7 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
 
     // The chamfer door reaches its own arm on this fixture.
     let chamfered =
-        chamfer_edges(&cyl, &edges, D, band(), t).expect_err("a curved support has no ruled strip");
+        chamfer_edges(&cyl, &edges, D, t).expect_err("a curved support has no ruled strip");
     assert!(
         matches!(chamfered.error, BlendError::ChamferArmUnsupported { .. }),
         "the fixture must reach the chamfer's own arm: {:?}",
@@ -244,7 +239,7 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
 
     // The fillet door, same fixture, same size: whatever it answers,
     // it is never the chamfer's arm.
-    if let Err(refusal) = fillet_edges(&cyl, &edges, D, band(), t) {
+    if let Err(refusal) = fillet_edges(&cyl, &edges, D, t) {
         assert!(
             !matches!(refusal.error, BlendError::ChamferArmUnsupported { .. }),
             "a fillet reached the chamfer-only arm: {:?}",
@@ -254,7 +249,7 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
 
     // And per-edge, so a whole-body refusal cannot mask the claim.
     for e in &edges {
-        if let Err(refusal) = fillet_edges(&cyl, &[*e], D, band(), t) {
+        if let Err(refusal) = fillet_edges(&cyl, &[*e], D, t) {
             assert!(
                 !matches!(refusal.error, BlendError::ChamferArmUnsupported { .. }),
                 "a single-edge fillet reached the chamfer-only arm: {:?}",
@@ -289,19 +284,19 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
 
     out.push((
         "fillet run-out",
-        fillet_edges(&body, &edges[..1], D, band(), t)
+        fillet_edges(&body, &edges[..1], D, t)
             .expect_err("a partially-requested corner is a run-out")
             .error,
     ));
     out.push((
         "fillet clearance",
-        fillet_edges(&body, &edges, 0.55, band(), t)
+        fillet_edges(&body, &edges, 0.55, t)
             .expect_err("a 0.55 m radius does not fit a 1 m face")
             .error,
     ));
     out.push((
         "fillet chain-break",
-        fillet_edges(&body, &top_loop(&body), D, band(), t)
+        fillet_edges(&body, &top_loop(&body), D, t)
             .expect_err("square junctions are not tangent-continuous")
             .error,
     ));
@@ -315,39 +310,39 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let t = Tol::witness();
     let mut out = vec![(
         "nonpositive size",
-        chamfer_edges(&body, &edges[..1], 0.0, band(), t)
+        chamfer_edges(&body, &edges[..1], 0.0, t)
             .expect_err("a zero setback has no band")
             .error,
     )];
 
     out.push((
         "repeated edge",
-        chamfer_edges(&body, &[edges[0], edges[0]], D, band(), t)
+        chamfer_edges(&body, &[edges[0], edges[0]], D, t)
             .expect_err("a repeated edge doubles a link")
             .error,
     ));
     out.push((
         "run-out",
-        chamfer_edges(&body, &edges[..1], D, band(), t)
+        chamfer_edges(&body, &edges[..1], D, t)
             .expect_err("a partially-requested corner is a run-out")
             .error,
     ));
     out.push((
         "chain-break",
-        chamfer_edges(&body, &top_loop(&body), D, band(), t)
+        chamfer_edges(&body, &top_loop(&body), D, t)
             .expect_err("square junctions are not tangent-continuous")
             .error,
     ));
     out.push((
         "clearance",
-        chamfer_edges(&body, &edges, 0.55, band(), t)
+        chamfer_edges(&body, &edges, 0.55, t)
             .expect_err("two 0.55 m setbacks do not fit a 1 m face")
             .error,
     ));
     let eps = t.get().eps;
     out.push((
         "escalated clearance",
-        chamfer_edges(&body, &edges, 0.5 - 2.5 * eps, band(), t)
+        chamfer_edges(&body, &edges, 0.5 - 2.5 * eps, t)
             .expect_err("an in-band clearance margin escalates")
             .error,
     ));
@@ -356,7 +351,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let concave = concave_edge(&bracket);
     out.push((
         "corner configuration",
-        chamfer_edges(&bracket, &[concave], D, band(), t)
+        chamfer_edges(&bracket, &[concave], D, t)
             .expect_err("a mixed-convexity corner is out of scope")
             .error,
     ));
@@ -367,7 +362,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let two_edges = all_edges(&two);
     out.push((
         "two-solid body",
-        chamfer_edges(&two, &two_edges[..1], D, band(), t)
+        chamfer_edges(&two, &two_edges[..1], D, t)
             .expect_err("the in-place surgery is built for one solid")
             .error,
     ));

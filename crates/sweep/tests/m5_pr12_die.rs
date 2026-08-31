@@ -107,7 +107,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 fn blank() -> Body<f64> {
     let body = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    fillet_edges(&body, &edges, DIE_R, band(), Tol::witness())
+    fillet_edges(&body, &edges, DIE_R, Tol::witness())
         .expect("the die blank")
         .body
 }
@@ -386,7 +386,7 @@ fn deviation_1_both_doors_compose_and_agree() {
         .filter(|k| pipped.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
-    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, band(), Tol::witness())
+    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
         .expect("the in-place surgery takes the subset request (M6 unit 1)")
         .body;
     assert_eq!(

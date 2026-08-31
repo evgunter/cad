@@ -10,18 +10,13 @@
 
 use profile::RawLoop;
 
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn box_at(x0: f64, l: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
@@ -41,7 +36,7 @@ fn box_at(x0: f64, l: f64) -> Body<f64> {
 fn filleted_die() -> Body<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    fillet_edges(&cube0, &edges, 0.125, band(), Tol::witness())
+    fillet_edges(&cube0, &edges, 0.125, Tol::witness())
         .expect("the fillet")
         .body
 }

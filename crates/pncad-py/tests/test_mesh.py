@@ -35,15 +35,25 @@ from pncad import (
 def mesh_signed_volume(mesh):
     """The divergence-theorem volume of the mesh, in m³.
 
-    Sum of the tetrahedra (origin, a, b, c) over every triangle. With
-    the OUTWARD winding the patches promise this is positive for a
+    Sum of the tetrahedra (o, a, b, c) over every triangle, with `o`
+    the positions' bounding-box centre: for a closed mesh the anchor
+    cancels out over the reals, and a body-scale one keeps the products
+    from cancelling against the body's distance from the world origin.
+    With the OUTWARD winding the patches promise this is positive for a
     closed body, and it uses nothing but `positions` and `triangles` —
     no kernel measure, which is the whole point.
     """
     p = [tuple(q.meters for q in point) for point in mesh.positions]
+    if not p:
+        return 0.0
+    lo = [min(q[d] for q in p) for d in range(3)]
+    hi = [max(q[d] for q in p) for d in range(3)]
+    o = [lo[d] + (hi[d] - lo[d]) * 0.5 for d in range(3)]
     total = 0.0
     for i, j, k in mesh.triangles:
-        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = p[i], p[j], p[k]
+        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = (
+            tuple(q[d] - o[d] for d in range(3)) for q in (p[i], p[j], p[k])
+        )
         total += (
             ax * (by * cz - bz * cy)
             - ay * (bx * cz - bz * cx)

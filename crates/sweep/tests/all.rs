@@ -38,6 +38,10 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "bool1_fix_pass.rs"]
+mod bool1_fix_pass;
+#[path = "bool1_r1_probes.rs"]
+mod bool1_r1_probes;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -50,6 +54,8 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "r2_mesh1_donut_probes.rs"]
+mod r2_mesh1_donut_probes;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -195,6 +201,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "r1_probes_issue1362_donut.rs"]
+mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
@@ -413,5 +421,7 @@ mod verbs_shell_r2b;
 #[path = "r1_p2_probes.rs"]
 mod r1_p2_probes;
 
+#[path = "bool1_r2_probes.rs"]
+mod bool1_r2_probes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;

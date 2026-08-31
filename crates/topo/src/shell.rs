@@ -154,7 +154,7 @@
 //! check 9 does its work.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 
 use crate::body::Body;
 use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_void};
@@ -167,6 +167,14 @@ use crate::validate::{ValidationError, validate_geometric};
 /// Typed refusal of the shell verb (closed enum, D4 ¶3).
 #[derive(Clone, Debug)]
 pub enum ShellError<T: Real> {
+    /// The committed tolerance admits no ambiguity band, so no
+    /// margined predicate in this verb has a verdict to give. The
+    /// band is derived at the door from the tolerance witness alone;
+    /// this is that derivation's own refusal, carried verbatim.
+    Band {
+        /// The band constructor's typed refusal.
+        error: BandError,
+    },
     /// The wall thickness is not certifiably positive: a zero or
     /// negative wall is not a thin solid, and the ambiguity band
     /// escalates rather than guessing.
@@ -348,6 +356,9 @@ pub enum ShellError<T: Real> {
 impl<T: Real> core::fmt::Display for ShellError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::Band { error } => {
+                write!(f, "shell could not form a band: {error}")
+            }
             Self::Thickness { thickness } => write!(
                 f,
                 "shell: the wall thickness ({thickness:?} m) is not certifiably positive, so \
@@ -466,17 +477,17 @@ impl<T: Real> std::error::Error for ShellError<T> {}
 ///
 /// # Errors
 ///
-/// [`ShellError`] — the thickness gate, the per-face offset refusals
-/// (which are the containment evidence's own decides), the void door's
-/// refusals, and a result that does not validate.
+/// [`ShellError`] — [`ShellError::Band`] when the committed tolerance
+/// admits no ambiguity band, the thickness gate, the per-face offset
+/// refusals (which are the containment evidence's own decides), the
+/// void door's refusals, and a result that does not validate.
 pub fn shell<T: Decide + PropsQuadLane>(
     body: &Body<T>,
     thickness: T,
     tolerance: f64,
-    band: Band,
     tol: Tol,
 ) -> Result<Body<T>, ShellError<T>> {
-    shell_open(body, thickness, &[], tolerance, band, tol)
+    shell_open(body, thickness, &[], tolerance, tol)
 }
 
 /// The opened hollow: [`shell`], then the designated faces re-authored
@@ -488,7 +499,9 @@ pub fn shell<T: Decide + PropsQuadLane>(
 ///
 /// # Errors
 ///
-/// [`ShellError`] — [`shell`]'s, plus the designation gates (a face
+/// [`ShellError::Band`] when the committed tolerance admits no
+/// ambiguity band — this is the door that derives it, for both verbs.
+/// Then [`ShellError`] — [`shell`]'s, plus the designation gates (a face
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 pub fn shell_open<T: Decide + PropsQuadLane>(
@@ -496,9 +509,11 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     thickness: T,
     open_faces: &[FaceKey],
     tolerance: f64,
-    band: Band,
     tol: Tol,
 ) -> Result<Body<T>, ShellError<T>> {
+    // `shell` reaches this door, so both verbs derive here, once.
+    let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
+
     // ---- Decide: the thickness. ----
     match decide("shell_thickness", Margin::of(thickness), band) {
         Ok(Sign::Positive) => {}

@@ -234,26 +234,20 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     }
 
     // Shell.
-    if let Ok(body) = topo::shell(
-        &cube(1.0, Tol::witness()),
-        0.1,
-        1e-9,
-        band(),
-        Tol::witness(),
-    ) {
+    if let Ok(body) = topo::shell(&cube(1.0, Tol::witness()), 0.1, 1e-9, Tol::witness()) {
         bodies.push(("shell cube", body));
     }
-    if let Ok(body) = topo::shell(&tube(), 0.05, 1e-9, band(), Tol::witness()) {
+    if let Ok(body) = topo::shell(&tube(), 0.05, 1e-9, Tol::witness()) {
         bodies.push(("shell tube", body));
     }
 
     // Chamfer and fillet of the cube — the two verbs built on the
     // strut surgery whose six conversion sites the unit reverted.
     let c = cube(1.0, Tol::witness());
-    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &all_edges(&c), 0.1, band(), Tol::witness()) {
+    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &all_edges(&c), 0.1, Tol::witness()) {
         bodies.push(("chamfer cube (all edges)", f.body));
     }
-    if let Ok(f) = fillet_edges(&c, &all_edges(&c), 0.15, band(), Tol::witness()) {
+    if let Ok(f) = fillet_edges(&c, &all_edges(&c), 0.15, Tol::witness()) {
         bodies.push(("fillet cube (all edges)", f.body));
     }
     // A PARTIAL fillet: one face's four edges. Its struts run out onto
@@ -271,7 +265,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
             .map(|he| c.get_half_edge(he).unwrap().edge)
             .collect()
     };
-    match fillet_edges(&c, &one_face, 0.12, band(), Tol::witness()) {
+    match fillet_edges(&c, &one_face, 0.12, Tol::witness()) {
         Ok(f) => bodies.push(("fillet cube (one face's four edges)", f.body)),
         Err(e) => println!("[R2-S1] the one-face fillet refused: {e:?}"),
     }

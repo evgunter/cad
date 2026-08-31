@@ -27,18 +27,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, subtract, validate, validate_closed};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 /// An extruded polygonal prism between two z planes, authored the way
 /// a user would.
@@ -229,7 +224,7 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
     let before = topo::mass_properties(&body, Tol::witness())
         .expect("closed-form props")
         .volume;
-    let out = fillet_edges(&body, &edges, r, band(), Tol::witness())
+    let out = fillet_edges(&body, &edges, r, Tol::witness())
         .expect("the oblique all-concave cavity fillets");
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
@@ -278,7 +273,7 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
         let edges = cavity_edges(&body, &quad);
         assert_eq!(edges.len(), 12, "twelve concave edges at {deg}°");
         let r = 0.05 * theta.sin();
-        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
+        match fillet_edges(&body, &edges, r, Tol::witness()) {
             Ok(out) => {
                 assert_eq!(
                     topo::validate_geometric(&out.body, Tol::witness()),
@@ -392,13 +387,13 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
         found
     };
     assert_eq!(edges.len(), 12);
-    let cav = chamfer_edges(&body, &edges, 0.25, band(), Tol::witness())
-        .expect("the chamfered cavity carves");
+    let cav =
+        chamfer_edges(&body, &edges, 0.25, Tol::witness()).expect("the chamfered cavity carves");
     let cav_digest = digest(&cav.body);
 
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let cvx = chamfer_edges(&cube_body, &cube_edges, 0.25, band(), Tol::witness())
+    let cvx = chamfer_edges(&cube_body, &cube_edges, 0.25, Tol::witness())
         .expect("the chamfered cube carves");
     let cvx_digest = digest(&cvx.body);
 

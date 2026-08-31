@@ -829,8 +829,8 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
-    let filleted = sweep::blend::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
-        .map_err(blend_refused)?;
+    let filleted =
+        sweep::blend::build::fillet_edges(&body, &edges, radius, tol).map_err(blend_refused)?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
@@ -885,8 +885,8 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let distance = need_scalar(vals, SlotId::ChamferDistance)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
-    let chamfered = sweep::blend::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
-        .map_err(blend_refused)?;
+    let chamfered =
+        sweep::blend::build::chamfer_edges(&body, &edges, distance, tol).map_err(blend_refused)?;
     // The assembly always keeps records, so `None` is a kernel bug —
     // the fillet door's argument unchanged: an empty table would leave
     // every downstream reference into this body silently unresolvable.
