@@ -93,6 +93,9 @@ Blend-verb breadth, disjoint from SHELLFIX's shell/offset files.
 
 ### S-BOOL — boolean reach and containment (`bool/`)
 
+**GRADUATED (2026-08-31): opened as the S-BOOL program —
+`docs/S-BOOL-PLAN.md` / `docs/S-BOOL-LOG.md`, A/B band 1100–1199.**
+
 Operand gates and containment doors that refuse (or mis-admit) legal
 inputs — `topo/boolean`, `splitting`, containment; not pcurves, and
 not the germ-arm lanes VERBS holds. VERBS' claims (its Wave-4 queue):
@@ -108,6 +111,9 @@ cut.
   alone until PCURVE's P-2 resumes and lands.
 
 ### S-MESH — mesh honesty and budget (`mesh/`)
+
+**GRADUATED (2026-08-31): opened as the S-MESH program —
+`docs/S-MESH-PLAN.md` / `docs/S-MESH-LOG.md`, A/B band 1200–1299.**
 
 `crates/mesh` has no live program and a coherent defect list.
 
