@@ -31,7 +31,15 @@ carries its own thresholds — read them there. Under pressure,
 stash before each rm and refuses loudly, so it is safe in bulk — but it
 needs **absolute paths** (a bare lane name is refused with a message
 that reads like a missing directory). Never touch a running gate's
-target, and confirm the OWNING agent has terminated first. After a
+target, and confirm the OWNING agent has terminated first. Before
+deleting ANY lane's repo, check for reference-clone borrowers:
+`grep -l <path> ~/.local/share/cad-work/*/cad/.git/objects/info/alternates`
+— deleting a repo that others' clones `--reference` corrupts their
+object stores mid-run (instance: verbs-azimuth deleted under
+verbs-ga2, 2026-08-31; repaired in place by removing the alternates
+file, dropping stale remote refs/tags pointing at server-deleted
+objects, and `git fetch --refetch`). A reference clone is a disk
+loan, and the loan outlives the lender's merge. After a
 disk-full crash, purge torn binaries (ELF-magic scan) and treat
 pressure-window test results as suspect. Sweep merged worktrees at
 every pipeline seam, one `git worktree remove` per Bash call — the
