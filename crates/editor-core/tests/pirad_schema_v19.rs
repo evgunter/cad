@@ -157,11 +157,11 @@ fn a_half_turn_literal_round_trips_at_v19() {
         Some(&format!("schema: {SCHEMA_VERSION}")[..])
     );
     assert!(
-        text.contains(r#""unit":"pi rad""#),
+        text.contains(r#""unit": "pi rad""#),
         "the half-turn symbol is on the wire: {text}"
     );
     assert!(
-        !text.contains(r#""unit":"pi""#),
+        !text.contains(r#""unit": "pi""#),
         "the retired spelling is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
@@ -187,7 +187,7 @@ fn a_half_turn_literal_round_trips_at_v19() {
 #[test]
 fn the_retired_spelling_dies_at_the_rebuild() {
     let text = save(&half_turn_doc(), &[], Tol::witness()).expect("the document saves");
-    let v18ish = text.replace(r#""unit":"pi rad""#, r#""unit":"pi""#);
+    let v18ish = text.replace(r#""unit": "pi rad""#, r#""unit": "pi""#);
     assert_ne!(v18ish, text, "the substitution must actually land");
     match load(&v18ish, Tol::witness()) {
         Err(PersistError::Parse { message, .. }) => {

@@ -211,7 +211,10 @@ fn the_half_turn_row_writes_angles_the_way_they_were_authored() {
     let quarter_in_pi = 0.5 * PI;
     let quarter_in_deg = 90.0 * DEG;
     assert!((quarter_in_pi.radians() - quarter_in_deg.radians()).abs() < 1e-15);
-    assert_eq!(fmt_angle(quarter_in_pi.radians(), PI).unwrap(), "0.5 pi rad");
+    assert_eq!(
+        fmt_angle(quarter_in_pi.radians(), PI).unwrap(),
+        "0.5 pi rad"
+    );
     assert_eq!(fmt_angle(quarter_in_deg.radians(), DEG).unwrap(), "90 deg");
 }
 

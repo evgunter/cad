@@ -1054,6 +1054,7 @@ NOT_BOUND = {
     "eval": f"{GAP}: B-EXPR-READ an expression's value",
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",

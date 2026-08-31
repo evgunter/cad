@@ -243,10 +243,11 @@ fn syntax_refusals_are_typed_and_positioned() {
     ));
     // The fallback is real: `rad` matches alone, and the identifier
     // that follows is then simply out of the grammar.
-    assert!(matches!(
-        perr("25 rad furlong"),
-        ParseError::UnexpectedToken { pos: 7, .. }
-    ));
+    let trailing = perr("25 rad furlong");
+    assert!(
+        matches!(&trailing, ParseError::TrailingInput { pos: 7, found } if found == "furlong"),
+        "actual: {trailing:?}"
+    );
 }
 
 /// Every [`DimensionError`] variant the constructors can produce is
