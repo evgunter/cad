@@ -1610,7 +1610,7 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// The resolved operands of a stepped placement rule: what the rule's
 /// math consumes once every slot or expression is evaluated and every
-/// direction is unit (through [`unit`]'s decided normalization).
+/// direction is unit (through [`unit()`]'s decided normalization).
 pub(crate) enum SteppedOperands<T: geom_core::Real> {
     /// A linear rule: unit direction, spacing per step.
     Linear {
