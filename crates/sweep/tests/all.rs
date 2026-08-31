@@ -403,6 +403,12 @@ mod m9_3_wall_door;
 
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
+#[path = "mate2_cyl_rest.rs"]
+mod mate2_cyl_rest;
+#[path = "mate2_r1_probes.rs"]
+mod mate2_r1_probes;
+#[path = "mate2_r2_probes.rs"]
+mod mate2_r2_probes;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
