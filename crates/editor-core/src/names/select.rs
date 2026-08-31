@@ -79,10 +79,9 @@ pub enum OpGroup {
     /// a source vertex), and a `StableName` carries the minting node,
     /// which is what tells the two apart (RECIPE-DOORS D3).
     ///
-    /// The group's NAME therefore under-describes what it groups.
-    /// Renaming it is #917 — a ~255-reference rename with its own
-    /// scale, deliberately not this door's.
-    // #917: the group name still speaks as the fillet.
+    /// The group's NAME under-describes what it groups, and stays:
+    /// fenced by the ratified verb-vocabulary decision
+    /// (`docs/BLEND-VOCAB-DESIGN.md`, settled ground).
     Fillet,
     /// Pattern.
     Pattern,
