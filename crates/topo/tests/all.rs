@@ -141,6 +141,8 @@ mod review_m6_2_probes;
 mod review_m9_1_probes;
 #[path = "review_m9_1_r2_probes.rs"]
 mod review_m9_1_r2_probes;
+#[path = "review_mate4a_r2_probes.rs"]
+mod review_mate4a_r2_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]
