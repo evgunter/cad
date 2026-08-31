@@ -233,8 +233,22 @@ fn folded_face_bound(
 /// One cell's five squared-sum readings, in [`NurbsFaceBound`]'s field
 /// order (`uu, uv, vv, u, v`) — the single place this crate names which
 /// enclosure feeds which bound.
+///
+/// The cell reports SIGNED componentwise enclosures and this is where
+/// a vector magnitude is read off them: `Σ_c sup²`, whose `√hi`
+/// ([`cell_component`]) bounds the partial's norm. There is no second
+/// reading to choose between — the magnitude assembly the rational arm
+/// used to carry alongside the signed one applied the triangle
+/// inequality to the quotient rule and could not see its cancellations
+/// (issue 1006).
 fn cell_readings(c: &patch_bound::PatchCell) -> [RingInterval; 5] {
-    [c.sq_uu, c.sq_uv, c.sq_vv, c.sq_u, c.sq_v]
+    [
+        patch_bound::sq_norm(c.s_uu),
+        patch_bound::sq_norm(c.s_uv),
+        patch_bound::sq_norm(c.s_vv),
+        patch_bound::sq_norm(c.s_u),
+        patch_bound::sq_norm(c.s_v),
+    ]
 }
 
 /// Certified sup bounds on the three second partials of one described

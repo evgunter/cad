@@ -13,43 +13,27 @@
 //! every value of a partial is a convex combination of the derived
 //! coefficients active there and lies in their **signed** hull.
 //!
-//! # Two readings of one assembly
+//! # One reading
 //!
-//! The ingredient hulls are computed once per cell and read twice:
+//! Every cell reports **signed componentwise enclosures**
+//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]). An inf-side consumer
+//! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
+//! from below, because the cross product's sign structure is exactly
+//! the information a magnitude throws away — and a sup-side consumer
+//! reads a vector magnitude off them with [`sq_norm`], whose
+//! `√hi` is a sup bound on the norm.
 //!
-//! - **Signed** ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) —
-//!   componentwise enclosures, the reading an *inf-side* consumer
-//!   needs. A magnitude sup cannot bound `‖S_u × S_v‖` from below:
-//!   the cross product's sign structure is exactly the information a
-//!   magnitude throws away.
-//! - **Magnitude** ([`PatchCell::sq_uu`] …) — `Σ_c sup²` per partial,
-//!   the reading the tessellation deviation certificate consumes
-//!   (`mesh::nurbs_cert`, whose `√hi` collapse and grid sizing ride
-//!   on these exact expressions).
-//!
-//! The rational arm's two readings differ by more than a `mag`: the
-//! magnitude reading applies the triangle inequality to the quotient
-//! rule (all `+`, divide by the smallest weight), while the signed
-//! reading evaluates the quotient rule itself in the ring (the true
-//! `−` signs, divide by the whole weight hull). The signed reading is
-//! strictly tighter; both are sound; they share every ingredient hull
-//! above them, which is the point of computing them together.
-//!
-//! **What the second reading costs the first consumer, stated.**
-//! `mesh`'s tessellation sizing asks for the magnitude reading and
-//! gets the signed one built alongside it: per rational cell that is
-//! five extra ring divisions (the signed `S_u, S_v, S_uu, S_uv, S_vv`
-//! recurrences) and five extra `window_hull` passes (the signed
-//! ingredient hulls the magnitude spelling takes through
-//! `window_tilde_hull` instead). It is on the SHIPPED sizing path,
-//! not a diagnostic one. It was not measured as a regression because
-//! the alternative — two modules recomputing the same nets — is the
-//! thing the lift exists to prevent; if a tessellation perf lane
-//! measures it as material, splitting the assembly on a reading flag
-//! is a local change to this function. Retiring the magnitude reading
-//! outright is tighter and moves those baselines, so it is scheduled
-//! with its re-baseline attached (#1006) rather than left to "the
-//! lane that owns them".
+//! There used to be a second, MAGNITUDE reading alongside: the
+//! rational arm applied the triangle inequality to the quotient rule
+//! (all `+`, divide by the smallest weight) where the signed one
+//! evaluates the quotient rule itself in the ring (the true `−` signs,
+//! divide by the whole weight hull). Both were sound and the signed
+//! one is strictly tighter, so the magnitude one is gone. What it cost
+//! to keep is what it now saves: per rational cell, five ring
+//! recurrences and five extra hull passes on the SHIPPED tessellation
+//! sizing path. What its removal buys the consumer is a tighter grid —
+//! the cancellation the triangle inequality could not see is real, and
+//! on a quarter cylinder `sup‖S_uv‖` falls by an order of magnitude.
 //!
 //! # The rational arm
 //!
@@ -71,9 +55,7 @@
 //! the cell `w` is a convex combination of the active weights, so
 //! `w ∈ [w_min, w_max]`; the ring's division refuses a zero-touching
 //! divisor, so a net whose positivity was never proven poisons rather
-//! than answering. For the magnitude reading every numerator is a
-//! nonnegative sup and the conservative division is by `w_min`, which
-//! is what dividing by `[w_min, w_max]` computes.
+//! than answering.
 //!
 //! **Recentring keeps the cross terms cell-sized**: with the cell's
 //! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
@@ -202,16 +184,6 @@ pub struct PatchCell {
     pub s_uv: [RingInterval; 3],
     /// Signed componentwise enclosure of `S_vv` on the cell.
     pub s_vv: [RingInterval; 3],
-    /// `Σ_c sup²(S_uu^c)` on the cell (the magnitude reading).
-    pub sq_uu: RingInterval,
-    /// `Σ_c sup²(S_uv^c)` on the cell.
-    pub sq_uv: RingInterval,
-    /// `Σ_c sup²(S_vv^c)` on the cell.
-    pub sq_vv: RingInterval,
-    /// `Σ_c sup²(S_u^c)` on the cell.
-    pub sq_u: RingInterval,
-    /// `Σ_c sup²(S_v^c)` on the cell.
-    pub sq_v: RingInterval,
 }
 
 /// Whether a patch is rational under the kernel's definition (any
@@ -413,11 +385,6 @@ pub fn window_hull(
     net.window_hull(wu, wv)
 }
 
-/// The `[0, sup]` magnitude enclosure of a signed hull (poison flows).
-pub fn mag_iv(h: RingInterval) -> RingInterval {
-    RingInterval::from_bounds(0.0, h.mag())
-}
-
 /// **The squared-sum collapse of one signed componentwise enclosure**:
 /// `sum over c of sup squared`, whose `sqrt(hi)` is a sup bound on the
 /// vector's norm. One spelling, consumed wherever a vector partial's
@@ -525,14 +492,9 @@ struct CellWindows {
     v_d2: Option<RangeInclusive<usize>>,
 }
 
-/// Assembles a cell from the two readings: the five signed
-/// componentwise enclosures (`S_u, S_v, S_uu, S_uv, S_vv`, in that
-/// order) and the five magnitude squared-sums (`uu, uv, vv, u, v`).
-fn cell_from(
-    uv: ((f64, f64), (f64, f64)),
-    signed: [[RingInterval; 3]; 5],
-    sq: [RingInterval; 5],
-) -> PatchCell {
+/// Assembles a cell from the five signed componentwise enclosures
+/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order).
+fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[RingInterval; 3]; 5]) -> PatchCell {
     PatchCell {
         u: uv.0,
         v: uv.1,
@@ -541,17 +503,12 @@ fn cell_from(
         s_uu: signed[2],
         s_uv: signed[3],
         s_vv: signed[4],
-        sq_uu: sq[0],
-        sq_uv: sq[1],
-        sq_vv: sq[2],
-        sq_u: sq[3],
-        sq_v: sq[4],
     }
 }
 
 /// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
-/// assembly on the spatial nets. The signed and magnitude readings
-/// coincide up to the `mag`, because no quotient rule intervenes.
+/// assembly on the spatial nets — no quotient rule intervenes, so the
+/// enclosure IS the coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
     let kv_u1 = (kv_u.degree() >= 2)
@@ -587,7 +544,6 @@ fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
             let mut s_uu = [zero; 3];
             let mut s_uv = [zero; 3];
             let mut s_vv = [zero; 3];
-            let mut sq = [zero; 5];
             for (c, d) in nets.iter().enumerate() {
                 let g20 = d
                     .d20
@@ -607,16 +563,10 @@ fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
                 s_uv[c] = g11;
                 s_u[c] = g10;
                 s_v[c] = g01;
-                sq[0] = sq[0] + g20.sqr();
-                sq[1] = sq[1] + g11.sqr();
-                sq[2] = sq[2] + g02.sqr();
-                sq[3] = sq[3] + g10.sqr();
-                sq[4] = sq[4] + g01.sqr();
             }
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
-                sq,
             ));
         }
     }
@@ -699,35 +649,25 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let c = [csum[0] / count, csum[1] / count, csum[2] / count];
             // The cell's weight hull — the divisor (module docs).
             let w_cell = window_hull(&w_grid, &w.u_val, &w.v_val);
-            // Weight-net hulls on the cell, both readings. The
-            // magnitude spelling is `mag_iv(window_tilde_hull(d, d,
-            // 0, ..))`, one ulp wider than `window_hull` and kept
-            // exactly so the tessellation grid it sizes is unmoved.
-            let wt = |net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>| {
-                (
-                    window_hull(net, wu, wv),
-                    mag_iv(window_tilde_hull(net, net, zero, wu, wv)),
-                )
-            };
-            let (w10s, w10m) = wt(&w_nets.d10, &w.u_d1, &w.v_val);
-            let (w01s, w01m) = wt(&w_nets.d01, &w.u_val, &w.v_d1);
-            let (w11s, w11m) = wt(&w_nets.d11, &w.u_d1, &w.v_d1);
-            let (w20s, w20m) = w_nets
+            // Weight-net hulls on the cell.
+            let w10s = window_hull(&w_nets.d10, &w.u_d1, &w.v_val);
+            let w01s = window_hull(&w_nets.d01, &w.u_val, &w.v_d1);
+            let w11s = window_hull(&w_nets.d11, &w.u_d1, &w.v_d1);
+            let w20s = w_nets
                 .d20
                 .as_ref()
                 .zip(w.u_d2.as_ref())
-                .map_or((zero, zero), |(net, wu2)| wt(net, wu2, &w.v_val));
-            let (w02s, w02m) = w_nets
+                .map_or(zero, |(net, wu2)| window_hull(net, wu2, &w.v_val));
+            let w02s = w_nets
                 .d02
                 .as_ref()
                 .zip(w.v_d2.as_ref())
-                .map_or((zero, zero), |(net, wv2)| wt(net, &w.u_val, wv2));
+                .map_or(zero, |(net, wv2)| window_hull(net, &w.u_val, wv2));
             let mut s_u = [zero; 3];
             let mut s_v = [zero; 3];
             let mut s_uu = [zero; 3];
             let mut s_uv = [zero; 3];
             let mut s_vv = [zero; 3];
-            let mut sq = [zero; 5];
             for (comp, a) in a_nets.iter().enumerate() {
                 let cc = RingInterval::point(c[comp]);
                 // The rational VALUE hull on the cell: positive
@@ -751,27 +691,25 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                     }
                 }
                 let v0s = v0h.unwrap_or_else(RingInterval::poison);
-                let v0m = mag_iv(v0s);
                 // Recentred homogeneous derivative hulls
                 // `Ã_kl = A_kl − c·w_kl` on the cell.
                 let at =
                     |an: &Net, wn: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>| {
-                        let s = window_tilde_hull(an, wn, cc, wu, wv);
-                        (s, mag_iv(s))
+                        window_tilde_hull(an, wn, cc, wu, wv)
                     };
-                let (a10s, a10m) = at(&a.d10, &w_nets.d10, &w.u_d1, &w.v_val);
-                let (a01s, a01m) = at(&a.d01, &w_nets.d01, &w.u_val, &w.v_d1);
-                let (a11s, a11m) = at(&a.d11, &w_nets.d11, &w.u_d1, &w.v_d1);
-                let (a20s, a20m) = match (a.d20.as_ref(), w_nets.d20.as_ref(), w.u_d2.as_ref()) {
+                let a10s = at(&a.d10, &w_nets.d10, &w.u_d1, &w.v_val);
+                let a01s = at(&a.d01, &w_nets.d01, &w.u_val, &w.v_d1);
+                let a11s = at(&a.d11, &w_nets.d11, &w.u_d1, &w.v_d1);
+                let a20s = match (a.d20.as_ref(), w_nets.d20.as_ref(), w.u_d2.as_ref()) {
                     (Some(an), Some(wn), Some(wu2)) => at(an, wn, wu2, &w.v_val),
-                    _ => (zero, zero),
+                    _ => zero,
                 };
-                let (a02s, a02m) = match (a.d02.as_ref(), w_nets.d02.as_ref(), w.v_d2.as_ref()) {
+                let a02s = match (a.d02.as_ref(), w_nets.d02.as_ref(), w.v_d2.as_ref()) {
                     (Some(an), Some(wn), Some(wv2)) => at(an, wn, &w.u_val, wv2),
-                    _ => (zero, zero),
+                    _ => zero,
                 };
-                // Signed reading: the quotient rule itself, in the
-                // ring, divided by the whole weight hull.
+                // The quotient rule itself, in the ring, divided by
+                // the whole weight hull.
                 let s1u = (a10s - v0s * w10s) / w_cell;
                 let s1v = (a01s - v0s * w01s) / w_cell;
                 s_u[comp] = s1u;
@@ -779,24 +717,10 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 s_uu[comp] = (a20s - two * s1u * w10s - v0s * w20s) / w_cell;
                 s_vv[comp] = (a02s - two * s1v * w01s - v0s * w02s) / w_cell;
                 s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
-                // Magnitude reading: the triangle inequality applied
-                // to the same recurrence (all `+`; a nonnegative
-                // numerator over `[w_lo, w_hi]` IS `sup/w_lo`).
-                let m1u = (a10m + v0m * w10m) / w_cell;
-                let m1v = (a01m + v0m * w01m) / w_cell;
-                let muu = (a20m + two * m1u * w10m + v0m * w20m) / w_cell;
-                let mvv = (a02m + two * m1v * w01m + v0m * w02m) / w_cell;
-                let muv = (a11m + m1u * w01m + m1v * w10m + v0m * w11m) / w_cell;
-                sq[0] = sq[0] + muu.sqr();
-                sq[1] = sq[1] + muv.sqr();
-                sq[2] = sq[2] + mvv.sqr();
-                sq[3] = sq[3] + m1u.sqr();
-                sq[4] = sq[4] + m1v.sqr();
             }
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
-                sq,
             ));
         }
     }
