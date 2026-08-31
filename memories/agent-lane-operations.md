@@ -215,7 +215,12 @@ workflow source is not.**
 **Merging is destructive to checks — four rules, each guarding a silent
 or permanent failure rather than a red build.** Before merging, filter
 the check runs (`gh api .../check-runs`): reject any `conclusion` that
-is not `success`, **and separately confirm none is still in flight** —
+is not `success` — except a red INHERITED from main (reproduced on
+main's own tree, not the PR's): that red does not block the merge
+(Evan, in-chat, 2026-08-31), but it must be annotated on the PR with
+its issue, and the LANE THAT CAUSED IT owes the fix — record the debt
+on the issue and summon that lane; never absorb it in passing.
+**Separately confirm none is still in flight** —
 a check still running when you merge dies at checkout and can never be
 re-run, so its failure reads as a defect forever. Confirm a *skip* is
 habitual by checking earlier green runs of the same branch. Resolving a
