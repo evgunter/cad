@@ -256,3 +256,25 @@ bookkeeping next.
 
 Block QA-B1 is complete: three units, three duals, ordinals 800-802,
 samples 53/54/56.
+
+## QA-9 merged (2026-08-30)
+
+The slot status line now states only what it can verify: which slots
+THIS request polls (one width-home consulted by loop and status
+alike), which it just tried, what a dead record over a still-busy
+slot actually means (the inherited-fd leak, named), and when the
+blocker has no record at all. The dual earned its keep in miniature:
+both arms independently reproduced the fix's own new line predicting
+"can take it" about a slot the request had just failed to take — the
+issue-1139 class re-minted inside its fix, §D rule 5 for the fourth
+S-QA unit out of four reviewed. Every prediction is gone; the
+transcripts in the PR body are the verification of record, since CI
+deletes local-scripts by design. Issue 1139 closes on this record.
+Two operational notes: a reviewer probe misfired into the REAL lock
+dir once (one stale holder file, orchestrator-cleaned — synthetic
+lock dirs are mandatory and both briefs said so; the classifier
+blocked the reviewer's own cleanup, which is the right failure), and
+the fix pass ran one pattern-match `pkill -x sleep` during cleanup —
+the kill-by-recorded-PIDs rule's exact violation, disclosed, with
+possible clipped sleeps in sibling lanes' poll loops (recoverable;
+none reported damage).
