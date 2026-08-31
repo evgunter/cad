@@ -2713,3 +2713,15 @@ green head once the owning lane folds the baseline), R2 isolated
 from R1, briefs symmetric, no relaxations granted. Implementer
 difficulty M (pre-logged in the plan's opening commit, pre-draw).
 Sample number at merge. Row at merge.
+
+MESH-2 (PR #1421) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1201** (S-MESH band). v6 dual: slot byte **179**, parity 1
+⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `4729b1b6` (run
+33442410607 green at dispatch — gate point default + eps 1e-12,
+DRAWN; no trailer, the unit argues both axes off its change and
+covered ε locally at three points), R2 isolated from R1, briefs
+symmetric, no relaxations granted. Implementer difficulty S/M
+(pre-logged in the plan's opening commit, pre-draw; recorded
+numeric M). Impl wall-clock carries an ANNOTATED usage-limit gap
+(~2h, both lanes of the wave). Sample number at merge. Row at
+merge.
