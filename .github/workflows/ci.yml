@@ -527,7 +527,22 @@ jobs:
             echo "draft PR: zeroing every RUN_* flag (the gate runs on ready-for-review)"
             sed -i 's/^\(RUN_[A-Z_]*\)=true$/\1=false/' filter.out
           fi
+          # THE PIPELINE'S VERDICT IS TEE'S, AND THAT IS THE #1204 CLASS FORTY
+          # LINES ABOVE ITS OWN WARNING. `cat filter.out | tee -a
+          # "$GITHUB_OUTPUT"` reports tee's status: a filter.out that is missing
+          # or unreadable publishes an EMPTY output set, and every RUN_* flag
+          # then reads as false — a green run with every gated job skipped,
+          # which is exactly the state the comment above says two experienced
+          # readers misread in opposite directions. These steps run under
+          # `bash -e {0}` without `pipefail`, so nothing else here would catch
+          # it. `PIPESTATUS[0]` is `cat`'s own status and no shell option can
+          # change it; it is read on the line after the pipeline, before
+          # anything can overwrite it.
           cat filter.out | tee -a "$GITHUB_OUTPUT"
+          if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            echo "ERROR: filter.out could not be read — the classification was NOT published, so every RUN_* flag would be empty and every gated job would skip. This run gates nothing; failing loudly rather than reporting green."
+            exit 1
+          fi
 
       # RECORDED, NEVER SILENT — the same rule RUN_VIEWER_TOOLKIT is held to,
       # and it bites harder here. A skipped row at least leaves a skipped job
@@ -923,6 +938,30 @@ jobs:
       # testing a fossil.
       - name: k-probe sweep guard selftest (run_dump)
         run: scripts/rundump-guard-selftest.sh
+      # The two test-cost REPORTS (issue 469) are wired into the sharded test
+      # jobs, where they cannot fail anything — which is also why their parsers
+      # are gated HERE. A report that gates nothing has no failing run to
+      # announce a broken parser, so without this row a regex that stopped
+      # matching would show up as an empty table nobody reads. The fixtures are
+      # captured output from real runs (green, red including the failure recap
+      # nextest prints after its `Summary` line, and a retried test), so this
+      # row costs milliseconds and cannot end up testing a fossil.
+      #
+      # SCOPED TO WHAT THIS JOB IS, because "no failing run to announce it"
+      # reads as unconditional and is not: `discipline` runs on non-push events
+      # with `run_build=true`, so what this row covers is exactly the change
+      # sets the test jobs themselves run on. A push, or a docs-tier change,
+      # runs neither the reports nor this — which is the right pairing, and it
+      # is a pairing rather than total coverage.
+      #
+      # THE LOOKUP'S SELFTEST RIDES THE SAME ROW. `base-test-listing.sh` is the
+      # shell the two test jobs share; its guards are the ones that fired on a
+      # real hosted 403, and inline in a `run:` block nothing could red them.
+      - name: test cost report parsers (selftest)
+        run: |
+          python3 scripts/slowest-tests.py --selftest
+          python3 scripts/pr-added-tests.py --selftest
+          scripts/base-test-listing.sh --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: on an interval draw the default lane does not run at
       # all, so this lane stands in for it (see `test-interval`'s header),
@@ -1725,6 +1764,27 @@ jobs:
     needs: [filter, build]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
+    # THE MINIMAL GRANT THIS JOB CAN DO ITS WORK WITH — and it WIDENS one
+    # scope, which is the point of it. A `permissions:` block replaces the
+    # workflow's default token scopes outright, so the delta runs both ways:
+    # `actions` goes from NONE to `read`, and every other scope the default
+    # carried is pinned off. Nothing in this job writes anything.
+    #
+    # MEASURED, NOT ASSUMED, and the measurement is what the widening rests on:
+    # without `actions: read` the cost report's base-listing lookup got
+    # `Resource not accessible by integration (HTTP 403)` from the artifacts
+    # API on run 33343519165. The default token could read the repository and
+    # not the Actions API.
+    #
+    # IT IS NOT WHAT `download-artifact` NEEDS. A v4 download of an artifact
+    # from the SAME run goes through the runner's own runtime token and no REST
+    # call, which is why every download step in this workflow has always worked
+    # without it. What needs the scope is the CROSS-RUN artifacts-API lookup in
+    # `scripts/base-test-listing.sh` — so the grant is on the two test jobs
+    # that run it, and on nothing else in this file.
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       # ONE ε ROW PER RUN, SAMPLED (2026-08-22 — scripts/ci-filter.py's
@@ -1851,13 +1911,125 @@ jobs:
       # "is that all of them?" gets asked and where nextest's own truncation
       # warning prints, for the same reason. A line at the top of a
       # two-thousand-line step is not where that question is.
+      #
+      # THE OUTPUT IS TEE'd, AND THE VERDICT IS TAKEN FROM `PIPESTATUS`, NOT
+      # FROM THE PIPELINE. The cost report below reads what this step printed;
+      # capturing it must not be able to change what this step DECIDED. A
+      # pipeline's status is its LAST command's, so `cargo … | tee` reports
+      # tee's success and turns a red shard green — and this workflow's steps
+      # run under `bash -e {0}`, which does NOT set `pipefail` (visible in any
+      # run's `shell:` line), so nothing here would have caught that. Reading
+      # `PIPESTATUS[0]` takes nextest's own status regardless of shell options,
+      # and `set +e` guarantees no intervening command can abort the step
+      # before that status is read and re-exited.
       - name: run archived tests
         run: |
+          set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
-          status=0
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast || status=$?
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
+      # WHAT THIS RUN COST, AND WHAT THIS PR ADDED TO IT (issue 469). Two
+      # summaries, both REPORTS and neither a gate — the issue's own ruling,
+      # restated at the bottom of each block so a future "add teeth" is a
+      # decision rather than drift: a budget needs a baseline and the baseline
+      # is moving (the suite went 10,482 -> ~1,243 cpu-s in a day).
+      #
+      # A REPORT MUST NOT BE ABLE TO MASK OR ALTER A TEST VERDICT, and three
+      # things enforce that rather than one. The step is separate from the run
+      # step (which has already exited with nextest's status by the time this
+      # starts); it ends in `exit 0` under `set +e`, so no command inside it can
+      # fail the step; and it carries `continue-on-error: true` for the failure
+      # modes a script cannot catch (a shell parse error, an OOM kill). A
+      # generation failure therefore presents as this step going yellow with a
+      # missing or partial block in the summary, and the job's red/green is
+      # exactly what the test step said.
+      #
+      # `success() || failure()` AND NOT `always()`, which differ on exactly one
+      # job state: CANCELLED. The three sentences above are about a RED run and
+      # still hold — `failure()` is what keeps this reporting on one — but a
+      # cancelled job is a runner being torn down, and starting a `cargo nextest
+      # list` on it buys a report nobody asked for out of a job someone stopped.
+      #
+      # ~0 BILLED MINUTES, which is the whole reason it is shaped this way: no
+      # new job (the billing model rounds per JOB — docs/CI-MINUTES-2026-08.md),
+      # no extra runner. The slowest-N half parses output this job already
+      # produced. The listing half costs one archive extraction (~0.5 s,
+      # measured in the `Extracted 37 files … in 0.50s` line every run prints)
+      # plus a listing pass — seconds inside a job that already runs for
+      # minutes.
+      #
+      # WHY THAT FIGURE HAS NO REGISTER AND NO GUARD, since this repo's
+      # convention is that a measured claim gets one: it is a ONE-SHOT BOUND,
+      # not a tracked quantity. What it asserts is that these seconds cannot
+      # reach the granularity the billing model charges in — a whole job-minute
+      # — and the honest caveat is stated rather than watched: seconds added to
+      # a job already sitting within seconds of a minute boundary can round up
+      # once. Nothing in it varies with the suite, so there is no series to
+      # register and no threshold a guard could hold; the number that WOULD
+      # need one is a per-job minute count, which docs/CI-MINUTES-2026-08.md
+      # already tracks for the whole workflow.
+      #
+      # WHERE A BASE LISTING COMES FROM. There is no cheap way to LIST the base
+      # tree — it would mean building it — so each run publishes its own
+      # listing as an artifact named for the git TREE it was built from, and a
+      # later run looks up the tree its base commit points at. Under this
+      # repo's merge-only rule a PR run's merge-ref tree becomes main's tree at
+      # the merge, so the next PR's base tree is one a previous run already
+      # listed and the lookup hits. When it does not — the first runs after this
+      # lands, a base tree nobody listed, an expired artifact, a token without
+      # `actions: read` — the report prints a STATED SKIP naming which of those
+      # it was. It never prints a number it could not derive, and never a red.
+      #
+      # THE LOOKUP ITSELF IS `scripts/base-test-listing.sh`, ONE COPY FOR BOTH
+      # LANES, and its header carries the argument: a sampled run executes one
+      # lane, so a second copy of this shell would be untested by construction,
+      # and the guards that refuse `gh`'s error text as a tree SHA or a URL
+      # would be exactly the code no test can red. In the script they have a
+      # `--selftest` that drives them against stub `cargo`, `gh` and `curl`,
+      # gated in `discipline` beside the two parsers.
+      - name: test cost report (slowest tests + what this PR adds)
+        if: success() || failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          JOB: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
+        run: |
+          set +e
+          # BOTH DESTINATIONS, and the log is the load-bearing one. The step
+          # summary is a page a reader has to go and look at; the step LOG is
+          # where someone reading a job already is, and where a red run puts
+          # them. `tee -a` costs nothing and makes the report visible to
+          # whoever is actually looking at this job.
+          COST="$RUNNER_TEMP/test-cost"
+          mkdir -p "$COST"
+          python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
+            --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          scripts/base-test-listing.sh --archive nextest-default.tar.zst --lane default \
+            --job "$JOB" --cost-dir "$COST" \
+            --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+      # Shard 1 only: both shards download the same archive and would publish
+      # the same listing under the same name, and a duplicate artifact name is
+      # an error. 7 days because this is a convenience for the NEXT pull
+      # request's report and this repo's artifact quota is small (500 MB); a
+      # base tree older than a week is one nothing is being opened against.
+      #
+      # `TEST_LIST_TREE` IS THE GATE, and the helper sets it only for a listing
+      # that parsed — see its header on why a squatted name is worse than no
+      # name at all.
+      - name: publish this tree's test listing (the next PR's base)
+        if: (success() || failure()) && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-list-default-${{ env.TEST_LIST_TREE }}
+          path: ${{ runner.temp }}/test-cost/test-list.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
@@ -2201,6 +2373,13 @@ jobs:
     needs: [filter, build-interval]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
+    # `actions: read` for the cost report's cross-run base-listing lookup, and
+    # everything else pinned off. The argument — what this block widens, what
+    # it narrows, and why `download-artifact` is not the reason — is at the
+    # default lane's copy, where the 403 was measured.
+    permissions:
+      contents: read
+      actions: read
     # ONE ε ROW, SAMPLED, AND SHARDED AGAIN. Both halves of that reverse
     # the 2026-08-20 audit's collapse of this job, and both follow from the
     # suite this lane now runs.
@@ -2255,11 +2434,19 @@ jobs:
       # `--no-fail-fast` and its echo, for the reasons spelled out at the
       # default lane's copy of this step (#1128). This lane is where the effect
       # was measured: 22 failures locally against 1-2 here, same tree.
+      #
+      # TEE'd, WITH THE VERDICT TAKEN FROM `PIPESTATUS` — the full argument is
+      # at the default lane's copy of this step. In one line: a pipeline's
+      # status is tee's, these steps run under `bash -e {0}` without
+      # `pipefail`, and a capture that could turn a red shard green would be a
+      # report breaking the thing it reports on.
       - name: run archived tests
         run: |
+          set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
-          status=0
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast || status=$?
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
@@ -2279,13 +2466,72 @@ jobs:
       # on and the premise stops mattering.
       - name: persistence save/load/replay-identity (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast"
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/persistence.log"
+          exit ${PIPESTATUS[0]}
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast"
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/band4-corpus.log"
+          exit ${PIPESTATUS[0]}
+      # THREE LEGS HERE, NOT ONE, and which of them ran is what the report's
+      # header says: shard 1 of this lane runs the archive plus the two named
+      # editor-core rows, shard 2 runs the archive alone, and a test that
+      # appears in more than one leg costs this job the SUM. That is the whole
+      # of the first measurement trap (issue 469): per-leg times are not
+      # comparable, so they are summed within a job and never compared across
+      # jobs. The `--leg` list below is deliberately unconditional — a leg the
+      # `if:` above skipped has no log file, and the report NAMES it as absent
+      # rather than quietly reporting a two-leg job as a three-leg one.
+      #
+      # Everything else about this step — why it cannot alter the test verdict,
+      # why it is not `always()`, what it costs, where a base listing comes
+      # from — is at the default lane's copy. What used to be a verbatim copy
+      # of ~60 lines of lookup shell is now one call to the script both lanes
+      # share, so the two differ only in the archive, the lane name and the leg
+      # list, and there is no second copy for a sampled run to leave untested.
+      - name: test cost report (slowest tests + what this PR adds)
+        if: success() || failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          JOB: test (interval, eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
+        run: |
+          set +e
+          # BOTH DESTINATIONS, and the log is the load-bearing one. The step
+          # summary is a page a reader has to go and look at; the step LOG is
+          # where someone reading a job already is, and where a red run puts
+          # them. `tee -a` costs nothing and makes the report visible to
+          # whoever is actually looking at this job.
+          COST="$RUNNER_TEMP/test-cost"
+          mkdir -p "$COST"
+          python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
+            --leg "run archived tests=$COST/archived-tests.log" \
+            --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          scripts/base-test-listing.sh --archive nextest-interval.tar.zst --lane interval \
+            --job "$JOB" --cost-dir "$COST" \
+            --leg "run archived tests=$COST/archived-tests.log" \
+            --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - name: publish this tree's test listing (the next PR's base)
+        if: (success() || failure()) && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-list-interval-${{ env.TEST_LIST_TREE }}
+          path: ${{ runner.temp }}/test-cost/test-list.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # The archives exist only to ferry binaries from the build jobs to the
   # run legs; on a fully green run they have no further use, and this
@@ -2398,7 +2644,17 @@ jobs:
       - name: assert the oracle stack stays out of the default graph
         working-directory: interval-transcendentals
         run: |
-          if cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'; then
+          # THE PRODUCER IS TESTED BEFORE ITS OUTPUT IS. `cargo tree | grep`
+          # takes grep's verdict, and grep handed no input finds no match — so
+          # a resolver failure, an unbuildable manifest or a missing subcommand
+          # all read as "the oracle stack is out", which is this tripwire
+          # announcing a pass it never checked. Captured first, so a dead
+          # producer is loud and only a real listing is searched.
+          if ! TREE=$(cargo tree); then
+            echo "ERROR: \`cargo tree\` failed — this tripwire has nothing to search, and an unread graph is not a clean one"
+            exit 1
+          fi
+          if printf '%s\n' "$TREE" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
             echo "ERROR: the default feature set reaches the gmp stack"
             exit 1
           fi
