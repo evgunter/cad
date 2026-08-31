@@ -31,6 +31,11 @@
 # `dev_samples` columns are the writeup's total-slack figures, and
 # re-cutting it means running the script the same way.
 #
+# Every sweep this script writes carries a `# tess-budget-cut:` line
+# above the CSV header naming the tree it came from
+# (scripts/tess_budget_cut.sh). tools/tess-lint reads it; a sweep
+# without one still lints, and says it cannot date the baseline.
+#
 # The CI `k-lint` job runs it into target/ WITH `--sizing-only` and
 # lints the fresh rows against that baseline with tools/tess-lint: the
 # gate reads triangle counts, the sizing columns and the chart/trim-box
@@ -56,4 +61,11 @@ fi
 echo "=== tessellation-budget sweep (every tour scene, per face) ==="
 (cd "$root/demos/tour" && cargo run --release --features budget -- \
   tess-budget "$out" $dev)
+# The sweep's provenance, stamped HERE rather than by the tour: the
+# commit is a property of the checkout the sweep ran in, which the
+# tour has no business reading. tools/tess-lint prints it beside every
+# verdict, and rule 5 — a scene the baseline has no rows for — needs
+# it to say whether the scene arrived after the cut or was already
+# outside the gate when the cut was taken.
+(cd "$root" && scripts/tess_budget_cut.sh "$out")
 echo "wrote $out"

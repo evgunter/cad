@@ -271,8 +271,8 @@ pub(crate) enum SplitHalf {
     reason = "each variant mirrors the documented `editor_core::RimSupport` variant of the same name"
 )]
 pub(crate) enum RimSupport {
-    Plane,
-    Curved,
+    Host,
+    Mate,
 }
 
 /// The end/side argument `SegPat.side` accepts: any one of the four
@@ -303,8 +303,8 @@ impl SideArg {
             Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
             Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
             Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
-            Self::Rim(RimSupport::Plane) => s::Side::Rim(s::RimSupport::Plane),
-            Self::Rim(RimSupport::Curved) => s::Side::Rim(s::RimSupport::Curved),
+            Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
+            Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
     }
 }
@@ -773,6 +773,13 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 /// here instead of silently never crossing. Never called; the
 /// exhaustiveness IS the assertion (the `SegTag::of` precedent,
 /// `editor-core/src/names/select.rs`).
+///
+/// **What it does not catch**, for the next widener: the tripwire sees
+/// the KERNEL enum and this file's mirror, not `pncad.pyi`. A variant
+/// RENAMED on both sides leaves the stub's attribute names stale with
+/// nothing failing — the census compares top-level names, not an
+/// enum's attributes. Issue #1309 owns that gap; until it closes, a
+/// rename here is a manual edit of the stub.
 #[allow(
     dead_code,
     reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
@@ -855,8 +862,8 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
             s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
             s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
-            s::Side::Rim(s::RimSupport::Plane) => SideArg::Rim(RimSupport::Plane),
-            s::Side::Rim(s::RimSupport::Curved) => SideArg::Rim(RimSupport::Curved),
+            s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
+            s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }
     }
 

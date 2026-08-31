@@ -673,6 +673,14 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// the second. The `ceil` quantisation sits on TOP of the resolution
 /// these constants buy and is not theirs to control, which is why the
 /// shipped pair is not even locally best on the cell count.
+///
+/// **The guard on this pair runs on the merge that moves it.** What
+/// boxes these two is this crate's own derivations suite, and the only
+/// k-lint unification that runs that suite is `dev-default` — one of
+/// five, drawn per run. A change anywhere under `tools/` now PINS that
+/// row rather than sampling it (`KLINT_PATH_ROWS` in
+/// `scripts/ci-filter.py`), so a retune here is gated by the guard it
+/// is about instead of by whichever row a hash picked.
 pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
 /// SAMPLES, not steps: a step in this crate's vocabulary is a UV

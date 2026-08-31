@@ -547,9 +547,23 @@ def reachable(root: str, seeds: set[str]) -> set[str]:
         # This resolves a bare `foo.sh` to `<dir of the naming script>/foo.sh`
         # whenever that file exists, and a bare name can be a coincidence: a
         # comment, a string, or a sibling with the same basename as some other
-        # directory's script. So the closure can only be TOO LARGE — it can
-        # decide a script is owned when nothing really runs it. It can never
-        # shrink: every path-shaped reference is still matched exactly.
+        # directory's script. So the closure is BIASED too large — it can
+        # decide a script is owned when nothing really runs it.
+        #
+        # ONE SPELLING GOES THE OTHER WAY, and the bias above is not a
+        # guarantee. `SCRIPT_RE` requires the character before `scripts/` not
+        # to be part of a path, which is what stops `local-scripts/ci-local.sh`
+        # reading as an invocation of `scripts/ci-local.sh` — and a leading `/`
+        # falls inside that same exclusion, so a call written
+        # `"$root/scripts/x.sh"` is invisible here while `"$root"/scripts/x.sh`
+        # and a bare `scripts/x.sh` are seen. The basename pass below does not
+        # rescue it either, for the same reason: the character before the
+        # basename is a `/`. A real call written that way therefore reads as an
+        # ORPHAN, which is the expensive direction this comment says cannot
+        # happen. It is left narrow rather than widened because widening it
+        # means admitting a `/` before `scripts/`, which is exactly the
+        # `local-scripts/` confusion the boundary exists to refuse; the call
+        # sites in this tree are written in the visible form instead.
         #
         # An over-large closure UNDER-reports claim 4 (an orphan reads as
         # owned) and affects nothing else — no other claim consumes it. That is

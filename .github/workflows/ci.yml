@@ -555,8 +555,9 @@ jobs:
               ;;
           esac
           # THE FILTER'S OWN NOTICES, WHERE A READER OF THE RUN IS ALREADY
-          # LOOKING — a lane pin's reason, or the interval advisory that
-          # replaced the basename pin (#1122). ci-filter.py prints them on
+          # LOOKING — either pin's reason (the interval lane's, or the k-lint
+          # row's `tools/` pin), or the interval advisory that replaced the
+          # basename pin (#1122). ci-filter.py prints them on
           # stderr inside `classify the change set`, which lands under the
           # changed-file list and is not where anyone asking "what gated this?"
           # looks; `--notices` is the same text in a file, RELAYED VERBATIM
@@ -748,6 +749,14 @@ jobs:
       # stdlib python and git — measured 2.9 s locally.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # The script that writes the tessellation-budget baseline's own
+      # provenance line, and refuses to walk it forward past the rows it
+      # describes. Sited HERE, in the tier-blind job, because it is git
+      # and stdlib only (a scratch repo, ~1 s) and because the row that
+      # exercises it for real — the budget sweep — is one of five
+      # SAMPLED k-lint unifications, so a bug in it would sit undrawn.
+      - name: tess-budget cut-stamp selftest (the baseline's provenance)
+        run: scripts/tess_budget_cut.sh --selftest
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
       - name: probe type-check loop citations
@@ -2704,6 +2713,13 @@ jobs:
     # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the same
     # configuration-sampling ruling that draws the lane and the ε; the roster
     # and the soundness argument are at `KLINT_ROWS` in scripts/ci-filter.py).
+    # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
+    # row that RUNS THAT CRATE'S OWN SUITE rather than sampling one (four of
+    # these five rows COMPILE tools/tess-meter, through demos/tour's plain
+    # dependency on it; only `dev-default` runs its tests — Evan's ruling,
+    # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
+    # the run says `klint:pinned` in the step above). `demos/` is deliberately
+    # left to the draw, argued at the same site.
     #
     # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
     # largest line item in the gate — and the cost is not one slow check: the
@@ -2912,12 +2928,17 @@ jobs:
       # hosted gate runs it unconditionally". The falsification is now
       # the meter's deviation pass reduced to one ratio per face and
       # asserted in the suite, so it rides the `budget` build rather
-      # than a feature of its own. THE INTENT SURVIVES ONLY WHILE THIS
-      # ROW STAYS UNCONDITIONAL: k-lint runs "whenever anything builds
-      # at all" (job header above), so the falsifier still runs on
-      # every build-triggering change. Making this row conditional, or
-      # dropping it, stops the falsifier running — that reopens a
-      # ratified review outcome and must be said out loud.
+      # than a feature of its own. THIS ROW IS NO LONGER UNCONDITIONAL,
+      # and MIN-1's intent is met in a weaker form than it was written
+      # in: the `if:` below draws it 1 run in 5, so the falsifier runs
+      # on an expected fifth of build-triggering changes rather than on
+      # all of them. The job header carries the argument for why that is
+      # admissible and is not restated here — a failed falsification
+      # PERSISTS in the tree, so a later draw finds it, and frequency is
+      # the only thing given up. What the `tools/` path pin does NOT do
+      # is restore it: this row's subject is `crates/mesh`, which no
+      # pin reaches. Dropping the row, or narrowing it past the draw,
+      # goes beyond what that argument covers and must be said out loud.
       - name: mesh budget meter + certificate falsifier (feature = budget)
         if: contains(fromJSON('["dev-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
