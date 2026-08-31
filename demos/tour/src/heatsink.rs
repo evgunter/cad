@@ -80,9 +80,13 @@ fn pe(src: &str) -> Expr {
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
-/// The count-5 name table's size, pinned. Re-measured at the
-/// `PlacedUnion` migration; see the assertion for why it moved.
-const HEATSINK_NAMES_AT_5: usize = 135;
+/// The count-5 name table's size, pinned. **Re-measured at the
+/// `PlacedUnion` migration: 135 under `Pattern`, 131 under the group
+/// node** — the pattern emitted names over N unfused bodies, the group
+/// emits `Instance(i)` over one fused body, and four names go with the
+/// difference. Moved deliberately, which is what the assertion below
+/// asks of anyone who moves it again.
+const HEATSINK_NAMES_AT_5: usize = 131;
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
 /// the 1/16 slice overlapping into the base.

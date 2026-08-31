@@ -201,9 +201,9 @@ mod tests {
             Shape {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
-                roots: 2,
-                separation: 5,
-                why: "KNOWN AND NOT FIXED HERE: the base and the five-fin pattern are                       two roots that genuinely interpenetrate, because the union that                       makes them one solid lives in this demo's `solidify()` and never                       in the recipe. Unlike the die's, this is a missing feature in the                       scene, not a spare body: the fix is to author the union, which                       changes what the scene demonstrates",
+                roots: 1,
+                separation: 0,
+                why: "ONE root since the PlacedUnion migration (#1344), and this row is                       where that shows. It used to read two roots and five separation                       findings, and said so as a KNOWN defect: the base and the fin                       pattern genuinely interpenetrated, because the union making them                       one solid lived in this demo's `solidify()` and never in the                       recipe. The fix that row named — author the union — is exactly                       what landed: `PlacedUnion(fin, Linear) -> Boolean(Union, base,                       group)`, so the document has one root and nothing in it                       interpenetrates",
             },
         ];
 
