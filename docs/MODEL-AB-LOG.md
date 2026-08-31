@@ -198,8 +198,10 @@ amended:
      the main-is-authority tiebreak) · S-QA 800–899 (claimed
      2026-08-29 at the S-QA program's opening — `docs/S-QA-LOG.md`) ·
      GAUTH 900–999 (claimed 2026-08-31 at the GAUTH program's
-     opening — `docs/GAUTH-LOG.md`)**,
-     with **1000+ unallocated** — the orchestrator opening the next
+     opening — `docs/GAUTH-LOG.md`) · SEAT 1000–1099 (claimed
+     2026-08-31 at the SEAT program's opening —
+     `docs/SEAT-LOG.md`)**,
+     with **1100+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
