@@ -2857,6 +2857,23 @@ mod tests {
         }
     }
 
+    /// R2 probe: full-precision digits of the whole-net counterfactual,
+    /// for comparison against the pre-collapse arm's own output.
+    #[test]
+    fn r2_probe_whole_net_digits() {
+        for (name, s) in [
+            ("wavy", wavy()),
+            ("staggered", staggered_channels()),
+            ("many8", many_knot_face(8)),
+        ] {
+            let b = whole_net_bound(&s).unwrap();
+            println!(
+                "R2WHOLE {name} muu={:.17e} muv={:.17e} mvv={:.17e} mu1={:.17e} mv1={:.17e}",
+                b.muu, b.muv, b.mvv, b.mu1, b.mv1
+            );
+        }
+    }
+
     /// **The tighter-or-equal claim, randomized.** The two pinned
     /// fixtures show the gap exists and that a smooth net closes it;
     /// this row asserts the INEQUALITY over a sweep of random integral
