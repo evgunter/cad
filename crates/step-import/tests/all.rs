@@ -79,6 +79,8 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
+#[path = "r2_import_door.rs"]
+mod r2_import_door;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]
