@@ -18,3 +18,19 @@ tools/k-lint/target/
 tools/tess-lint/target/
 tools/tess-meter/target/
 /target-*
+
+# The demo-document gallery, when it is written into the SOURCE tree.
+# `gallery::run` defaults its output directory to the relative path
+# "gallery" (gallery.rs), so `cargo run -- gallery` from inside
+# demos/tour/ lands here. That is build output: CI writes its own copy
+# to demos/out/gallery (render.yml) for the viewer's acceptance probe,
+# nothing in the repo reads this path, and no gate regenerates it.
+#
+# Ten such files WERE tracked for a while — swept into the merge
+# 423e3672d by a `git add -A` during conflict resolution; neither parent
+# had them. They went stale the moment a scene's document changed, which
+# is what the heat sink's PlacedUnion migration then did to
+# heatsink.pncad. Untracked and ignored instead of re-goldened: a
+# tracked artifact that no generator maintains and no gate checks is the
+# shape that rots unnoticed, and this one already had.
+demos/tour/gallery/
