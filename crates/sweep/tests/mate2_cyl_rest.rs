@@ -11,6 +11,19 @@
 //!   (4) the control — the same collar/peg WITH a planar `Rest` beside
 //!       the cylindrical ones.
 //!
+//! **Two different classes, and this suite is careful about which is
+//! which.** What the fix widens is the class that REACHES THE REST
+//! LANE: a declared cylindrical `Rest` on an azimuth-SPLIT shared
+//! carrier is no longer refused by the reduction. That is strictly
+//! larger than the class that actually UNIONS. Several azimuth-split
+//! configurations get through the reduction and then refuse further
+//! downstream at the F7 coplanar-merge door, which takes planar
+//! declared surfaces only and is handed every surviving declared pair
+//! whatever its carrier — a partially engaged or floating peg leaves a
+//! cylindrical pair alive in the result and lands there. The probe
+//! suites beside this one carry those rows and pin them as typed
+//! refusals rather than silence.
+//!
 //! **ε posture.** Every row runs at `Tol::witness()`, and the arm they
 //! exercise turns on a DEFINITE `Out` from the cylinder chart's trim:
 //! a wider band turns that verdict into the door's no-verdict
