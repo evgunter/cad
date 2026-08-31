@@ -336,3 +336,59 @@ fn hunt_for_a_genuine_refinement_stall() {
     }
     eprintln!("stall-hunt: {stalls} genuine stalls found");
 }
+
+/// **Issue 1321's measured instance**, checked against the tree: at
+/// `d = 1e-7` the loop is claimed to report `budget: 6` having run 5
+/// rounds and stopped on the per-direction sample cap.
+#[test]
+fn the_budget_refusal_conflates_the_cap_with_the_rounds() {
+    let s = (FRAC_PI_2 * 0.5).cos();
+    let base = NurbsSurface::new(
+        kv2(),
+        kv1(),
+        vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ],
+        vec![1.0, 1.0, s, s, 1.0, 1.0],
+    )
+    .unwrap();
+    for d in [1e-7_f64, 1e-6] {
+        match fit_offset(&base, d, 1e-12, band()) {
+            Ok((_, c)) => eprintln!("1321 d={d:e}: certified cells={} rounds={}", c.cells, c.rounds),
+            Err(e) => eprintln!("1321 d={d:e}: {e}"),
+        }
+    }
+}
+
+/// Full-precision certificate digits, for the fast-path comparison.
+#[test]
+fn full_precision_hull_sups_for_the_fast_path_comparison() {
+    let s = (FRAC_PI_2 * 0.5).cos();
+    let cyl = NurbsSurface::new(
+        kv2(),
+        kv1(),
+        vec![
+            Point3::new(1.25, 0.0, 0.0),
+            Point3::new(1.25, 0.0, 0.75),
+            Point3::new(1.25, 1.25, 0.0),
+            Point3::new(1.25, 1.25, 0.75),
+            Point3::new(0.0, 1.25, 0.0),
+            Point3::new(0.0, 1.25, 0.75),
+        ],
+        vec![1.0, 1.0, s, s, 1.0, 1.0],
+    )
+    .unwrap();
+    for (name, base, d, tol) in [
+        ("cylinder d=0.3", cyl.clone(), 0.3, 3e-4),
+        ("cylinder d=-0.4", cyl.clone(), -0.4, 3e-4),
+        ("elliptic wall", elliptic_wall(2.0, 1.0, 1.0), 0.1, 1e-3),
+    ] {
+        let (_, c) = fit_offset(&base, d, tol, band()).unwrap();
+        eprintln!("FASTPATH {name}: hull_sup={:.17e} on_locus={:.17e} cells={}", c.hull_sup, c.on_locus_max, c.cells);
+    }
+}
