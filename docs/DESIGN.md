@@ -1352,7 +1352,13 @@ every message through `format_args!`, which is not const-callable, and
 rule.** It is row 0 asked at the sites where the answer might be yes:
 the non-empty-by-construction sequences and the small-domain indices,
 which are where a converted arm should have been no arm — thirteen of
-them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96**.
+them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96** and answered per
+site since: of the nine in `crates/sweep/`, four arms are DELETED (the
+state stopped being representable), four are answered *no* with the
+propagation cost stated, and one is carried as that document's
+**`D325`**; the remaining four are carried as its **`D242`**,
+**`D243`** and **`D304`**. Row 0's limit is per site, so a mixture is
+the expected outcome of asking it, not a half-done sweep.
 
 *Row 5's boundary (ratified in-chat 2026-08-29, at S-CERT's Q1):
 `debug_assert` also serves the expensive check whose failure PROBABLY
