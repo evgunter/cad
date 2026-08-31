@@ -1,0 +1,140 @@
+CERT-7 dual (v6), recorded BEFORE R1 dispatch, 2026-08-31
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+after CERT-5's claim — CERT-5's dual dispatches first per the queue).
+slot byte 114, parity 0 => R1 OPUS + R2 FABLE (cross-model; same
+assignment as CERT-4's pair).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head d839dcef (PR 1319's gated head, run
+33347440242 green at lane=both); R2 after R1 with the IDENTICAL
+stored brief, isolated. Probe branches: cert/7r1-probes,
+cert/7r2-probes. The delivered head was 8119609c; d839dcef adds one
+ORCHESTRATOR-DIRECT commit fixing a broken intra-doc link the
+rustdoc gate caught (the doc sentence citing the deleted
+RationalFitUnsupported variant) — disclosed here because it is not
+the implementer's commit; reviewers verify the delta themselves.
+Implementer difficulty M (logged at spec); impl phase ~360k tokens,
+~3.7h wall self-est — held for the row.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-7 of the S-CERT
+program (repo evgunter/cad). Review PR 1319 on its FROZEN head
+d839dcef — do not review any later commit; if the branch has moved,
+say so and still review d839dcef. The tip commit is a one-sentence
+doc fix on the delivered head 8119609c — verify that delta yourself.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-7-SPEC.md), GitHub issues 1005,
+1008, 1007 (primary specifications; issue 1006 is explicitly NOT
+this unit's), then the PR 1319 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection; every number is the PR body's claim, not a fact):
+1. THE WEIGHTED COMPOSITE'S SOUNDNESS (highest-value item): the new
+   homogeneous reading (E~ = F~·w_base − A·w_fit, X = E~·E~ − d²w~²,
+   the τ and e_lo divisions by w~) is claimed to bound the RATIONAL
+   fit's residual. Derive the algebra yourself and attack it at:
+   w~ positivity (claimed proved per cell — what happens on a fit
+   whose weights straddle or touch zero); the claim that M~ keeps
+   the base's weight ALONE and that m = S_u × S_v is the base's own
+   (is the mixed term really absent from the certificate's
+   derivation, or absorbed unsoundly); the unit-weight fast path
+   (w_fit not formed) being bit-equivalent to the general path on a
+   unit-weight input; the degree argument (homogeneous net has its
+   surface's degree; BINOM_EXACT_MAX 54 untouched).
+2. The three containment restorations: both reviewer rows and the
+   storage row certify with hull_sup >= independently SAMPLED
+   residual (2.5x, 2.1x, and the exact rational offset at 2.837e-14
+   on 1 cell) — reproduce by execution, and check the r1 row's
+   2x -> 4x tolerance move (deviation 2) against its own measured
+   reason (the limb reaches 2.49x): is the widened tolerance still
+   a meaningful containment claim or is it now slack enough to
+   survive a real regression (the Q3 monotone-direction question).
+3. RationalFitUnsupported's removal (D2 row 0): the state genuinely
+   cannot arise post-fix; grep-prove the variant's citations absent
+   (code, docs, tests, pins — the orchestrator-direct tip commit
+   fixed one doc citation the unit's own sweep missed; establish
+   whether any OTHER citation survives anywhere).
+4. Recentring: the far-from-origin row (micron offset at shift 1e3
+   went inf-refusal -> 3.2218e-4, matching the origin's number) —
+   reproduce, and probe FARTHER (1e8? where does it degrade and is
+   the degradation honest); the claim that the subtraction is the
+   RING'S not f64's (verify no f64 rounding of control points
+   sneaks in); the honest non-move of the small-|d| number at the
+   origin (0.08%) with the tau²/||E|| 96% decomposition — reproduce
+   the decomposition; the per-patch-not-per-cell argument.
+5. Directional refinement: the thin-patch row 308 -> 14 cells
+   red-first (fails loudly on merge-base source); the direction
+   metric being model-space (h_d · sup||S_d||) with ties to u on
+   structure; the attribution table (sphere 288->112, micron
+   484->308, three fixtures unchanged-in-cells) — spot-check at
+   least two; the claim the fallback arm fires LIVE on shipped
+   fixtures (cylinder d=0.3 trace: no-gain round then 20x on the
+   both-directions round).
+6. The stall guard: +inf handling (an unproved cell is unbounded
+   not unimproved — comparison only against a finite predecessor);
+   RefinementStalled's D2 classification (row 0 answered no, row 1)
+   and its admission set as documented; deviation 7's honesty (the
+   refusal's integration path unreached across 7 fixtures — try
+   YOUR OWN adversarial fixture for a genuine stall; finding one is
+   a major contribution, not finding one corroborates).
+7. The sweep receipt: the 15-hit classification holds (spot-check
+   the BudgetExhausted-unassertable argument and the two kept
+   substantive claims at offset_fit:504/666); its four stated blind
+   spots; run your own differently-shaped sweep (e.g. tolerance
+   loosening — blind spot iii — over the six files' containment
+   assertions' history via git log -p, which their grep cannot see).
+8. Issues 1320, 1321, 1322 assert what is actually true in the tree
+   (the mignitude 1.581e-8 vs ||E|| ~ 1e-6 decomposition; the
+   budget:6-after-5-rounds cap stop; the empty-body wrong-sign row).
+9. The verification story: resolve run 33347440242 YOURSELF (status
+   AND head SHA = d839dcef); lane=both ran all four test lanes; the
+   local claims stated as local; the earlier run on 8119609c redded
+   on exactly the rustdoc broken-link and nothing else (cancelled
+   run 33347128304's one failure — verify from its job, not from
+   this brief).
+STRUCTURAL (style lane's stance, on top of its standing questions):
+the layered guard (fallback then refusal) — is the layering
+enforced by structure or by loop-order convention; the D2 row-1
+argument for RefinementStalled (is "the bound stopped falling" on
+admissible input really row 1 rather than row 3); whether the
+homogeneous-reading change leaves any doc/comment in the file
+describing the old polynomial reading; once, read offset_fit.rs end
+to end (Q8) — the unit claims its diff leaves CERT-10's seam clean;
+say whether you agree.
+
+E2E EXERCISE (required): author your OWN rational base + offset
+request through the public door (certify_offset / the ApproxSurface
+storage path) at both scalar lanes where applicable — including a
+rational base nobody shipped (e.g. an ellipse-of-revolution wall)
+and a deliberately hostile weight spread; report what a consumer
+sees and anything the unit's fixtures were too friendly to show.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions (revert the weighted composite in your worktree and
+confirm the three containment rows red; revert the direction metric
+and confirm the thin-patch row reds), merge-base differentials. The
+unit's suites ride the PR gate — verify it ran; do not re-run
+wholesale.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MINOR/NOTE counts; spec deviations reported vs silent (the PR
+body carries an eight-item deviations section; anything beyond it
+is silent); ratings 1-5 with one line of evidence each for
+idiom/structure, test quality, doc/comment honesty. Findings
+ranked, one line of prose per MAJOR minimum, and a ## Style section
+per the style-lane brief with confidence vocabulary.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what model
+implemented the unit; do not read any other review lane's branches,
+notes, or reports (disclose any accidental glimpse); do not post to
+GitHub — commit probe suites to your probe branch locally (do NOT
+push) and deliver findings in your report. No Co-Authored-By
+trailers. Keep working files inside your worktree. Foreground
+discipline: no background waiters; wrap raw cargo in
+local-scripts/with-build-slot.sh; never end a turn with background
+work active. Report <= 150 lines.
+---
