@@ -120,8 +120,12 @@ fn assert_additive(v: f64, vp: f64, vq: f64) {
 }
 
 fn body_of(r: BooleanResult<f64>) -> Body<f64> {
+    boolean_body(r).body
+}
+
+fn boolean_body(r: BooleanResult<f64>) -> topo::BooleanBody<f64> {
     match r {
-        BooleanResult::Body(b) => b.body,
+        BooleanResult::Body(b) => b,
         BooleanResult::Empty => panic!("a threaded mate cannot be empty"),
     }
 }
@@ -136,13 +140,25 @@ fn threaded_collar_partial_engagement_unions() {
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     println!("partial engagement: {:?}", out.as_ref().err());
-    let body = body_of(out.expect("the cylindrical Rest reaches the rest lane"));
+    let bb = boolean_body(out.expect("the cylindrical Rest reaches the rest lane"));
+    let body = bb.body;
     // Additive: the interiors are disjoint (the peg fills the bore
     // over z ∈ [1,2] and stands proud of it at both ends).
     assert_additive(volume(&body), volume(&c), volume(&p));
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the threaded mate must be tier-3 valid: {errs:?}");
     }
+    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+        panic!("the threaded mate must be pseudomanifold-clean: {errs:?}");
+    }
+    // ONE shell, genus 0: the bore's handle is closed by the peg.
+    assert_eq!(body.shells().count(), 1, "one shell");
+    // The mating patches are gone over the engaged span, and what
+    // survives on the shared carrier is exactly the peg's proud ends.
+    assert!(
+        !walls_at(&body, 0.5).is_empty(),
+        "the peg stands proud of the bore, so its wall survives outside it"
+    );
 }
 
 /// Spelling (2): the same pair at FULL engagement — the peg exactly
@@ -159,19 +175,26 @@ fn threaded_collar_full_engagement_unions() {
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
         panic!("the fully engaged mate must be tier-3 valid: {errs:?}");
     }
-    // Full engagement removes every wall patch: no cylinder survives.
+    // Full engagement removes both mating wall patches: no face on the
+    // shared r = 0.5 carrier survives. (The collar's own outer wall,
+    // r = 1.5, is boundary and does survive — three faces of it.)
     assert!(
-        body.faces().all(|(_, f)| !matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Cylinder { .. })
-        )),
-        "full-engagement patch removal deletes every wall face"
+        walls_at(&body, 0.5).is_empty(),
+        "full-engagement patch removal deletes every face on the mating carrier"
     );
+    assert_eq!(walls_at(&body, 1.5).len(), 3, "the outer wall is boundary");
 }
 
-/// Spelling (4), the CONTROL: the identical bore mate with a planar
-/// `Rest` declared beside the cylindrical ones. Pinned unchanged — it
-/// is the row that isolates the planar declaration as load-bearing.
+/// Spelling (4)'s SHAPE with a planar `Rest` beside the cylindrical
+/// ones — a seated collar whose shaft still stands proud at the top.
+///
+/// The issue's own control is fixture (i)
+/// (`m9_3_zip::two_peg_plate_union_is_exactly_additive`), which is
+/// pinned by staying green. This row is the sharper statement the
+/// measurement affords: a planar `Rest` carries only the incidences at
+/// its OWN plane, so the seat rescues the bottom rim and the proud top
+/// rim refuses on its own account. It is therefore red on main too —
+/// at the top rim, the mirror image of the bore row's refusal.
 #[test]
 fn seated_collar_with_a_planar_rest_unions() {
     // A seated peg, built the way fixture (i) builds its plate-and-peg

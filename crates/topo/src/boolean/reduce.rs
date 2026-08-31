@@ -1161,6 +1161,22 @@ fn curved_face_arm<T: Decide>(
                 // posture. An interior-only touch (no endpoint on the
                 // carrier) keeps the frontier door. Uncovered keeps
                 // both doors verbatim.
+                //
+                // **An endpoint the trim places definitely OUT of THIS
+                // face is eventless HERE, not a refusal.** A declared
+                // carrier is shared by several faces on each side, so
+                // an arc's endpoint is a seam site of the other
+                // operand's wall: one face holds it and its neighbours
+                // certify it outside their own windows. Reading that
+                // certificate as the frontier's remainder refuses a
+                // pair that simply has no incidence — and refuses the
+                // whole op, since one refusing pair is enough. What
+                // still keeps the door: a no-verdict endpoint
+                // ([`Placement::Undecided`]), and a pair where NOTHING
+                // was recorded — an arc whose interior crosses this
+                // face's window with both endpoints outside it is a
+                // real incidence this arm cannot see, and it must stay
+                // loud rather than become a silent no-event.
                 Ok(Sign::Zero) if covered => {
                     let side = |p: Point3<T>| {
                         decide(
@@ -1173,12 +1189,13 @@ fn curved_face_arm<T: Decide>(
                     for (w, pw) in [(u, pu), (v, pv)] {
                         match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
                             Sign::Zero => {
-                                if !vertex_on_curved_face(
+                                match vertex_on_curved_face(
                                     x_is, y, w, pw, face, contacts, band, tol,
                                 )? {
-                                    return Err(frontier());
+                                    Placement::Recorded => any = true,
+                                    Placement::Elsewhere => {}
+                                    Placement::Undecided => return Err(frontier()),
                                 }
-                                any = true;
                             }
                             Sign::Positive => {}
                             Sign::Negative => return Err(frontier()),
@@ -1229,22 +1246,31 @@ fn curved_face_arm<T: Decide>(
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             // An endpoint the containment door cannot decide keeps the
-            // frontier door.
-            if hu && hv {
+            // frontier door; an endpoint it places definitely OUT of
+            // this face is eventless here (the circle rung above
+            // carries the argument), and a pair with nothing recorded
+            // keeps the door.
+            if hu == Placement::Undecided || hv == Placement::Undecided {
+                Err(frontier())
+            } else if hu == Placement::Recorded || hv == Placement::Recorded {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Zero, Sign::Positive) if covered => {
-            if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)? {
+            if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
+                == Placement::Recorded
+            {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Positive, Sign::Zero) if covered => {
-            if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)? {
+            if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?
+                == Placement::Recorded
+            {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
@@ -1280,12 +1306,19 @@ fn curved_face_arm<T: Decide>(
                     Err(frontier())
                 }
                 SpanVerdict::NoInterior => {
+                    // UNDECLARED: `Elsewhere` and `Undecided` are read
+                    // as one thing here, deliberately. The widening
+                    // above is what a VERIFIED declaration unlocks;
+                    // outside it both answers keep the frontier, as
+                    // they always have.
                     let mut hit = false;
                     if s1 == Sign::Zero {
-                        hit |= vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                        hit |= vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
+                            == Placement::Recorded;
                     }
                     if s2 == Sign::Zero {
-                        hit |= vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                        hit |= vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?
+                            == Placement::Recorded;
                     }
                     // An endpoint the containment door cannot place
                     // keeps the frontier door, exactly as the covered
@@ -1317,9 +1350,12 @@ fn curved_face_arm<T: Decide>(
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::NoInterior => {
+                    // UNDECLARED, as the arm above: only a RECORDED
+                    // endpoint counts, and every other answer keeps the
+                    // frontier door.
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-                    if hu || hv {
+                    if hu == Placement::Recorded || hv == Placement::Recorded {
                         Ok(CurvedEvent::Recorded)
                     } else {
                         Err(frontier())
@@ -1606,14 +1642,44 @@ enum CurvedEvent<T: geom_core::Real> {
     },
 }
 
+/// Where one on-carrier endpoint's incidence lives.
+///
+/// The distinction between the last two is the whole point of this
+/// type: `Elsewhere` is a CERTIFIED verdict — the chart trim proved
+/// the point is not in this face — whereas `Undecided` is the
+/// containment door's honest remainder. A caller that reads them as
+/// one thing refuses at a frontier for a pair that has no incidence to
+/// begin with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Placement {
+    /// A contact record was written for this endpoint.
+    Recorded,
+    /// The point is definitely not on this face and coincides with no
+    /// vertex of `y`: its incidence, if it has one, belongs to another
+    /// face on the same carrier, which the sweep visits separately.
+    Elsewhere,
+    /// No verdict — the containment door's remainder.
+    Undecided,
+}
+
 /// The declared-cosurface rung's endpoint treatment: classify an
 /// on-carrier vertex of `x` against the CURVED face and record the
 /// planar posture's contact kinds — `OnVertex` ⇒ v-v, `OnEdge` ⇒
 /// split `y`'s boundary edge at the (bitwise-shared) point and pair
 /// the minted vertex, `In` ⇒ the v-f record, exactly as
-/// [`vertex_on_face`] does on a plane. Returns `false` when the
-/// containment door decides nothing (the caller's typed frontier
-/// door).
+/// [`vertex_on_face`] does on a plane.
+///
+/// **`Out` and no-verdict are DIFFERENT answers, and this door reports
+/// them apart.** `curved_face_containment` answers `Out` from a
+/// certified comparison — the point is off the carrier, or the
+/// iso-bounded wall's exact chart rectangle excludes it — so `Out`
+/// says the endpoint's incidence is not this pair's. It says nothing
+/// about whether the endpoint has an incidence at all: on a carrier
+/// shared by several faces the endpoint is a seam site, and the face
+/// that holds it records it when the sweep reaches that pair. A
+/// no-verdict is the opposite: the door could not express this face's
+/// trim, so nothing at all is known and the caller's typed frontier is
+/// the only honest answer.
 #[allow(clippy::too_many_arguments)]
 fn vertex_on_curved_face<T: Decide>(
     x_is: Operand,
@@ -1624,25 +1690,25 @@ fn vertex_on_curved_face<T: Decide>(
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
-) -> Result<bool, BooleanError> {
-    match super::contain::curved_face_containment(y, face, px, band)
-        .map_err(|e| esc(e, x_is.other()))?
-    {
+) -> Result<Placement, BooleanError> {
+    let verdict = super::contain::curved_face_containment(y, face, px, band)
+        .map_err(|e| esc(e, x_is.other()))?;
+    match verdict {
         Some(FaceContainment::OnVertex(vy)) => {
             push_vv(contacts, x_is, vx, vy);
-            return Ok(true);
+            return Ok(Placement::Recorded);
         }
         Some(FaceContainment::OnEdge(ey)) => {
             let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
             push_vv(contacts, x_is, vx, wy);
-            return Ok(true);
+            return Ok(Placement::Recorded);
         }
         // Strictly inside the curved face's chart trim: the same
         // v-f record the planar sweep writes ([`vertex_on_face`]),
         // now that the trim can say so.
         Some(FaceContainment::In) => {
             contacts.vf(x_is, VfContact { vertex: vx, face });
-            return Ok(true);
+            return Ok(Placement::Recorded);
         }
         // Definitely outside this face's trim, or no verdict at all:
         // fall through to the face-free question below.
@@ -1667,7 +1733,7 @@ fn vertex_on_curved_face<T: Decide>(
         match decide("bool_contact_vertex", Margin::norm3(px - py), band) {
             Ok(Sign::Zero) => {
                 push_vv(contacts, x_is, vx, vy);
-                return Ok(true);
+                return Ok(Placement::Recorded);
             }
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
@@ -1682,7 +1748,10 @@ fn vertex_on_curved_face<T: Decide>(
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
     }
-    Ok(false)
+    Ok(match verdict {
+        Some(FaceContainment::Out) => Placement::Elsewhere,
+        _ => Placement::Undecided,
+    })
 }
 
 fn esc(e: ContainError, operand: Operand) -> BooleanError {
