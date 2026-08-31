@@ -189,6 +189,55 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     (doc, extrude, moved)
 }
 
+/// The gallery ring document as `demo-tour gallery` saved it (the
+/// exporter round trip with the dialog and the window taken out).
+///
+/// It is version-stamped in its name, as `pncad`'s own fixture is: a
+/// schema break makes this file unreadable, and the fix is to
+/// regenerate it from `demo-tour gallery` and rename, never to teach
+/// the loader about an old shape.
+pub const GALLERY_RING: &str = include_str!("../gallery_ring.v19.pncad");
+
+/// **ε is a run parameter, and a saved document records the one it was
+/// decided at** — "one process, one ε", which `load` enforces by
+/// refusing a file whose recorded ε is not the process's
+/// (`PersistError::ToleranceConflict`). The CI matrix sweeps ε, so a
+/// committed document fixture is loadable at exactly one of its
+/// points and refuses at the others.
+///
+/// So the fixture is re-stamped with THIS run's ε before it is opened.
+/// The new ε line comes from `save` itself, via a throwaway document
+/// at the process tolerance: spelling a float the way the serializer
+/// spells it is the serializer's job, not this file's.
+///
+/// **What this function does NOT do is check its own work.** The real
+/// claim (a re-stamped fixture is byte-for-byte what the exporter
+/// writes at this ε) is measured by `doc_io`'s
+/// `the_restamped_fixture_is_what_the_serializer_writes_at_this_eps`,
+/// which puts the bytes back through `save` rather than through this
+/// function's own arithmetic.
+pub fn gallery_ring_at(tol: Tol) -> String {
+    let probe: Doc<ProfileProgram> = Doc::empty_derived("gui3-epsilon-probe", tol);
+    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(|line| is_epsilon(line))
+        .expect("a saved document records its ε");
+    assert_eq!(
+        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
+        1,
+        "the fixture must carry exactly one ε line"
+    );
+    let mut text: String = GALLERY_RING
+        .lines()
+        .map(|line| if is_epsilon(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    text.push('\n');
+    text
+}
+
 /// A fresh directory under the OS temp root, named for the caller.
 ///
 /// One home: two suites wanted the same six lines and had copied them

@@ -34,13 +34,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, CancelToken, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
-    DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Frame, Node, ParamName,
-    ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, apply, assemble,
-    cascade_delete_order, evaluate, parse_expr, product, run_checks,
+    Alignment, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension, DimensionError, Doc,
+    DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame,
+    LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate, parse_expr, product,
+    run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
+use pncad::profile::SketchPlane;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
@@ -238,6 +240,27 @@ impl Standing {
     }
 }
 
+/// The node kind a creation op's seat requires — the payload of
+/// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
+/// in the vocabulary's own words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeKindWanted {
+    /// A `Node::Profile`.
+    Profile,
+    /// A `Node::Datum(Datum::Axis)`.
+    Axis,
+}
+
+impl NodeKindWanted {
+    /// The kind's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Profile => "a profile",
+            Self::Axis => "an axis datum",
+        }
+    }
+}
+
 /// Why an operation did not happen. Every arm is a value the chrome
 /// renders; none is a message this layer composed about someone else's
 /// failure.
@@ -278,6 +301,23 @@ pub enum Refusal {
         name: ParamName,
         /// The dimension the existing declaration carries.
         dimension: Dimension,
+    },
+    /// The New door was asked for a blank name. The document id is
+    /// derived from the name (`DocumentId::derive` — the identity
+    /// ruling logged in `docs/GAUTH-LOG.md`), so a nameless document
+    /// would carry an identity nobody could ever re-derive.
+    EmptyName,
+    /// A creation op named a node that is not the kind its seat
+    /// requires — absent, or of another kind. Refusing here keeps
+    /// "that is not a profile/axis" a fact stated at the door rather
+    /// than a failed node discovered after the edit lands; one arm
+    /// for every seat, so the sentence is spelled once (GAUTH-4/5 add
+    /// more seats to the same rule).
+    WrongNodeKind {
+        /// The node named.
+        node: RecipeNodeId,
+        /// The kind the seat requires.
+        wanted: NodeKindWanted,
     },
     /// `apply` refused the edit.
     ///
@@ -362,6 +402,8 @@ impl Refusal {
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
             | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -416,6 +458,20 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
             Self::ParamExists { name, dimension } => {
                 write!(f, "{}", Self::exists_wording(name, *dimension))
+            }
+            Self::EmptyName => {
+                write!(
+                    f,
+                    "a new document needs a name; its identity is derived from it"
+                )
+            }
+            Self::WrongNodeKind { node, wanted } => {
+                write!(
+                    f,
+                    "node {} is not {} in this document",
+                    node.0,
+                    wanted.name()
+                )
             }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
@@ -589,6 +645,65 @@ fn kind_census(doc: &Doc<ProfileProgram>, nodes: &[RecipeNodeId]) -> String {
         .map(|(kind, count)| format!("{count} × {kind}"))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// The literal payload of one add-datum form (GAUTH-1): plain numbers
+/// in canonical units. The SESSION mints the `Expr` literals and
+/// refuses a non-finite component typed
+/// ([`Refusal::Dimension`]), so no form ever constructs an
+/// expression — chrome deals in numbers, the vocabulary in values.
+///
+/// Component dimensions follow the [`Datum`] slots they land in:
+/// origins and positions are Lengths, normals and directions are
+/// Scalars (an unnormalized direction; evaluation normalizes or
+/// refuses degenerate loudly).
+#[derive(Clone, Copy, Debug)]
+pub enum DatumSpec {
+    /// A plane through `origin` with normal `normal`.
+    Plane {
+        /// Origin components, metres.
+        origin: [f64; 3],
+        /// Normal components, unitless.
+        normal: [f64; 3],
+    },
+    /// An axis through `origin` along `direction`.
+    Axis {
+        /// Origin components, metres.
+        origin: [f64; 3],
+        /// Direction components, unitless.
+        direction: [f64; 3],
+    },
+    /// A point at `position`.
+    Point {
+        /// Position components, metres.
+        position: [f64; 3],
+    },
+}
+
+/// One template loop of the add-profile door (GAUTH-1): the template
+/// vocabulary, not a sketcher — the two forms the plan rules in,
+/// spelled as plain numbers. The session lowers each to its
+/// [`LoopProgram`] constructor and refuses a non-finite field typed;
+/// a degenerate loop (zero radius, zero width) refuses through the
+/// edit door's own authoring-time check, exactly as a hand-written
+/// program would.
+#[derive(Clone, Copy, Debug)]
+pub enum ProfileShape {
+    /// A circle ([`LoopProgram::circle`]).
+    Circle {
+        /// The centre, in sketch coordinates (metres).
+        centre: [f64; 2],
+        /// The radius, metres.
+        radius: f64,
+    },
+    /// An axis-aligned rectangle centred on the sketch origin
+    /// ([`LoopProgram::polygon`], corners at `(±w/2, ±h/2)`).
+    Rectangle {
+        /// The width (x extent), metres.
+        width: f64,
+        /// The height (y extent), metres.
+        height: f64,
+    },
 }
 
 /// One typed operation on the session.
@@ -820,6 +935,87 @@ pub enum SessionOp {
         /// The alignment datum (frames in each instance's own part
         /// coordinates).
         alignment: Alignment,
+    },
+    /// Replace the session's document with a fresh empty one (GAUTH-1's
+    /// creation door zero) — the ONE creation op that is a
+    /// session-state replacement rather than an `InsertNode`, because
+    /// before it runs there is no document to insert into.
+    ///
+    /// The identity ruling (logged in `docs/GAUTH-LOG.md`): the id is
+    /// authored at creation from the typed name —
+    /// `DocumentId::derive(&name)`, the deterministic spelling the
+    /// demo corpus uses — and never re-minted at save. Two documents
+    /// derived from one name collide at WORKSPACE resolution, where
+    /// the store's duplicate-id refusal is the fail-loud recourse.
+    ///
+    /// Everything session-scoped is cleared: path, history, selection,
+    /// hover, display state and the resolver (a fresh document has no
+    /// backing file, so its instantiate nodes refuse with the shipped
+    /// no-resolver semantics until it is saved). Refused mid-gesture;
+    /// a blank name refuses [`Refusal::EmptyName`].
+    ///
+    /// The name is TRIMMED before the id is derived, so `" ring "` and
+    /// `"ring"` are one document by design — surrounding whitespace is
+    /// a typing accident, not an identity a user could re-derive on
+    /// purpose.
+    NewDocument {
+        /// The document's name; the id is derived from its trim.
+        name: String,
+    },
+    /// Insert one datum node with literal slots — the add-datum forms'
+    /// one committed edit each.
+    AddDatum {
+        /// The datum's literal payload.
+        datum: DatumSpec,
+    },
+    /// Insert one profile node from template loops on a plane — the
+    /// add-profile tool's one committed edit.
+    ///
+    /// `loops` is DESCRIPTION order, nothing more: which loop is the
+    /// outer boundary and which are holes is decided by the profile
+    /// layer's containment forest at replay
+    /// (`profile::structure`), never by list position — a list
+    /// written holes-first describes the same profile. Every refusal
+    /// is the edit door's own: an empty list, a degenerate loop and a
+    /// non-nested pair all refuse through the authoring-time check
+    /// ([`Refusal::Edit`]), one rule for authored and hand-written
+    /// programs alike (only a non-finite field refuses earlier, at
+    /// the literal door). The plane is frozen `f64` placement data
+    /// (the program's own placement struct — a snapshot, never a
+    /// reference to the geometry it may have been derived from).
+    AddProfile {
+        /// The sketch-plane placement the profile is authored on.
+        plane: SketchPlane<f64>,
+        /// The template loops, in description order.
+        loops: Vec<ProfileShape>,
+    },
+    /// Insert one extrude of an existing profile node — the extrude
+    /// tool's one committed edit. A `profile` that is not a
+    /// `Node::Profile` in this document refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
+    ///
+    /// A NEGATIVE distance is admitted deliberately and builds: it is
+    /// an extrusion along the negative sketch normal, the same value
+    /// the property panel can author into the slot afterwards, and
+    /// the door does not narrow what the vocabulary means.
+    AddExtrude {
+        /// The profile node extruded.
+        profile: RecipeNodeId,
+        /// The extrusion distance, metres (a literal Length slot).
+        distance: f64,
+    },
+    /// Insert one revolve of an existing profile node about an
+    /// existing axis datum — the revolve tool's one committed edit.
+    /// Either seat's wrong-kind pick refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
+    AddRevolve {
+        /// The profile node revolved.
+        profile: RecipeNodeId,
+        /// The `Datum::Axis` node revolved about.
+        axis: RecipeNodeId,
+        /// The sweep angle, radians (a literal Angle slot; the
+        /// chrome's default is a full turn).
+        angle: f64,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
@@ -1518,6 +1714,15 @@ impl DocSession {
                     },
                 })
             }
+            SessionOp::NewDocument { name } => self.new_document(&name),
+            SessionOp::AddDatum { datum } => self.add_datum(datum),
+            SessionOp::AddProfile { plane, loops } => self.add_profile(plane, &loops),
+            SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
+            SessionOp::AddRevolve {
+                profile,
+                axis,
+                angle,
+            } => self.add_revolve(profile, axis, angle),
             SessionOp::AddInstance { id } => {
                 if self.gesture.is_some() {
                     return OpOutcome::refused(Refusal::GestureInFlight);
@@ -1949,7 +2154,14 @@ impl DocSession {
         }
     }
 
+    /// Refused mid-gesture, the same policy as [`SessionOp::NewDocument`]:
+    /// both replace the document a drag is previewing against, and a
+    /// gesture silently dissolved under the pointer is the kind of
+    /// half-acted state the gesture guard exists to refuse.
     fn open(&mut self, path: &Path) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
         match docio::open(path, self.tol) {
             Ok(history) => {
                 // The directory rule: the resolver is the opened
@@ -1959,7 +2171,6 @@ impl DocSession {
                 self.history = history;
                 self.selection = Selection::None;
                 self.hover = None;
-                self.gesture = None;
                 // The landed run answered the PREVIOUS document. Left
                 // in place it would render the old model's tree and
                 // resolve the new document's names against it until
@@ -2001,6 +2212,136 @@ impl DocSession {
                 OpOutcome::default()
             }
             Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
+        }
+    }
+
+    /// Replace the session with a fresh empty document — the
+    /// [`SessionOp::NewDocument`] semantics (see that arm's docs for
+    /// the identity ruling and what is cleared).
+    ///
+    /// The same clearing walk as [`DocSession::open`], with the two
+    /// file-shaped fields going the other way: no path and no
+    /// resolver, because nothing backs this document until it is
+    /// saved.
+    fn new_document(&mut self, name: &str) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        let name = name.trim();
+        if name.is_empty() {
+            return OpOutcome::refused(Refusal::EmptyName);
+        }
+        self.history = History::new(Doc::empty_derived(name, self.tol));
+        self.selection = Selection::None;
+        self.hover = None;
+        self.landed = None;
+        self.landed_doc = None;
+        self.landed_fault = None;
+        self.landed_at_rest = None;
+        self.landed_checks = None;
+        self.landed_generation = None;
+        self.scratch = None;
+        self.path = None;
+        self.resolver = None;
+        self.display.clear();
+        self.request_eval();
+        OpOutcome::default()
+    }
+
+    /// Insert one datum node with literal slots
+    /// ([`SessionOp::AddDatum`]).
+    fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        match datum_node(datum) {
+            Ok(node) => self.commit(DocEdit::InsertNode { node }),
+            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// Insert one profile node from template loops
+    /// ([`SessionOp::AddProfile`]).
+    ///
+    /// No loop-count or nesting judgment here: an empty list, a
+    /// degenerate loop and a non-nested pair all go to `commit`, where
+    /// the edit door's authoring-time check refuses them typed in the
+    /// profile layer's own words — the one rule authored and
+    /// hand-written programs share.
+    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: &[ProfileShape]) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        let mut programs = Vec::with_capacity(loops.len());
+        for shape in loops {
+            match loop_program(*shape) {
+                Ok(program) => programs.push(program),
+                Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+            }
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane,
+                loops: programs,
+            }),
+        })
+    }
+
+    /// Insert one extrude of an existing profile
+    /// ([`SessionOp::AddExtrude`]).
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: f64) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
+            return OpOutcome::refused(refusal);
+        }
+        match Expr::literal(distance, Dimension::Length) {
+            Ok(distance) => self.commit(DocEdit::InsertNode {
+                node: Node::Extrude { profile, distance },
+            }),
+            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// Insert one revolve of an existing profile about an existing
+    /// axis datum ([`SessionOp::AddRevolve`]).
+    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: f64) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
+            return OpOutcome::refused(refusal);
+        }
+        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
+            return OpOutcome::refused(refusal);
+        }
+        match Expr::literal(angle, Dimension::Angle) {
+            Ok(angle) => self.commit(DocEdit::InsertNode {
+                node: Node::Revolve {
+                    profile,
+                    axis,
+                    angle,
+                },
+            }),
+            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// The node-kind gate every creation seat shares: the named node
+    /// must be the wanted kind in the committed document — absent and
+    /// wrong-kind refuse the same arm, because both mean "there is
+    /// nothing of that kind there to consume".
+    fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
+        let held = self.committed_doc().node(node);
+        let ok = match wanted {
+            NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
+            NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(Refusal::WrongNodeKind { node, wanted })
         }
     }
 
@@ -2113,6 +2454,66 @@ impl DocSession {
                 .as_ref()
                 .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
         });
+    }
+}
+
+/// Lower one datum spec to its node, minting the literal slots —
+/// origins and positions Length, normals and directions Scalar (the
+/// [`Datum`] slot dimensions).
+///
+/// # Errors
+///
+/// A non-finite component (the literal door's refusal).
+fn datum_node(spec: DatumSpec) -> Result<Node<ProfileProgram>, DimensionError> {
+    let lengths = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+        Ok([
+            Expr::literal(v[0], Dimension::Length)?,
+            Expr::literal(v[1], Dimension::Length)?,
+            Expr::literal(v[2], Dimension::Length)?,
+        ])
+    };
+    let scalars = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+        Ok([
+            Expr::literal(v[0], Dimension::Scalar)?,
+            Expr::literal(v[1], Dimension::Scalar)?,
+            Expr::literal(v[2], Dimension::Scalar)?,
+        ])
+    };
+    Ok(Node::Datum(match spec {
+        DatumSpec::Plane { origin, normal } => Datum::Plane {
+            origin: lengths(origin)?,
+            normal: scalars(normal)?,
+        },
+        DatumSpec::Axis { origin, direction } => Datum::Axis {
+            origin: lengths(origin)?,
+            direction: scalars(direction)?,
+        },
+        DatumSpec::Point { position } => Datum::Point {
+            position: lengths(position)?,
+        },
+    }))
+}
+
+/// Lower one template shape to its loop program, through the
+/// program's own literal constructors.
+///
+/// # Errors
+///
+/// A non-finite field (the constructors' refusal). Degeneracy — a
+/// zero radius, a zero width — is NOT judged here: the edit door's
+/// authoring-time check replays the program and refuses it typed,
+/// which is one rule for authored and hand-written programs alike.
+fn loop_program(shape: ProfileShape) -> Result<LoopProgram, DimensionError> {
+    match shape {
+        ProfileShape::Circle { centre, radius } => {
+            LoopProgram::circle(centre[0], centre[1], radius)
+        }
+        ProfileShape::Rectangle { width, height } => {
+            let (hw, hh) = (width / 2.0, height / 2.0);
+            // Counter-clockwise from the lower-left corner — the same
+            // winding every literal outer loop in this workspace uses.
+            LoopProgram::polygon([(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)])
+        }
     }
 }
 
