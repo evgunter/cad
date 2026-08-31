@@ -17,7 +17,7 @@
 #[cfg(feature = "interval")]
 fn main() {
     use geom::Surface;
-    use geom_core::{Band, Bounds, Interval, Point2, Real, Tol};
+    use geom_core::{Bounds, Interval, Point2, Real, Tol};
     use profile::RawLoop;
     use profile::{Profile, ProfileLoop, SketchPlane};
     use sweep::blend::fillet_edges;
@@ -25,7 +25,6 @@ fn main() {
     use topo::{Body, EdgeKey};
 
     let _ = <Interval as Bounds>::lo;
-    let band = Band::linear(Tol::witness()).unwrap();
     let i = Interval::from_f64;
     let (l, r) = (1.0_f64, 0.15_f64);
 

@@ -32,7 +32,7 @@ mod certified {
 
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec2, Vec3};
+    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::blend::build::fillet_edges;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -51,11 +51,6 @@ mod certified {
 
     fn p2(x: f64, y: f64) -> Point2<Interval> {
         Point2::new(iv(x), iv(y))
-    }
-
-    fn band() -> Band {
-        let tol = Tol::witness().get();
-        Band::new(tol.eps, tol.k * tol.eps).unwrap()
     }
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {

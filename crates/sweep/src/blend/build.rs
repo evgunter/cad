@@ -155,9 +155,6 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     radius: T,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
-    // The band is a function of the committed tolerance alone, so the
-    // verb derives it rather than taking it — one derivation per
-    // operation, at entry, as the sweep's other verbs do.
     let band = Band::linear(tol)?;
     repeated_edge_gate(edges)?;
     // NOTE the door asymmetry: this door has no NonpositiveSize check,
@@ -394,9 +391,6 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     distance: T,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
-    // The band is a function of the committed tolerance alone, so the
-    // verb derives it rather than taking it — one derivation per
-    // operation, at entry, as the sweep's other verbs do.
     let band = Band::linear(tol)?;
     // The setback must be definitely positive, and that is a fact
     // about the REQUEST, so it is read off the bracket's low end

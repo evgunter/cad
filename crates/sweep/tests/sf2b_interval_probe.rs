@@ -36,7 +36,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Bounds, Interval, Point2, Real, Tol, Vec2};
+use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
@@ -76,7 +76,6 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
 #[test]
 fn interval_offset_charts_together_sphere_zone() {
     let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     // The belly's arc, as a bulge about a centre ON the axis.
     let c = p2(0.0, h / 2.0);
@@ -137,7 +136,6 @@ fn contains(what: &str, got: Interval, want: f64) {
 #[test]
 fn interval_offset_charts_together_partial_wedge() {
     let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
         ProfileLoop::new(vec![
@@ -174,7 +172,6 @@ fn interval_offset_charts_together_partial_wedge() {
 #[test]
 fn interval_offset_charts_together_cone_frustum() {
     let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let (r0, r1, h, t) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
         ProfileLoop::new(vec![
@@ -212,7 +209,6 @@ fn interval_offset_charts_together_cone_frustum() {
 #[test]
 fn interval_offset_charts_together_drum() {
     let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
         ProfileLoop::new(vec![

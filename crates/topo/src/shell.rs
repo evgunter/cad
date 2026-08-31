@@ -173,7 +173,7 @@ pub enum ShellError<T: Real> {
     /// this is that derivation's own refusal, carried verbatim.
     Band {
         /// The band constructor's typed refusal.
-        source: BandError,
+        error: BandError,
     },
     /// The wall thickness is not certifiably positive: a zero or
     /// negative wall is not a thin solid, and the ambiguity band
@@ -356,8 +356,8 @@ pub enum ShellError<T: Real> {
 impl<T: Real> core::fmt::Display for ShellError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Band { source } => {
-                write!(f, "shell could not form a band: {source}")
+            Self::Band { error } => {
+                write!(f, "shell could not form a band: {error}")
             }
             Self::Thickness { thickness } => write!(
                 f,
@@ -499,7 +499,9 @@ pub fn shell<T: Decide + PropsQuadLane>(
 ///
 /// # Errors
 ///
-/// [`ShellError`] — [`shell`]'s, plus the designation gates (a face
+/// [`ShellError::Band`] when the committed tolerance admits no
+/// ambiguity band — this is the door that derives it, for both verbs.
+/// Then [`ShellError`] — [`shell`]'s, plus the designation gates (a face
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 pub fn shell_open<T: Decide + PropsQuadLane>(
@@ -509,11 +511,8 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     tolerance: f64,
     tol: Tol,
 ) -> Result<Body<T>, ShellError<T>> {
-    // The band is a function of the committed tolerance alone, so the
-    // verb derives it rather than taking it — one derivation per
-    // operation, at entry, as the kernel's other verbs do. `shell`
-    // reaches this door, so the derivation happens once either way.
-    let band = Band::linear(tol).map_err(|source| ShellError::Band { source })?;
+    // `shell` reaches this door, so both verbs derive here, once.
+    let band = Band::linear(tol).map_err(|error| ShellError::Band { error })?;
 
     // ---- Decide: the thickness. ----
     match decide("shell_thickness", Margin::of(thickness), band) {
