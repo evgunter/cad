@@ -724,8 +724,9 @@ impl core::fmt::Display for EditError {
             }
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
-                "edit: deleting node {} would dangle node {}'s reference to it",
-                id.0, referenced_by.0
+                "edit: node {} is still an input to node {} — delete node {} first, \
+                 or delete node {} together with everything downstream of it",
+                id.0, referenced_by.0, referenced_by.0, id.0
             ),
             Self::UnknownSlot { id, slot } => {
                 write!(f, "edit: node {} has no slot {slot:?}", id.0)
@@ -1211,6 +1212,47 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
         }
     }
     Ok(())
+}
+
+/// The nodes a cascading delete of `id` must remove, ordered so that
+/// [`DocEdit::DeleteNode`] accepts every one of them in turn:
+/// consumers first, `id` last.
+///
+/// The set is `id` plus everything reachable from it along the
+/// CONSUMER direction of the recipe DAG — the transitive closure of
+/// the same [`Node::inputs`] relation [`EditError::DeleteWouldDangle`]
+/// is stated over, which is why applying this sequence in order never
+/// dangles a reference: every node still live at each step has all of
+/// its inputs still live.
+///
+/// The answer is empty for an id the document does not hold; a caller
+/// that wants the refusal asks [`apply`] for it, so the typed verdict
+/// has one home.
+///
+/// One forward pass suffices because [`Doc::order`] is insertion
+/// order and an insertion's inputs must already be live, making the
+/// list topological: a consumer is always seen after every input it
+/// could inherit doom from.
+pub fn cascade_delete_order<P>(doc: &Doc<P>, id: RecipeNodeId) -> Vec<RecipeNodeId> {
+    use std::collections::BTreeSet;
+    if doc.node(id).is_none() {
+        return Vec::new();
+    }
+    let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
+    for &n in doc.order() {
+        let doomed_by_input = doc
+            .node(n)
+            .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
+        if doomed_by_input {
+            doomed.insert(n);
+        }
+    }
+    doc.order()
+        .iter()
+        .rev()
+        .copied()
+        .filter(|n| doomed.contains(n))
+        .collect()
 }
 
 /// Apply one edit to a document, PURELY (spec D2): the input is
