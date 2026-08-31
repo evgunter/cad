@@ -78,7 +78,7 @@ pub use drive::{
     RefusalReason, RefusedLeaf, ReplayOutcome, StructureFlip, VerdictRow, VerdictVector,
     VerdictVectorKey, drive,
 };
-pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
+pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
@@ -86,6 +86,7 @@ pub use eval::{
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
+    unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{
@@ -102,11 +103,12 @@ pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
-    SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat,
-    all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node, denotation,
-    edge_frame, face_frame, find_flush_candidates, select, select_where, vertex_position,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameTable, NamingError, OpGroup,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
+    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
+    declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select,
+    select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, MeasureNodeFault, MeasureRef,

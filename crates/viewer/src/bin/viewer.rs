@@ -64,7 +64,7 @@ fn main() {
             // desktop browser's devtools look; the page is the only
             // one a phone has, and a phone is this arm's whole reason
             // for existing.
-            let message = format!("viewer failed to start: {error}");
+            let message = format!("pncad failed to start: {error}");
             eframe::web_sys::console::error_1(&message.as_str().into());
             // The page gets the refusal's own sentence, not the
             // prefixed line: the overlay's heading supplies the "failed
@@ -83,7 +83,7 @@ fn main() {
 /// hides the overlay with the `hidden` attribute, so the two acts here
 /// — set the class, clear `hidden` — are exactly what that page's own
 /// `fail()` does from JS. The ids above are that agreement; changing
-/// one without the other leaves a phone staring at "loading viewer…"
+/// one without the other leaves a phone staring at "loading pncad…"
 /// forever, which is the failure this whole path exists to prevent.
 ///
 /// Best-effort ON PURPOSE, and the one place in this crate where a
@@ -101,7 +101,7 @@ fn report_to_page(message: &str) {
         detail.set_text_content(Some(message));
     }
     if let Some(title) = document.get_element_by_id(STATUS_TITLE_ID) {
-        title.set_text_content(Some("viewer failed to start"));
+        title.set_text_content(Some("pncad failed to start"));
     }
     if let Some(status) = document.get_element_by_id(STATUS_ID) {
         status.set_class_name("error");

@@ -52,22 +52,19 @@
 mod common;
 mod revolve_common;
 
-use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use common::orient::{
     along_v, assert_walls_face_out, loft_contains, wall_outward, wall_outward_at,
 };
-use common::quad;
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
-use sweep::{
-    Extrusion, Lofted, Revolution, Section, SketchSegment, extrude, loft_body, revolve,
-    segment_curve, sweep_body,
-};
+use sweep::test_support::swept_elbow_lofted;
+use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
@@ -993,46 +990,34 @@ fn the_level_set_oracle_agrees_with_the_extruded_twin() {
 /// anywhere asked whether a swept wall faces out; this row asks it
 /// with the probe and the oracle the loft rows above use.
 ///
-/// The fixture is `m7_skin_integral`'s elbow — a square section of
-/// half-width ¼ swept along a quarter circle of radius 3 through nine
-/// stations at `v_degree = 3`. It is re-typed rather than shared: that
-/// suite is a skin-integrality pin in another file, and `all.rs`
-/// requires each aggregated file to behave as it did when it was its
-/// own crate root.
+/// The fixture is the corpus elbow — a square section of half-width ¼
+/// swept along a quarter circle of radius 3 through nine stations at
+/// `v_degree = 3` — taken from `sweep::test_support`, which is where it
+/// is built once for every suite that meters it. This row wants the
+/// wall keys as well as the body, so it takes the whole handoff.
 ///
 /// # This does NOT close the class for `sweep_body`
 ///
 /// The elbow is one curved-path caller of several, and it is the
-/// EASIEST. `m8_14_long_turn_sweep.rs` sweeps helices at ½, 1 and 2
+/// EASIEST. The long-turn sweep suite carries helices at ½, 1 and 2
 /// turns — a non-planar path with genuine frame roll, near-antipodal
 /// by that suite's own header — and those are where "the chart normal
-/// follows the traversal" carries the most weight. They stay unpinned,
-/// and this oracle **cannot** reach them: its level planes fan, so a
-/// stack that turns past a right angle stops being bisectable, and on
-/// a half-turn helix `level_plane` refuses at both ends
-/// (`cos ≈ 0.011`) rather than answering. Reaching a helix needs a
-/// different oracle, not a wider bound here.
+/// follows the traversal" carries the most weight. They are pinned
+/// there, on the CONTINUITY index, because this oracle **cannot**
+/// reach them: its level planes fan, so a stack that turns past a
+/// right angle stops being bisectable, and on a half-turn helix
+/// `level_plane` refuses at both ends (`cos ≈ 0.011`) rather than
+/// answering. Reaching a helix needed a different oracle, not a wider
+/// bound here. The turning shapes that are neither a quarter-turn arc
+/// nor a helix — an authored roll, an inflection, a torsion-bearing
+/// spine — are pinned in the turning-orientation suite.
 #[test]
 fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
-    let place = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        -FRAC_PI_2,
-    );
-    let path = segment_curve(
-        0,
-        SketchSegment::Arc {
-            a: p2(0.0, 0.0),
-            b: p2(3.0, 3.0),
-            bulge: FRAC_PI_8.tan(),
-        },
-        place,
-    )
-    .expect("the elbow path is a well-formed quarter arc");
-    let h = 0.25;
-    let profile = quad([(-h, -h), (h, -h), (h, h), (-h, h)]);
-    let swept = sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3, Tol::witness())
-        .expect("the elbow sweeps");
+    // The corpus elbow (`sweep::test_support`), not a local rebuild:
+    // this row's subject is the chart normal along the turn, and the
+    // solid it turns is the same one the STEP fixture and the
+    // tessellation rows meter.
+    let swept = swept_elbow_lofted(Tol::witness());
     assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&swept.body), Ok(()), "tier 2");
 

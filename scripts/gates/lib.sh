@@ -301,6 +301,13 @@ gate_rust_code() {
       # ordinary code between them in one step. A per-character loop over
       # crates/*/src measured 43 s; this measures ~4 s, and CI runs it
       # once per gate.
+      # BOTH FIGURES ARE ONE UNDATED READING ON ONE BOX and nothing
+      # re-takes either — no register carries the wall clock of a gate,
+      # and a threshold here would be a timing assertion inside a
+      # correctness gate, which is the shape this repo keeps out of its
+      # gates. What the choice rests on is the ORDER OF MAGNITUDE (a
+      # rewrite that gave back the decade would be visible in any local
+      # run of the discipline row), not on either number staying true.
       while (i <= n) {
         rest = substr(s, i)
         if (state == 1) {                      # inside /* ... */

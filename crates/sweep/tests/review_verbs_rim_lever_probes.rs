@@ -51,9 +51,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{Convexity, FilletError};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::revolved_about_y;
 use sweep::{Extrusion, Revolution, extrude};
 use test_utils::fuzz;
@@ -158,10 +158,10 @@ fn pick_edge(
 /// (`Link::arm_len`) — the kernel's number, never a restatement of
 /// its formula.
 fn metered_lever(body: &Body<f64>, edge: EdgeKey) -> Option<f64> {
-    let req = FilletRequest {
+    let req = BlendRequest {
         body,
         edges: vec![edge],
-        radius: 0.01,
+        size: 0.01,
     };
     run_battery(&req, band())
         .ok()
@@ -279,10 +279,10 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
         let body = extrude(&sq, Extrusion::Distance(d), tol()).unwrap().body;
         let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
         assert_eq!(edges.len(), 12, "a prism has twelve edges");
-        let req = FilletRequest {
+        let req = BlendRequest {
             body: &body,
             edges: edges.clone(),
-            radius: (w.min(h).min(d)) * 0.1,
+            size: (w.min(h).min(d)) * 0.1,
         };
         let verdict = run_battery(&req, band()).expect("a prism's edges all resolve");
         for chain in &verdict.chains {
@@ -327,15 +327,17 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 
         let full = neck_flare(r, half_angle, bore, Revolution::Full);
         let closed = pick_edge(&full, true, is_pair);
-        let closed_verdict = fillet_edges(&full, &[closed], r * 0.05, band(), tol());
+        let closed_verdict =
+            fillet_edges(&full, &[closed], r * 0.05, band(), tol()).map_err(|r| r.error);
 
         let part = neck_flare(r, half_angle, bore, Revolution::Partial(1.0));
         let open = pick_edge(&part, false, is_pair);
-        let open_verdict = fillet_edges(&part, &[open], r * 0.05, band(), tol());
+        let open_verdict =
+            fillet_edges(&part, &[open], r * 0.05, band(), tol()).map_err(|r| r.error);
 
         for (which, v) in [("closed", &closed_verdict), ("open", &open_verdict)] {
             assert!(
-                !matches!(v, Err(FilletError::TangentialEdge { .. })),
+                !matches!(v, Err(BlendError::TangentialEdge { .. })),
                 "{which} rim at half-angle {half_angle} rad reports tangency on a \
                  transverse cone×cylinder corner: {v:?}"
             );
@@ -346,10 +348,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
              once the dihedral has decided, got {closed_verdict:?}"
         );
         assert!(
-            matches!(
-                open_verdict,
-                Err(FilletError::FilletCornerUnsupported { .. })
-            ),
+            matches!(open_verdict, Err(BlendError::UnsupportedCorner { .. })),
             "open rim at half-angle {half_angle} rad: the arc terminates at the revolve's \
              seam-meridian vertices, whose corner configuration is unimplemented, got \
              {open_verdict:?}"
@@ -387,8 +386,8 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
             endpoint_chord(&ball, seam) > r,
             "the seam's own lever is definitely nonzero — the zero must come from the sine"
         );
-        match fillet_edges(&ball, &[seam], r * 0.05, band(), tol()) {
-            Err(FilletError::TangentialEdge { margin, .. }) => assert_eq!(
+        match fillet_edges(&ball, &[seam], r * 0.05, band(), tol()).map_err(|r| r.error) {
+            Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
                 margin, 0.0,
                 "a co-surface seam's dihedral sine is structurally zero (r={r})"
             ),
@@ -405,10 +404,10 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
         );
         let rim = pick_edge(&transverse, true, |a, b| is_plane(a) && is_sphere(b));
         let verdict = run_battery(
-            &FilletRequest {
+            &BlendRequest {
                 body: &transverse,
                 edges: vec![rim],
-                radius: r * 0.02,
+                size: r * 0.02,
             },
             band(),
         );
@@ -438,10 +437,10 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
         );
         let rim = pick_edge(&body, true, |a, b| is_plane(a) && is_sphere(b));
         let link = run_battery(
-            &FilletRequest {
+            &BlendRequest {
                 body: &body,
                 edges: vec![rim],
-                radius: r * 0.02,
+                size: r * 0.02,
             },
             band(),
         )
@@ -479,10 +478,10 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
         );
         let root = pick_edge(&boss, true, |a, b| is_plane(a) && is_sphere(b));
         let link = run_battery(
-            &FilletRequest {
+            &BlendRequest {
                 body: &boss,
                 edges: vec![root],
-                radius: rim_r * 0.02,
+                size: rim_r * 0.02,
             },
             band(),
         )
@@ -606,7 +605,7 @@ fn the_tangential_refusal_prose_states_no_geometric_fact() {
         "the refusal should say what it DID establish: {text}"
     );
     assert!(
-        !sweep::fillet::FILLET3_TANGENTIAL_RECOURSE.contains("a tangential join has no wedge"),
+        !sweep::blend::FILLET3_TANGENTIAL_RECOURSE.contains("a tangential join has no wedge"),
         "the recourse still states tangency as the established cause"
     );
 }

@@ -98,9 +98,27 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
     ]
 }
 
+/// THE LEAF BUDGET IS SIZED BY THE HARDER FIXTURE, not by the easier
+/// one. `slab_narrow` certifies its whole box in a single leaf and
+/// would be happy at any budget; `slab_across_zero` straddles the
+/// extrude's sign flip, and every box down to depth 7 is still
+/// indeterminate there — so at `max_leaves: 256` the driver splits all
+/// 255 of them, hits the frontier bound, and refuses the entire
+/// 256-leaf frontier `Budget(Leaves)` having certified NOTHING. That
+/// is not an eps effect: it is the same at 1e-6, 1e-9 and 1e-12, and
+/// it is what took the `dev-probe` k-lint row red (#1343).
+///
+/// `4096` is the number the driver suite already uses on this same
+/// fixture for its own "the witness side must certify" row, and it is
+/// what the fixture measurably needs: 0 certified at 256, 344 at 4096.
+/// It is a real cost, measured: the dump run goes from about a second
+/// to about twenty, so about a minute over the sweep's three eps rows.
+/// That cost buys the population this unit exists to sample, so it is
+/// paid here rather than shrunk away by moving the fixture off the
+/// flip.
 fn probing() -> DriveConfig {
     DriveConfig {
-        max_leaves: 256,
+        max_leaves: 4096,
         k_probe: KProbe::CertifiedMidpoints,
         ..DriveConfig::default()
     }

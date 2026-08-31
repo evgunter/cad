@@ -220,7 +220,7 @@ use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Band, Mat3, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
-use pncad::sweep::fillet::{FilletError, fillet_edges};
+use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
@@ -527,7 +527,7 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
 
 /// The lever arm every angular fillet predicate is metered against —
 /// the maximum pairwise chord over the battery's own per-link sample
-/// schedule (`sweep::fillet::battery::CHAIN_SAMPLES`). Findings
+/// schedule (`sweep::blend::battery::CHAIN_SAMPLES`). Findings
 /// entry 2 is a statement about this number: it stays ~the rim's
 /// diameter whether or not the rim closes.
 fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
@@ -539,7 +539,7 @@ fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
         .expect("a revolved rim carries a certified carrier");
     let (t0, t1) = c.params();
     let carrier = c.carrier();
-    let n = pncad::sweep::fillet::battery::CHAIN_SAMPLES;
+    let n = pncad::sweep::blend::battery::CHAIN_SAMPLES;
     let pts: Vec<_> = (0..n)
         .map(|i| {
             let f = S::from_f64(f64::from(i) / f64::from(n - 1));
@@ -792,7 +792,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
     crate::walls::wall(
@@ -811,7 +811,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // and what stops both is the ball's own size against the neck
         // wall's curvature — not the closedness of the rim, and no
         // longer a missing arm.
-        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
 

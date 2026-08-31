@@ -34,7 +34,7 @@ mod certified {
     use geom::Surface;
     use geom_core::{Affine3, Band, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
-    use sweep::fillet::build::fillet_edges;
+    use sweep::blend::build::fillet_edges;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{Body, BooleanDeclarations, mass_properties};

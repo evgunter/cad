@@ -1877,7 +1877,42 @@ fn plan_reanchors<T: Decide>(
         for (point, is_start) in [(new_start, true), (new_end, false)] {
             let Some(point) = point else { continue };
             let t_old = if is_start { t0 } else { t1 };
-            let t_new = invert_carrier(&carrier, point, t_old).ok_or(
+            // Anchored at the parameter THIS ENDPOINT had, not at the
+            // span's midpoint: the stored range is the traversed arc,
+            // not a canonical one, so the turn it sits on is the datum
+            // the re-anchor must keep. `param_near` carries why an
+            // anchored read needs no branch selection.
+            //
+            // **THE `|δ| = π` POSE, ACCEPTED DELIBERATELY AND NOT BY
+            // OMISSION.** At exactly half a turn from `t_old` the point
+            // has TWO parameters within half a turn — `t_old ± π` —
+            // and which one `param_near` names is `atan2`'s cut, i.e.
+            // the sign bit of one dot product. `geom`'s
+            // `at_the_half_turn_boundary_the_two_forms_disagree_by_a_
+            // turn_and_both_are_right` measures the flip at 9 of 30
+            // boundary cases. The `gap` gate immediately below CANNOT
+            // see it: it asks `eval(t_new) ≈ point`, and both answers
+            // satisfy that exactly — they are the same point. What
+            // would differ is the STORED SPAN, by a whole turn.
+            //
+            // The pose is sound here because of what this door does,
+            // and that is a claim about the CALLER, not about the
+            // arithmetic: an offset MOVES an endpoint along its
+            // carrier, it does not teleport it half a turn, so `δ`
+            // stays small. Measured over the `sweep` suite — the only
+            // suite that reaches this door — 245 live calls, 236 on a
+            // `Line` (no branch at all) and 9 on a `Circle`, with
+            // `max |δ| = 0.244979` rad against a boundary of `π`: an
+            // order of magnitude of headroom, not a near miss.
+            //
+            // No refusal is added for it here. One would be a new
+            // named predicate, and a new predicate's margins cannot be
+            // policed on this branch while the K-telemetry probe
+            // census is red (#1288) — shipping an unpoliced predicate
+            // to close a gap no live call approaches is the worse
+            // trade. Banked with that measurement rather than waved
+            // through.
+            let t_new = carrier.param_near(point, t_old).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "a re-anchored carrier that is neither a line nor a circle",
@@ -1984,33 +2019,6 @@ fn plan_reanchors<T: Decide>(
         ));
     }
     Ok(out)
-}
-
-/// The parameter of `p` on `carrier`, on the branch nearest `near` —
-/// closed form on the two kinds whose inverse is one, and `None`
-/// otherwise (a spline's inversion is a solve, which is a different
-/// unit's machinery).
-fn invert_carrier<T: Real>(carrier: &Curve3<T>, p: Point3<T>, near: T) -> Option<T> {
-    match carrier {
-        Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let theta = w.dot(v_ref).atan2(w.dot(*u_ref));
-            // Pick the 2π branch nearest the parameter this endpoint
-            // had: the stored range is the traversed arc, not a
-            // canonical one.
-            let tau = T::tau();
-            let k = (near - theta).periodic_branch(tau);
-            Some(theta + k * tau)
-        }
-        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
-    }
 }
 
 /// `mapped` with the sketch endpoint that images `is_start` moved to

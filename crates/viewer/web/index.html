@@ -9,7 +9,7 @@
      one thing that must never land under a notch — the error text. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<title>viewer (wasm spike)</title>
+<title>pncad (wasm spike)</title>
 <style>
   /* No margins, no scroll. A canvas defaults to `display: inline`, which
      puts a baseline gap under it and makes the page a few pixels taller
@@ -119,7 +119,7 @@
 
 <canvas id="viewer_canvas"></canvas>
 
-<div id="status"><div class="box"><h1 id="status-title">loading viewer…</h1><pre id="status-detail">compiling and starting the wasm module</pre></div></div>
+<div id="status"><div class="box"><h1 id="status-title">loading pncad…</h1><pre id="status-detail">compiling and starting the wasm module</pre></div></div>
 
 <!-- A module script is silently ignored by an engine with no ES-module
      support, which on a phone looks exactly like a hung load. -->
@@ -204,7 +204,7 @@
       // Imported dynamically rather than with a static `import` at the
       // top: a static import that 404s or is served with the wrong MIME
       // type aborts this whole module before a single line of it runs,
-      // leaving "loading viewer…" on screen forever with no way to say
+      // leaving "loading pncad…" on screen forever with no way to say
       // why. Inside a try/catch, the same failure is legible.
       ({ default: init } = await import("./viewer.js"));
     } catch (err) {

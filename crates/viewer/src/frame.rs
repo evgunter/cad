@@ -227,9 +227,42 @@ fn session_bus_hinted() -> bool {
 /// in a stripped environment.
 #[must_use]
 pub fn prefs_path() -> Option<std::path::PathBuf> {
-    let base = match std::env::var_os("XDG_CONFIG_HOME") {
+    prefs_path_in(
+        std::env::var_os("XDG_CONFIG_HOME").as_deref(),
+        std::env::var_os("HOME").as_deref(),
+    )
+}
+
+/// The preferences path as a pure function of the two environment
+/// readings, so the XDG rules are asserted on rather than trusted.
+///
+/// Split out for [`chooser_backend_of`]'s reason, and it is the same
+/// reason: the ambient read is one line that cannot be exercised in a
+/// test without mutating the process's environment — which is a
+/// global other tests share — while everything INTERESTING here is
+/// the resolution, and the resolution is a function of two `Option`s.
+///
+/// The rules, from the XDG base-directory specification:
+///
+/// - `config_home` set and non-empty wins.
+/// - **An EMPTY `config_home` counts as unset**, which the spec says
+///   in as many words and which is the case a bare
+///   `unwrap_or_else` fallback gets wrong: it would take `""` as the
+///   base and write to a RELATIVE path, i.e. into whatever directory
+///   the viewer happened to be launched from.
+/// - Otherwise `$HOME/.config`.
+/// - With neither, `None` — no path is invented. The caller's store
+///   is then unusable and says so, which is how a person finds out
+///   their preferences are not being kept rather than wondering
+///   later why nothing was remembered.
+#[must_use]
+pub fn prefs_path_in(
+    config_home: Option<&std::ffi::OsStr>,
+    home: Option<&std::ffi::OsStr>,
+) -> Option<std::path::PathBuf> {
+    let base = match config_home {
         Some(value) if !value.is_empty() => std::path::PathBuf::from(value),
-        _ => std::path::PathBuf::from(std::env::var_os("HOME")?).join(".config"),
+        _ => std::path::PathBuf::from(home.filter(|h| !h.is_empty())?).join(".config"),
     };
     Some(base.join(PREFS_DIR).join(PREFS_FILE))
 }

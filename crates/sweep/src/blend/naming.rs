@@ -1,6 +1,10 @@
-//! **Fillet birth records** (M6-5): what the composition surgery
+//! **Edge-blend birth records** (M6-5): what the composition surgery
 //! MINTED, and from which entity of the source body — recorded by the
-//! construction itself, as it constructs.
+//! construction itself, as it constructs. Both verbs write these rows
+//! through the one shared surgery: a fillet's row carries a curved
+//! mint (a torus arc, a sphere octant) where a chamfer's carries its
+//! flat twin (a straight chord, a plane patch), and the ROWS are the
+//! same because the carve is.
 //!
 //! The kernel never sees a stable name (D1/G1): this module carries
 //! arena keys and nothing else. `editor-core`'s emitter turns these
@@ -22,8 +26,8 @@
 //! A shrunk support is therefore a survivor and needs no row of its
 //! own: the fact that it is the same face is carried by key identity.
 //!
-//! [`FilletNaming::dead`] closes the loop: it lists the source keys
-//! the fillet RETIRED, so a consumer can check
+//! [`BlendNaming::dead`] closes the loop: it lists the source keys
+//! the blend RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
 //! directions (`sweep/tests/m6_5_fillet_naming.rs` executes both). A
 //! survivor is thus a birth fact too — "this key was not minted and
@@ -31,8 +35,9 @@
 //!
 //! # What consumes these rows
 //!
-//! `editor-core`'s `names::emit_fillet` is the one production
-//! consumer. It reads every field EXCEPT [`Retired`], which exists for
+//! `editor-core`'s `names::emit_blend` is the one production
+//! consumer (one IMPLEMENTATION, reached through both verbs' thin
+//! emitter doors). It reads every field EXCEPT [`Retired`], which exists for
 //! the totality identity the test suite executes: the emitter does not
 //! need it, because an output key that is neither minted nor present
 //! upstream already refuses `MissingUpstream` when it is looked up.
@@ -105,7 +110,7 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
     second_planar && !first_planar
 }
 
-/// The source keys the fillet retired.
+/// The source keys the blend retired.
 #[derive(Clone, Debug, Default)]
 pub struct Retired {
     /// Source edges that no longer exist: the requested chain edges
@@ -117,7 +122,8 @@ pub struct Retired {
     pub vertices: Vec<VertexKey>,
 }
 
-/// **Per-entity birth records for one fillet.** Every field is
+/// **Per-entity birth records for one edge blend** — a fillet's or a
+/// chamfer's, whichever verb ran the surgery. Every field is
 /// `(minted key, the source entity it was minted for, …)`, in the
 /// deterministic order the constructor visited them (D9).
 ///
@@ -125,11 +131,14 @@ pub struct Retired {
 /// `trims`, `feet`, `arcs` and `dead`, leaving every rim field empty;
 /// a closed (rim) chain fills the rim phase as well.
 #[derive(Clone, Debug, Default)]
-pub struct FilletNaming {
+pub struct BlendNaming {
     // ---- The blank phase (open plane–plane chains). ----
-    /// Blend face ← the source edge it rounds.
+    /// Blend face ← the source edge it replaces (the fillet's rolling
+    /// band, or the chamfer's ruled strip).
     pub blends: Vec<(FaceKey, EdgeKey)>,
-    /// Octant face ← the source (trivalent, sharp) vertex it rounds.
+    /// Corner face ← the source (trivalent, sharp) vertex it
+    /// replaces: the fillet's sphere octant, or the chamfer's flat
+    /// triangular patch.
     pub corners: Vec<(FaceKey, VertexKey)>,
     /// Trimline edge ← (the source edge it parallels, the support
     /// face it lies in).
@@ -137,8 +146,10 @@ pub struct FilletNaming {
     /// Foot vertex ← (the source corner vertex it retracts from, the
     /// support face it lies in).
     pub feet: Vec<(VertexKey, VertexKey, FaceKey)>,
-    /// Corner arc ← (the source corner vertex, the source edge whose
-    /// blend the arc bounds).
+    /// Corner boundary edge ← (the source corner vertex, the source
+    /// edge whose blend it bounds): the fillet's corner ARC, or the
+    /// chamfer's straight chord — the row names the role, not the
+    /// carrier shape.
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
 
     // ---- The rim phase (closed chains). ----
@@ -161,6 +172,6 @@ pub struct FilletNaming {
     /// it (the double-traversed torus meridian; one per band).
     pub slits: Vec<(EdgeKey, EdgeKey)>,
 
-    /// What the fillet retired from the source.
+    /// What the blend retired from the source.
     pub dead: Retired,
 }

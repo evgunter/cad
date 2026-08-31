@@ -36,6 +36,33 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
+//! the `f64` one did not. Point parameter recovery on a periodic
+//! carrier used to be spelled three times, two of them SELECTING a `2π`
+//! branch — by `floor` in one copy, by a five-candidate scan in the
+//! other — where the surviving body (`geom::Curve3::param_near`)
+//! anchors the `atan2` and so selects nothing. The corpus's VALUES are
+//! unchanged by that: the `f64` constant above is the one MAIN
+//! measured, re-measured on the merged tree and not moved by this
+//! change. What moved is the ENCLOSURE, because an anchored read
+//! re-frames through one `sin_cos` and the seam read did not. The cost
+//! is a few ulps of a radian, pinned in `geom`'s
+//! `curves/param_near_interval.rs`, and what it buys is that `floor`
+//! across an integer — a whole-turn widening — is gone from the lane.
+//! New behaviour, judged correct; not a number restored.
+//!
+//! **AND READ THE `f64` ROW'S SILENCE CORRECTLY, because it is quieter
+//! than it looks.** This digest hashes node OUTCOMES and the bits of
+//! every POINT. A curve parameter is neither, so the row above is
+//! structurally incapable of seeing a split parameter move — and split
+//! parameters DID move, by 1–6 ulps, at two of the three consolidated
+//! sites (measured: `sweep`'s seam split, 115 of 335 live circle calls,
+//! max `8.88e-16` rad; `topo`'s offset re-anchor, 4 of 9, max
+//! `2.22e-16` rad). What an unmoved `f64` digest says is that no
+//! outcome flipped and no point of any body moved, which is the claim
+//! worth making here. It is not a claim of parameter-level bit
+//! identity, and nothing in this file should be read as one.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -455,7 +482,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x05d4_8699_1a3e_8e8b, 0xfc04_5f75_08ae_a38f),
+        (0x91f1_96cc_0b84_faf6, 0xb2fd_b741_16c5_1f32),
         "the corpus's Interval evaluation moved"
     );
 }

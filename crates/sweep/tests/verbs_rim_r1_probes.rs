@@ -42,9 +42,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{ChainClosure, Convexity, FilletError};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, ChainClosure, Convexity};
 use sweep::test_support::{cube, revolved_about_y};
 use test_utils::fuzz;
 use topo::{Body, EdgeKey};
@@ -185,10 +185,10 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
         let body = cube(l, tol());
         let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
         assert_eq!(edges.len(), 12, "a box has twelve edges");
-        let req = FilletRequest {
+        let req = BlendRequest {
             body: &body,
             edges: edges.clone(),
-            radius: 0.1 * l,
+            size: 0.1 * l,
         };
         let verdict = run_battery(&req, band())
             .unwrap_or_else(|e| panic!("a box passes the battery, got {e:?}; {}", fuzz::replay()));
@@ -227,10 +227,10 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
             (boss(r), Convexity::Concave, r * (3.0f64).sqrt() / 2.0),
         ] {
             let rim = closed_rim_of_radius(&body, rim_r);
-            let req = FilletRequest {
+            let req = BlendRequest {
                 body: &body,
                 edges: vec![rim],
-                radius: 0.05 * r,
+                size: 0.05 * r,
             };
             let verdict = run_battery(&req, band()).unwrap_or_else(|e| {
                 panic!(
@@ -285,9 +285,9 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
                 "a cone×cylinder corner exists at a = {a}; {}",
                 fuzz::replay()
             );
-            let v = fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol());
+            let v = fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol()).map_err(|r| r.error);
             assert!(
-                !matches!(v, Err(FilletError::TangentialEdge { .. })),
+                !matches!(v, Err(BlendError::TangentialEdge { .. })),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
                  got {v:?}; {}",
                 fuzz::replay()
@@ -295,7 +295,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             let expected = if closed {
                 v.is_ok()
             } else {
-                matches!(v, Err(FilletError::FilletCornerUnsupported { .. }))
+                matches!(v, Err(BlendError::UnsupportedCorner { .. }))
             };
             assert!(
                 expected,
@@ -327,8 +327,8 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
         });
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
-        match fillet_edges(&ball, &seams[..1], 0.05 * r, band(), tol()) {
-            Err(FilletError::TangentialEdge { margin, .. }) => {
+        match fillet_edges(&ball, &seams[..1], 0.05 * r, band(), tol()).map_err(|r| r.error) {
+            Err(BlendError::TangentialEdge { margin, .. }) => {
                 assert_eq!(
                     margin,
                     0.0,
@@ -355,10 +355,10 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
 fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
     let body = dome(1.0);
     let rim = closed_rim_of_radius(&body, 1.0);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("the dome rim resolves");
     assert_eq!(verdict.chains.len(), 1);
@@ -431,13 +431,13 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         chord < 0.01 * a,
         "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
-    let v = fillet_edges(&body, &corner[..1], 0.05, band(), tol());
+    let v = fillet_edges(&body, &corner[..1], 0.05, band(), tol()).map_err(|r| r.error);
     assert!(
-        !matches!(v, Err(FilletError::TangentialEdge { .. })),
+        !matches!(v, Err(BlendError::TangentialEdge { .. })),
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(
-        matches!(v, Err(FilletError::FilletCornerUnsupported { .. })),
+        matches!(v, Err(BlendError::UnsupportedCorner { .. })),
         "expected the decided corner refusal at the honest lever, got {v:?}"
     );
 }
