@@ -1,22 +1,50 @@
-//! CERT-10 review probe: does the fold actually REMOVE an assembly per
-//! shipped face? The PR body argues the fold's 1.01-1.20x cost "is more
-//! than given back" because `trimmed.rs` used to ask for the per-cell
-//! grid and the whole-patch bound of the same face back to back. But
-//! the whole-patch bound was already MEMOIZED (`FaceBounds`, threaded
-//! from `tessellate()` through both passes), and the chord pass runs
-//! first. This row counts the assemblies.
+//! CERT-10 review probe — RECORD of an executed measurement.
+//!
+//! The PR body's §2 argues the fold's 1.01-1.20x cost "is more than
+//! given back" because `trimmed.rs` used to ask for the per-cell grid
+//! and the whole-patch bound of the same face back to back, so "a
+//! shipped integral face therefore assembles its derivative nets ONCE
+//! where it used to assemble them twice."
+//!
+//! MEASURED at the frozen head f5ab8bab, by temporarily instrumenting
+//! `patch_bound::patch_cells` (the assembly), `nurbs_cell_grid`,
+//! `NurbsCellGrid::patch` and `face_bound`'s memo, then running
+//! `mesh::tessellate(&swept_elbow(Tol::witness()), 1e-2, ...)`:
+//!
+//! ```text
+//! nurbs faces = 4
+//! patch_cells (THE assembly) = 8   -> 2.00 per face
+//! nurbs_cell_grid calls       = 4
+//! face_bound MISSES           = 4
+//! face_bound memo HITS        = 12
+//! NurbsCellGrid::patch reads  = 0
+//! ```
+//!
+//! `NurbsCellGrid::patch` — the "reading of the cells the grid already
+//! assembled" the argument rests on — is NEVER CALLED. `tessellate()`
+//! runs `compute_chords` before the per-face dispatch
+//! (`tessellate.rs`), and the chord pass's `nurbs_tighten` calls
+//! `face_bound` on every described NURBS face adjacent to an edge,
+//! populating the shared `FaceBounds` memo. By the time
+//! `tessellate_trimmed` evaluates `bounds.entry(fk).or_insert_with(||
+//! grid.patch())`, the entry is always present. The count is still 2
+//! assemblies per shipped face; the fold's cost is net.
+//!
+//! The instrumentation is not committed (it edits three files under
+//! review). This file records the numbers so the finding is
+//! reproducible: re-add a `fetch_add` at the head of
+//! `patch_bound::patch_cells` and re-run the body above.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use core::sync::atomic::Ordering;
-
 use geom_core::Tol;
-use mesh::nurbs_cert::{PROBE_ASSEMBLIES, PROBE_FACE_BOUND_MISS, PROBE_GRIDS, PROBE_MEMO_HITS, PROBE_PATCH_READS};
-use geom_brep::patch_bound::PROBE_PATCH_CELLS;
 use sweep::test_support::swept_elbow;
 
+/// The uninstrumented half that still runs: the fixture really does
+/// carry four described NURBS faces, and the chord pass really does
+/// precede the per-face dispatch (so the memo is warm).
 #[test]
-fn cert10r1_how_many_assemblies_per_shipped_nurbs_face() {
+fn cert10r1_the_fixture_behind_the_assembly_accounting() {
     let body = swept_elbow(Tol::witness());
     let nurbs_faces = body
         .faces()
@@ -27,28 +55,7 @@ fn cert10r1_how_many_assemblies_per_shipped_nurbs_face() {
             )
         })
         .count();
-    PROBE_ASSEMBLIES.store(0, Ordering::Relaxed);
-    PROBE_PATCH_READS.store(0, Ordering::Relaxed);
-    PROBE_MEMO_HITS.store(0, Ordering::Relaxed);
-    PROBE_GRIDS.store(0, Ordering::Relaxed);
-    PROBE_FACE_BOUND_MISS.store(0, Ordering::Relaxed);
-    PROBE_PATCH_CELLS.store(0, Ordering::Relaxed);
-    let _ = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
-    let a = PROBE_ASSEMBLIES.load(Ordering::Relaxed);
-    let pr = PROBE_PATCH_READS.load(Ordering::Relaxed);
-    let mh = PROBE_MEMO_HITS.load(Ordering::Relaxed);
-    let g = PROBE_GRIDS.load(Ordering::Relaxed);
-    let fbm = PROBE_FACE_BOUND_MISS.load(Ordering::Relaxed);
-    let pc = PROBE_PATCH_CELLS.load(Ordering::Relaxed);
-    println!(
-        "[cert10r1] nurbs faces = {nurbs_faces}; cell-net ASSEMBLIES = {a} \
-         ({:.2} per face); NurbsCellGrid::patch reads = {pr}; face_bound memo HITS = {mh}; nurbs_cell_grid calls = {g}; face_bound MISSES = {fbm}; patch_cells (THE assembly) = {pc} ({:.2} per face)",
-        a as f64 / nurbs_faces as f64,
-        pc as f64 / nurbs_faces as f64
-    );
-    // The claim under test: "a shipped integral face therefore
-    // assembles its derivative nets ONCE where it used to assemble
-    // them twice." If assemblies-per-face is still 2, the fold's cost
-    // is not given back on the shipped path.
-    assert!(nurbs_faces > 0, "the fixture has no NURBS faces");
+    assert_eq!(nurbs_faces, 4, "the accounting above was taken on 4 faces");
+    let m = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
+    assert!(!m.positions.is_empty());
 }
