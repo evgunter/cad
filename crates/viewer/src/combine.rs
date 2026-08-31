@@ -627,7 +627,10 @@ fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
 /// split's two sides and a pattern's instances are the cases that
 /// matter — each is SEVERAL bodies, and selecting one of them needs a
 /// vocabulary the recipe does not yet have, so a seat filled with one
-/// refuses at the door rather than after the edit lands.
+/// refuses at the door rather than after the edit lands. That the
+/// sentences those seats would spell ("union the upper half of that
+/// split") are ordinary ones is issue #1394, which widens at this
+/// function when the operand vocabulary answers it.
 ///
 /// `Sweep` is on the true side though it evaluates to nothing today —
 /// it is the curved-solid frontier, and a seat that refused it here
