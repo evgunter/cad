@@ -9,12 +9,12 @@
 //!    every induced v-on-e to the interface closure" lemma is false —
 //!    the region-unconfined strength is exercised by a positive-area
 //!    pair, not only by the zero-area fixture the strength row uses.
-//! 2. The same fixture reaches `ef_bound_backed`'s interior arm
-//!    (census.rs:687): the shelf's boundary edge dives through the
-//!    cap's interior between two cap vertices resting on the edge's
-//!    interior. The PR dispositions that arm as "unreachable from any
-//!    flush-seat configuration"; this is a declared coplanar rest seat
-//!    (an overhanging post) that reaches it and stays a hard finding.
+//! 2. The same fixture reaches `ef_bound_backed`'s interior arm: the
+//!    shelf's boundary edge dives through the cap's interior between
+//!    two cap vertices resting on the edge's interior. A flush seat
+//!    cannot reach that arm; this declared coplanar rest seat (an
+//!    overhanging post) does, and the arm reads the vertex-on-edge
+//!    rung at each bound, so the overlap is backed with the events.
 //! 3. `a_wrong_pair_backs_nothing`: the rung consults exactly the
 //!    declared pair's own incidence — a declaration between the wrong
 //!    faces (post cap x shelf TOP) backs none of the seat's events.
@@ -140,10 +140,20 @@ fn the_lemma_probe_undeclared_baseline() {
 /// event outside its interface closure; the confinement lemma does not
 /// hold, and region-unconfinement is not a zero-area-only phenomenon.
 ///
-/// AND: the edge-on-face overlap between the same two entities stays a
-/// hard UNDECLARED finding even though the pair is declared — the
-/// `ef_bound_backed` interior arm (census.rs:687) is reached by this
-/// declared coplanar rest seat and declines before any rung.
+/// AND: the edge-on-face overlap between the same two entities is
+/// backed too. Its two bounds fall on the shelf edge's INTERIOR, where
+/// cap vertices rest, so each bound is a vertex-on-edge event and reads
+/// that lane's rung — `ef_bound_backed`'s interior arm. No finding of
+/// this seat is unattributed any more.
+///
+/// The seat still does not CERTIFY, through a door that is not the
+/// census's rungs at all: the declared patch's region-overlap confirm
+/// refuses `TouchingBoundary` (measured), because the cap's boundary
+/// meets the shelf underside's boundary at vertices rather than
+/// crossing it. That is `CensusUnsupported` on the pair's face —
+/// `Attribution::Declined`, the `Uncertified` frontier — where before
+/// it was an `Unattributed` hard error. The seat's own suite pins that
+/// residue; this probe pins the rung.
 #[test]
 fn the_lemma_probe_declared() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
@@ -154,13 +164,14 @@ fn the_lemma_probe_declared() {
         "the rung backs all three, the out-of-interface tangent \
          included: {found:?}"
     );
-    assert!(
+    assert_eq!(
         count(&found, |c| matches!(
             c,
             CensusContact::EdgeFaceOverlap { .. }
-        )) > 0,
-        "and the ef interior arm still declines the declared seat's \
-         own edge-on-face overlap — reachable, loud: {found:?}"
+        )),
+        0,
+        "and the ef interior arm reads the same rung at each bound: \
+         {found:?}"
     );
 }
 
