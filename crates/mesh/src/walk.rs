@@ -939,6 +939,17 @@ fn closing_side(starts: &[bool]) -> usize {
     (0..starts.len()).rev().find(|&k| starts[k]).unwrap_or(0)
 }
 
+/// The 3-D vector area of the closed cycle `pts`,
+/// `Σᵢ (pᵢ − o) × (pᵢ₊₁ − o)`, wrapping at the end.
+fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
+    let mut area = Vec3::new(0.0, 0.0, 0.0);
+    for (i, p) in pts.iter().enumerate() {
+        let q = pts[(i + 1) % pts.len()];
+        area = area + (*p - Point3::origin()).cross(q - Point3::origin());
+    }
+    area
+}
+
 /// Walks a curved face's loop into its UV polygon (module docs: the
 /// classification, unwrapping, pole, and disambiguation rules).
 ///
@@ -1056,16 +1067,12 @@ pub(crate) fn loop_polygon(
     // Pole-to-pole bands: precompute every column from the loop's 3-D
     // area vector (module docs).
     let band_u: Option<Vec<f64>> = if no_rim {
-        let mut area = Vec3::new(0.0, 0.0, 0.0);
         let pts: Vec<Point3<f64>> = travs
             .iter()
             .flat_map(|t| t.ids[..t.ids.len() - 1].iter())
             .map(|&id| positions[id as usize])
             .collect();
-        for (i, p) in pts.iter().enumerate() {
-            let q = pts[(i + 1) % pts.len()];
-            area = area + (*p - Point3::origin()).cross(q - Point3::origin());
-        }
+        let area = loop_area(&pts);
         // CATEGORY A (S10). `area` is the loop's 3-D vector area, so it
         // points along the face's OUTWARD normal side — but it is read
         // here as a direction in the CHART frame (`u_ref`/`v_ref`), to
@@ -1712,5 +1719,120 @@ mod tests {
             iso_side_starts(&travs, &c, &p, 1e-9),
             vec![false, true, true]
         );
+    }
+
+    /// A rimless pole-to-pole band's own point cycle: south pole, up
+    /// the meridian at azimuth `a0` in `n` steps, north pole, down the
+    /// meridian at azimuth `a1`. Sphere of radius `r` centred at `c`,
+    /// about the `+z` axis of [`z_chart`] — the shape `loop_polygon`
+    /// collects from `travs` before folding it.
+    fn band_cycle(r: f64, c: Point3<f64>, a0: f64, a1: f64, n: usize) -> Vec<Point3<f64>> {
+        let on = |a: f64, t: f64| {
+            Point3::new(
+                c.x + r * a.cos() * t.sin(),
+                c.y + r * a.sin() * t.sin(),
+                c.z + r * t.cos(),
+            )
+        };
+        let step = core::f64::consts::PI / (n as f64);
+        let mut pts = vec![Point3::new(c.x, c.y, c.z - r)];
+        pts.extend((1..n).map(|k| on(a0, core::f64::consts::PI - (k as f64) * step)));
+        pts.push(Point3::new(c.x, c.y, c.z + r));
+        pts.extend((1..n).map(|k| on(a1, (k as f64) * step)));
+        pts
+    }
+
+    /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
+    /// pole-to-pole arm spells it. `sense_sign` is omitted because it
+    /// is a bitwise `±1` scale on `area`: it cannot change how well
+    /// conditioned the fold that produced `area` was.
+    fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
+        let area = loop_area(pts);
+        area.dot(chart.v_ref).atan2(area.dot(chart.u_ref))
+    }
+
+    /// A 1.3 mm band's own geometry, placed at seven distances from
+    /// the world origin. Non-symmetric, non-dyadic placement on
+    /// purpose: an axis-symmetric or dyadic offset cancels the fold's
+    /// terms pairwise-exactly and hides the defect.
+    fn placed_band(d: f64) -> Vec<Point3<f64>> {
+        band_cycle(
+            1.3e-3,
+            Point3::new(1.3 * d, -2.7 * d, 0.9 * d),
+            0.37,
+            2.27,
+            8,
+        )
+    }
+
+    /// **Issue 1362.** The band's area vector is read for its
+    /// DIRECTION only, so the direction must be the band's own and not
+    /// its placement's. The fold is over a closed cycle, so it is
+    /// anchor-independent over ℝ; in f64 the anchor is the whole
+    /// question, and a world-origin anchor pays cancellation growing
+    /// with the placement distance.
+    ///
+    /// Budget `1e-11·d` radians: the placement enters the POSITIONS
+    /// themselves, so the honest floor is the coordinate ulp against
+    /// the band's own size — `ulp(2.7·d)/1.3e-3 ≈ 4.6e-13·d` — and
+    /// agreement beyond that is not available from the inputs. The
+    /// budget sits ~20x above it; the local-anchor fold lands one to
+    /// two orders under it at every row, and the origin-anchored
+    /// spelling misses the FIRST row (`d = 1e2`, i.e. a band a few
+    /// hundred metres out) by 1.6e-6 rad against a 1e-9 budget, then
+    /// degrades to 3.4 rad — a direction pointing the other way.
+    #[test]
+    fn the_band_area_direction_is_the_bands_not_its_placements() {
+        let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
+        let at_origin = band_mid_az(&chart, &placed_band(0.0));
+        for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
+            let far = band_mid_az(&chart, &placed_band(d));
+            let drift = (far - at_origin).abs();
+            let budget = 1e-11 * d;
+            assert!(
+                drift < budget,
+                "placement {d:e}: azimuth {far} vs {at_origin} at the origin \
+                 (drift {drift:e} rad, budget {budget:e})"
+            );
+        }
+    }
+
+    /// The consumer, pinned end to end: `mid_az` exists only to pick
+    /// each meridian's `2πk` branch, so a placement that moves the
+    /// azimuth far enough moves the COLUMN — the mesh takes the
+    /// complementary half of the sphere. Both of this band's meridians
+    /// must take the same branch wherever the band sits.
+    ///
+    /// The rows are the same placements as the direction row; under an
+    /// origin-anchored fold the `1e6` row alone flips the azimuth by
+    /// 3.4 rad, which is over π and so a whole `2π` off in `u`.
+    #[test]
+    fn a_far_placement_picks_the_same_meridian_branch() {
+        let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
+        let at_origin = band_mid_az(&chart, &placed_band(0.0));
+        for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
+            let far = band_mid_az(&chart, &placed_band(d));
+            for u_raw in [0.37, 2.27] {
+                let (near_col, far_col) = (
+                    unwrap_near(u_raw, at_origin),
+                    unwrap_near(u_raw, far),
+                );
+                assert!(
+                    (near_col - far_col).abs() < 1e-9,
+                    "placement {d:e}: meridian u_raw {u_raw} takes column \
+                     {far_col} there and {near_col} at the origin \
+                     ({} branches apart)",
+                    ((far_col - near_col) / TAU).round()
+                );
+            }
+        }
+    }
+
+    /// An empty cycle has no anchor and no area, and the fold must say
+    /// so rather than dividing by its own length.
+    #[test]
+    fn an_empty_cycle_has_no_area() {
+        let a = loop_area(&[]);
+        assert_eq!((a.x, a.y, a.z), (0.0, 0.0, 0.0));
     }
 }
