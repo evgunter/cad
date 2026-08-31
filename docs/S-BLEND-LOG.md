@@ -1102,3 +1102,38 @@ authored+stored symmetric before this entry, diff-verified
 (orchestrator/blend4-review-brief-{r1,r2}.md). Lanes
 blend-4-r{1,2}; probe branches `blend/paramcorners-r{1,2}-probes`.
 Impl clone kept, target reclaimed.
+
+## 2026-08-31 — BLEND-4 R1 IN (MERGEABLE); R2 DISPATCHED (sequential slot 2); T-c under split-scope review
+
+BLEND-4 R1 (ordinal 606 slot 1): **MERGEABLE 0/1/2 + 6 style,
+rubric 5/5/4** (~270k / ~75m; probes
+`blend/paramcorners-r1-probes` @ c284f9ad — an oblique-pose e2e
+with its own independently derived Steiner form, a degeneracy
+funnel to 0.2° refusing typed, a bit-level base→head chamfer
+differential pinned as a probe). Every numbered claim verified by
+execution or independent derivation (the mirror algebra and the
+Steiner form both re-derived; all five mutations re-run — A
+measured 6 red where the PR said "4+"). Its MINOR: the volume
+row's doc comment claims a chart-pin property the execution
+refutes (the PR body's own honest note is the true spelling — the
+false sentence is the one nearest the row). NOTEs: the sibling-
+hazard "metered upstream" oversells where the net is (P2's 0.2°
+pose refuses at the certification gate mid-assembly, typed and
+safe); mutation-table precision. On attack C: the single chart
+pin judged acceptable GIVEN the doc fix — sharpened by the S2
+finding that `CornerBall.surface`/`.independence` are production-
+dead (the two-spellings-of-the-chart shape). R2 dispatched from
+the STORED brief verbatim (lane blend-4-r2, same frozen head) per
+the pre-recorded sequential note; R1's target reclaimed.
+
+Track T meanwhile: T-c delivered (PR #1359 — D90 verified STILL
+LIVE and fixed with a red-capable row that reds BY RETURNING OK;
+D321 converted, census ceiling 11→10; D96 enumerated nine-not-ten
+with four type-change deletions and four costed refusals; its
+code head DREW {interval, 1e-12} and PASSED — main's re-measured
+constants landed, #1338's tree-red healed though the issue stays
+open). Split-scope review dispatched per C-R12: ADVERSARIAL on
+D90's fix + the four deletions (kernel logic; the highest-value
+check named: the D90 guard × BLEND-4's concave chart fold — two
+units edited octant_chart from different branches), style on the
+rest.
