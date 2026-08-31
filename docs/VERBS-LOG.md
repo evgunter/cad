@@ -2650,3 +2650,27 @@ zombie-process instance in two days: R2's pre-crash detached
 cargo test found running in the verbs-azimuth lane and killed at
 resume — the sweep-the-process-table lesson now has two
 instances. Union fix pass out.
+## AZIMUTH MERGED (#1256, 2026-08-31) — ordinal-107 row (sample #60)
+
+The union fix pass landed everything and the main-merge caught a
+REAL regression the reviews could not see: main's new composition
+rows went red against the branch (the midpoint anchor made split
+parameters a function of the stored window — one-call vs
+sequential filleting disagreed bitwise); re-anchored at the
+carrier's SEAM, the only anchor a split cannot move. Grids
+through ±π with the property row (coin flip pinned at the
+measured 9/30); period guard at surgery; censuses corrected
+(604+245 live calls; the PR's 191 was stale); the '~10 new
+predicates' premise falsified (the unit adds zero); four atan2
+sites dispositioned; declined the golden-ulp pin with the
+branch-selection-is-the-contract argument; main's
+periodic_branch primitive adopted for the fixture. Ledger row
+AZ-1 rode the PR — sample #60 after TWO renumbers in one night
+(drafted #52; concurrent recorders reached #59, then QA-8 took
+#61 while gating; a six-row QA/CERT night). Merge-head run green
+except k-lint's K-telemetry sweep — the main-inherited
+#1296/#1304, reproduced by the fix pass with main's own sources
+and escalated, not silenced; large-K lint still has zero signal
+(tracked there). #1077 closes with the PR. Tally candidates from
+ordinal 107 (both principal MAJs unilateral, class-annotated)
+await the blinded coding.
