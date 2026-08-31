@@ -324,10 +324,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // A cavity is invisible in an opaque render at every camera and
         // the see-through render is only a partial answer — Evan's
         // ruling: "they just aren't that interesting-looking". This is
-        // `voidbox`'s own precedent one door over (#91: "an opaque void
-        // is indistinguishable from a cube; the montage panel is
-        // retired for the cutaway split, which shows interiors
-        // honestly"). The hollowness evidence was never the pixels: two
+        // `voidbox`'s own precedent one door over: its panel was
+        // retired at the #91 refresh because an opaque void is
+        // indistinguishable from a cube, and `crate::cutaway` — which
+        // shows an interior by splitting rather than by translucency —
+        // is what replaced it (see `bool_bodies::voidbox_narration`). The hollowness evidence was never the pixels: two
         // shells, `Revolved::cavities`, and the torus closed forms are
         // printed, and they stay, as does the standalone render and the
         // STEP-frontier declaration.

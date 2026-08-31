@@ -263,9 +263,10 @@ const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-
 const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 
 /// How far along +x the non-uniform loft renders from its twin. The
-/// pair's widest authored half-width is the overshoot's 1.646, so 4 m
-/// leaves ~0.7 m of clear air between the two silhouettes at the
-/// shared camera — separated without either shrinking to make room.
+/// prism reaches half-width 1.375 (its trapezoid) and the non-uniform
+/// skin overshoots to 1.646, so 4 m leaves 4 − 1.375 − 1.646 ≈ 0.98 m
+/// of clear air between the two silhouettes at the shared camera —
+/// separated without either shrinking to make room.
 const LOFT_PAIR_GAP: f64 = 4.0;
 
 /// The S-duct's arc radius (scene-local; the corpus elbow's is
@@ -525,8 +526,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     than any authored section (the trapezoid stops at 1.375), peaking \
                     at 32.6% of the height with a long taper above",
             ops: "sweep::loft_body(square, trapezoid, square, v_degree 2) twice — \
-                  @ z = 0/1/2 and @ z = 0/0.15/2; the second placed beside the first \
-                  by transform_rigid",
+                  @ z = 0/1/2, and @ z = 0/0.15/2 with every placement carrying the \
+                  pair's +x offset (transform_rigid REFUSES a NURBS-walled body, #1346)",
             delta: 6e-3,
             note: Some(format!(
                 "[loft_prism] the corpus fixture's body, section for section \

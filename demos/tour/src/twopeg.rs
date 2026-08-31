@@ -51,7 +51,7 @@
 //!   would be `24 − (4 − π)r²` and the mated total would stop being a
 //!   dyadic 48.
 //!   Each narrated constant is separately pinned to the body it
-//!   describes; see [`V_P`] for why that assertion had to be added.
+//!   describes.
 //! - **Full engagement deletes the walls.** Each peg fills its bore
 //!   completely, so all four cylindrical contact patches are interior
 //!   in the result and the bore walls are removed rather than merged:
@@ -80,6 +80,14 @@ use crate::{SceneBody, Stop, View};
 /// number.
 const PLATE: (f64, f64, f64) = (6.0, 4.0, 1.0);
 const PEG_R: f64 = 0.5;
+/// How near two stored cylinder carriers must agree to be read as ONE.
+/// A SELECTION tolerance, not a geometric decision: it picks which face
+/// pairs the author means to declare, and the kernel then verifies
+/// every declaration it is handed. The neighbouring `plane_face` reads
+/// its stations the same way. Both are the plain-body door's missing
+/// selector showing through (#1345); a document would say this with a
+/// `GeoSelect`.
+const SAME_CARRIER: f64 = 1e-12;
 const PEG_X: [f64; 2] = [2.0, 4.0];
 const PEG_Y: f64 = 2.0;
 /// How far each peg stands proud of its plate — and, equally, how deep
@@ -88,8 +96,8 @@ const PEG_Y: f64 = 2.0;
 const ENGAGE: f64 = 1.0;
 
 /// The footprint's area. Sharp corners — see [`outline`] for the
-/// profile fillets this scene attempted and the wall they met; with
-/// them it would carry a `− (4 − π)·CORNER_R²` term.
+/// profile fillets this scene attempted and the wall they met; with a
+/// corner radius r it would carry a `− (4 − π)r²` term.
 const PLATE_AREA: f64 = PLATE.0 * PLATE.1;
 /// One bare plate.
 const PLATE_VOL: f64 = PLATE_AREA * PLATE.2;
@@ -100,23 +108,18 @@ const PEG_VOL: f64 = 2.0 * core::f64::consts::PI * PEG_R * PEG_R * ENGAGE;
 /// two bores. The π-terms are equal and opposite, so the mated pair is
 /// exactly two plates' worth of material.
 ///
-/// **These two were WRONG until the montage-v3 pass.** Both carried a
-/// stray `/ 2.0`, so they read `24 ± π/4` while the parts the scene
-/// actually builds measure `24 ± π/2` — which is what `demos/README.md`
-/// and this module's own docs claimed all along. Nothing caught it: the
-/// scene's only volume assertion was against `V_MATED`, and the error
-/// cancels in the SUM, so a false per-part number was printed in the
-/// note and in the stdout narration on every run. Fixed here, and
-/// [`build`] now ASSERTS each constant against the body it describes —
-/// a narrated number that no assertion pins is exactly the class this
-/// was.
+/// **Each is asserted against the body it describes** ([`build`]), not
+/// only against their sum. A per-part constant that is printed but
+/// pinned by nothing can be wrong by a factor and stay green as long as
+/// the error cancels in the total — which is the shape of the only bug
+/// this scene has had.
 const V_P: f64 = PLATE_VOL + PEG_VOL;
 const V_Q: f64 = PLATE_VOL - PEG_VOL;
 const V_MATED: f64 = 2.0 * PLATE_VOL;
 
 /// The plate outline.
 ///
-/// # The corner fillets, attempted and REFUSED (montage-v3)
+/// # The corner fillets, attempted and REFUSED (#1352)
 ///
 /// Evan's montage-v3 note asked for the extruded PROFILE to be
 /// filleted — `bracket`/`rocker`'s PATHS line×line door, four rounded
@@ -183,8 +186,8 @@ fn rim<S: Scalar>(cx: f64, tol: Tol) -> ProfileLoop<S> {
     .into()
 }
 
-/// The plate's sketch at `z0` — the rounded outline, plus a bore rim
-/// per peg centre when `bores` is set.
+/// The plate's sketch at `z0` — the outline, plus a bore rim per peg
+/// centre when `bores` is set.
 fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<S> {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(
         S::from_f64(0.0),
@@ -200,7 +203,7 @@ fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<
         .expect("the plate profile validates")
 }
 
-/// A plate: the rounded 6×4 footprint, thickness 1, sketched at `z0`.
+/// A plate: the 6×4 footprint, thickness 1, sketched at `z0`.
 fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
     extrude(
         &plate_profile::<S>(z0, false, tol),
@@ -277,8 +280,10 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
     .body
 }
 
-/// Every cylindrical face of `body`, with its carrier's axis station
-/// (the axis point projected to `z = 0`) and radius.
+/// Every cylindrical face of `body`, with its carrier's stored axis
+/// origin in `x`/`y` and its radius — enough to tell two coaxial walls
+/// from two parallel ones, since every cylinder in this scene is
+/// vertical.
 ///
 /// **A library finding, recorded at the site it was met** (the demos'
 /// purpose rule): the author knows perfectly well WHICH contacts he
@@ -352,25 +357,17 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
     // faces a side, so nine declarations each) and the four corner
     // walls the profile fillets mint.
     let (cp, cq) = (cylinders(p), cylinders(q));
-    let mut shared = 0usize;
     for &(fa, ax, ay, ar) in &cp {
         for &(fb, bx, by, br) in &cq {
             let same =
                 (ax - bx).abs() < 1e-12 && (ay - by).abs() < 1e-12 && (ar - br).abs() < 1e-12;
             if same {
-                shared += 1;
                 decls
                     .coincident_faces
                     .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
             }
         }
     }
-    println!(
-        "   declared: 1 planar Rest + {shared} cylindrical Rests (P has {} cylinder \
-         faces, Q has {} — matched by shared carrier, so cross-peg pairs never arise)",
-        cp.len(),
-        cq.len()
-    );
     decls
 }
 
@@ -402,22 +399,28 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     }
     println!("   two-peg mate WITHOUT declarations: {refusal}");
 
+    let decls = declarations(&p, &q);
+    println!(
+        "   declared: {} face pairs — the mating plane, and every shared-carrier \
+         cylinder pair (P has {} cylinder faces, Q has {}); cross-peg pairs never \
+         arise, since peg 1 and bore 2 sit on distinct carriers",
+        decls.coincident_faces.len(),
+        cylinders(&p).len(),
+        cylinders(&q).len()
+    );
     let mated = expect_seamed(
-        "declared two-peg mate (M9-3: one planar Rest + two CYLINDRICAL Rests)",
-        check(
-            pncad::topo::union_with(&p, &q, &declarations(&p, &q), tol),
-            V_MATED,
-            tol,
-        ),
+        "declared two-peg mate (M9-3: the mating plane, and every shared-carrier \
+         cylinder pair)",
+        check(pncad::topo::union_with(&p, &q, &decls, tol), V_MATED, tol),
         V_MATED,
     );
     // THE ADDITIVITY CLAIM, ASKED OF THREE KERNEL ANSWERS rather than of
     // one answer against a hand-written constant. That is the claim's
     // actual content — the interiors are disjoint, so the glue discards
-    // nothing — and it is the form that survives the montage-v3 corner
-    // fillets: with them the plate's volume carries a `(4 − π)r²` term
-    // and the mated total stops being the dyadic 48 an `assert_eq!`
-    // could demand of a closed form.
+    // nothing — and asking it of the bodies rather than of 48 is what
+    // makes it a statement about the OP instead of about this
+    // footprint's arithmetic. It is asserted BITWISE, which is what the
+    // kernel delivers here.
     let vol = |b: &Body<S>| {
         pncad::topo::mass_properties(b, tol)
             .expect("mass properties")
@@ -426,18 +429,16 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     };
     let (vp, vq, v) = (vol(&p), vol(&q), vol(&mated.body));
     let additive = vp + vq;
-    assert!(
-        (v - additive).abs() <= 1e-9,
-        "the two-peg mate must be additive: vol(mated) = {v} vs vol(P) + vol(Q) = \
-         {vp} + {vq} = {additive}"
+    assert_eq!(
+        v, additive,
+        "the two-peg mate is EXACTLY additive: vol(mated) must equal \
+         vol(P) + vol(Q) = {vp} + {vq} BITWISE — the interiors are disjoint, so the \
+         glue discards nothing and the pegs' pi-terms cancel the bores'"
     );
-    // AND the constants this scene NARRATES, pinned against the bodies
-    // they describe. Until the montage-v3 pass `V_P` and `V_Q` each
-    // carried a stray `/ 2.0` — they read 24 ± π/4 while these bodies
-    // measured 24 ± π/2 — and nothing caught it, because the only
-    // assertion was against `V_MATED` and the error cancels in the SUM.
-    // A narrated number that no assertion pins is how that survived; so
-    // each one is pinned to its own body here, not to the total.
+    // AND every constant this scene NARRATES, each pinned against the
+    // body it describes rather than against the total — because an
+    // error in a per-part constant cancels in the sum, so the total
+    // cannot catch one (see [`V_P`]).
     for (name, measured, narrated) in [("P", vp, V_P), ("Q", vq, V_Q), ("the mate", v, V_MATED)] {
         assert!(
             (measured - narrated).abs() <= 1e-9,
@@ -482,8 +483,10 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let (p, _q, mated, q_lifted, refusal) = build::<f64>(tol);
     let note = format!(
-        "three declared contacts — ONE planar Rest (the mating plane) and TWO \
-         CYLINDRICAL Rests (each peg against its own bore); undeclared the mate \
+        "the mate declared in the author's terms — the mating plane, and each peg \
+         against its own bore — which the plain-body door can only spell as ONE planar \
+         Rest and EIGHTEEN cylindrical ones, three faces a side per fit (#1345); \
+         undeclared the mate \
          refuses ({refusal}); declared, the M9-3 zip GLUES it: volume {V_MATED} \
          exactly, and exactly additive — vol(P) + vol(Q) = ({V_P}) + ({V_Q}) = \
          {V_MATED}, the pegs' pi-terms cancelling the bores' bitwise. Full \
@@ -500,8 +503,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     CYLINDRICAL declared Rest contacts — and UNIONED into one body \
                     through the M9-3 zip; the peg-in-hole join this tour used to say \
                     it could not build",
-            ops: "2 x (extrude plate; extrude three-arc peg -> transverse union / subtract); \
-                  declare 1 planar + 2 cylindrical Rests -> union_with",
+            ops: "extrude plate + 2 x extrude three-arc peg -> 2 transverse unions (P); \
+                  extrude one profile whose two inner loops are the bores (Q); declare \
+                  every shared-carrier face pair Rest -> union_with",
             delta: 1e-2,
             note: Some(note),
             view: View {

@@ -24,13 +24,7 @@ tools/tess-meter/target/
 # "gallery" (gallery.rs), so `cargo run -- gallery` from inside
 # demos/tour/ lands here. That is build output: CI writes its own copy
 # to demos/out/gallery (render.yml) for the viewer's acceptance probe,
-# nothing in the repo reads this path, and no gate regenerates it.
-#
-# Ten such files WERE tracked for a while — swept into the merge
-# 423e3672d by a `git add -A` during conflict resolution; neither parent
-# had them. They went stale the moment a scene's document changed, which
-# is what the heat sink's PlacedUnion migration then did to
-# heatsink.pncad. Untracked and ignored instead of re-goldened: a
-# tracked artifact that no generator maintains and no gate checks is the
-# shape that rots unnoticed, and this one already had.
+# nothing in the repo reads this path, and no gate regenerates it. A
+# tracked copy would go stale the moment a scene's document changed,
+# with nothing to notice.
 demos/tour/gallery/

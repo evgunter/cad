@@ -510,11 +510,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // scene's evidence is stated in numbers that a picture cannot
         // fake". The sheet's rule is that a scene is `montage: false`
         // when it is a PROOF rather than a part, and this one says so
-        // about itself. The three coaxial arms are not leaving the
-        // sheet: the teapot's LID carries them, on a bored revolve
-        // whose rims are closed by the same steam vent that makes its
-        // knob filletable. Standalone render and every number here
-        // stay.
+        // about itself. WHAT LEAVES THE SHEET WITH IT, stated rather
+        // than glossed: of the three coaxial arms, only cylinder x
+        // plane still has a cell — the teapot's lid rolls its knob's
+        // top rim through that one. Sphere x cone (the acceptance case
+        // of #319's coaxial half) and cone x plane have none. The lid
+        // is the natural host for both, being a bored revolve whose
+        // latitude rims are already closed, and a conical flange would
+        // give it them — outstanding work on the teapot, not something
+        // this retirement can claim. Standalone render and every number
+        // here stay.
         montage: false,
         story: "the calochortus bud as a bored solid of revolution — sphere zone, \
                 conical pucker, lip disk, bore — with its mouth (sphere x cone), its \

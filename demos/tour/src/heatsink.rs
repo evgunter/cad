@@ -8,28 +8,24 @@
 //! upstream is reused by content key). Stable names (N1
 //! `Instance(i)` wrapping) survive the edits — counted live.
 //!
-//! **The whole part is now IN the document** (#1344). It used to end
-//! with a `Pattern` node — N placed instance bodies — and a union chain
-//! written HERE, in demo code, under an F4 note saying a `Boolean`
-//! recipe node cannot consume a Pattern's `Instances` payload.
+//! **The whole part is IN the document** (#1344): a `PlacedUnion` over
+//! the fin, and a `Boolean(Union)` folding the group into the base.
 //!
-//! That sentence is still true, and still by design: `body_operand`
+//! A `Boolean` recipe node cannot consume a `Pattern`'s `Instances`
+//! payload, and that is by design: `body_operand`
 //! refuses `ValuePayload::Instances` typed, because Pattern's
 //! N-bodies-unfused contract is deliberate — its instances are the
 //! ASSEMBLY product's currency, gathered per-instance by
 //! `product::sources_of`, which is what `benchlayout` needs. What
-//! changed is that the heat sink was asking the wrong node.
-//! `Node::PlacedUnion` (GROUP-BOOLEAN-DESIGN, ratified A′) is the one
-//! it wanted: one prototype, a placement rule, ONE BODY out,
+//! So the fin group is not a `Pattern`.
+//! `Node::PlacedUnion` (GROUP-BOOLEAN-DESIGN, ratified A′) is the node
+//! this shape wants: one prototype, a placement rule, ONE BODY out,
 //! disjointness CERTIFIED through `topo::Separation`, `Instance(i)`
 //! naming preserved, and `SlotId::Count` still the structural slot the
 //! fin-count edit drives. Its output is an ordinary `Body`, so the
-//! union into the base is an ordinary `Boolean` node beside it.
-//!
-//! The design record named this scene by name — *"the heatsink's
-//! out-of-document union moves INTO the document (the F4 note retires
-//! at its origin, both workarounds deleted per the demo doctrine)"* —
-//! and this is that move.
+//! union into the base is an ordinary `Boolean` node beside it. That is
+//! the shape GROUP-BOOLEAN-DESIGN's acceptance names for this scene:
+//! *"the heatsink's out-of-document union moves INTO the document"*.
 //!
 //! # The 1/16 overlap is still a dodge, and still here (#1344)
 //!
@@ -80,12 +76,11 @@ fn pe(src: &str) -> Expr {
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
-/// The count-5 name table's size, pinned. **Re-measured at the
-/// `PlacedUnion` migration: 135 under `Pattern`, 131 under the group
-/// node** — the pattern emitted names over N unfused bodies, the group
-/// emits `Instance(i)` over one fused body, and four names go with the
-/// difference. Moved deliberately, which is what the assertion below
-/// asks of anyone who moves it again.
+/// The count-5 name table's size, pinned. Measured, not derived: the
+/// group node emits `Instance(i)` over one fused body, and how many
+/// names that comes to is the naming vocabulary's answer rather than
+/// something this scene can compute. Moving it is a deliberate act —
+/// see the assertion below.
 const HEATSINK_NAMES_AT_5: usize = 131;
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
@@ -187,10 +182,11 @@ fn build_doc(tol: Tol) -> Recipe {
 
 /// The document's OWN final body, read back — no demo-side boolean.
 ///
-/// This function used to BE the union chain (#1344). What is left is
-/// the read plus the volume gate the chain used to run per step: the
-/// exact dyadic oracle still has to hold of the node's answer, or the
-/// group node has quietly changed what it builds.
+/// The volume gate rides with the read: the exact dyadic oracle has to
+/// hold of the union node's answer, or the group has quietly changed
+/// what it builds. One gate on the finished solid rather than the
+/// per-step chain the demo-side union ran, because there is now one op
+/// where there were N.
 fn solidify<S: Scalar>(
     r: &Recipe,
     ev: &Evaluation<S>,
@@ -325,12 +321,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }
 
     // Stable names survive the structural edits (N1 Instance(i)).
-    // PIN RE-MEASURED at the PlacedUnion migration (#1344), which is
-    // what its own instruction asks for: the count-5 table is read off
-    // the GROUP node now rather than off a Pattern, and the group emits
-    // `Instance(i)` names over one fused body where the pattern emitted
-    // N unfused ones. A moved number here means the naming emission
-    // vocabulary moved and wants deciding, not silencing.
     assert_eq!(
         names5.len(),
         HEATSINK_NAMES_AT_5,
