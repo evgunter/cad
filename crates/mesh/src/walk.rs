@@ -83,6 +83,12 @@
 //!   derivation in the PR log), and each meridian takes the branch
 //!   nearest `atan2(A·v_ref, A·u_ref)`.
 //!
+//!   Only `A`'s DIRECTION is read, and that direction is the band's own
+//!   only because the fold is anchored on the loop rather than on the
+//!   world origin — see [`loop_area`], which carries that premise. A
+//!   fixed anchor makes the branch pick a function of where the body
+//!   was placed, and the result is a wrong half-sphere, not a refusal.
+//!
 //!   That derivation is stated in the outward frame while `u_ref` /
 //!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
 //!   area vector is multiplied by the face's `sense_sign` before the
@@ -1826,9 +1832,14 @@ mod tests {
     /// complementary half of the sphere. Both of this band's meridians
     /// must take the same branch wherever the band sits.
     ///
-    /// The rows are the same placements as the direction row; under an
-    /// origin-anchored fold the `1e6` row alone flips the azimuth by
-    /// 3.4 rad, which is over π and so a whole `2π` off in `u`.
+    /// The rows are the same placements as the direction row. Under an
+    /// origin-anchored fold BOTH the `1e6` and `1e8` rows flip the
+    /// azimuth by 3.4 rad — over π, so a whole `2π` off in `u`. The row
+    /// aborts at the first failure and so only names `1e6` when it
+    /// fires; the drift is not monotone in the placement, because how
+    /// much of the true area survives the cancellation depends on the
+    /// bit patterns of the particular coordinates, not on their size
+    /// alone.
     #[test]
     fn a_far_placement_picks_the_same_meridian_branch() {
         let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
@@ -1848,8 +1859,47 @@ mod tests {
         }
     }
 
-    /// An empty cycle has no anchor and no area, and the fold must say
-    /// so rather than dividing by its own length.
+    /// **The direction itself, against known geometry.** Every other
+    /// row here compares one fold against another fold, so all of them
+    /// would pass a `loop_area` that ignored its input and answered a
+    /// constant. This one pins the ANSWER: for a band bounded by
+    /// meridians at azimuths `a0` and `a1`, the cycle runs up `a0` and
+    /// down `a1`, so by the right-hand rule its vector area points
+    /// radially INWARD at the pair's bisector — chart-frame azimuth
+    /// `(a0 + a1)/2 − π`. Closed form, derived from the geometry and
+    /// not from the fold, checked over a spread of openings and at two
+    /// placements.
+    #[test]
+    fn the_area_direction_is_the_bands_inward_bisector() {
+        let chart = z_chart(ChartKind::Sphere { r: 1.0 });
+        for (a0, a1) in [
+            (0.37, 2.27),
+            (0.0, 1.0),
+            (-1.1, 0.4),
+            (2.0, 4.5),
+            (0.2, 3.0),
+        ] {
+            for d in [0.0, 1e3] {
+                let c = Point3::new(1.3 * d, -2.7 * d, 0.9 * d);
+                let got = band_mid_az(&chart, &band_cycle(1.0, c, a0, a1, 8));
+                let want = (a0 + a1) / 2.0 - core::f64::consts::PI;
+                // Compare modulo 2π: the azimuth is a branch, not a
+                // number, and `atan2` answers in (−π, π].
+                let err = (unwrap_near(got, want) - want).abs();
+                assert!(
+                    err < 1e-12,
+                    "meridians {a0} and {a1} at placement {d:e}: area azimuth \
+                     {got} is {err:e} rad off the inward bisector {want}"
+                );
+            }
+        }
+    }
+
+    /// An empty cycle has no anchor and no area. The guarded hazard is
+    /// the anchor, not the fold: deriving a bbox centre needs a first
+    /// point, so `loop_area` returns zero before reaching for one.
+    /// (The fold body's own `% pts.len()` is unreachable on an empty
+    /// slice — the loop never runs — so it is not what this row pins.)
     #[test]
     fn an_empty_cycle_has_no_area() {
         let a = loop_area(&[]);

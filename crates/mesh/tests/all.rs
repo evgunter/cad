@@ -52,6 +52,9 @@ mod genus;
 mod issue111_az_needle;
 #[path = "issue303_signed_volume_recentring.rs"]
 mod issue303_signed_volume_recentring;
+
+#[path = "issue1362_band_placement.rs"]
+mod issue1362_band_placement;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]

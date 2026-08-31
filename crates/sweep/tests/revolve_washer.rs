@@ -147,16 +147,38 @@ fn donut_two_arc_profile_shares_one_torus() {
     for m in meridians {
         assert_seam_of(&t.body, m.unwrap(), k0);
     }
-    // Orientation oracle: interior lift points per face. Both faces'
-    // boundaries are the SAME pair of full-period rims (y = 0.5) plus
-    // the two halves of the u = 0 seam meridian, so a fan from a
-    // boundary vertex spans no volume at all — the two halves' fans
-    // are mirror images and cancel identically, and
-    // [`signed_volume`] returns a structural zero on this body rather
-    // than a measurement. Lifting each face onto its own interior
-    // gives the oracle something to measure: wall 0 is the LOWER half
-    // (its probes span y ∈ [0, 0.5]), wall 1 the upper, and each lift
-    // sits on that half's extreme minor-circle point, off the seam.
+    // Orientation oracle: per-face lift points. Both faces' boundaries
+    // are the SAME pair of full-period rims (y = 0.5) plus the two
+    // halves of the u = 0 seam meridian, so a fan from a boundary
+    // vertex spans no volume at all — the two halves' fans are mirror
+    // images and cancel identically, and [`signed_volume`] returns a
+    // structural zero on this body rather than a measurement. Lifting
+    // the two halves apart gives the oracle something to measure.
+    //
+    // WHICH half is which is load-bearing — swap the two lifts and the
+    // sign flips — so it is asserted here rather than asserted in
+    // prose: wall 0 is the LOWER half, wall 1 the upper, and a future
+    // change to revolve's face order fails on that fact with its own
+    // name on it instead of on a mysterious negative volume.
+    for (n, (fk, want)) in [
+        (t.walls[0][0].unwrap(), (0.0, 0.5)),
+        (t.walls[0][1].unwrap(), (0.5, 1.0)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let pts = revolve_common::loop_probe_points(&t.body, t.body.get_face(fk).unwrap().outer);
+        let lo = pts.iter().map(|q| q.y).fold(f64::INFINITY, f64::min);
+        let hi = pts.iter().map(|q| q.y).fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            (lo - want.0).abs() < 1e-12 && (hi - want.1).abs() < 1e-12,
+            "wall {n} probes span y ∈ [{lo}, {hi}], expected [{}, {}] — the \
+             lift points below are chosen for that half and are now on the \
+             wrong face",
+            want.0,
+            want.1
+        );
+    }
     let v = signed_volume_lifted(
         &t.body,
         &[
@@ -171,4 +193,29 @@ fn donut_two_arc_profile_shares_one_torus() {
         ],
     );
     assert!(v > 0.0, "donut volume {v}");
+    // The oracle's honest contract, checked rather than described: one
+    // face's fan is `(q − o)·A_L` — linear in the lift — so the total
+    // depends on the lift DIFFERENCE alone. Translating both lifts
+    // together must not move it, and these two sit far off the surface,
+    // which is why "the lift must be an interior surface point" was an
+    // overclaim. It also means agreement between two lift pairs is
+    // arithmetic and not evidence that the oracle is well conditioned.
+    let shifted = signed_volume_lifted(
+        &t.body,
+        &[
+            (
+                t.walls[0][0].unwrap(),
+                geom_core::Point3::new(7.0, -3.0, 12.5),
+            ),
+            (
+                t.walls[0][1].unwrap(),
+                geom_core::Point3::new(7.0, -2.0, 12.5),
+            ),
+        ],
+    );
+    assert!(
+        (shifted - v).abs() < 1e-12,
+        "the lifts translated together by (7, -3, 11) moved the oracle from \
+         {v} to {shifted}, so it is not linear in the lift after all"
+    );
 }

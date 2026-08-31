@@ -201,13 +201,37 @@ pub fn signed_volume(body: &Body<f64>) -> f64 {
     six_v / 6.0
 }
 
-/// [`signed_volume`] with per-face interior **lift points**: a face
-/// listed in `lifts` is fanned from its lift point over the full
-/// cyclic boundary (wrap included) instead of from a boundary vertex.
-/// Needed for faces whose boundary probes are coplanar and span no
-/// volume — the two-band sphere/cone patches, whose two meridians lie
-/// in one plane. The lift must be an interior surface point of that
-/// face (test-local geometric knowledge).
+/// [`signed_volume`] with per-face **lift points**: a face listed in
+/// `lifts` is fanned from its lift point over the full cyclic boundary
+/// (wrap included) instead of from a boundary vertex.
+///
+/// Needed wherever a fan from a boundary vertex spans no volume, which
+/// happens by two DISTINCT mechanisms — the second one cost a row its
+/// meaning before it was named:
+///
+/// * **Coplanar boundary.** The two-band sphere/cone patches, whose two
+///   meridians lie in one plane, so every fan triangle is degenerate.
+/// * **Mirror-paired faces.** The donut's two half-tori are bounded by
+///   the same pair of full-period rims plus the two halves of one seam
+///   meridian, so their fans are mirror images and cancel each other
+///   exactly. Each face's fan is perfectly healthy on its own; it is
+///   the SUM over the body that is identically zero. A row asserting
+///   `> 0.0` on such a body is reading float noise, not a volume.
+///
+/// **What the lift may be, stated honestly.** One face's fan is
+/// `(q − o)·A_L`, where `A_L` is that loop's own vector area — it is
+/// LINEAR in the lift `q`, with no interior-ness anywhere in it. So the
+/// old "must be an interior surface point" was an overclaim: what a
+/// lift must do is give the pair of mirror faces a non-zero separation
+/// along `A_L`, since for the donut the total collapses to
+/// `(q₀ − q₁)·A / 6` and depends on the lift DIFFERENCE alone —
+/// translating both lifts together changes nothing at all.
+///
+/// The contract is therefore narrower than it looks, and it is the only
+/// thing callers should lean on: **the SIGN tracks the winding.** The
+/// magnitude is a chordal artefact of the sampling, and agreement
+/// between two different lift pairs is a consequence of that linearity,
+/// not independent evidence that the oracle is well conditioned.
 pub fn signed_volume_lifted(body: &Body<f64>, lifts: &[(topo::FaceKey, Point3<f64>)]) -> f64 {
     let o = probe_anchor(body);
     let mut six_v = 0.0;
