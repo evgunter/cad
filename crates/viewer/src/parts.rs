@@ -9,10 +9,10 @@
 //! the only place an instance can be picked FROM: a catalogue built
 //! anywhere else would offer parts the authored reference could not
 //! resolve. The listing is therefore [`pncad::workspace::Workspace`]'s
-//! own scan of that one directory — id → path, in the store's
-//! deterministic order — and a session with no backing file has no
-//! catalogue at all, which is the same fact the resolver states about
-//! resolution.
+//! own scan of that one directory, taken through the resolver that
+//! owns it ([`DirResolver::workspace`]) — and a session with no
+//! backing file has no catalogue at all, which is the same fact the
+//! resolver states about resolution.
 //!
 //! # The scan is taken once, not per frame
 //!
@@ -20,15 +20,20 @@
 //! catalogue is a SNAPSHOT: taken when the chooser opens, held as a
 //! value, and re-taken only when asked for ([`PartChooser::rescan`]).
 //! A directory that changed under a chooser left open is exactly what
-//! the re-scan is for, and picking a stale entry refuses at the op —
-//! the pin is minted at commit from the store's current content, never
-//! from anything this value remembers.
+//! the re-scan is for. What a stale entry does when picked follows
+//! from the pin being minted at the COMMIT, from the store's current
+//! content, never from anything this value remembers: an entry whose
+//! file is gone refuses (the store has no such id), and an entry whose
+//! file merely CHANGED succeeds — against the new content, which is
+//! the version the author is looking at and the one A4 says a fresh
+//! reference should carry.
 
 use std::path::{Path, PathBuf};
 
 use pncad::document::DocumentId;
-use pncad::workspace::{Workspace, WorkspaceError};
+use pncad::workspace::WorkspaceError;
 
+use crate::docio::DirResolver;
 use crate::session::{DocSession, Refusal};
 
 /// One document the catalogue offers, as the chooser shows it: which
@@ -54,6 +59,15 @@ pub struct PartEntry {
 }
 
 impl PartEntry {
+    /// Why this entry cannot be picked, or `None` when it can — the
+    /// SAME refusal the op answers a click on it with, so the disabled
+    /// reason and the refused action cannot say different things. The
+    /// chrome renders this rather than minting a refusal of its own.
+    pub fn refusal(&self) -> Option<Refusal> {
+        self.open_document
+            .then_some(Refusal::SelfInstance { id: self.id })
+    }
+
     /// The file's own name, as the chooser labels it — the whole path
     /// when the path names no file (which the scan cannot produce, and
     /// which is shown rather than hidden if it ever does).
@@ -65,12 +79,16 @@ impl PartEntry {
     }
 }
 
-/// The documents `dir` offers as parts, with the open document's own
-/// entry marked.
+/// The documents the resolver's directory offers as parts, with the
+/// open document's own entry marked.
 ///
-/// The order is the workspace's: its id → path map, which its scan
-/// fills in path-sorted, so two runs over one directory list the same
-/// parts in the same order.
+/// **Ordered by FILE NAME**, with the id as the tie-break. The
+/// workspace answers a `BTreeMap<DocumentId, _>`, so its own iteration
+/// order is by identity — and an id is a 32-digit hash, which sorts a
+/// chooser into an order no reader can predict or scan. The name is
+/// what a person picks by, so it is what the listing is sorted on; the
+/// id tie-break keeps two same-named files (different directories
+/// cannot arise here, but a rename race can) in a deterministic order.
 ///
 /// # Errors
 ///
@@ -79,17 +97,24 @@ impl PartEntry {
 /// unreadable sibling, [`WorkspaceError::Io`] naming the directory.
 /// The catalogue never partially succeeds: a directory that is not a
 /// healthy store cannot answer "which parts are here" honestly.
-pub fn catalogue(dir: &Path, open: DocumentId) -> Result<Vec<PartEntry>, WorkspaceError> {
-    let workspace = Workspace::open(dir)?;
-    Ok(workspace
+pub fn catalogue(
+    resolver: &DirResolver,
+    open: DocumentId,
+) -> Result<Vec<PartEntry>, WorkspaceError> {
+    let workspace = resolver.workspace()?;
+    let mut entries: Vec<PartEntry> = workspace
         .documents()
         .iter()
         .map(|(&id, path)| PartEntry {
             id,
             path: path.clone(),
-            open_document: id == open,
+            // The rule's one home, so the entry the chooser disables
+            // and the id the op refuses are decided by one predicate.
+            open_document: Refusal::self_instance(open, id).is_some(),
         })
-        .collect())
+        .collect();
+    entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()).then(a.id.cmp(&b.id)));
+    Ok(entries)
 }
 
 /// The `Add part…` chooser's held state: the catalogue as of its

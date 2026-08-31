@@ -1939,23 +1939,35 @@ impl ViewerBehavior<'_> {
                         None => ui.weak("no directory"),
                     };
                     match chooser.offered() {
+                        // An EMPTY listing is not "no parts here": a
+                        // saved session's own file is in its own
+                        // directory, so the only way to scan clean and
+                        // find nothing is for that file to have gone
+                        // away underneath the session. Say that, since
+                        // it is also why the instances already placed
+                        // will stop resolving.
                         Ok([]) => {
-                            ui.weak("this directory holds no other documents");
+                            ui.weak(
+                                "this directory holds no documents at all — not even the open \
+                                 document's own file, which has gone from it",
+                            );
                         }
                         Ok(entries) => {
                             for entry in entries {
                                 ui.horizontal(|ui| {
-                                    // The self entry stays VISIBLE and
-                                    // disabled, carrying the op's own
-                                    // refusal as its reason.
-                                    let pick = ui
-                                        .add_enabled(
-                                            !entry.open_document,
-                                            egui::Button::new(entry.file_name()),
-                                        )
-                                        .on_disabled_hover_text(
-                                            Refusal::SelfInstance { id: entry.id }.to_string(),
-                                        );
+                                    // An entry that cannot be picked
+                                    // stays VISIBLE and disabled,
+                                    // carrying the op's own refusal —
+                                    // read off the entry, not minted
+                                    // here.
+                                    let refusal = entry.refusal();
+                                    let mut pick = ui.add_enabled(
+                                        refusal.is_none(),
+                                        egui::Button::new(entry.file_name()),
+                                    );
+                                    if let Some(refusal) = refusal {
+                                        pick = pick.on_disabled_hover_text(refusal.to_string());
+                                    }
                                     if pick.clicked() {
                                         chosen = Some(entry.id);
                                     }

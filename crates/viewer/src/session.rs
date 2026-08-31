@@ -43,7 +43,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
-use pncad::workspace::{Workspace, WorkspaceError};
+use pncad::workspace::WorkspaceError;
 
 use crate::bounds;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
@@ -308,24 +308,31 @@ pub enum Refusal {
     SlotUnit(props::SlotUnitFault),
     /// The session has no backing file, so there is no directory for a
     /// part reference to be picked from or to resolve against — the
-    /// directory rule's consequence at authoring time, with its
-    /// recourse ([`Refusal::SAVE_FIRST`]).
+    /// directory rule's consequence at authoring time. Its recourse
+    /// rides the sentence, composed in `Display` like every other arm
+    /// here.
     NoDocumentDirectory,
     /// The workspace refused — the scan (duplicate id, unreadable
     /// sibling) or the read of the part being referenced — in the
     /// store's own words.
     ///
-    /// Boxed for [`Refusal::Edit`]'s reason: the payload carries two
-    /// paths and two pins in its widest arm.
+    /// Boxed for [`Refusal::Edit`]'s reason: its widest arms carry two
+    /// paths (a duplicate id names both claimants) or a path with two
+    /// pins (a mismatch names what was wanted and what was found).
     Workspace(Box<WorkspaceError>),
     /// The open document was asked to instantiate ITSELF.
     ///
-    /// Refused at the door rather than left to fail later: the
-    /// reference would pin the file's content as it stands, saving the
-    /// document would change that content, and every resolution from
-    /// then on refuses the pin mismatch. `refactor`'s split door
-    /// already refuses a self-referencing identity for the same reason
-    /// — a self-reference is an evaluation cycle.
+    /// Refused at the door rather than left to fail later. A
+    /// self-reference pins the file's content as it stands, and what
+    /// happens next depends on what that file then does: a save moves
+    /// the content and the pin stops holding, while a pin that still
+    /// holds sends the evaluation back into the document it started
+    /// in, where the descent refuses the cycle by name. Neither
+    /// outcome is one anybody asked for. `refactor`'s split door
+    /// refuses a self-referencing identity in the same spirit, though
+    /// for its own first reason — the produced pair could not both
+    /// live in one store — with the evaluation cycle recorded beside
+    /// it.
     SelfInstance {
         /// The identity that is both the open document and the part
         /// asked for.
@@ -419,7 +426,10 @@ impl core::fmt::Display for Refusal {
             Self::NothingToDo => write!(f, "nothing to undo or redo"),
             Self::Display(fault) => write!(f, "{fault}"),
             Self::SlotUnit(fault) => write!(f, "{fault}"),
-            Self::NoDocumentDirectory => write!(f, "{}", Self::SAVE_FIRST),
+            Self::NoDocumentDirectory => write!(
+                f,
+                "save the document first — references resolve against the file's directory"
+            ),
             Self::Workspace(error) => write!(f, "{error}"),
             Self::SelfInstance { id } => write!(
                 f,
@@ -433,16 +443,16 @@ impl core::fmt::Display for Refusal {
 impl core::error::Error for Refusal {}
 
 impl Refusal {
-    /// What a session with no backing file says when a part reference
-    /// is asked for, and the recourse it names.
+    /// **The self-instance rule and its refusal, in one place**:
+    /// `Some` exactly when `id` is the open document `open`.
     ///
-    /// Public and constant for [`Refusal::affordance`]'s reason one
-    /// size down: the chooser shows it in place of a list and the
-    /// status line shows it after a refused op, and two independently
-    /// written copies is how a recourse drifts from the rule it
-    /// states.
-    pub const SAVE_FIRST: &'static str = "save the document first — references resolve against \
-         the file's directory";
+    /// Both consumers of the rule call this — the op, which refuses,
+    /// and the catalogue, which marks the entry it cannot offer — so
+    /// the predicate has one home and the chrome's disabled reason is
+    /// the same value the click would have been answered with.
+    pub fn self_instance(open: DocumentId, id: DocumentId) -> Option<Self> {
+        (open == id).then_some(Self::SelfInstance { id })
+    }
 
     /// **The ratified affordance sentence, and its one home.**
     ///
@@ -755,6 +765,14 @@ pub enum SessionOp {
     /// the file's, so a cheap rename-on-save cannot fix it without
     /// forking the document; the issue carries the design question.
     /// Save over the original, or save into a different directory.
+    ///
+    /// **A save-as MOVES the document seam**: the directory rule
+    /// follows the file, so an assembly saved into a directory that
+    /// does not hold its parts silently rebinds to that directory and
+    /// its instances refuse at the next evaluation — typed on the tree
+    /// badges, and recoverable by saving back, but nothing warns
+    /// first. Recorded with the rest of the seam's newly-reachable
+    /// edges in issue #1387.
     Save(PathBuf),
     /// Hide or show one instance (G3): a DISPLAY operation — the
     /// scene and the pick index drop a hidden instance; the document
@@ -1520,8 +1538,11 @@ impl DocSession {
     /// or an unreadable sibling surfaces, at the chooser rather than
     /// at a tree badge, since no node exists yet to badge.
     pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
-        let dir = self.resolve_dir().ok_or(Refusal::NoDocumentDirectory)?;
-        parts::catalogue(dir, self.committed_doc().id())
+        let resolver = self
+            .resolver
+            .as_deref()
+            .ok_or(Refusal::NoDocumentDirectory)?;
+        parts::catalogue(resolver, self.committed_doc().id())
             .map_err(|error| Refusal::Workspace(Box::new(error)))
     }
 
@@ -1529,18 +1550,33 @@ impl DocSession {
     /// reference through the store: identity as asked for, version
     /// from the directory's content NOW.
     ///
+    /// The store is reached through the resolver, which is the
+    /// directory rule's home ([`DirResolver::workspace`]) — the same
+    /// object every resolution consults, so the door a reference is
+    /// authored through and the door it is later resolved through
+    /// cannot come apart.
+    ///
     /// The pin read is a full load of the referenced file (the store's
     /// own door), so a part that does not load refuses HERE — before a
     /// node exists — rather than as an unresolvable instance the user
     /// then has to delete.
+    ///
+    /// **Identity is checked before the directory**, deliberately: a
+    /// document is its own document wherever its file lives, so the
+    /// self-instance refusal is the one that survives saving, and
+    /// naming the recoverable problem first would send a user off to
+    /// save for nothing.
     fn add_instance(&mut self, id: DocumentId) -> OpOutcome {
-        if id == self.committed_doc().id() {
-            return OpOutcome::refused(Refusal::SelfInstance { id });
+        if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
+            return OpOutcome::refused(refusal);
         }
-        let Some(dir) = self.resolve_dir().map(Path::to_path_buf) else {
+        let Some(resolver) = self.resolver.as_deref() else {
             return OpOutcome::refused(Refusal::NoDocumentDirectory);
         };
-        let pin = match Workspace::open(&dir).and_then(|ws| ws.current_pin(id, self.tol)) {
+        let pin = match resolver
+            .workspace()
+            .and_then(|ws| ws.current_pin(id, self.tol))
+        {
             Ok(pin) => pin,
             Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
         };

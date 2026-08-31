@@ -21,12 +21,13 @@ use std::path::{Path, PathBuf};
 
 use common::asm;
 use pncad::document::{
-    Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult, RecipeNodeId,
+    Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
-use viewer::parts::PartChooser;
+use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
 
@@ -136,6 +137,34 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
         session.tree_rows()
     );
 
+    // The three shipped GUI-4 tools this door exists to feed, on an
+    // instance it authored: hide, the free-move probe, and the mate.
+    let hidden = session.perform(SessionOp::SetInstanceHidden {
+        instance: post_i,
+        hidden: true,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
+    assert!(session.display().hidden().contains(&post_i));
+    let shown = session.perform(SessionOp::SetInstanceHidden {
+        instance: post_i,
+        hidden: false,
+    });
+    assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
+
+    // Free-move: an authored instance is completely unconstrained
+    // until a mate lands on it, so the probe opens and commits.
+    for op in [
+        SessionOp::BeginFreeMove { instance: shelf_i },
+        SessionOp::PreviewFreeMove {
+            frame: pncad::document::Frame::translation([0.0, 0.0, 0.02]),
+        },
+        SessionOp::CommitFreeMove,
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    assert!(session.display().free_move_of(shelf_i).is_some());
+
     // The shipped mate tool's op takes them from here.
     let outcome = session.perform(SessionOp::AddMate {
         a: asm::in_part(post_i, &bench.post_top),
@@ -145,6 +174,11 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
+    assert_eq!(
+        outcome.superseded,
+        vec![shelf_i],
+        "the mate supersedes the probe on the instance it constrains"
+    );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
 
@@ -187,11 +221,14 @@ fn a_session_with_no_backing_file_refuses_and_names_the_recourse() {
 
     // The catalogue: there is no directory to list.
     match session.part_catalogue() {
-        Err(refusal @ Refusal::NoDocumentDirectory) => assert_eq!(
-            refusal.to_string(),
-            Refusal::SAVE_FIRST,
-            "the refusal names the recourse the directory rule gives"
-        ),
+        Err(refusal @ Refusal::NoDocumentDirectory) => {
+            let said = refusal.to_string();
+            assert!(
+                said.contains("save the document first")
+                    && said.contains("references resolve against the file's directory"),
+                "the refusal names the recourse the directory rule gives: {said}"
+            );
+        }
         other => panic!("an unsaved session has no catalogue, got {other:?}"),
     }
 
@@ -253,6 +290,140 @@ fn the_catalogue_lists_the_directory_and_marks_the_open_document() {
         post.file_name()
     );
     assert_eq!(post.path.parent(), Some(bench.dir.as_path()));
+}
+
+#[test]
+fn the_listing_is_ordered_by_file_name_not_by_identity() {
+    let tol = Tol::witness();
+    let bench = asm::bench("gauth3-order", tol);
+    let (session, _) = authored_session(&bench, "gauth3-order-asm", tol);
+
+    let entries = session.part_catalogue().expect("the directory scans");
+    let names: Vec<String> = entries.iter().map(PartEntry::file_name).collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    assert_eq!(
+        names, sorted,
+        "a chooser is read by name; identity order is hash order"
+    );
+    assert!(entries.len() >= 3, "the bench's parts and the assemblies");
+}
+
+#[test]
+fn a_gesture_in_flight_refuses_the_door() {
+    let tol = Tol::witness();
+    let bench = asm::bench("gauth3-gesture", tol);
+    // A PART document, opened from the same directory: it carries the
+    // extrude whose distance a gesture can take hold of.
+    let post_path = post_file(&bench);
+    let mut session = DocSession::inline(Doc::empty_derived("gauth3-gesture-boot", tol), tol);
+    let opened = session.perform(SessionOp::Open(post_path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    session.pump();
+    let extrude = *session
+        .doc()
+        .order()
+        .iter()
+        .find(|&&id| matches!(session.doc().node(id), Some(Node::Extrude { .. })))
+        .expect("the part has an extrude");
+
+    let begun = session.perform(SessionOp::BeginGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+    });
+    assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
+
+    let outcome = session.perform(SessionOp::AddInstance { id: bench.shelf.id });
+    assert!(outcome.committed.is_empty(), "mid-gesture, nothing lands");
+    assert!(
+        matches!(outcome.refusal, Some(Refusal::GestureInFlight)),
+        "{:?}",
+        outcome.refusal
+    );
+}
+
+#[test]
+fn an_unreadable_sibling_refuses_with_the_scans_own_header_message() {
+    let tol = Tol::witness();
+    let bench = asm::bench("gauth3-header", tol);
+    let (mut session, _) = authored_session(&bench, "gauth3-header-asm", tol);
+
+    // A file CLAIMING to be a document with no readable header: the
+    // scan refuses the whole store, which is the posture the workspace
+    // documents and the arm the catalogue's `# Errors` names.
+    std::fs::write(
+        bench.dir.join("not-really.pncad"),
+        "this is not a document\n",
+    )
+    .expect("the junk file writes");
+    let expected = Workspace::open(&bench.dir).expect_err("the scan refuses");
+    assert!(
+        matches!(expected, pncad::workspace::WorkspaceError::Header { .. }),
+        "{expected:?}"
+    );
+
+    match session.part_catalogue() {
+        Err(refusal @ Refusal::Workspace(_)) => {
+            assert_eq!(refusal.to_string(), expected.to_string());
+        }
+        other => panic!("the catalogue shows the scan's refusal, got {other:?}"),
+    }
+    let outcome = session.perform(SessionOp::AddInstance { id: bench.post.id });
+    assert!(outcome.committed.is_empty());
+    match outcome.refusal {
+        Some(refusal @ Refusal::Workspace(_)) => {
+            assert_eq!(refusal.to_string(), expected.to_string());
+        }
+        other => panic!("expected the scan's refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn two_instances_of_one_part_insert_and_evaluate() {
+    let tol = Tol::witness();
+    let bench = asm::bench("gauth3-twice", tol);
+    let (mut session, _) = authored_session(&bench, "gauth3-twice-asm", tol);
+
+    let first = add_instance(&mut session, bench.post.id);
+    let second = add_instance(&mut session, bench.post.id);
+    assert_ne!(first, second, "each insert mints its own node");
+    assert_eq!(instance_of(&session, first).0, bench.post);
+    assert_eq!(
+        instance_of(&session, second).0,
+        bench.post,
+        "one part, two instances, one reference value"
+    );
+    assert!(
+        !tree::has_faults(&session.tree_rows()),
+        "both resolve: {:?}",
+        session.tree_rows()
+    );
+}
+
+#[test]
+fn a_directory_that_lost_the_open_documents_own_file_lists_nothing() {
+    let tol = Tol::witness();
+    let bench = asm::bench("gauth3-vanished-dir", tol);
+    let (session, path) = authored_session(&bench, "gauth3-vanished-asm", tol);
+
+    // The only state that reaches the chooser's empty arm: a scan that
+    // succeeds and finds nothing, which needs even the open document's
+    // own file to have gone.
+    for entry in std::fs::read_dir(&bench.dir).expect("the directory reads") {
+        let entry = entry.expect("the entry reads");
+        if entry.path().extension().is_some_and(|ext| ext == "pncad") {
+            std::fs::remove_file(entry.path()).expect("the document is removed");
+        }
+    }
+    assert!(!path.exists(), "the session's own file is gone too");
+
+    let entries = session.part_catalogue().expect("an empty directory scans");
+    assert!(
+        entries.is_empty(),
+        "nothing on offer, not even the open document: {entries:?}"
+    );
+    let chooser = PartChooser::opened(&session);
+    assert_eq!(chooser.offered().expect("the scan succeeds").len(), 0);
 }
 
 #[test]
@@ -472,14 +643,43 @@ fn an_authored_instance_whose_part_records_another_epsilon_badges_the_seam() {
 
     // A part document written by a process at a different ε: one
     // process, one ε, so the seam refuses at resolution (A2).
+    //
+    // **Editing the saved text is the only door, and this is why.** ε
+    // is a process-global commitment: a document records the ε of the
+    // process that authored it, `Tol` cannot be re-witnessed at a
+    // second value inside one test binary, and neither the save door
+    // nor the workspace's write side takes an ε to write. The kernel's
+    // own ε-seam rows reach this state through a stub resolver, which
+    // this suite cannot use — the resolver under test is the real one
+    // over a real directory.
+    //
+    // The mechanism is `doc_io`'s: find the ε LINE by its field name
+    // (not by a byte offset into the file), and assert there is
+    // exactly one, so a format change fails the row loudly instead of
+    // quietly editing the wrong number.
     let file = post_file(&bench);
     let text = std::fs::read_to_string(&file).expect("the post reads");
-    let key = "\"epsilon\": ";
-    let at = text.find(key).expect("the document records its epsilon");
-    let rest = &text[at + key.len()..];
-    let end = rest.find(',').expect("the epsilon field ends");
-    let recorded: f64 = rest[..end].trim().parse().expect("a number");
-    let text = format!("{}{key}{:e}{}", &text[..at], recorded * 2.0, &rest[end..]);
+    let is_epsilon = |line: &&str| line.trim_start().starts_with("\"epsilon\":");
+    assert_eq!(
+        text.lines().filter(is_epsilon).count(),
+        1,
+        "a saved document records exactly one ε"
+    );
+    let line = text.lines().find(is_epsilon).expect("checked above");
+    let recorded: f64 = line
+        .trim_start()
+        .trim_start_matches("\"epsilon\":")
+        .trim()
+        .trim_end_matches(',')
+        .parse()
+        .expect("the ε field is a number");
+    let doubled = format!("  \"epsilon\": {:e},", recorded * 2.0);
+    let mut text: String = text
+        .lines()
+        .map(|l| if is_epsilon(&l) { doubled.as_str() } else { l })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    text.push('\n');
     std::fs::write(&file, &text).expect("the post rewrites");
 
     let message = failed_badge(&path, instance, tol);
