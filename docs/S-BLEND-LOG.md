@@ -832,3 +832,41 @@ its attribution; minimality falsified by a 9-edge triangular
 cavity that carves. R2 dispatched from the STORED brief verbatim
 (lane blend-3-r2, same frozen head) per the pre-recorded
 sequential note; R1's target reclaimed.
+
+## 2026-08-31 — BLEND-3 R2 IN; adjudication: THE TAG COMES OUT; first tally candidate
+
+R2 (ordinal 605 slot 2): **MERGEABLE 0/1/4 + 5 style, rubric
+5/5/4** (~300k / ~55m; probes `blend/concavecham-r2-probes` @
+8c1e625c, 4 rows). Its executions: the convex geometry verified
+BIT-IDENTICAL base→head (52/52 dump lines); the mutation table
+reproduced on the full suite; the volume re-derived by an
+independent exact polytope computation; the #1338 diagnosis
+re-reproduced on both trees; the pocket attack pinned the real
+refusal pair. VERDICT SPLIT with R1 again.
+
+**THE ADJUDICATION.** R1's M1 (deviation 1's precedent inverted;
+the tag not forced) is UNILATERAL — R2 examined the same deviation
+and judged it sound WITHOUT executing the ratification timeline.
+Orchestrator verified against the tree: ARMS3-DESIGN ratified by
+Evan 2026-08-25 under OQ6's explicit reservation; the SeamVertex
+implementation landed 2026-08-26. **R1's finding STANDS —
+TALLY CANDIDATE #1 for the program's v6 duals** (unilateral MAJOR
+by judgment; the blinded adjudication codes it standing on
+orchestrator-verified evidence). Disposition: **option (a)** —
+the fix pass DROPS `CornerConfig::ThreeConcaveEdges` (the chamfer
+widening needs no vocabulary; the fillet's refusal returns
+byte-identical to base), and the honest-label question goes to
+Evan as design-conversation **issue #1355** (options mapped; the
+reviewed shape cited so a future mint is cheap). The unit stays
+execution-shaped; nothing blocks on Evan.
+
+Union dispatched to the implementer-inherited fix pass: the tag
+drop + its free consequences (the self-contradicting sentence, the
+falsified invariant comment, the policy misdescription all
+evaporate); the verb-blind classifier both arms independently
+preferred (take-if-clean); the bilateral "convex links only"
+stale-premise class at three surgery sites + its doc-comment
+sweep; the minimality claim corrected to the class argument (R1's
+triangular-cavity falsification + R2's end-less-subset
+refinement); the octant prose class; the counts. Both probe
+branches adopted as merge parents. Delta by R1 after.
