@@ -134,7 +134,10 @@ fn the_dangle_refusal_states_the_remedy() {
     );
     let sentence = refusal.to_string();
     assert!(
-        sentence.contains(&format!("node {} is still an input to node {}", profile.0, body.0)),
+        sentence.contains(&format!(
+            "node {} is still an input to node {}",
+            profile.0, body.0
+        )),
         "the direction of the reference is stated: {sentence}"
     );
     assert!(

@@ -163,7 +163,10 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
         assert!(after.node(gone).is_none(), "node {gone:?} is gone");
     }
     for (i, &kept) in die.booleans.iter().enumerate().take(cut) {
-        assert!(after.node(kept).is_some(), "boolean {i} is upstream and stays");
+        assert!(
+            after.node(kept).is_some(),
+            "boolean {i} is upstream and stays"
+        );
     }
     for (i, &placed) in die.transforms.iter().enumerate() {
         assert!(
@@ -196,7 +199,10 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
         before,
         "one undo brings the whole cone back"
     );
-    assert!(session.history().can_redo(), "and redo can take it away again");
+    assert!(
+        session.history().can_redo(),
+        "and redo can take it away again"
+    );
 }
 
 /// A feature nothing depends on still takes the single-edit path: one
@@ -226,7 +232,10 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
 
     let leaf = session.delete_affordance(die.fillets[1]);
     assert_eq!(leaf.label, "Delete feature 'Fillet'");
-    assert_eq!(leaf.hover, None, "nothing depends on it, so nothing to warn");
+    assert_eq!(
+        leaf.hover, None,
+        "nothing depends on it, so nothing to warn"
+    );
 
     let mid = session.delete_affordance(die.booleans[10]);
     assert_eq!(
@@ -286,12 +295,7 @@ fn a_saved_cascade_replays_as_its_individual_edits() {
     );
 
     let mut reopened = DocSession::inline(die_shaped(tol).doc, tol);
-    assert!(
-        reopened
-            .perform(SessionOp::Open(file))
-            .refusal
-            .is_none()
-    );
+    assert!(reopened.perform(SessionOp::Open(file)).refusal.is_none());
     assert_eq!(
         live(reopened.committed_doc()),
         live(session.committed_doc()),

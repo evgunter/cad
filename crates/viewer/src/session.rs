@@ -559,8 +559,8 @@ pub enum SessionOp {
     /// selection's referent goes away.
     ///
     /// The cost is knowable before the click:
-    /// [`DocSession::delete_cascade`] is the same list the operation
-    /// deletes. What it removes is the dependent CONE — a delete that
+    /// [`DocSession::delete_affordance`] carries the same list the
+    /// operation deletes. What it removes is the dependent CONE — a delete that
     /// reconnected consumers to the target's input instead (splice) is
     /// open as issue #1324.
     DeleteNode {
