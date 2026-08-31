@@ -61,3 +61,20 @@ notes: three gate runs died to the exhausted Actions spending limit
 (the implementer lane's worktree was reclaimed at report — reclaim
 only after the fix pass, next time). Next: MATE-2 (issue 1032) spec
 + dispatch on block slot 2.
+
+**2026-08-31 — MATE-2 MERGED (PR #1417; issue 1032 closed, its
+full-period residue living on as issue 1416).** The shaft-in-a-bore
+class unions: the issue's coverage hypothesis was measured FALSE —
+the defect was `vertex_on_curved_face` collapsing a certified
+Out-of-this-face verdict into the no-verdict remainder; the fix is
+the three-valued `Placement`, undeclared arms untouched. Dual
+ordinal 1301 (sample #80 at merge), R1 M-A-F / R2 MERGEABLE, every
+claim held under execution in both arms; the one MAJOR was
+bilateral coordination — open VERBS PR #1353 implements the
+identical split on the same function; merged FIRST under Evan's
+2026-08-31 inherited-red ruling, so the unification lands with
+VERBS' fix pass (coordinated on their thread). Issues filed en
+route: 1415 (F7 merge-door frontier), 1416 (full-period carrier),
+1418 (the inherited k-lint red — montage-v3's debt, now two faces).
+Next: MATE-6's dual concludes (R2 in flight), then its fix pass;
+MATE-3 implementer still building.
