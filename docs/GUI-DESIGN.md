@@ -370,9 +370,10 @@ round-trip `25 mm`. The v1 GUI panels sat on canonical
 meters/radians by ruling; that ruling was superseded post-close
 (2026-08-29) and the panels now render and author in the stored
 display unit — see `docs/GUI-PLAN.md`'s units row and
-`docs/GUI-LOG.md`'s tail. The unit table also gained a `pi` row
+`docs/GUI-LOG.md`'s tail. The unit table also gained a `pi rad` row
 (half-turns), which is a NOTATION rather than a physical unit and
-says so in `quantity::units`' module docs.*
+says so in `quantity::units`' module docs; it is the default written
+unit for an angle that remembers none.*
 
 ### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the remaining rows settled inside the v1 GUI units)
 

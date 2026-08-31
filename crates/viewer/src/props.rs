@@ -72,7 +72,7 @@ use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,
     ProfileProgram, RecipeNodeId, SlotId, VectorSlot, eval, eval_count,
 };
-use pncad::prelude::{M, RAD};
+use pncad::prelude::{M, PI};
 use pncad::quantity::{UNITS, UnitDef, UnitQuantity};
 
 /// What is in a slot right now.
@@ -120,20 +120,29 @@ impl SlotValue {
 /// literal remembers (`None` when it remembers none, and for every
 /// value that is not a stored literal).
 ///
-/// The fallback is the CANONICAL row (`m`, `rad`), never "no unit":
-/// factor exactly 1.0, so showing a canonical value in it is the f64
-/// identity, and the reader gets a suffix saying which canonical unit
-/// they are looking at instead of a bare number they have to know is
-/// metres. `Scalar` and `Count` have no units at all — a direction
-/// component and an instance count are numbers, not quantities — and
-/// answer `None`.
+/// The fallback is never "no unit": the reader gets a suffix saying
+/// what they are looking at instead of a bare number they have to know
+/// is metres or radians.
+///
+/// **A LENGTH falls back to `m`, an ANGLE to `pi rad`, and the two
+/// fallbacks rest on different grounds.** `m`'s factor is exactly 1.0,
+/// so writing a canonical length in it is the f64 identity. `pi rad`'s
+/// is π: writing a canonical angle in it is a real DIVIDE, and an
+/// angle that was not authored in half-turns presents as a fraction of
+/// π — `0.7 rad` reads as `0.22281692032865351 pi rad`. That is the
+/// chosen default, not an oversight: half-turns are how angles are
+/// said in this editor, and an unauthored angle says so too.
+///
+/// `Scalar` and `Count` have no units at all — a direction component
+/// and an instance count are numbers, not quantities — and answer
+/// `None`.
 pub fn written_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Option<UnitDef> {
     if let Some(unit) = remembered {
         return Some(unit);
     }
     match dimension {
         Dimension::Length => Some(M.def()),
-        Dimension::Angle => Some(RAD.def()),
+        Dimension::Angle => Some(PI.def()),
         Dimension::Scalar | Dimension::Count => None,
     }
 }
