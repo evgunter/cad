@@ -62,6 +62,25 @@
 //!   Zero ⇒ a tangent ray — graze, retry; Negative ⇒ definite miss.
 //!   The outward sign at each root is read off the SAME decided
 //!   discriminant (`d·(p − c)/r = ±√disc/r`), never re-decided.
+//! - **`bool_ray_cone_lead`**: the ray×cone quadratic's leading
+//!   coefficient `(d·â)² − cos²α`, levered by the face's slant extent.
+//!   Zero ⇒ the ray runs parallel to a generator, where the quadratic
+//!   degenerates and no certified crossing PAIR exists — graze, retry.
+//! - **`bool_ray_cone_disc`**: that quadratic's discriminant over the
+//!   same extent (a length). Zero ⇒ the ray grazes a generator —
+//!   graze, retry; Negative ⇒ definite miss.
+//! - **`bool_ray_cone_apex`**: the hit's distance from the apex. Zero ⇒
+//!   the hit IS the apex, where the SURFACE (not merely the chart) is
+//!   singular and no outward normal exists — graze, retry, decided
+//!   before any direction is read off the surface.
+//! - **`bool_ray_cone_nappe`**: `(p − apex)·axis` signed by the face's
+//!   own nappe — Negative is the mirror nappe, which this face does not
+//!   bound.
+//! - **`bool_cone_trim`** / **`bool_cone_trim_nappe`** /
+//!   **`bool_cone_trim_side`**: the cone face's azimuth+slant window,
+//!   and the two premises that make the window single-nappe.
+//! - **`bool_ray_cone_incidence`**: `d·n̂` at a cone hit, levered by the
+//!   local radius — the cone's analogue of the plane arm's `denom`.
 //! - **`bool_point_in_solid_infinity`**: the signed volume (scaled to
 //!   a mean-thickness margin in meters) — consulted only when a ray
 //!   crosses NO boundary at all: `q` then sits on the at-infinity
@@ -124,8 +143,9 @@ pub enum PointInSolidError {
     ///
     /// `point_in_solid` is ray-parity against each face of the body
     /// being classified against, so it needs a ray×surface crossing
-    /// count per kind: `Plane`, `Cylinder` (exact chart trim) and a
-    /// closed `Sphere` group have one, `Cone`, `Torus` and `Nurbs` do
+    /// count per kind: `Plane`, `Cylinder` and `Cone` (each with its
+    /// exact chart trim) and `Sphere` (a closed group, or a face its
+    /// chart rectangle expresses) have one; `Torus` and `Nurbs` do
     /// not.
     ///
     /// **This door is BOX-BLIND on purpose and that is why the kind
@@ -136,9 +156,10 @@ pub enum PointInSolidError {
     /// WHOLE boundary, and a face out of reach of the cut is not out
     /// of reach of the ray. So an operation the gate admits can still
     /// meet this refusal downstream, and that boundary is the honest
-    /// one until the kind has a containment arm — **#1011**, where
-    /// the ray×cone quadratic, the ray×torus quartic and the chart
-    /// trims both need are scheduled.
+    /// one until the kind has a containment arm. The cone half of
+    /// issue 1011 has landed — the ray×cone quadratic and its chart
+    /// trim — and what this variant now carries is the ray×torus
+    /// quartic, its two windows, and NURBS.
     KindUnsupported {
         /// The face.
         face: FaceKey,
@@ -216,8 +237,8 @@ impl core::fmt::Display for PointInSolidError {
                      — a ray from the query point crosses the whole boundary, so a \
                      face out of reach of the CUT is still in reach of the RAY, which \
                      is why the pair-scoped operand gate admitting the operation does \
-                     not settle this. Recourse: express the operation so no cone or \
-                     torus face bounds the solid being classified against, or wait on \
+                     not settle this. Recourse: express the operation so no torus or \
+                     NURBS face bounds the solid being classified against, or wait on \
                      the containment arm for the kind",
                     kind.name()
                 )
@@ -341,6 +362,42 @@ enum FaceGeo<T: geom_core::Real> {
         /// here.) `false` swaps the near/far crossing pair below.
         sense: bool,
     },
+    /// A cone wall face with its exact chart trim — the cylinder arm's
+    /// shape on the cone chart: an azimuth window from the outer
+    /// cycle's closed-form chart images, and a SLANT window `v` in
+    /// metres along the generator (`v = (p − apex)·axis / cos α`, the
+    /// chart's own second coordinate, exact for a point on the cone).
+    ///
+    /// **The slant window carries the nappe.** `v` is signed and zero
+    /// exactly at the apex, so a face's window pins which nappe it lies
+    /// on; `nappe` is that side, read once at resolution time. A window
+    /// that STRADDLES the apex describes no manifold patch — the two
+    /// halves meet only at a point where no tangent plane exists — and
+    /// is refused there rather than admitted here.
+    Cone {
+        /// The apex (`v = 0`), where the surface has no tangent plane.
+        apex: Point3<T>,
+        /// The unit axis; the `v > 0` nappe opens along it.
+        axis: Vec3<T>,
+        /// The half-angle α ∈ (0, π/2) between axis and generators.
+        half_angle: T,
+        /// The chart's seam direction.
+        u_ref: Vec3<T>,
+        /// The face's azimuth window.
+        az: (T, T),
+        /// The face's slant window, metres along the generator.
+        v: (T, T),
+        /// Which nappe the face lies on: `true` is the `v > 0` one,
+        /// which opens along `+axis`. It fixes the chart normal's sign
+        /// (`radial·cos α − axis·sin α` for `v > 0`, its negation for
+        /// `v < 0`) and the sign of the boundary residual. Exact
+        /// structure once resolved, like [`FaceGeo::Sphere`]'s
+        /// representative.
+        nappe: bool,
+        /// The face's orientation sense (S10), applied to the sign
+        /// derived from the chart normal.
+        sense: bool,
+    },
     /// A TRIMMED sphere face whose chart rectangle expresses it: the
     /// same ray/sphere quadratic as [`FaceGeo::Sphere`], with each root
     /// tested against the face's own `[azimuth] × [latitude]` window —
@@ -407,11 +464,12 @@ pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> O
     group.first().copied()
 }
 
-/// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Sphere}
+/// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Cone, Sphere}
 /// refuse as [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 —
-/// cone and torus walls have no ray-crossing arm), and a TRIMMED
-/// sphere face as [`PointInSolidError::PartialSphereFace`]. Only a
-/// surface key that does not RESOLVE is corruption.
+/// torus walls have no ray-crossing arm), and a TRIMMED sphere face
+/// the sphere chart cannot express as
+/// [`PointInSolidError::PartialSphereFace`]. Only a surface key that
+/// does not RESOLVE is corruption.
 fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -438,6 +496,24 @@ fn face_geo<T: Decide>(
                 u_ref,
                 az,
                 h,
+                sense: f.sense,
+            })
+        }
+        Some(&Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        }) => {
+            let (az, v, nappe) = cone_chart_trim(body, face, apex, axis, half_angle, band)?;
+            Ok(FaceGeo::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+                az,
+                v,
+                nappe,
                 sense: f.sense,
             })
         }
@@ -551,6 +627,122 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
     Ok((az, h))
 }
 
+/// **A cone wall face's exact chart trim**: the azimuth window from the
+/// outer cycle's closed-form chart images (the S9 machinery the
+/// cylinder arm reads), the SLANT window from its boundary vertices,
+/// and the NAPPE the face lies on.
+///
+/// The slant coordinate is the cone chart's own `v` — metres along the
+/// generator, `v = (p − apex)·axis / cos α` — so the window is the
+/// cylinder height range's analogue and shares its premise: the range
+/// is the face's own for the ISO-BOUNDED wall class, where rims are
+/// slant iso-lines and meridians azimuth iso-lines and both extremes
+/// therefore sit on boundary VERTICES. The fold takes no infinity seed,
+/// for the reason [`cylinder_chart_trim`] states.
+///
+/// # The nappe, decided here rather than at every hit
+///
+/// `v` is signed, and zero exactly at the apex, so its sign IS the
+/// nappe. Two predicates settle the face's posture once:
+///
+/// - `bool_cone_trim_nappe` on `max(v_lo, −v_hi)`: **Positive** ⇒ the
+///   window is clear of the apex on one nappe; **Zero** ⇒ a bound sits
+///   AT the apex — the apex-closed cone face a full revolve of a
+///   pole-touching profile mints, which this arm serves; **Negative** ⇒
+///   the window straddles the apex. A straddling window is not a
+///   trimmable patch: the two nappes meet only at the singular point,
+///   the outward normal is opposite across it, and a rectangle spanning
+///   both would count a mirror-nappe crossing as this face's. That is a
+///   premise VIOLATION, so it escalates `Invalid` — the shape
+///   [`point_on_wall_in_face`]'s period guard uses for the same reason.
+/// - `bool_cone_trim_side` on `v_lo + v_hi`: the nappe itself.
+///   **Zero** ⇒ a window that is a single point at the apex, which
+///   bounds no surface, and escalates the same way.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a face whose window or
+/// boundary cannot be resolved; [`PointInSolidError::Escalated`] for an
+/// in-band nappe posture or a window the premises above reject.
+#[allow(clippy::type_complexity)] // (azimuth window, slant window, nappe) — one chart trim
+pub(super) fn cone_chart_trim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    band: Band,
+) -> Result<((T, T), (T, T), bool), PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let invalid = |predicate| {
+        escalate(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some(predicate),
+        })
+    };
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surf = body
+        .get_surface(f.surface)
+        .cloned()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
+        .ok()
+        .flatten()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let cos_a = half_angle.cos();
+    let mut v_range: Option<(T, T)> = None;
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(f.outer)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .boundary
+    else {
+        return Err(PointInSolidError::CorruptFace { face });
+    };
+    for he in body
+        .loop_cycle(first)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+    {
+        let vtx = body
+            .get_half_edge(he)
+            .ok_or(PointInSolidError::CorruptFace { face })?
+            .start;
+        let p = *body
+            .get_vertex(vtx)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        // The chart's slant coordinate. `cos α > 0` on the whole
+        // conventional domain (0, π/2), so the quotient is a length
+        // with no small denominator of its own.
+        let v = (p - apex).dot(axis) / cos_a;
+        v_range = Some(match v_range {
+            None => (v, v),
+            Some((lo, hi)) => (lo.min(v), hi.max(v)),
+        });
+    }
+    let v = v_range.ok_or(PointInSolidError::CorruptFace { face })?;
+    match decide(
+        "bool_cone_trim_nappe",
+        Margin::of(v.0.max(T::zero() - v.1)),
+        band,
+    )
+    .map_err(escalate)?
+    {
+        // Clear of the apex, or touching it — both single-nappe.
+        Sign::Positive | Sign::Zero => {}
+        Sign::Negative => return Err(invalid("bool_cone_trim_nappe")),
+    }
+    let nappe =
+        match decide("bool_cone_trim_side", Margin::of(v.0 + v.1), band).map_err(escalate)? {
+            Sign::Positive => true,
+            Sign::Negative => false,
+            Sign::Zero => return Err(invalid("bool_cone_trim_side")),
+        };
+    Ok((az, v, nappe))
+}
+
 /// Is the ON-WALL point `p` within the wall face's chart trim?
 /// `Some(true/false)` definite, `None` a boundary graze.
 ///
@@ -568,17 +760,17 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
 /// convention, escalating MORE near degenerate windows, never less).
 /// Height margins are metres directly, unchanged.
 ///
-/// **THE cosine-window construction, and its three sites.** This
-/// argument — the guard that the window is narrower than a period, the
-/// `r̂·m̂ ≥ cos(w/2)` comparison, the `· radius` metering, and ledger
-/// row F8's deferred narrow-window fix — is one construction used
-/// three times, so a change to any of it is a change to all three:
-/// here (a wall face's azimuth trim, ray lane), in
-/// [`super::contain::point_on_arc`] (a rim ARC's own angular span,
-/// boundary walk), and in
-/// [`super::contain::curved_face_containment`] (the same period guard
-/// asked as a chart-form question, which is why its answer is `None`
-/// where this one escalates).
+/// **THE cosine-window construction, and its sites.** This argument —
+/// the guard that the window is narrower than a period, the
+/// `r̂·m̂ ≥ cos(w/2)` comparison, the lever metering, and ledger row
+/// F8's deferred narrow-window fix — is one construction, so a change
+/// to any of it is a change to all of them. The ray lane's two windowed
+/// arms (this one and [`point_on_cone_in_face`]) share the one body,
+/// [`chart_azimuth_margin`], and cannot drift; the two boundary-walk
+/// sites restate it — [`super::contain::point_on_arc`] (a rim ARC's own
+/// angular span) and [`super::contain::curved_face_containment`] (the
+/// same period guard asked as a chart-form question, which is why its
+/// answer is `None` where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
@@ -592,13 +784,57 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let w = p - origin;
+    let height = w.dot(axis);
+    let radial = w - axis * height;
+    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radius, band)?;
+    let mut verdict = Some(true);
+    for margin in [azimuth, Margin::of(height - h.0), Margin::of(h.1 - height)] {
+        match decide("bool_wall_trim", margin, band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Negative => return Ok(Some(false)),
+            Sign::Zero => verdict = None, // boundary graze
+        }
+    }
+    Ok(verdict)
+}
+
+/// The azimuth-window membership margin for an ON-CHART point whose
+/// radial component off the axis is `radial`, levered by `lever` — the
+/// **branch-cut-free cosine construction** [`point_on_wall_in_face`]
+/// documents, in one body so the ray lane's two windowed arms cannot
+/// drift apart. Positive is strictly inside the window, Zero on its
+/// edge, Negative outside; the caller decides it with its own predicate
+/// name alongside the rest of its trim.
+///
+/// `lever` is the length that converts the angular displacement to the
+/// point deviation it implies (D4's θ·r form): the wall's radius for a
+/// cylinder, the LOCAL radius at the hit for a cone, whose radius grows
+/// with the slant. Both are the distance the window's edge moves per
+/// radian at the point being tested, which is what the margin has to
+/// mean.
+///
+/// # Errors
+///
+/// [`PointInSolidError::Escalated`] — an in-band period guard, or a
+/// window a period wide or wider, which cannot trim by angle at all.
+fn chart_azimuth_margin<T: Decide>(
+    face: FaceKey,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    az: (T, T),
+    radial: Vec3<T>,
+    lever: T,
+    band: Band,
+) -> Result<Margin<T>, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
     let (w_min, w_max) = az;
     let width = w_max - w_min;
     // The cosine equivalence needs width < τ, decided loudly (a
     // full-period window cannot trim by angle at all).
     match decide(
         "bool_wall_trim_period",
-        Margin::levered(T::tau() - width, radius),
+        Margin::levered(T::tau() - width, lever),
         band,
     )
     .map_err(escalate)?
@@ -612,9 +848,6 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
             }));
         }
     }
-    let w = p - origin;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
     let r_hat = radial / radial.norm();
     let half = T::from_f64(0.5);
     let mid = (w_min + w_max) * half;
@@ -626,10 +859,69 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
     // Ledger row F8: the cone term's (cosΔ − cos h)·r collapses
     // quadratically for narrow windows — conservative direction, the
     // row's deferred fix; the margin is a length (levered) today.
-    let cone = Margin::levered(r_hat.dot(m_hat) - c_h, radius);
+    Ok(Margin::levered(r_hat.dot(m_hat) - c_h, lever))
+}
+
+/// Is the ON-CONE point `p` within the cone wall face's chart trim?
+/// `Some(true/false)` definite, `None` a graze the ray schedule
+/// retries. [`point_on_wall_in_face`]'s contract, on the cone chart.
+///
+/// # The apex, decided here
+///
+/// **The apex never yields a crossing, and it is refused before any
+/// direction is read off the surface.** The cone has no tangent plane
+/// at its apex — the singularity is the SURFACE's, not the chart's (a
+/// sphere's poles are the other case) — so there is no outward normal
+/// there, and therefore no material side for the closest-hit rule to
+/// consume; a definite answer would have to fabricate the tangent plane
+/// the geometry does not have. `bool_ray_cone_apex` decides `|p − apex|`
+/// FIRST and answers a hit at the apex with `None`: the ray abandons and
+/// the schedule retries, exactly as a tangency does. That ordering is
+/// also what keeps the azimuth arm honest, since the radial component
+/// vanishes at the apex and its normalization would be poison.
+///
+/// Away from the apex the two nappes are told apart by
+/// `bool_ray_cone_nappe`, the issue's `(p − apex)·axis` sign taken
+/// against the face's own nappe: Negative is the MIRROR nappe, which is
+/// not this face at all; Zero is the apex plane, which for a point on
+/// the cone means the apex again, and grazes. The slant window then
+/// excludes the mirror nappe a second time and independently — its
+/// bounds are signed — which is deliberate: the nappe posture does not
+/// rest on the trim being tight.
+#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
+pub(super) fn point_on_cone_in_face<T: Decide>(
+    face: FaceKey,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    u_ref: Vec3<T>,
+    az: (T, T),
+    v_win: (T, T),
+    nappe: bool,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<bool>, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let w = p - apex;
+    if decide("bool_ray_cone_apex", Margin::norm3(w), band).map_err(escalate)? == Sign::Zero {
+        return Ok(None); // the apex: no tangent plane, so no answer
+    }
+    let h = w.dot(axis);
+    let nappe_h = if nappe { h } else { T::zero() - h };
+    match decide("bool_ray_cone_nappe", Margin::of(nappe_h), band).map_err(escalate)? {
+        Sign::Positive => {}
+        Sign::Negative => return Ok(Some(false)), // the mirror nappe
+        Sign::Zero => return Ok(None),
+    }
+    let v = h / half_angle.cos();
+    let radial = w - axis * h;
+    // The local radius IS the lever here: a cone's azimuth window edge
+    // moves `ρ` per radian at the point being tested, and `ρ` runs from
+    // zero at the apex to the face's widest rim.
+    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radial.norm(), band)?;
     let mut verdict = Some(true);
-    for margin in [cone, Margin::of(height - h.0), Margin::of(h.1 - height)] {
-        match decide("bool_wall_trim", margin, band).map_err(escalate)? {
+    for margin in [azimuth, Margin::of(v - v_win.0), Margin::of(v_win.1 - v)] {
+        match decide("bool_cone_trim", margin, band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(false)),
             Sign::Zero => verdict = None, // boundary graze
@@ -1223,6 +1515,43 @@ pub fn point_in_solid<T: Decide>(
                     }
                 }
             }
+            // The cone wall arm: the residual is the point's EXACT
+            // perpendicular distance to the face's own nappe — the
+            // generator line through the same azimuth sits at
+            // `ρ cos α = σ·h sin α`, so `ρ cos α − σ·h sin α` is a
+            // signed length outright (positive OUTSIDE the nappe) and
+            // needs no linearization, unlike the cylinder and sphere
+            // residuals above. `σ` is the face's nappe, which is what
+            // keeps a point on the MIRROR nappe from reading as
+            // on-boundary: there the same expression is `2ρ cos α`
+            // away from zero.
+            FaceGeo::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+                az,
+                v,
+                nappe,
+                sense: _, // residual-vs-Zero and chart trim: orientation-free
+            } => {
+                let w = q - apex;
+                let h = w.dot(axis);
+                let nappe_h = if nappe { h } else { T::zero() - h };
+                let (sin_a, cos_a) = half_angle.sin_cos();
+                let radial = w - axis * h;
+                let elev = radial.norm() * cos_a - nappe_h * sin_a;
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                    == Sign::Zero
+                {
+                    match point_on_cone_in_face(
+                        face, apex, axis, half_angle, u_ref, az, v, nappe, q, band,
+                    )? {
+                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
+                        Some(false) => {}
+                    }
+                }
+            }
             // The full-sphere arm (M5 PR 9c): the linearized radial
             // residual, the same metre-valued form the cylinder arm
             // and the certification layer classify. A full chart
@@ -1514,6 +1843,125 @@ fn cast_ray<T: Decide>(
                             d.dot(rad) / radius,
                             band,
                             "F2",
+                        )
+                        .map_err(escalate)?,
+                        sense,
+                    );
+                    if outward == Sign::Zero {
+                        return Ok(None); // grazing incidence at the hit
+                    }
+                    if fold(&mut best, face, t, outward)?.is_none() {
+                        return Ok(None);
+                    }
+                }
+            }
+            // The cone wall arm (issue 1011, the cone half): the ray
+            // meets the infinite DOUBLE cone at the roots of
+            // `G(t) = (w·â)² − |w|²cos²α`, `w = q − apex + d·t` — the
+            // implicit form whose zero set is both nappes, expanded to
+            // `A t² + 2B t + C` with `A` dimensionless, `B` metres and
+            // `C` m². Which nappe a root landed on, and whether it
+            // landed on THIS face, are the chart trim's questions, not
+            // the quadratic's.
+            //
+            // **The leading coefficient is a posture, not a
+            // convenience.** `A = (d·â)² − cos²α` vanishes exactly when
+            // the ray runs PARALLEL to a generator, where the quadratic
+            // degenerates to a line: the far root has left for infinity
+            // and the crossing count this arm can certify is no longer
+            // two. That is not a miss and not a tangency, so it is
+            // neither skipped nor answered — the ray abandons and the
+            // schedule retries, and exhaustion is `RayExhausted` like
+            // every other ill-conditioned direction. The margin is
+            // `A` levered by the face's own slant extent (D4's θ·r
+            // form: `A` is a difference of squared cosines and the
+            // extent is the length over which the near-parallel ray
+            // drifts off the generator).
+            //
+            // **The discriminant** `B² − AC` is m² and is metered by
+            // that same extent, so `disc / v_ext` is a length. It is
+            // the tangency margin: `−disc/A` is `G` at the ray's
+            // closest approach, which factors as the product of the
+            // distances to the two nappes' generators, so a zero
+            // discriminant IS a ray grazing a generator — a graze,
+            // retried, never a parity guess. The metering is
+            // conservative wherever the near-tangency is near the face
+            // (both `|A| ≤ 1` and the mirror-nappe distance at a hit on
+            // the face are bounded by the extent), and its exact zero
+            // is the true tangency either way.
+            FaceGeo::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+                az,
+                v,
+                nappe,
+                sense,
+            } => {
+                let (sin_a, cos_a) = half_angle.sin_cos();
+                let cos2 = cos_a.powi(2);
+                let w0 = q - apex;
+                let da = d.dot(axis);
+                let wa = w0.dot(axis);
+                let a2 = da.powi(2) - cos2;
+                let b2 = da * wa - w0.dot(d) * cos2;
+                let c2 = wa.powi(2) - w0.norm_squared() * cos2;
+                // The face's own slant extent — the lever both margins
+                // below are metered by. Single-nappe by construction
+                // ([`cone_chart_trim`]), so this is the far bound.
+                let v_ext = v.0.abs().max(v.1.abs());
+                match decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
+                    .map_err(escalate)?
+                {
+                    Sign::Positive | Sign::Negative => {}
+                    // Generator-parallel: a certified pair is gone.
+                    Sign::Zero => return Ok(None),
+                }
+                let disc = b2.powi(2) - a2 * c2;
+                match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
+                    .map_err(escalate)?
+                {
+                    Sign::Positive => {}
+                    Sign::Zero => return Ok(None), // tangent ray: graze
+                    Sign::Negative => continue,    // definite miss
+                }
+                let root = disc.max(T::zero()).sqrt();
+                // Unordered: `A` may be negative, and the closest-hit
+                // fold orders by advance anyway.
+                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                    let p = q + d * t;
+                    match point_on_cone_in_face(
+                        face, apex, axis, half_angle, u_ref, az, v, nappe, p, band,
+                    )? {
+                        Some(false) => continue,
+                        None => return Ok(None), // trim boundary or apex: graze
+                        Some(true) => {}
+                    }
+                    // Outward sign: `d` against the CHART normal
+                    // `radial̂·cos α − axis·sin α` on the `v > 0` nappe
+                    // and its negation on the mirror one — a unit
+                    // vector, so the dot is a cosine and takes the
+                    // local radius as its lever (D4's θ·r form; the
+                    // trim above has already put the hit definitely
+                    // clear of the apex, where that radius vanishes).
+                    // The face's sense then says whether chart-outward
+                    // is material-outward (S10).
+                    let wp = p - apex;
+                    let hp = wp.dot(axis);
+                    let rad = wp - axis * hp;
+                    let rho = rad.norm();
+                    let n_chart = rad / rho * cos_a - axis * sin_a;
+                    let n_chart = if nappe {
+                        n_chart
+                    } else {
+                        n_chart * (T::zero() - T::one())
+                    };
+                    let outward = oriented(
+                        decide(
+                            "bool_ray_cone_incidence",
+                            Margin::levered(d.dot(n_chart), rho),
+                            band,
                         )
                         .map_err(escalate)?,
                         sense,
