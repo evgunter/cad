@@ -242,9 +242,9 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
 ///
 /// - clearance: "reduce the blend size" — the chamfer that refused at
 ///   0.55 m builds at 0.1 m;
-/// - corner/run-out: "blend a chain that terminates in a
-///   three-convex-edge vertex" — on a cube that is the request whose
-///   every corner is fully requested, and it builds;
+/// - corner/run-out: "blend a chain that terminates in a trivalent
+///   vertex whose three edges are all convex" — on a cube that is the
+///   request whose every corner is fully requested, and it builds;
 /// - tangential: "blend an edge whose supports meet at a definite
 ///   angle" — the cube's edges are such edges, and they build.
 #[test]

@@ -1012,3 +1012,23 @@ the ThreeConcaveEdges withdrawal to #1355). The plan's stale
 BLEND-3's merge: track T's endgame lane T-c (D90 + D321 +
 D96-after-enumeration), then the program's remaining slate is
 BLEND-4 (issue 644, a NEW block BLEND-B3) and the gated backlog.
+
+## 2026-08-31 — BLEND-3 state-sync (rides the unit branch last; merged at #1347)
+
+Unit BLEND-3 (issue 919) complete on head `889c30c5`: concave
+plane–plane chamfers carve end to end; the classifier verb-blind
+with base's public signature restored; the minted tag WITHDRAWN to
+design-conversation #1355 per the adjudication (the verified
+SeamVertex path: ratify then mint); the fillet's refusal proven
+byte-identical to base. Reviews ordinal 605 (R1 OPUS + R2 FABLE,
+sequential same-head per the pre-recorded note): R1 M-A-F 1/4/~6
+→ MERGEABLE at delta; R2 MERGEABLE 0/1/4; **TALLY CANDIDATE #1
+coded standing** (R1's unilateral MAJOR, orchestrator-verified
+timeline) — the program's v6 tally moves 0 → 1. A/B row (ordinal
+605, sample hedged #66, arm OPUS named normally — the block closed
+at #1357) rides this commit. Block BLEND-B2 is fully landed at
+this unit's merge. Next: track T endgame lane T-c (D90 + D321 +
+D96-after-enumeration), and BLEND-4 (issue 644) on a NEW block
+draw BLEND-B3 branch-side.
+
+CI-Config: lane=interval eps=1e-6

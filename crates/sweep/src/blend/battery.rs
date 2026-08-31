@@ -544,10 +544,10 @@ pub fn chain_g1<T: Decide + Bounds>(
 // Predicate 6 — corner configuration.
 // ---------------------------------------------------------------
 
-/// **`fillet3_corner_independence`** — is a chain termination the ONE
-/// corner configuration M5 ships (OQ6): a valence-three vertex whose
-/// three incident edges are all convex and whose three support
-/// normals are definitely independent?
+/// **`fillet3_corner_independence`** — is a chain termination a corner
+/// configuration some band builds (OQ6): a valence-three vertex whose
+/// three incident edges carry ONE convexity, either side, and whose
+/// three support normals are definitely independent?
 ///
 /// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
 /// determinant is what makes the corner ball's centre a well-posed
@@ -561,6 +561,22 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// handle it ([`CornerConfig::policy`]) — or says that none would —
 /// and nothing more: zero constructor surface, refusal-payload
 /// vocabulary only.
+///
+/// # What this predicate does NOT decide
+///
+/// It reads the CORNER and nothing about the request's verb. A
+/// UNIFORM trihedron — three edges of one convexity — is one
+/// configuration whichever side of the material it is on, and this
+/// predicate admits it on both; a MIXED one is out of scope for every
+/// band there is, because the band would change sides mid-corner.
+///
+/// **Which uniform sides a given band carves is the caller's clause,
+/// not this one's**, and it is applied one layer up in `corner_at`,
+/// where the verb is known: the chamfer's ruled strip and flat patch
+/// take no convexity argument and carve either side, while the
+/// rolling ball's corner ball, contact feet and octant chart are each
+/// derived on the convex side (evgunter/cad issue 644 is that
+/// widening, and it moves those three together or not at all).
 ///
 /// # Errors
 ///
@@ -581,7 +597,10 @@ pub fn corner_config<T: Decide + Bounds>(
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
-    if convex != 3 {
+    // A uniform trihedron is a configuration some band carves; a mixed
+    // one is a configuration none does. Which of the two uniform sides
+    // the RUNNING band carves is decided by the caller that knows it.
+    if !matches!(convex, 0 | 3) {
         return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
@@ -1449,6 +1468,24 @@ fn corner_at<T: Decide + Bounds>(
         // zero and lands on `DependentNormals` — a refusal, never a
         // pass. Documented rather than silent (fix pass F6).
         normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
+    }
+    // **The verb's own convexity clause, at the layer that knows the
+    // verb.** The classifier above reads the corner and admits either
+    // uniform trihedron; the rolling ball carves only the convex one,
+    // because its ball, feet and octant chart are all derived there
+    // (evgunter/cad issue 644). It is applied HERE, after the valence
+    // check and before the independence margin, so a corner that is
+    // out of scope on two counts reports the same one it always did.
+    //
+    // The tag is the mixed-convexity one because that is the
+    // vocabulary that exists: naming the uniform concave trihedron is
+    // a corner-taxonomy question OQ6 reserves for Evan, opened as
+    // evgunter/cad issue 1355.
+    if convex == 0 && matches!(kind, BlendKind::Fillet) {
+        return Err(super::surgery::unbuilt_corner_config(
+            vertex,
+            CornerConfig::MixedConvexity { convex },
+        ));
     }
     corner_config(vertex, valence, convex, normals, radius, band)
 }
