@@ -48,14 +48,26 @@ TWO THINGS THE DIFF CANNOT SEE, both stated in the output rather than here:
     across a rename, so a renamed test reads as new coverage that costs what
     the old test cost. Honest enough for a report, dishonest if left
     unsaid, so the output says it whenever the numbers are nonzero.
-  * THE TWO LISTINGS MAY HAVE BEEN BUILT AT DIFFERENT SCOPES. The change
-    filter scopes a run to the changed crates' closure, so the base run may
-    have listed fewer packages than this one. Every test in a package the
-    base listing does not contain would otherwise read as ADDED — thousands
-    of them, from one narrow base run. So the count is restricted to
-    packages present in BOTH listings, and the packages that were dropped
-    are named with both readings (a genuinely new crate, or a narrower base
-    scope), because these two documents cannot tell those apart.
+  * THE TWO LISTINGS MAY HAVE BEEN BUILT AT DIFFERENT SCOPES, IN EITHER
+    DIRECTION. The change filter scopes a run to the changed crates'
+    closure, so the base run may have listed fewer packages than this one —
+    or MORE. Every test in a package the base listing does not contain would
+    otherwise read as ADDED, and every test in a package THIS listing does
+    not contain would read as REMOVED; both are thousands of tests out of
+    one differently-scoped run, and "1,500 tests were removed" is the same
+    manufactured reading as its mirror. So ADDITIONS, REMOVALS AND THE
+    PRICED SET ARE ALL RESTRICTED TO PACKAGES PRESENT IN BOTH LISTINGS, and
+    the packages present in only one are NAMED, on the side they are missing
+    from, with both readings (a genuinely new or deleted crate, or a
+    different change-filter scope) — because these two documents cannot tell
+    those apart.
+
+A JOB THAT MEASURED NOTHING SAYS SO INSTEAD OF SAYING ZERO. The cost half of
+the sentence comes from this run's own captured output; when that output
+holds no test rows at all (the run leg died, its log never appeared), there
+is no cost to state. `0.000 cpu-s (0.0% of this job's 0.000 cpu-s)` is a
+number nothing measured, in the shape of one that was, so the lead becomes a
+stated absence and the added tests are reported as unpriced.
 
 PER-LEG TIMES ARE NOT COMPARABLE, so the cost half of the sentence is the
 cost THIS JOB measured, over the added tests THIS JOB ran. A job that ran
@@ -106,7 +118,13 @@ class ListProblem(Exception):
 
 
 def load(path):
-    """`(pairs, packages)` from `cargo nextest list --message-format json`.
+    """`(pairs, packages, owner)` from `cargo nextest list --message-format
+    json` — the `(binary-id, test-name)` set, the package names, and the map
+    from pair to owning package that the both-listings restriction needs.
+
+    ONE PASS, and the map comes out of it rather than out of a second read of
+    the same file: a re-parse with bare subscripts would be a shape assumption
+    made after `load` had just refused to make one.
 
     Shape errors raise `ListProblem` rather than exiting: see the header for
     why this script's fail-closed direction is a printed skip. Emptiness is
@@ -131,6 +149,7 @@ def load(path):
         raise ListProblem("{} lists no test suites at all".format(path))
     pairs = set()
     packages = set()
+    owner = {}
     for key, suite in suites.items():
         binary_id = suite.get("binary-id") if isinstance(suite, dict) else None
         cases = suite.get("testcases") if isinstance(suite, dict) else None
@@ -143,30 +162,21 @@ def load(path):
         packages.add(package)
         for name in cases:
             pairs.add((binary_id, name))
-    return pairs, packages
+            owner[(binary_id, name)] = package
+    return pairs, packages, owner
 
 
 def plural(n, noun):
     return "{} {}{}".format(n, noun, "" if n == 1 else "s")
 
 
-def fmt_secs(secs):
-    """Three decimals below a second. A cheap test is not free, and `0.0
-    cpu-s` beside "this PR adds 2 tests" reads as though it were."""
-    return "{:.1f}".format(secs) if secs >= 1.0 else "{:.3f}".format(secs)
+# A cheap test is not a free one, and both reports answer that the same way:
+# the formatter lives in the sibling, imported rather than re-spelled here.
+fmt_secs = slowest.fmt_secs
 
 
-def suites_by_package(path):
-    """`(binary_id, test) -> package`, for restricting the diff to packages
-    both listings contain. Indexes only, and only after `load` has passed
-    over the same file: the shape is already proved by then."""
-    with open(path, encoding="utf-8") as fh:
-        doc = json.load(fh)
-    out = {}
-    for suite in doc["rust-suites"].values():
-        for name in suite["testcases"]:
-            out[(suite["binary-id"], name)] = suite["package-name"]
-    return out
+def package_list(names):
+    return ", ".join("`{}`".format(p) for p in names)
 
 
 def skip_block(job, reason):
@@ -185,27 +195,48 @@ def skip_block(job, reason):
 
 def render(job, base_path, base_source, head_path, legs, top=20):
     try:
-        base_pairs, base_packages = load(base_path)
-        head_pairs, head_packages = load(head_path)
+        base_pairs, base_packages, base_owner = load(base_path)
+        head_pairs, head_packages, head_owner = load(head_path)
     except ListProblem as problem:
         return skip_block(job, str(problem))
 
-    owner = suites_by_package(head_path)
-    absent_packages = sorted(head_packages - base_packages)
-    added = sorted(p for p in head_pairs - base_pairs if owner.get(p) in base_packages)
-    removed = sorted(base_pairs - head_pairs)
-    excluded = sorted(p for p in head_pairs - base_pairs if owner.get(p) not in base_packages)
+    # BOTH DIRECTIONS ARE SCOPED THE SAME WAY, which is what makes the header's
+    # "restricted to packages present in BOTH listings" true of all three sets.
+    # A base run listing one package this run did not would otherwise put every
+    # test of that package into `removed` and print "1,500 tests were removed"
+    # as flat fact — the mirror image of the addition-side reading this
+    # restriction was written for, and just as wrong.
+    shared = base_packages & head_packages
+    added = sorted(p for p in head_pairs - base_pairs if head_owner.get(p) in shared)
+    excluded = sorted(p for p in head_pairs - base_pairs if head_owner.get(p) not in shared)
+    removed = sorted(p for p in base_pairs - head_pairs if base_owner.get(p) in shared)
+    excluded_removals = sorted(p for p in base_pairs - head_pairs
+                               if base_owner.get(p) not in shared)
+    head_only_packages = sorted(head_packages - base_packages)
+    base_only_packages = sorted(base_packages - head_packages)
 
     times = slowest.merge(legs)
     job_total = sum(secs for secs, _ in times.values())
     ran = [(times[p][0], p) for p in added if p in times]
     cost = sum(secs for secs, _ in ran)
     share = (100.0 * cost / job_total) if job_total else 0.0
+    not_run = len(added) - len(ran)
 
     out = ["### What this PR adds to the test suite — {}".format(job), ""]
-    if not added and not removed and not excluded:
+    if not added and not removed and not excluded and not excluded_removals:
         out.append("**This PR adds no tests and removes none** — the two listings' "
                    "`(binary-id, test-name)` sets are identical ({} tests).".format(len(head_pairs)))
+    elif not times:
+        # NO ROWS WERE MEASURED, so there is no cost, and a zero in the shape of
+        # a measurement is the one thing this report may not print. Same answer
+        # as the sibling's "no test rows were found … nothing to rank", and the
+        # unpriced count leads it rather than sitting under a `0.000`.
+        out.append("**This PR adds {}, and this job measured nothing to price {} against.** No test "
+                   "rows were found in this job's captured output — the run leg produced no output, "
+                   "or died before nextest did — so all {} of them are unpriced here and no number "
+                   "is stated. A zero beside them would be a figure nothing measured, not a cheap "
+                   "test.".format(plural(len(added), "test"),
+                                      "it" if len(added) == 1 else "them", len(added)))
     else:
         out.append("**This PR adds {} test{} costing {} cpu-s per run ({:.1f}% of this job's "
                    "{} cpu-s).**".format(len(added), "" if len(added) == 1 else "s",
@@ -214,26 +245,33 @@ def render(job, base_path, base_source, head_path, legs, top=20):
     out.append("- Base listing: {} — {} tests over {}. This run's listing: {} tests "
                "over {}.".format(base_source, len(base_pairs), plural(len(base_packages), "package"),
                                  len(head_pairs), plural(len(head_packages), "package")))
-    if added:
-        not_run = len(added) - len(ran)
-        if not_run:
-            out.append("- {} of the {} added tests did not run in this job's legs (this job is one "
-                       "shard of one lane). Their cost is NOT summed here and NOT estimated: "
-                       "per-leg times are not comparable, so the job that ran them is the only "
-                       "place they can honestly be priced.".format(not_run, len(added)))
+    if added and times and not_run:
+        out.append("- {} of the {} added tests did not run in this job's legs (this job is one "
+                   "shard of one lane). Their cost is NOT summed here and NOT estimated: "
+                   "per-leg times are not comparable, so the job that ran them is the only "
+                   "place they can honestly be priced.".format(not_run, len(added)))
     if added or removed:
         out.append("- {} test{} removed. **A rename shows as one removal plus one addition**, so a "
                    "nonzero pair here can be a rename rather than new coverage — this diff is over "
                    "names and cannot tell them apart.".format(
                        len(removed), " was" if len(removed) == 1 else "s were"))
-    if absent_packages:
+    if head_only_packages:
         out.append("- {} package{} in this run's listing and not in the base listing ({}), so their "
                    "{} test{} excluded from the count above. Either they are new crates or the two "
                    "listings were built at different change-filter scopes; these two documents "
                    "cannot tell those apart.".format(
-                       len(absent_packages), " is" if len(absent_packages) == 1 else "s are",
-                       ", ".join("`{}`".format(p) for p in absent_packages),
+                       len(head_only_packages), " is" if len(head_only_packages) == 1 else "s are",
+                       package_list(head_only_packages),
                        len(excluded), " is" if len(excluded) == 1 else "s are"))
+    if base_only_packages:
+        out.append("- {} package{} in the BASE listing and not in this run's ({}), so their "
+                   "{} test{} excluded from the removal count above. Either the crates were "
+                   "deleted or the base run was scoped wider than this one; these two documents "
+                   "cannot tell those apart, and neither reading may be printed as a removal "
+                   "count.".format(
+                       len(base_only_packages), " is" if len(base_only_packages) == 1 else "s are",
+                       package_list(base_only_packages),
+                       len(excluded_removals), " is" if len(excluded_removals) == 1 else "s are"))
     out.append("")
     if ran:
         out.append("| cpu-s | added test (measured in this job) |")
@@ -272,8 +310,8 @@ def selftest():
     def fail(msg):
         failures.append(msg)
 
-    base_pairs, base_packages = load(BASE_LIST)
-    head_pairs, head_packages = load(HEAD_LIST)
+    base_pairs, base_packages, _ = load(BASE_LIST)
+    head_pairs, head_packages, _ = load(HEAD_LIST)
     if base_packages != {"nextest-shapes"} or head_packages != {"nextest-shapes"}:
         fail("fixture packages moved: {!r} / {!r}".format(base_packages, head_packages))
     if sorted(n for _, n in head_pairs - base_pairs) != ["extra_test", "quick_pass_renamed"]:
@@ -315,12 +353,68 @@ def selftest():
     if "no 'rust-suites' object" not in schema:
         fail("a moved schema must print the stated skip that names it:\n" + schema)
 
+    # A BASE LISTING SCOPED WIDER THAN THIS RUN'S. Derived from the real base
+    # fixture the same way the moved-schema case above is derived — its one
+    # real suite is repeated under a second package name, which is what one
+    # extra package in a differently-scoped base run looks like from here. The
+    # unscoped removal set was `base - head`, so those three tests would have
+    # been announced as removals: "4 tests were removed", flat, from a PR that
+    # removed one. The claim being asserted is that the answer stays scoped
+    # AND caveated — the extra package named, its tests counted out of the
+    # removal line, and the removal line still reporting the one real removal.
+    with open(BASE_LIST, encoding="utf-8") as fh:
+        wider = json.load(fh)
+    only = dict(wider["rust-suites"]["nextest-shapes"])
+    only["package-name"] = "nextest-shapes-extra"
+    only["binary-id"] = "nextest-shapes-extra"
+    wider["rust-suites"]["nextest-shapes-extra"] = only
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = os.path.join(tmpdir, "wider-base.json")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(wider, fh)
+        wide = render("test (eps = default, 1/2)", tmp, "the fixture", HEAD_LIST, legs)
+    if "1 test was removed" not in wide:
+        fail("a wider-scope base must still report only the removals inside the SHARED "
+             "packages — its extra package's tests are not removals:\n" + wide)
+    for want in ("1 package is in the BASE listing and not in this run's (`nextest-shapes-extra`)",
+                 "3 tests are excluded from the removal count",
+                 "the base run was scoped wider than this one"):
+        if want not in wide:
+            fail("a wider-scope base must name the base-only package and caveat it; "
+                 "missing {!r}:\n{}".format(want, wide))
+    if "4 tests were removed" in wide:
+        fail("the removal side is unscoped: a wider base is being read as a mass "
+             "deletion:\n" + wide)
+
+    # A JOB THAT MEASURED NOTHING says so, rather than pricing the addition at
+    # zero. The leg file does not exist, so `merge` returns no rows at all —
+    # the exact input that used to print "costing 0.000 cpu-s per run (0.0% of
+    # this job's 0.000 cpu-s)", a manufactured number in the shape of a
+    # measured one.
+    dead = [slowest.read_leg("run archived tests", os.path.join(FIXTURES, "no-such-run.txt"))]
+    unmeasured = render("test (eps = default, 1/2)", BASE_LIST, "the fixture", HEAD_LIST, dead)
+    if "0.000 cpu-s" in unmeasured or "0.0%" in unmeasured:
+        fail("a job that measured nothing must not print a zero cost:\n" + unmeasured)
+    for want in ("measured nothing to price them against",
+                 "No test rows were found in this job's captured output",
+                 "all 2 of them are unpriced here"):
+        if want not in unmeasured:
+            fail("the measured-nothing lead is missing {!r}:\n{}".format(want, unmeasured))
+    if "did not run in this job's legs" in unmeasured:
+        fail("the unpriced count belongs in the lead, not in a bullet under a "
+             "headline that is not there:\n" + unmeasured)
+    if "1 test was removed" not in unmeasured:
+        fail("a job that measured nothing still knows the DIFF — only the cost is "
+             "absent:\n" + unmeasured)
+
     if failures:
         for line in failures:
             sys.stderr.write("selftest FAILED: {}\n".format(line))
         raise SystemExit(1)
-    print("pr-added-tests selftest ok: a real rename+addition diff priced from a real run, a "
-          "missing base listing and a moved schema both printing stated skips")
+    print("pr-added-tests selftest ok: a real rename+addition diff priced from a real run; a "
+          "missing base listing and a moved schema both printing stated skips; a wider-scope "
+          "base scoped and caveated on the REMOVAL side; and a job that measured nothing "
+          "saying so instead of pricing the addition at zero")
     return 0
 
 

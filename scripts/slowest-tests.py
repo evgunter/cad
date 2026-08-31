@@ -76,6 +76,7 @@ a nonzero exit there would be a report interfering with a test verdict.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 
@@ -158,10 +159,22 @@ def read_leg(label, path):
         with open(path, encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except OSError as exc:
-        leg["missing"] = str(exc)
+        # The errno text and the file's BASENAME, never the full path: this
+        # string is pasted into a public step summary, and the runner's
+        # absolute temp path is noise there — the label above already says
+        # which leg it was.
+        leg["missing"] = "{}: {}".format(os.path.basename(path), exc.strerror or exc)
         return leg
     leg["times"], leg["executions"], leg["summaries"] = parse_leg(text)
     return leg
+
+
+def fmt_secs(secs):
+    """Three decimals below a second, one above. A cheap job is not a free
+    one: `0.0 cpu-s in total` beside a table of measured rows reads as though
+    the run cost nothing, which is the one thing a cost report may not say.
+    Both reports print totals through here so the two cannot drift."""
+    return "{:.1f}".format(secs) if secs >= 1.0 else "{:.3f}".format(secs)
 
 
 def merge(legs):
@@ -218,8 +231,9 @@ def render(legs, top, job):
         out.append("| {} | {:.3f} | {:.1f}% | {} | `{} {}` |".format(
             i, secs, 100.0 * secs / grand, legs_ran, binary, test))
     out.append("")
-    out.append("This job's legs executed {} distinct tests for {:.1f} cpu-s in total; the {} above "
-               "are {:.1f}% of it.".format(len(total), grand, len(ranked), 100.0 * head / grand))
+    out.append("This job's legs executed {} distinct tests for {} cpu-s in total; the {} above "
+               "are {:.1f}% of it.".format(len(total), fmt_secs(grand), len(ranked),
+                                           100.0 * head / grand))
     out.append("")
     out.append("_Deliberately not a gate (issue 469): a budget needs a baseline and the baseline is "
                "moving, so this reports and does not threshold. Adding teeth later is a decision "
@@ -300,63 +314,62 @@ RETRY_FIXTURE = """\
 """
 
 
-def _fail(failures, message):
-    failures.append(message)
-
-
 def selftest():
     failures: list[str] = []
+
+    def fail(message):
+        failures.append(message)
 
     red_times, red_execs, red_summaries = parse_leg(RED_FIXTURE)
     planted_1 = ("topo::all", "interval_body::qa2_planted_failure_1")
     if red_times.get(planted_1) != 0.004:
-        _fail(failures, "red fixture: planted failure 1 should be charged 0.004s once, got "
+        fail("red fixture: planted failure 1 should be charged 0.004s once, got "
                         "{!r} — the post-`Summary` recap is being counted as a second "
                         "execution".format(red_times.get(planted_1)))
     if red_execs != 4:
-        _fail(failures, "red fixture: 4 rows are inside the run body (2 PASS, 2 FAIL); parsed "
+        fail("red fixture: 4 rows are inside the run body (2 PASS, 2 FAIL); parsed "
                         "{}".format(red_execs))
     if len(red_times) != 4:
-        _fail(failures, "red fixture: 4 distinct tests, parsed {}".format(len(red_times)))
+        fail("red fixture: 4 distinct tests, parsed {}".format(len(red_times)))
     if red_summaries != [(44.390, "2328 tests run: 2326 passed, 2 failed, 2341 skipped")]:
-        _fail(failures, "red fixture: the Summary line did not parse: {!r}".format(red_summaries))
+        fail("red fixture: the Summary line did not parse: {!r}".format(red_summaries))
     # The captured stdout of a failing test is prose, and prose must not
     # become a row. `test interval_body::… ... FAILED` is in the fixture for
     # this assertion alone.
     for binary, _ in red_times:
         if binary in ("test", "running", "thread"):
-            _fail(failures, "red fixture: a captured-output line parsed as a test row "
+            fail("red fixture: a captured-output line parsed as a test row "
                             "({!r})".format(binary))
 
     green_times, green_execs, green_summaries = parse_leg(GREEN_FIXTURE)
     corpus = ("editor-core::all", "m4_pr8_corpus_interval::every_document_evaluates_green_at_interval")
     if green_times.get(corpus) != 0.818 or green_execs != 1:
-        _fail(failures, "green fixture: expected one row at 0.818s, got {!r} / {} "
+        fail("green fixture: expected one row at 0.818s, got {!r} / {} "
                         "executions".format(green_times, green_execs))
     if green_summaries != [(0.819, "1 test run: 1 passed, 856 skipped")]:
-        _fail(failures, "green fixture: green Summary line did not parse: {!r}".format(green_summaries))
+        fail("green fixture: green Summary line did not parse: {!r}".format(green_summaries))
 
     # THE PADDED INDEX, which is what a table built from a tenth of a run looks
     # like from the outside: nothing. All three rows must parse, and the row
     # numbered `(   1/2470)` is the one that did not.
     padded_times, padded_execs, padded_summaries = parse_leg(PADDED_INDEX_FIXTURE)
     if padded_execs != 3 or len(padded_times) != 3:
-        _fail(failures, "padded-index fixture: all three rows must parse — nextest right-aligns "
+        fail("padded-index fixture: all three rows must parse — nextest right-aligns "
                         "the index to the width of the total, so a pattern that wants `(1/2470)` "
                         "silently drops the first 999 rows of every large run. Parsed {} of "
                         "3".format(padded_execs))
     if padded_times.get(("geom-brep::all", "review_r1_rational_probes::probe_sphere_octant")) != 11.635:
-        _fail(failures, "padded-index fixture: the 11.635 s row did not parse: {!r}".format(padded_times))
+        fail("padded-index fixture: the 11.635 s row did not parse: {!r}".format(padded_times))
     if padded_summaries != [(120.992, "2470 tests run: 2470 passed, 2483 skipped")]:
-        _fail(failures, "padded-index fixture: Summary did not parse: {!r}".format(padded_summaries))
+        fail("padded-index fixture: Summary did not parse: {!r}".format(padded_summaries))
 
     retry_times, retry_execs, _ = parse_leg(RETRY_FIXTURE)
     flaky = ("nextest-shapes", "always_fails")
     if abs(retry_times.get(flaky, 0.0) - 0.215) > 1e-9:
-        _fail(failures, "retry fixture: both attempts cost the job, so the test is charged "
+        fail("retry fixture: both attempts cost the job, so the test is charged "
                         "0.106 + 0.109 = 0.215s; got {!r}".format(retry_times.get(flaky)))
     if retry_execs != 4:
-        _fail(failures, "retry fixture: 4 rows inside the body (2 PASS, 2 TRY n FAIL); parsed "
+        fail("retry fixture: 4 rows inside the body (2 PASS, 2 TRY n FAIL); parsed "
                         "{}".format(retry_execs))
 
     # THE SUMMATION THAT THE FIRST TRAP IS ABOUT: one test present in two of
@@ -369,24 +382,41 @@ def selftest():
     ]
     total = merge(legs)
     if total[corpus] != [0.818 + 1.913, 2]:
-        _fail(failures, "cross-leg summation: expected [{}, 2], got {!r}".format(
+        fail("cross-leg summation: expected [{}, 2], got {!r}".format(
             0.818 + 1.913, total[corpus]))
 
     # A leg whose file never appeared is named, and the report still renders.
     absent = read_leg("run archived tests", "/nonexistent/nextest.log")
     if absent["missing"] is None:
-        _fail(failures, "a missing leg file must be reported as missing, not parsed as empty")
+        fail("a missing leg file must be reported as missing, not parsed as empty")
     text = render([absent], 20, "test (eps = default, 1/2)")
     if "no output captured" not in text:
-        _fail(failures, "a job with no captured output must say so in the report:\n" + text)
+        fail("a job with no captured output must say so in the report:\n" + text)
+    # The reason names the errno and the BASENAME; the runner's absolute path
+    # is not pasted into a public summary.
+    if "/nonexistent/" in text or "nextest.log" not in text:
+        fail("the missing-leg reason must carry the basename and not the full "
+             "runner path:\n" + text)
+
+    # A CHEAP JOB IS NOT A FREE ONE. Both reports print totals through
+    # `fmt_secs` for this: a sub-0.05 s job rendered at one decimal is
+    # `0.0 cpu-s in total`, which says the run cost nothing.
+    if fmt_secs(0.038) != "0.038" or fmt_secs(1.665) != "1.7":
+        fail("fmt_secs prints a cheap total as free: {!r} / {!r}".format(
+            fmt_secs(0.038), fmt_secs(1.665)))
+    cheap = render([{"label": "leg A", "path": "-", "missing": None,
+                     "times": {corpus: 0.012}, "executions": 1, "summaries": []}],
+                   20, "test (eps = default, 1/2)")
+    if "0.012 cpu-s in total" not in cheap:
+        fail("a sub-0.05 s job must not report its total as `0.0 cpu-s`:\n" + cheap)
 
     if failures:
         for line in failures:
             sys.stderr.write("selftest FAILED: {}\n".format(line))
         raise SystemExit(1)
     print("slowest-tests selftest ok: four captured fixtures (green, red including the "
-          "post-Summary recap, a padded index, and a retried test), cross-leg summation, and "
-          "the missing-leg report")
+          "post-Summary recap, a padded index, and a retried test), cross-leg summation, "
+          "the missing-leg report, and a cheap job whose total is not printed as free")
     return 0
 
 
