@@ -70,6 +70,8 @@ mod blend5_rim_support;
 mod blend5_schema_v18;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
 #[path = "display_contract.rs"]

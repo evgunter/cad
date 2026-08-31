@@ -28,6 +28,10 @@
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
 pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
+// The delete door's companion query: which nodes a delete of one node
+// must take with it, in an order the door accepts. A GUI both states
+// the cost of the button and builds the sequence behind it from this.
+pub use editor_core::cascade_delete_order;
 
 // Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
 // carries directly; it is re-exported here so document-layer code can
