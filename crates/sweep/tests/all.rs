@@ -89,6 +89,10 @@ mod blend2_r2_probes;
 mod blend3_concave_chamfer;
 #[path = "blend3_r2_probes.rs"]
 mod blend3_r2_probes;
+#[path = "blend4_concave_fillet.rs"]
+mod blend4_concave_fillet;
+#[path = "blend4_r1_probes.rs"]
+mod blend4_r1_probes;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
 #[path = "blend_seam_split_rim.rs"]
@@ -203,6 +207,8 @@ mod review_arms3_r1_probes;
 mod review_blend1_r2_probes;
 #[path = "review_blend3_r1_probes.rs"]
 mod review_blend3_r1_probes;
+#[path = "review_blend4_r2_probes.rs"]
+mod review_blend4_r2_probes;
 #[path = "review_blend6_r1_probes.rs"]
 mod review_blend6_r1_probes;
 #[path = "review_blend6_r2_probes.rs"]
@@ -316,6 +322,10 @@ mod verbs_pierce_r2_probes;
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
 mod verbs_rim_r1_probes;
+#[path = "verbs_sphsph_chart.rs"]
+mod verbs_sphsph_chart;
+#[path = "verbs_sphsph_opening.rs"]
+mod verbs_sphsph_opening;
 #[path = "verbs_tubewall.rs"]
 mod verbs_tubewall;
 #[path = "verbs_tubewall_r1_fingerprint.rs"]

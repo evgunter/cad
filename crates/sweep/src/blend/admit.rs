@@ -1,8 +1,8 @@
 //! **The surgery's front door, as types.**
 //!
 //! [`super::surgery::blend_surgery`] admits a verdict one clause at a
-//! time — this chain is a single plane–plane link whose convexity the
-//! requested band carves; this corner is trivalent with all three edges
+//! time — this chain is a single plane–plane link; this corner is
+//! trivalent with all three edges
 //! requested; this support face has its entire outer cycle requested.
 //! Each type here is one of those
 //! clauses, and **holding the value is the fact**: a helper handed one
@@ -41,21 +41,21 @@ use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
     unbuilt_run_out,
 };
-use super::{BlendError, BlendKind, CornerConfig};
+use super::{BlendError, CornerConfig};
 
 /// **A chain admitted through the open-chain door**: exactly one link,
-/// plane–plane supports, and a convexity the requesting VERB carves.
+/// plane–plane supports.
 ///
 /// [`AdmittedOpen::admit`] is the only way to obtain one, and it is the
-/// door — the three refusals it raises are the surgery's own
+/// door — the two refusals it raises are the surgery's own
 /// open-chain frontier. Everything downstream that used to re-test one
-/// of those three properties takes this instead.
+/// of those properties takes this instead.
 ///
-/// The third clause is the verb's, not the token's, which is why the
-/// token does not name a convexity: the chamfer's strip and flat
-/// corner patch carry no convexity parameter and carve either side,
-/// while the rolling ball's band and octant are derived convex-only.
-/// A holder that needs the SIGN reads [`AdmittedOpen::convexity`].
+/// The token does not name a convexity, because no admission clause
+/// reads one: the chamfer's strip and flat corner patch carry no
+/// convexity parameter, and the rolling ball's band and corner fold
+/// the link's stored verdict at every site that needs its sign. A
+/// holder that needs the SIGN reads [`AdmittedOpen::convexity`].
 pub(super) struct AdmittedOpen<'a, T: Real> {
     link: &'a Link<T>,
 }
@@ -76,10 +76,9 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
     /// # Errors
     ///
     /// [`BlendError::UnsupportedChain`] when the chain has more than
-    /// one link (junction carry-through), when its supports are not
-    /// plane–plane, or when it is concave and the band asked for is the
-    /// rolling ball's.
-    pub(super) fn admit(chain: &'a Chain<T>, kind: BlendKind) -> Result<Self, BlendError> {
+    /// one link (junction carry-through), or when its supports are not
+    /// plane–plane.
+    pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, BlendError> {
         let link = chain.first();
         if !chain.rest().is_empty() {
             return Err(unbuilt_chain(
@@ -99,27 +98,13 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
                  corner patch is the only termination built)",
             ));
         }
-        // The convexity clause is the BAND's. A ruled strip is minted
-        // from the supports' own outward normals and its corner patch
-        // from three trimline crossings, so it sits in a wedge of
-        // material as readily as in a wedge of air; the rolling ball's
-        // cylinder and octant are derived on the convex side, and a
-        // concave request there would ask a half-derived construction
-        // for the other one.
-        // Publicly unreachable today, and kept anyway: a fillet whose
-        // chain is concave refuses one door earlier, at the battery's
-        // corner predicate, so no caller of `fillet_edges` reads this
-        // sentence. It is the door's own clause rather than a message
-        // for a user — the day a concave chain reaches here with its
-        // ends admitted, this is what refuses it instead of a
-        // half-derived band being built.
-        if matches!(kind, BlendKind::Fillet) && !matches!(link.convexity, Convexity::Convex) {
-            return Err(unbuilt_chain(
-                link.edge,
-                "a concave chain adds material, which the rolling ball's band \
-                 does not build — not implemented",
-            ));
-        }
+        // No convexity clause, and no verb: neither band asks for
+        // either. The ruled strip is minted from the supports' own
+        // outward normals and its corner patch from three trimline
+        // crossings; the rolling ball's cylinder, corner ball, feet
+        // and octant chart each fold the link's stored convexity
+        // verdict — one decision, derived at every site that needs
+        // its sign, on either side.
         Ok(Self { link })
     }
 
@@ -133,8 +118,7 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
         self.link.edge
     }
 
-    /// The link's convexity — `Convex` for every link admitted under
-    /// the rolling ball's band, either sign under a ruled strip's.
+    /// The link's convexity — either sign, under either band.
     ///
     /// A corner (the fillet's octant; the chamfer's flat patch) reads
     /// its orientation bit off any ONE of its incident links rather
@@ -491,8 +475,8 @@ mod tests {
     use geom_core::Tol;
     use topo::FaceKey;
 
+    use super::super::BlendError;
     use super::super::battery::{Chain, ChainClosure, Link};
-    use super::super::{BlendError, BlendKind};
     use super::{AdmittedOpen, CornerFaces, CornerLinks};
     use crate::test_support::{L, all_links, cube};
 
@@ -564,10 +548,7 @@ mod tests {
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
         let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| {
-                AdmittedOpen::admit(c, BlendKind::Fillet)
-                    .expect("a cube's links are convex plane–plane")
-            })
+            .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
             .collect();
         let vertex = links[0].start;
         let stranger = *admitted

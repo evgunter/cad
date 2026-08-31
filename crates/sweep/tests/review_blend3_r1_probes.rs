@@ -566,12 +566,17 @@ fn r1_one_request_carries_both_convexity_signs() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **The FILLET must still refuse that same two-sided request**, and
-/// at the door that is true of it: its ball is convex-only, so the
-/// concave component is refused whether or not a convex one rides
-/// along in the same call.
+/// **The FILLET carves that same two-sided request** — the widening
+/// this probe's first form pinned as missing (its assertion was the
+/// rolling ball's refusal, expected "until #644"; issue 644 then
+/// closed it). Per-request folds would still pass a one-sided
+/// fixture, so the volume is again the arithmetic that settles it:
+/// the concave component must ADD its rounded-void complement while
+/// the convex one REMOVES its own rounded-cube complement, in the
+/// same body, in the same carve — the ball's Steiner terms at each
+/// side's own scale.
 #[test]
-fn r1_the_fillet_still_refuses_the_two_sided_request() {
+fn r1_one_fillet_request_carries_both_convexity_signs() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
@@ -586,6 +591,50 @@ fn r1_the_fillet_still_refuses_the_two_sided_request() {
     both.extend(block_edges(&body));
     assert_eq!(both.len(), 24, "both components");
 
-    sweep::blend::build::fillet_edges(&body, &both, D, band(), Tol::witness())
-        .expect_err("the rolling ball has no concave side yet (#644)");
+    let before = topo::mass_properties(&body, Tol::witness())
+        .expect("closed-form props")
+        .volume;
+
+    let out = sweep::blend::build::fillet_edges(&body, &both, D, band(), Tol::witness())
+        .expect("one fillet request may span both material sides");
+    assert_eq!(out.blend_faces.len(), 24, "one band per requested edge");
+    assert_eq!(
+        out.corner_faces.len(),
+        16,
+        "eight concave octants and eight convex"
+    );
+    assert_eq!(validate(&out.body), Ok(()), "tier 1");
+    assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+
+    // What a full twelve-edge fillet at radius r removes from a cube
+    // of side a is the complement of the Minkowski (Steiner) closed
+    // form; the concave side ADDS the same complement at its own
+    // scale. A declared copy class (siblings: the concave-fillet
+    // suite's fixture oracle, the blend4 R1 probes' prism form, the
+    // die suites); evgunter/cad issue 1364 owns the shared home.
+    let rounded = |a: f64| {
+        let l = a - 2.0 * D;
+        l.powi(3)
+            + 6.0 * l * l * D
+            + 3.0 * core::f64::consts::PI * l * D * D
+            + (4.0 / 3.0) * core::f64::consts::PI * D.powi(3)
+    };
+    let fillet_of = |a: f64| a.powi(3) - rounded(a);
+    let after = topo::mass_properties(&out.body, Tol::witness())
+        .expect("closed-form props")
+        .volume;
+    let want = before + fillet_of(2.0) - fillet_of(4.0);
+    assert!(
+        (after - want).abs() <= 1e-12 * want,
+        "a two-sided fillet must add on one side and remove on the other: \
+         got {after}, want {want}"
+    );
+
+    let mesh = mesh::tessellate(&out.body, 5e-3, Tol::witness()).expect("tessellates");
+    mesh::validate::check_mesh(&mesh).expect("watertight");
 }

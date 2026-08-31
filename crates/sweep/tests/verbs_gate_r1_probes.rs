@@ -160,7 +160,9 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 /// because a ray from the query point crosses the whole boundary and
 /// box reach does not enter that question. So the admitted union
 /// still refuses, naming the KIND and saying the body is healthy:
-/// `PartialSphereFace` for the sphere-capped vase,
+/// `KindUnsupported { kind: Torus }` for the sphere-capped vase — the
+/// caps themselves are served now, through the sphere chart's own
+/// rectangle, so the band is what is left — and
 /// `KindUnsupported { kind: Cone }` for the cone-capped one. What
 /// this row pins is that the refusal is a capability statement and
 /// never a corruption claim.
@@ -183,9 +185,26 @@ fn a_granted_crossing_union_with_a_torus_band_is_refused_by_kind_in_containment(
             Err(BooleanError::Containment(e)) => {
                 let msg = e.to_string();
                 if sphere_caps {
+                    // The sphere caps used to be the blocker: they are
+                    // TRIMMED sphere faces, and the containment door had
+                    // no chart trim for that class. It has one, so the
+                    // caps answer and the refusal moves to the face that
+                    // still has no ray-crossing arm — the TORUS band.
+                    // The row's point is unchanged: a capability
+                    // statement, never a corruption claim.
                     assert!(
-                        msg.contains("trimmed"),
-                        "expected the partial-sphere containment refusal: {msg}"
+                        matches!(
+                            e,
+                            topo::PointInSolidError::KindUnsupported {
+                                kind: geom_brep::SurfaceKind::Torus,
+                                ..
+                            }
+                        ),
+                        "expected the torus containment kind refusal, got {e:?}"
+                    );
+                    assert!(
+                        msg.contains("HEALTHY") && !msg.contains("corrupt"),
+                        "the refusal must name a missing capability, not damage: {msg}"
                     );
                 } else {
                     assert!(
