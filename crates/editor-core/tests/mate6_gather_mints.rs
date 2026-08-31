@@ -201,7 +201,12 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
 
 /// `count` instances of `part`, each displaced `spacing * i` along +x
 /// so the copies stay disjoint (ASM-2B row 4's shape).
-fn row_of(label: &str, part: DocRef, count: usize, spacing: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
+fn row_of(
+    label: &str,
+    part: DocRef,
+    count: usize,
+    spacing: f64,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for i in 0..count {
@@ -270,6 +275,11 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
         "one carried declaration per stand — the inner mate's, re-keyed \
          onto the aggregate"
     );
+    assert!(
+        gathered.minted.is_empty(),
+        "the OUTER document declares nothing of its own: {:?}",
+        gathered.minted
+    );
 
     let result = assemble(&outer, &ev, Tol::witness());
     let raised = findings(&result);
@@ -316,8 +326,16 @@ fn the_carry_survives_a_second_nesting_level() {
 /// declaration is not trusting it. An inner document whose OWN mate
 /// declares a seat its geometry does not make — the two cubes are a
 /// half-unit apart — gathers and instantiates fine, and the outer
-/// census REFUTES the carried declaration: `StaleContactDeclaration`,
-/// the loud arm, never a silent pass.
+/// census REFUTES the carried declaration, never passes it silently.
+///
+/// **Which refuting arm** is the geometry's to choose, and this row
+/// reads the one that fires rather than naming it in advance: parallel
+/// faces a definite half-unit apart are counter-EVIDENCE, so the census
+/// answers `ContactContradicted` — the stronger sibling of
+/// `StaleContactDeclaration`, which is the *absence* of a witness. Both
+/// are the refuting direction and both are findings against the
+/// document; a row that demanded the weaker one would be asserting the
+/// fixture, not the invariant.
 ///
 /// The finding is unattributed at this gate, and the row says so rather
 /// than pretending otherwise: attribution is by arena key against what
@@ -336,7 +354,9 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let result = assemble(&outer, &ev, Tol::witness());
     let raised = findings(&result);
     assert!(
-        raised.iter().any(|f| f.contains("StaleContactDeclaration")),
+        raised
+            .iter()
+            .any(|f| f.contains("ContactContradicted") || f.contains("StaleContactDeclaration")),
         "the outer census re-verifies what it consumed: {raised:?}"
     );
     let Err(AssemblyError::AtRest { findings }) = &result else {
@@ -384,6 +404,13 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let mate = mate.expect("the outer mate mints");
 
     let ev = run(&doc, &opts(store));
+    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
+    assert_eq!(
+        gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![mate],
+        "the GATHER minted the outer mate's declaration"
+    );
+
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("the false outer seat is a finding against the document: {result:?}");
@@ -415,10 +442,18 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
         1,
         "minted once by the gather"
     );
+    assert_eq!(
+        gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![mate]
+    );
     let assembly = assemble(&doc, &ev, Tol::witness()).expect("the stand assembles");
     assert_eq!(
         assembly.contacts, gathered.contacts,
         "and `assemble` gates that set verbatim"
+    );
+    assert_eq!(
+        assembly.minted, gathered.minted,
+        "reading the gather's rows rather than minting its own"
     );
 }
 
@@ -439,6 +474,8 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
         topo::ContactRecords::default(),
         "no mates, no records"
     );
+    assert!(gathered.minted.is_empty());
+    assert!(gathered.unminted.is_empty());
 }
 
 /// INVARIANT (**the split between the two doors**): a class the table
@@ -469,6 +506,12 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let gathered = product_recorded(&doc, &ev, Tol::witness())
         .expect("the gather answers with the geometry, not a refusal");
     assert_eq!(gathered.body.solids().count(), 2);
+    assert_eq!(
+        gathered.unminted.len(),
+        1,
+        "and records the one declaration it could not mint: {:?}",
+        gathered.unminted
+    );
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::NoAtRestRecord { class, mate, .. }) => {
             assert_eq!(class, ContactClass::Tangent);
