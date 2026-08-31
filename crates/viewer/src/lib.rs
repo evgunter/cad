@@ -87,14 +87,15 @@ pub use matetool::{
     admitted_classes,
 };
 pub use pick::{
-    Highlight, IdMap, IdMapError, PatchId, PickError, PickIndex, PickIndexError, cursor_projection,
-    highlight,
+    EDGE_PICK_RADIUS_PX, EdgeId, EdgeOverlay, EdgePick, Highlight, IdMap, IdMapError, PatchId,
+    PickError, PickIndex, PickIndexError, cursor_projection, edge_overlay, highlight,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use session::{
-    DocSession, FaceSelection, Landing, OpOutcome, Refusal, Selection, SessionOp, Standing,
+    DocSession, EdgeSelection, FaceSelection, Hovered, Landing, OpOutcome, Refusal, Selection,
+    SessionOp, Standing,
 };
 pub use theme::{Mark, Polarity, Safety, Theme};
 pub use tree::{RowStatus, TreeRow};

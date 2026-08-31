@@ -52,6 +52,8 @@ mod chrome_labels;
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "edge_pick.rs"]
+mod edge_pick;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]
