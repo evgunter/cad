@@ -27,18 +27,19 @@
 //!
 //! **Open chains** (plane–plane links, the box edges): every open
 //! chain must be a single link terminating at trivalent corners
-//! whose THREE incident edges are all requested — the sphere-octant
-//! configuration, reached in place. Per support face: one strut
-//! `mev` per boundary vertex (to the corner ball's foot on that
-//! face) and one trimline `mef` per blended edge carve the face
+//! whose THREE incident edges are all requested — one uniform
+//! trihedron, reached in place, whichever band fills it. Per support
+//! face: one strut `mev` per boundary vertex (to the corner patch's
+//! foot on that face) and one trimline `mef` per blended edge carve
+//! the face
 //! into the SHRUNK face plus one strip per edge — the shrunk face
 //! keeps its `FaceKey`, its surface, its sense bit (S12
 //! parent-sense inheritance) **and its rings**, which is what
 //! carries a face's rings through the fillet. Then per edge one
 //! `kef` merges the two strips across the dying sharp edge; per
 //! corner three arc `mef`s split the corner triangles off, two
-//! `kef`s and one `kev` fuse them into the octant and retire the
-//! struts and the sharp vertex.
+//! `kef`s and one `kev` fuse them into the corner patch and retire
+//! the struts and the sharp vertex.
 //!
 //! **Closed chains** (any link whose blend is a TORUS) come in TWO
 //! shapes, which
@@ -99,8 +100,10 @@
 //!
 //! # Out of scope, refused typed
 //!
-//! Multi-link open chains (junction carry-through), concave chains
-//! (material-adding blends), partially-requested corners (run-outs),
+//! Multi-link open chains (junction carry-through), open chains whose
+//! material-adding side the requested BAND does not build (the rolling
+//! ball's; the ruled strip carves either),
+//! partially-requested corners (run-outs),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
 //! one edge, or of several arcs a chart seam split), and a LADDER rim
@@ -128,7 +131,8 @@
 //! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
-//!   that did not resolve, or a cycle that did not close. **This is not a kernel
+//!   that did not resolve, a cycle that did not close, or a verdict
+//!   whose keys disagree with the body's own structure. **This is not a kernel
 //!   bug channel.** A body that fails referential integrity is
 //!   reachable at this door without any kernel bug in the trace —
 //!   `topo::instance::graft_disjoint_all`'s own docs record that a
@@ -148,10 +152,10 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    SurfaceKey, VertexKey,
+    ShellKey, SolidKey, SurfaceKey, VertexKey,
 };
 
-use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::arms::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::build::{Blended, face_cycle, outward_of};
@@ -167,8 +171,12 @@ use geom_core::Tol;
 
 /// **Row 1** — the body or the verdict handed to the surgery does not
 /// hold together where the plan read it: a stored reference that did
-/// not resolve, or a cycle that did not close. Invalid input, not a
-/// frontier.
+/// not resolve, a cycle that did not close, or a verdict whose keys
+/// disagree with the body's own structure. Invalid input, not a
+/// frontier. The third clause is the one the plan's own tokens use —
+/// a link offered to a corner it does not touch, a chart offered
+/// another vertex's faces — and it is why this constructor is not
+/// only about arena reads.
 pub(super) fn not_intact(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, detail }
 }
@@ -178,8 +186,9 @@ pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> BlendError {
     BlendError::UnsupportedChain { edge, detail }
 }
 
-/// **Row 2** — the corner's own CONFIGURATION is not the sphere octant
-/// (the OQ6 vocabulary, shared with the battery's classifier).
+/// **Row 2** — the corner's own CONFIGURATION is not one the running
+/// band fills (the OQ6 vocabulary, shared with the battery's
+/// classifier).
 ///
 /// The one mint of this refusal, so the policy it advertises is always
 /// the tag's own ([`CornerConfig::policy`]) and can never be a second,
@@ -192,7 +201,7 @@ pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> 
     }
 }
 
-/// **Row 2** — the REQUEST does not cover a termination the octant
+/// **Row 2** — the REQUEST does not cover a termination the corner
 /// assembly needs. A run-out, not a corner configuration.
 pub(super) fn unbuilt_run_out(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::UnsupportedRunOut { at, detail }
@@ -235,8 +244,8 @@ const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 
 /// One corner: a trivalent vertex all of whose edges are requested.
 struct Corner<'a, T: Real> {
-    /// The admitted open links terminating here — at least one, every
-    /// one convex ([`CornerLinks`]).
+    /// The admitted open links terminating here — at least one, and
+    /// all of one convexity ([`CornerLinks`]).
     links: CornerLinks<'a, T>,
     /// The three incident support faces, in orbit order.
     faces: CornerFaces,
@@ -255,14 +264,19 @@ struct Corner<'a, T: Real> {
     /// order-free pick, [`super::build::octant_chart`]), or the
     /// chamfer's plane through the three feet.
     surface: Surface<T>,
-    /// The octant's orientation bit, read exactly as a blend reads its
+    /// The corner patch's orientation bit, read exactly as a blend reads its
     /// own — off the stored convexity verdict
     /// ([`Convexity::blend_sense`]), never a sampled normal. A corner
     /// patch is a sphere about the rolling ball's rest centre whose
     /// chart normal is the outward radial, and the centre lies on the
-    /// material side precisely when the corner is convex. Any one
-    /// incident link answers for all of them: the surgery's door
-    /// admits convex links only, so they cannot disagree.
+    /// material side precisely when the corner is convex.
+    ///
+    /// **Any one incident link answers for all of them**, and what
+    /// makes that sound is the BATTERY, not this module's door: a
+    /// termination reaches the carve only through predicate 6, which
+    /// runs at every open chain's two ends and admits a trihedron
+    /// only where its three edges carry ONE convexity. So the three
+    /// links here cannot disagree — on either side of the material.
     convexity: Convexity,
 }
 
@@ -393,21 +407,32 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     band: Band,
     tol: Tol,
 ) -> Result<Blended<T>, BlendError> {
-    let (solids, shells) = (source.solids().count(), source.shells().count());
-    if solids != 1 || shells != 1 {
-        return Err(BlendError::UnsupportedBody { solids, shells });
-    }
+    // **The gate and the reads are one step.** The check that says
+    // "exactly one solid, exactly one shell" BINDS what it counted, so
+    // the mutation phase below adopts the keys the door already saw
+    // instead of re-deriving them ninety lines later and finding a
+    // state the door had ruled out. There is no "the entry check
+    // passed and the read came back empty" left to spell.
+    let solids: Vec<SolidKey> = source.solids().map(|(k, _)| k).collect();
+    let shells: Vec<ShellKey> = source.shells().map(|(k, _)| k).collect();
+    let ([solid], [shell]) = (&solids[..], &shells[..]) else {
+        return Err(BlendError::UnsupportedBody {
+            solids: solids.len(),
+            shells: shells.len(),
+        });
+    };
+    let (solid, shell) = (*solid, *shell);
     let radius = verdict.size;
     let kind = verdict.kind;
 
     // ---- Classify the verdict's chains (structural only). The open
-    // chains go through the door as [`ConvexOpen`], which IS the
+    // chains go through the door as [`AdmittedOpen`], which IS the
     // three-clause admission below. ----
-    let mut opens: Vec<ConvexOpen<'_, T>> = Vec::new();
+    let mut opens: Vec<AdmittedOpen<'_, T>> = Vec::new();
     let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
     for chain in &verdict.chains {
         match chain.closure {
-            ChainClosure::Open { .. } => opens.push(ConvexOpen::admit(chain)?),
+            ChainClosure::Open { .. } => opens.push(AdmittedOpen::admit(chain)?),
             // The band replacement is the rolling ball's torus over a
             // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
             // all — its one arm is plane–plane, whose closed chains
@@ -426,7 +451,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             },
         }
     }
-    opens.sort_by_key(ConvexOpen::edge);
+    opens.sort_by_key(AdmittedOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
     shared_support_gate(&rims)?;
 
@@ -507,13 +532,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
     let mut body = source.clone();
-    let Some((solid, _)) = source.solids().next() else {
-        unreachable!("blend surgery: `solids().count() == 1` was checked at entry")
-    };
-    let Some((shell, _)) = source.shells().next() else {
-        unreachable!("blend surgery: `shells().count() == 1` was checked at entry")
-    };
-
     let mut rec = BlendNaming::default();
     let (blend_faces, corner_faces, mut described) =
         blank_phase(&mut body, &opens, &corners, &supports, &mut rec, tol, kind)?;
@@ -640,30 +658,34 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
 ///   foot on each is the ball centre projected onto it, and that point
 ///   lies on both of that support's trimlines because the centre is on
 ///   both incident spines ([`super::build::octant_chart`] picks the
-///   octant's chart).
+///   octant's chart). The corner's convexity is ONE decision made in
+///   three places that must agree — the ball's side, the feet's sign
+///   (`centre + n·r` at a convex rest, `centre − n·r` at a concave
+///   one, each the tangency point of ITS ball), and the chart's aim —
+///   so all three fold the same verdict, read once below.
 /// - **Chamfer**: there is no ball, so each foot is derived from the
 ///   trimlines directly — the two incident strips' trimlines on that
 ///   support, crossed in closed form ([`line_meet`]) — and the patch
 ///   is the plane through the three feet ([`chamfer_corner_patch`]).
-///
-/// **Convexity does not appear in the chamfer's arm.** The feet come
-/// from trimlines whose in-plane direction is read off the traversal,
-/// and the patch's chart normal is folded outward against the supports'
-/// own normal sum; both are stated in [`super::arms`]. So there is no
-/// convex-only argument here to derive one of and leave the rest
-/// stale (#644's shape): the concave widening moves the ADMISSION
-/// doors and nothing in this derivation.
+///   Convexity does not appear in this arm at all: the feet come from
+///   trimlines whose in-plane direction is read off the traversal, and
+///   the patch's chart normal is folded outward against the supports'
+///   own normal sum ([`super::arms`]).
 fn corner_plan<'a, T: Decide + Bounds>(
     body: &Body<T>,
     links: CornerLinks<'a, T>,
     radius: T,
     kind: BlendKind,
 ) -> Result<Corner<'a, T>, BlendError> {
+    // Both corner tokens are derived from THIS vertex, here: the
+    // faces two statements below, the links in the argument. That
+    // pairing is what `octant_chart`'s agreement check reads, and it
+    // is why that check cannot fire from this call site.
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
     // `vertex_faces` adds is a stored reference nothing here proves.
-    // The valence the octant derivation needs is the FACE orbit's; on a
+    // The valence the corner derivation needs is the FACE orbit's; on a
     // manifold body it is the edge valence the door checked, and a
     // disagreement is itself the refusal.
     let faces = CornerFaces::admit(body, vertex)?;
@@ -677,21 +699,34 @@ fn corner_plan<'a, T: Decide + Bounds>(
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?;
     }
     // Any one incident link answers for all of them (`Corner`'s field
-    // doc): the door admits convex links only.
+    // doc): the battery's corner predicate admits a termination only
+    // where all three of its edges carry one convexity.
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {
         BlendKind::Fillet => {
-            let ball = corner_ball([p; 3], normals, radius, true);
-            // The ball at rest is at distance `radius` inside every
-            // support, so its foot on each is the centre displaced
-            // back along that support's outward normal — and that
-            // point is on both of the support's trimlines, because the
-            // centre is on both incident spines.
+            let convex = matches!(convexity, Convexity::Convex);
+            let ball = corner_ball([p; 3], normals, radius, convex);
+            // The ball at rest is at distance `radius` from every
+            // support — inside the material at a convex corner, in the
+            // void at a concave one — so its foot on each is the
+            // centre displaced back TOWARD that support: along the
+            // outward normal from a convex rest, against it from a
+            // concave one. Either way the foot is on both of the
+            // support's trimlines, because the centre is on both
+            // incident spines.
+            //
+            // ONE fold, two named spellings, cross-cited so neither
+            // drifts alone: this `toward` is the same sign the band
+            // arm folds into its feet (`plane_plane_blend`'s
+            // `signed`), and the NEGATIVE of `corner_ball`'s `signed`
+            // — which is the rest DEPTH (`c·n = p·n + signed`), the
+            // displacement's opposite by definition of tangency.
+            let toward = if convex { radius } else { -radius };
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
-                *foot = ball.center + n * radius;
+                *foot = ball.center + n * toward;
             }
-            let (u_ref, axis) = super::build::octant_chart(body, &faces, &links)?;
+            let (u_ref, axis) = super::build::octant_chart(body, &faces, &links, convexity)?;
             (
                 Some((ball.center, radius)),
                 feet,
@@ -820,7 +855,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         if !matches!(link.convexity, Convexity::Convex) {
             return Err(unbuilt_chain(
                 link.edge,
-                "a concave chain adds material, which the surgery does not build — \
+                "a concave chain adds material, which no closed-rim carve builds — \
                  not implemented",
             ));
         }
@@ -867,9 +902,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // ---- The LADDER's discriminant: ONE planar face hosting every
     // link. Anything else is a rim whose supports are half-band walls,
     // which is the annulus. ----
-    let mut plane: Option<FaceKey> = None;
-    let mut mates = Vec::with_capacity(chain.link_count());
-    for link in chain.links() {
+    // One link's (host, mate) split, or `None` where neither support
+    // is a plane — the annulus's discriminant, not a refusal.
+    let split = |link: &Link<T>| -> Result<Option<(FaceKey, FaceKey)>, BlendError> {
         let a_planar = is_plane(link.face_a)
             .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?;
         // A support that does not RESOLVE is a broken body, not a
@@ -878,24 +913,32 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         let b_planar = is_plane(link.face_b).ok_or_else(|| {
             not_intact(EntityId::Face(link.face_b), "a rim link's second support")
         })?;
-        let (p, s) = if a_planar {
-            (link.face_a, link.face_b)
+        Ok(if a_planar {
+            Some((link.face_a, link.face_b))
         } else if b_planar {
-            (link.face_b, link.face_a)
+            Some((link.face_b, link.face_a))
         } else {
+            None
+        })
+    };
+    // The FIRST link fixes the shared plane, and a chain carries its
+    // first link in a field rather than in a `Vec` — so the host
+    // support is a VALUE here, and "the loop that must have run did
+    // not" is a state this function no longer spells.
+    let Some((plane, first_mate)) = split(link0)? else {
+        return resolve_seam_split_rim(body, chain);
+    };
+    let mut mates = Vec::with_capacity(chain.link_count());
+    mates.push(first_mate);
+    for link in chain.rest() {
+        let Some((p, s)) = split(link)? else {
             return resolve_seam_split_rim(body, chain);
         };
-        if *plane.get_or_insert(p) != p {
+        if p != plane {
             return resolve_seam_split_rim(body, chain);
         }
         mates.push(s);
     }
-    let Some(plane) = plane else {
-        unreachable!(
-            "resolve_rim: the loop above runs at least once (a chain always carries its \
-             first link) and every pass sets `plane`"
-        )
-    };
     let plane_half = host_side_half(body, link0, plane)
         .ok_or_else(|| not_intact(EntityId::Edge(link0.edge), "a rim edge"))?;
     let plane_loop = body
@@ -1632,6 +1675,10 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
         // ring, which is exact for every ring this kernel mints.
         found.get_or_insert((center, radius));
     }
+    // Row 0 (`D96`): NO — the non-emptiness is `topo::loop_cycle`'s,
+    // and carrying it locally means `loop_walk` returning a split
+    // head/tail through six call sites that index and length it. The
+    // cost is written up in `docs/SMELL-T-LOG.md`'s `T-c` record.
     let Some(circle) = found else {
         unreachable!(
             "ring_circle: `loop_walk` above returned a cycle, and a cycle always \
@@ -1731,7 +1778,7 @@ pub fn ring_clearance<T: Decide + Bounds>(
 /// margin, in closed form.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
-    opens: &[ConvexOpen<'_, T>],
+    opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
     band: Band,
 ) -> Result<(), BlendError> {
@@ -1940,7 +1987,7 @@ type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
 #[allow(clippy::type_complexity)]
 fn blank_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
-    opens: &[ConvexOpen<'_, T>],
+    opens: &[AdmittedOpen<'_, T>],
     corners: &[Corner<'_, T>],
     supports: &[RequestedBoundary<T>],
     rec: &mut BlendNaming,
@@ -2096,7 +2143,7 @@ fn blank_phase<T: Decide + Bounds>(
         Some(body.get_loop(lp)?.face)
     };
 
-    // ---- Per corner: three arcs, then the octant fusion. ----
+    // ---- Per corner: three arcs, then the corner fusion. ----
     let mut corner_faces = Vec::with_capacity(corners.len());
     for c in corners {
         let vertex = c.links.vertex();
@@ -2186,18 +2233,24 @@ fn blank_phase<T: Decide + Bounds>(
             if fa.is_some() && fa == fb {
                 if spur.replace(s).is_some() {
                     unreachable!(
-                        "corner fusion: exactly three struts on three distinct supports \
-                         (checked immediately above) fuse to leave exactly one spur"
+                        "corner fusion: a SECOND strut survived the fusion — exactly \
+                         three struts on three distinct supports (checked immediately \
+                         above) fuse to leave exactly one spur"
                     )
                 }
                 continue;
             }
             body.kef(hp).map_err(|e| op("corner-strut kef", e))?;
         }
+        // Row 0 (`D96`): NO, for both spur arms — the premise is a
+        // COUNT this call checked immediately above, but WHICH strut
+        // survives is the outcome of three Euler operators, not a
+        // shape a type carries (`docs/SMELL-T-LOG.md`, `T-c`).
         let Some(s) = spur else {
             unreachable!(
-                "corner fusion: exactly three struts on three distinct supports (checked \
-                 immediately above) fuse to leave exactly one spur"
+                "corner fusion: NO strut survived the fusion — exactly three struts on \
+                 three distinct supports (checked immediately above) fuse to leave \
+                 exactly one spur"
             )
         };
         let Some((hp, hm)) = halves_of(body, s) else {
@@ -2214,8 +2267,12 @@ fn blank_phase<T: Decide + Bounds>(
             hp
         };
         body.kev(dying).map_err(|e| op("corner kev", e))?;
-        // The octant is whatever face the first arc's non-blend half
-        // now bounds.
+        // The corner patch is whatever face the first arc's non-blend
+        // half now bounds.
+        // Row 0 (`D96`): YES — `CornerLinks::first` already returns a
+        // link rather than an `Option`, so this state is unrepresentable
+        // one level up. Carrying that into this loop needs a seeded
+        // `sorted` and the mint body hoisted; rowed as `D325`.
         let Some(arc) = first_arc else {
             unreachable!(
                 "corner fusion: a corner's incidence list holds at least the link that \
@@ -2230,7 +2287,7 @@ fn blank_phase<T: Decide + Bounds>(
             )
         };
         let quad = hex_face(body, c.links.first().edge());
-        let octant = match (face_of_half(body, ahp), face_of_half(body, ahm)) {
+        let patch = match (face_of_half(body, ahp), face_of_half(body, ahm)) {
             (Some(f1), Some(f2)) => {
                 if Some(f1) == quad {
                     f2
@@ -2243,9 +2300,9 @@ fn blank_phase<T: Decide + Bounds>(
                  `mef` mints the arc into two loops and the `kev` above kills neither"
             ),
         };
-        rec.corners.push((octant, vertex));
+        rec.corners.push((patch, vertex));
         rec.dead.vertices.push(vertex);
-        corner_faces.push(octant);
+        corner_faces.push(patch);
     }
 
     let mut blend_faces = Vec::with_capacity(opens.len());
@@ -2782,6 +2839,9 @@ fn rim_phase<T: Decide + Bounds>(
     }
 
     // The band: the face on the non-cap side of the first sphere trim.
+    // Row 0 (`D96`): NO — one row per `plane_walk` position, so the
+    // non-emptiness is the cycle's, the same cause as `ring_circle`'s
+    // (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(tb) = tb_edges.first() else {
         unreachable!(
             "rim phase: step (4) mints one sphere trim per `plane_walk` position, and a \
@@ -2807,6 +2867,9 @@ fn rim_phase<T: Decide + Bounds>(
              `mef` mints the trim into two loops and step (6) kills neither"
         ),
     };
+    // Row 0 (`D96`): NO — "exactly one strut reaches the closure case"
+    // is the outcome of a walk over the ring, not a shape a type can
+    // carry to this line (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(band_surface) = band_surface else {
         unreachable!(
             "rim phase: the ring step (6) walks is closed, so exactly one strut reaches \
@@ -3537,27 +3600,28 @@ mod tests {
 
     use topo::EdgeKey;
 
+    use geom::Surface;
+
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
-    use super::{BlendError, BlendKind, ConvexOpen, CornerLinks, corner_plan, rim_trim_circles};
+    use super::{AdmittedOpen, BlendError, BlendKind, CornerLinks, corner_plan, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
-    /// **The guard for the two cheapest row-4 proofs.**
-    /// `blend_surgery`'s `unreachable!`s at the solid and shell reads
-    /// both say *"checked at entry"* — and the check is ninety lines
-    /// above them. Delete it and those two sentences become lies
-    /// printed inside a panic, on a body that would otherwise be
-    /// silently filleted as if its first solid were the only one. This
-    /// row is what stands there (#720's precedent: a converted site
-    /// owes a row that reddens if the check it rests on is removed).
+    /// **The door's own one-solid, one-shell clause.**
+    /// `blend_surgery` binds the solid and the shell out of the same
+    /// step that counts them, so there is no second read to prove — but
+    /// the refusal is still the only thing standing between a
+    /// multi-solid body and a surgery that would carve it as if its
+    /// first solid were the only one. Delete the clause and this row
+    /// reds.
     ///
-    /// **Its reach, stated:** one grafted body trips both clauses of
+    /// **Its reach, stated:** one grafted body trips both halves of
     /// the gate at once, so this row does not separate them. Splitting
     /// them needs a one-solid, two-shell body — a closed void — and
     /// nothing in the tree builds one today.
     #[test]
-    fn the_entry_gate_is_what_makes_the_solid_and_shell_reads_provable() {
+    fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
         let mut dst = cube(L, Tol::witness());
         topo::instance::graft_disjoint_all(
             &mut dst,
@@ -3642,50 +3706,82 @@ mod tests {
         )
     }
 
-    /// **The surgery corner takes its links' orientation bit too**, and
-    /// the concave case never reaches the derivation at all: the door
-    /// refuses it.
+    /// **The corner plan FOLDS its links' convexity verdict — as one
+    /// decision, at every site that reads its sign.** The same cube
+    /// corner is planned twice: once under the verdict its links
+    /// really carry (convex), once under the same links with the
+    /// verdict FALSIFIED to concave. The two plans must disagree in
+    /// exactly the mirrored ways — ball centre reflected to the other
+    /// side of the vertex, feet reflected with it, sense bit flipped,
+    /// chart pole flipped — and any single fold left convex-hardcoded
+    /// breaks one of the four assertions while the others stay green,
+    /// which is what makes each an independent pin.
     ///
     /// **The concave half of this probe is not a body.** The fixture
-    /// FALSIFIES the battery's stored verdict on a cube whose geometry
+    /// falsifies the battery's stored verdict on a cube whose geometry
     /// is untouched — a lie about a convex body, not a concave one.
-    /// What it pins is where that lie is caught: at
-    /// [`ConvexOpen::admit`], so `corner_plan` below cannot be handed
-    /// one and has no convexity refusal left to make.
+    /// What it pins is the PLAN's derivation as a function of the
+    /// verdict. A real concave body carved end to end is the filleted
+    /// vented cavity of the concave-fillet suite.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
         let body = cube(L, Tol::witness());
         let links = all_links(&body, Tol::witness());
         let v = links[0].start;
-        let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
-        let admitted: Vec<ConvexOpen<'_, f64>> = chains
-            .iter()
-            .map(|c| ConvexOpen::admit(c).expect("a cube's links are convex plane–plane"))
-            .collect();
-        let mut here = admitted.iter().filter(|o| {
-            let l = o.link();
-            l.start == v || l.end == v
-        });
-        let first = *here.next().expect("the seed link of this corner");
-        let mut corner_links = CornerLinks::seed(v, first).expect("the seed link touches v");
-        for o in here {
-            corner_links
-                .also(*o)
-                .expect("every filtered link touches v");
-        }
-        let convex =
-            corner_plan(&body, corner_links, R, BlendKind::Fillet).expect("the corner plans");
-        assert!(convex.convexity.blend_sense(), "a convex octant is outward");
-
-        let mut concave = links[0].clone();
-        concave.convexity = Convexity::Concave;
-        let chain = open_chain(concave);
-        let Err(err) = ConvexOpen::admit(&chain) else {
-            panic!("a concave chain must be refused at the door, not planned")
+        let plan_with = |flip: bool| {
+            let flipped: Vec<Link<f64>> = links
+                .iter()
+                .cloned()
+                .map(|mut l| {
+                    if flip {
+                        l.convexity = Convexity::Concave;
+                    }
+                    l
+                })
+                .collect();
+            let chains: Vec<Chain<f64>> = flipped.into_iter().map(open_chain).collect();
+            let admitted: Vec<AdmittedOpen<'_, f64>> = chains
+                .iter()
+                .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+                .collect();
+            let mut here = admitted.iter().filter(|o| {
+                let l = o.link();
+                l.start == v || l.end == v
+            });
+            let first = *here.next().expect("the seed link of this corner");
+            let mut corner_links = CornerLinks::seed(v, first).expect("the seed link touches v");
+            for o in here {
+                corner_links
+                    .also(*o)
+                    .expect("every filtered link touches v");
+            }
+            let corner = corner_plan(&body, corner_links, R, BlendKind::Fillet)
+                .expect("either verdict plans");
+            let (centre, _) = corner.arc.expect("a fillet corner plans an arc centre");
+            let Surface::Sphere { axis, .. } = corner.surface else {
+                panic!("a fillet corner patch is a sphere");
+            };
+            let p = super::point_of(&body, v).expect("the corner's point");
+            (corner.convexity.blend_sense(), centre, corner.feet, axis, p)
         };
+        let (conv_sense, cc, conv_feet, ax, p) = plan_with(false);
+        let (conc_sense, kc, conc_feet, kx, _) = plan_with(true);
+        assert!(conv_sense, "a convex octant is outward");
+        assert!(!conc_sense, "a concave octant faces its ball centre");
         assert!(
-            matches!(err, BlendError::UnsupportedChain { .. }),
-            "expected the open-chain door's typed refusal, got {err}"
+            (kc - (p + (p - cc))).norm() < 1e-14,
+            "the concave rest is the convex one reflected through the vertex"
+        );
+        for i in 0..3 {
+            let mirrored = p + (p - conv_feet[i]);
+            assert!(
+                (conc_feet[i] - mirrored).norm() < 1e-14,
+                "foot {i} reflects with the ball it touches"
+            );
+        }
+        assert!(
+            (ax + kx).norm() < 1e-14,
+            "the two verdicts' chart poles are antipodal (the fold's sign)"
         );
     }
 }

@@ -544,10 +544,10 @@ pub fn chain_g1<T: Decide + Bounds>(
 // Predicate 6 — corner configuration.
 // ---------------------------------------------------------------
 
-/// **`fillet3_corner_independence`** — is a chain termination the ONE
-/// corner configuration M5 ships (OQ6): a valence-three vertex whose
-/// three incident edges are all convex and whose three support
-/// normals are definitely independent?
+/// **`fillet3_corner_independence`** — is a chain termination a corner
+/// configuration some band builds (OQ6): a valence-three vertex whose
+/// three incident edges carry ONE convexity, either side, and whose
+/// three support normals are definitely independent?
 ///
 /// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
 /// determinant is what makes the corner ball's centre a well-posed
@@ -561,6 +561,18 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// handle it ([`CornerConfig::policy`]) — or says that none would —
 /// and nothing more: zero constructor surface, refusal-payload
 /// vocabulary only.
+///
+/// # What this predicate does NOT decide
+///
+/// It reads the CORNER and nothing about the request's verb. A
+/// UNIFORM trihedron — three edges of one convexity — is one
+/// configuration whichever side of the material it is on, and this
+/// predicate admits it on both, for both verbs: the chamfer's ruled
+/// strip and flat patch take no convexity argument, and the rolling
+/// ball's corner — its ball, its contact feet, its octant chart —
+/// folds the side as one verdict. A MIXED corner is out of scope for
+/// every band there is, because the band would change sides
+/// mid-corner.
 ///
 /// # Errors
 ///
@@ -581,7 +593,10 @@ pub fn corner_config<T: Decide + Bounds>(
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
-    if convex != 3 {
+    // A uniform trihedron is a configuration some band carves; a mixed
+    // one is a configuration none does. Which of the two uniform sides
+    // the RUNNING band carves is decided by the caller that knows it.
+    if !matches!(convex, 0 | 3) {
         return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
@@ -1011,7 +1026,13 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         }
         used[seed] = true;
         let (mut head, mut tail) = ends(seed);
-        let mut order = vec![seed];
+        // The run is held as its SEED plus the two directions it grew
+        // in, rather than as one `Vec` that happens never to be empty.
+        // Non-emptiness is then the shape — there is always a seed —
+        // and "the walk produced no links" is a state this loop does
+        // not spell.
+        let mut before: Vec<usize> = Vec::new();
+        let mut after: Vec<usize> = Vec::new();
         let mut joints_back: Vec<VertexKey> = Vec::new();
         let mut joints_fwd: Vec<VertexKey> = Vec::new();
         let mut closed = head == tail;
@@ -1025,7 +1046,8 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 let Some(&next) = pair.iter().find(|&&j| !used[j]) else {
                     // Both links at this junction are already in the
                     // run: the chain has closed on itself.
-                    if pair.iter().all(|&j| used[j]) && order.len() > 1 {
+                    let grew = !before.is_empty() || !after.is_empty();
+                    if pair.iter().all(|&j| used[j]) && grew {
                         closed = true;
                         if forward {
                             joints_fwd.push(at);
@@ -1040,11 +1062,11 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 let other = if a == at { b } else { a };
                 if forward {
                     joints_fwd.push(at);
-                    order.push(next);
+                    after.push(next);
                     tail = other;
                 } else {
                     joints_back.push(at);
-                    order.insert(0, next);
+                    before.push(next);
                     head = other;
                 }
                 if head == tail {
@@ -1061,16 +1083,25 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         } else {
             ChainClosure::Open { head, tail }
         };
-        let mut walked = order.into_iter().map(|i| links[i].clone());
-        let Some(first) = walked.next() else {
-            // `order` was minted `vec![seed]` at the top of this
-            // iteration and only pushed to or inserted into since.
-            unreachable!(
-                "chain walk: `order` is seeded with this iteration's `seed` link and \
-                 never shrinks"
-            )
+        // Head-first order: the backward run reversed, then the seed,
+        // then the forward run. Both arms are ordinary — a run that
+        // never extended backwards heads at its own seed.
+        before.reverse();
+        let (first, rest) = match before.split_first() {
+            Some((&far, between)) => {
+                let mut rest: Vec<usize> = between.to_vec();
+                rest.push(seed);
+                rest.extend(after);
+                (far, rest)
+            }
+            None => (seed, after),
         };
-        chains.push(Chain::new(first, walked.collect(), junctions, closure));
+        chains.push(Chain::new(
+            links[first].clone(),
+            rest.into_iter().map(|i| links[i].clone()).collect(),
+            junctions,
+            closure,
+        ));
     }
     chains
 }

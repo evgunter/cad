@@ -162,6 +162,39 @@ table when it lands, and its finding leaves this document with it** — the merg
 PR is the record, and a note here saying the work completed is itself a thing to
 delete.
 
+**Two things must be true before a row may be struck**, and the second is
+the one that was being skipped.
+
+1. The work the row names has landed.
+2. **Every finding that was routed to the row after it was written — every
+   rides-along — has either landed with it, or has been re-homed: given a
+   row of its own, with citations re-derived against the tree as it is
+   now.** A rides-along has no other index. It is tracked by the row that
+   names it and by nothing else, so striking the row deletes it, whether or
+   not the lane touched it, and prose elsewhere pointing at a struck row is
+   not a schedule. The landing report is where this gets checked, because
+   the report is where the rides-along were listed.
+
+This is `S177`'s rule, and it is written here rather than left as a finding
+because the mechanism is structural: rides-along exist so a late finding
+reaches a lane already reading those files, and the same *live rows only*
+discipline that keeps this table honest is what deletes them. It will
+recur on every track that routes work to an open lane until the check is
+part of striking a row. **`D124` executed the re-homing for the one
+instance `S177` enumerated** (Track E's `E-g`: four members — one verified
+closed, three re-homed as `D322`–`D324`); **`L5` is the walk of every
+other struck row**, which no one has done and which this rule stops
+growing.
+
+*Ruled by the SMELL-T orchestrator at lane T-b's review adjudication,
+2026-08-31, on the T-a precedent that landed the deletion-sweep rule in
+this section. The style reviewer's reservation is recorded and was
+considered: a document-wide convention is arguably Evan's ratification
+territory rather than a lane's. The precedent decides it — this is a
+statement of how the existing* live rows only *rule must be applied, not
+a new policy, and it is the half of `L5` that stops the accrual while the
+walk waits for a slot.*
+
 ## Contents
 
 **The findings**, grouped by the scan or wave that raised them — the grouping
@@ -1005,7 +1038,7 @@ being written.**
 |---|---|
 | `bspline_green_integral` + `DerivLadder` | **DELIBERATE-FRONTIER**, blocker named at `topo/src/props.rs:581` (it is S8's missing producer; rational half banked at #390/#453). But the `quad.rs:42` liveness claim is **SUPERSEDED** — see S39. |
 | `pcurve.rs` ellipse constructors | **SUPERSEDED**, in writing, with a measured deviation (`pcurve_cache.rs:32`). |
-| `hull.rs`'s 8 unused fns | **Split**: the rational half is spec-commissioned with a banked lane (#390/#453, register row in #250); `domain_hull` and `derivative_span_hull` have **no named consumer**. |
+| `hull.rs`'s 8 unused fns | **Split**: the rational half was spec-commissioned against issues 390/453 (register row in #250), whose lane has since landed — recheck which of those fns the landed lane actually consumes; `domain_hull` and `derivative_span_hull` have **no named consumer**. |
 | `boxes` in both geom crates | **PLANNED**, three named consumers — and one is a *correctness* item: `PERF-SCAN-2026-08.md:208` Tier A finding 1 names `nurbs_surface_aabb` as the fix for S16's unsound `face_box`. |
 | `Node::Sweep` | **DELIBERATE-FRONTIER → now PLANNED with a landed first half.** LQ3 ratified (#362); the door landed (`compose_chain`); the `wire_sweep` discharge is explicitly fenced out of U4A as its own later unit. |
 | STEP cylinder recognition | **DELIBERATE-FRONTIER** — the refusal is the honest result and the module doc says so in advance; the algebraic tightening is banked but tied to **no issue or plan**. |
@@ -1249,7 +1282,7 @@ text and report rows"*, is dead workspace-wide by the same instrument. It is
 **deleted here** on the same reasoning that took `MateRole::name` in #735:
 dead, in the files this row's scope names, in the class D4 ruled on. Two
 independent instances now — one in `editor-core/src/mate/`, one in
-`sweep/src/fillet/` — each a `name()` for messages that no message uses, each
+`sweep/src/blend/` (pre-rename `sweep/src/fillet/`) — each a `name()` for messages that no message uses, each
 found only because a lane happened to open the file. That is D24's argument,
 and it no longer rests on one row.
 
@@ -2793,8 +2826,8 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | Four parallel check-sequence engines in `pcurve_cache` (~850 lines) whose "same fixed order" contract is prose — and step 2 already diverges, two lanes calling `param_rate_gate` and two calling bare `param_rate` | `pcurve_cache.rs:1937`, `:2842`, `:2503`, `:2353` | sure |
 | "Derive a pcurve" has two homes split by chart kind, contradicting the stated `geom-brep`/`topo` layering; every caller carries an `if matches!(surface, Surface::Nurbs(_))` fork | `pcurve_cache.rs:3147`, `topo/pcurves.rs:419` | sure |
 | Chart lever-arm knowledge is duplicated across the two crates with divergent conventions (`azimuth_lever` gives the sphere `r`; `azimuth_arm` gives `\|r·cos v\|`) and nothing in either name says which is which | `pcurve_cache.rs:1753`, `topo/pcurves.rs:721` | sure |
-| Two clearance predicates for one question, where the *exact* one's refuse arm is unreachable through the public API and it is `pub` only so tests can reach it — the weaker, self-admittedly over-refusing screen is authoritative | `fillet/surgery.rs:616`, `:580` | sure |
-| `plane_sphere_blend` writes a fail-loud poison and a silent `.max(T::zero())` clamp on sibling quantities three lines apart | `fillet/blend.rs:205` | likely |
+| Two clearance predicates for one question, where the *exact* one's refuse arm is unreachable through the public API and it is `pub` only so tests can reach it — the weaker, self-admittedly over-refusing screen is authoritative | `blend/surgery.rs` (pre-rename `fillet/surgery.rs:616`, `:580`) | sure |
+| `plane_sphere_blend` writes a fail-loud poison and a silent `.max(T::zero())` clamp on sibling quantities three lines apart | `blend/arms.rs` (pre-rename `fillet/blend.rs:205`) | likely |
 | `NullFacePair`'s two variants carry identical payloads under two vocabularies, while the sibling `NullEdge` handles the same duality with one field pair and a documented dual reading | `topo/null.rs:88` | likely |
 | Two parallel "where did this come from" side-tables (`*_provenance` ×7, `*_sources` ×3) whose docs claim one pattern but whose access idioms are opposite; three extra accessors re-spell `provenance(EntityId::…)`, one with zero callers | `topo/body.rs:660`, `source.rs:6` | likely |
 | `PriorCtx` is a three-method trait with a null-object implementor standing in for an `Option` | `resolve/mod.rs:422` | likely |
@@ -2942,7 +2975,7 @@ The pattern, with the extreme cases:
 | `crates/mesh` overall | ~40% comment lines |
 | `boolean/ops.rs:584` `volume_backstop` | ~100 doc lines over a 60-line function, including an arm annotated "unreachable now… kept as the honest statement of the gate rather than a dead arm removed" |
 | `props/quad.rs:418` | ~45 lines of justification on a 20-line function, arguing bit-identity forbids a metering the same text calls arguable |
-| `fillet/surgery.rs:689` | A ten-line proof of a perpendicularity claim spanning three modules, attached to `let _ = dir;` |
+| `blend/surgery.rs` (pre-rename `fillet/surgery.rs:689`) | A ten-line proof of a perpendicularity claim spanning three modules, attached to `let _ = dir;` |
 
 The prose is high quality. What makes it a finding is that duplicated
 *arguments* drift exactly the way duplicated code does, and several
@@ -3879,7 +3912,7 @@ reachable across suites (`topo/tests/common` and `step-export/tests/common`
 already work that way). It cannot serve either case here: `topo`'s
 `ArenaCounts` is one type the *library* also uses, so a tests-side copy is
 still a copy; and `sweep`'s `cube` is named by in-crate pins in
-`fillet/surgery.rs` and `fillet/build.rs`, which a `tests/` module cannot
+`blend/surgery.rs` and `blend/build.rs` (pre-rename `fillet/` spellings), which a `tests/` module cannot
 reach. The gate puts one definition where both sides can name it.
 
 **Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own
@@ -3974,8 +4007,8 @@ what produced the `E0034` ambiguity storm it backed out of.
 ## S57. The `readback` class is alive one crate over, and the "one door" guard cannot see it
 
 - **Where**: `crates/editor-core/src/names/emit_topo.rs:48`,
-  `crates/sweep/src/fillet/build.rs:247`,
-  `crates/sweep/src/fillet/battery.rs:175`, `:183`, `:189`
+  `crates/sweep/src/blend/build.rs` (pre-rename `fillet/build.rs:247`),
+  `crates/sweep/src/blend/battery.rs` (pre-rename `fillet/battery.rs:175`, `:183`, `:189`)
 - **Confidence**: sure
 - **Raised by**: the review of #697, 2026-08-20 — the PR that rehoused
   `topo`'s body-wide accessor module out of `sweep` on the rule **a door lives
@@ -3993,7 +4026,7 @@ still standing in `editor-core`, the crate whose dependency on `sweep` the
 whole finding was about.
 
 **Four `Body`-only accessors housed in an op crate — the same misplacement
-#697 fixed, one crate away from where it was looked for.** `fillet/build.rs`'s `outward_of`
+#697 fixed, one crate away from where it was looked for.** `blend/build.rs`'s `outward_of` (pre-rename `fillet/build.rs`)
 and `battery.rs`'s `outward` / `face_of` / `carrier_of` each take a `&Body`
 plus an arena key and touch nothing from `sweep`. `outward_of` is a
 hand-written copy of `topo::face_normal::face_outward_normal` — the function
@@ -5382,21 +5415,25 @@ site; cite them as e.g. `S111(a)`.
 
 ## S111. Frontier vocabulary and API surface with no reachable caller (roll-up)
 
-- (a) **What survives of S7's charge is `resolve_rim`'s one-link
-  guard** (*"Likely dead in practice"*, `sweep/src/fillet/surgery.rs`),
-  which stays typed for the reason written on it: nothing in that call
-  proves the battery's screen ran, and no token attests it. The other
-  four self-declarations this member listed went with #768 (D27) — the
-  branches themselves are gone, not just the sentences. **This member
-  has no row**; the orchestrator owns whether the residue earns one.
-- (b) `crates/sweep/src/fillet/surgery.rs:778` — `pub fn ring_clearance`
+**(a) landed and has left this roll-up.** Its subject was
+`resolve_rim`'s one-link guard, declared *"Likely dead in practice"*;
+commit `18fd8370` replaced that sentence with the opposite one and the
+arm is now a fully built path (a one-link rim resolves against the
+annulus shape). Re-derived 2026-08-31 by lane T-b: the
+self-declared-dead vocabulary returns **zero** hits anywhere in
+`crates/sweep/src/`.
+
+**(b) and (d) both stand, verified against the renamed tree
+(2026-08-31), and are now rowed as `D322` and `D323`** — the module is
+`sweep::blend`, so the citations below read against the old spelling.
+
+- (b) `crates/sweep/src/blend/surgery.rs:1712` — `pub fn ring_clearance`
   is production API whose only caller outside the module is
-  `crates/sweep/tests/m6_surgery.rs:434`, and whose doc says so. S52
+  `crates/sweep/tests/m6_surgery.rs:447`, and whose doc says so. S52
   landed a `feature = "test-support"` gate in this very crate for this
-  class; #672 records the residue and does not name this. Also:
-  `sweep::fillet::surgery` is `pub` while every other item in it is
-  `pub(super)`.
-- (d) `crates/sweep/src/fillet/naming.rs:56` — `Retired` still has no
+  class; #672 records the residue and does not name this. Every other
+  item in that file is `pub(super)` or private.
+- (d) `crates/sweep/src/blend/naming.rs:115` — `Retired` still has no
   face channel, so the one thing it exists to catch (a source entity
   destroyed without a record) is structurally uncatchable for faces. The
   whole-body door's retirement made the emitter's *"faces are never
@@ -5408,16 +5445,17 @@ site; cite them as e.g. `S111(a)`.
 **Two members left, and both are rowed.** Both `file:line` citations below
 were re-derived from the tree; where a line had drifted the site is cited by
 target name or by expression instead, which is `S176(a)`'s discipline applied
-to the entry that records it. **(a) is Track T's `D124`** (routed to Track E's
-`E-g`, which landed without it and whose row is struck — see `S177`).
-**(e) is Track Q's `D282`**.
+to the entry that records it. **(a) is Track T's `D324`** — re-derived and
+re-homed there by `D124`, after riding Track E's `E-g`, which landed without
+it and whose row is struck (see `S177`). **(e) is Track Q's `D282`**.
 
-- (a) `crates/sweep/src/fillet/naming.rs`, under *"What consumes these
-  rows"* — *"`editor-core`'s
-  `names::emit_fillet` … reads every field EXCEPT [`Retired`]"*.
-  `emit_fillet.rs:220-221` builds `retired_e`/`retired_v` straight out
-  of `rec.dead` and consults them. The diff rewrote the paragraphs
-  immediately above and below and left this one.
+- (a) `crates/sweep/src/blend/naming.rs:38-40`, under *"What consumes
+  these rows"* — *"`editor-core`'s `names::emit_blend` … reads every
+  field EXCEPT [`Retired`]"*. `emit_blend.rs:242-243,259-260` builds
+  `retired_e`/`retired_v` straight out of `rec.dead` and consults them.
+  The diff rewrote the paragraphs immediately above and below and left
+  this one, and the BLEND-6 rename has since moved every name in the
+  sentence without making it true.
 - (e) `crates/geom-brep/src/ssi/exhaust.rs:92` / `ssi.rs`'s
   `account_chart_plane` call (**cited by expression, per S176(a)** — the
   line moved by 13 under a merge) — `Exhaustiveness::floor`'s public
@@ -6371,7 +6409,33 @@ five-member sentence was written.
 
 **Not swept.** This finding names one instance because G10's ledger walked
 into it. Every other struck row on every track has the same exposure and
-none of them were checked; that is a sweep with an owner, which is **D124**.
+none of them were checked; that was a sweep with an owner, `D124`.
+
+**`D124` executed (lane T-b, 2026-08-31), and the four members are
+dispositioned.** Each was re-derived against the tree the BLEND-6 rename
+left, which is a different tree from the one the re-derivation above read.
+**`S111(a)` is CLOSED** — its guard sentence was replaced at commit
+`18fd8370` and the arm is a built path now, with the self-declared-dead
+vocabulary returning zero hits across `crates/sweep/src/`; that member has
+left `S111`. **`S111(b)`, `S111(d)` and `S112(a)` all still stand**, with
+citations that had moved under the rename, and each now holds a row of its
+own on Track T — `D322`, `D323` and `D324` — which is what re-homing
+means here: not a pointer, but an entry a reader can act on. Two of the
+three sharpened on re-derivation, and one of those sharpenings is this
+finding's own mechanism seen once more: `S112(a)`'s false paragraph is
+cited BY the consuming site as its authority, so a rides-along left
+untracked also left two files pointing at each other.
+
+**What the sweep did NOT do**: check the other tracks' struck rows. `D124`
+was written as the sweep for that whole exposure and executed as the
+re-homing of the one instance `S177` had enumerated — the four members
+above. Every other closed lane's rides-along are still unchecked, and the
+cheap fix this finding proposes (a lane's row may only be struck once its
+rides-along are re-homed) is still unadopted, so the exposure keeps
+accruing. **That remainder is filed as `L5`** under §D's *Last,
+deliberately* — it audits this document's own history rather than any
+track's files, so it belongs to no fence, which is exactly why it had
+been riding inside a Track T row.
 
 **Verdict:**
 
@@ -7418,6 +7482,147 @@ re-arguing and neither is broken.
 
 ---
 
+## S392. The loft prism is the elbow's class, eighteen copies wide, and nothing rows it
+
+**Raised by lane T-b**, which closed `C25` — one swept body built from
+scratch six times across three crates — and found the sibling body is
+worse. `C25`'s own text scopes it to the elbow; this is the receipt for
+what that scope could not match.
+
+**The count was wrong when first filed, and how it was wrong is part of
+the finding.** It read *"eleven copies"* over four crates and the tour.
+The sweep behind that number was `grep -rn "1.375" --include=*.rs crates/
+demos/ tools/ | head -20`, and it was unsound twice over: `--include=*.rs`
+excluded a Python member outright, and **the result was piped through
+`head -20` and the truncation was read as the population**. That is this
+document's own recurring failure — a claim wearing a receipt's clothes
+(`S131`: the grep is a candidate list, not a count) — committed inside a
+finding about duplication. Corrected below by the style reviewer's
+enumeration plus an untruncated re-run, which found two sites past the
+reviewer's list as well.
+
+**The full population**, `grep -rn -- "-1\.375"` over `crates/ demos/
+tools/ scripts/`, no filename filter and no truncation: **18 live
+constructions** of the prism's non-affine trapezoid — the constant that
+makes its walls genuinely curved in v — plus one rustdoc example.
+
+- `crates/sweep/tests/{m6_loft_body,m7_skin_integral,review_m6_3_loft_probes,s16_box_soundness,lib_u3_sections,p1b_r1_probes}.rs`
+  and `pcurve_p1b_r2_probes.rs` **twice** (`:190`, `:471`) — seven files,
+  eight sites
+- `crates/mesh/tests/{probe_review,budget_meter,m7_nurbs_trimmed,fitted_refusals}.rs`
+- `crates/editor-core/tests/corpus/loft_prism.rs:55`
+- `crates/step-export/tests/common/mod.rs:788` (`PRISM_TRAPEZOID`)
+- `crates/step-import/tests/review_probes_m7_3.rs:38`
+- `crates/pncad-py/tests/test_north_star.py:654` — **Python**, and its own
+  comment says *"`demos/tour/src/skinned.rs::PRISM_SQUARE` /
+  `PRISM_TRAPEZOID`, verbatim"*
+- `demos/tour/src/skinned.rs:252` (`PRISM_TRAPEZOID`)
+- `tools/tess-meter/tests/rows.rs:30`
+- plus the rustdoc example at `crates/sweep/src/skin.rs:1000`, and three
+  prose restatements in two committed golden fixtures
+  (`step-export/tests/fixtures/{loft_prism,nonuniform_loft}.expect`)
+
+**Six crates, the tour, and a tool.** Several members carry a comment
+saying they are a copy, which is the same
+duplication-reported-as-documentation `C25` names.
+
+**The mechanism to close it now exists and was not spent here.**
+`sweep::test_support` is reachable from another crate's suites as of
+`C25`'s lane, so most of these are a delegation rather than a new home.
+It is filed rather than taken because it is a second body, larger than
+the row's, and a lane that quietly takes it has grown its own scope after
+dispatch.
+
+**Four members are NOT one lane's to convert and a taker should not
+assume them.** `crates/step-import/`'s hit rebuilds the prism in order to
+import it back. `demos/tour`'s is a façade-crate copy that cannot link a
+dev-gated home at all (the `C25` disposition for the tour's frame recipe
+applies unchanged), and `pncad-py`'s Python copy is downstream of the
+tour's, so it moves only when the tour's does — **and every `*.py` in the
+repo is Track J's**. `tools/tess-meter/` is **Track K's**. So the row this
+becomes is cross-track by its own population, exactly as `C25` was, and
+that should be said at dispatch rather than discovered.
+
+**Confidence**: sure (untruncated grep receipt above, every site read).
+**Where**: the eighteen sites.
+
+**Verdict:**
+
+---
+
+## S393. Every path sweep starts by hand-building a frame the kernel already knows how to carry
+
+**Raised by lane T-b** while closing `C25`'s frame-recipe half. `sweep_body`
+and `sweep_geometry` take a start placement and then carry it along the path
+by minimal rotation — the carrying is the kernel's, the STARTING frame is
+every caller's own. The recipe is fixed and non-obvious (the plane through
+the path's start point whose normal is the start tangent, in-plane axes built
+off whichever world axis is least parallel to it, then normalize), and
+the tree wrote it out four times: twice in `sweep/tests/`, folded by #1329,
+and twice in `demos/tour/src/skinned.rs`, folded by `C25`'s lane. Both folds
+are test- or demo-local; there is no door.
+
+**The demo is the evidence, per the demo rule.** The tour narrates this
+recipe as the thing a user must write, and its copy is STATED rather than
+shared precisely because no public door hands it out — a façade crate cannot
+link a dev-gated test home. Four hand-copies of one fixed recipe, one of them
+in the file whose job is to show the library as a user meets it, is the
+`S79` shape.
+
+**This is a design question, not a defect, and it is not filed as one.**
+What a door would be called, whether it belongs on `NurbsCurve3` or beside
+`sweep_places`, and whether a caller wanting a DIFFERENT roll is then owed a
+second door, are all open. Nothing here says the kernel is wrong; it says
+four copies is the measurement, and the answer may still be "callers write
+it".
+
+**Confidence**: sure (the four sites). **Where**:
+`crates/sweep/tests/common/mod.rs`'s `normal_start_place`,
+`demos/tour/src/skinned.rs`'s `normal_start_place`, and the
+`sweep_places` doc at `crates/sweep/src/skin.rs`.
+
+**Verdict:**
+
+---
+
+## S394. `geom-brep` swallows its own `boundary_iso_*` refusals in the crate that spells the fix correctly one file over
+
+**Raised by lane T-b** while closing `D91`. That row fixed `crates/sweep`'s
+`boundary_iso_u(…).map_err(|_| LoftError::SeamStructure)?`. **The fence is
+now clean** — `map_err(|_|` returns **zero** hits anywhere in
+`crates/sweep/src/`, so `D91`'s was the last member there — and the sweep
+that established it found the class alive one crate below, unrowed.
+
+The two live instances are `crates/geom-brep/src/pcurve_cache.rs:3438`
+(`boundary_iso_u`) and `:3508` (`boundary_iso_v`), each discarding a
+`SplineError` for a constant-string `PcurveCertifyError::IsoUnsupported {
+what: … }`. **The same crate already carries the payload-preserving
+spelling**: `nurbs_iso.rs:167` does
+`.map_err(|source| IsoRowError::Structure { source })?` — so this is not a
+missing pattern or a type that cannot hold a source, it is one file
+disagreeing with its neighbour, and the door being swallowed is the one
+whose `# Errors` section promises *"surfaced rather than swallowed (D4
+¶2)"*.
+
+Two more discard the same error through a different idiom and are a
+different judgement, not this class's: `crates/step-import/src/adopt.rs:711`
+and `:877` take `let Ok(iso) = …` inside recognizers whose whole business
+is *"is this shape the one I think it is"*, where a refusal is an answer
+rather than a fault. A taker should decide those separately rather than
+converting them by pattern.
+
+**Routing**: `pcurve_cache.rs` and `nurbs_iso.rs` are both named in **Track
+Q's** fence; `adopt.rs` is **Track U's**. Not taken here — `D91`'s row is
+one call site by its own text, and reaching into two other tracks' files on
+a sweep's authority is how a lane's scope grows after dispatch.
+
+**Confidence**: sure (grep receipt, `map_err(|_|` plus a per-site read).
+**Where**: `crates/geom-brep/src/pcurve_cache.rs:3438,3508`.
+
+**Verdict:**
+
+---
+
 # §D. The schedule
 
 > **READ THIS FIRST. Every track A–I is closed, and what they left is
@@ -7596,7 +7801,7 @@ re-scoped or re-argued by being moved.
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 11 |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 *(re-derived from the track's own table, 2026-08-31; had read 18 against 16 rows)* |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
-| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
+| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 11 |
@@ -7702,6 +7907,8 @@ three sub-lanes inside the track.
 | **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
 | **D240** | Neither geometry enum can lift itself to another scalar (`S33`) — `Curve3<T>` and `Surface<T>` have no `map_scalar`/`lift`, so every caller writes its own per-variant ladder: four in `geom/src/{curves,surfaces}.rs` and roughly ten more across `topo`, `mesh` and test modules. Each is kept exhaustive by hand and each silently maps `Nurbs(_)` to the placeholder rather than lifting the payload. **The one production copy outside this fence, `sweep/src/skin.rs:774`, is Track T's `D320`** | unrowed |
 | **D241** | `geom/src/scalar_lift.rs` is named for the job it declines to do (`S100`) — it deduplicates the four leaf point/vec converters and says in its own header that the per-variant ladders stay where they are, in the same crate as four surviving ladders. `lift_to_dual` (curves) and `lift_dual` (surfaces) sit beside two unrelated `lift` functions. **`D240` is the work; this row is the name, and they want one lane** | unrowed |
+| **D242** | **`ControlPoint::channel`'s two `unreachable!` arms are row 0's own *yes* side** (`D96`'s small-domain pair, re-homed by Track T's `T-c` when that row's in-fence members were disposed; citations re-derived 2026-08-31 — `crates/geom/src/net.rs:63` and `:88`, which read `:64`/`:86` when `D96` was written). The trait is `pub(crate)` with two impls and two call sites, one of them already `for d in 0..P::CHANNELS`, so a `channels()` iterator deletes both arms with **no public API change**. The trait's own rustdoc states the precondition it cannot carry — *"`d >= CHANNELS` is a caller bug, not an input"* — which is the newtype argument written as prose | `D96`, via `T-c` |
+| **D243** | **`insert_once_ring`'s interior-knot guard announces a caller precondition a type could carry** (`D96`'s third small-domain member, re-homed by `T-c`; citation re-derived 2026-08-31 — `crates/geom-core/src/spline/compose.rs:315`, which read `:314`). `if !(u > knots[p] && u < knots[knots.len() - p - 1]) { unreachable!(…) }`, where the site's own comment says the only caller draws `u` either from `interior_knots` — strictly interior by the `KnotVector` invariant — or from extras it filters to the open domain. That is an `InteriorKnot` newtype spelled as a comment. **Row 0's question here is the propagation and not the arm**: the newtype reaches the filter and the caller, not only this function | `D96`, via `T-c` |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -7782,6 +7989,7 @@ because `mesh` is what consumes it; Q keeps the four paths it names.
 options and the measured price are at `S65`; issues #896 and #897 carry what
 #872 could route. When it is ruled, the implementation is this track's.)*
 | **D303** | **`mesh::sizing::ceil_count` answers `1` for a NEGATIVE step**, in the function about to allocate that many grid points: `raw` is negative, finite, and floors to one, so it refuses only what makes `raw` non-finite (a NaN, a zero step, a count ≥ 2^24). `tess_meter::divisions`, the consumer-side second spelling, now refuses a negative step under `D105`, so **the kernel is the laxer of the pair** — and a negative step is not a smaller grid, it is a reading that did not happen. The fail-loud side of a two-spelling pair should be the one holding the allocation. Unreachable today only because every step reaching it is `sqrt`- or `cap_angular`-derived | `D105` residue |
+| **D304** | **`walk.rs`'s rim-anchored `out.first()` — `D96`'s one non-empty-by-construction member outside `sweep/`** (re-homed by Track T's `T-c` when `D96`'s in-fence nine were disposed; citation re-derived 2026-08-31 — `crates/mesh/src/walk.rs:1200`, which read `:1132` when `D96` was written). `let Some(first) = out.first() else { unreachable!(…) }`, where the rim arm above pushes unconditionally and its own twenty-line comment proves so: the polygon is non-empty by construction and a bare `Vec` is what represents it. **The site is already argued in writing** — the comment records that the default it replaced (`0.0` for the lever arm) would have made `gap * 0 < eps` true for every gap and silently disabled the detector — so what row 0 asks is only whether the sequence can stop being a bare `Vec` on the path that reaches here | `D96`, via `T-c` |
 
 ## Track T — `sweep/`
 
@@ -7791,13 +7999,11 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 | # | What | Was |
 |---|---|---|
-| **D124** | Re-home the findings E-g's retirement left untracked — `S111(a)(b)(d)` and `S112(a)` were routed to a lane that landed without them and whose row is struck (S177). Three re-derived from the tree and standing | Track G |
-| **D96** | Thirteen `unreachable!` arms are row-0 candidates — states a type change could stop spelling, `EmptyChain`'s exact shape. **Ten are this track's**; the remainder are filed as rows on the tracks that own their files | Track E |
-| **D91** | `map_err(\|_\| …)` is D29's own disclosed blind spot and D29 never ran it inside its own crate. **Its surviving hit SPANS this track and Track W** — said explicitly rather than split, because the two halves are one edit and neither compiles without the other. `loft.rs`'s `boundary_iso_u(…).map_err(\|_\| LoftError::SeamStructure)?` swallows a `SplineError`, which falsifies `geom_brep::nurbs_iso`'s own `# Errors` section — *"surfaced rather than swallowed (D4 ¶2)"* — one crate below. The payload-preserving fix is `SeamStructure { source: SplineError }`, and changing the variant's shape reaches `editor-core/tests/lib_doors_node_result.rs`, which constructs it as a unit: W's fence. **The in-fence-only alternative is worse, not safer** — keeping the variant unit-shaped leaves `SeamStructure` constructed nowhere in any `src`, i.e. dead but for that one test | Track E |
-| **C25** | One swept body built from scratch six times across three crates, enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is. **The path-start FRAME RECIPE rides with it**: the plane-normal-to-the-start-tangent placement every path-swept fixture opens with was a second copy beside the body's, and #1329 folded the two `sweep/tests/` copies into one shared helper — the tour's copy (`demos/tour/src/skinned.rs`, which narrates it) is the remaining twin and is out of that lane's fence, so it lands with the bodies rather than separately | Track C |
-| **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV**. **Placed on Track P until 2026-08-29 and moved here on the fence rule** — `octant_chart` is defined at `fillet/build.rs` and consumed from `fillet/surgery.rs`, and no `sweep` path is among Track P's eleven files. Number, mark and provenance unchanged | Track E |
+| **D322** | **`crates/sweep/src/blend/surgery.rs:1712`'s `pub fn ring_clearance` is production API with no production caller** (`S111(b)`, re-homed by `D124`; verified standing 2026-08-31 against the renamed tree). Its only caller outside the module is `crates/sweep/tests/m6_surgery.rs:447`, and its own doc says so — *"Public for exactly that trio"*. Every other item in that file is `pub(super)` or private. **The remedy already exists in this crate**: `S111(b)`'s own text names the `feature = "test-support"` gate, and `crates/sweep/src/test_support.rs` is now the cross-crate home for exactly this shape, so the conversion is a visibility change plus a re-export rather than a new mechanism. **Blocked while a BLEND lane is live in `blend/`** (T-R1's class; the live one is BLEND-4, PR #1360, which edits this very file — `T-R7`) | `S111(b)`, via `D124` |
+| **D323** | **`blend::naming::Retired` still has no face channel** (`S111(d)`, re-homed by `D124`; verified standing). `crates/sweep/src/blend/naming.rs:115` carries `edges` and `vertices` only, so the one thing the record exists to catch — a source entity destroyed without a record — is structurally uncatchable for faces, which is `S15`'s hole unchanged. **What is new since the finding was written** is that the consumer now argues the hole away rather than leaving it silent: `crates/editor-core/src/names/emit_blend.rs:259-262` says *"Faces are never retired — a support shrinks, it does not die"*. So the row is a decision, not a patch: either that argument is the answer and belongs at `Retired` itself, or it is not and the channel is owed. **Cheaper taken with `D324`** — same file, same subject. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S111(d)`, via `D124` |
+| **D324** | **`naming.rs`'s *"What consumes these rows"* header is false about its one consumer** (`S112(a)`, re-homed by `D124`; verified standing, and the rename moved the name it cites). `crates/sweep/src/blend/naming.rs:38-40` says `editor-core`'s `names::emit_blend` *"reads every field EXCEPT [`Retired`]"*; `crates/editor-core/src/names/emit_blend.rs:242-243,259-260` builds `retired_e`/`retired_v` out of `rec.dead` and consults them on every row. **Sharper than the finding recorded**: the consuming site cites *"(module docs)"* straight back at the paragraph that denies it, so the two halves of one claim contradict each other across the crate boundary and each points at the other as its authority. One paragraph, and it is the same file as `D323`. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S112(a)`, via `D124` |
 | **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
-| **D321** | **`crates/sweep/src/fillet/admit.rs:467` reads its own source with no reader at all** — `include_str!("admit.rs")` counting `Self {`, whose author spliced string literals to avoid self-matching rather than lex. That is the same tell as the reader `S117` calls the class's worst member, and it was outside both of that finding's sweeps. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
+| **D325** | **The corner fusion's `first_arc` is this fence's last `EmptyChain`-shaped arm** (`D96`'s ninth in-fence member, re-homed when `T-c` disposed of the other eight). `crates/sweep/src/blend/surgery.rs` holds `let Some(arc) = first_arc else { unreachable!(…) }` in the corner fusion, and its proof — *a corner's incidence list holds at least the link that discovered it* — is already a fact of the TYPE one level up: `CornerLinks::first` returns a link rather than an `Option`. **Row 0's answer is therefore yes**, and the cost is what put it outside `T-c`: `CornerLinks::sorted` hands back a `Vec`, so carrying the non-emptiness into the arc loop means a seeded return — `(first, rest)`, the shape `CornerLinks` already has in its own fields — plus hoisting a forty-line mutation body that holds `&mut Body`, across the three `sorted` call sites. **Cheaper taken with any lane that opens the corner fusion for another reason** | `D96`, via `T-c` |
 
 ## Track U — the exchange surface and the bindings
 
@@ -7911,6 +8117,7 @@ orchestrator without breaking the partition.
 | **L1** | **S36** — comb-and-rename, **per suite**, never a rename pass. | A PR-numbered name currently *carries signal*: it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Needs an owner and a slot, not just permission — the 2026-08-13 retirement licence has produced zero deletions. |
 | **L2** | **S38** — comment trimming. | Must follow every deletion above; trimming comments on code about to be deleted is pure waste. Note the pressure runs the other way too: three fix passes this week added prose because a finding demanded a claim-site reason that did not exist. |
 | **L3** | Remaining **S35** roll-up rows. | Lowest value density; several will be resolved incidentally. |
+| **L5** | **`S177`'s remainder — walk every OTHER struck lane row for rides-along that left with it.** `D124` executed the sweep for the one instance `S177` enumerated (Track E's `E-g`: four members, one closed, three re-homed as `D322`–`D324`) and deliberately did not touch the rest. Every closed lane on every track has the same exposure, and the mechanism keeps producing it because the cheap fix `S177` proposes — **a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row** — is still unadopted. **Its rule half has landed** — the strike rule is now written into *"How to read a row"* (orchestrator ruling, T-b's review adjudication), so the accrual is stopped going forward. **What is left is the walk**: every row struck BEFORE that rule existed, which is all of them. | Document-wide, and it audits this document's own history rather than any track's files — a rides-along is only visible from a landed lane's report, so the walk crosses every track's log and can be scoped to no fence. |
 | **L4** | **Re-check every disposition in this document that reasoned about a gate's direction from ONE side.** `S120(a)`'s second clause, and the only half of it that never found a home: a fallback inside a *comparison* has two sides, and a sweep that dispositioned one of them — *"a broken reading shrinks the denominator, so the gate is MORE likely to fire"* — answered half the question while reading as if it had answered all of it. That reasoning appears throughout this file. | Document-wide, and it audits **this document's own dispositions** rather than any track's files — so it collides with every track exactly as `L1`–`L3` do, and it cannot be scoped to a fence. `D105` closed the two `tess-meter` instances; the population is the rest. |
 
 ---

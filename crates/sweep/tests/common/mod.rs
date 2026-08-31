@@ -6,7 +6,11 @@
 //! the narrowest one all of its consumers can reach:
 //!
 //! - `sweep::test_support` — fixtures the LIBRARY can build, reachable
-//!   from in-crate tests as well as from here;
+//!   from in-crate tests, from here, and (behind the same dev-only
+//!   feature) from another crate's suites, which is where a fixture
+//!   with consumers OUTSIDE this crate has to live: the swept elbow
+//!   the `mesh` and `step-export` suites meter is there for that
+//!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
 //! - [`orient`] — what a suite CHECKS of a body it built;

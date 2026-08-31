@@ -861,43 +861,13 @@ const NONUNIFORM_T: f64 = 0.34419950074181277;
 /// callers anywhere in the tree before #207: every curved path drove
 /// the same synthesized-weight drift the non-uniform loft did.
 ///
-/// Construction is `sweep/tests/m7_skin_integral.rs`'s elbow, constant
-/// for constant (that suite derives the Pappus bracket; the
-/// `step-export` twin in `tests/m7_swept_elbow.rs` pins the wire's
-/// non-rationality). Duplicated across the crate boundary exactly as
-/// [`loft_prism`] duplicates `sweep/tests/m6_loft_body.rs`.
+/// The body is `sweep::test_support`'s, not a copy of it: the suite
+/// that derives its Pappus bracket, the tessellation rows one crate
+/// over and this fixture all export the same solid, so a change to
+/// the elbow moves all of them or none. (Contrast [`loft_prism`],
+/// which is still `sweep/tests/m6_loft_body.rs`'s construction
+/// duplicated across the crate boundary.) The `step-export` twin in
+/// `tests/m7_swept_elbow.rs` pins the wire's non-rationality.
 pub fn swept_elbow() -> Body<f64> {
-    /// Path radius.
-    const R: f64 = 3.0;
-    /// Profile half-width.
-    const H: f64 = 0.25;
-    // The sketch arc runs (0,0) → (R,R) with bulge = tan(θ/4) =
-    // tan(π/8), a 90° turn; the placement rotates the sketch plane by
-    // −π/2 about the world y-axis, sending sketch (x, y) to world
-    // (0, y, x). So the path leaves the origin with tangent +z — the
-    // identity-placed profile (world XY plane) is already normal to it.
-    let path = sweep::skin::segment_curve(
-        0,
-        sweep::SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(R, R),
-            bulge: (core::f64::consts::PI / 8.0).tan(),
-        },
-        geom_core::Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            -core::f64::consts::FRAC_PI_2,
-        ),
-    )
-    .expect("the elbow path is a well-formed quarter arc");
-    sweep::sweep_body::<f64>(
-        &quad([(-H, -H), (H, -H), (H, H), (-H, H)]),
-        geom_core::Affine3::identity(),
-        &path,
-        9,
-        3,
-        Tol::witness(),
-    )
-    .expect("the curved-path sweep body builds")
-    .body
+    sweep::test_support::swept_elbow(Tol::witness())
 }

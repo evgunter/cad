@@ -85,12 +85,24 @@ mod bitdump;
 mod blend1_r1_probes;
 #[path = "blend2_r2_probes.rs"]
 mod blend2_r2_probes;
+#[path = "blend3_concave_chamfer.rs"]
+mod blend3_concave_chamfer;
+#[path = "blend3_r2_probes.rs"]
+mod blend3_r2_probes;
+#[path = "blend4_concave_fillet.rs"]
+mod blend4_concave_fillet;
+#[path = "blend4_r1_probes.rs"]
+mod blend4_r1_probes;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "cert5_offgrid_knot_rational.rs"]
+mod cert5_offgrid_knot_rational;
+#[path = "cert5_r1_e2e_probes.rs"]
+mod cert5_r1_e2e_probes;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -193,6 +205,10 @@ mod review_arms2_r1_probes;
 mod review_arms3_r1_probes;
 #[path = "review_blend1_r2_probes.rs"]
 mod review_blend1_r2_probes;
+#[path = "review_blend3_r1_probes.rs"]
+mod review_blend3_r1_probes;
+#[path = "review_blend4_r2_probes.rs"]
+mod review_blend4_r2_probes;
 #[path = "review_blend6_r1_probes.rs"]
 mod review_blend6_r1_probes;
 #[path = "review_blend6_r2_probes.rs"]

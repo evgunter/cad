@@ -421,3 +421,84 @@ gained the achieved:inf fourth face from R2.
 Slate: CERT-5's fix pass is in flight (NMAI from its R2 — three
 bilateral MAJORs; delta re-review follows before its merge);
 CERT-6 dispatches after CERT-5 lands. CERT-8/9/10 then per plan.
+
+## CERT-5 merged (2026-08-31) — issue 453 closed, issue 390 annotated; the straddle floor is gone
+
+PR 1314 at ed7a7623 after the program's first NMAI → fix → delta
+cycle. Gates: delivered head 3fc450d6 green (lanes both, ε 1e-12
+drawn); fix head ed7a7623 green (lanes both, ε default drawn); all
+six matrix points verified locally at the fix head. Knot-aligned
+cells at four sites retire the Θ(1/pieces) floor (straddle branch
+deleted, not bypassed); dm1 146× (2.7469e-4 → 1.885e-6, 1.84×
+target — honestly NOT flipped; the dial decision is issue 1315 with
+corrected figures); the lily flip is a GATE re-measured on the final
+head; the w-uniform-in-v arm taken with the ruling's "strictly
+better" softened to the measurement.
+
+**The dual (ordinal 703, sample at the row)**: R1 fable A-W-F 2/5/4;
+R2 opus NMAI 3/6/4 — all three MAJORs BILATERAL by execution
+(identical dm1 digits to 17 places; the same drop-knots mutant; the
+sliver hazard at differing severity), so the verdict split is pure
+label noise on converged findings — v4 amendment 2's expected shape,
+and the NMAI bound procedurally. Fix pass IMPLEMENTER-INHERITED:
+the dm1 discrepancy explained by bit-identical reconstruction (the
+meter's denominator moved mid-development); the blind-row gate
+found its load-bearing combination (v-degree-1 + v-varying weights
+— f_vv structurally None); the sliver attribution CORRECTED AGAINST
+BOTH REVIEWS by measurement (refine_dir's exact-equality insertion,
+pre-existing, worse on main → issue 1358; the delta lane
+re-measured and conceded plainly); one own-mis-claim admitted
+(tier_gate "corrected" when never touched — a PR-body claim
+falsified by review, the CERT-1 brief-as-claim-site lesson from the
+other side). Two refusal-class changes argued under the D2 addendum
+(both the safe direction; the #389-gap masking recorded, not
+claimed fixed). DELTA re-review by the NMAI lane: all three MAJORs
+FIXED by execution, no regressions — DELTA-APPROVE.
+
+**Cross-program consequence**: the branch's ε=1e-12 draws surfaced
+FOUR latent main reds at the never-sampled (interval, 1e-12) matrix
+point, left by CERT-3/CERT-4's merges (their gates drew other ε
+rows) — repaired as ported main fixes in this PR (per-band-honest
+re-pins, no re-baselines; delta-verified), with the CLASS filed as
+issue 1356 (recommendation: trailer-pin ε for band-sensitive units;
+distinguish "consults no tolerance" from "premise varies by band"
+in review briefs). S-CERT should adopt the ε-trailer practice for
+its remaining units — CERT-6 onward dispatch with it in the spec.
+
+Issues: 453 closes at this merge; 390 stays open annotated (route 2
+unclaimed); 1315/1316 corrected+appended; 1356 (ε-matrix class),
+1358 (refine_dir + the five-way inner copy) filed. Slate next:
+CERT-6 (area gauge, on the post-CERT-5 area lanes, B2 slot 2),
+then CERT-8/9/10 and the absorbed SMELL tracks per plan.
+
+## CERT-9 merged (2026-08-31) — issue 303 closed; signed_volume is placement-honest
+
+PR 1361 at f5f949aa. Gates: delivered head 5593161d green (default
+lane drawn); fix head green run 33383424770 (interval/1e-6 DRAWN —
+consistent with the unit's argued lane-independence, no trailer).
+The fold recentres on the bbox centre (overflow-robust form);
+red-first digits vivid (33.3 vs the true 1e-9 at a 1e8 m offset;
+pre-fix far placements could SIGN-FLIP a volume, so seven
+orientation asserts were latently placement-dependent). S-sized
+unit, S-sized cycle: implementer ~65m, reviews ~29m+16m, fix ~65m.
+
+**The dual (ordinal 705, sample at the row)**: R1 fable APPROVE
+0/1/3; R2 opus A-W-F 0/3/4; zero MAJORs, no tally candidates. The
+brief's designed attack — the exactness argument's closed-mesh
+premise — landed bilaterally (the open-mesh answer changed,
+silently; unreachable in-repo; now defined in the doc), and R2
+proved the shipped argument UNDERSTATED the mechanism (a
+position-derived anchor gives unconditional translation invariance
+by equivariance) and caught the ε premise conflating assertions
+with fixtures. Fix pass IMPLEMENTER-INHERITED across the container
+restart (the agent resumed from its transcript); its three-ε sweep
+found and fixed a latent ε=1e-12 red in the adopted probes before
+any gate drew it — the issue-1356 practice already paying.
+
+Operational: the container restarted mid-wave (~09:20Z), killing
+the first CERT-6 lane with nothing pushed (~50m lost, fragment
+saved); re-dispatched fresh on the same arm, recorded for its row.
+
+Slate: CERT-6 (re-dispatched, running), then CERT-8, CERT-10
+(opens block CERT-B3), CERT-M/CERT-N track lanes. Issue 1362
+(walk.rs anchor class, S-MESH) filed en route.

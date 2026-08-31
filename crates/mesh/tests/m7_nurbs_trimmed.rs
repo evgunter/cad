@@ -5,20 +5,26 @@
 //! are watertight, volume-sane, deterministic, and inside the δ + ε
 //! promise BY MEASUREMENT.
 //!
-//! The bodies are the #212 corpus fixtures' constructions, constant
-//! for constant (`step-export/tests/common/mod.rs::{loft_prism,
-//! swept_elbow}`; `sweep/tests/m7_skin_integral.rs`'s elbow): the
-//! degree-1×2 and 1×3 wall classes the lane was promoted for.
+//! The elbow is `sweep::test_support`'s corpus body, shared with the
+//! suite that brackets its volume and with the STEP fixture; the
+//! prism is still the #212 fixture's construction, constant for
+//! constant (`step-export`'s `loft_prism`). Between them they carry
+//! the degree-1×2 and 1×3 wall classes the lane was promoted for.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
 
 use geom::Surface;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Vec3};
 use mesh::cert::dist_point_triangle;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
-use sweep::{SketchSegment, loft_body, segment_curve, sweep_body};
+use sweep::loft_body;
+// The `swept_elbow` corpus body (#212 / #210) — a 0.5 m square carried
+// through a 90° arc of radius 3 at nine stations, v-degree 3, so walls
+// of degree 1×3 — is `sweep::test_support`'s, shared with the suite
+// that derives its Pappus bracket and with the STEP fixture.
+use sweep::test_support::{ELBOW_H, ELBOW_R, swept_elbow};
 use topo::Body;
 
 mod common;
@@ -43,38 +49,6 @@ fn loft_prism() -> Body<f64> {
         .body
 }
 
-/// The `swept_elbow` corpus body (#212 / #210): a 0.5 m square carried
-/// through a 90° arc of radius 3 at nine stations, v-degree 3 — walls
-/// degree 1×3; Pappus volume of the limiting quarter torus
-/// (2h)²·R·π/2.
-fn swept_elbow() -> Body<f64> {
-    let (r, h) = (3.0, 0.25);
-    let path = segment_curve(
-        0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(r, r),
-            bulge: (core::f64::consts::PI / 8.0).tan(),
-        },
-        Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            -FRAC_PI_2,
-        ),
-    )
-    .expect("the elbow path is a well-formed quarter arc");
-    sweep_body::<f64>(
-        &quad([(-h, -h), (h, -h), (h, h), (-h, h)]),
-        Affine3::identity(),
-        &path,
-        9,
-        3,
-        Tol::witness(),
-    )
-    .expect("the curved-path sweep body builds")
-    .body
-}
-
 #[test]
 fn loft_prism_tessellates_watertight_and_volume_sane() {
     let body = loft_prism();
@@ -92,11 +66,11 @@ fn loft_prism_tessellates_watertight_and_volume_sane() {
 
 #[test]
 fn swept_elbow_tessellates_watertight_and_volume_sane() {
-    let body = swept_elbow();
+    let body = swept_elbow(Tol::witness());
     let mesh = mesh::tessellate(&body, 3e-3, Tol::witness()).expect("the swept elbow tessellates");
     check_mesh(&mesh).expect("watertight, manifold, outward");
     let v = signed_volume(&mesh);
-    let pappus = 0.5 * 0.5 * 3.0 * FRAC_PI_2;
+    let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
     // The walls interpolate nine stations of circular motion, so the
     // exact solid differs from the quarter torus by ~4e-6 relative
     // (m7_skin_integral.rs); the chordal gap dominates here.
@@ -175,7 +149,7 @@ fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
 /// contract, on the new lane.
 #[test]
 fn nurbs_tessellation_is_deterministic() {
-    let body = swept_elbow();
+    let body = swept_elbow(Tol::witness());
     let a = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
     let b = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
     assert_eq!(a.positions.len(), b.positions.len());

@@ -184,8 +184,40 @@ fn corner_tag_mixed_convexity_names_feather() {
     }
 }
 
+/// **The classifier reads the CORNER, and a uniform trihedron is one
+/// configuration on either side of the material.** It admits both and
+/// refuses only the mixed signs, with no verb anywhere in it — which
+/// is what lets one predicate serve two bands, both of which now
+/// carve both uniform sides (the concave-chamfer and concave-fillet
+/// suites each carve the all-concave corner through their own front
+/// door).
+#[test]
+fn corner_config_admits_either_uniform_trihedron() {
+    let body = boxy();
+    let (_, v, _) = keys(&body);
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    for convex in [0, 3] {
+        corner_config(v, 3, convex, normals, 0.1, band())
+            .unwrap_or_else(|e| panic!("a uniform trihedron is a configuration, got {e:?}"));
+    }
+    for convex in [1, 2] {
+        match corner_config(v, 3, convex, normals, 0.1, band()) {
+            Err(BlendError::UnsupportedCorner {
+                corner: CornerConfig::MixedConvexity { convex: got },
+                ..
+            }) => assert_eq!(got, convex),
+            other => panic!("a mixed trihedron is out of scope for every band, got {other:?}"),
+        }
+    }
+}
+
 /// The three-convex-edge trihedron with independent normals is the
-/// ONE configuration that passes — the tag that is not a refusal.
+/// ONE configuration that passes for BOTH verbs — the convex tag that
+/// is not a refusal.
 #[test]
 fn corner_tag_three_convex_edges_is_the_one_that_passes() {
     let body = boxy();

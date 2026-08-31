@@ -26,6 +26,10 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate, parse_expr,
 };
 use pncad::geom_core::{Point3, Vec3};
+// `probe_solids` is the only scene door pinned to the recording scalar
+// (see its note), and it rides the `probe` feature with it.
+#[cfg(feature = "probe")]
+use pncad::geom_core::Probe;
 use pncad::profile::SketchPlane;
 
 use crate::booleans::{check, expect_seamed, try_union};
@@ -157,18 +161,33 @@ fn solidify<S: Scalar>(
 }
 
 /// The recipe evaluated + solidified at every fin count the tour
-/// shows (5 → 7 → 9, each re-eval fed the prior as memo), generic —
-/// the Probe sweep records the document-evaluation predicates AND the
-/// union chain at every count.
+/// shows (5 → 7 → 9, each re-eval fed the prior as memo) — the Probe
+/// sweep records the document-evaluation predicates AND the union
+/// chain at every count.
 /// Only `crate::probe` calls this, so it rides the `probe` feature with
 /// it — otherwise a default build trips `dead_code` under CI's
 /// `-D warnings`.
+///
+/// AT `Probe`, NOT GENERIC OVER [`Scalar`], and the reason is a door
+/// that does not exist rather than a preference. `evaluate` requires
+/// `EvalScalar`, which since the interval parameter door landed
+/// requires `editor_core::analysis::AxisScalar` — a scalar that can
+/// bind a widened lane environment. `Scalar` does not imply it, and
+/// this crate cannot add it as a bound: `AxisScalar` is deliberately
+/// interior to the façade (pncad's own surface census lists it under
+/// the E6 driver's vocabulary, NOT carried), so `pncad::` has no
+/// spelling for it. The genericity was never exercised either way —
+/// `sweep` takes `Vec<ProbeBody>`, so the sole call site could only
+/// ever instantiate this at `Probe`, and every other `evaluate` in the
+/// demos is concrete at `f64`. Widening the façade so a consumer can
+/// name the evaluation contract's own bound is a design question for
+/// that census, not something to settle from here.
 #[cfg(feature = "probe")]
-pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<pncad::topo::BooleanBody<S>> {
+pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::BooleanBody<Probe>> {
     let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
-    let ev5 = evaluate::<S>(&r.doc, None, &cancel, &opts, tol);
+    let ev5 = evaluate::<Probe>(&r.doc, None, &cancel, &opts, tol);
     let mut out = vec![solidify(&r, &ev5, 5, tol)];
     let mut doc = r.doc.clone();
     let mut prior = ev5;
@@ -184,7 +203,7 @@ pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<pncad::topo::BooleanBody<
         )
         .expect("count edit");
         doc = applied.doc;
-        let ev = evaluate::<S>(&doc, Some(&prior), &cancel, &opts, tol);
+        let ev = evaluate::<Probe>(&doc, Some(&prior), &cancel, &opts, tol);
         out.push(solidify(&r, &ev, n, tol));
         prior = ev;
     }

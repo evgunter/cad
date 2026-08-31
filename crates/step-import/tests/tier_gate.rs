@@ -281,7 +281,11 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
     (DM1, 1e-9, "file", Refused(RATIONAL_FLUX_STALL)),
-    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
+    // The coarse band reaches the GATE now and escalates there: the
+    // enclosure lands ~1% under the loose `1024·ε` target, inside the
+    // convergence predicate's ambiguity band. That masks — it does not
+    // fix — the `#389` ladder gap that used to be this cell.
+    (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
     (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
 ];
 
@@ -294,13 +298,25 @@ const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step"
 const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 /// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
-/// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
-/// rational-patch-flux lane, named specifically so the gate's preamble
-/// (which a tier-1/2 regression would also match) cannot stand in.
+/// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
+/// quadrature converges there — it quarters cleanly per refinement
+/// round — and what it runs out of is the FIXED round budget, inside a
+/// factor of two. Named specifically so the gate's preamble (which a
+/// tier-1/2 regression would also match) cannot stand in.
 const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+/// dm1's coarse-band sub-reason: the convergence predicate declines to
+/// decide, by name, so a regression that turned this into a silent
+/// answer (or into a different door) fails the cell.
+const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
 /// dm1's coarse-band sub-reason: the ladder's own refusal on edge
 /// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
 /// and is offered zero candidates.
+/// dm1's `#389` polyline gap. **No cell reaches it any more**: it was
+/// the coarse band's first refusal until the patch-flux enclosure
+/// tightened enough to escalate ahead of it. Kept, not deleted — the
+/// gap is real, unfixed, and would become reachable again the moment
+/// anything at the gate moves.
+#[allow(dead_code)]
 const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
@@ -565,9 +581,9 @@ const CORPUS: [(&str, Disposition); 70] = [
         //
         // What is left is the SHARED AT-REST GATE on those same
         // rational walls: the exact-B-rep volume's quadrature
-        // enclosure stalls short of its target — the banked
-        // rational-patch-flux lane, the lane a NATIVELY built
-        // rational-walled loft refuses on too. The fragment names that
+        // enclosure stalls short of its target within the fixed round
+        // budget — the same lane, and the same budget, a NATIVELY
+        // built rational-walled loft refuses on too. The fragment names that
         // stall specifically rather than the gate's preamble, because
         // the preamble would also match a tier-1/2 verdict, which
         // would be a regression and not this lane.

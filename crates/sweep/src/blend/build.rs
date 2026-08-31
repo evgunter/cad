@@ -64,7 +64,7 @@ use topo::{
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
@@ -219,39 +219,88 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// links, ORDER-FREE — it finds the admitting edge whenever one
 /// exists and degrades to "no chart admits this trihedron" (the
 /// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
-/// none does. Returns `(u_ref, axis)` — the seam is the picked
-/// link's first support normal.
+/// none does. Returns `(u_ref, axis)`.
 ///
-/// **The pick always yields.** A candidate needs an incident link and
-/// a third support: [`CornerLinks`] carries at least one link, and
-/// [`CornerFaces::third`] is total over three distinct faces, so there
-/// is no "no candidate here" state left to refuse. The two refusals
-/// below both read a stored `Surface` and are the genuine geometric
-/// frontier.
+/// **The chart follows the corner's convexity, and the invariant it
+/// keeps is about the EQUATOR**: the seam meridian (`u_ref`) and its
+/// quarter-turn (`axis × u_ref`) each pass exactly through a foot, on
+/// either material side — a convex octant's feet lie along `+n_i`
+/// from the centre, so `(u_ref, axis) = (n_a, n_a × n_b)`; a concave
+/// one's lie along `−n_i`, so `(−n_b, n_b × n_a)`. The POLE is
+/// parallel to the third foot only UP TO SIGN, inherently: the score
+/// `|n_c × axis|` is even in `axis`, so the pick cannot constrain the
+/// sign, which falls out of the winning link's stored face order
+/// (measured split: 7:1 over a cube's convex octants, 6:2 over the
+/// cavity's concave ones —
+/// `review_blend4_r2_probes::r2_the_octant_chart_pole_is_the_third_foot_only_up_to_sign`,
+/// beside the seam/quarter-turn pin that holds both halves of the
+/// concave fold).
+///
+/// **The pick always yields, over one corner.** [`CornerLinks`] carries
+/// at least one link and [`CornerFaces::third`] is total over the
+/// corner's own three faces, so there is no "no candidate" state left.
+///
+/// **That the two tokens are ONE corner's is checked, not assumed** —
+/// no type says it, and [`CornerLinks`] proves only that a link
+/// terminates at its vertex. Today's one call site pairs them by
+/// construction ([`super::surgery`]'s corner plan), so the check
+/// cannot fire; it guards future mis-wiring, and this value is worth
+/// guarding because it fails silently — a wrong `u_ref`/`axis` still
+/// closes and still passes tiers 1 and 2.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedGeometry`] when a support of this corner
-/// is not a plane.
+/// [`BlendError::BodyNotIntact`] when `faces` and `links` are not the
+/// same corner's, or when a link's supports are not two of this
+/// corner's three; [`BlendError::UnsupportedGeometry`] when a support
+/// of this corner is not a plane.
 pub(super) fn octant_chart<T: Decide + Bounds>(
     body: &Body<T>,
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
+    convexity: super::battery::Convexity,
 ) -> Result<(Vec3<T>, Vec3<T>), BlendError> {
+    // The two tokens describe ONE corner. This is the total check:
+    // the ends of a single edge share both of its supports and differ
+    // only in the third, so a face-membership test alone cannot tell
+    // adjacent corners apart, and the third support is exactly what
+    // the score below turns on.
+    if faces.vertex() != links.vertex() {
+        return Err(not_intact(
+            EntityId::Vertex(links.vertex()),
+            "a corner's chart was offered the face orbit of a different vertex",
+        ));
+    }
+    let convex = matches!(convexity, super::battery::Convexity::Convex);
     // `(score, u_ref, axis)` for one candidate edge: the chart aimed
     // along it, scored by how nearly the third support's normal is
-    // parallel to its axis.
+    // parallel to its axis. The score is side-blind (`|n_c × axis|`
+    // is even in `axis`), so the pick and the fold commute.
     let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), BlendError> {
+        // Before a normal is read: this link's two supports are two of
+        // THIS corner's three. Necessary, not sufficient — the vertex
+        // check above is what identifies the corner.
+        let third = faces.third(l.face_a, l.face_b).ok_or_else(|| {
+            not_intact(
+                EntityId::Vertex(links.vertex()),
+                "a corner's chart candidate carries supports that are not two of this \
+                 corner's own three faces",
+            )
+        })?;
         let planar = |f: FaceKey| {
             outward_of(body, f)
                 .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))
         };
         let (n_a, n_b) = (planar(l.face_a)?, planar(l.face_b)?);
-        let axis = n_a.cross(n_b).normalize();
         // The third support of the corner — the one this edge does not
         // touch.
-        let n_c = planar(faces.third(l.face_a, l.face_b))?;
-        Ok((n_c.cross(axis).norm().lo().abs(), n_a, axis))
+        let n_c = planar(third)?;
+        let (u_ref, axis) = if convex {
+            (n_a, n_a.cross(n_b).normalize())
+        } else {
+            (-n_b, n_b.cross(n_a).normalize())
+        };
+        Ok((n_c.cross(axis).norm().lo().abs(), u_ref, axis))
     };
     let mut best = candidate(links.first().link())?;
     for l in links.rest() {
@@ -260,8 +309,8 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
             best = next;
         }
     }
-    let (_, n_a, axis) = best;
-    Ok((n_a, axis))
+    let (_, u_ref, axis) = best;
+    Ok((u_ref, axis))
 }
 
 /// A planar face's OUTWARD normal: the stored plane normal folded
@@ -372,4 +421,153 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
     super::surgery::blend_surgery(body, &verdict, band, tol)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use geom_core::Tol;
+
+    use super::super::BlendError;
+    use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks};
+    use super::super::battery::{Chain, ChainClosure, Convexity, Link};
+    use crate::test_support::{L, all_links, cube};
+
+    /// One open chain per link, so the door has something to admit.
+    fn open_chain(link: Link<f64>) -> Chain<f64> {
+        let (head, tail) = (link.start, link.end);
+        Chain::new(
+            link,
+            Vec::new(),
+            Vec::new(),
+            ChainClosure::Open { head, tail },
+        )
+    }
+
+    /// The cross-corner refusal drill, shared by the two convexity
+    /// arms below: the corner's OWN faces chart, a far corner (no
+    /// shared support) refuses, and the SAME EDGE's other end (both
+    /// supports shared, a different third — the face the score reads)
+    /// refuses too.
+    fn cross_corner_drill(convexity: Convexity, chains: &[Chain<f64>], body: &topo::Body<f64>) {
+        let admitted: Vec<AdmittedOpen<'_, f64>> = chains
+            .iter()
+            .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+            .collect();
+        let here = *admitted.first().expect("a cube has requested links");
+        let vertex = here.link().start;
+        let corner = CornerLinks::seed(vertex, here).expect("the seed link terminates here");
+
+        // The corner's OWN faces still chart, so the refusals below are
+        // about the pairing and not about the corner.
+        let mine = CornerFaces::admit(body, vertex).expect("a cube corner is trivalent");
+        assert!(
+            super::octant_chart(body, &mine, &corner, convexity).is_ok(),
+            "a corner charted against its own three supports must still yield"
+        );
+
+        // (1) A corner sharing NEITHER support of this link — on a
+        // cube, the diagonally opposite one. Face membership alone
+        // catches this one.
+        let elsewhere = body
+            .vertices()
+            .map(|(v, _)| v)
+            .filter_map(|v| CornerFaces::admit(body, v).ok())
+            .find(|f| !f.contains(here.link().face_a) && !f.contains(here.link().face_b))
+            .expect("a cube has a corner sharing neither of a given edge's supports");
+        assert!(
+            matches!(
+                super::octant_chart(body, &elsewhere, &corner, convexity),
+                Err(BlendError::BodyNotIntact { .. })
+            ),
+            "a chart derived from a link whose supports are not the corner's own must \
+             refuse, not score"
+        );
+
+        // (2) The OTHER END of this very edge: both supports shared, a
+        // different third — the mismatch every face-membership test
+        // admits, and the one that changes the score.
+        let adjacent = CornerFaces::admit(body, here.link().end)
+            .expect("the far end of a cube edge is a trivalent corner too");
+        assert!(
+            adjacent.contains(here.link().face_a) && adjacent.contains(here.link().face_b),
+            "the adjacent corner must share BOTH supports, or it is case (1) again"
+        );
+        assert_ne!(
+            adjacent
+                .third(here.link().face_a, here.link().face_b)
+                .expect("both supports are this corner's"),
+            mine.third(here.link().face_a, here.link().face_b)
+                .expect("and this corner's"),
+            "the two ends must differ in the third support, or the case is vacuous"
+        );
+        assert!(
+            matches!(
+                super::octant_chart(body, &adjacent, &corner, convexity),
+                Err(BlendError::BodyNotIntact { .. })
+            ),
+            "a chart offered the face orbit of the edge's OTHER end must refuse: both \
+             supports match and the third — the one the score reads — does not"
+        );
+    }
+
+    /// **A chart may not be scored off a corner the links do not
+    /// belong to.**
+    ///
+    /// [`super::octant_chart`] takes two tokens that are derived
+    /// independently — the corner's three faces off the source body's
+    /// vertex orbit, the incident links off the battery's resolved
+    /// arms — and neither type says they describe the same corner.
+    /// Handed a mismatched pair it would score one anyway, because
+    /// excluding two faces from three still names a face.
+    ///
+    /// **Today's one production call site pairs them by construction**
+    /// (`surgery`'s corner plan derives both from one vertex), so this
+    /// is not a live defect being pinned — it is the check that keeps
+    /// a future caller from assembling them further apart and getting
+    /// no complaint. That direction matters here because the value is
+    /// a sphere face's `u_ref`/`axis`: a wrong one closes the same
+    /// shell, passes tiers 1 and 2 unchanged, and would surface at
+    /// most as a tier-3 `NotIsoRectangle` at a corner whose geometry
+    /// is right.
+    ///
+    /// **Two mismatches, and the second is why the check is on the
+    /// VERTEX.** A far corner shares no support, so a face-membership
+    /// test catches it; the OTHER END OF THE SAME EDGE shares both
+    /// supports and differs only in the third — which is precisely the
+    /// face the score reads — so membership alone answers it happily.
+    /// The positive half is asserted in the same row so the refusal
+    /// cannot pass by refusing everything.
+    #[test]
+    fn a_chart_scored_off_another_corner_s_faces_is_refused() {
+        let body = cube(L, Tol::witness());
+        let links = all_links(&body, Tol::witness());
+        let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
+        cross_corner_drill(Convexity::Convex, &chains, &body);
+    }
+
+    /// **The concave arm carries the cross-corner refusal too.** The
+    /// guard above resolves and refuses BEFORE the convexity fold, so
+    /// on paper the arm cannot matter — and that is exactly the kind
+    /// of claim the fold's own review showed needs a row rather than
+    /// an argument (half of the fold was once pinned by nothing). The
+    /// verdicts are FALSIFIED to concave on a cube whose geometry is
+    /// untouched, the established shape for exercising the concave arm
+    /// of a plan-level derivation: what is pinned is the guard's
+    /// behaviour as a function of the tokens and the arm, not the
+    /// cube.
+    #[test]
+    fn a_chart_scored_off_another_corner_s_faces_is_refused_on_the_concave_arm_too() {
+        let body = cube(L, Tol::witness());
+        let links = all_links(&body, Tol::witness());
+        let chains: Vec<Chain<f64>> = links
+            .iter()
+            .cloned()
+            .map(|mut l| {
+                l.convexity = Convexity::Concave;
+                open_chain(l)
+            })
+            .collect();
+        cross_corner_drill(Convexity::Concave, &chains, &body);
+    }
 }
