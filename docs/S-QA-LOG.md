@@ -339,3 +339,28 @@ every intervening run was docs-tier). Evan fixed that directly
 red on main per issues 1296/1304, M10's ground. Track J: 3→0, rows
 deleted, fence kept; D301 leaves Track R. With this merge the QA-B2
 block's A/B slots are all recorded.
+
+## QA-7 merged (2026-08-31): CI reports what tests cost
+
+Issue 469's reports are live: every test job prints its slowest ~20
+(summed per test across the legs it ran, and saying which), and every
+PR is told what its added tests cost, from a base listing looked up
+by tree key so the answer is exact or an honestly stated skip — never
+a guess, never a gate. The dual's signature finding was the program's
+class caught one layer deeper: R2 found `filter.out | tee` taking
+tee's exit status at the top of ci.yml — a green run that gated
+nothing, sitting in the very file, forty lines below the comment
+warning about it, while the PR fixed four instances of the same class
+elsewhere. The fix pass took all fourteen union items and then found
+three of its own, including a selftest case that had been silently
+appending a real `TEST_LIST_TREE` into the hosted job's environment
+— caught by reading the run log, which is this unit's whole thesis.
+The base-listing lookup now lives once, in a script with its own
+selftest, instead of twice in shell nothing tested; the three
+vacuous-pass fixes each carry an old-guard-passes/new-guard-reds
+transcript. The gate of record ran the interval lane by request —
+the copy the draw had left untested. One dispatch note for the
+record: both arms corrected my conflated fixture-provenance premise,
+the program's fourth dispatch-premise correction; the discipline
+holds. Issue 469 closes on this record. Block QA-B3 is complete:
+QA-6, QA-7, QA-9 — ordinals 804, 807, 803.
