@@ -225,14 +225,21 @@ fn distinct(f0: FaceKey, f1: FaceKey, f2: FaceKey) -> bool {
 }
 
 /// **A trivalent corner's three distinct support faces**, in orbit
-/// order.
+/// order, and the VERTEX they were walked from.
 ///
 /// The array is the claim: three faces, pairwise distinct. That is
-/// what makes [`CornerFaces::third`] total — excluding two of three
-/// distinct faces always leaves one — and it is the fact the octant's
-/// chart pick used to fall off with a run-out refusal it could not
-/// justify.
+/// what makes [`CornerFaces::third`] total **over this corner's own
+/// pairs** — excluding two of three distinct faces always leaves one —
+/// and it is the fact the octant's chart pick used to fall off with a
+/// run-out refusal it could not justify.
+///
+/// **The vertex is kept because the faces alone cannot identify the
+/// corner.** Two ends of one edge share both of its supports and
+/// differ only in the third, so a consumer holding this token beside a
+/// [`CornerLinks`] can check that the two describe the same corner —
+/// and comparing the faces would not tell those two apart.
 pub(super) struct CornerFaces {
+    vertex: VertexKey,
     faces: [FaceKey; 3],
 }
 
@@ -277,8 +284,14 @@ impl CornerFaces {
             ));
         }
         Ok(Self {
+            vertex,
             faces: [f0, f1, f2],
         })
+    }
+
+    /// The vertex whose orbit these faces were walked from.
+    pub(super) fn vertex(&self) -> VertexKey {
+        self.vertex
     }
 
     /// The three faces, in orbit order.
@@ -299,19 +312,29 @@ impl CornerFaces {
     }
 
     /// The corner's remaining support once `a` and `b` are excluded —
-    /// **total**, because three distinct faces cannot all be excluded
-    /// by two keys. When `a` and `b` are not both among the three the
-    /// answer is still one of them, which is what the octant's scoring
-    /// wants: a candidate axis, never a missing one.
-    pub(super) fn third(&self, a: FaceKey, b: FaceKey) -> FaceKey {
+    /// `Some` exactly when `a` and `b` are two DISTINCT supports of
+    /// this corner, where excluding two of three distinct faces always
+    /// leaves one.
+    ///
+    /// **`None` rather than a plausible answer**: excluding a face this
+    /// corner does not hold leaves TWO, and naming either would be a
+    /// support pair that is not this corner's, scored as if it were.
+    /// The consumer derives a CHART from the answer, so a plausible one
+    /// is worse than none. This is a NECESSARY condition and not the
+    /// whole check — the two ends of one edge share both its supports,
+    /// so identifying the corner is [`CornerFaces::vertex`]'s job.
+    pub(super) fn third(&self, a: FaceKey, b: FaceKey) -> Option<FaceKey> {
+        if a == b || !self.contains(a) || !self.contains(b) {
+            return None;
+        }
         let [f0, f1, f2] = self.faces;
-        if f0 != a && f0 != b {
+        Some(if f0 != a && f0 != b {
             f0
         } else if f1 != a && f1 != b {
             f1
         } else {
             f2
-        }
+        })
     }
 }
 
@@ -470,20 +493,30 @@ mod tests {
     ///    privacy boundary *and* outside this file's text — the one
     ///    escape that defeats clause 1 silently.
     ///
-    /// **Blind spot, stated:** clause 1 is a text scan. `Self{…}`
-    /// without the space, a literal written by type name, or a route
-    /// through `Default` escapes it; it catches the accident it is
-    /// aimed at, not a determined evasion, and it cannot judge whether
-    /// a door's check is the RIGHT one. `distinct_faces_is_pairwise`
-    /// and `admission_makes_the_third_support_total` cover that half
-    /// where there is a decision to get wrong.
+    /// **The reader is the shared one** — `test_utils::source`, in its
+    /// CODE view, comments and string literals blanked. That is what
+    /// lets the needles below be spelled plainly: a needle written
+    /// here is a string literal, and a literal is blanked, so the scan
+    /// cannot match itself. What this file used to do instead was
+    /// splice the needle out of pieces at run time, which buys the
+    /// same non-self-matching and no lexing at all — a construction
+    /// site quoted in a doc comment or a message counted as one, and a
+    /// real site commented out went on counting. The census at
+    /// `crates/test-utils/tests/reader_census` is what keeps that
+    /// choice from being made again silently.
+    ///
+    /// **Blind spot, stated:** clause 1 is a text scan over a lexed
+    /// view, not a parse. `Self{…}` without the space, a literal
+    /// written by type name, or a route through `Default` escapes it;
+    /// it catches the accident it is aimed at, not a determined
+    /// evasion, and it cannot judge whether a door's check is the
+    /// RIGHT one. `distinct_faces_is_pairwise` and
+    /// `admission_makes_the_third_support_total` cover that half where
+    /// there is a decision to get wrong.
     #[test]
     fn every_token_type_has_exactly_one_construction_site() {
-        let source = include_str!("admit.rs");
-        // Spelled in pieces so this row does not match itself.
-        let lit = ["Self", " {"].concat();
-        let returns = ["-> ", "Self", " {"].concat();
-        let literals = source.matches(&lit).count() - source.matches(&returns).count();
+        let source = test_utils::source::code_only(include_str!("admit.rs"));
+        let literals = source.matches("Self {").count() - source.matches("-> Self {").count();
         assert_eq!(
             literals, 4,
             "admit.rs must hold exactly one construction site per token type \
@@ -573,14 +606,19 @@ mod tests {
         assert!(!super::distinct(f0, f1, f0), "the wrap-around pair");
     }
 
-    /// **The admission is what makes [`CornerFaces::third`] total**, so
-    /// this row exercises both halves against a real corner: the door
-    /// returns three distinct faces, and every exclusion pair over them
-    /// — the three that are members and one that is not — still names a
-    /// face.
+    /// **The admission is what makes [`CornerFaces::third`] total over
+    /// this corner's own pairs**, so this row exercises both halves
+    /// against a real corner: the door returns three distinct faces,
+    /// every exclusion pair drawn from them names the remaining one,
+    /// and a pair drawn from anywhere else is refused rather than
+    /// answered.
     ///
-    /// That is the whole reason the octant's chart pick no longer
-    /// carries a run-out refusal it could not justify.
+    /// The first half is why the octant's chart pick no longer carries
+    /// a run-out refusal it could not justify. **The second is why it
+    /// cannot be scored off a corner it does not belong to**: the
+    /// answer to a stranger pair would be a face this corner holds and
+    /// that pair does not exclude, which reads exactly like a right
+    /// answer and produces a wrong chart.
     #[test]
     fn admission_makes_the_third_support_total() {
         let body = cube(L, Tol::witness());
@@ -595,13 +633,26 @@ mod tests {
             "admission must yield three DISTINCT faces"
         );
         for (a, b) in [(f0, f1), (f1, f2), (f0, f2)] {
-            let t = faces.third(a, b);
+            let t = faces
+                .third(a, b)
+                .expect("a pair of this corner's own supports has a third");
             assert!(t != a && t != b, "the third support excludes both");
             assert!(faces.contains(t), "and is one of the corner's own");
         }
-        // A pair that is not both members: still an answer, never a
-        // missing one.
+        // A pair that is not both members has no third: excluding a
+        // stranger leaves TWO of the corner's faces, and naming either
+        // is a chart scored off a support pair that is not this
+        // corner's.
         let stranger = FaceKey::default();
-        assert!(faces.contains(faces.third(f0, stranger)));
+        assert!(!faces.contains(stranger), "the stranger is not a member");
+        assert!(faces.third(f0, stranger).is_none(), "one stranger");
+        assert!(faces.third(stranger, f1).is_none(), "the other side");
+        assert!(
+            faces.third(stranger, stranger).is_none(),
+            "two strangers, which excludes nothing at all"
+        );
+        // A member paired with ITSELF excludes one face and leaves
+        // two, which is the same defect wearing a member's key.
+        assert!(faces.third(f0, f0).is_none(), "a face against itself");
     }
 }
