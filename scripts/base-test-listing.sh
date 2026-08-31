@@ -85,9 +85,17 @@ lookup_base_listing() {
     REASON="this run is not a pull_request run, so it has no base tree to diff against"
     return 0
   fi
+  # `:-` rather than a bare read, because this script runs under `set -u`: an
+  # UNSET repository would abort it here, and an abort prints no block at all
+  # — the silent absence every path in this file exists to replace.
+  local repo="${GITHUB_REPOSITORY:-}"
+  if [ -z "$repo" ]; then
+    REASON="\$GITHUB_REPOSITORY is not set, so there is no repository to look a base listing up in — this lookup only means anything inside a GitHub Actions run"
+    return 0
+  fi
   # stderr discarded and the value shape-checked: see the header's three
   # untrusted captures.
-  BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha 2>/dev/null)
+  BASE_TREE=$(gh api "repos/$repo/commits/$BASE_SHA" --jq .commit.tree.sha 2>/dev/null)
   echo "$BASE_TREE" | grep -qE '^[0-9a-f]{40}$' || BASE_TREE=""
   if [ -z "$BASE_TREE" ]; then
     REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed or answered something that is not a tree SHA"
@@ -95,7 +103,7 @@ lookup_base_listing() {
   fi
   local name="test-list-$lane-$BASE_TREE"
   local url
-  url=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=1" \
+  url=$(gh api "repos/$repo/actions/artifacts?name=$name&per_page=1" \
         --jq '.artifacts[] | select(.expired == false) | .archive_download_url' 2>/dev/null | head -n 1)
   case "$url" in https://*) ;; *) url="" ;; esac
   if [ -z "$url" ]; then
@@ -331,13 +339,28 @@ with zipfile.ZipFile(sys.argv[1], "w") as z:
   STUB_LIST_STATUS=0 STUB_LIST_FILE="$FIXTURES/nextest-list-head.json" BASE_SHA="" case_run
   want "not a pull_request run" "$out" "case 8 (no base sha)"
 
+  # 9 — RUN OUTSIDE ACTIONS, with the repository variable genuinely UNSET
+  # rather than empty. Under `set -u` a bare `$GITHUB_REPOSITORY` aborts the
+  # script mid-report, and an abort prints NO block at all — which is the
+  # silent absence, and worse than any stated one. `env -u` is the only way to
+  # stage that: an assignment to `""` does not trip `set -u`.
+  n=$((n + 1))
+  cost="$tmp/case-$n"
+  out=$(env -u GITHUB_REPOSITORY GH_TOKEN=x BASE_SHA=deadbeef \
+        STUB_LIST_STATUS=0 STUB_LIST_FILE="$FIXTURES/nextest-list-head.json" \
+        bash "$0" --archive nextest-x.tar.zst --lane default --job "j" \
+                  --cost-dir "$cost" 2>/dev/null)
+  want "GITHUB_REPOSITORY is not set" "$out" "case 9 (no repository in the environment)"
+  want "What this PR adds to the test suite" "$out" "case 9 printed no block at all"
+
   if [ "$SELFTEST_FAILURES" -ne 0 ]; then
     echo "base-test-listing selftest FAILED ($SELFTEST_FAILURES)" >&2
     return 1
   fi
   echo "base-test-listing selftest ok: a failed/empty/suite-less listing publishes nothing, gh's" \
-       "403 body is refused as a tree and as a URL, curl -f refuses an HTTP error, and the whole" \
-       "path prices a real base listing served as a zip"
+       "403 body is refused as a tree and as a URL, curl -f refuses an HTTP error, the whole" \
+       "path prices a real base listing served as a zip, and neither a missing base SHA nor a" \
+       "missing repository can turn a stated skip into a silent one"
   return 0
 }
 
