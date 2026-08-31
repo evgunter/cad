@@ -70,6 +70,10 @@ mod curves_m8_14_long_turn_meter;
 mod curves_nurbs_differential;
 #[path = "curves/nurbs_interval.rs"]
 mod curves_nurbs_interval;
+#[path = "curves/param_near.rs"]
+mod curves_param_near;
+#[path = "curves/param_near_interval.rs"]
+mod curves_param_near_interval;
 #[path = "curves/projection.rs"]
 mod curves_projection;
 #[path = "curves/r2_lt_probes.rs"]

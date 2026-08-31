@@ -38,6 +38,12 @@
 //!    face has no canonical frame, so `face_frame` refuses it rather
 //!    than nominating one.
 //!
+//! **A name also says which node MADE the entity.** [`attribute`]
+//! walks a name's carry-through segments — `FromTarget`, `FromA`,
+//! `Instance` and their siblings — down to the role that minted it,
+//! so "which feature is this face's" is answered by the name rather
+//! than by whichever node happens to draw the body.
+//!
 //! Detection and declaration of flush contact are separate doors on
 //! purpose (the ruled no-fusion boundary): [`find_flush_candidates`]
 //! REPORTS [`FlushFinding`]s — the contact verifier in
@@ -49,11 +55,11 @@ pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node,
-    denotation, edge_frame, edge_name, face_frame, face_name, find_flush_candidates, select,
-    select_where, vertex_position,
+    NameOrigin, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
+    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
+    find_flush_candidates, select, select_where, vertex_position,
 };
 /// The frame type the geometry doors answer with, its refusal, and
 /// the refusal's own payload — re-exported from the kernel's

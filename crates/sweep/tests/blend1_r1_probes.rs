@@ -30,8 +30,8 @@ use core::f64::consts::SQRT_2;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE, FilletError};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
 use sweep::test_support::{cube, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
@@ -156,8 +156,8 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
-        match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
-            Err(FilletError::FilletCornerUnsupported { corner, .. }) => assert!(
+        match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error) {
+            Err(BlendError::UnsupportedCorner { corner, .. }) => assert!(
                 matches!(corner, CornerConfig::SeamVertex),
                 "{name}: the classifier reads incidence and tags the seam vertex, \
                  got {corner}"
@@ -291,8 +291,8 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         })
         .collect();
     assert_eq!(edges.len(), 6, "the Petrie hexagon has six edges");
-    match fillet_edges(&body, &edges, 0.1, band(), tol()) {
-        Err(FilletError::ChainNotG1 { .. }) => {}
+    match fillet_edges(&body, &edges, 0.1, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::ChainNotG1 { .. }) => {}
         other => panic!("a sharp-cornered hexagon cycle refuses at assembly, got {other:?}"),
     }
 }
@@ -342,15 +342,15 @@ fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
         planes[0], planes[1],
         "after the repair one plane face hosts both arcs"
     );
-    match fillet_edges(&source, &arcs, 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
+    match fillet_edges(&source, &arcs, 0.05, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("ring"),
             "the repaired rim routes to the ladder and its ring gate refuses: {detail}"
         ),
         other => panic!("the repaired neck rim refuses typed, got {other:?}"),
     }
-    match fillet_edges(&source, &arcs[..1], 0.05, band(), tol()) {
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
+    match fillet_edges(&source, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedCorner { corner, .. }) => {
             assert!(
                 !matches!(corner, CornerConfig::SeamVertex),
                 "a trivalent repaired-rim end is not a seam vertex: {corner}"
@@ -384,8 +384,8 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);
-    match fillet_edges(&body, &req, 0.05, band(), tol()) {
-        Err(FilletError::TangentialEdge { margin, .. }) => {
+    match fillet_edges(&body, &req, 0.05, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam is tangential exactly");
         }
         other => panic!("a request carrying a seam meridian refuses tangential, got {other:?}"),

@@ -1,6 +1,6 @@
 //! **LIB-G16 — the `Chamfer` recipe node** (RECIPE-DOORS D2, #918).
 //!
-//! `Node::Chamfer` wires `sweep::fillet::build::chamfer_edges` over an
+//! `Node::Chamfer` wires `sweep::blend::build::chamfer_edges` over an
 //! authored selection of its target's edges. The document under test
 //! is `corpus/die_chamfer.rs` — `die_fillet`'s recipe with the blend
 //! swapped — so these rows are the fillet node's rows over the twin,
@@ -203,7 +203,7 @@ fn an_empty_selection_refuses_as_a_chamfer() {
     };
     match &e.kind {
         NodeErrorKind::BlendSelectionEmpty { verb } => {
-            assert_eq!(*verb, sweep::fillet::BlendKind::Chamfer);
+            assert_eq!(*verb, sweep::blend::BlendKind::Chamfer);
         }
         other => panic!("expected the empty-selection refusal, got {other:?}"),
     }

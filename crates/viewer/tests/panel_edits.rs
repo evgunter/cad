@@ -502,8 +502,9 @@ fn the_tree_selects_a_node_and_the_property_panel_follows() {
         rows.iter()
             .find(|row| row.id == extrude)
             .map(|row| row.depth),
-        Some(1),
-        "the extrude sits below the profile it consumes"
+        Some(0),
+        "the profile is the extrude's primary input, so the extrude \
+         continues its line rather than indenting under it"
     );
     assert!(!tree::has_faults(&rows));
 

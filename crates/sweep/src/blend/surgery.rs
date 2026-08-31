@@ -1,8 +1,21 @@
-//! **The in-place edge-blend composition surgery** (M6 unit 1): fillet
+//! **The in-place edge-blend composition surgery** (M6 unit 1): blend
 //! a SUBSET of a body's edges by operating on the body itself — split
 //! the support faces along the stored trimlines, excise the edge
 //! strips, and graft the blend walls in — instead of rebuilding a
 //! whole polyhedron from scratch.
+//!
+//! **Both verbs run this one surgery.** The verdict's
+//! [`BlendKind`] is the single discriminant, read exactly where the
+//! two differ: the corner geometry (`corner_plan` grafts the
+//! fillet's sphere octant or the chamfer's flat patch through the
+//! three trimline feet), the band's contact carrier (a fillet's
+//! trimline arc, a chamfer's straight chord), and the closed-chain
+//! door (the rim phases below are the fillet's — a chamfer has no
+//! closed-chain band and refuses there). Everything else in this
+//! module — the splits, the excisions, the ring carry-through, the
+//! naming rows — is one shared walk. Prose below that speaks of the
+//! ball or the octant is describing the fillet's arm of a shared
+//! move, not a fillet-only module.
 //!
 //! This is the unit M5 banked at PR 12 (deviation 1's second door and
 //! deviation 2), sized by that review at one reviewed unit, and
@@ -80,7 +93,7 @@
 //! a support face's ring and a blend's trimline — circle-vs-line and
 //! circle-vs-circle, exact, never sampled. Positive carries the ring
 //! through; zero/negative refuses typed
-//! ([`FilletError::RingClearance`]); in-band escalates with the same
+//! ([`BlendError::RingClearance`]); in-band escalates with the same
 //! recourse (two-tolerance, D4 ¶1 addendum). Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
@@ -98,11 +111,11 @@
 //! carve, their later seam keys re-read live by
 //! [`refresh_annulus_seams`]) — each
 //! refuses through the frontier vocabulary
-//! ([`FilletError::UnsupportedChain`],
-//! [`FilletError::UnsupportedRunOut`],
-//! [`FilletError::UnsupportedGeometry`],
-//! [`FilletError::UnsupportedBody`], and
-//! [`FilletError::FilletCornerUnsupported`] for a corner's own
+//! ([`BlendError::UnsupportedChain`],
+//! [`BlendError::UnsupportedRunOut`],
+//! [`BlendError::UnsupportedGeometry`],
+//! [`BlendError::UnsupportedBody`], and
+//! [`BlendError::UnsupportedCorner`] for a corner's own
 //! configuration), naming itself and carrying the offending entity. The refusals are the honest boundary of the unit,
 //! not gates hiding reachable geometry.
 //!
@@ -112,9 +125,9 @@
 //! state is a third (D2 addendum, rows 2, 1 and 4). This module keeps
 //! them apart at every site:
 //!
-//! - **Row 2**, above: valid input, unbuilt door, carries the fillet
+//! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
-//! - **Row 1**, [`FilletError::BodyNotIntact`]: a stored reference
+//! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
 //!   that did not resolve, or a cycle that did not close. **This is not a kernel
 //!   bug channel.** A body that fails referential integrity is
 //!   reachable at this door without any kernel bug in the trace —
@@ -139,11 +152,11 @@ use topo::{
 };
 
 use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use super::arms::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::blend::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
-use super::build::{Filleted, face_cycle, outward_of};
-use super::naming::{FilletNaming, RimSide, second_support_is_host};
-use super::{BlendKind, CornerConfig, FilletError, FilletSite, decide};
+use super::build::{Blended, face_cycle, outward_of};
+use super::naming::{BlendNaming, RimSide, second_support_is_host};
+use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -156,13 +169,13 @@ use geom_core::Tol;
 /// hold together where the plan read it: a stored reference that did
 /// not resolve, or a cycle that did not close. Invalid input, not a
 /// frontier.
-pub(super) fn not_intact(at: EntityId, detail: &'static str) -> FilletError {
-    FilletError::BodyNotIntact { at, detail }
+pub(super) fn not_intact(at: EntityId, detail: &'static str) -> BlendError {
+    BlendError::BodyNotIntact { at, detail }
 }
 
 /// **Row 2** — the chain's own shape is outside the built door.
-pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> FilletError {
-    FilletError::UnsupportedChain { edge, detail }
+pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> BlendError {
+    BlendError::UnsupportedChain { edge, detail }
 }
 
 /// **Row 2** — the corner's own CONFIGURATION is not the sphere octant
@@ -171,8 +184,8 @@ pub(super) fn unbuilt_chain(edge: EdgeKey, detail: &'static str) -> FilletError 
 /// The one mint of this refusal, so the policy it advertises is always
 /// the tag's own ([`CornerConfig::policy`]) and can never be a second,
 /// drifting opinion about the same configuration.
-pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> FilletError {
-    FilletError::FilletCornerUnsupported {
+pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> BlendError {
+    BlendError::UnsupportedCorner {
         vertex,
         corner,
         policy: corner.policy(),
@@ -181,8 +194,8 @@ pub(super) fn unbuilt_corner_config(vertex: VertexKey, corner: CornerConfig) -> 
 
 /// **Row 2** — the REQUEST does not cover a termination the octant
 /// assembly needs. A run-out, not a corner configuration.
-pub(super) fn unbuilt_run_out(at: EntityId, detail: &'static str) -> FilletError {
-    FilletError::UnsupportedRunOut { at, detail }
+pub(super) fn unbuilt_run_out(at: EntityId, detail: &'static str) -> BlendError {
+    BlendError::UnsupportedRunOut { at, detail }
 }
 
 /// The one sentence for "a support of a corner is not a plane". Four
@@ -193,8 +206,8 @@ pub(super) const CORNER_SUPPORT_NOT_PLANAR: &str =
 
 /// **Row 2** — a stored carrier, trimline or surface is not a shape
 /// the surgery's closed forms cover.
-pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> FilletError {
-    FilletError::UnsupportedGeometry { at, detail }
+pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError {
+    BlendError::UnsupportedGeometry { at, detail }
 }
 
 /// **An Euler operator refused during assembly**, kept whole and
@@ -202,11 +215,11 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> FilletErro
 ///
 /// A plain function, not a closure factory: the step name is an
 /// argument at every call rather than a value captured once per phase,
-/// so `FilletError::Op` cannot be constructed here without naming its
+/// so `BlendError::Op` cannot be constructed here without naming its
 /// site, and the operator's own typed refusal — `StaleKey`,
 /// `Certification`, the whole vocabulary — travels intact.
-fn op(site: &'static str, source: topo::EulerOpError) -> FilletError {
-    FilletError::Op { site, source }
+fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
+    BlendError::Op { site, source }
 }
 
 /// The one new margin this unit decides (module docs): the exact
@@ -379,12 +392,12 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     verdict: &BatteryVerdict<T>,
     band: Band,
     tol: Tol,
-) -> Result<Filleted<T>, FilletError> {
+) -> Result<Blended<T>, BlendError> {
     let (solids, shells) = (source.solids().count(), source.shells().count());
     if solids != 1 || shells != 1 {
-        return Err(FilletError::UnsupportedBody { solids, shells });
+        return Err(BlendError::UnsupportedBody { solids, shells });
     }
-    let radius = verdict.radius;
+    let radius = verdict.size;
     let kind = verdict.kind;
 
     // ---- Classify the verdict's chains (structural only). The open
@@ -495,13 +508,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // operator or a certified setter; refusals map to Op/Certify. ----
     let mut body = source.clone();
     let Some((solid, _)) = source.solids().next() else {
-        unreachable!("fillet surgery: `solids().count() == 1` was checked at entry")
+        unreachable!("blend surgery: `solids().count() == 1` was checked at entry")
     };
     let Some((shell, _)) = source.shells().next() else {
-        unreachable!("fillet surgery: `shells().count() == 1` was checked at entry")
+        unreachable!("blend surgery: `shells().count() == 1` was checked at entry")
     };
 
-    let mut rec = FilletNaming::default();
+    let mut rec = BlendNaming::default();
     let (blend_faces, corner_faces, mut described) =
         blank_phase(&mut body, &opens, &corners, &supports, &mut rec, tol, kind)?;
     let mut band_faces = Vec::with_capacity(rims.len());
@@ -574,7 +587,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     for (edge, carrier) in described {
         attach_contact(&mut body, edge, carrier, tol)?;
     }
-    topo::mint_pcurves(&mut body, tol).map_err(|source| FilletError::Certify {
+    topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
         site: "pcurve re-mint after surgery",
         source,
     })?;
@@ -590,7 +603,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     rec.dead.edges.dedup();
     rec.dead.vertices.sort_unstable();
     rec.dead.vertices.dedup();
-    Ok(Filleted {
+    Ok(Blended {
         body,
         solid,
         shell,
@@ -636,7 +649,7 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
 /// **Convexity does not appear in the chamfer's arm.** The feet come
 /// from trimlines whose in-plane direction is read off the traversal,
 /// and the patch's chart normal is folded outward against the supports'
-/// own normal sum; both are stated in [`super::blend`]. So there is no
+/// own normal sum; both are stated in [`super::arms`]. So there is no
 /// convex-only argument here to derive one of and leave the rest
 /// stale (#644's shape): the concave widening moves the ADMISSION
 /// doors and nothing in this derivation.
@@ -645,7 +658,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
     links: CornerLinks<'a, T>,
     radius: T,
     kind: BlendKind,
-) -> Result<Corner<'a, T>, FilletError> {
+) -> Result<Corner<'a, T>, BlendError> {
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
@@ -717,7 +730,7 @@ fn chamfer_feet<T: Decide + Bounds>(
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
     vertex_point: Point3<T>,
-) -> Result<[Point3<T>; 3], FilletError> {
+) -> Result<[Point3<T>; 3], BlendError> {
     let here = links.sorted();
     let mut feet = [vertex_point; 3];
     for (slot, &face) in faces.as_slice().iter().enumerate() {
@@ -762,7 +775,7 @@ fn chamfer_feet<T: Decide + Bounds>(
 /// **Which gates are per-KIND and which are per-SHAPE.** The band a
 /// closed rim replaces is a torus, and that is the only geometric claim
 /// this resolution rests on — so the arm gate asks for a torus arm
-/// ([`super::blend::BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
+/// ([`super::arms::BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
 /// it the two shapes part company:
 ///
 /// - the ANNULUS is two revolution WALLS and needs no planar support at
@@ -787,7 +800,7 @@ fn chamfer_feet<T: Decide + Bounds>(
 fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
-) -> Result<RimPlan<'a, T>, FilletError> {
+) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
     let is_plane = |f: FaceKey| -> Option<bool> {
         let fd = body.get_face(f)?;
@@ -1022,10 +1035,10 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
-) -> Result<RimPlan<'a, T>, FilletError> {
+) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
     let surface_of = |f: FaceKey| -> Option<SurfaceKey> { Some(body.get_face(f)?.surface) };
-    let pair_of = |l: &Link<T>| -> Result<(SurfaceKey, SurfaceKey), FilletError> {
+    let pair_of = |l: &Link<T>| -> Result<(SurfaceKey, SurfaceKey), BlendError> {
         let a = surface_of(l.face_a)
             .ok_or_else(|| not_intact(EntityId::Face(l.face_a), "a rim link's first support"))?;
         let b = surface_of(l.face_b)
@@ -1054,7 +1067,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     // so a plane-and-curved rim keeps the roles a one-edge rim gives
     // it; between two curved walls the roles are the first link's own
     // slots, which is a slot and not a kind.
-    let is_plane_surface = |k: SurfaceKey| -> Result<bool, FilletError> {
+    let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
             .ok_or_else(|| not_intact(EntityId::Face(link0.face_a), "a rim support's surface"))?;
@@ -1271,7 +1284,7 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   is `blend2_r2_probes::r2_p5_the_mixed_fixture_still_refuses_at_the_boolean_door`,
 ///   which reds when boolean breadth makes the shape authorable — the
 ///   moment this arm needs a row of its own.
-fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), FilletError> {
+fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendError> {
     for (i, a) in rims.iter().enumerate() {
         for b in rims.iter().skip(i + 1) {
             if !rims_share_support(a, b) {
@@ -1283,7 +1296,7 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), FilletErr
                     b.chain.first().edge,
                     "a ladder rim and an annulus rim of one request share a support \
                      face, and the annulus band consumes structure of that face beyond \
-                     its own rim — fillet them in SEQUENTIAL calls (the second on the \
+                     its own rim — blend them in SEQUENTIAL calls (the second on the \
                      first's result); one call is not implemented",
                 ));
             }
@@ -1329,7 +1342,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
     ann: &AnnulusRim,
-) -> Result<Vec<LiveSeams>, FilletError> {
+) -> Result<Vec<LiveSeams>, BlendError> {
     let surface_of = |f: FaceKey| -> Option<SurfaceKey> { Some(body.get_face(f)?.surface) };
     let host_surface = surface_of(rim.host0())
         .ok_or_else(|| not_intact(EntityId::Face(rim.host0()), "a rim's host support"))?;
@@ -1358,7 +1371,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
         return Err(unbuilt_chain(
             rim.chain.first().edge,
             "a rim's two supports carry ONE surface, so a re-read cannot tell its \
-             host seam from its mate seam — fillet the rims in SEQUENTIAL calls",
+             host seam from its mate seam — blend the rims in SEQUENTIAL calls",
         ));
     }
     let chain_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
@@ -1403,7 +1416,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
                     rim.chain.first().edge,
                     "an earlier band's carve left an edge at a rim crossing that is not \
                      a co-surface seam meridian of either support — this composition is \
-                     not repaired by a seam re-read; fillet the rims in SEQUENTIAL calls",
+                     not repaired by a seam re-read; blend the rims in SEQUENTIAL calls",
                 ));
             };
             if slot.replace(e).is_some() {
@@ -1411,7 +1424,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
                     rim.chain.first().edge,
                     "an earlier band's carve left two seam meridians in ONE support at a \
                      rim crossing — this composition is not repaired by a seam re-read; \
-                     fillet the rims in SEQUENTIAL calls",
+                     blend the rims in SEQUENTIAL calls",
                 ));
             }
         }
@@ -1419,7 +1432,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             return Err(unbuilt_chain(
                 rim.chain.first().edge,
                 "an earlier band's carve consumed a seam meridian at a rim crossing \
-                 outright — this composition is not repaired by a seam re-read; fillet \
+                 outright — this composition is not repaired by a seam re-read; blend \
                  the rims in SEQUENTIAL calls",
             ));
         };
@@ -1446,7 +1459,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     mate: FaceKey,
     host_loop: LoopKey,
     host_half: HalfEdgeKey,
-) -> Result<RimShape, FilletError> {
+) -> Result<RimShape, BlendError> {
     if link0.start != link0.end {
         return Err(unbuilt_chain(
             link0.edge,
@@ -1525,7 +1538,7 @@ fn wall_seam<T: Decide>(
     lp: LoopKey,
     rim: EdgeKey,
     vertex: VertexKey,
-) -> Result<EdgeKey, FilletError> {
+) -> Result<EdgeKey, BlendError> {
     let walk = loop_walk(body, lp)
         .ok_or_else(|| not_intact(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
     let count = |e: EdgeKey| walk.iter().filter(|(_, _, k)| *k == e).count();
@@ -1591,7 +1604,7 @@ fn loop_walk<T: Decide>(
 /// `Circle` carrier on one shared centre/radius (the pip rims and the
 /// widened trim circles — the only rings this kernel mints on planar
 /// faces at rest). Anything else refuses typed rather than sampling.
-fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T), FilletError> {
+fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T), BlendError> {
     let walk = loop_walk(body, ring)
         .ok_or_else(|| not_intact(EntityId::Loop(ring), "a support face's ring"))?;
     let mut found: Option<(Point3<T>, T)> = None;
@@ -1643,7 +1656,7 @@ fn rim_trim_circles<T: Real>(
     edge: EdgeKey,
     blend: &EdgeBlend<T>,
     host_is_a: bool,
-) -> Result<((Point3<T>, T), (Point3<T>, T)), FilletError> {
+) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let (host_trim, mate_trim) = if host_is_a {
         (&blend.trim_a.0, &blend.trim_b.0)
     } else {
@@ -1678,7 +1691,7 @@ fn rim_trim_circles<T: Real>(
 /// margin (module docs): the exact closed-form clearance between a
 /// support face's ring and a blend trimline, meters. Positive
 /// carries the ring through; zero/negative refuses
-/// [`FilletError::RingClearance`]; an in-band margin escalates with
+/// [`BlendError::RingClearance`]; an in-band margin escalates with
 /// the SAME recourse (two-tolerance, D4 ¶1 addendum — this arm is
 /// trio-pinned like every `fillet3_*` predicate). Public for exactly
 /// that trio: the margins themselves are derived inside the surgery
@@ -1695,18 +1708,18 @@ fn rim_trim_circles<T: Real>(
 ///
 /// # Errors
 ///
-/// [`FilletError::RingClearance`] / [`FilletError::Escalated`].
+/// [`BlendError::RingClearance`] / [`BlendError::Escalated`].
 pub fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
     margin: T,
     band: Band,
-) -> Result<(), FilletError> {
-    match decide(RING_CLEARANCE, Margin::of(margin), band).map_err(|e| FilletError::Escalated {
-        site: FilletSite::Chain,
+) -> Result<(), BlendError> {
+    match decide(RING_CLEARANCE, Margin::of(margin), band).map_err(|e| BlendError::Escalated {
+        site: BlendSite::Chain,
         source: e,
     })? {
         Sign::Positive => Ok(()),
-        _ => Err(FilletError::RingClearance {
+        _ => Err(BlendError::RingClearance {
             face,
             margin: margin.lo(),
         }),
@@ -1721,11 +1734,11 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     opens: &[ConvexOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
     band: Band,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     // A ring's EFFECTIVE radius: its own circle, widened to the trim
     // circle when the ring is itself a requested rim (a single call
     // may blend the box edges and the rims together).
-    let effective = |ring: LoopKey| -> Result<Option<(Point3<T>, T)>, FilletError> {
+    let effective = |ring: LoopKey| -> Result<Option<(Point3<T>, T)>, BlendError> {
         for rim in rims {
             if rim.ladder_ring() == Some(ring) {
                 let l0 = rim.chain.first();
@@ -1930,10 +1943,10 @@ fn blank_phase<T: Decide + Bounds>(
     opens: &[ConvexOpen<'_, T>],
     corners: &[Corner<'_, T>],
     supports: &[RequestedBoundary<T>],
-    rec: &mut FilletNaming,
+    rec: &mut BlendNaming,
     tol: Tol,
     kind: BlendKind,
-) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), FilletError> {
+) -> Result<(Vec<FaceKey>, Vec<FaceKey>, Described<T>), BlendError> {
     // The carve is one shape for both verbs — struts to the feet,
     // trimline chords between them, a kef per link, three corner
     // chords and the fusion. What differs is what each new edge IS:
@@ -2260,7 +2273,7 @@ fn rim_carrier<T: Decide>(
     body: &Body<T>,
     link: &Link<T>,
     host: FaceKey,
-) -> Result<RimCarrier<T>, FilletError> {
+) -> Result<RimCarrier<T>, BlendError> {
     let e = link.edge;
     let ed = body
         .get_edge(e)
@@ -2327,17 +2340,71 @@ fn scaled<T: Real>(
 
 /// The parameter at which a support's seam meridian meets `target`,
 /// read in the SEAM CARRIER's own frame. A representation pick, not a
-/// classification (the battery's junction-end pick precedent): a circle
-/// carrier's angle is brought into the stored window by whole turns and
-/// a line carrier's is the projection on its own direction, and either
-/// way a parameter outside the stored span refuses typed rather than
-/// cutting blind. `rim` names the requested edge the refusal carries.
+/// classification (the battery's junction-end pick precedent): the
+/// parameter is [`geom::Curve3::param_near`] anchored at the CARRIER'S
+/// SEAM — a circle carrier's angle on its principal branch, a line
+/// carrier's the projection on its own direction — and either way a
+/// parameter outside the stored span refuses typed rather than cutting
+/// blind. `rim` names the requested edge the refusal carries.
+///
+/// # Why the anchor is the seam and NOT the stored window's midpoint
+///
+/// **Because the answer has to be a function of the POINT and the
+/// CARRIER, and a window-derived anchor makes it a function of the
+/// stored window too.** `param_near` is `near + atan2(…)` read in the
+/// frame AT `near`, so the anchor enters the arithmetic continuously:
+/// two calls asking about the same crossing on the same carrier return
+/// parameters a few ulps apart if their windows differ. The stored
+/// window is NOT stable across a surgery — carving one rim splits the
+/// shared meridian and hands the next rim a narrower one — so a
+/// window-derived anchor makes the split parameter depend on the ORDER
+/// the rims were filleted in, and one-call composition stops agreeing
+/// bitwise with sequential composition.
+///
+/// **That is measured, not feared.** With the midpoint anchor the zone
+/// pair's shared meridian is split at `3.32886824659950897e-2` in one
+/// order and `3.32886824659949787e-2` in the other — the same crossing,
+/// ~6 ulps apart, because one window was `[0, 7.7627…e-1]` and the
+/// other `[0, 7.3144…e-1]`. Three rows fail on it:
+/// `blend2_r2_probes::r2_p1_zone_pair_equality_off_the_fixture_radius`,
+/// `…::r2_p2_lantern_triple_equality_off_the_fixture_radius`, and
+/// `verbs_arms1_r1_probes::both_zone_rims_in_one_call_match_the_sequential_composition`.
+/// The seam is the only anchor available here that is a property of the
+/// CARRIER alone, so it is the only one that restores the invariant;
+/// with it all three are green.
+///
+/// This is the per-site anchor fact [`geom::Curve3::param_near`]'s docs
+/// say each consumer owns, and it buys back nothing the consolidation
+/// removed: no `k·2π` selection here, no `floor`, no five-candidate
+/// scan — one anchored read and the window test.
+///
+/// # What makes the principal branch the RIGHT branch
+///
+/// The seam anchor returns the branch in `(−π, π]`, which need not be
+/// the one inside the stored window. The period guard below is what
+/// makes that sound rather than lucky: branches of a point are exactly
+/// one period apart, so a window narrower than a period holds AT MOST
+/// ONE of them. Hence a returned parameter that lands inside the window
+/// IS the in-window branch; and if the in-window branch is some other
+/// turn, the returned one falls outside and the window test refuses
+/// typed. Both arms are sound and neither cuts blind.
+///
+/// Without the guard the failure is silent, and it is the one `geom`'s
+/// `past_one_period_the_answer_aliases_by_a_turn_inside_the_span` row
+/// exhibits: past a period the aliased answer is STILL strictly
+/// interior, so the window test cannot see it. Measured on this tree no
+/// live call comes near — 335 circle windows in the `sweep` suite,
+/// widest `1.5825331081812426` rad against a period of
+/// `6.2831853071795862`, every one of them inside `(−π, π]`. The
+/// guard's refuse arm is therefore not reached by any assembly
+/// fixture. It is here because the distance between "measured to be
+/// fine" and "checked" is exactly the comment it replaces.
 fn seam_split_param<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
     rim: EdgeKey,
     target: Point3<T>,
-) -> Result<T, FilletError> {
+) -> Result<T, BlendError> {
     let sd = body
         .get_edge(seam)
         .ok_or_else(|| not_intact(EntityId::Edge(seam), "a support's seam meridian"))?;
@@ -2348,36 +2415,44 @@ fn seam_split_param<T: Decide + Bounds>(
         ));
     };
     let (st0, st1) = sc.params();
-    match *sc.carrier() {
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let d = target - center;
-            let traw = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
-            let tau = T::from_f64(core::f64::consts::TAU);
-            for k in [-2.0f64, -1.0, 0.0, 1.0, 2.0] {
-                let cand = traw + tau * T::from_f64(k);
-                if (cand - st0).lo() > 0.0 && (st1 - cand).lo() > 0.0 {
-                    return Ok(cand);
-                }
-            }
-        }
-        Curve3::Line { origin, dir } => {
-            let t = (target - origin).dot(dir);
-            if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
-                return Ok(t);
-            }
-        }
-        _ => {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(seam),
-                "a meridian's carrier is neither a circle nor a line; the split reads the \
+    // THE PERIOD GUARD, and it is CHECKED rather than assumed — the
+    // function docs derive why it is what makes the principal branch
+    // the in-window one. It stays a BOUNDS-lane read, like the window
+    // test below and for the same reason (the battery's junction-end
+    // pick precedent): this is a question about the STORED window, a
+    // representation datum, not about where a point lies. A window
+    // whose whole enclosure is not strictly under a period refuses
+    // typed rather than cutting blind.
+    //
+    // `topo`'s edge split spells the same guard as the
+    // `bool_split_span_period` DECIDE row, which is the right posture
+    // there and not here: that site is mid-classification with a band
+    // in hand, this one is picking a representation and has neither.
+    if (T::tau() - (st1 - st0)).lo() <= 0.0 {
+        return Err(unbuilt_geometry(
+            EntityId::Edge(seam),
+            "a meridian's stored window is not under one period; the split parameter would \
+             alias by a turn and still land inside the window",
+        ));
+    }
+    // Anchored at the CARRIER'S SEAM, not at the stored window — the
+    // function docs carry the measured reason (a window-derived anchor
+    // makes the split parameter order-dependent). `param_near` carries
+    // the derivation of the anchored read itself.
+    let t = sc.carrier().param_near(target, T::zero()).ok_or_else(|| {
+        unbuilt_geometry(
+            EntityId::Edge(seam),
+            "a meridian's carrier is neither a circle nor a line; the split reads the \
                  crossing in the meridian's own frame and no other stored shape is built",
-            ));
-        }
+        )
+    })?;
+    // The window test is the representation pick's other half, and it
+    // stays a BOUNDS-lane read rather than a `decide` row (the
+    // battery's junction-end pick precedent): a parameter whose whole
+    // enclosure is not strictly inside the stored span refuses typed
+    // rather than cutting blind.
+    if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
+        return Ok(t);
     }
     Err(unbuilt_chain(
         rim,
@@ -2389,9 +2464,9 @@ fn rim_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
     ring: LoopKey,
-    rec: &mut FilletNaming,
+    rec: &mut BlendNaming,
     tol: Tol,
-) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
+) -> Result<(FaceKey, Surface<T>, Described<T>), BlendError> {
     let mut described: Described<T> = Vec::new();
     let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links().find(|l| l.edge == e) };
     // Selected by the carve's ROLES, never by slot
@@ -2402,7 +2477,7 @@ fn rim_phase<T: Decide + Bounds>(
     let ((ca, sa), (cb, sb)) = rim_trim_circles(l0.edge, &l0.blend, l0.face_a == rim.host0())?;
 
     // The rim edges' stored carriers, once.
-    let carrier_of = |body: &Body<T>, e: EdgeKey| -> Result<RimCarrier<T>, FilletError> {
+    let carrier_of = |body: &Body<T>, e: EdgeKey| -> Result<RimCarrier<T>, BlendError> {
         let l = link_of(e)
             .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge's link in the verdict"))?;
         rim_carrier(body, l, rim.host0())
@@ -2786,7 +2861,7 @@ fn mef_trim<T: Decide + Bounds>(
     rim_edge: EdgeKey,
     site: &'static str,
     tol: Tol,
-) -> Result<topo::MefCreated, FilletError> {
+) -> Result<topo::MefCreated, BlendError> {
     let (Some(v1), Some(v2)) = (
         body.get_half_edge(he1).map(|h| h.start),
         body.get_half_edge(he2).map(|h| h.start),
@@ -2890,9 +2965,9 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     rim: &RimPlan<'_, T>,
     ann: &AnnulusRim,
     live: &[LiveSeams],
-    rec: &mut FilletNaming,
+    rec: &mut BlendNaming,
     tol: Tol,
-) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
+) -> Result<(FaceKey, Surface<T>, Described<T>), BlendError> {
     // `live` pairs with `ann.crossings` BY INDEX. Both producers mint
     // exactly one entry per crossing (the identity map and the
     // refresh's per-crossing loop), so a length divergence is a fact
@@ -2942,7 +3017,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // never by slot (`rim_trim_circles` docs), in the rim's own frame
     // (`scaled`) so every azimuth is inherited rather than
     // reconstructed. ----
-    let ix_of = |v: VertexKey| -> Result<usize, FilletError> {
+    let ix_of = |v: VertexKey| -> Result<usize, BlendError> {
         ann.crossings
             .iter()
             .position(|c| c.vertex == v)
@@ -3015,7 +3090,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                  target: Point3<T>,
                  named: EdgeKey,
                  site: &'static str|
-     -> Result<(VertexKey, EdgeKey, EdgeKey), FilletError> {
+     -> Result<(VertexKey, EdgeKey, EdgeKey), BlendError> {
         let t = seam_split_param(body, seam, named, target)?;
         let created = body.split_edge(seam, t, tol).map_err(|e| op(site, e))?;
         let (rim_side, far_side) = if edge_touches(body, seam, at) {
@@ -3347,7 +3422,7 @@ fn attach_contact<T: Decide + Bounds>(
     edge: EdgeKey,
     carrier: ContactCarrier<T>,
     tol: Tol,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     let ed = body
         .get_edge(edge)
         .ok_or_else(|| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
@@ -3464,8 +3539,8 @@ mod tests {
 
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
-    use super::{BlendKind, ConvexOpen, CornerLinks, FilletError, corner_plan, rim_trim_circles};
-    use crate::fillet::blend::plane_sphere_blend;
+    use super::{BlendError, BlendKind, ConvexOpen, CornerLinks, corner_plan, rim_trim_circles};
+    use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
     /// **The guard for the two cheapest row-4 proofs.**
@@ -3499,8 +3574,8 @@ mod tests {
             .expect_err("a two-solid body is outside the in-place surgery's door");
         assert!(
             matches!(
-                err,
-                FilletError::UnsupportedBody {
+                err.error,
+                BlendError::UnsupportedBody {
                     solids: 2,
                     shells: 2
                 }
@@ -3609,7 +3684,7 @@ mod tests {
             panic!("a concave chain must be refused at the door, not planned")
         };
         assert!(
-            matches!(err, FilletError::UnsupportedChain { .. }),
+            matches!(err, BlendError::UnsupportedChain { .. }),
             "expected the open-chain door's typed refusal, got {err}"
         );
     }
