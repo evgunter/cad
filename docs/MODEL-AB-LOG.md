@@ -196,8 +196,11 @@ amended:
      opened concurrently with S-BLEND, both drew 600 within the
      hour, BLEND's claim reached main first, S-CERT renumbered per
      the main-is-authority tiebreak) · S-QA 800–899 (claimed
-     2026-08-29 at the S-QA program's opening — `docs/S-QA-LOG.md`)**,
-     with **900+ unallocated** — the orchestrator opening the next
+     2026-08-29 at the S-QA program's opening — `docs/S-QA-LOG.md`) ·
+     S-MESH 900–999 and S-BOOL 1000–1099 (both claimed 2026-08-31
+     at the two programs' joint opening by one orchestrator —
+     `docs/S-MESH-LOG.md` / `docs/S-BOOL-LOG.md`)**,
+     with **1100+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
