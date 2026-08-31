@@ -90,6 +90,14 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 # captured from the pinned 0.9.140 with `--retries 1`); BOTH are accepted,
 # because a retried test really did cost the job both attempts.
 #
+# THE INDEX IS RIGHT-ALIGNED, AND THAT IS WHY `\s*` IS IN THERE. nextest pads
+# the counter to the width of the total — `(   1/2470)` — so a pattern written
+# against a four-digit index matches only the last tenth of a run. That is not
+# hypothetical: it is what this regex did on its first hosted run (33342621213),
+# where it read 1,473 of 2,470 rows and reported a plausible table built from
+# the tail of the suite. Nothing about the output looked wrong, which is the
+# argument for the padded rows being in the fixtures below.
+#
 # `SLOW [>  60.000s]` rows are excluded by the `>` guard. That guard is
 # INSURANCE, NOT A LIVE PATH: measured against the pinned 0.9.140, slow
 # notifications are not emitted at the default status level, which is what
@@ -98,7 +106,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 ROW_RE = re.compile(
     r"^\s*(?P<status>[A-Z][A-Z0-9]*(?: [A-Z0-9]+)*)"
     r" \[\s*(?P<pending>>)?\s*(?P<secs>\d+(?:\.\d+)?)s\]"
-    r" \((?:\d+/\d+|─+)\)"
+    r" \(\s*(?:\d+/\d+|─+)\s*\)"
     r" (?P<binary>\S+) (?P<test>\S+)\s*$"
 )
 SUMMARY_RE = re.compile(r"^\s*Summary \[\s*(?P<secs>\d+(?:\.\d+)?)s\]\s+(?P<counts>.+?)\s*$")
@@ -260,6 +268,19 @@ GREEN_FIXTURE = """\
 2026-08-30T21:16:04.2726404Z      Summary [   0.819s] 1 test run: 1 passed, 856 skipped
 """
 
+# VERBATIM, from `test (interval, eps = default, 1/2)` of run 33342621213 (job
+# 99342426979) — this report's OWN first hosted run, and the run that caught the
+# padded index. A four-digit total pads every index below 1000, so the first
+# 999 rows of every large run carry leading spaces and the rest do not; both
+# are here, from the same leg, three lines apart in the real log.
+PADDED_INDEX_FIXTURE = """\
+2026-08-30T23:58:45.0370404Z     Starting 2470 tests across 32 binaries (2483 tests skipped)
+2026-08-30T23:58:45.0460316Z         PASS [   0.008s] (   1/2470) bvh::all aggregator_headers::no_aggregator_header_restates_the_build_cost_measurement
+2026-08-30T23:59:37.6280986Z         PASS [  11.635s] ( 999/2470) geom-brep::all review_r1_rational_probes::probe_sphere_octant
+2026-08-30T23:59:37.6940477Z         PASS [   0.065s] (1000/2470) mesh chords::tests::r1_rational_mult_p_minus_one_carrier
+2026-08-31T00:00:46.0293449Z      Summary [ 120.992s] 2470 tests run: 2470 passed, 2483 skipped
+"""
+
 # VERBATIM, captured locally against the PINNED cargo-nextest 0.9.140 with
 # `--retries 1` over a three-test crate. Hosted CI configures no retries, so
 # this shape does not appear in any run above — which is exactly why it is
@@ -315,6 +336,20 @@ def selftest():
     if green_summaries != [(0.819, "1 test run: 1 passed, 856 skipped")]:
         _fail(failures, "green fixture: green Summary line did not parse: {!r}".format(green_summaries))
 
+    # THE PADDED INDEX, which is what a table built from a tenth of a run looks
+    # like from the outside: nothing. All three rows must parse, and the row
+    # numbered `(   1/2470)` is the one that did not.
+    padded_times, padded_execs, padded_summaries = parse_leg(PADDED_INDEX_FIXTURE)
+    if padded_execs != 3 or len(padded_times) != 3:
+        _fail(failures, "padded-index fixture: all three rows must parse — nextest right-aligns "
+                        "the index to the width of the total, so a pattern that wants `(1/2470)` "
+                        "silently drops the first 999 rows of every large run. Parsed {} of "
+                        "3".format(padded_execs))
+    if padded_times.get(("geom-brep::all", "review_r1_rational_probes::probe_sphere_octant")) != 11.635:
+        _fail(failures, "padded-index fixture: the 11.635 s row did not parse: {!r}".format(padded_times))
+    if padded_summaries != [(120.992, "2470 tests run: 2470 passed, 2483 skipped")]:
+        _fail(failures, "padded-index fixture: Summary did not parse: {!r}".format(padded_summaries))
+
     retry_times, retry_execs, _ = parse_leg(RETRY_FIXTURE)
     flaky = ("nextest-shapes", "always_fails")
     if abs(retry_times.get(flaky, 0.0) - 0.215) > 1e-9:
@@ -349,9 +384,9 @@ def selftest():
         for line in failures:
             sys.stderr.write("selftest FAILED: {}\n".format(line))
         raise SystemExit(1)
-    print("slowest-tests selftest ok: three captured fixtures (green, red including the "
-          "post-Summary recap, and a retried test), cross-leg summation, and the missing-leg "
-          "report")
+    print("slowest-tests selftest ok: four captured fixtures (green, red including the "
+          "post-Summary recap, a padded index, and a retried test), cross-leg summation, and "
+          "the missing-leg report")
     return 0
 
 
