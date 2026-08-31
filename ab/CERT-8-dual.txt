@@ -1,0 +1,110 @@
+CERT-8 dual (v6), recorded BEFORE R1 dispatch, 2026-08-31
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+next after 706).
+slot byte 201, parity 1 => R1 FABLE + R2 OPUS (cross-model).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 085ddf8f (the delivered head — no
+orchestrator-direct deltas this unit). Dispatch CONDITIONAL on
+085ddf8f's gate concluding green on PR 1398. Sibling lane CERT-10
+(implementation) may still be running at R1 dispatch — reviewers'
+worktrees and target dirs are their own; build-slot mutex serializes.
+R2 after R1 with the IDENTICAL stored brief, isolated. Probe
+branches: cert/8r1-probes, cert/8r2-probes (local until close-out).
+Implementer difficulty M/L (logged at spec pre-draw); impl ~245k
+tokens, ~81m wall, single lane, no restarts.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-8 of the S-CERT
+program (repo evgunter/cad). Review PR 1398 on its FROZEN head
+085ddf8f — do not review any later commit; if the branch has moved,
+say so and still review 085ddf8f.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-8-SPEC.md), GitHub issues 501 and
+528 (the primary specifications), the D2 addendum in docs/DESIGN.md,
+then the PR 1398 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection; every number is the PR body's claim, not a fact):
+1. THE INF-ARM ASSEMBLY'S SOUNDNESS (highest-value item). The PR
+   derives lever arms as per-axis infs discounted by a singular-value
+   floor: T from sup/inf ratios, D from the area floor, rho =
+   sqrt(2D/(T+sqrt(T^2-4D))), arms = inf*rho. Attack it: (a) is
+   λ_min of the RIGHT matrix being bounded (the normalized first
+   fundamental form at a point), and does mixing a sup-trace and an
+   inf-determinant taken at DIFFERENT chart points still bound the
+   pointwise λ_min everywhere (monotonicity in both arguments must
+   be checked, plus T^2 >= 4D); (b) is the resulting arm genuinely a
+   metric lower bound for arbitrary chart displacements (the claim
+   that per-axis infs alone are NOT — the unit's own deviation
+   argument — and that the discounted arms ARE); (c) numerical
+   direction at every step (a lower bound rounded up is not a bound;
+   where do these run in the ring vs plain f64?).
+2. The directional inf read in geom_brep::chart_stretch_inf: every
+   convex combination projects to at least min(Q_ij . d) along the
+   net's summed direction d — is d normalized before projecting, is
+   the partition-of-unity premise real for the degree-reduced basis
+   (the zero-divisor drop "exact on both sides"), and does a
+   zero-crossing net really read exactly 0 (never negative-as-zero
+   or small-positive)?
+3. The rational factor taken OPPOSITE: Floater's bracket
+   [1/ratio, ratio] with ratio = (w_max/w_min)^2 — verify the inf
+   side divides where nurbs_stretch_bounds multiplies, and the area
+   element divides by ratio^2; check on the rational IsoArc wall's
+   digits (inf (1.0488, 0.5244), area 0.5499, rho 0.1613, mean
+   width ~0.0564 m).
+4. Part 1's escape-direction arguments at both callers:
+   pcurve_loop_continuity (gap keeps loop closed) and
+   pcurve_loop_pole_joint ("is this lever zero" — is sup REALLY the
+   safe side for skipping the branch shift, including at Interval
+   where the arm straddles?). The claim that plane and placeholder
+   arms are bit-identical through the new door.
+5. The red-first table: reproduce the 4-failed/2-passed pre-fix run
+   (the old arm is one revert away); the 100x fixture digits; the
+   scale twin x1e3; the three-outcome rows' band placement.
+6. The mean-width caveat: the PR says area positivity is certified
+   (monotone) but the mean width is "a lower reading". Under the
+   ANISOTROPIC scaling by (arm_u, arm_v), is over_lever(2A, P) on
+   the scaled polygon actually conservative for the PositiveArea
+   verdict, or can an anisotropic contraction raise the ratio?
+   Exhibit or refute with a constructed polygon.
+7. The still-refusing rows and the swap row: does the folded-net
+   fixture genuinely zero-cross (not merely near-zero); does the
+   swap row's (0, inf_u] pin actually bind the assembly (would it
+   catch an accidental sup read)?
+8. The sweep's completeness and its dispositions: spot-verify
+   pattern B's "correct already" rows (split.rs:203,
+   ssi/certify.rs:702 inf-over-sup direction, certify.rs:1493) and
+   pattern A's two "not this unit" defaults (reduce.rs:538,
+   merge_faces.rs:1049) — is the Plane gate premise true at both?
+9. The D2-addendum table (ArmUnbounded narrowed row 1; Escalated as
+   the band's middle; Corrupt on empty v-window routed to the
+   existing spelling) — each classification against the addendum's
+   own procedure, and the claim the empty-window arm converts a
+   would-be poly[0] panic into a typed refusal.
+10. The two re-derived baselines: do the rewritten rows preserve the
+    original rows' REAL claims (never handed a sup arm; refuses at
+    each degeneracy) or weaken them?
+11. The ε/lane posture: trailer lane=both eps=1e-12 premise against
+    scripts/ci-filter.py's actual matrix behaviour; the pinned-band
+    rows' "invariant by construction" claim (run one at all three
+    bands yourself); the argument that tight ε is where a false
+    certification would surface.
+Also: Q3 (does the test diff exercise the new arithmetic on
+constructed inputs, or only through fixtures?), Q7 (API shape of the
+two exports), Q8 (how much of the touched files did you read?).
+
+RULES: work in your own worktree from the frozen head; do NOT push
+to cert/8-chart-stretch; put probes on your assigned probe branch
+(local commits; the orchestrator collects them); no GitHub writes of
+any kind; no Co-Authored-By; serialize heavy builds through
+/home/user/cad/local-scripts/with-build-slot.sh; foreground
+discipline (never wait on a background notifier — poll); check
+df -h / before big builds and clean your own target dir if free
+space nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
+NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
+severities, executed-vs-inspected marked per item, and the rubric
+scores per the style lane. Report <=150 lines.
