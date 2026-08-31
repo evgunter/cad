@@ -1240,3 +1240,44 @@ ratification question (PR #1359 body, Evan), D322–D324's release
 check after #1360.
 
 BLEND-4's fix-pass lane messaged: merge-of-main step unblocked.
+
+## 2026-08-31 — BLEND-4 fix pass IN; R1 delta dispatched on the fixed head
+
+Fix pass complete on PR #1360, new head `78ef22dc` over main-merge
+`d863879a` (~90k / ~75m lane-reported). All 8 adjudicated items
+landed: both probe suites adopted as merge parents of octopus
+`9346bd48` authorship-preserving (9 rows green on arrival); the
+chart-fold pin gap CLOSED (implementer re-ran C and C′ post-
+adoption: C reds lib mirror pin + both R2 chart rows, C′ reds
+both chart rows with the lib pin green — R2's exact gap now
+covered) with the S-7 decline carried in the PR body; the false
+chart-pin sentence replaced; the dead stored-chart fields
+documented MEASUREMENT-ONLY with the argument (ball sees three
+normals, not the corner's links) and R2's #644-premise correction
+recorded; the sibling-hazard net MEASURED (wedge grid refuses at
+FaceClearanceUncertified; R1's 0.2° skew at surgery contact edge
+with TangentSecondOrder) and stated exactly; **issue #1364 filed**
+(shared test-support home: builders + oracles, both copy classes)
+with the fixture oracle de-parametrized; prose smalls (apex split,
+BlendKind count, feet-fold cross-cites). The #1359 collision
+resolved per the mapped resolution — one git conflict + three
+loud errors, toward BOTH (guards first, fold after, fold reads
+`third` through the guard); T-c's guard row now runs via a shared
+`cross_corner_drill` and gains its **concave twin**
+(`..._is_refused_on_the_concave_arm_too`). Post-merge mutation
+table: A 10 / B 10 / C 3 / C′ 2 / D 5 / E 1 red rows. Local:
+sweep 889, editor-core 860, clippy/fmt clean. CI run 3911 GREEN
+at ASKED {interval, 1e-6} (fresh full gate warranted by the
+build.rs-touching resolution; trailer on `78ef22dc`).
+
+**R1 delta dispatched** (rides ordinal 606 slot 1, same arm; the
+original R1 agent's context is gone, so the delta runs as a fresh
+lane in blend-4-r1 with a self-contained brief — scoped to: the
+C/C′ mutations re-run independently, the d863879a resolution's
+guard/fold ordering and red-capability incl. the concave twin's
+non-vacuity, probe-adoption integrity vs both probe heads, suite
+non-shrinkage over `fa898277..78ef22dc`, prose spot-check).
+Merge sequence on DELTA-CLEAN: state-sync (ordinal 606, sample
+hedged, arm branch-side — B3 stays OPEN, slots 2–3 unconsumed) →
+merge #1360 (Closes #644) → reclaim blend-4* lanes → exit-walk
+draft for Evan.
