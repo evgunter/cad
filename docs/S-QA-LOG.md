@@ -314,3 +314,67 @@ the dispatch discipline: both reviewer briefs carried an inverted
 mechanism for the parity fix (my error, both arms caught it) — a
 dispatch is a hypothesis, and the reviewers treating it as one is
 the system working.
+
+## QA-8 merged (2026-08-31): Track J is empty
+
+The doc gate now derives what it cannot see: every crate declaring a
+`not(feature)`-family module gets its inert half re-documented, the
+root set greps the tree instead of trusting a roster, and the three
+mesh link errors that no instrument had ever compiled were shown red
+under the widened gate before being fixed. The dual's keep was
+double: both arms mutation-proved the selftest arms can actually
+fail, and both caught the unit's new pinned measurement already
+drifted from the run — the header's own doctrine applied to its own
+new section (§D rule 5, again). The fix pass twice beat its
+instructions: it found F6's billed-minutes claim had lapsed before
+this PR existed (fmt-job growth, not pass 3, took the first minute),
+and its new selftest arm overturned the header's own claim about the
+default-features root. Issue #1317 registers the two blind-spot axes
+with measurements. Operationally the unit closed the loop on the
+program's thesis: its run was the first code-tier CI since BLEND-5
+merged, which is the only reason anyone learned main was latently
+red (`reader_census` tripping on prose in an assertion message —
+every intervening run was docs-tier). Evan fixed that directly
+(#1323) within the hour; the k-lint 1-of-5 row remains row-dependent
+red on main per issues 1296/1304, M10's ground. Track J: 3→0, rows
+deleted, fence kept; D301 leaves Track R. With this merge the QA-B2
+block's A/B slots are all recorded.
+
+## QA-7 merged (2026-08-31): CI reports what tests cost
+
+Issue 469's reports are live: every test job prints its slowest ~20
+(summed per test across the legs it ran, and saying which), and every
+PR is told what its added tests cost, from a base listing looked up
+by tree key so the answer is exact or an honestly stated skip — never
+a guess, never a gate. The dual's signature finding was the program's
+class caught one layer deeper: R2 found `filter.out | tee` taking
+tee's exit status at the top of ci.yml — a green run that gated
+nothing, sitting in the very file, forty lines below the comment
+warning about it, while the PR fixed four instances of the same class
+elsewhere. The fix pass took all fourteen union items and then found
+three of its own, including a selftest case that had been silently
+appending a real `TEST_LIST_TREE` into the hosted job's environment
+— caught by reading the run log, which is this unit's whole thesis.
+The base-listing lookup now lives once, in a script with its own
+selftest, instead of twice in shell nothing tested; the three
+vacuous-pass fixes each carry an old-guard-passes/new-guard-reds
+transcript. The gate of record ran the interval lane by request —
+the copy the draw had left untested. One dispatch note for the
+record: both arms corrected my conflated fixture-provenance premise,
+the program's fourth dispatch-premise correction; the discipline
+holds. Issue 469 closes on this record. Block QA-B3 is complete:
+QA-6, QA-7, QA-9 — ordinals 804, 807, 803.
+
+## Seam: QA-6 PR 2 dispatched (2026-08-31)
+
+The gate on the remaining legs lifted with QA-7 and QA-8 both
+merged; qa/6-measured-claims-2 branched from main carrying only its
+spec (docs/QA-6-PR2-SPEC.md). Two live legs (workflows+scripts,
+tools provenance) and two written-disposition legs (crates/*/tests
+is Track W's ground with issue 651 as the class home; docs prose
+stays deferred). Unilateral decision, logged: PR 2 runs on the
+QA-6 implementer's arm as a unit continuation — the same rule that
+gives a fix pass its implementer's arm — rather than drawing a
+fresh triple block for one unit; its dual claims ordinal 808 at
+review dispatch. Issue 681 closes at PR 2's merge on the combined
+record.

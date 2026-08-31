@@ -1397,7 +1397,6 @@ fn walk_loop<T: PcurveFittedLane>(
                 // representation is exact refuses rather than snapping
                 // to the nearest branch. Candidate order (base first)
                 // is fixed: D9.
-                let half = T::from_f64(0.5);
                 let twin = sphere_twin(surface, &base);
                 let mut chosen: Option<Pcurve<T>> = None;
                 // A WRONG candidate's escalation is not the loop's
@@ -1431,7 +1430,7 @@ fn walk_loop<T: PcurveFittedLane>(
                     let ku = match decide("pcurve_loop_pole_joint", Margin::of(joint_arm), band) {
                         Ok(Sign::Zero) | Err(_) => T::zero(),
                         Ok(Sign::Positive | Sign::Negative) => match u_period {
-                            Some(p) => ((prev.x - raw.x) / p + half).floor(),
+                            Some(p) => (prev.x - raw.x).periodic_branch(p),
                             None => T::zero(),
                         },
                     };
@@ -1445,7 +1444,7 @@ fn walk_loop<T: PcurveFittedLane>(
                     };
                     if v_arm.is_some() {
                         let ry = shifted.eval(entry_t).y;
-                        let kv = ((prev.y - ry) / tau + half).floor();
+                        let kv = (prev.y - ry).periodic_branch(tau);
                         shifted = shift_polar_branch(&shifted, kv, tau);
                     }
                     let entry = shifted.eval(entry_t);
