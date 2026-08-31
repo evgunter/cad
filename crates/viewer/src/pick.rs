@@ -808,11 +808,11 @@ impl PickIndex {
     /// re-picked against everything drawn, and a candidate the surface
     /// hides is rejected rather than selected through the solid.
     ///
-    /// Determinism: candidates are walked in boundary-then-segment
-    /// order and the winner minimizes `(pixel distance, boundary
-    /// position, segment position)` lexicographically — the same
-    /// shape of total tie-break `pick_face` documents, so two edges
-    /// meeting at the cursor answer the earlier one every time.
+    /// Determinism: the candidates within the radius are ordered by
+    /// `(pixel distance, boundary position, segment position)` — the
+    /// same shape of total tie-break `pick_face` documents, so two
+    /// edges meeting at the cursor answer the earlier one every time —
+    /// and the answer is the first of them the solid does not hide.
     ///
     /// # Errors
     ///
@@ -920,7 +920,11 @@ impl PickIndex {
         };
         let mesh = part.mesh();
         let place = placement(display, hit.node);
-        let mut best: Option<Candidate> = None;
+        // One candidate per drawn edge — its own nearest segment —
+        // rather than one per segment: a curved edge's chords all lie
+        // near the cursor together, and the question being asked is
+        // which EDGE the cursor means.
+        let mut candidates: Vec<Candidate> = Vec::new();
         for id in self.edges_in(hit.node, hit.body) {
             let Some(boundary) = mesh.boundaries.get(id.boundary) else {
                 continue;
@@ -950,20 +954,18 @@ impl PickIndex {
                 };
                 projected.push(entry);
             }
+            let mut best: Option<Candidate> = None;
             for (segment, pair) in projected.windows(2).enumerate() {
                 let (Some((a, pixel_a)), Some((b, pixel_b))) = (pair[0], pair[1]) else {
                     continue;
                 };
                 let (distance, closest) = segment_distance_px(cursor, pixel_a, pixel_b);
-                let better = match &best {
-                    None => true,
-                    Some(best) => {
-                        distance < best.distance
-                            || (distance == best.distance
-                                && (id.boundary, segment) < (best.boundary, best.segment))
-                    }
-                };
-                if better {
+                if distance > EDGE_PICK_RADIUS_PX {
+                    continue;
+                }
+                // Strictly nearer only: a tie keeps the earlier
+                // segment, which is what makes the answer total.
+                if best.as_ref().is_none_or(|best| distance < best.distance) {
                     best = Some(Candidate {
                         distance,
                         boundary: id.boundary,
@@ -973,55 +975,60 @@ impl PickIndex {
                     });
                 }
             }
+            candidates.extend(best);
         }
-        let Some(Candidate {
-            distance,
-            boundary,
-            pixel,
-            ends: [a, b],
-            ..
-        }) = best
-        else {
-            return Ok(None);
-        };
-        if distance > EDGE_PICK_RADIUS_PX {
-            return Ok(None);
-        }
-        // Occlusion: the ray through the candidate's own pixel, picked
-        // against everything drawn. A candidate the surface hides is
-        // not what the cursor is aiming at, however near it projects.
-        let candidate_ray = camera
-            .ray_through(pixel, viewport)
-            .map_err(PickError::Camera)?;
-        let (t, point) = ray_segment_closest(&candidate_ray, a, b);
-        if let Some(front) = self
-            .pick_for(eval, &candidate_ray, display)
-            .map_err(PickError::HitTest)?
-            && front.t < t - OCCLUSION_SLACK_REL * t.abs()
-        {
-            return Ok(None);
-        }
-        let id = EdgeId {
-            node: hit.node,
-            body: hit.body,
-            boundary,
-        };
-        let Some(Ok(name)) = self.edge_name_of(id) else {
-            // The loud unnamed-entity arm belongs to the caller as a
-            // refusal, not as a silent miss.
-            if let Some(Err(error)) = self.edge_name_of(id) {
-                return Err(PickError::HitTest(*error));
+        // The tie-break, stated once: nearest first, then the earlier
+        // boundary, then the earlier segment — all integers after the
+        // first, and the first is never NaN (a projected distance is
+        // a finite pixel measure).
+        candidates.sort_by(|left, right| {
+            left.distance
+                .partial_cmp(&right.distance)
+                .unwrap_or(core::cmp::Ordering::Equal)
+                .then((left.boundary, left.segment).cmp(&(right.boundary, right.segment)))
+        });
+        for candidate in candidates {
+            // Occlusion: the ray through this candidate's own pixel,
+            // picked against everything drawn. A candidate the solid
+            // hides is not what the cursor is aiming at however near
+            // it projects — and the walk CONTINUES past it, because
+            // the edge behind a face and the edge in front of it are
+            // both near the same cursor exactly when a body is seen
+            // through its own silhouette.
+            let ray = camera
+                .ray_through(candidate.pixel, viewport)
+                .map_err(PickError::Camera)?;
+            let [a, b] = candidate.ends;
+            let (t, point) = ray_segment_closest(&ray, a, b);
+            let hidden = self
+                .pick_for(eval, &ray, display)
+                .map_err(PickError::HitTest)?
+                .is_some_and(|front| front.t < t - OCCLUSION_SLACK_REL * t.abs());
+            if hidden {
+                continue;
             }
-            return Ok(None);
-        };
-        Ok(Some(EdgePick {
-            name: name.clone(),
-            node: id.node,
-            body: id.body,
-            boundary,
-            distance_px: distance,
-            point,
-        }))
+            let id = EdgeId {
+                node: hit.node,
+                body: hit.body,
+                boundary: candidate.boundary,
+            };
+            // The loud unnamed-entity arm reaches the caller as a
+            // refusal, not as a silent miss.
+            let name = match self.edge_name_of(id) {
+                Some(Ok(name)) => name.clone(),
+                Some(Err(error)) => return Err(PickError::HitTest(*error)),
+                None => return Ok(None),
+            };
+            return Ok(Some(EdgePick {
+                name,
+                node: id.node,
+                body: id.body,
+                boundary: candidate.boundary,
+                distance_px: candidate.distance,
+                point,
+            }));
+        }
+        Ok(None)
     }
 
     /// **The whole cursor path, as one function**: a cursor action

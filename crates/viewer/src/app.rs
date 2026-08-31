@@ -61,7 +61,9 @@ use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
-use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
+use crate::session::{
+    BoundsTarget, DocSession, Hovered, Refusal, Selection, SessionOp, Standing,
+};
 use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -1347,6 +1349,19 @@ impl ViewerBehavior<'_> {
         let highlight = self
             .index
             .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+        // The edge half of the same question, and the same discipline:
+        // recomputed every frame from state that lives in one place.
+        let edges = self
+            .index
+            .map(|index| {
+                pick::edge_overlay(
+                    index,
+                    self.display,
+                    self.session.selection(),
+                    self.session.hover(),
+                )
+            })
+            .unwrap_or_default();
 
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
@@ -1365,7 +1380,7 @@ impl ViewerBehavior<'_> {
                 index,
                 self.id_answer.load(Ordering::Relaxed),
                 self.id_log.outstanding(),
-                self.session.hover().map(|face| &face.name),
+                self.session.hover().map(Hovered::name),
             )
         }) {
             *self.status = Some(report.to_string());
@@ -1392,6 +1407,7 @@ impl ViewerBehavior<'_> {
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
                 highlight: highlight.unwrap_or_default(),
+                edges,
                 id_query,
             },
         ));
@@ -1492,18 +1508,25 @@ impl ViewerBehavior<'_> {
                     self.slot_group_ui(ui, node, group);
                 }
             }
-            Selection::Face(face) => {
-                // Slot rows for the feature that MADE the face — the
-                // node `slot_groups` itself answered for, so the rows
-                // shown and the node an edit lands on are one answer.
-                // A face pick is a way of reaching that feature, which
-                // is what G3's click-to-select is for.
+            // Slot rows for the feature that MADE the picked entity —
+            // the node `slot_groups` itself answered for, so the rows
+            // shown and the node an edit lands on are one answer. A
+            // pick is a way of reaching that feature, which is what
+            // G3's click-to-select is for, and an edge reaches it the
+            // same way a face does.
+            Selection::Face(_) | Selection::Edge(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
-                for group in &groups {
-                    self.slot_group_ui(ui, face.feature(), group);
+                // `Selection::node()` is the one inversion — always
+                // `Some` on these two arms, and read rather than
+                // re-derived so the rows and the edits land on the
+                // node `slot_groups` answered for.
+                if let Some(feature) = self.session.selection().node() {
+                    for group in &groups {
+                        self.slot_group_ui(ui, feature, group);
+                    }
                 }
             }
             Selection::Param(name) => {
@@ -1673,45 +1696,75 @@ impl ViewerBehavior<'_> {
                 }
             }
             Standing::Face { face, resolution } => {
-                ui.horizontal(|ui| {
-                    // Always a face: edge and vertex picking is out
-                    // of scope for v1 selection, so the kind is not a
-                    // variable to render.
-                    // The feature that MADE the face, so the button
-                    // deletes what the label names.
-                    let feature = face.feature();
-                    ui.label(format!("face of feature {}", feature.0));
-                    if standing.live() && delete_button(ui, self.session, feature) {
-                        self.ops.push(SessionOp::DeleteNode { node: feature });
-                    }
-                });
-                // The typed verdict, rendered from the resolution
-                // machinery's own payload — never a sentence composed
-                // here about somebody else's refusal.
-                match resolution.as_deref() {
-                    None => {
-                        ui.weak("no evaluation yet to resolve this against");
-                    }
-                    Some(pncad::select::Resolution::Resolved(_)) => {}
-                    Some(pncad::select::Resolution::Failed(failure)) => {
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("this face is gone: {}", failure.error),
-                        );
-                        if !failure.offers.is_empty() {
-                            ui.weak(format!(
-                                "{} rebind candidate(s) offered",
-                                failure.offers.len()
-                            ));
-                        }
-                    }
-                    Some(pncad::select::Resolution::Indeterminate(cause)) => {
-                        ui.colored_label(
-                            chrome(self.theme.unresolved),
-                            format!("this face cannot be resolved right now: {cause:?}"),
-                        );
-                    }
+                self.entity_standing_ui(
+                    ui,
+                    "face",
+                    face.feature(),
+                    resolution.as_deref(),
+                    standing.live(),
+                );
+            }
+            Standing::Edge { edge, resolution } => {
+                self.entity_standing_ui(
+                    ui,
+                    "edge",
+                    edge.feature(),
+                    resolution.as_deref(),
+                    standing.live(),
+                );
+            }
+        }
+    }
+
+    /// A picked entity's header: which feature it belongs to, the
+    /// delete that feature offers, and the typed resolution verdict.
+    ///
+    /// **One rendering for every kind of picked entity**, taking the
+    /// noun as an argument: a face and an edge differ in what they are
+    /// called and in nothing else this panel does, and two copies of
+    /// the verdict ladder is how the two come to report a vanished
+    /// referent differently.
+    fn entity_standing_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        noun: &str,
+        feature: RecipeNodeId,
+        resolution: Option<&pncad::select::Resolution>,
+        live: bool,
+    ) {
+        ui.horizontal(|ui| {
+            // The feature that MADE the entity, so the button deletes
+            // what the label names.
+            ui.label(format!("{noun} of feature {}", feature.0));
+            if live && delete_button(ui, self.session, feature) {
+                self.ops.push(SessionOp::DeleteNode { node: feature });
+            }
+        });
+        // The typed verdict, rendered from the resolution machinery's
+        // own payload — never a sentence composed here about somebody
+        // else's refusal.
+        match resolution {
+            None => {
+                ui.weak("no evaluation yet to resolve this against");
+            }
+            Some(pncad::select::Resolution::Resolved(_)) => {}
+            Some(pncad::select::Resolution::Failed(failure)) => {
+                ui.colored_label(
+                    chrome(self.theme.unresolved),
+                    format!("this {noun} is gone: {}", failure.error),
+                );
+                if !failure.offers.is_empty() {
+                    ui.weak(format!(
+                        "{} rebind candidate(s) offered",
+                        failure.offers.len()
+                    ));
                 }
+            }
+            Some(pncad::select::Resolution::Indeterminate(cause)) => {
+                ui.colored_label(
+                    chrome(self.theme.unresolved),
+                    format!("this {noun} cannot be resolved right now: {cause:?}"),
+                );
             }
         }
     }

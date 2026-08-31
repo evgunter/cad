@@ -71,7 +71,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::pick::{Highlight, IdMap, cursor_projection};
+use crate::pick::{EdgeOverlay, Highlight, IdMap, cursor_projection};
 use crate::scene::SceneMesh;
 use crate::theme::{Mark, Theme};
 
@@ -154,6 +154,8 @@ pub(crate) struct ViewportRenderer {
     geometry: Option<Geometry>,
     /// The id pass and everything only it needs.
     id: IdPass,
+    /// The edge-mark pass and everything only it needs.
+    edges: EdgePass,
 }
 
 /// The id-buffer pass: a second pipeline over the same geometry, a
@@ -169,6 +171,47 @@ struct IdPass {
     /// The staging buffer the id is copied into.
     readback: wgpu::Buffer,
 }
+
+/// The edge-mark pass: the same uniforms and the same camera, drawing
+/// the selected and hovered edges' polylines as lines over the solid.
+///
+/// **Marks that cannot be a tint.** A face mark is a patch the shaded
+/// pass recognises by id; an edge has no patch, so its mark is
+/// geometry — the drawn polyline, handed over as a line list by
+/// `crate::pick::edge_overlay`. The colour is not a new palette entry:
+/// it is the theme's OWN selected/hovered mark composited over the
+/// body colour (`Mark::over`, the same mix the shaded pass runs), drawn
+/// UNSHADED. So a marked edge and its marked face are never the same
+/// pixel value — the line is the composited colour at full strength
+/// where the surface is that colour times its shading term — and the
+/// palette's colourblind claim keeps covering exactly the colours it
+/// already covers.
+///
+/// Lines are one pixel: wgpu's core specification has no line width,
+/// and widening a mark means expanding each segment into a quad, which
+/// is a second geometry pass this unit does not need.
+struct EdgePass {
+    pipeline: wgpu::RenderPipeline,
+    /// The uploaded overlay, and the value it was built from — the
+    /// upload trigger, compared rather than versioned because the
+    /// overlay is small and is rebuilt (identically) every frame.
+    held: Option<EdgeGeometry>,
+}
+
+/// The buffers one [`EdgeOverlay`] became.
+struct EdgeGeometry {
+    positions: wgpu::Buffer,
+    marks: wgpu::Buffer,
+    vertices: u32,
+    overlay: EdgeOverlay,
+}
+
+/// Which mark an edge vertex is drawn in — the value the vertex buffer
+/// carries and the shader compares. Spelled once here and substituted
+/// into the WGSL, so the two cannot drift.
+const EDGE_MARK_SELECTED: u32 = 0;
+/// The hovered edge's mark. See [`EDGE_MARK_SELECTED`].
+const EDGE_MARK_HOVERED: u32 = 1;
 
 struct Geometry {
     positions: wgpu::Buffer,
@@ -286,12 +329,14 @@ impl ViewportRenderer {
             cache: None,
         });
         let id = IdPass::new(device, &module, &bind_group_layout, &layout);
+        let edges = EdgePass::new(device, &module, &layout, target_format);
         Self {
             pipeline,
             uniforms,
             bind_group,
             geometry: None,
             id,
+            edges,
         }
     }
 
@@ -593,6 +638,133 @@ impl IdPass {
     }
 }
 
+impl EdgePass {
+    /// Build the line pipeline. Shares the shaded pass's shader module
+    /// and pipeline layout — same uniforms, same camera, different
+    /// topology and entry points.
+    fn new(
+        device: &wgpu::Device,
+        module: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+        target_format: wgpu::TextureFormat,
+    ) -> Self {
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("viewer_edge_pipeline"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module,
+                entry_point: Some("vs_edge"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 12,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x3],
+                    }),
+                    Some(wgpu::VertexBufferLayout {
+                        array_stride: 4,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![1 => Uint32],
+                    }),
+                ],
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                // Tested against the solid so a mark on the far side
+                // of a body stays hidden, but never written: a mark is
+                // not geometry, and a line that occluded the surface
+                // it lies on would change what the picture says is
+                // there.
+                depth_write_enabled: Some(false),
+                // The polyline's chord points ARE mesh positions the
+                // triangles share, so the line lands exactly on the
+                // surface's own depth: `LessEqual` plus the bias below
+                // is what keeps it from z-fighting with the facet it
+                // borders.
+                depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: -2,
+                    slope_scale: -1.0,
+                    clamp: 0.0,
+                },
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module,
+                entry_point: Some("fs_edge"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: target_format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::COLOR,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        Self {
+            pipeline,
+            held: None,
+        }
+    }
+
+    /// Upload `overlay` if the held buffers do not already hold it.
+    ///
+    /// Compared rather than versioned: the overlay is a handful of
+    /// segments, recomputed identically every frame from state that
+    /// lives in one place, and a revision counter beside it would be a
+    /// second thing to keep true.
+    fn ensure_geometry(&mut self, device: &wgpu::Device, overlay: &EdgeOverlay) {
+        if self
+            .held
+            .as_ref()
+            .is_some_and(|held| held.overlay == *overlay)
+        {
+            return;
+        }
+        if overlay.is_empty() {
+            self.held = None;
+            return;
+        }
+        let mut positions: Vec<[f32; 3]> = Vec::with_capacity(overlay.selected.len() + overlay.hovered.len());
+        let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
+        for (mark, corners) in [
+            (EDGE_MARK_SELECTED, &overlay.selected),
+            (EDGE_MARK_HOVERED, &overlay.hovered),
+        ] {
+            positions.extend_from_slice(corners);
+            marks.extend(std::iter::repeat_n(mark, corners.len()));
+        }
+        let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
+        self.held = Some(EdgeGeometry {
+            positions: create_init_buffer(
+                device,
+                "viewer_edge_positions",
+                wgpu::BufferUsages::VERTEX,
+                bytemuck::cast_slice(&positions),
+            ),
+            marks: create_init_buffer(
+                device,
+                "viewer_edge_marks",
+                wgpu::BufferUsages::VERTEX,
+                bytemuck::cast_slice(&marks),
+            ),
+            vertices,
+            overlay: overlay.clone(),
+        });
+    }
+}
+
 /// Create a buffer and fill it, without `wgpu::util` (which would be
 /// a second crate for one function).
 fn create_init_buffer(
@@ -646,6 +818,10 @@ pub(crate) struct ViewportCallback {
     /// straight through. **No highlight decision is taken here**; this
     /// pass paints what the pure function said.
     pub(crate) highlight: Highlight,
+    /// Which edges to mark, from `crate::pick::edge_overlay` — the
+    /// same shape of value as `highlight` and handed through the same
+    /// way: **no marking decision is taken here**.
+    pub(crate) edges: EdgeOverlay,
     /// The cursor to run the id pass at, in normalized device
     /// coordinates within the pane, with the pane's size in physical
     /// pixels. `None` on a frame that asks no id question, which is
@@ -713,6 +889,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
     ) -> Vec<wgpu::CommandBuffer> {
         if let Some(renderer) = resources.get_mut::<ViewportRenderer>() {
             renderer.ensure_geometry(device, &self.scene, self.revision);
+            renderer.edges.ensure_geometry(device, &self.edges);
             queue.write_buffer(&renderer.uniforms, 0, bytemuck::bytes_of(&self.block()));
             // The id pass runs BEFORE the shaded pass and outside
             // egui's own encoder: it submits, waits and reads back, so
@@ -760,6 +937,15 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass.set_vertex_buffer(3, geometry.flags.slice(..));
         render_pass.set_index_buffer(geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..geometry.index_count, 0, 0..1);
+        // The marks last, over the solid they lie on: depth-tested
+        // against it, biased toward the eye, writing no depth.
+        if let Some(edges) = renderer.edges.held.as_ref() {
+            render_pass.set_pipeline(&renderer.edges.pipeline);
+            render_pass.set_bind_group(0, &renderer.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, edges.positions.slice(..));
+            render_pass.set_vertex_buffer(1, edges.marks.slice(..));
+            render_pass.draw(0..edges.vertices, 0..1);
+        }
     }
 }
 
@@ -783,6 +969,7 @@ fn shader_source() -> String {
             "{{FLAG_FOCUS}}",
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
+        .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
 }
 
 const SHADER: &str = r#"
@@ -863,6 +1050,36 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     }
     let shade = base * (ambient + (1.0 - ambient) * lambert);
     return vec4<f32>(shade, 1.0);
+}
+
+// An edge mark: the theme's own selected/hovered mark composited over
+// the body colour — `tint`, the same mix the shaded pass runs — and
+// drawn UNSHADED, which is what keeps a marked edge distinguishable
+// from the marked face it borders without a second palette entry.
+struct EdgeOut {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) @interpolate(flat) mark: u32,
+};
+
+@vertex
+fn vs_edge(
+    @location(0) position: vec3<f32>,
+    @location(1) mark: u32,
+) -> EdgeOut {
+    var out: EdgeOut;
+    out.clip_position = uniforms.view_projection * vec4<f32>(position, 1.0);
+    out.mark = mark;
+    return out;
+}
+
+@fragment
+fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
+    let base = uniforms.base_color.xyz;
+    var color = tint(base, uniforms.selected);
+    if (in.mark == {{EDGE_MARK_HOVERED}}u) {
+        color = tint(base, uniforms.hovered);
+    }
+    return vec4<f32>(color, 1.0);
 }
 
 struct IdOut {
