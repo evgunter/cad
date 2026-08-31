@@ -3242,8 +3242,17 @@ jobs:
       # (docs/TESS-BUDGET.md), so an absolute threshold could only be
       # set above them, and the one thing that must never happen is
       # someone coarsening a demo's delta to get a number down. What
-      # this catches is a scene's mesh growing, a face's sizing getting
-      # wastefuller, or a scene silently dropping out of the sweep.
+      # this catches is ROSTERED IN `tools/tess-lint`'S MODULE DOCS AND
+      # NOWHERE ELSE, this file included — no count here, and no list.
+      #
+      # The enumeration this replaces is why. It read THREE for as long
+      # as rule 4 had existed; corrected to four, it was stale again
+      # within a day, because the uncovered-scene rule landed as rule 5
+      # while the correction was in flight. A roster kept beside the
+      # thing it describes drifts at the rate that thing changes, and
+      # this one is three copies deep (`docs/TESS-BUDGET.md` and
+      # `local-scripts/ci-local.sh` say it the same way now). A pointer
+      # cannot go stale.
       #
       # Baseline + how to re-cut it: docs/tess-budget-data/ and the
       # tool's own failure message, which prints the recourse.
@@ -3251,10 +3260,14 @@ jobs:
       # `--sizing-only`, deliberately: the default sweep also resamples
       # |S - Pi| on every emitted triangle to fill `worst_dev`, which is
       # ~1.15M triangles x 28 barycentric samples — tens of millions of
-      # surface evaluations — and the gate reads NONE of it. What
-      # `compare` looks at is triangle counts and `grid_cells /
-      # span_opt_cells`, all of them sizing columns the lane produces
-      # for free. The deviation pass is what the WRITEUP needed
+      # surface evaluations — and the gate reads NONE of it. That is
+      # still the claim this flag rests on, and it is narrower than
+      # "the gate reads the sizing columns": what `compare` COMPARES is
+      # triangle counts per scene and `grid_cells / span_opt_cells` per
+      # face, and what it JOINS on is `chart`, whether the row carries
+      # the sizing block at all, and `u0`-`v1` / `nu` / `nv`. Every one
+      # of those the lane produces for free; not one is a deviation
+      # column. The deviation pass is what the WRITEUP needed
       # (docs/TESS-BUDGET.md's total-slack column, and the committed
       # baseline still carries it); re-cutting the baseline runs the
       # script without this flag.
