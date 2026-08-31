@@ -1282,7 +1282,7 @@ text and report rows"*, is dead workspace-wide by the same instrument. It is
 **deleted here** on the same reasoning that took `MateRole::name` in #735:
 dead, in the files this row's scope names, in the class D4 ruled on. Two
 independent instances now — one in `editor-core/src/mate/`, one in
-`sweep/src/fillet/` — each a `name()` for messages that no message uses, each
+`sweep/src/blend/` (pre-rename `sweep/src/fillet/`) — each a `name()` for messages that no message uses, each
 found only because a lane happened to open the file. That is D24's argument,
 and it no longer rests on one row.
 
@@ -2826,8 +2826,8 @@ baffle me with how they ever happened." Postmortem pass commissioned.
 | Four parallel check-sequence engines in `pcurve_cache` (~850 lines) whose "same fixed order" contract is prose — and step 2 already diverges, two lanes calling `param_rate_gate` and two calling bare `param_rate` | `pcurve_cache.rs:1937`, `:2842`, `:2503`, `:2353` | sure |
 | "Derive a pcurve" has two homes split by chart kind, contradicting the stated `geom-brep`/`topo` layering; every caller carries an `if matches!(surface, Surface::Nurbs(_))` fork | `pcurve_cache.rs:3147`, `topo/pcurves.rs:419` | sure |
 | Chart lever-arm knowledge is duplicated across the two crates with divergent conventions (`azimuth_lever` gives the sphere `r`; `azimuth_arm` gives `\|r·cos v\|`) and nothing in either name says which is which | `pcurve_cache.rs:1753`, `topo/pcurves.rs:721` | sure |
-| Two clearance predicates for one question, where the *exact* one's refuse arm is unreachable through the public API and it is `pub` only so tests can reach it — the weaker, self-admittedly over-refusing screen is authoritative | `fillet/surgery.rs:616`, `:580` | sure |
-| `plane_sphere_blend` writes a fail-loud poison and a silent `.max(T::zero())` clamp on sibling quantities three lines apart | `fillet/blend.rs:205` | likely |
+| Two clearance predicates for one question, where the *exact* one's refuse arm is unreachable through the public API and it is `pub` only so tests can reach it — the weaker, self-admittedly over-refusing screen is authoritative | `blend/surgery.rs` (pre-rename `fillet/surgery.rs:616`, `:580`) | sure |
+| `plane_sphere_blend` writes a fail-loud poison and a silent `.max(T::zero())` clamp on sibling quantities three lines apart | `blend/arms.rs` (pre-rename `fillet/blend.rs:205`) | likely |
 | `NullFacePair`'s two variants carry identical payloads under two vocabularies, while the sibling `NullEdge` handles the same duality with one field pair and a documented dual reading | `topo/null.rs:88` | likely |
 | Two parallel "where did this come from" side-tables (`*_provenance` ×7, `*_sources` ×3) whose docs claim one pattern but whose access idioms are opposite; three extra accessors re-spell `provenance(EntityId::…)`, one with zero callers | `topo/body.rs:660`, `source.rs:6` | likely |
 | `PriorCtx` is a three-method trait with a null-object implementor standing in for an `Option` | `resolve/mod.rs:422` | likely |
@@ -2975,7 +2975,7 @@ The pattern, with the extreme cases:
 | `crates/mesh` overall | ~40% comment lines |
 | `boolean/ops.rs:584` `volume_backstop` | ~100 doc lines over a 60-line function, including an arm annotated "unreachable now… kept as the honest statement of the gate rather than a dead arm removed" |
 | `props/quad.rs:418` | ~45 lines of justification on a 20-line function, arguing bit-identity forbids a metering the same text calls arguable |
-| `fillet/surgery.rs:689` | A ten-line proof of a perpendicularity claim spanning three modules, attached to `let _ = dir;` |
+| `blend/surgery.rs` (pre-rename `fillet/surgery.rs:689`) | A ten-line proof of a perpendicularity claim spanning three modules, attached to `let _ = dir;` |
 
 The prose is high quality. What makes it a finding is that duplicated
 *arguments* drift exactly the way duplicated code does, and several
@@ -3912,7 +3912,7 @@ reachable across suites (`topo/tests/common` and `step-export/tests/common`
 already work that way). It cannot serve either case here: `topo`'s
 `ArenaCounts` is one type the *library* also uses, so a tests-side copy is
 still a copy; and `sweep`'s `cube` is named by in-crate pins in
-`fillet/surgery.rs` and `fillet/build.rs`, which a `tests/` module cannot
+`blend/surgery.rs` and `blend/build.rs` (pre-rename `fillet/` spellings), which a `tests/` module cannot
 reach. The gate puts one definition where both sides can name it.
 
 **Verdict:** RULED (Evan, 2026-08-19): **kernel crates may carry their own
@@ -4007,8 +4007,8 @@ what produced the `E0034` ambiguity storm it backed out of.
 ## S57. The `readback` class is alive one crate over, and the "one door" guard cannot see it
 
 - **Where**: `crates/editor-core/src/names/emit_topo.rs:48`,
-  `crates/sweep/src/fillet/build.rs:247`,
-  `crates/sweep/src/fillet/battery.rs:175`, `:183`, `:189`
+  `crates/sweep/src/blend/build.rs` (pre-rename `fillet/build.rs:247`),
+  `crates/sweep/src/blend/battery.rs` (pre-rename `fillet/battery.rs:175`, `:183`, `:189`)
 - **Confidence**: sure
 - **Raised by**: the review of #697, 2026-08-20 — the PR that rehoused
   `topo`'s body-wide accessor module out of `sweep` on the rule **a door lives
@@ -4026,7 +4026,7 @@ still standing in `editor-core`, the crate whose dependency on `sweep` the
 whole finding was about.
 
 **Four `Body`-only accessors housed in an op crate — the same misplacement
-#697 fixed, one crate away from where it was looked for.** `fillet/build.rs`'s `outward_of`
+#697 fixed, one crate away from where it was looked for.** `blend/build.rs`'s `outward_of` (pre-rename `fillet/build.rs`)
 and `battery.rs`'s `outward` / `face_of` / `carrier_of` each take a `&Body`
 plus an arena key and touch nothing from `sweep`. `outward_of` is a
 hand-written copy of `topo::face_normal::face_outward_normal` — the function
