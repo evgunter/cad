@@ -169,6 +169,8 @@ mod m6_5_fillet_naming;
 mod m6_chart_mints;
 #[path = "m6_loft_body.rs"]
 mod m6_loft_body;
+#[path = "r2_cert6_e2e.rs"]
+mod r2_cert6_e2e;
 #[path = "m6_rider.rs"]
 mod m6_rider;
 #[path = "m6_surgery.rs"]

@@ -79,6 +79,8 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
+#[path = "r2_cert6_probes.rs"]
+mod r2_cert6_probes;
 
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;

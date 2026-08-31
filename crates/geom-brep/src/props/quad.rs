@@ -2004,6 +2004,19 @@ fn boundary_chord_perimeter_lo(
 ///   path being taken. It is 706× the former and 160× the latter.
 fn area_gauge_ok(area: RingInterval, perimeter_lo: f64) -> bool {
     let width = area.width();
+    // R2 REVIEW PROBE (branch cert/6r2-probes only): calibration trace.
+    if std::env::var_os("R2_GAUGE_TRACE").is_some() {
+        eprintln!(
+            "R2GAUGE certified width={:e} plo={:e} g={:e}",
+            width,
+            perimeter_lo,
+            if perimeter_lo > 0.0 {
+                width / (perimeter_lo * perimeter_lo)
+            } else {
+                f64::NAN
+            }
+        );
+    }
     if !width.is_finite() {
         // A certified return whose width is not a number is the
         // clearest form of the bug this tripwire is for.
@@ -2128,7 +2141,29 @@ fn area_midpoint_taylor<E>(
             acc = acc + cell_area * mean;
         }
     }
-    Ok(widen(acc, boundary_defect))
+    Ok(r2_probe_widen(widen(acc, boundary_defect)))
+}
+
+/// R2 REVIEW PROBE (branch cert/6r2-probes only, never for merge):
+/// env-driven corruption of the shared area return. Inert unless
+/// `R2_AREA_WIDEN` (upward-only: keeps `lo`, scales the width) or
+/// `R2_AREA_WIDEN_SYM` (symmetric about the midpoint) is set.
+fn r2_probe_widen(x: RingInterval) -> RingInterval {
+    fn f(name: &str) -> Option<f64> {
+        std::env::var(name).ok()?.parse().ok()
+    }
+    if x.is_poison() {
+        return x;
+    }
+    if let Some(n) = f("R2_AREA_WIDEN") {
+        return RingInterval::from_bounds(x.lo(), x.lo() + x.width() * n);
+    }
+    if let Some(n) = f("R2_AREA_WIDEN_SYM") {
+        let mid = 0.5 * (x.lo() + x.hi());
+        let half = 0.5 * x.width() * n;
+        return RingInterval::from_bounds(mid - half, mid + half);
+    }
+    x
 }
 
 /// Ring lerp `x + (y − x)·λ` (the plan applier's fixed association),
@@ -3179,6 +3214,16 @@ pub fn nurbs_patch_face<T: Decide>(
         if round < QUAD2_MAX_ROUNDS {
             pieces *= 2;
         }
+    }
+    // R2 REVIEW PROBE (branch cert/6r2-probes only): refusing-wall trace.
+    if std::env::var_os("R2_GAUGE_TRACE").is_some() {
+        let p_lo = perimeter_lo();
+        eprintln!(
+            "R2GAUGE refused width={:e} plo={:e} g={:e}",
+            area.width(),
+            p_lo,
+            area.width() / (p_lo * p_lo)
+        );
     }
     Err(PropsError::QuadratureBudget {
         width_len: last_width_len,
