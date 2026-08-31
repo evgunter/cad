@@ -68,6 +68,8 @@ mod prisms;
 mod probe_review;
 #[path = "profile_overrides.rs"]
 mod profile_overrides;
+#[path = "r1_probes_issue1362.rs"]
+mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
 #[path = "r2_cert9_probes.rs"]
