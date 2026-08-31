@@ -1,7 +1,10 @@
 # Hosted demo render lanes — ON DEMAND, ARTIFACT-ONLY.
 #
 # WHY THIS EXISTS. `demos/render.sh` is the heaviest thing the repo asks
-# of a developer box: ~20 scenes per lane, one fresh `freecadcmd`
+# of a developer box: ~20 scenes per lane (a count of the committed scene
+# manifest, re-derivable from it at any time and re-taken by nothing here;
+# every lane's own run prints what it actually rendered), one fresh
+# `freecadcmd`
 # process each, and on a loaded host a single scene has been measured at
 # 106 s (render.sh's budget note). It is also what this host is worst at
 # — `memories/freecad-render-lane.md` records freecadcmd stalling AFTER
@@ -878,10 +881,14 @@ jobs:
       # A TIMEOUT OF ITS OWN (2026-08-22), which this step had never had —
       # it sat on the job's whole budget, which is the gap the apt step four
       # comments up argues against in its own case. Sized with real headroom
-      # rather than tightly: the measured scene work is 81-101 s for the
-      # freecad lane and ~105 s for the kernel lane, and the legitimate worst
-      # case is set by machine contention rather than by any scene (render.sh
-      # records 106 s for a single scene at load average 13). Two lanes, each
+      # rather than tightly. THE SCENE-WORK FIGURES ARE NOT RESTATED HERE:
+      # they are the batch-size note's, at `scenes_per_process` above, which
+      # is where they were taken and where their disposition is written —
+      # one-shot readings on this runner class that nothing re-takes. This
+      # timeout is sized against the contended worst case rather than
+      # against them (render.sh records a single scene at 106 s under load,
+      # ~20x its idle time), so it survives any drift in the idle figures
+      # that would matter. Two lanes, each
       # bounded by render.sh at two attempts x a flat 300 s budget per batch,
       # with room for a contended box on top.
       - name: render both lanes (demos/render.sh)

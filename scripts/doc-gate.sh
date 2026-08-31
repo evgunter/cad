@@ -31,7 +31,10 @@
 # only because you passed --document-private-items". Here that condition
 # is not an accident, it is the configuration: this gate ALWAYS passes
 # the flag, so those links always resolve in the docs this repo actually
-# builds. Leaving the lint on would mean 82 warnings whose only remedy is
+# builds. Leaving the lint on would mean 82 warnings (an undated count of
+# one run's output, re-taken by nothing — like the 12 above it, the
+# argument turns on the warnings existing at all and on what silencing
+# them would cost, never on how many there were) whose only remedy is
 # to stop linking public prose to the private functions it is about —
 # exactly backwards for a codebase whose private helpers carry the
 # argument. Whether to reinstate it (and render two doc sets, public and
@@ -97,7 +100,10 @@
 # to run before pushing.
 #
 # The excluded roots went uncovered, and the hole was patched one root
-# at a time: #709 moved ~1,050 lines of prose from
+# at a time: #709 moved ~1,050 lines of prose (that count is #709's, a
+# one-shot reading of a diff and re-taken by nothing — the argument is
+# that a whole crate's prose changed coverage class by MOVING, which is
+# true at any size) from
 # `crates/mesh/src/budget.rs` into `tools/tess-meter` — prose that went
 # from covered to uncovered BY MOVING — and answered it with a `cargo
 # doc` step hand-copied into that crate's `k-lint` row; #738 copied the

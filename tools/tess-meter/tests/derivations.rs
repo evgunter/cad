@@ -183,7 +183,11 @@ enum Shape {
 /// `mildly anisotropic` and therefore lands on the same sample: on THIS
 /// quantity it distinguishes nothing. It is kept because it is
 /// load-bearing on the CELL COUNT, where it scores 5.8824% at the
-/// shipped pair — it is `S160`'s sixth family member, whose deletion
+/// shipped pair (the figure and its provenance are
+/// [`tess_meter::SPLIT_SCAN_DECADES`]'s, which says it is a SAMPLED
+/// reading nothing re-takes and why that is right; this row's own
+/// assertions are what keep the member honest) — it is `S160`'s sixth
+/// family member, whose deletion
 /// with #783's instrument is what made that finding's table
 /// unreproducible from the tree. And `cross term only` is
 /// [`Shape::Flat`]: its cost is exactly `U·V·2·muv/δ_s` on the whole

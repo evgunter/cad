@@ -542,7 +542,11 @@ jobs:
     # cadence fires, and after an opt-level change one of them builds its
     # dependencies cold against a brand-new cache key. The ceiling is a
     # runaway guard, not a budget: on the nights nothing is re-measured this
-    # job is the free arm alone and costs ~2 minutes.
+    # job is the free arm alone and costs ~2 minutes — an undated reading
+    # that nothing re-takes, and the ceiling above does not depend on it:
+    # it is a runaway guard sized in hours-of-nothing, so it is correct at
+    # any cost that is not the runaway case. The lane's real durations are
+    # in each sample's own arms under docs/perf-data/opt-level/.
     timeout-minutes: 120
     permissions:
       # `actions: read` for the jobs API (the free arm); `contents: write`

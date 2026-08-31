@@ -772,7 +772,11 @@ jobs:
       # as docs and skips the job that would have caught it. Sited here, in
       # the job that carries no `if:`, the self-test runs on that PR anyway.
       # No toolchain: the fixture ships a stub `cargo`, so this row is
-      # stdlib python and git — measured 2.9 s locally.
+      # stdlib python and git — measured 2.9 s locally. UNDATED, ON A
+      # DEVELOPER BOX, RE-TAKEN BY NOTHING: no register carries a gate
+      # step's wall clock, and this figure exists only to say the row is
+      # free enough to sit in a job with no toolchain. The siting argument
+      # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
       # The script that writes the tessellation-budget baseline's own
@@ -2466,6 +2470,12 @@ jobs:
       # `--no-fail-fast` and its echo, for the reasons spelled out at the
       # default lane's copy of this step (#1128). This lane is where the effect
       # was measured: 22 failures locally against 1-2 here, same tree.
+      # That pair is one undated observation of one red tree; nothing
+      # re-takes it and nothing could — how many failures a broken tree
+      # shows is a property of the breakage, not of this lane. It is here
+      # as the reason the flag was reached for on THIS job first, and the
+      # flag's own justification, at the default lane's copy of this step,
+      # rests on nextest's documented fail-fast default rather than on it.
       #
       # TEE'd, WITH THE VERDICT TAKEN FROM `PIPESTATUS` — the full argument is
       # at the default lane's copy of this step. In one line: a pipeline's
@@ -3216,7 +3226,7 @@ jobs:
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
       # No `cargo doc` step here either, for the reason given at the
-      # tess-lint row above. This crate's ~1,050 lines of prose — the
+      # tess-lint row above. This crate's prose — the
       # slack factors, the anisotropy caveat, the boundary rule — moved
       # out of `crates/mesh/src/budget.rs` in #709 and went from covered
       # to uncovered BY MOVING; the rustdoc gate reads them now because
@@ -3283,7 +3293,11 @@ jobs:
 
       # The tessellation-budget gate (issue #320). It rides THIS job
       # because this job is the one that builds demos/tour, and the
-      # sweep IS the tour walking its own scenes (~4 s in release).
+      # sweep IS the tour walking its own scenes (~4 s in release — an
+      # undated reading on this job's own runner, re-taken by nothing but
+      # visible in this step's duration on every run that draws the row;
+      # no threshold reads it and the siting argument needs only that the
+      # sweep is cheap against the build in front of it).
       #
       # COST, stated: this step now ALWAYS pays the tour's release
       # build — the uv-drift step that used to pay it on a cache miss
