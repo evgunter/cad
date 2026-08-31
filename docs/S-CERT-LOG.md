@@ -318,3 +318,61 @@ CERT-7 per the plan. CERT-B1 slot 3 is the block's last undrawn
 slot; A/B logging RESUMES at CERT-4's dual (the skip was this
 unit's only). Standing flags unchanged: issues 1250/1251 open;
 CERT-1's v6 tally candidates await the blinded adjudication.
+
+## CERT-4 merged (2026-08-31) — issue 1191 closed; the period folds are honest at Interval
+
+PR 1303 at a912f8ae, gate green at BOTH lanes on the reviewed head
+f2eb5a96 (run 33341476463) and the fix head a912f8ae (run
+33348618043), both `CI-Config: lane=both`. The composed fold is
+retired at one home (`Real::periodic_branch` /
+`reduce_periodic_centred`, comparison-free); the eye's `[−τ, τ]`
+advance gate is input-width; every hit-list site fixed or
+dispositioned; the m10-p interval digest re-derived with a
+differential that has no unfavourable half (75 coordinates, all
+narrower). The exact-fit structural zero survived by construction —
+with its domain CORRECTED at the fix pass to the rounding condition
+`fl(fl(d/τ) + ½) < 1` after both review lanes independently executed
+the boundary failure (top two floats of [0, π], plus the −0.0
+bitwise caveat); behaviour unchanged from shipped, the claim and its
+blind pins fixed. The spec's anticipated m10-3 driver pin flip did
+NOT happen — the row's widening is a different mechanism
+(dependency problem, box-scaled) — so the doc was retargeted, not
+the row forced; both reviewers verified the retarget by execution
+and judged the pin-doc edit the right size of touch. M10 flagged on
+the PR for both fence touches.
+
+**The dual (ordinal 702, sample #62 — the ledger's highest at this
+writing is #61; main's merge order rules if a concurrent recorder
+also drew #62)**: slot byte 130 parity 0 ⇒ R1 OPUS + R2 FABLE,
+sequential on the frozen head, identical stored briefs
+(cert/ab-state). R1 A-W-F 1/3/3 rubric 5/3/3; R2 A-W-F 0/4/3 rubric
+5/4/4. The headline BILATERAL at differing severity (no tally
+candidate); the two lanes gave contradictory corrections for the
+classify.rs anchor sentence and the fix pass settled it by
+computation — (τ − span)/2, one bad-point pair described from
+opposite sides. Fix pass IMPLEMENTER-INHERITED (the lane resumed —
+first inherited fix pass since the handoff), all 12 union items
+executed, both probe suites adopted whole (cert/4r1-probes,
+cert/4r2-probes, pushed), planted corruptions verified the
+previously-blind pins load-bearing. A/B logging RESUMED with this
+pair as planned; details in the MODEL-AB-LOG row (main-direct at
+merge — main's ledger tail moved under the unit branch, so the row
+could not ride the PR without a conflicted merge).
+
+Issues filed en route: 1304 (k_probe_sweep dies at eps 1e-6,
+pre-existing, M10's ground), 1305 (chord_join pole two-integer
+shift). Escalated, not fixed: reader_census reds on a full local
+workspace run at MAIN's own head (ledger line owed for
+blend5_r1_probes.rs — S-BLEND's file; flagged to that program).
+Operational: the container hit 100% disk twice this session; the
+15G incremental-cache cleanup mid-lane is now standard practice.
+
+Concurrent state at this merge: CERT-5 (PR 1314) and CERT-7
+(PR 1319) both delivered and gate-green with duals pre-recorded on
+cert/ab-state (CERT-5: byte 219 parity 1 ⇒ R1 FABLE + R2 OPUS,
+frozen 3fc450d6; CERT-7: byte 114 parity 0 ⇒ R1 OPUS + R2 FABLE,
+frozen d839dcef — the tip is one orchestrator-direct doc-link fix,
+disclosed in the method note). CERT-7 was sequenced AHEAD of CERT-6
+(orchestrator decision: CERT-6 calibrates on area lanes CERT-5
+rewrites, so it waits for CERT-5's merge; CERT-7 is file-disjoint).
+Reviews dispatch next, ordinals claimed at dispatch.
