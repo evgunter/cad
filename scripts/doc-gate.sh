@@ -244,7 +244,16 @@
 # merge of main: 86.9 s -> 145.1 s, of which +35.7 s is the gate and
 # +22.5 s the fixtures). THE NUMBER GREW EVERY TIME IT WAS RE-READ,
 # which is the honest headline: plan against the largest and re-read it
-# rather than quoting the first. UNMEASURED and stated:
+# rather than quoting the first.
+#
+# HOSTED, WARM AGAINST WARM, WHICH IS THE READING THAT DECIDES THE BILL:
+# the `fmt` job's `rustdoc (gate)` step goes 110 s -> 153 s and the job
+# 179 s -> 222 s, i.e. +43 s and +1 BILLED MINUTE, 3 -> 4 (runs
+# 33342571322 and 33346546955, cache restore 14 s and 13 s, non-gate
+# steps 69 s in both). Written up at F6's addendum in
+# docs/CI-MINUTES-2026-08.md, together with the thing that measurement
+# turned up: the job had ALREADY left F6's 2 billed minutes before this
+# pass existed, on growth elsewhere in the job. UNMEASURED and stated:
 # each root pass 3 touches now carries a SECOND fingerprint set in its
 # cached target directory, so the hosted cache entry those roots share
 # grows by an amount nobody has read — F6's +90 MB was for adding the

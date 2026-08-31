@@ -393,22 +393,39 @@ What is measured:
 * **Hosted, COLD**: `rustdoc (gate)` ran 331 s on run `33342678074`
   against 219/288/299 s on three contemporaneous PR runs whose cache
   also missed (restore ≤ 2 s in all four). Roughly +20–30%.
+* **Hosted, WARM against WARM — the number this entry turns on, and it
+  is measured rather than owed.** Two PR runs a cache-hit apart, same
+  job shape (the non-gate steps are 69 s in both):
 
-What is NOT measured, and is exactly the number this entry turns on:
+  | | run | cache restore | `rustdoc (gate)` | whole job | billed |
+  |---|---|---|---|---|---|
+  | merge base | `33342571322` | 14 s | 110 s | 179 s | **3** |
+  | with pass 3 | `33346546955` | 13 s | 153 s | 222 s | **4** |
 
-* **The warm hosted figure.** No run on a feature branch produces it —
-  the key is fresh, so every one of them is a cold read. It lands on the
-  first `fmt` job after the widening merges and reuses the key, and
-  **that is where to read whether the gate is still inside 2 billed
-  minutes**. F6 moved the job 136 s → 99 s; 120 s is the line.
-* **The cache entry's size.** F6's +90 MB bought the seven roots at ONE
-  selection. Pass 3 adds a second fingerprint set to five of them, in
-  the same cached target directories. Nobody has read the new figure.
+  **+43 s, and +1 billed minute.** The widening costs a minute on every
+  code-tier PR run that reaches this job.
 
-If the minute is gone, the lever is pass 3's root set — five roots, of
-which `demos/tour` compiles the whole kernel — and not its lint set,
-which is what makes the pass worth anything. The re-read is owed by
-whoever lands next on the `fmt` job.
+**And the thing that measurement turned up, which matters more than the
+minute.** F6's headline — *"the gate is back inside 2 billed minutes"* —
+had **already lapsed before this change**, for reasons that have nothing
+to do with it: the merge-base job bills **3**, not 2, because the `fmt`
+job has since grown a viewer-toolkit clippy pass (~41 s) and a wasm32
+check (~19 s). F6 measured a 99 s job; the same job at the same warmth
+is 179 s today. So the −1 this entry claims was spent by job growth
+first and by pass 3 second, and the honest reading is that **a
+billed-minute figure in this document is only true as of its own
+measurement** — which is the argument under *Method* for keeping them by
+hand, arriving as a worked example.
+
+Still NOT measured: **the cache entry's size.** F6's +90 MB bought the
+seven roots at ONE selection. Pass 3 adds a second fingerprint set to
+five of them, in the same cached target directories. Nobody has read the
+new figure.
+
+If the minute is worth reclaiming, the lever is pass 3's root set — five
+roots, of which `demos/tour` compiles the whole kernel — and not its
+lint set, which is what makes the pass worth anything. The two job
+growths above are the larger target and are nobody's row yet.
 
 ## What landed
 
@@ -437,9 +454,10 @@ whoever lands next on the `fmt` job.
   defaults to (F6). The list is not written into `ci.yml`: a step asks
   `scripts/doc-gate.sh --print-roots`, which runs the gate's own
   derivation, so the cache's scope cannot drift from the gate's coverage.
-  **−1 billed min** — *possibly spent again as of 2026-08-31; see F6's
-  addendum, and re-read at the first warm `fmt` run after the D180/D301
-  widening.*
+  **−1 billed min** — *spent, and then some: measured 2026-08-31 the job
+  bills 3 at that state and 4 with the D180/D301 widening. Job growth
+  unrelated to the gate took the first minute; pass 3 took the second.
+  See F6's addendum.*
 
 ### 2026-08-22, the second pass — and it is a different KIND of change
 
@@ -968,11 +986,13 @@ not a saving, it is a hole.
 
    Sampling the rustdoc gate — the entry this replaces — is off the
    table for now, and F6 was why: the gate was back inside 2 billed
-   minutes without giving up a root. **That premise is now doubtful, and
-   the sentence is left standing as the reasoning of its date rather
-   than quietly rewritten**: the D180/D301 widening has since added a
-   third pass, and F6's addendum below says what is and is not measured
-   about it. What needs re-reading is the conclusion, not the argument.
+   minutes without giving up a root. **That premise is false as of
+   2026-08-31, and the sentence is left standing as the reasoning of its
+   date rather than quietly rewritten**: measured warm against warm, the
+   job bills 3 at the merge base (job growth unrelated to the gate) and
+   4 with the D180/D301 widening's third pass. F6's addendum above
+   carries both readings. What needs re-reading is the conclusion, not
+   the argument.
    Sampling it *would* be sound (a broken intra-doc link persists in the
    tree, so a later draw finds it) but it is the wrong tool — the roots
    are independent, so sampling them buys latency proportionally rather
