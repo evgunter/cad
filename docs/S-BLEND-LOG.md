@@ -1212,3 +1212,31 @@ scheduled with an issue, and — LAST, before state-sync — the
 merge of main that resolves the #1359 octant_chart collision
 LOUDLY per T-c's mapped resolution and adds the concave-arm
 cross-corner row the composition would otherwise lack.
+
+## 2026-08-31 — PR #1359 MERGED; track T execution DONE
+
+Merged per the recorded ordering ruling (before #1360), merge
+commit `5811600398c7`. Pre-merge verification chain: fix-pass head
+`81db7477` (all 7 adjudicated items landed, runs 3900/3902 green,
+{default, 1e-12} drawn twice), mergeable clean, and the DESIGN.md
+D2-addendum hunk read PERSONALLY by the orchestrator on the diff
+`origin/main...origin/smellt/c` — a pure pointer repair (thirteen
+→ D96's per-site answers, D325/D242/D243/D304 named), zero
+normative content; the ratification question stays in the PR body
+for Evan. The smell-t-c lane is reclaimed.
+
+**Track T done-state.** All takeable rows are dispositioned: T-a
+(C20, D104, C-e/H13, D124), T-b (C25, D91 + the vacuous-pin fix,
+citation re-aims), T-c (D90 ADV, D321, D96 enumerated and
+answered site by site). Struck: C20, C25, D90, D91, D96, D104,
+D124. Minted: D320 (held behind D240), D322–D324 (HELD under
+T-R1's keep-out, which now names #1360 — the hold releases at
+that merge, when T-R7's corrected NO-LIFT ruling next binds),
+D325, D242/D243 (track N), D304 (track R). Track T remains OUTSIDE
+the A/B experiment throughout (constitution's fence held; the
+lapsed-pause caveat stands recorded for Evan). Residue for the
+exit walk: #1355 (honest corner tag, Evan), the per-site row-0
+ratification question (PR #1359 body, Evan), D322–D324's release
+check after #1360.
+
+BLEND-4's fix-pass lane messaged: merge-of-main step unblocked.
