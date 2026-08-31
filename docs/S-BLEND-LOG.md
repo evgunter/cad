@@ -802,3 +802,33 @@ Lanes blend-3-r{1,2} created; probe branches
 reclaimed. This unit concluding CLOSES BLOCK BLEND-B2: at its
 merge the block record (byte 25 ⇒ slots OPUS/FABLE/OPUS) goes to
 main and the BLEND5/BLEND6 rows' redacted arm cells are restated.
+
+## 2026-08-31 — BLEND-3 R1 IN; R2 DISPATCHED (sequential slot 2)
+
+R1 (ordinal 605 slot 1): **MERGEABLE-AFTER-FIXES 1/4/~6 + style,
+rubric 5/5/4** (~245k / ~40m; probes
+`blend/concavecham-r1-probes` @ f0e7a3c7, 8 rows incl. a
+falsification-by-construction). All nine behavioural claims
+CONFIRMED by execution (both intermediate commits checked out; the
+1e-12 interval lane re-run locally with exactly #1338's three rows
+red and the unit's six green; the volume re-derived twice). The
+MAJOR is a JUSTIFICATION defect with process weight: deviation 1
+cites the SeamVertex precedent BACKWARDS (ARMS3-DESIGN ratified it
+with Evan's sign-off the day BEFORE implementation), the new
+`CornerConfig::ThreeConcaveEdges` tag is NOT forced (a
+`(0, Chamfer)` arm widens the chamfer with the fillet's refusal
+byte-identical), and CURVED-DESIGN's ratified enumeration is what
+the tag extends. Disposition options recorded for adjudication:
+(a) drop the tag — strictly smaller diff, stays execution, file
+the fillet's misleading `MixedConvexity{convex:0}` label as a
+design-conversation issue for Evan (it is the misleading-name
+class, pre-existing); (b) keep it and take the vocabulary
+extension to Evan pre-merge. DECISION DEFERRED to the blinded
+adjudication after R2. MINORs: the retired "convex links only"
+premise live at three surgery consumer sites (half-fix class);
+the composed refusal sentence self-contradicting under a comment
+claiming it cannot; the OQ6 scope box restated beyond #85 under
+its attribution; minimality falsified by a 9-edge triangular
+cavity that carves. R2 dispatched from the STORED brief verbatim
+(lane blend-3-r2, same frozen head) per the pre-recorded
+sequential note; R1's target reclaimed.
