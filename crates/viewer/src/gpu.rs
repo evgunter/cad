@@ -73,6 +73,7 @@ use eframe::wgpu;
 
 use crate::pick::{Highlight, IdMap, cursor_projection};
 use crate::scene::SceneMesh;
+use crate::theme::{Mark, Theme};
 
 /// Bits of depth requested at startup. 32 maps to
 /// `TextureFormat::Depth32Float` (`egui_wgpu::depth_format_from_bits`),
@@ -82,10 +83,6 @@ pub(crate) const DEPTH_BITS: u8 = 32;
 /// The depth format that pairs with [`DEPTH_BITS`]. Stated here so
 /// the pipeline and the startup request cannot drift apart.
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-
-/// Ambient term: how lit a surface facing away from the light is.
-/// Enough that the unlit side reads as geometry rather than a hole.
-const AMBIENT: f32 = 0.25;
 
 /// The id buffer's texel format: one unsigned 32-bit id per pixel,
 /// which is what `crate::pick::IdMap` assigns. Not a colour format —
@@ -114,6 +111,35 @@ struct Uniforms {
     /// `[selected id, hovered id, 0, 0]` — `IdMap::NOTHING` for
     /// "nothing is marked", so the shader needs no absence case.
     highlight: [u32; 4],
+    /// The four highlight marks: tint in `xyz`, mix strength in `w`.
+    ///
+    /// **Uniform lanes, not WGSL `const`s, and that is the whole
+    /// reason this block grew.** A theme is a value the user picks at
+    /// runtime (`crate::theme`), and a colour baked into the shader
+    /// source could only be changed by rebuilding the pipeline —
+    /// which is to say by dropping and recreating every GPU resource
+    /// behind the viewport to repaint the same triangles a different
+    /// colour. Four `vec4`s cost 64 bytes once and make a theme
+    /// switch a buffer write.
+    ///
+    /// The strength rides in `w` rather than in a block of its own
+    /// because a tint and its strength are one decision — see
+    /// [`Mark`] — and packing them together also leaves the block
+    /// with no padding to state.
+    selected: [f32; 4],
+    /// The hovered patch's mark; see [`Uniforms::selected`].
+    hovered: [f32; 4],
+    /// The free-move probe's mark; see [`Uniforms::selected`].
+    probe: [f32; 4],
+    /// The focused feature's mark; see [`Uniforms::selected`].
+    focus: [f32; 4],
+}
+
+/// One [`Mark`] as the uniform lane the shader reads: linear tint in
+/// `xyz`, strength in `w`.
+fn mark_lane(mark: Mark) -> [f32; 4] {
+    let [r, g, b] = crate::theme::linear(mark.tint);
+    [r, g, b, mark.strength]
 }
 
 /// Uniform block size in bytes.
@@ -352,9 +378,15 @@ impl ViewportRenderer {
             0,
             bytemuck::bytes_of(&Uniforms {
                 view_projection: cursor_projection(view_projection, cursor_ndc, viewport_px),
+                // Every shading lane zeroed: `fs_id` returns an
+                // identity and reads none of them.
                 light_direction: [0.0; 4],
                 base_color: [0.0; 4],
                 highlight: [0; 4],
+                selected: [0.0; 4],
+                hovered: [0.0; 4],
+                probe: [0.0; 4],
+                focus: [0.0; 4],
             }),
         );
         let color_view = self
@@ -604,8 +636,11 @@ pub(crate) struct ViewportCallback {
     pub(crate) view_projection: [[f32; 4]; 4],
     /// Unit vector the light travels along, world space.
     pub(crate) light_direction: [f32; 3],
-    /// The body's base colour, linear RGB.
-    pub(crate) base_color: [f32; 3],
+    /// The palette this frame draws with. The whole value, because
+    /// the body colour, the ambient term and the four marks are one
+    /// decision and a pass that took them separately could be handed
+    /// halves of two different themes.
+    pub(crate) theme: Theme,
     /// Which patch ids to mark, from `crate::pick::highlight` — a
     /// value computed from (index, selection, hover) and handed
     /// straight through. **No highlight decision is taken here**; this
@@ -642,8 +677,8 @@ pub(crate) struct IdQuery {
 
 impl ViewportCallback {
     /// The uniform block: the matrix, the light direction, the base
-    /// colour with the ambient term in its fourth lane, and the two
-    /// highlight ids.
+    /// colour with the ambient term in its fourth lane, the two
+    /// highlight ids, and the theme's four marks.
     ///
     /// **A struct that mirrors the WGSL declaration, not a flat block
     /// written by index.** The earlier shape wrote each scalar through
@@ -653,12 +688,16 @@ impl ViewportCallback {
     /// with no error anywhere. Named fields cannot miss a lane.
     fn block(&self) -> Uniforms {
         let [lx, ly, lz] = self.light_direction;
-        let [r, g, b] = self.base_color;
+        let [r, g, b] = crate::theme::linear(self.theme.body);
         Uniforms {
             view_projection: self.view_projection,
             light_direction: [lx, ly, lz, 0.0],
-            base_color: [r, g, b, AMBIENT],
+            base_color: [r, g, b, self.theme.ambient],
             highlight: [self.highlight.selected, self.highlight.hovered, 0, 0],
+            selected: mark_lane(self.theme.selected),
+            hovered: mark_lane(self.theme.hovered),
+            probe: mark_lane(self.theme.probe),
+            focus: mark_lane(self.theme.focus),
         }
     }
 }
@@ -752,6 +791,12 @@ struct Uniforms {
     light_direction: vec4<f32>,
     base_color: vec4<f32>,
     highlight: vec4<u32>,
+    // Each mark: tint in xyz, mix strength in w. See the Rust
+    // `Uniforms` for why these are lanes rather than consts.
+    selected: vec4<f32>,
+    hovered: vec4<f32>,
+    probe: vec4<f32>,
+    focus: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -780,29 +825,20 @@ fn vs_main(
     return out;
 }
 
-// The selected patch is tinted toward one colour and the hovered patch
-// toward another, both by mixing rather than replacing: a highlight
-// that discarded the shading would flatten the facets a display-delta
-// reading is there to show. Selection wins over hover on the same
-// patch, because it is the state the user committed to.
-const SELECTED_TINT: vec3<f32> = vec3<f32>(1.0, 0.62, 0.16);
-const HOVERED_TINT: vec3<f32> = vec3<f32>(0.45, 0.72, 1.0);
-const TINT_STRENGTH: f32 = 0.55;
-// The free-move probe's treatment (G3's honesty requirement): a
-// strong violet tint on every corner the scene flagged, so a probed
-// placement can never be mistaken for a mated or authored one. The
-// FLAG itself is `SceneMesh::FLAG_PROBE`, asserted headlessly; this
-// constant is only how it looks.
-const PROBE_TINT: vec3<f32> = vec3<f32>(0.62, 0.35, 0.95);
-const PROBE_STRENGTH: f32 = 0.65;
-// What the side panel is showing, marked across every patch of it
-// (`pick::focus`). Weaker than SELECTED_TINT and in the same hue
-// family, because the two are one relation seen at two scales: the
-// focus is the extent of the thing being edited, and the selection
-// tint is the patch within it the cursor actually landed on. A focus
-// as strong as the selection would bury that distinction.
-const FOCUS_TINT: vec3<f32> = vec3<f32>(1.0, 0.78, 0.42);
-const FOCUS_STRENGTH: f32 = 0.24;
+// Every mark mixes rather than replaces: a highlight that discarded
+// the shading would flatten the facets a display-delta reading is
+// there to show. WHAT each mark looks like is the theme's answer
+// (`crate::theme`), delivered in the uniform lanes above; WHICH mark
+// applies is this shader's, and the order below is that ruling.
+//
+// Selection wins over hover on the same patch, because it is the
+// state the user committed to. The probe's flag
+// (`SceneMesh::FLAG_PROBE`) is asserted headlessly and G3 requires
+// only that a probed placement be distinguishable from a mated one —
+// the strength that makes it so lives with the colour, in the theme.
+fn tint(base: vec3<f32>, mark: vec4<f32>) -> vec3<f32> {
+    return mix(base, mark.xyz, mark.w);
+}
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
@@ -812,18 +848,18 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let ambient = uniforms.base_color.w;
     var base = uniforms.base_color.xyz;
     if ((in.flag & {{FLAG_PROBE}}u) != 0u) {
-        base = mix(base, PROBE_TINT, PROBE_STRENGTH);
+        base = tint(base, uniforms.probe);
     }
     // Applied BEFORE the selection and hover tints so that the picked
     // patch of a focused feature still reads as the picked one: the
     // stronger mark lands on top of the weaker.
     if ((in.flag & {{FLAG_FOCUS}}u) != 0u) {
-        base = mix(base, FOCUS_TINT, FOCUS_STRENGTH);
+        base = tint(base, uniforms.focus);
     }
     if (in.id != 0u && in.id == uniforms.highlight.x) {
-        base = mix(base, SELECTED_TINT, TINT_STRENGTH);
+        base = tint(base, uniforms.selected);
     } else if (in.id != 0u && in.id == uniforms.highlight.y) {
-        base = mix(base, HOVERED_TINT, TINT_STRENGTH);
+        base = tint(base, uniforms.hovered);
     }
     let shade = base * (ambient + (1.0 - ambient) * lambert);
     return vec4<f32>(shade, 1.0);

@@ -41,6 +41,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
 use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
@@ -57,10 +58,38 @@ use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
+use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
+use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
+
+/// Where this build keeps preferences.
+///
+/// One `cfg` alias rather than a trait object: there is exactly one
+/// store per target, chosen at compile time, and a `Box<dyn>` would
+/// buy a choice nothing makes. The browser's arm is [`prefs::Absent`]
+/// until a `web_sys::Storage` store is written — it reports, and the
+/// Save control disables itself, exactly as the file chooser does
+/// where no portal exists.
+#[cfg(not(target_family = "wasm"))]
+type Store = prefs::file::FileStore;
+#[cfg(target_family = "wasm")]
+type Store = prefs::Absent;
+
+/// This build's store.
+fn prefs_store() -> Store {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        // The path comes from `frame`, the crate's one ambient door.
+        prefs::file::FileStore::new(frame::prefs_path())
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        prefs::Absent
+    }
+}
 use pncad::document::{AxisSense, Frame, MatePrimitive};
 
 /// The window title.
@@ -77,10 +106,6 @@ const DELTA_STEP: f64 = 2.0;
 /// viewer's left shoulder.
 const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 
-/// The body's base colour, linear RGB — a neutral machined grey, so
-/// shading reads as shape rather than as colour.
-const BASE_COLOR: [f32; 3] = [0.62, 0.64, 0.67];
-
 /// The document file extension the dialog filters on.
 ///
 /// `cfg`-ed with the dialogs it filters for: the browser build links
@@ -89,10 +114,32 @@ const BASE_COLOR: [f32; 3] = [0.62, 0.64, 0.67];
 #[cfg(not(target_family = "wasm"))]
 const DOC_EXTENSION: &str = "pncad";
 
-/// The colour an unresolved selection and a deleted feature are drawn
-/// in — the same red the failed/poisoned badges use, because both say
-/// "this does not denote anything".
-const UNRESOLVED_COLOR: egui::Color32 = egui::Color32::from_rgb(210, 90, 70);
+/// `color` as the toolkit's own colour type.
+///
+/// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
+/// `theme::linear`'s role on the viewport side: a palette states sRGB
+/// and each renderer converts once, at its own door.
+fn chrome(color: Rgba8) -> egui::Color32 {
+    egui::Color32::from_rgb(color.r, color.g, color.b)
+}
+
+/// Put the toolkit's chrome on `polarity`'s ground.
+///
+/// **The one place a [`Polarity`] meets `egui`**, and the reason
+/// `crate::theme` can stay a non-`app` module: the palette states
+/// which ground it is built on, and the mapping onto a toolkit's own
+/// light and dark visuals lives here, where the toolkit already does.
+///
+/// `set_theme` rather than `set_visuals`: the preference is what the
+/// context should be asked to follow, and stating it that way leaves
+/// the toolkit's own per-theme visuals intact underneath — a
+/// `set_visuals` would freeze one snapshot of them into the style.
+fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
+    ctx.set_theme(match polarity {
+        Polarity::Light => egui::ThemePreference::Light,
+        Polarity::Dark => egui::ThemePreference::Dark,
+    });
+}
 
 /// Points of indent per level of the feature tree.
 const INDENT_STEP: f32 = 12.0;
@@ -228,6 +275,15 @@ pub struct ViewerApp {
     mate_tool: Option<MateTool>,
     camera: Camera,
     input: InputMap,
+    /// The palette in force — a USER preference, held in the
+    /// application rather than in the document (`crate::theme`), so
+    /// switching it can never touch what a file says.
+    ///
+    /// Nothing persists it yet: it is chosen at startup and may be
+    /// changed in-session, and a viewer reopened forgets. The
+    /// preferences file that will remember it is its own piece of
+    /// work; this field is what it will write into.
+    theme: Theme,
     tree: Tree<Pane>,
     drafts: Drafts,
     /// A fit is owed, and will be taken by the viewport pane on the
@@ -244,6 +300,23 @@ pub struct ViewerApp {
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
     chooser: frame::ChooserBackend,
+    /// Where the theme choice is remembered. Held rather than
+    /// rediscovered per save: the path is an environment read, and a
+    /// viewer whose config directory moved mid-session would be
+    /// stranger than one that kept writing where it started.
+    store: Store,
+    /// The input preset the loaded file named, carried so that saving
+    /// a theme change writes it back rather than dropping it.
+    ///
+    /// **The name as WRITTEN, not the resolved [`InputMap`]** — a
+    /// preset this viewer does not recognise falls back for the
+    /// session (`prefs::Notice::UnknownPreset`) but must survive in
+    /// the file, or opening an older viewer once would silently
+    /// delete a newer one's choice. Kept as a field rather than
+    /// re-read at save time because the save happens on a UI event
+    /// and reading the file there would race the very write it is
+    /// about to do.
+    keys_pref: Option<String>,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -361,6 +434,35 @@ impl ViewerApp {
         // runs, so what a user sees is never the invented framing.
         let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
 
+        // Preferences, before anything is drawn. A refusal here is
+        // never fatal: a viewer that would not open because its
+        // colour scheme was unreadable would be trading the whole
+        // product for a preference, so every arm ends in a message
+        // and the defaults.
+        let store = prefs_store();
+        let (saved, mut notices) = match store.load() {
+            Ok(Some(text)) => match Prefs::from_toml(&text) {
+                Ok((prefs, notices)) => (prefs, notices.iter().map(ToString::to_string).collect()),
+                Err(error) => (Prefs::default(), vec![error.to_string()]),
+            },
+            Ok(None) => (Prefs::default(), Vec::new()),
+            Err(error) => (Prefs::default(), vec![error.to_string()]),
+        };
+        let (theme, theme_notice) = saved.resolve_theme();
+        let (input, keys_notice) = saved.resolve_keys();
+        notices.extend(
+            [theme_notice, keys_notice]
+                .into_iter()
+                .flatten()
+                .map(|n| n.to_string()),
+        );
+
+        // The startup palette reaches the chrome here, not on the
+        // first frame: a window that opened dark and turned light one
+        // frame later would flash, and the flash would be the honest
+        // report of a theme applied too late.
+        apply_polarity(&cc.egui_ctx, theme.polarity);
+
         let render_state = cc
             .wgpu_render_state
             .as_ref()
@@ -392,13 +494,18 @@ impl ViewerApp {
             budget_delta: None,
             mate_tool: None,
             camera,
-            input: InputMap::default(),
+            input,
+            theme,
             tree: initial_layout(),
             drafts: Drafts::default(),
             pending_fit: true,
             fit_on_scene: false,
-            status: None,
+            // Whatever the preferences file had to say, in the one
+            // place this crate puts a thing that went wrong.
+            status: (!notices.is_empty()).then(|| notices.join("; ")),
             chooser: frame::chooser_backend(),
+            store,
+            keys_pref: saved.keys,
         })
     }
 
@@ -581,6 +688,34 @@ impl ViewerApp {
     /// Apply a policy verdict to the status line — the one place a
     /// [`StatusUpdate`] becomes the field, shared by the batch policy
     /// and the dialog policy so neither hand-assigns.
+    /// Write the current theme choice to the preferences store.
+    ///
+    /// **Best-effort, and it reports.** A store that cannot be
+    /// written is worth one line in the status area and nothing more:
+    /// the theme is already applied on screen, so a failure here
+    /// costs the next session's memory of it, never this session's
+    /// work. Refusing the switch because it could not be recorded
+    /// would be the worse trade.
+    ///
+    /// The whole document is rewritten rather than patched, so every
+    /// setting this viewer understands has to be carried across —
+    /// which is why [`Self::keys_pref`] exists. A key it does NOT
+    /// understand is lost, and that is stated rather than hidden: it
+    /// is the price of a hand-written renderer that keeps its
+    /// comments, and such a key was already reported on load.
+    fn remember_theme(&mut self) {
+        if !self.store.usable() {
+            return;
+        }
+        let prefs = Prefs {
+            theme: Some(self.theme.name.to_owned()),
+            keys: self.keys_pref.clone(),
+        };
+        if let Err(error) = self.store.save(&prefs.to_toml()) {
+            self.status = Some(error.to_string());
+        }
+    }
+
     fn apply_status(&mut self, update: StatusUpdate) {
         match update {
             StatusUpdate::Keep => {}
@@ -594,6 +729,12 @@ impl eframe::App for ViewerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.sync_scene();
         let mut ops: Vec<SessionOp> = Vec::new();
+        // The palette the chrome may switch to this frame. Collected
+        // like `ops` and applied after the closures rather than
+        // written through `self` inside one — a theme change is
+        // application state, never a `SessionOp`, because no palette
+        // has ever changed what a document says.
+        let mut chosen = self.theme;
 
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -713,7 +854,10 @@ impl eframe::App for ViewerApp {
                     }
                     Some(crate::session::AtRestBadge::Refused { message }) => {
                         ui.separator();
-                        ui.colored_label(UNRESOLVED_COLOR, format!("at rest: {message}"));
+                        ui.colored_label(
+                            chrome(self.theme.unresolved),
+                            format!("at rest: {message}"),
+                        );
                     }
                     None => {}
                 }
@@ -729,7 +873,7 @@ impl eframe::App for ViewerApp {
                 {
                     ui.separator();
                     ui.colored_label(
-                        UNRESOLVED_COLOR,
+                        chrome(self.theme.unresolved),
                         format!("checks: {} finding(s)", report.findings.len()),
                     )
                     .on_hover_ui(|ui| {
@@ -753,12 +897,30 @@ impl eframe::App for ViewerApp {
                     ui.weak(format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3))
                         .on_hover_text(wording);
                 }
+                ui.separator();
+                // The palette picker. Every registered theme, by the
+                // name `crate::theme` gives it — the registry IS the
+                // menu, so a theme cannot be shipped and left
+                // unreachable.
+                egui::ComboBox::from_id_salt("viewer_theme")
+                    .selected_text(chosen.name)
+                    .show_ui(ui, |ui| {
+                        for theme in Theme::ALL {
+                            ui.selectable_value(&mut chosen, *theme, theme.name);
+                        }
+                    });
                 if let Some(status) = &self.status {
                     ui.separator();
                     ui.label(status.as_str());
                 }
             });
         });
+
+        if chosen != self.theme {
+            self.theme = chosen;
+            apply_polarity(ui.ctx(), chosen.polarity);
+            self.remember_theme();
+        }
 
         let display = self.session.display_view();
         egui::CentralPanel::no_frame().show(ui, |ui| {
@@ -771,6 +933,7 @@ impl eframe::App for ViewerApp {
                 revision: self.revision,
                 camera: &mut self.camera,
                 input: self.input,
+                theme: self.theme,
                 drafts: &mut self.drafts,
                 display: &display,
                 mate_tool: &mut self.mate_tool,
@@ -813,6 +976,9 @@ struct ViewerBehavior<'a> {
     revision: u64,
     camera: &'a mut Camera,
     input: InputMap,
+    /// The palette this frame draws with; `Copy`, because a theme is
+    /// a small value and the frame must not be able to change it.
+    theme: Theme,
     drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     display: &'a DisplayView,
@@ -1058,7 +1224,7 @@ impl ViewerBehavior<'_> {
                 revision: self.revision,
                 view_projection: to_f32(&matrix),
                 light_direction: LIGHT_DIRECTION,
-                base_color: BASE_COLOR,
+                theme: self.theme,
                 highlight: highlight.unwrap_or_default(),
                 id_query,
             },
@@ -1115,7 +1281,7 @@ impl ViewerBehavior<'_> {
                     ui.weak(row.status.badge());
                 }
                 RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => {
-                    ui.colored_label(UNRESOLVED_COLOR, row.status.badge());
+                    ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
                 }
             }
         });
@@ -1326,14 +1492,14 @@ impl ViewerBehavior<'_> {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
-                        ui.colored_label(UNRESOLVED_COLOR, "deleted");
+                        ui.colored_label(chrome(self.theme.unresolved), "deleted");
                     }
                 });
             }
             Standing::Param { name, present } => {
                 if !present {
                     ui.colored_label(
-                        UNRESOLVED_COLOR,
+                        chrome(self.theme.unresolved),
                         format!("parameter {} is no longer declared", name.0),
                     );
                 }
@@ -1359,7 +1525,7 @@ impl ViewerBehavior<'_> {
                     Some(pncad::select::Resolution::Resolved(_)) => {}
                     Some(pncad::select::Resolution::Failed(failure)) => {
                         ui.colored_label(
-                            UNRESOLVED_COLOR,
+                            chrome(self.theme.unresolved),
                             format!("this face is gone: {}", failure.error),
                         );
                         if !failure.offers.is_empty() {
@@ -1371,7 +1537,7 @@ impl ViewerBehavior<'_> {
                     }
                     Some(pncad::select::Resolution::Indeterminate(cause)) => {
                         ui.colored_label(
-                            UNRESOLVED_COLOR,
+                            chrome(self.theme.unresolved),
                             format!("this face cannot be resolved right now: {cause:?}"),
                         );
                     }

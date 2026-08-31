@@ -145,6 +145,15 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
+#[path = "cert4r2_probes.rs"]
+mod cert4r2_probes;
+
+#[path = "period_fold_centred.rs"]
+mod period_fold_centred;
+
+#[path = "cert4r1_probe_period.rs"]
+mod cert4r1_probe_period;
+
 #[path = "r1_p2_onb_probes.rs"]
 mod r1_p2_onb_probes;
 #[path = "r2_cert3_probes.rs"]

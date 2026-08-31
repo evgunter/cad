@@ -878,9 +878,10 @@ fn select_arc<T: Decide>(
     // period boundary, which at interval type widens to a full period
     // by containment honesty and would escalate every curved cut.
     //
-    // Centred, the reduction's argument lies in
-    // [τ/2 − width/2, τ/2 + width/2] for a start inside the window, so
-    // its distance to the nearest period boundary is **(τ − width)/2** —
+    // `reduce_periodic_centred` is that reduction under its own name:
+    // it folds the offset-from-centre once, into the window whose jump
+    // is at ±τ/2, so the argument's distance to the nearest jump is
+    // **(τ − width)/2** for a start inside the window —
     // half the window's COMPLEMENT, not half the window. That distance
     // is positive only because the `width ≥ τ` arm above already
     // returned, and it is that arm's own band that makes it more than
@@ -888,11 +889,38 @@ fn select_arc<T: Decide>(
     // escalates there rather than reaching a knife-edge reduction here.
     // On the shipped belly/tilted cuts the complement is most of a
     // period, which is why the margin is comfortable in practice.
+    //
+    // **"For a start inside the window" is a PREMISE, not a gate.** No
+    // check on this path establishes it, and the bound is false without
+    // it: a start box at the window's ANTIPODE sits on the centred
+    // fold's own jump and comes back a full period wide at every window
+    // width, including widths where `(τ − width)/2` is a comfortable
+    // 1.57 rad. That is measured — `cert4r1_the_centred_anchoring_
+    // widens_at_its_own_jump_for_a_near_whole_window` in this file's
+    // tests drives it. Whether a run can present an antipodal start is
+    // NOT established either way here; it is recorded as an open
+    // premise rather than gated, because gating an unreached case costs
+    // a decision on every cut.
     let half_w = width * T::from_f64(0.5);
-    let half_tau = tau * T::from_f64(0.5);
-    let x1 = (a1 - (w_min + half_w) + half_tau).reduce_periodic(tau) - half_tau + half_w;
+    let x1 = (a1 - (w_min + half_w)).reduce_periodic_centred(tau) + half_w;
     // The azimuth gap to the chord's end. A difference, like every
     // quantity here, so a rotated `u_ref` (a moved seam) cancels.
+    //
+    // A FORWARD gap, so the `[0, τ)` window and not the centred one: a
+    // chord may legitimately span more than half a period and its gap
+    // must read as that and not as its negative complement. The
+    // window's jump is therefore at a gap of zero — the two ends
+    // coincident, where `0` and `τ` are genuinely both consistent with
+    // an enclosure of them.
+    //
+    // Reaching it needs a chord whose two ends share an azimuth. That
+    // a real run does not produce one is an UNENFORCED PREMISE, stated
+    // as such: nothing on this path gates the gap away from zero, and
+    // the two ends being distinct points does not by itself make their
+    // azimuths distinct (a chord parallel to the axis has one azimuth
+    // at both ends). Moving the jump would relocate it onto a
+    // non-degenerate gap rather than remove it, so the window stays;
+    // what is not claimed is that the degenerate case is impossible.
     let g = (chart_az(p2) - a1).reduce_periodic(tau);
     // Both ends of both candidates are checked against both ends of the
     // window — `up` = [x₁, x₁ + g] (ccw in the chart) and
@@ -962,6 +990,20 @@ fn select_arc<T: Decide>(
             });
         }
     };
+    // The arc's own span, forward from `th1` — the `[0, τ)` window for
+    // the same reason the azimuth gap above takes it, and with its jump
+    // in the same place: a span of zero, which is a zero-length or a
+    // whole-circle arc.
+    //
+    // Only ONE of those two ends is guarded, and by the arm that
+    // actually guards it: `BothContained` fires on `width ≥ τ`, so it
+    // keeps a whole-period WINDOW off this reduction — the τ end. The
+    // zero end is not its business and is not gated here; a
+    // zero-length arc reaching this reduction would come back a period
+    // wide, honestly, and the containment classification above is what
+    // makes that configuration not arise rather than what forbids it.
+    // Stated as the split it is, because attributing both ends to one
+    // arm reads as a guarantee that is only half present.
     if ccw {
         // The ccw arc from p1 lies in the face.
         let span = (th2 - th1).reduce_periodic(tau);
@@ -1623,7 +1665,6 @@ fn run_azimuth_window<T: Decide>(
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
     let tau = T::tau();
-    let half = T::from_f64(0.5);
     let mut acc: Option<(T, T)> = None;
     let mut prev_exit: Option<T> = None;
     for &he in halves {
@@ -1650,7 +1691,6 @@ fn run_azimuth_window<T: Decide>(
             None => base,
             Some(prev) => {
                 let raw = base.eval(entry_t).x;
-                let q = (prev - raw) / tau;
                 // The branch pin. Default: nearest-branch continuity —
                 // the PR 6 loop-walk rule, exact wherever the previous
                 // edge's exit and this edge's entry share a chart
@@ -1671,7 +1711,7 @@ fn run_azimuth_window<T: Decide>(
                 // poles' roles. Exact structure — nothing sampled; the
                 // pole test and its side are named trileans and an
                 // in-band junction escalates (F6).
-                let mut k = (q + half).floor();
+                let mut k = (prev - raw).periodic_branch(tau);
                 if let geom::Surface::Sphere {
                     center,
                     radius,
@@ -1715,9 +1755,26 @@ fn run_azimuth_window<T: Decide>(
                             let sense =
                                 body.get_face(face).ok_or_else(|| corrupt_face(face))?.sense;
                             let advancing = south == sense;
+                            // STRICTLY next / strictly previous, so
+                            // `floor`/`ceil` and not the nearest-branch
+                            // index above: the branch wanted is the
+                            // unique one in an OPEN interval, and the
+                            // nearest one is exactly what carries no
+                            // information here. That puts this fold's
+                            // jump at an integer `q` — the entry azimuth
+                            // landing exactly on the previous exit —
+                            // where the open interval's two ends are
+                            // genuinely different answers and an
+                            // enclosure straddling it reports both. It
+                            // is a boundary of a half-open selection,
+                            // not a fold written around its own live
+                            // value, so it is recorded rather than
+                            // respelled.
                             k = if advancing {
+                                let q = (prev - raw) / tau;
                                 q.floor() + T::one()
                             } else {
+                                let q = (prev - raw) / tau;
                                 T::zero() - (T::zero() - q).floor() - T::one()
                             };
                         }
@@ -2580,6 +2637,222 @@ mod tests {
                  to be written once — a second site is the S9 block copied again"
             );
         }
+    }
+
+    // -----------------------------------------------------------------
+    // Straddle rows at the interval scalar (issue 1191). Nothing in the
+    // shipped suites drives these reductions into a straddle, so the
+    // rows below do it directly, on the site's own numbers.
+    // -----------------------------------------------------------------
+
+    /// **The chord start ON the window edge, at `Interval`.**
+    ///
+    /// The generic configuration — the chord's start IS one of the run's
+    /// own ends, so its azimuth sits exactly on `w_min` — driven with an
+    /// enclosure that genuinely straddles that edge rather than a
+    /// degenerate box that would not exercise the reduction at all. The
+    /// arc is still selected: the window-relative coordinate comes back
+    /// at the width of its input.
+    ///
+    /// The row also computes the reduction the naive way — anchored at
+    /// the window's EDGE instead of its centre — and pins that it is
+    /// period-wide on the same input. That comparison is the claim: the
+    /// site is correct because of where its window's jump is, and the
+    /// row would still pass if it were merely lucky, so the alternative
+    /// is measured beside it rather than described.
+    ///
+    /// **Consults no tolerance.** The widths are widths; the band below
+    /// is the ordinary one the site's own margins need in order to run
+    /// at all, and no assertion here reads it.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn the_window_relative_start_keeps_its_width_when_the_start_straddles_the_edge() {
+        use geom_core::{Bounds, Interval, Real};
+
+        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let ex = Interval::from_f64;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+
+        // A hairline box about azimuth 0 — the shape an enclosure of a
+        // run end takes once its coordinates have been rounded apart.
+        let w = 1e-15;
+        let p1 = Point3::new(iv(1.0 - w, 1.0), iv(-w, w), ex(0.0));
+        let p2 = Point3::new(ex(0.0), ex(1.0), ex(0.0));
+
+        let chart = ChartFrame {
+            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let carrier = geom::Curve3::Circle {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let conic = SectionConic {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            normal: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            major: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+            sa: ex(1.0),
+            sb: ex(1.0),
+            carrier,
+        };
+        // The window runs ccw from the straddled edge to half a period
+        // on: the start is on `w_min`, which is the whole point.
+        let window = (ex(0.0), ex(core::f64::consts::PI));
+
+        let (_, t0, t1) = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
+            .expect("the arc is selected: the window-relative start is not period-wide");
+        for (what, p) in [("t0", t0), ("t1", t1)] {
+            let width = p.hi() - p.lo();
+            assert!(
+                width <= 1e-9,
+                "the selected arc's {what} enclosure is {width:e} wide — a period-width \
+                 answer, not an input-width one"
+            );
+        }
+
+        // The measurement the row rests on, taken on the same numbers.
+        //
+        // DISPOSITION: this half re-derives both anchorings inline, so
+        // it pins the two WINDOWS against each other, not the site — a
+        // site that stopped calling either one would leave it green.
+        // That is deliberate and it is not the site's pin: the
+        // `select_arc` call above is, and it reds if the site changes
+        // window. What this half adds is the reason the site's choice
+        // is the right one, which an assertion on the site's output
+        // alone cannot show.
+        let tau = Interval::tau();
+        let a1 = iv(-w, w);
+        let half_w = window.1 * ex(0.5);
+        let centred = (a1 - (window.0 + half_w)).reduce_periodic_centred(tau) + half_w;
+        let at_edge = (a1 - window.0).reduce_periodic(tau);
+        assert!(
+            centred.hi() - centred.lo() <= 1e-9,
+            "the centred offset widened: [{}, {}]",
+            centred.lo(),
+            centred.hi()
+        );
+        assert!(
+            at_edge.hi() - at_edge.lo() >= core::f64::consts::TAU,
+            "the edge-anchored offset is supposed to be the period-wide one; it gave \
+             [{}, {}]",
+            at_edge.lo(),
+            at_edge.hi()
+        );
+    }
+
+    /// CERT-4 R2 probe (local-only): the same straddle authored on MY
+    /// numbers — the window's straddled edge at azimuth pi/2 rather
+    /// than 0, an off-axis chord end, a 2.5-radian window. The unit's
+    /// committed row uses the zero azimuth, where several quantities
+    /// are exactly representable; this one is not so friendly.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn cert4r2_the_window_edge_straddle_off_axis() {
+        use geom_core::{Bounds, Interval, Real};
+
+        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let ex = Interval::from_f64;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let w = 1e-15;
+        // p1 straddles azimuth pi/2: x in [-w, w], y hairline about 1.
+        let p1 = Point3::new(iv(-w, w), iv(1.0 - w, 1.0), ex(0.0));
+        // p2 at azimuth pi/2 + 1.2, nothing exact about it.
+        let a2 = core::f64::consts::FRAC_PI_2 + 1.2;
+        let p2 = Point3::new(ex(a2.cos()), ex(a2.sin()), ex(0.0));
+
+        let chart = ChartFrame {
+            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let carrier = geom::Curve3::Circle {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let conic = SectionConic {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            normal: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            major: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+            sa: ex(1.0),
+            sb: ex(1.0),
+            carrier,
+        };
+        let window = (
+            ex(core::f64::consts::FRAC_PI_2),
+            ex(core::f64::consts::FRAC_PI_2 + 2.5),
+        );
+
+        let (_, t0, t1) = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
+            .expect("the off-axis window-edge straddle still selects the arc");
+        for (what, p) in [("t0", t0), ("t1", t1)] {
+            let width = p.hi() - p.lo();
+            assert!(
+                width <= 1e-9,
+                "{what} enclosure {width:e} wide — period-width, not input-width"
+            );
+        }
+    }
+}
+
+/// **R1 review probe (CERT-4): the NEW anchoring's own jump.**
+///
+/// The unit's row above measures the alternative (edge) anchoring on
+/// a window of width π and finds it period-wide, which is the right
+/// comparison. It does not probe the centred anchoring's OWN jump.
+/// The site's argument is that the distance from the reduction's
+/// argument to that jump is `(τ − width)/2`, positive only because
+/// the `width ≥ τ` arm returned earlier — so the margin VANISHES as
+/// the window's width approaches a period. This row drives that
+/// limit: a nearly-whole-period window with the chord start near the
+/// window's antipode.
+///
+/// Consults no tolerance: the widths asserted are widths.
+#[cfg(feature = "interval")]
+#[test]
+fn cert4r1_the_centred_anchoring_widens_at_its_own_jump_for_a_near_whole_window() {
+    use geom_core::{Bounds, Interval, Real};
+
+    let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+    let ex = Interval::from_f64;
+    let tau = Interval::tau();
+    let w = 1e-15;
+
+    // A window just under a whole period, and a start box sitting at
+    // its antipode -- i.e. on the centred window's own jump.
+    // Written relative to TAU rather than as decimal literals that
+    // approximate it: what the row varies is the window's MARGIN to a
+    // full period, and the last two are that margin made small.
+    let tau_f = core::f64::consts::TAU;
+    for width in [core::f64::consts::PI, 6.0, tau_f - 0.0032, tau_f - 1e-13] {
+        let w_min = 0.7_f64;
+        let half_w = ex(width) * ex(0.5);
+        let centre = w_min + width / 2.0;
+        let antipode = centre + core::f64::consts::PI;
+        let a1 = iv(antipode - w, antipode + w);
+        let x1 = (a1 - (ex(w_min) + half_w)).reduce_periodic_centred(tau) + half_w;
+        let got = x1.hi() - x1.lo();
+        println!(
+            "cert4r1 topo: window width {width:e}, margin to jump {:e}, \
+                 window-relative start width {got:e}",
+            (core::f64::consts::TAU - width) / 2.0
+        );
+        // MEASURED: period-wide at EVERY width tested, including the
+        // unit's own width of pi where the margin to the jump is a
+        // comfortable 1.57 rad. The site's argument is sound only for
+        // a start INSIDE the window; a start at the window's antipode
+        // is on the centred fold's own jump and comes back a period
+        // wide. That premise is prose at the site, not a gate.
+        assert!(
+            got >= core::f64::consts::TAU,
+            "expected the antipodal start to sit on the centred fold's jump"
+        );
     }
 }
 

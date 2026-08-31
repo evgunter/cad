@@ -22,6 +22,20 @@
 # #230. If the hardware changes, re-run the experiment and set
 # CAD_SLOT_WIDTH=2 to re-widen shared mode.
 #
+# THAT IS AN EXTRACTION AND NOTHING RE-TAKES IT. The default width is set
+# BY the 2026-08-06 numbers, and they are one 8-core box's wall clock on
+# one workspace state; no register re-measures them and none could — the
+# subject is a developer's machine, which no CI job runs on. Two things
+# follow, and the second is the sharper one. The reading ages with the
+# hardware AND with the workspace, but a shrinking build only makes
+# contention matter less, so width 1 is a floor that stays SAFE as it ages
+# rather than one that quietly stops holding — which is why unguarded is
+# tolerable here and `CAD_SLOT_WIDTH` is the whole recourse. And the
+# evidence is off-repo: `~/.local/share/cad-work/slot-exp-results.md` sits
+# on one machine, so for every other reader that citation is a promise
+# rather than a source. PR #230 is the half anyone can open; prefer
+# re-running the experiment to trusting either.
+#
 # Modes:
 #   (default)  acquire one build slot (with width 1: the mutex) —
 #              ordinary builds / fast test runs.
@@ -163,8 +177,9 @@ fi
 # holder file naming a dead pid (the fd-inheritance lock leak, memories/
 # agent-lane-operations.md). sccache was briefly the machine rustc-wrapper
 # on 2026-08-11 and needed exactly that guard; it was reverted the same day
-# (it forces CARGO_INCREMENTAL=0, which measured 5-7x slower on the
-# edit-rebuild loop — see local-scripts/setup-build-env.sh), so the guard is gone
+# (it forces CARGO_INCREMENTAL=0, which measured far slower on the
+# edit-rebuild loop — the figures and their disposition live in
+# local-scripts/setup-build-env.sh, once), so the guard is gone
 # with it rather than left running a daemon nothing uses.
 
 # Slot fds: express -> fd 7, slot 1 -> fd 8, slot 2 -> fd 9. Opened

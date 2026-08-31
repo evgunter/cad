@@ -173,6 +173,56 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
+### Colour: the theme is a user preference, the document overrides it (Evan, 2026-08-30)
+
+Two things set colour, and the precedence between them is one rule.
+
+- **A theme is a USER preference.** It supplies every semantic mark —
+  selection, hover, free-move probe, focus, unresolved — the *default*
+  body colour, and the ambient term. It is **never written into a
+  document**: the same file has to be legible to a colourblind reader
+  and to somebody running the palette they find prettiest, on their
+  own screens. It is therefore not persisted by `editor-core` and
+  takes no part in any content key.
+- **A document overrides the body colour.** `Attr::Color` on a stable
+  name (M4 PR 7) is authored, persisted, and travels with the file.
+  Where a document states a colour, the theme's default body colour
+  gives way; the theme never overrides it back.
+
+Both sides are `editor_core::appearance::Rgba8` — exact 8-bit sRGB —
+so the override is a substitution within one colour space rather than
+a conversion between two. Linear light is entered once, at each
+renderer's own door.
+
+**Colourblind legibility is a claim a theme makes, not a constraint on
+every theme.** A palette may state that its marks stay mutually
+distinguishable under dichromatic vision, and one that does is held to
+it by simulation in `crates/viewer/tests/theme.rs`; a palette that
+makes no such claim is not lesser for it, and is not checked. Shipping
+both is the point — a palette chosen to be beautiful and a palette
+chosen to be discriminable are different jobs, and the failure worth
+preventing is a palette claiming the second job and not doing it.
+Because the marks are *mixed over* the body colour rather than
+replacing it, what any such check must measure is the composited
+colour, never the raw tint.
+
+**Preferences are remembered in a file people can open**, at
+`$XDG_CONFIG_HOME/pncad/viewer.toml` — hand-editable TOML, chosen over
+eframe's `persistence` blob for exactly that reason. The document is a
+value and the storage is one thin edge over a `String`, so the browser
+build's `localStorage` store is a second impl rather than a retrofit;
+until it exists the web arm reports `Absent` and disables saving, the
+same posture `frame::chooser_backend` takes where no portal exists.
+
+The failure posture is deliberately **softer than the document
+path's**, because a preferences file holds no work: malformed TOML
+refuses, an unknown KEY reports and the rest of the file still
+applies, and an unknown VALUE reports and falls back to the default. A
+name typed on the command line is refused instead of falling back —
+same word, different provenance, different answer: a file is a memory
+of an older session and may name a theme since renamed, where a
+typed name is a typo worth showing.
+
 ## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16 and its remaining rows settled in the v1 GUI units; GQ7 slimmed by the SELECT-DESIGN re-homing, its remainder deferred to sketcher/tree design)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
