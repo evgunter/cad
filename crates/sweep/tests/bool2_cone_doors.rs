@@ -117,11 +117,21 @@ fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).unwrap()
 }
 
-/// The probe offset: a multiple of the RESOLVED band, so each ε lane
-/// probes at its own scale rather than at a hard-coded distance. The
-/// floor keeps the coarse lanes off the body's own features.
+/// The probe offset: derived from the RESOLVED band, so each ε lane
+/// probes at its own scale rather than at a hard-coded distance, and
+/// CLAMPED at both ends because a probe has two jobs at once and the
+/// bodies here are of unit size.
+///
+/// The floor keeps the offset definitely outside the ambiguity band on
+/// the fine lanes (`escalate` is within an order or two of `eps`, so
+/// `1e-3` clears every row in the matrix by five orders). The ceiling
+/// keeps it INSIDE the body on the coarse ones: an offset that scales
+/// freely with `eps` reaches 1.0 at the 1e-6 row, and a probe "just
+/// inside the wall" of a unit cone at that distance is not inside the
+/// cone at all — it is out the other side, and the row would be
+/// asserting about geometry it did not mean.
 fn away() -> f64 {
-    (1e6 * Tol::witness().get().eps).max(0.25)
+    (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
