@@ -237,7 +237,8 @@ fn drive(
     let (of1, oa1) = pa.dense(24);
     let (of2, oa2) = pa.dense(48);
     assert!(
-        (of1 - of2).abs() < 1e-7 * (1.0 + of2.abs()) && (oa1 - oa2).abs() < 1e-7 * (1.0 + oa2.abs()),
+        (of1 - of2).abs() < 1e-7 * (1.0 + of2.abs())
+            && (oa1 - oa2).abs() < 1e-7 * (1.0 + oa2.abs()),
         "{name}: oracle did not converge: flux {of1} vs {of2}, area {oa1} vs {oa2}"
     );
     let out = nurbs_patch_face::<f64>(
@@ -359,7 +360,15 @@ fn own_wall_offgrid_both_directions_exact_arm_contains() {
     // at the default eps (the half-cylinder floor's family). What is
     // asserted is soundness (containment when certified) and, via
     // `drive`, that any refusal is nowhere near the retired floor.
-    let widths = drive("own-wall-exact-arm", &ku, &kv, &control, &weights, 8.0, 1e-7);
+    let widths = drive(
+        "own-wall-exact-arm",
+        &ku,
+        &kv,
+        &control,
+        &weights,
+        8.0,
+        1e-7,
+    );
     assert!(
         widths.is_some(),
         "at eps 1e-7 (target 1.024e-4, far above the 3.35e-6 schedule \
@@ -377,7 +386,15 @@ fn near_uniform_weights_take_the_composite_arm_soundly() {
     let nv = kv.control_count();
     let idx = 3 * nv + 2;
     weights[idx] = weights[idx].next_up();
-    let widths = drive("own-wall-ulp-perturbed", &ku, &kv, &control, &weights, 8.0, 1e-7);
+    let widths = drive(
+        "own-wall-ulp-perturbed",
+        &ku,
+        &kv,
+        &control,
+        &weights,
+        8.0,
+        1e-7,
+    );
     assert!(
         widths.is_some(),
         "the one-ulp-perturbed twin must certify through the composite arm \
@@ -406,7 +423,15 @@ fn knots_one_ulp_apart_stay_sound() {
             weights.push(1.5);
         }
     }
-    drive("ulp-twin-knots", &ku, &kv, &control, &weights, 8.0, Tol::witness().get().eps);
+    drive(
+        "ulp-twin-knots",
+        &ku,
+        &kv,
+        &control,
+        &weights,
+        8.0,
+        Tol::witness().get().eps,
+    );
 }
 
 /// Interior knots within an ulp of the trim rectangle's EDGES: the
@@ -427,7 +452,15 @@ fn knots_hugging_the_trim_edges_stay_sound() {
             weights.push(2.0);
         }
     }
-    drive("edge-hugging-knots", &ku, &kv, &control, &weights, 8.0, 1e-7);
+    drive(
+        "edge-hugging-knots",
+        &ku,
+        &kv,
+        &control,
+        &weights,
+        8.0,
+        1e-7,
+    );
 }
 
 /// The DISCRIMINATOR for a residual knot-coupled floor, shaped unlike

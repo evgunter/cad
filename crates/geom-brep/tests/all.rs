@@ -44,12 +44,12 @@ mod approx_surface;
 mod arc_eval_anchor;
 #[path = "cert1_r1_probes.rs"]
 mod cert1_r1_probes;
-#[path = "cert5_r1_patch_probes.rs"]
-mod cert5_r1_patch_probes;
 #[path = "cert1_sphere_polar.rs"]
 mod cert1_sphere_polar;
 #[path = "cert3r1_e2e.rs"]
 mod cert3r1_e2e;
+#[path = "cert5_r1_patch_probes.rs"]
+mod cert5_r1_patch_probes;
 
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
@@ -84,6 +84,8 @@ mod offb_r2_probes;
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
+#[path = "cert5_r2_probes.rs"]
+mod cert5_r2_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
@@ -124,8 +126,6 @@ mod review_m6_3_chart_probes;
 mod review_m6_surgery_rider;
 #[path = "review_pr12_meridian_probe.rs"]
 mod review_pr12_meridian_probe;
-#[path = "cert5_r2_probes.rs"]
-mod cert5_r2_probes;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
 #[path = "revolved_point_anchor.rs"]

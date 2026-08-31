@@ -169,8 +169,7 @@ impl Oracle {
                                 ];
                                 let wq = GW[a] * GW[b] * hu * hv * 0.25;
                                 flux += wq * (s[0] * cx[0] + s[1] * cx[1] + s[2] * cx[2]);
-                                area += wq
-                                    * (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
+                                area += wq * (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
                             }
                         }
                     }
@@ -216,8 +215,8 @@ fn drive(
     };
     let (f1, a1) = oracle.dense(16);
     let (f2, a2) = oracle.dense(32);
-    let converged = (f1 - f2).abs() < 1e-9 * (1.0 + f2.abs())
-        && (a1 - a2).abs() < 1e-9 * (1.0 + a2.abs());
+    let converged =
+        (f1 - f2).abs() < 1e-9 * (1.0 + f2.abs()) && (a1 - a2).abs() < 1e-9 * (1.0 + a2.abs());
     let (ua, ub) = ku.domain();
     let (va, vb) = kv.domain();
     let t0 = std::time::Instant::now();
@@ -309,19 +308,11 @@ fn tile(
 
 /// Interior knots at generic (non-dyadic) parameters, degree 2.
 fn kv_offgrid_deg2() -> KnotVector {
-    KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.31, 0.63, 1.0, 1.0, 1.0],
-        2,
-    )
-    .unwrap()
+    KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.31, 0.63, 1.0, 1.0, 1.0], 2).unwrap()
 }
 
 fn kv_offgrid_deg2_v() -> KnotVector {
-    KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.27, 0.71, 1.0, 1.0, 1.0],
-        2,
-    )
-    .unwrap()
+    KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.27, 0.71, 1.0, 1.0, 1.0], 2).unwrap()
 }
 
 /// E2E-1 — the brief's required carrier: MY OWN rational patch with
@@ -365,11 +356,7 @@ fn nearly_uniform_weights_take_the_composite_arm_and_stay_sound() {
 #[test]
 fn c0_multiplicity_to_degree_knot_offgrid() {
     let ku = kv_offgrid_deg2();
-    let kv = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.37, 0.37, 0.79, 1.0, 1.0, 1.0],
-        2,
-    )
-    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.37, 0.37, 0.79, 1.0, 1.0, 1.0], 2).unwrap();
     let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
     drive("c0-kink deg-mult v knot", &ku, &kv, &cp, &ws);
 }
@@ -380,11 +367,7 @@ fn c0_multiplicity_to_degree_knot_offgrid() {
 #[test]
 fn c0_multiplicity_knot_under_the_exact_arm() {
     let ku = kv_offgrid_deg2();
-    let kv = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.37, 0.37, 0.79, 1.0, 1.0, 1.0],
-        2,
-    )
-    .unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.37, 0.37, 0.79, 1.0, 1.0, 1.0], 2).unwrap();
     let (cp, ws) = tile(&ku, &kv, &|i, _| 1.0 + 0.20 * i as f64);
     drive("c0-kink EXACT arm", &ku, &kv, &cp, &ws);
 }
@@ -495,3 +478,4 @@ fn width_versus_gap_from_a_block_edge() {
     let (post, w, _) = drive("far control 0.313", &ku, &kv, &cp, &ws);
     println!("R2 GAPSCAN far-control -> {post} width={w:?}");
 }
+
