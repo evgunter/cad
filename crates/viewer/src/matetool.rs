@@ -49,6 +49,14 @@
 //! second keeps the second as the held pick. No crash, no silent
 //! clear: every drop is a [`MateToolEvent`] the chrome renders.
 //!
+//! That promotion is right HERE and deliberately DIVERGENT from the
+//! revolve tool's survival rule: this tool's picks are an
+//! interchangeable pair (`a`/`b` of one mate), so the survivor is
+//! still meaningfully "the held pick", where the revolve tool's seats
+//! are roles (profile vs axis) and promotion would move a node
+//! between seats that mean different things. Both module docs state
+//! the divergence so neither rule reads as an accident of the other.
+//!
 //! **`reconcile` is the consumer's obligation, and it is forgettable.**
 //! The tool is a value beside the session, not inside it, so nothing
 //! drives the survival step automatically — the application calls it
