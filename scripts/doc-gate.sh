@@ -149,6 +149,15 @@
 # the coverage has to come from a second SELECTION, which is a second
 # pass.
 #
+# THIS IS AN INSTANCE OF *"what the instruments cannot see"* (`D41`,
+# `D64`), and the lineage is written here because it is the reason the
+# pass exists at all rather than a three-line prose fix: CORRECTING THE
+# THREE LINKS ALONE WOULD HAVE HIDDEN THE BLIND SPOT RATHER THAN CLOSED
+# IT — the next `not(feature)` module inherits it silently, and nothing
+# in the tree would say so. A gate that cannot see a shape does not
+# announce the shape; it announces nothing, which is why the closing
+# work is the pass and the link fix is its consequence.
+#
 # PASS 3 IS `--no-default-features`, OVER THE ROOTS THAT NEED IT, AND
 # THE ROOT LIST IS DERIVED. `inert_half_roots` greps the tracked Rust
 # sources for the `cfg(not(feature` shape and reports the nearest
@@ -172,44 +181,88 @@
 # AND `rustdoc::broken_intra_doc_links` IS ALLOWED IN PASS 3 — ONLY
 # THERE, AND THIS IS THE COST OF THE WIDENING RATHER THAN A TIDINESS
 # FLAG. With F off, every link into F-gated code is unresolvable BY
-# CONSTRUCTION: measured on this tree the moment the pass was written,
-# 14 CORRECT links went red — 12 in `geom-core` (`Interval`,
-# `DualInterval`, `Probe`, `start_recording`) and 2 in `topo`'s boolean
-# prose (`SweepStrategy::Idealized`) — which is the SAME false-positive
-# population the FEATURES paragraph above adopted --all-features to
-# kill, arriving from the other side. Reds on prose that is correct
-# under the gate's own primary selection are how a gate gets routed
-# around, so the lint that cannot tell "this link is broken" from "this
-# link's target is in the other half" is off in this pass.
+# CONSTRUCTION. MEASURED 2026-08-31, on the derived root set of that
+# date: a `-D warnings` pass 3 reddens 15 CORRECT link SITES — 13 in
+# `geom-core` over five identifiers (`Interval`, `DualInterval`,
+# `Probe`, `start_recording`, `take_samples`, across `dual.rs`,
+# `k_stats.rs` and `real.rs`) and 2 in `topo`'s boolean prose
+# (`SweepStrategy::Idealized`, `boolean/mod.rs:27` and
+# `boolean/reduce.rs:18`). That is the SAME false-positive population
+# the FEATURES paragraph above adopted --all-features to kill, arriving
+# from the other side. Reds on prose that is correct under the gate's
+# own primary selection are how a gate gets routed around, so the lint
+# that cannot tell "this link is broken" from "this link's target is in
+# the other half" is off in this pass. The count and the names are
+# DATED because they are a reading of the tree and not a property of it:
+# a number written here that disagrees with the run is the drift this
+# gate is about, which is the same rule the root count above obeys.
 #
-# THE BLIND SPOT THAT LEAVES, NAMED: a genuinely broken intra-doc link
-# written INSIDE a `not(feature)` half is still reported by nothing. The
-# lint is on in pass 1 and pass 2, so it covers the whole tree under
-# --all-features and only this one shape escapes it. What pass 3 does
-# catch there is every OTHER rustdoc lint — the live instance was three
-# `rustdoc::redundant_explicit_links`, and malformed markdown, bare
-# URLs, invalid HTML and unportable syntax are the rest — plus the thing
-# no lint states: the half now COMPILES in a doc build, so prose on an
-# item that stopped existing is a hard error rather than a silence.
+# THE PER-ROOT DENY LIST, CONSIDERED AND REJECTED. Allowing the lint on
+# `geom-core` and `topo` alone — the two roots that carry cross-half
+# prose today — looks tighter and is worse: it makes the LINT SET a
+# function of which crate currently happens to have such prose, so the
+# first correct cross-half link written in `mesh` reds for being
+# correct, and the remedy a reader reaches for at 2am is to delete the
+# link. A blind spot that is uniform is one sentence; a blind spot that
+# is per-root is a roster, and the paragraphs above are about rosters.
+#
+# THE BLIND SPOT THAT LEAVES, NAMED, AND SCHEDULED AT ISSUE #1317: a
+# genuinely broken intra-doc link written INSIDE a `not(feature)` half
+# is still reported by nothing. The lint is on in pass 1 and pass 2, so
+# it covers the whole tree under --all-features and only this one shape
+# escapes it. What pass 3 does catch there is every OTHER rustdoc lint —
+# the live instance was three `rustdoc::redundant_explicit_links`, and
+# malformed markdown, bare URLs, invalid HTML and unportable syntax are
+# the rest — plus the thing no lint states: the half now COMPILES in a
+# doc build, so prose on an item that stopped existing is a hard error
+# rather than a silence.
 #
 # THE SIBLING AXIS PASS 3 DOES NOT COVER, swept and named rather than
-# left to be rediscovered: `#[cfg(not(debug_assertions))]`. `cargo doc`
-# runs the dev profile, so `debug_assertions` is ON in every pass here
-# and that half is compiled out of all three — the same shape as the
+# left to be rediscovered, AND SCHEDULED AT ISSUE #1317 alongside the
+# blind spot above: `#[cfg(not(debug_assertions))]`. `cargo doc` runs
+# the dev profile, so `debug_assertions` is ON in every pass here and
+# that half is compiled out of all three — the same shape as the
 # feature axis, one profile over, and no feature selection reaches it.
-# Sixteen sites carry it (`geom-core/src/spline/knots.rs`,
-# `topo/src/review_d18.rs`, `topo/src/review_m1_pr2/
-# release_corruption.rs`), every one a statement or expression block
-# rather than a documented item, so the axis is LATENT here rather than
-# live: there is no prose behind it today to be unread. Covering it
-# means a `--release` doc pass, which is a cost decision and not a
-# spelling one, and it is not taken on this gate's own authority.
+# Sixteen sites carry it as of 2026-08-31
+# (`crates/geom-core/src/spline/knots.rs` ×1,
+# `crates/topo/src/review_d18.rs` ×12,
+# `crates/topo/src/review_m1_pr2/release_corruption.rs` ×3), every one a
+# statement or expression block rather than a documented item, so the
+# axis is LATENT here rather than live: there is no prose behind it
+# today to be unread. Covering it means a `--release` doc pass, which is
+# a cost decision and not a spelling one, and it is not taken on this
+# gate's own authority.
 #
-# THE NAMED DEFAULT-FEATURES ROOT NEEDS NO EXCEPTION HERE.
-# `--no-default-features` cannot turn `oracle-inari` on, so pass 3 is
-# already inside the constraint that exception exists to enforce; if
-# that root ever grows a paired module it is documented here exactly as
-# the exception wants it, with no second rule to keep in step.
+# WHAT PASS 3 COSTS, so the next reader prices it rather than
+# rediscovers it. It is a DISTINCT FEATURE UNIFICATION, which is F6's
+# own superseding note in docs/CI-MINUTES-2026-08.md one gate over: it
+# shares almost no artifacts with the --all-features passes and no cache
+# configuration collapses the two. Measured warm on two developer boxes:
+# +33.4 s on the gate-plus-selftest total (4 vCPU, 2026-08-30) and
+# +47.9 s on a second box (2026-08-31), the larger reading being the
+# floor to plan against rather than the smaller. UNMEASURED and stated:
+# each root pass 3 touches now carries a SECOND fingerprint set in its
+# cached target directory, so the hosted cache entry those roots share
+# grows by an amount nobody has read — F6's +90 MB was for adding the
+# roots at one selection, and this adds a selection to each of them.
+#
+# THE NAMED DEFAULT-FEATURES ROOT NEEDS NO EXCEPTION HERE, AND THE
+# REASON IS BETTER THAN "the flag cannot turn the feature on" — though
+# that is also true, `--no-default-features` being unable to enable
+# `oracle-inari`. THAT ROOT NEVER HAD THE BLIND SPOT. It is documented
+# at DEFAULT features by the exception above, so its `not(feature)`
+# halves have always been compiled by pass 2; the very thing that keeps
+# the inari graph out of a doc job is what buys this root the coverage
+# the other two needed a third pass to get. Pass 3 will still run there
+# if it grows a paired module, harmlessly and redundantly.
+#
+# BOTH HALVES CARRY AN ARM, because every other treatment this gate has
+# does. `plant_doc_error_behind_not_a_feature_in_the_excepted_root` pins
+# the coverage (and its comment records, from mutation, that PASS 2 is
+# what catches it — skip this root in pass 3 and the case still fires).
+# `plant_excepted_root_paired_module_plus_a_gated_break` pins the other
+# direction and is the one that matters on a runner: once the root IS in
+# pass 3's derived set, pass 3 must still not enable its feature.
 #
 # TARGETS, AND THE HALF-COVERED PACKAGE. `cargo doc`'s default target
 # selection documents a package's library and SKIPS a binary that shares
@@ -466,6 +519,27 @@ $(abs_path "$m")
 # per line — pass 3's subject, derived from the tree exactly as the
 # outside-roots list is. See the `not(feature)` section in the header.
 #
+# THE PATTERN IS A FAMILY, NOT A SPELLING, and it deliberately
+# OVER-matches. `cfg(not(feature` as a literal is a roster of one
+# wearing a grep's clothes: it reads exactly one of the ways this tree
+# can negate a feature and is silent on the rest —
+# `#[cfg(all(not(feature = "a"), unix))]`, `#[cfg(any(not(feature =
+# "a"), test))]`, `#[cfg(not(all(feature = "a", feature = "b")))]`,
+# `#[cfg_attr(not(feature = "a"), ...)]` (live in
+# `crates/mesh/src/nurbs_cert.rs`), and `#[cfg(not( feature = "a" ))]`
+# with a space. Every one of those is a paired module the gate would
+# have gone on not seeing while its derivation read as exhaustive. So
+# the matcher is `not(`, an optional `all(`/`any(`, then `feature`,
+# whitespace-tolerant — which also matches the string inside a COMMENT
+# and pulls that root into pass 3 for nothing. That is the right way to
+# be wrong: an over-match costs one compilation, an under-match costs
+# coverage and says nothing. Checked 2026-08-31: widening it from the
+# literal changes the derived root set by zero.
+#
+# WHAT IT STILL CANNOT MATCH, named rather than left implied: a
+# negation assembled by a macro, or spelled through a `cfg` alias, so
+# that no source line contains the shape at all.
+#
 # EVERY TRACKED `.rs`, WITH NO PATH FILTER. Excluding `tests/` and
 # `benches/` — rustdoc builds no test target, so a paired module in one
 # is prose this pass could not read anyway — was written and then
@@ -495,7 +569,7 @@ inert_half_roots() {
   local hits
   # `gate_grep`, so a matcher that cannot search ends the gate instead
   # of handing back the empty list that means "no paired module here".
-  hits=$(gate_grep -l 'cfg(not(feature' -- ${files[@]+"${files[@]}"}) || return 1
+  hits=$(gate_grep -lE 'not\([[:space:]]*(all\(|any\()?[[:space:]]*feature' -- ${files[@]+"${files[@]}"}) || return 1
   [ -n "$hits" ] || return 0
   # ACCUMULATED IN A VARIABLE, NOT PRINTED INTO `| sort -u`. A pipeline
   # stage is a subshell, so the `return 1` below could not fail this
@@ -822,6 +896,62 @@ plant_doc_error_behind_not_a_feature_in_excluded_root() {
   plant_doc_error_behind_not_a_feature "$1/outside/src/lib.rs"
 }
 
+# THE THIRD TREATMENT — the root named by DEFAULT_FEATURES_ROOT — AND
+# THE ONE PLACE THE ANSWER IS NOT "pass 3". A doc error in a paired
+# module planted there fires, and this arm pins that it does; but what
+# catches it is PASS 2, not pass 3, because that root is documented at
+# DEFAULT features and its disarmed halves were therefore never invisible
+# in the first place. The exception that keeps the inari graph out of a
+# doc job is the same thing that buys this root the coverage the other
+# two needed a third pass for. Established by mutation, not by reading:
+# make pass 3 skip this root and this case still fires.
+#
+# It is kept anyway, because the property is real and unpinned
+# otherwise — a future change to pass 2's feature selection for this
+# root would take the coverage away with nothing saying so.
+plant_doc_error_behind_not_a_feature_in_the_excepted_root() {
+  {
+    printf '\n/// The disarmed half.\n'
+    printf '///\n'
+    printf '/// [`stub`][off::stub] folds away.\n'
+    printf '#[cfg(not(feature = "oracle-inari"))]\n'
+    printf 'mod off {\n'
+    printf '    /// A stub.\n'
+    printf '    pub fn stub() {}\n'
+    printf '}\n'
+    printf '\n#[cfg(not(feature = "oracle-inari"))]\npub use off::*;\n'
+  } >> "$1/interval-transcendentals/src/lib.rs"
+}
+
+# AND THE ARM THAT IS ACTUALLY ABOUT PASS 3 HERE, which is the one that
+# matters on a runner: pass 3 running on the excepted root must still
+# not turn its feature ON. The fixture plants BOTH — a paired module, so
+# the root is in pass 3's derived set at all, and a doc error behind
+# `oracle-inari`, which no pass may compile. It must PASS.
+#
+# THE PLANTED ERROR IS A REDUNDANT EXPLICIT LINK, NOT A BROKEN ONE, and
+# the first draft of this arm got that wrong: a broken link is the lint
+# pass 3 ALLOWS, so the case passed under every mutation and proved
+# nothing. Spell pass 3 as `--all-features` (for this root or for all of
+# them) and this now reds — which is the LGPL C toolchain arriving in a
+# doc job through the one door the exception above does not watch.
+plant_excepted_root_paired_module_plus_a_gated_break() {
+  {
+    printf '\n#[cfg(not(feature = "oracle-inari"))]\n'
+    printf '/// The disarmed half, which puts this root in pass 3.\n'
+    printf 'pub fn disarmed() {}\n'
+    printf '\n/// The armed half.\n'
+    printf '///\n'
+    printf '/// [`stub`][on::stub] is only here with the feature.\n'
+    printf '#[cfg(feature = "oracle-inari")]\n'
+    printf 'mod on {\n'
+    printf '    /// A stub.\n'
+    printf '    pub fn stub() {}\n'
+    printf '}\n'
+    printf '\n#[cfg(feature = "oracle-inari")]\npub use on::*;\n'
+  } >> "$1/interval-transcendentals/src/lib.rs"
+}
+
 # THE COST OF PASS 3, PINNED IN THE DIRECTION THAT MATTERS: prose in the
 # `not(feature)` half linking to an item the FEATURE half defines. That
 # link is correct — it resolves in the docs --all-features builds — and
@@ -922,12 +1052,15 @@ gate_selftest() {
   # three rustdoc errors sat in a `not(feature)` module.
   gate_selftest_case "$want" plant_doc_error_behind_not_a_feature_in_member
   gate_selftest_case "$want" plant_doc_error_behind_not_a_feature_in_excluded_root
+  gate_selftest_case "$want" plant_doc_error_behind_not_a_feature_in_the_excepted_root
   gate_selftest_passes "public prose linking to a private sibling" \
     plant_public_link_to_private_item
   gate_selftest_passes "a link from the disarmed half into the feature-gated one" \
     plant_link_from_the_disarmed_half_into_the_gated_one
   gate_selftest_passes "prose behind the named default-features root's own feature" \
     plant_broken_link_behind_the_excepted_feature
+  gate_selftest_passes "prose behind the excepted root's feature when pass 3 also reads that root" \
+    plant_excepted_root_paired_module_plus_a_gated_break
   gate_selftest_passes "a cargo root the repository does not track (an agent worktree under .claude/)" \
     plant_untracked_worktree_with_broken_link
   # THE TWO READERS. Both decide whether pass 2 covers anything, and
@@ -949,7 +1082,7 @@ gate_selftest() {
   gate_selftest_without_tool cargo "cargo metadata failed"
   gate_selftest_without_tool git "git ls-files failed"
   GATE_SELFTEST_ARGS=()
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature, and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each pass'"'"'s roots, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails\n' \
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails\n' \
     "$(gate_name)"
 }
 
