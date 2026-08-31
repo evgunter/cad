@@ -79,7 +79,12 @@ pub struct Rgba8 {
 
 impl Rgba8 {
     /// An opaque color.
-    pub fn opaque(r: u8, g: u8, b: u8) -> Self {
+    ///
+    /// `const` so a palette can be stated as one: `viewer`'s themes
+    /// (`crates/viewer/src/theme.rs`) are `const` values, and a
+    /// constructor that could not be called in one would have forced
+    /// them to spell the struct literal and bypass this door.
+    pub const fn opaque(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b, a: 255 }
     }
 }

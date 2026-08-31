@@ -19,6 +19,21 @@ pncad = { path = "../pncad" }
 # the façade does not carry.
 bvh = { path = "../bvh" }
 
+# `Rgba8` — the exact 8-bit sRGB colour `crates/viewer/src/theme.rs`
+# states a palette in, and the same type a document's own
+# `Attr::Color` persists. One type on both sides is the point: a
+# document colour overriding a theme's default body colour is then a
+# substitution within one colour space rather than a conversion
+# between two.
+#
+# A DIRECT edge rather than a new re-export on the facade's root —
+# the ruling `pncad`'s own crate docs state for a type the facade does
+# not carry, and the same one the `bvh` stanza above cites. It costs
+# the build nothing: `pncad` already depends on `editor-core`, so the
+# crate is in this graph either way, and no `--workspace` job compiles
+# anything now that it did not compile before.
+editor-core = { path = "../editor-core" }
+
 # --- the `app` feature's toolkit graph (GQ6: egui; OQ-b: egui_tiles) ---
 #
 # Every entry here is optional and reached only through `app`. The
