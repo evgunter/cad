@@ -73,6 +73,19 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// its own, so it moves neither the geometry fence nor any other
 /// document's names.
 ///
+/// `die_composed` and `die_composed_tour` are the only registered
+/// documents that carve a CLOSED chain, so they are the only two whose
+/// tables carry the rim-phase roles at all (four band trimlines and
+/// eighty-four respectively; every other row's tables have none). A
+/// change to the rim vocabulary therefore moves exactly these two
+/// numbers, and a change that moves a third is not about rims.
+///
+/// That census is not prose to be trusted: it is computed by
+/// `blend5_r1_probes::the_recorded_band_trim_counts_are_executable`
+/// (and again by `blend5_r2_probes`'s), which walks the same registry
+/// and fails if any of the three numbers drifts. Read the claim here,
+/// believe it there.
+///
 /// `die_fillet` and `die_chamfer` are IDENTICAL, and that is what
 /// RECIPE-DOORS D3 says should happen. The two documents are the same
 /// three-node recipe with the blend swapped, so the blend mints under
@@ -104,8 +117,8 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0xae39_7800_c351_3248),
     ("die_tool", 0x9e24_4be7_b06b_9a40),
     ("loft_prism", 0x7318_e99f_2b22_dafb),
-    ("die_composed", 0xbc4f_5faa_1652_f266),
-    ("die_composed_tour", 0x539f_745a_6429_7d55),
+    ("die_composed", 0xc801_9fd6_e360_ce3e),
+    ("die_composed_tour", 0x2813_3d38_1e83_f02d),
     ("plate_param", 0x3bfe_3e78_5eec_a227),
 ];
 

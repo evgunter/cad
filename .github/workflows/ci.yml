@@ -764,6 +764,14 @@ jobs:
       # stdlib python and git — measured 2.9 s locally.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # The script that writes the tessellation-budget baseline's own
+      # provenance line, and refuses to walk it forward past the rows it
+      # describes. Sited HERE, in the tier-blind job, because it is git
+      # and stdlib only (a scratch repo, ~1 s) and because the row that
+      # exercises it for real — the budget sweep — is one of five
+      # SAMPLED k-lint unifications, so a bug in it would sit undrawn.
+      - name: tess-budget cut-stamp selftest (the baseline's provenance)
+        run: scripts/tess_budget_cut.sh --selftest
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
       - name: probe type-check loop citations
