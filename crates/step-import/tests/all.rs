@@ -38,6 +38,8 @@
 
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
+#[path = "cert5_r1_import_probes.rs"]
+mod cert5_r1_import_probes;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]

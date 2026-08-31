@@ -44,6 +44,8 @@ mod approx_surface;
 mod arc_eval_anchor;
 #[path = "cert1_r1_probes.rs"]
 mod cert1_r1_probes;
+#[path = "cert5_r1_patch_probes.rs"]
+mod cert5_r1_patch_probes;
 #[path = "cert1_sphere_polar.rs"]
 mod cert1_sphere_polar;
 #[path = "cert3r1_e2e.rs"]
