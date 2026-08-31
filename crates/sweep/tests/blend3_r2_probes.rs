@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
@@ -33,11 +33,6 @@ use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, subtract, validate_closed};
 
 const D: f64 = 0.25;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
     let lp = ProfileLoop::polygon([
@@ -126,7 +121,7 @@ fn p1_a_square_vent_refuses_at_the_ring_clearance_door_not_a_convexity_one() {
     let body = square_vented_cavity();
     let edges = edges_with_corners(&body, cavity_corner);
     assert_eq!(edges.len(), 12, "the square-vented cavity's twelve edges");
-    let err = chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges, D, Tol::witness())
         .expect_err("the square vent's ring must refuse");
     let text = err.error.to_string();
     assert!(
@@ -268,7 +263,7 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
-    let err = chamfer_edges(&body, &floor, D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &floor, D, Tol::witness())
         .expect_err("the floor alone is an incomplete request");
     assert!(
         matches!(err.error, BlendError::ChainNotG1 { .. }),
@@ -279,7 +274,7 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let full = edges_with_corners(&body, on_pocket_vertical);
     assert_eq!(full.len(), 12, "floor, struts, and the pocket's convex rim");
-    let err = chamfer_edges(&body, &full, D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &full, D, Tol::witness())
         .expect_err("even the whole pocket component meets the rim's mixed corners");
     assert!(
         matches!(
@@ -319,8 +314,8 @@ fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
         (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
     });
     assert_eq!(inner.len(), 1, "the bracket's one reflex vertical edge");
-    let err = fillet_edges(&body, &inner, 0.1, band(), Tol::witness())
-        .expect_err("the mixed corner refuses");
+    let err =
+        fillet_edges(&body, &inner, 0.1, Tol::witness()).expect_err("the mixed corner refuses");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },

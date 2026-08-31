@@ -17,7 +17,8 @@
 //! The shape of it follows the user journey the tour documents:
 //!
 //! 1. **Numbers and frames** — points, vectors, transforms,
-//!    tolerance, the decision `Band`, and the f64-first constructors
+//!    tolerance, the decision `Band` the refusals quote, and the
+//!    f64-first constructors
 //!    from [`crate::authoring`] so no literal needs `from_f64`.
 //! 2. **Author a profile** — the PATHS lattice, loops, sketch planes.
 //! 3. **Build a body** — extrude, revolve, loft/sweep, fillet.
@@ -34,12 +35,17 @@
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, real, v2, v3, validated};
-// `Band` is here because `fillet_edges` (group 3) takes one: a prelude
-// operation whose arguments are not prelude-constructible is a rung the
-// user cannot start from. The recipe is `Band::linear(tol)` — the run's
-// tolerance ε as the coincidence threshold, K·ε as the escalation
-// threshold — which is what every kernel operation builds internally.
-// `Tol` is here for the same reason one rung down: it is the first
+// `Band`/`BandError` are here because the verbs' typed refusals quote
+// them: a caller that matches `BlendError::Band` (this prelude) or
+// `ShellError::Band` (reachable as `pncad::topo::ShellError`, through
+// the wholesale `topo` re-export) has to be able to name what the arm
+// carries. No prelude operation
+// TAKES a band — every kernel verb derives `Band::linear(tol)` from the
+// tolerance witness at its own entry (ε as the coincidence threshold,
+// K·ε as the escalation threshold), so a band is a thing the user reads
+// out of a refusal, not a thing the user supplies. Constructing one
+// directly (`Band::new`, `Band::angular_at`) is a geometry-layer move.
+// `Tol` is here for a different reason one rung down: it is the first
 // argument of every authoring call that decides anything, and a
 // prelude that cannot name it is a prelude you cannot author from.
 // `Tol::witness()` is the one line a program writes before modelling

@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
@@ -20,11 +20,6 @@ use topo::{Body, EdgeKey, subtract, validate, validate_closed};
 
 /// The chamfer setback, meters.
 const D: f64 = 0.25;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 /// An axis-aligned box, authored the way a user would: a rectangle
 /// profile on a translated sketch plane, extruded.
@@ -199,7 +194,7 @@ fn chamfered_cavity_volume(a: f64, d: f64) -> f64 {
 #[test]
 fn the_chamfered_cavity() {
     let body = vented_cavity();
-    let out = chamfer_edges(&body, &cavity_edges(&body), D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &cavity_edges(&body), D, Tol::witness())
         .expect("the cavity's twelve concave edges chamfer");
     let out_body = out.body;
 
@@ -280,7 +275,7 @@ fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
 #[test]
 fn every_minted_face_of_a_concave_carve_faces_the_void() {
     let body = vented_cavity();
-    let out = chamfer_edges(&body, &cavity_edges(&body), D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &cavity_edges(&body), D, Tol::witness())
         .expect("the cavity's twelve concave edges chamfer");
     let centre = Point3::new(2.0, 2.0, 2.0);
     for face in out.blend_faces.iter().chain(out.corner_faces.iter()) {
@@ -299,7 +294,7 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     // both.
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let cut = chamfer_edges(&cube_body, &cube_edges, D, band(), Tol::witness())
+    let cut = chamfer_edges(&cube_body, &cube_edges, D, Tol::witness())
         .expect("a cube's twelve edges chamfer");
     let cube_centre = Point3::new(1.0, 1.0, 1.0);
     for face in cut.blend_faces.iter().chain(cut.corner_faces.iter()) {
@@ -328,8 +323,8 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
 fn both_verbs_carve_the_cavity_the_fillet_once_refused() {
     let body = vented_cavity();
     let edges = cavity_edges(&body);
-    chamfer_edges(&body, &edges, D, band(), Tol::witness())
+    chamfer_edges(&body, &edges, D, Tol::witness())
         .expect("the chamfer carves its twelve concave edges");
-    fillet_edges(&body, &edges, D, band(), Tol::witness())
+    fillet_edges(&body, &edges, D, Tol::witness())
         .expect("the fillet carves the same twelve, on its own arms");
 }

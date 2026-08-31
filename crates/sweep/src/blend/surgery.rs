@@ -3632,9 +3632,7 @@ mod tests {
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
-        let tol = geom_core::Tol::witness().get();
-        let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("a band");
-        let err = fillet_edges(&dst, &edges, R, band, Tol::witness())
+        let err = fillet_edges(&dst, &edges, R, Tol::witness())
             .expect_err("a two-solid body is outside the in-place surgery's door");
         assert!(
             matches!(

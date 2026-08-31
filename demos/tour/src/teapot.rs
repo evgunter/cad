@@ -156,7 +156,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
@@ -577,8 +577,6 @@ fn pot_area(d: f64) -> f64 {
 // ---------------------------------------------------------------------
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let band = Band::linear(tol).expect("the run's band");
-
     // ---- the vessel, before the wall ----
     let bellied = revolved(vessel_meridian(tol), tol);
     assert_eq!(
@@ -664,7 +662,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // ---- the sealed hollow: the body the scene SHIPS ----
-    let pot = pncad::topo::shell(&bellied, WALL, FIT_TOL, band, tol)
+    let pot = pncad::topo::shell(&bellied, WALL, FIT_TOL, tol)
         .unwrap_or_else(|e| panic!("the pot hollows, got {e}"));
     let (pv, pe, pf) = (
         pot.vertices().count(),
@@ -738,7 +736,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // role and the capacity are read. What the montage draws is the
     // OPENED pot, because a teapot has a mouth.
     let mouth = plane_chart_at(&bellied, Y_MOUTH);
-    let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, FIT_TOL, band, tol)
+    let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, FIT_TOL, tol)
         .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"));
 
     // ---- the lid ----
@@ -755,7 +753,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          mints half-walls and open arcs"
     );
     let knob_rim = rim_at(&plain_lid, Y_TOP, R_KNOB);
-    let rolled = fillet_edges(&plain_lid, &[knob_rim], ROLL, band, tol)
+    let rolled = fillet_edges(&plain_lid, &[knob_rim], ROLL, tol)
         .unwrap_or_else(|e| panic!("the knob's cylinder x plane top rim rolls, got {e:?}"));
     assert_eq!(
         (
@@ -952,7 +950,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         1,
         "hollow a pot whose belly bulges about a centre OFF the axis — a torus wall \
          rather than a sphere zone",
-        pncad::topo::shell(&torus_belly, WALL, FIT_TOL, band, tol),
+        pncad::topo::shell(&torus_belly, WALL, FIT_TOL, tol),
         |e| {
             matches!(
                 e,
