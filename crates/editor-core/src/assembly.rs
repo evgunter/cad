@@ -18,8 +18,9 @@
 //!   ([`crate::product::product_recorded`]), which is what A3's
 //!   "evaluation carries each mate's declaration" means: every
 //!   evaluated product carries its own mates' declarations, so a
-//!   sub-assembly's ride into the consuming document on the contacts
-//!   channel instead of dying at the seam. Construction composes.
+//!   sub-assembly's DECLARATIONS ride into the consuming document on
+//!   the contacts channel instead of dying at the seam. Construction
+//!   composes.
 //! - **Verification (D-3)**: the minted set goes through the kernel's
 //!   own tier-3′ door, [`topo::validate_pseudomanifold`]. Declared
 //!   contacts certify through the per-class doors; undeclared ones are
@@ -46,9 +47,18 @@
 //! - **Which classes mint** is [`crate::mate::class_admission`], the
 //!   one table this door and the solve door both read.
 //! - **What a declared contact can reach** is
-//!   [`AssemblyError::Uncertified`], the arm every declared
-//!   cross-instance pair lands in today, and which a caller must match
-//!   apart from the verdicts against their own document.
+//!   [`AssemblyError::Uncertified`], which a caller must match apart
+//!   from the verdicts against their own document. WHICH declared
+//!   pairs reach it narrowed when minting moved into the gather: the
+//!   arm requires EVERY finding to be `Declined`, and a finding is
+//!   `Declined` only when it names a declaration THIS document minted.
+//!   So the pairs that still land there are the ones this document's
+//!   own mates declared; a CARRIED declaration the census merely
+//!   declines attributes [`Attribution::Unattributed`] — its mate's
+//!   rows do not cross the instantiation seam — and routes to
+//!   [`AssemblyError::AtRest`] instead. Loud either way, and narrower
+//!   than the frontier arm says; issue 1429 is the seam channel that
+//!   would let a carried pair reach `Uncertified` under its own name.
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
@@ -508,6 +518,18 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
     // that becomes a refusal, in document order, because an at-rest
     // verdict on a record set is only meaningful when the set is the
     // whole one the document's mates declared.
+    //
+    // `into_iter().next()` rather than `first()`: the head is MOVED out
+    // of an owned vector nothing reads afterwards, and a `MintRefusal`
+    // owns a boxed `StableName`, so borrowing the head would only force
+    // a clone of it to build the error.
+    //
+    // Only the head is raised, and the rest are dropped. That is a
+    // narrower report than the gather can now support — every refusal
+    // is in `Product::unminted`, in document order — but widening it
+    // means a second refusal channel on `AssemblyError`, whose two mint
+    // arms are carried through the pncad-py façade. Recorded as a
+    // follow-up rather than taken here.
     if let Some(refusal) = unminted.into_iter().next() {
         return Err(refusal.into());
     }
@@ -610,7 +632,21 @@ pub(crate) fn mint<P, T: Decide>(
             // Face granularity (M9-1): a rest between two placed faces
             // IS a `PatchContact`. Same type as the boolean wrapper's
             // records, no adapter.
-            ClassAdmission::Mints => contacts.patches.push(PatchContact { face_a, face_b }),
+            //
+            // INVARIANT, pinned here because `attribute`'s
+            // `StaleContactDeclaration` arm reasons from it: this door
+            // makes patch records of two DISTINCT faces, and never a
+            // `CurveContact`. A same-instance mate is refused
+            // `SelfMate` at the solve door, so a live mate reaching
+            // here names two faces of two different instances.
+            ClassAdmission::Mints => {
+                debug_assert!(
+                    face_a != face_b,
+                    "a live mate's two references resolved to one face: \
+                     the solve door's `SelfMate` refusal was bypassed"
+                );
+                contacts.patches.push(PatchContact { face_a, face_b });
+            }
             other => {
                 unminted.push(MintRefusal::NoAtRestRecord {
                     mate: id,
@@ -712,34 +748,22 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // the other direction of the certification diff. The record's
         // own faces are in the error, so it names its mate exactly.
         //
-        // **No row pins its `Refuted` label**, and the reachability
-        // argument is narrower than it once was: the gate's
-        // `PatchContact`s are the ones this document's mates minted
-        // AND the ones its sub-assemblies carried up, so "every patch
-        // here is a mate of this document's" no longer holds. What
-        // does hold is the same for both: a patch record names two
-        // faces of two DIFFERENT instances (a same-instance mate
-        // refuses `SelfMate` at the solve door, and a carried one was
-        // cross-instance in the document that minted it), and for such
-        // a pair the census's chart door answers DIVERGENCE, never
-        // `Empty`, so the staleness arm does not fire; both faces are
-        // in the gathered body by construction, so its other trigger
-        // cannot fire either; and the `CurveLocus` half needs a
-        // `CurveContact`, which `mint` refuses to make at all. A
-        // carried patch the geometry contradicts reaches
-        // `ContactContradicted` above, not this arm — and lands
-        // `Unattributed`, because the mate that minted it belongs to
-        // another document.
+        // **No row pins its `Refuted` label**, because no fixture
+        // reaches the arm: the `CurveLocus` half needs a
+        // `CurveContact`, and [`mint`] makes `PatchContact`s of two
+        // DISTINCT faces and nothing else — the invariant its own
+        // `debug_assert` pins, and the row
+        // `mint_makes_distinct_face_patches_and_no_curve_records`
+        // asserts. The `Patch` half needs the census's chart door to
+        // answer `Empty` on a cross-instance pair, which it does not
+        // do today.
         //
-        // The label still has to be right, because it is exactly the
-        // dangerous direction: relabelled `Declined`, a REFUTED
-        // declaration would be promoted into
-        // `AssemblyError::Uncertified` and reported as an unrefuted
-        // frontier. What makes the arm live is the same census
-        // cross-instance chart rung that closes `Uncertified` — when
-        // the chart door starts answering `Empty` instead of
-        // diverging, this arm executes and wants its own acceptance
-        // row in the same change.
+        // The label still has to be right, because it is the dangerous
+        // direction: relabelled `Declined`, a REFUTED declaration would
+        // be promoted into `AssemblyError::Uncertified` and reported as
+        // an unrefuted frontier. When the chart door starts answering
+        // `Empty`, this arm executes and wants its own acceptance row
+        // in the same change.
         ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b }

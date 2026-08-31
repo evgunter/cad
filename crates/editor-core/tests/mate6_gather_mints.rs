@@ -383,11 +383,24 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let ev = run(&outer, &opts(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let raised = findings(&result);
+    // The arm that FIRES is asserted, not "either refuting arm": the
+    // invariant this row defends is that the outer census re-verifies
+    // what it consumed, and that is what makes the refutation loud
+    // either way — but a fixture whose faces are a definite half-unit
+    // apart is definite COUNTER-EVIDENCE, so `ContactContradicted` is
+    // the arm the kernel's own vocabulary assigns it.
+    //
+    // Drift-acceptance, stated: if this ever lands
+    // `StaleContactDeclaration` instead, that is a change in the
+    // kernel's refutation vocabulary — a real event, and one that
+    // should reach a reader as a failing row here rather than pass
+    // unnoticed under a disjunction. Update it deliberately, with the
+    // reason, and give `attribute`'s staleness arm the acceptance row
+    // it has never had.
     assert!(
-        raised
-            .iter()
-            .any(|f| f.contains("ContactContradicted") || f.contains("StaleContactDeclaration")),
-        "the outer census re-verifies what it consumed: {raised:?}"
+        raised.iter().any(|f| f.contains("ContactContradicted")),
+        "the outer census re-verifies what it consumed, with definite \
+         counter-evidence: {raised:?}"
     );
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("a refuted declaration is a finding against the document: {result:?}");
@@ -506,6 +519,59 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
     );
     assert!(gathered.minted.is_empty());
     assert!(gathered.unminted.is_empty());
+}
+
+/// INVARIANT (**the premise `attribute`'s `StaleContactDeclaration` arm
+/// reasons from**): what this door mints is `PatchContact`s of two
+/// DISTINCT faces, and never a `CurveContact`. The arm's unreachability
+/// argument rests on exactly that — the `CurveLocus` half needs a curve
+/// record no mate can author — so the claim is a row rather than a
+/// paragraph. (`mint` pins the distinctness half with its own
+/// `debug_assert`, which this row also exercises, tests being a debug
+/// build.)
+#[test]
+fn mint_makes_distinct_face_patches_and_no_curve_records() {
+    let mut store = StubStore::default();
+    let part = store.insert(cube_part("mate6-shape-cube"), Tol::witness());
+    let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
+    let (doc, _) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(
+                in_part(ids[0], CapEnd::Top),
+                in_part(ids[1], CapEnd::Bottom),
+                1.0,
+            ),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(
+                in_part(ids[1], CapEnd::Top),
+                in_part(ids[2], CapEnd::Bottom),
+                1.0,
+            ),
+        },
+    );
+
+    let ev = run(&doc, &opts(store));
+    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
+    assert_eq!(gathered.minted.len(), 2, "both mates minted");
+    assert!(
+        gathered.contacts.curves.is_empty(),
+        "a mate authors no curve record: {:?}",
+        gathered.contacts.curves
+    );
+    for patch in &gathered.contacts.patches {
+        assert_ne!(
+            patch.face_a, patch.face_b,
+            "a minted patch names two distinct faces"
+        );
+    }
+    for m in &gathered.minted {
+        assert_ne!(m.faces.0, m.faces.1, "and so does the row that records it");
+    }
 }
 
 /// INVARIANT (**the split between the two doors**): a class the table
