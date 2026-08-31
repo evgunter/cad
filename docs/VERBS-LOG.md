@@ -2699,3 +2699,30 @@ tests the measurements): the chord-lane widening, and the absent
 radius-equality declaration channel (also blocks SPHSPH's arms
 option (a)). Dual: parity byte 30 ⇒ R1 OPUS + R2 FABLE, frozen
 874a5ff3; claim to main at dispatch.
+## SPHSPH MERGED (#1290, 2026-08-31) — ordinal-108 row (sample #66)
+
+The union fix pass landed whole: the signed radical-plane offset
+in all three tangency branches (mirroring seg.rs; both operand
+orders pinned RED-THEN-GREEN — the red run named sphere B's own
+centre); the latitude lever PINNED by the rimmed_ball fixture at
+a MEASURED constructive window (u_r=1e-2, δ=30ε; three-arm
+mutation table: baseline green / axial mutant exactly one red /
+sign-flip control 9 red); four §7 remainder rows planted through
+public doors + two declined with measurement onto #1291; the
+polar-gate prose rewritten (no gate anywhere — the blanket
+refusal, stronger than (a)); VolumeUncertified and
+sphere_chart_trim error-genus splits; the register sentence
+scoped; #1342 filed en route (E6 driver k-probe red isolated to
+main with crates/ reverted wholesale). The demos-tour #99-ε-pin
+step EXECUTED hosted for the first time on the branch and
+passed. The merge to main crossed FOUR races in one night (two
+renumbers: drafted #61 → #66; one committed-markers incident on
+my own blind union of a .rs conflict — caught by the pre-push
+fmt hook, reset unpushed, handed to the implementer who resolved
+it semantically: main's D104 fingerprint retirement + our x4b,
+module header rewritten). Final head green as a genuine
+pull_request run, step-verified; the CI-Config trailer voided by
+the merge per the known rule, sampled draw safe, the named-point
+record on the prior head. #1290 closes ordinal 108. Tally: the
+unilateral candidate (R2's missing-acceptance-rows MAJ) awaits
+the blinded coding with 107's two.
