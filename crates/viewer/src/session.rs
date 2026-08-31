@@ -36,8 +36,8 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, CancelToken, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit,
     DocParam, EditError, EvalOptions, Evaluation, Frame, Node, ParamName, ParseError, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, apply, assemble, evaluate, parse_expr,
-    product, run_checks,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order,
+    evaluate, parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
@@ -442,6 +442,100 @@ impl Refusal {
     }
 }
 
+/// **What the delete button says, and the list it says it about.**
+///
+/// A destructive action that understates itself is worse than one that
+/// refuses: [`SessionOp::DeleteNode`] takes the target's whole
+/// downstream cone, which in a chain-shaped model (a boolean per
+/// feature) is most of the document, so the count belongs on the
+/// button and not only in a tooltip.
+///
+/// The wording lives here rather than in the chrome for the reason
+/// [`Refusal::exists_wording`] does: one composition, read by whatever
+/// renders it, and testable without a window.
+#[derive(Clone, Debug)]
+pub struct DeleteAffordance {
+    /// The button's label.
+    pub label: String,
+    /// The hover text; `None` when the label already says everything,
+    /// which is exactly when nothing depends on the target.
+    pub hover: Option<String>,
+    /// The nodes the delete would remove, consumers first and the
+    /// target last — the operation's own order.
+    pub cascade: Vec<RecipeNodeId>,
+}
+
+impl DeleteAffordance {
+    /// Compose the sentences for deleting `node` out of `doc`.
+    ///
+    /// The kind name is the node vocabulary's own (first-light finding
+    /// #1097: reached from a face selection, a bare "Delete feature"
+    /// read as deleting the *face* — an entity this vocabulary can
+    /// never delete). The id-only arm is for a node the document does
+    /// not hold: no button renders for one today, and if that changes
+    /// the label stays honest rather than panicking.
+    ///
+    /// Neither sentence mentions the features that merely FED the
+    /// target and survive as roots of their own, because this delete
+    /// does not touch them. A delete that reconnected a target's
+    /// consumers to its input instead — splice — is open as issue
+    /// #1324.
+    fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Self {
+        let cascade = cascade_delete_order(doc, node);
+        let Some(target) = doc.node(node) else {
+            return Self {
+                label: format!("Delete feature {}", node.0),
+                hover: None,
+                cascade,
+            };
+        };
+        let kind = tree::node_kind(target);
+        // The cascade's last entry is the target itself; everything
+        // before it is a dependent.
+        let dependents = cascade.len().saturating_sub(1);
+        if dependents == 0 {
+            return Self {
+                label: format!("Delete feature '{kind}'"),
+                hover: None,
+                cascade,
+            };
+        }
+        let (plural, depend) = if dependents == 1 {
+            ("", "depends")
+        } else {
+            ("s", "depend")
+        };
+        let census = kind_census(doc, &cascade[..dependents]);
+        Self {
+            label: format!("Delete feature '{kind}' and {dependents} dependent feature{plural}"),
+            hover: Some(format!(
+                "Also deletes {dependents} feature{plural} that {depend} on it: {census}"
+            )),
+            cascade,
+        }
+    }
+}
+
+/// A census of node kinds, most numerous first and ties broken by
+/// name, as `20 × Boolean, 1 × Fillet` — the readable form of a list
+/// whose LENGTH is the thing being warned about.
+fn kind_census(doc: &Doc<ProfileProgram>, nodes: &[RecipeNodeId]) -> String {
+    let mut counts: std::collections::BTreeMap<&'static str, usize> =
+        std::collections::BTreeMap::new();
+    for &id in nodes {
+        if let Some(node) = doc.node(id) {
+            *counts.entry(tree::node_kind(node)).or_default() += 1;
+        }
+    }
+    let mut census: Vec<(&'static str, usize)> = counts.into_iter().collect();
+    census.sort_by_key(|&(kind, count)| (core::cmp::Reverse(count), kind));
+    census
+        .into_iter()
+        .map(|(kind, count)| format!("{count} × {kind}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
 pub enum SessionOp {
@@ -456,14 +550,21 @@ pub enum SessionOp {
     /// operations-are-API rule) — a headless test hovers by naming
     /// this op.
     Hover(Option<FaceSelection>),
-    /// Delete a recipe node.
+    /// Delete a recipe node **and every node downstream of it**, as
+    /// one action and one undo.
     ///
     /// The panel's own door to `DocEdit::DeleteNode`, and the edit the
     /// survival semantics are exercised through: deleting the feature
     /// a selected face belongs to is the first of the three ways a
     /// selection's referent goes away.
+    ///
+    /// The cost is knowable before the click:
+    /// [`DocSession::delete_cascade`] is the same list the operation
+    /// deletes. What it removes is the dependent CONE — a delete that
+    /// reconnected consumers to the target's input instead (splice) is
+    /// open as issue #1324.
     DeleteNode {
-        /// The node to delete.
+        /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
     /// Write a value into a node's slot. Refused if the slot is
@@ -943,6 +1044,19 @@ impl DocSession {
         &self.history
     }
 
+    /// **What a delete of `node` would cost, said before it is paid.**
+    ///
+    /// The `cascade` field is the deletion order itself — exactly what
+    /// [`SessionOp::DeleteNode`] applies — so the number on the button
+    /// and the number of features that vanish are one list read twice.
+    ///
+    /// Read off the COMMITTED document, which is the one the edits
+    /// apply to; the delete op refuses outright while a gesture holds
+    /// a scratch value, so the two never disagree at a live button.
+    pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
+        DeleteAffordance::of(self.committed_doc(), node)
+    }
+
     /// The ε this session decides at.
     pub fn tol(&self) -> Tol {
         self.tol
@@ -1228,7 +1342,7 @@ impl DocSession {
                 if self.gesture.is_some() {
                     return OpOutcome::refused(Refusal::GestureInFlight);
                 }
-                self.commit(DocEdit::DeleteNode { id: node })
+                self.delete_node(node)
             }
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
             SessionOp::ProbeBounds { target } => self.probe_bounds(target),
@@ -1742,18 +1856,79 @@ impl DocSession {
     /// constrains its instance (the prune DISCARDS the value; see
     /// `display`'s module docs for why discard and not zero).
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
-        match apply(self.history.doc(), &edit, self.tol) {
-            Ok(applied) => {
-                self.history.commit(edit.clone(), applied.doc);
-                let superseded = self.display.prune(self.history.doc());
-                self.request_eval();
-                OpOutcome {
-                    committed: vec![edit],
-                    superseded,
-                    ..OpOutcome::default()
-                }
+        self.commit_action(vec![edit])
+    }
+
+    /// **Delete a feature and everything downstream of it**, as one
+    /// action and therefore one undo.
+    ///
+    /// A recipe node that anything consumes cannot leave the document
+    /// alone — `DocEdit::DeleteNode` refuses a delete that would
+    /// dangle a live reference, and in a chain-shaped model (a boolean
+    /// per feature) that is every node but the last. The whole
+    /// dependent cone therefore goes, consumers first, which is the
+    /// order [`cascade_delete_order`] hands back and the order the
+    /// door accepts.
+    ///
+    /// **The cone, not the chain's remainder**: nodes whose only tie
+    /// to the target is that they fed it survive as roots of their own,
+    /// so deleting one pip's boolean out of a die leaves that pip's
+    /// body in the document, unconsumed. Reconnecting a deleted node's
+    /// consumers to its input instead — splice, the CAD-conventional
+    /// delete — needs an edit that rewires a live node's inputs, which
+    /// this vocabulary does not have; it is open as issue #1324.
+    ///
+    /// An id the document does not hold takes the single-edit path so
+    /// the typed refusal comes from the door rather than from here.
+    fn delete_node(&mut self, node: RecipeNodeId) -> OpOutcome {
+        let doomed = cascade_delete_order(self.committed_doc(), node);
+        if doomed.is_empty() {
+            return self.commit(DocEdit::DeleteNode { id: node });
+        }
+        self.commit_action(
+            doomed
+                .into_iter()
+                .map(|id| DocEdit::DeleteNode { id })
+                .collect(),
+        )
+    }
+
+    /// The same door for an action that takes SEVERAL edits: apply
+    /// them in order, and record the whole run as one history state,
+    /// so one user action is one undo.
+    ///
+    /// **All or nothing**: each edit is applied to the value the last
+    /// one produced and nothing is recorded until every one has
+    /// succeeded, so a refusal anywhere leaves the session on the
+    /// document it started from. That is purity doing the work — no
+    /// rollback exists to be got wrong.
+    fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
+        // Threaded rather than cloned up front: the first `apply`
+        // reads the history's value in place, and each later one reads
+        // its predecessor's output, so a group of one costs exactly
+        // what a single commit always cost.
+        assert!(!edits.is_empty(), "an action commits at least one edit");
+        let mut produced: Option<Doc<ProfileProgram>> = None;
+        for edit in &edits {
+            let attempt = {
+                let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
+                apply(base, edit, self.tol)
+            };
+            match attempt {
+                Ok(applied) => produced = Some(applied.doc),
+                Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
             }
-            Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
+        }
+        let Some(doc) = produced else {
+            unreachable!("the loop applied at least one edit and kept its output")
+        };
+        self.history.commit_group(edits.clone(), doc);
+        let superseded = self.display.prune(self.history.doc());
+        self.request_eval();
+        OpOutcome {
+            committed: edits,
+            superseded,
+            ..OpOutcome::default()
         }
     }
 

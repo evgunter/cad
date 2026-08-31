@@ -44,6 +44,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "camera_ops.rs"]
 mod camera_ops;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
 #[path = "chrome_labels.rs"]
 mod chrome_labels;
 #[path = "display_budget.rs"]

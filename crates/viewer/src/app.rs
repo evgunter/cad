@@ -1469,7 +1469,7 @@ impl ViewerBehavior<'_> {
                 ui.horizontal(|ui| {
                     ui.label(format!("feature {}", node.0));
                     if *present {
-                        if ui.button(delete_label(self.session, *node)).clicked() {
+                        if delete_button(ui, self.session, *node) {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
@@ -1494,7 +1494,7 @@ impl ViewerBehavior<'_> {
                     // deletes what the label names.
                     let feature = face.feature();
                     ui.label(format!("face of feature {}", feature.0));
-                    if standing.live() && ui.button(delete_label(self.session, feature)).clicked() {
+                    if standing.live() && delete_button(ui, self.session, feature) {
                         self.ops.push(SessionOp::DeleteNode { node: feature });
                     }
                 });
@@ -2152,20 +2152,17 @@ fn drag_ops(
     }
 }
 
-/// The delete button's label: it names the FEATURE it deletes, by the
-/// node vocabulary's own kind name.
-///
-/// First-light finding (#1097's run): reached from a face selection, a
-/// bare "Delete feature" read as deleting the *face* — an entity this
-/// vocabulary can never delete; a face is a way of reaching the node
-/// that made it. The label carries the target's kind so the affordance
-/// states the operation it queues. The fallback arm is for a node the
-/// document no longer holds — no button renders for one today, and if
-/// that changes the label stays honest rather than panicking.
-fn delete_label(session: &DocSession, node: RecipeNodeId) -> String {
-    match session.doc().node(node) {
-        Some(target) => format!("Delete feature '{}'", crate::tree::node_kind(target)),
-        None => format!("Delete feature {}", node.0),
+/// The delete button: a renderer for [`DocSession::delete_affordance`]
+/// and nothing else, so the two places a delete is reachable from (a
+/// node selection and a face selection) cannot state different costs
+/// for the same operation, and the sentence itself is testable without
+/// a window.
+fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: RecipeNodeId) -> bool {
+    let affordance = session.delete_affordance(node);
+    let button = ui.button(affordance.label);
+    match affordance.hover {
+        Some(text) => button.on_hover_text(text).clicked(),
+        None => button.clicked(),
     }
 }
 

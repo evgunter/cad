@@ -78,7 +78,7 @@ pub use drive::{
     RefusalReason, RefusedLeaf, ReplayOutcome, StructureFlip, VerdictRow, VerdictVector,
     VerdictVectorKey, drive,
 };
-pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
+pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,

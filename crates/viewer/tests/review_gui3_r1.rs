@@ -163,7 +163,7 @@ fn r1_an_abandoned_branch_keeps_its_whole_subtree() {
     assert_eq!(depth_of(history.entry(b).doc()), 0.004);
     assert_eq!(depth_of(history.entry(c).doc()), 0.005);
     assert!(
-        history.entry(c).edit().is_some(),
+        !history.entry(c).edits().is_empty(),
         "the abandoned edit is retained"
     );
     assert_eq!(depth_of(history.entry(d).doc()), 0.006);
