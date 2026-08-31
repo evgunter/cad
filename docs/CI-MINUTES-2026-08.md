@@ -382,9 +382,14 @@ What is measured:
   entry's own superseding note is about: it shares almost no artifacts
   with the `--all-features` passes and no cache configuration collapses
   the two. It is not a caching problem and will not be fixed as one.
-* **Warm, on developer boxes**: +33.4 s on the gate-plus-selftest total
-  (4 vCPU, 2026-08-30) and +47.9 s on a second box (2026-08-31). The
-  larger reading is the floor to plan against.
+* **Warm, gate plus self-test, base against head on one tree**: +33.4 s
+  (4 vCPU, 2026-08-30, with three pass-3 self-test arms), +47.9 s (a
+  second box, 2026-08-31, same arms), and **+58.2 s** (4 vCPU,
+  2026-08-31, after two further arms and a merge of main: 86.9 s →
+  145.1 s, of which +35.7 s is the gate and +22.5 s the mktemp
+  fixtures). **The figure grew on every re-read**, which is the honest
+  headline here: plan against the largest, and re-read rather than
+  quoting the first.
 * **Hosted, COLD**: `rustdoc (gate)` ran 331 s on run `33342678074`
   against 219/288/299 s on three contemporaneous PR runs whose cache
   also missed (restore ≤ 2 s in all four). Roughly +20–30%.

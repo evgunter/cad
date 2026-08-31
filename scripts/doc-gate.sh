@@ -237,10 +237,14 @@
 # rediscovers it. It is a DISTINCT FEATURE UNIFICATION, which is F6's
 # own superseding note in docs/CI-MINUTES-2026-08.md one gate over: it
 # shares almost no artifacts with the --all-features passes and no cache
-# configuration collapses the two. Measured warm on two developer boxes:
-# +33.4 s on the gate-plus-selftest total (4 vCPU, 2026-08-30) and
-# +47.9 s on a second box (2026-08-31), the larger reading being the
-# floor to plan against rather than the smaller. UNMEASURED and stated:
+# configuration collapses the two. Measured warm, gate plus selftest,
+# base against head on one tree: +33.4 s (4 vCPU, 2026-08-30, three
+# pass-3 self-test arms), +47.9 s (a second box, 2026-08-31, same
+# arms), and +58.2 s (4 vCPU, 2026-08-31, after two more arms and a
+# merge of main: 86.9 s -> 145.1 s, of which +35.7 s is the gate and
+# +22.5 s the fixtures). THE NUMBER GREW EVERY TIME IT WAS RE-READ,
+# which is the honest headline: plan against the largest and re-read it
+# rather than quoting the first. UNMEASURED and stated:
 # each root pass 3 touches now carries a SECOND fingerprint set in its
 # cached target directory, so the hosted cache entry those roots share
 # grows by an amount nobody has read — F6's +90 MB was for adding the
