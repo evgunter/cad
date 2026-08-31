@@ -741,3 +741,33 @@ fresh and re-validate (R2's N3), state-sync rides last as always.
 T-a's style review dispatched in the freed slot (per-lane emphasis
 per the 03:26 spec); T-R5 ruling to ride the track log at #1329's
 close.
+
+## 2026-08-31 — BLEND-6 MERGED (#1328); BLEND-3 DISPATCHED (block BLEND-B2 slot 3, the block's last)
+
+PR #1328 merged at `82a3a424`; issue 917 closed. Gate of record:
+run 33358585304 GREEN (21 checks) on the API-replicated pin head
+`554914cf` — the requested rows all held ({default, default} both
+shards; k-lint dev-budget). The pin commit itself was pushed BY
+API (`push_files`, content verified byte-identical to the local
+twin by blob SHA) through a git-auth outage window that also
+blocked fetch and workflow_dispatch (403); auth recovered at the
+merge, locals realigned. The stood-down reds on the prior head
+(#1338 interval/1e-12; #1296 dev-probe) are documented in the PR's
+standing-down comment with per-test evidence.
+
+**BLEND-3 dispatched:** lane `blend-3`, branch `blend/concavecham`
+cut from main at `82a3a424` (the renamed sweep/src/blend tree).
+Arm per the block B2 branch-side draw (slot 3 — the block's last;
+the block record merges to main when this unit's reviews conclude,
+restating the redacted sibling arms). Difficulty **M** stands
+pre-logged at the draw. No schema seam. Brief carries: the fresh
+rename (BlendError / sweep::blend paths), the #1338 caveat (an
+{interval, 1e-12} draw is red on main itself — diagnose against
+main before owning any such red), measured-first (pin the current
+concave refusals before widening), and the #1336 note (the fillet
+door's size-validation asymmetry is SCHEDULED there, not this
+unit's to absorb unless its own work touches those doors).
+
+Meanwhile track T: T-a's lane told to absorb the rename (merge
+main, resolve, push); PR #1329 merges when green — the ordering
+hold (BLEND-6 first) worked as intended.
