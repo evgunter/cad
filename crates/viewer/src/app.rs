@@ -44,7 +44,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{Axis3, Dimension, DocumentId, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
@@ -57,6 +57,7 @@ use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
+use crate::parts::PartChooser;
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
@@ -303,6 +304,10 @@ pub struct ViewerApp {
     /// The modal mate tool, when active. `None` is "not in the mate
     /// tool"; the tool's own state (the held picks) lives inside it.
     mate_tool: Option<MateTool>,
+    /// The `Add part…` chooser, when open. `None` is "no chooser"; the
+    /// scanned catalogue it is showing lives inside it, taken once when
+    /// it opened.
+    part_chooser: Option<PartChooser>,
     camera: Camera,
     input: InputMap,
     /// The palette in force — a USER preference, held in the
@@ -526,6 +531,7 @@ impl ViewerApp {
             fit_delta_on_scene: true,
             budget_delta: None,
             mate_tool: None,
+            part_chooser: None,
             camera,
             input,
             theme,
@@ -1039,6 +1045,7 @@ impl eframe::App for ViewerApp {
                 drafts: &mut self.drafts,
                 display: &display,
                 mate_tool: &mut self.mate_tool,
+                part_chooser: &mut self.part_chooser,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -1103,6 +1110,8 @@ struct ViewerBehavior<'a> {
     display: &'a DisplayView,
     /// The modal mate tool, if active.
     mate_tool: &'a mut Option<MateTool>,
+    /// The `Add part…` chooser, if open.
+    part_chooser: &'a mut Option<PartChooser>,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -1474,6 +1483,7 @@ impl ViewerBehavior<'_> {
         ui.heading("Properties");
         ui.separator();
         self.mate_tool_ui(ui);
+        self.add_part_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
@@ -1888,6 +1898,103 @@ impl ViewerBehavior<'_> {
         });
         if close {
             *self.mate_tool = None;
+        }
+        ui.separator();
+    }
+
+    /// The `Add part…` door: the open document's own directory,
+    /// listed as parts, one click inserting an instance of one.
+    ///
+    /// **The listing is a snapshot the chooser holds**, not a scan per
+    /// frame: opening a workspace reads every `.pncad` header, which is
+    /// a click's worth of work and not a frame's. Rescan re-takes it.
+    ///
+    /// **A door that cannot open says so.** With no backing file there
+    /// is no directory to list, and with a directory that will not scan
+    /// (duplicate id, unreadable sibling) there is no honest list — so
+    /// the chooser opens either way and shows the typed refusal where
+    /// the list would be. That is also where a scan refusal belongs
+    /// rather than on a tree badge: no node exists yet to badge.
+    fn add_part_ui(&mut self, ui: &mut egui::Ui) {
+        if self.part_chooser.is_none() {
+            if ui
+                .button("Add part…")
+                .on_hover_text("insert an instance of another document in this one's directory")
+                .clicked()
+            {
+                *self.part_chooser = Some(PartChooser::opened(self.session));
+            }
+            return;
+        }
+        let mut chosen: Option<DocumentId> = None;
+        let mut rescan = false;
+        let mut close = false;
+        if let Some(chooser) = self.part_chooser.as_ref() {
+            egui::Window::new("Add part")
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    match chooser.dir() {
+                        Some(dir) => ui.weak(format!("parts in {}", dir.display())),
+                        None => ui.weak("no directory"),
+                    };
+                    match chooser.offered() {
+                        Ok([]) => {
+                            ui.weak("this directory holds no other documents");
+                        }
+                        Ok(entries) => {
+                            for entry in entries {
+                                ui.horizontal(|ui| {
+                                    // The self entry stays VISIBLE and
+                                    // disabled, carrying the op's own
+                                    // refusal as its reason.
+                                    let pick = ui
+                                        .add_enabled(
+                                            !entry.open_document,
+                                            egui::Button::new(entry.file_name()),
+                                        )
+                                        .on_disabled_hover_text(
+                                            Refusal::SelfInstance { id: entry.id }.to_string(),
+                                        );
+                                    if pick.clicked() {
+                                        chosen = Some(entry.id);
+                                    }
+                                    ui.weak(entry.id.to_string());
+                                });
+                            }
+                        }
+                        // The refusing layer's own sentence — the
+                        // store's or the directory rule's — never one
+                        // composed here.
+                        Err(refusal) => {
+                            ui.label(refusal.to_string());
+                        }
+                    }
+                    ui.horizontal(|ui| {
+                        if ui
+                            .button("Rescan")
+                            .on_hover_text("re-read this directory")
+                            .clicked()
+                        {
+                            rescan = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            close = true;
+                        }
+                    });
+                });
+        }
+        if let Some(id) = chosen {
+            // Exactly one committed edit, and the chooser closes with
+            // it — the mate tool's shape.
+            self.ops.push(SessionOp::AddInstance { id });
+            close = true;
+        }
+        if rescan && let Some(chooser) = self.part_chooser.as_mut() {
+            chooser.rescan(self.session);
+        }
+        if close {
+            *self.part_chooser = None;
         }
         ui.separator();
     }
