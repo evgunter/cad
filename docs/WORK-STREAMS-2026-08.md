@@ -152,6 +152,9 @@ point), and touches files no kernel program is editing.
 
 ### S-MATE — contacts, rest, and assembly composition (`mate/`)
 
+**GRADUATED (2026-08-31): opened as the S-MATE program —
+`docs/S-MATE-PLAN.md` / `docs/S-MATE-LOG.md`, A/B band 1300–1399.**
+
 ASM is closed; its exit-walk residue plus the declared-contact gaps
 form one topic with no live claimant. Ruling-heavy: this stream opens
 as design conversations, then implements.

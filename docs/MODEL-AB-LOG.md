@@ -208,8 +208,13 @@ amended:
      GAUTH, the renumber to 1000 lost to SEAT while the opening PR
      was held for sign-off — S-BOOL's 1100–1199 was fixed on main
      by its ordinal-1100 claim at BOOL-1's review dispatch, and
-     S-MESH takes 1200–1299)**,
-     with **1300+ unallocated** — the orchestrator opening the next
+     S-MESH takes 1200–1299) · S-MATE 1300–1399 (claimed
+     2026-08-31 at the S-MATE program's opening —
+     `docs/S-MATE-LOG.md`; opened claiming 1200, renumbered per
+     the main-is-authority tiebreak when S-MESH's 1200–1299
+     reached main first — no S-MATE ordinal had been claimed, so
+     nothing renumbers but the band)**,
+     with **1400+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
