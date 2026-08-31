@@ -22,3 +22,9 @@ creation, same recorded posture). Arm for slot 2 = OPUS (byte 107,
 fable at position 3). Dispatched after CERT-5's merge per the
 recorded sequencing (the A2 gauge calibrates on the post-CERT-5
 area lanes).
+slot 3 = CERT-9 (difficulty S, logged at spec docs/CERT-9-SPEC.md on
+cert/orchestrator before this assignment). Arm for slot 3 = FABLE
+(byte 107, fable at position 3 — the block's fable slot). Block
+CERT-B2 is now fully assigned. Sequencing note: CERT-9 dispatches
+concurrently with CERT-6 (slot 2) — mesh vs geom-brep, file-disjoint;
+CERT-8 and CERT-10 queue behind them (CERT-10 opens block CERT-B3).
