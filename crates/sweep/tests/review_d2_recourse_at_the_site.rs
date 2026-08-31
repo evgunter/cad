@@ -4,7 +4,7 @@
 //! An independent derivation of what PR #740 claims, not a re-reading
 //! of its diff. The unit's own guard
 //! (`fillet::recourse_tests::a_recourse_is_appended_only_where_the_table_allows_it`)
-//! builds `FilletError` values BY HAND and renders them, so it pins the
+//! builds `BlendError` values BY HAND and renders them, so it pins the
 //! `Display` impl against a table. What it cannot see is the half S19
 //! actually complained about: whether a REFUSAL SITE picks the right
 //! class. The wrong the finding named was a user being told to
@@ -20,12 +20,12 @@
 
 use geom_core::Band;
 use geom_core::Tol;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{
-    FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{
+    BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
     FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
     FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE, FilletError,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey};
@@ -64,7 +64,7 @@ fn edges_of(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// Assert that the rendered refusal carries `expect` (or nothing, when
 /// `expect` is `None`) and NO other recourse sentence.
-fn only_recourse(err: &FilletError, expect: Option<&str>, what: &str) {
+fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
     let text = err.to_string();
     if let Some(e) = expect {
         assert!(
@@ -96,10 +96,14 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
     let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
-        matches!(err, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected a corner frontier, got {err:?}"
     );
-    only_recourse(&err, Some(FILLET3_CORNER_RECOURSE), "one-edge run-out");
+    only_recourse(
+        &err.error,
+        Some(FILLET3_CORNER_RECOURSE),
+        "one-edge run-out",
+    );
 }
 
 /// **A refusal that reports invalid input gives no fillet advice.**
@@ -114,10 +118,10 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
     req.push(edges[0]);
     let err = fillet_edges(&body, &req, R, band(), Tol::witness()).expect_err("a repeated edge");
     assert!(
-        matches!(err, FilletError::RepeatedEdge { edge } if edge == edges[0]),
+        matches!(err.error, BlendError::RepeatedEdge { edge } if edge == edges[0]),
         "expected the repeated-edge refusal naming the key, got {err:?}"
     );
-    only_recourse(&err, None, "repeated edge");
+    only_recourse(&err.error, None, "repeated edge");
 }
 
 /// **The body frontier, reached through the public graft door.** Two
@@ -134,8 +138,8 @@ fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
     let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(
-        matches!(err, FilletError::UnsupportedBody { solids, .. } if solids == 2),
+        matches!(err.error, BlendError::UnsupportedBody { solids, .. } if solids == 2),
         "expected the body frontier carrying the solid count, got {err:?}"
     );
-    only_recourse(&err, Some(FILLET3_BODY_RECOURSE), "two-solid body");
+    only_recourse(&err.error, Some(FILLET3_BODY_RECOURSE), "two-solid body");
 }

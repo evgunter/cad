@@ -1,19 +1,15 @@
-//! Adversarial-review probes for the fillet naming work, sweep side.
-//! They touch no naming API, so each runs unchanged at any revision
-//! and measures rather than asserts: X4 pins where the boolean
-//! refuses a filleted operand, X3b prints a geometry fingerprint two
-//! revisions can be diffed on.
+//! Adversarial-review probe for the fillet naming work, sweep side.
+//! It touches no naming API, so it runs unchanged at any revision:
+//! X4 pins where the boolean refuses a filleted operand.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use profile::RawLoop;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use geom_core::Tol;
 use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
@@ -69,20 +65,4 @@ fn x4_disjoint_boolean_over_a_filleted_body_refuses_at_the_extent() {
             other.map(|_| "Ok(..)")
         ),
     }
-}
-
-/// X3b: a stable fingerprint of the every-edge fillet's geometry —
-/// printed so the same probe at two revisions can be diffed. `Debug`
-/// of the body covers arenas, keys, surfaces, points.
-#[test]
-fn x3b_print_every_edge_fillet_geometry_fingerprint() {
-    let body = filleted_die();
-    let repr = format!("{body:?}");
-    let mut h = DefaultHasher::new();
-    repr.hash(&mut h);
-    println!(
-        "EVERY-EDGE-FILLET-FINGERPRINT len={} hash={:016x}",
-        repr.len(),
-        h.finish()
-    );
 }

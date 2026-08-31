@@ -506,10 +506,10 @@ pub trait Real:
 /// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
 /// the PR 11 precedent; retroactive Evan review per the self-merge
 /// convention):** the
-/// **fillet-validity battery** — `sweep::fillet::battery`, the M6-1
-/// in-place surgery (`sweep::fillet::surgery` — the same lane, the same
+/// **fillet-validity battery** — `sweep::blend::battery`, the M6-1
+/// in-place surgery (`sweep::blend::surgery` — the same lane, the same
 /// clearance-margin class; extended under the same ruling), and the
-/// assembly it licenses, `sweep::fillet::build` — joins the compound
+/// assembly it licenses, `sweep::blend::build` — joins the compound
 /// allowlist. It is the same class as the quadrature seam on both
 /// counts. It simultaneously decides (its six `fillet3_*` funnel
 /// margins) and CONSUMES ENCLOSURES: the quantities it classifies are
@@ -518,6 +518,13 @@ pub trait Real:
 /// analytic arm — and every refusal reports the offending margin as an
 /// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
 /// its honest signature.
+///
+/// Since VERBS-CHAMFER this seam is the one BOTH edge-blend front
+/// doors sit in: `chamfer_edges` is written inside these same three
+/// files deliberately — the chamfer runs the same battery and the
+/// same surgery — rather than allowlisting a fourth file, so
+/// "fillet-battery seam" names the seam's home, and what the
+/// ratification covers is the shared edge-blend lane.
 ///
 /// What differed from PR 11 was only the SPLIT, and it differed because
 /// there was nothing to split: no dual-scalar path could reach this

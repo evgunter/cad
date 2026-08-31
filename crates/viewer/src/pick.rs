@@ -45,7 +45,7 @@ use std::collections::BTreeMap;
 
 use pncad::document::{Doc, Evaluation, ParamName, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
-use pncad::prelude::StableName;
+use pncad::prelude::{NameOrigin, StableName, attribute};
 use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
 
 use crate::camera::{Camera, CameraError};
@@ -772,8 +772,7 @@ pub fn highlight(
 }
 
 /// **What the picture marks because it is what the side panel is
-/// showing.** The ids of every drawn patch the selection is
-/// responsible for.
+/// showing.** The ids of every drawn patch the selection MADE.
 ///
 /// Distinct from [`highlight`], and the distinction is the point.
 /// `highlight` marks the ONE patch a pick landed on — an answer about
@@ -782,15 +781,36 @@ pub fn highlight(
 /// parameter is every face of every feature that parameter drives.
 /// Selecting an extrude in the feature tree lights its walls; clicking
 /// one of those walls lights the same set, with the picked patch
-/// additionally tinted by `highlight`.
+/// additionally tinted by `highlight` — and that holds however many
+/// features later carried the wall, because a click resolves to the
+/// feature that MADE the face (`FaceSelection::feature`) rather than
+/// to whichever root drew it.
 ///
-/// **A node that draws nothing still focuses something.** A profile, a
-/// datum plane, a sketch — none of them is a drawn root, and the
-/// interesting answer for them is not "nothing" but the geometry built
-/// on top of them (`display::roots_deriving_from`). That is the same
-/// question the request behind this function asked in the other
-/// direction: a profile's line and the wall it swept are one thing
-/// seen twice.
+/// **Made, not merely drawn under.** A patch belongs to the node that
+/// MINTED the entity its name denotes, which
+/// [`pncad::select::attribute`] reads off the name's own
+/// carry-through segments: a fillet's `FromTarget(f)` face is still
+/// the target's face `f`, so a fillet's extent is the blends and
+/// corners it created and nothing else. Which node DRAWS a patch is a
+/// different question with a different answer — on a body whose whole
+/// history ends in one outer feature, that feature draws every face
+/// and made almost none of them.
+///
+/// **A node that made nothing drawn still focuses something**, in two
+/// steps. A `Transform`, or a tool body a boolean consumed, mints no
+/// drawn entity but drawn entities pass THROUGH it, and those are its
+/// extent — the geometry built on top of it. Passing through is read
+/// off the name where the op re-named what it carried, and off the
+/// recipe where it did not: a `Transform` contributes no role segment
+/// by construction, so what it carries is what was minted below it
+/// (`display::derives_from`). Failing that, a node no
+/// drawn name mentions at all — a profile, a datum plane, a sketch —
+/// marks the drawn roots deriving from it
+/// (`display::roots_deriving_from`): a profile's line and the wall it
+/// swept are one thing seen twice. That last step is also where a name
+/// the vocabulary walk cannot classify degrades to, so an
+/// unclassified role costs the whole-body picture rather than an empty
+/// one.
 ///
 /// **What it does NOT do yet (issue 1182)**, stated so the gap is not
 /// mistaken for a decision: the marking is per NODE, so selecting a
@@ -816,7 +836,11 @@ pub fn focus(
     let nodes: Vec<RecipeNodeId> = match selection {
         Selection::None => Vec::new(),
         Selection::Node(node) => vec![*node],
-        Selection::Face(face) => vec![face.node],
+        // The feature the face IS, not the root that drew it — the
+        // same inversion the tree and the panel read
+        // (`FaceSelection::feature`), so a click and a tree selection
+        // of one feature mark one set.
+        Selection::Face(face) => vec![face.feature()],
         // Every node the parameter drives. A parameter is the one
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".
@@ -827,19 +851,62 @@ pub fn focus(
             .filter(|&id| drives(doc, id, name))
             .collect(),
     };
+    if nodes.is_empty() {
+        return std::collections::BTreeSet::new();
+    }
+    // One walk of the names per call, not one per selected node: a
+    // parameter selection asks the same question of every node it
+    // drives.
+    let made: Vec<(u32, NameOrigin)> = index
+        .ids()
+        .ids()
+        .filter_map(|id| Some((id, attribute(index.name_of(id)?.as_ref().ok()?))))
+        .collect();
     let mut out = std::collections::BTreeSet::new();
     for node in nodes {
-        let own = index.ids_of_node(node);
-        if own.is_empty() {
-            // Not drawn itself: mark what was built from it.
-            for root in crate::display::roots_deriving_from(doc, node) {
-                out.extend(index.ids_of_node(root));
-            }
-        } else {
-            out.extend(own);
-        }
+        out.extend(marked_for(index, doc, &made, node));
     }
     out
+}
+
+/// The patches ONE node is responsible for: what it minted, else what
+/// passes through it, else the roots built from it (see [`focus`]).
+fn marked_for(
+    index: &PickIndex,
+    doc: &Doc<ProfileProgram>,
+    made: &[(u32, NameOrigin)],
+    node: RecipeNodeId,
+) -> std::collections::BTreeSet<u32> {
+    let pick = |keep: &dyn Fn(&NameOrigin) -> bool| -> std::collections::BTreeSet<u32> {
+        made.iter()
+            .filter(|(_, at)| keep(at))
+            .map(|(id, _)| *id)
+            .collect()
+    };
+    let minted = pick(&|at| at.minted_by() == Some(node));
+    if !minted.is_empty() {
+        return minted;
+    }
+    // Passing through, by the name and by the recipe. A name records
+    // the ops that RE-NAMED the entity, so an op that contributes no
+    // role segment — a `Transform` — is invisible to the walk; the
+    // entities it carries are the ones minted anywhere below it.
+    let below: std::collections::BTreeSet<RecipeNodeId> = made
+        .iter()
+        .filter_map(|(_, at)| at.minted_by())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .filter(|&minter| crate::display::derives_from(doc, node, minter))
+        .collect();
+    let through =
+        pick(&|at| at.passes_through(node) || at.minted_by().is_some_and(|m| below.contains(&m)));
+    if !through.is_empty() {
+        return through;
+    }
+    crate::display::roots_deriving_from(doc, node)
+        .into_iter()
+        .flat_map(|root| index.ids_of_node(root))
+        .collect()
 }
 
 /// Whether any of `node`'s slot expressions reads the parameter
@@ -945,8 +1012,8 @@ impl PickCache {
     /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
     /// that is the whole of the budget's authority: once a δ is in
     /// force it is the value someone asked for, and a cache that
-    /// quietly built a different picture would make `Finer δ` a button
-    /// that does nothing.
+    /// quietly built a different picture would make the View pane's δ
+    /// field a control that does nothing.
     pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
         let Some(generation) = session.landed_generation() else {
             return CacheStep::Nothing;

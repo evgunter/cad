@@ -396,6 +396,137 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Nurbs(n) => n.deriv2(t),
         }
     }
+
+    /// The parameter of a point **on** this carrier, on the branch
+    /// nearest `near` — the one body for point-on-carrier parameter
+    /// recovery, and pure carrier arithmetic. `None` for the kinds
+    /// whose inversion is a solve rather than a closed form.
+    ///
+    /// - **`Line`**: the projection `t = (p − origin)·dir`. A line's
+    ///   parameterization is injective, so there is no branch to pick
+    ///   and `near` is unused — the argument belongs to the periodic
+    ///   kind and costs this arm nothing.
+    /// - **`Circle`**: `near + δ` with `δ = atan2(w·τ̂, w·r̂)`,
+    ///   `w = p − center`, and the frame at `near` read from the public
+    ///   evaluators (`r̂·radius = eval(near) − center`,
+    ///   `τ̂·radius = deriv(near)`). Both `atan2` arguments carry the
+    ///   factor `radius`, so no division enters and no frame is
+    ///   re-derived here. **The factor is not assumed positive.** A
+    ///   `Curve3::Circle` with a representable NEGATIVE `radius` is a
+    ///   circle traversed through the antipode of the `u_ref` seam, and
+    ///   there `atan2` does not quotient the factor away — it flips the
+    ///   angle by π, which is precisely the parameter that reproduces
+    ///   the point. So this arm inverts `eval` for either sign, which
+    ///   the retired seam spelling did NOT: reading the stored `u_ref`
+    ///   and `v_ref` directly, it answers about the point's angle in
+    ///   the frame rather than about its parameter, and at `radius =
+    ///   −1`, `near = 0`, `t = 0` it returns `π` where this arm returns
+    ///   `0` and `eval(0)` is the point. Not a claimed feature of the
+    ///   consolidation — a measured consequence of reading the frame
+    ///   from the evaluators, recorded so the sign is not later
+    ///   "simplified" back out.
+    /// - **`Ellipse`, `Nurbs`**: `None`. The eccentric anomaly is not
+    ///   the polar angle of the point, and a spline's inversion is
+    ///   Newton on the foot-point condition (`project`) — a different
+    ///   machine with a different refusal, not a branch policy.
+    ///
+    /// **Anchoring at `near` is what removes the branch cut.** `atan2`
+    /// returns its principal value in `(−π, π]`, so `near + δ` is by
+    /// construction the unique branch within half a turn of `near`:
+    /// there is no `k·2π` to select, hence no ordering decision and no
+    /// lane fork. A SEAM anchor would need that selection, which on a
+    /// bare `Real` costs either an ordering (not available) or a
+    /// `floor` whose interval answer widens across the integer. Here
+    /// the interval scalar's `atan2` encloses the same value, and a
+    /// `near` whose half-turn window straddles the cut widens the
+    /// enclosure rather than mis-selecting a branch — degradation the
+    /// consumer's own gate can see, never a silent turn.
+    ///
+    /// **Two preconditions, neither checked here**, because neither is
+    /// this arithmetic's to decide:
+    ///
+    /// - `p` must be ON the carrier. Off it, the circle arm answers
+    ///   about `p`'s radial projection and the line arm about its
+    ///   axial one. The degenerate violation `p == center` has no
+    ///   radial projection at all: `w` is the zero vector, both
+    ///   `atan2` arguments are zero, and the total `atan2(0, 0) = 0`
+    ///   makes the answer `near` itself. (The retired seam spellings
+    ///   answered the nearest multiple of `τ` to `near` instead. Both
+    ///   are arbitrary; this one is at least the anchor the caller
+    ///   already had.)
+    /// - The branch the caller wants must be the one nearest `near`.
+    ///   A caller recovering a parameter INSIDE a stored span
+    ///   `[t₀, t₁]` can get that by passing the span's MIDPOINT, and
+    ///   only while the span is at most one period: then `|t − mid|` is
+    ///   at most half a period for every `t` in the span, so the
+    ///   nearest branch to the midpoint IS the in-span one. Past a
+    ///   period the answer aliases by `2π` and nothing downstream can
+    ///   see it, so a caller with a span that long owes a period guard.
+    ///
+    /// **A THIRD PRECONDITION BELONGS TO SOME CALLERS AND NOT OTHERS,
+    /// and it is what decides the anchor**: whether the answer may
+    /// depend on the anchor the caller passed. It does, at the ulp
+    /// scale, and unavoidably — `near` enters both `atan2` arguments
+    /// through `eval(near)` and `deriv(near)`. So a caller whose anchor
+    /// is derived from a STORED SPAN gets an answer that moves when the
+    /// stored span moves, and a stored span is not a stable thing:
+    /// splitting an edge rewrites it. A caller that needs the recovered
+    /// parameter to be a function of the POINT and the CARRIER alone —
+    /// because two orderings of the same operations have to agree
+    /// bitwise — must anchor at something the CARRIER owns, and the
+    /// circle's own such anchor is its SEAM, `near = 0`.
+    /// `sweep::fillet::surgery::seam_split_param` is that caller and
+    /// carries the measurement that made it one; its period guard is
+    /// what makes the principal branch the in-window one.
+    ///
+    /// # `|δ| = π` — the tie, and what it means at each posture
+    ///
+    /// At exactly half a turn the point has TWO parameters within half
+    /// a turn of the anchor, `near ± π`, and this body returns one of
+    /// them. Which one is not derivable: it is `atan2`'s cut, so the
+    /// SIGN BIT of `w·τ̂` decides it — `Real::atan2(0.0, −1.0) = π`
+    /// against `atan2(−0.0, −1.0) = −π`. Both answers are correct
+    /// parameters of `p`; no answer is "the" one.
+    ///
+    /// **Midpoint-anchored callers are unaffected.** `|δ| = π` from a
+    /// midpoint means the two ends of a full-period span, so whichever
+    /// the tie names is an ENDPOINT, and a consumer whose interiority
+    /// gate refuses a split at either end is unaffected by which.
+    ///
+    /// **ENDPOINT-anchored callers are NOT covered by that argument,
+    /// and this is the harder half.** An endpoint anchor has no span to
+    /// make the tie harmless: the two answers `t_old ± π` describe the
+    /// same point but produce stored spans differing by a full turn,
+    /// and a gate that checks only `eval(t_new) ≈ p` — which is the
+    /// natural gate, and the one
+    /// `topo::replace_face::plan_reanchors` writes — passes both,
+    /// because both ARE parameters of the point. Such a caller is
+    /// relying on never reaching `|δ| = π`: an endpoint that MOVES
+    /// along its carrier does not jump half a turn, so the pose is
+    /// sound, but it is a precondition on the caller's motion and not
+    /// a property of this arithmetic. A caller that cannot argue that
+    /// owes a `|δ| < π` refusal of its own; this body cannot make the
+    /// choice for it, because at `|δ| = π` there is nothing to choose
+    /// between.
+    ///
+    /// The size of the residue is measured rather than asserted:
+    /// `geom`'s `curves/param_near.rs` row
+    /// `at_the_half_turn_boundary_the_two_forms_disagree_by_a_turn_and_
+    /// both_are_right` puts 9 of 30 boundary cases a full `2π` from
+    /// what the retired seam-anchored longhand picks — close to a coin
+    /// flip, and decided by two unrelated last bits.
+    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
+        match self {
+            Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
+            Curve3::Circle { center, .. } => {
+                let w = p - *center;
+                let r_near = self.eval(near) - *center;
+                let tau_near = self.deriv(near);
+                Some(near + w.dot(tau_near).atan2(w.dot(r_near)))
+            }
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]

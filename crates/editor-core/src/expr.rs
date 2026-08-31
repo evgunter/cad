@@ -1121,3 +1121,192 @@ pub fn eval_count<T>(expr: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError
         | K::CountToScalar(_) => Err(EvalError::ContinuousExprInCountEval { found: expr.dim }),
     }
 }
+
+/// Binding level of a rendered expression, in the text grammar's own
+/// terms (`parse`'s module docs): sums bind loosest, then products,
+/// then unary minus, and a leaf or a call is an atom that no
+/// surrounding operator can split.
+///
+/// Used only to decide parentheses, so the numbers matter only in
+/// their order.
+const PREC_SUM: u8 = 1;
+/// See [`PREC_SUM`].
+const PREC_PRODUCT: u8 = 2;
+/// See [`PREC_SUM`].
+const PREC_UNARY: u8 = 3;
+/// See [`PREC_SUM`].
+const PREC_ATOM: u8 = 4;
+
+/// The binding level [`unparse`] renders `expr` at.
+///
+/// A literal whose value is NEGATIVE renders with a leading `-` and
+/// therefore binds as a negation does, not as an atom — the sign is
+/// part of the emitted text, and whoever is deciding parentheses has
+/// to see it.
+fn precedence(expr: &Expr) -> u8 {
+    match &expr.kind {
+        ExprKind::Literal(lit) if lit.value.is_sign_negative() => PREC_UNARY,
+        ExprKind::CountLiteral(n) if *n < 0 => PREC_UNARY,
+        ExprKind::Add(..) | ExprKind::Sub(..) => PREC_SUM,
+        ExprKind::Mul(..) | ExprKind::Div(..) => PREC_PRODUCT,
+        ExprKind::Neg(_) => PREC_UNARY,
+        ExprKind::Literal(_)
+        | ExprKind::CountLiteral(_)
+        | ExprKind::Param(_)
+        | ExprKind::Sin(_)
+        | ExprKind::Cos(_)
+        | ExprKind::Tan(_)
+        | ExprKind::Atan2(..)
+        | ExprKind::Min(..)
+        | ExprKind::Max(..)
+        | ExprKind::CountToScalar(_) => PREC_ATOM,
+    }
+}
+
+/// The expression TEXT door OUTWARD (issue #1103): source text that
+/// [`crate::parse_expr`] reads back as this very expression.
+///
+/// **The contract is the round trip, structurally**: for every `e`
+/// this crate's text door can build,
+/// `parse_expr(&unparse(&e), params)` is [`Expr::bit_eq`] to `e` —
+/// same tree, same literal BITS — and its literals remember the same
+/// display units (which `bit_eq` deliberately does not compare, being
+/// presentation metadata). Parentheses are emitted where and only
+/// where the grammar needs them to reproduce the same tree, which is
+/// stricter than "the same value": the parser is left-associative, so
+/// `Add(a, Add(b, c))` is parenthesised even though `a + b + c`
+/// evaluates identically.
+///
+/// A literal is written in the display unit it REMEMBERS
+/// ([`Expr::display_unit`]), and in the canonical unit (`m`/`rad`)
+/// when it remembers none — through [`quantity::fmt_length`]/
+/// [`quantity::fmt_angle`], whose own pin is that the digits multiply
+/// back to the exact bits, and which fall back to the canonical unit
+/// for the values that have no preimage in the asked-for one. A
+/// `Scalar` literal takes no unit and is written with a decimal point
+/// or an exponent, because a BARE integer is this grammar's spelling
+/// of a `Count`.
+///
+/// **Two constructible expressions the grammar cannot spell**, stated
+/// rather than approximated:
+///
+/// * A literal with a NEGATIVE value. The grammar has no negative
+///   number token — `-` is always an operator — so the emitted
+///   `-25 mm` reads back as `Neg(25 mm)`: the same value written the
+///   only way this text has of writing it, one node deeper.
+/// * `Expr::count(i64::MIN)`, whose magnitude is one past `i64::MAX`
+///   and refuses as [`crate::ParseError::IntegerOverflow`] — the
+///   corner that refusal's own docs already record.
+pub fn unparse(expr: &Expr) -> String {
+    let mut out = String::new();
+    write_expr(expr, &mut out);
+    out
+}
+
+/// `expr`, wrapped in parentheses unless it already binds at least as
+/// tightly as `needs`.
+fn write_nested(expr: &Expr, needs: u8, out: &mut String) {
+    if precedence(expr) < needs {
+        out.push('(');
+        write_expr(expr, out);
+        out.push(')');
+    } else {
+        write_expr(expr, out);
+    }
+}
+
+/// A binary infix rendering at binding level `level`.
+///
+/// The RIGHT operand is parenthesised one level tighter than the left.
+/// That asymmetry is the parser's left-associativity: `a - (b - c)`
+/// and `a - b - c` are different trees, so a right operand binding at
+/// its parent's own level has to be bracketed even where arithmetic
+/// would not care.
+fn write_infix(left: &Expr, op: &str, right: &Expr, level: u8, out: &mut String) {
+    write_nested(left, level, out);
+    out.push(' ');
+    out.push_str(op);
+    out.push(' ');
+    write_nested(right, level + 1, out);
+}
+
+/// A call in the parser's own spelling — the arguments are delimited,
+/// so no argument is ever parenthesised.
+fn write_call(name: &str, args: &[&Expr], out: &mut String) {
+    out.push_str(name);
+    out.push('(');
+    for (i, arg) in args.iter().enumerate() {
+        if i > 0 {
+            out.push_str(", ");
+        }
+        write_expr(arg, out);
+    }
+    out.push(')');
+}
+
+/// The rendering proper (see [`unparse`] for the contract).
+fn write_expr(expr: &Expr, out: &mut String) {
+    use ExprKind as K;
+    match &expr.kind {
+        K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
+        K::CountLiteral(n) => out.push_str(&n.to_string()),
+        K::Param(name) => out.push_str(&name.0),
+        K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
+        K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
+        K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),
+        K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, out),
+        K::Neg(a) => {
+            out.push('-');
+            write_nested(a, PREC_UNARY, out);
+        }
+        K::Sin(a) => write_call("sin", &[a], out),
+        K::Cos(a) => write_call("cos", &[a], out),
+        K::Tan(a) => write_call("tan", &[a], out),
+        K::CountToScalar(a) => write_call("scalar", &[a], out),
+        K::Atan2(y, x) => write_call("atan2", &[y, x], out),
+        K::Min(a, b) => write_call("min", &[a, b], out),
+        K::Max(a, b) => write_call("max", &[a, b], out),
+    }
+}
+
+/// One continuous literal, in the unit it remembers.
+///
+/// `Scalar` is the arm with no unit table behind it, and it is also
+/// the arm that must not render bare digits: `2` is a `Count` in this
+/// grammar and `2.0` is a `Scalar`. `{:?}` is the shortest form that
+/// reads back to the same bits and always carries a `.` or an `e`, so
+/// it settles the round trip and the dimension together.
+fn write_literal(lit: &Lit, dim: Dimension) -> String {
+    let remembered = lit.unit_def();
+    let formatted = match dim {
+        Dimension::Length => {
+            let unit = remembered
+                .and_then(quantity::UnitDef::as_length)
+                .unwrap_or(quantity::M);
+            quantity::fmt_length(lit.value, unit)
+        }
+        Dimension::Angle => {
+            let unit = remembered
+                .and_then(quantity::UnitDef::as_angle)
+                .unwrap_or(quantity::RAD);
+            quantity::fmt_angle(lit.value, unit)
+        }
+        // No unit vocabulary: a dimensionless real is its own text.
+        Dimension::Scalar => return format!("{:?}", lit.value),
+        // Unconstructable (D2 addendum row 4): `Expr::literal` refuses
+        // `Count`, and `ExprKind::Literal` is minted nowhere else.
+        Dimension::Count => {
+            unreachable!("a Count literal is an integer (ExprKind::CountLiteral), never a Lit")
+        }
+    };
+    match formatted {
+        Ok(text) => text,
+        // Same row: door 1 refuses a non-finite literal at
+        // construction, and non-finiteness is the formatter's only
+        // refusal.
+        Err(error) => unreachable!(
+            "a stored literal is finite by construction, yet the display formatter refused: \
+             {error}"
+        ),
+    }
+}

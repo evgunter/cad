@@ -366,11 +366,13 @@ def audit_gap_ids():
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
-#:   `inch` because `in` is a Python keyword, a shift the stub comments
-#:   on at the declaration. (Not counted here: the table grows a row
-#:   whenever `quantity` does, and a number written beside it would
-#:   date at the next one.)
+#:   NOT: an arena key). The unit constants are lower-cased, and two
+#:   whose symbols are not Python identifiers shift further: `IN` is
+#:   `inch` because `in` is a keyword, and `PI` is `pi_rad` because its
+#:   symbol `pi rad` is two words. The stub comments on both at the
+#:   declaration. (Not counted here: the table grows a row whenever
+#:   `quantity` does, and a number written beside it would date at the
+#:   next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
@@ -383,7 +385,7 @@ BOUND_AS = {
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     "UnevaluatedReason": "Verdict.reason",
-    "PI": "pi",
+    "PI": "pi_rad",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -878,6 +880,8 @@ NOT_BOUND = {
     "BinaryHeader": SHAPE,
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
+    "BlendError": SHAPE,
+    "BlendRefusal": SHAPE,
     "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
@@ -890,7 +894,6 @@ NOT_BOUND = {
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
-    "FilletError": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
@@ -898,6 +901,10 @@ NOT_BOUND = {
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
     "MigrationError": SHAPE,
+    # The attribution walk's verdict, and the door that answers it.
+    # Same family as `RolePath`/`RoleSeg` and for their reason: it
+    # reads the INSIDE of a name, which nothing user-side may read.
+    "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
@@ -943,8 +950,14 @@ NOT_BOUND = {
     # not a name a Python caller needs.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
+    "attribute": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
+    # A cone-delete is composed caller-side in Python: the bound door
+    # is `Doc.apply` over one `DocEdit.delete_node` at a time, and the
+    # order this answers is what a chrome needs to state a cost before
+    # the click.
+    "cascade_delete_order": SHAPE,
     "p2": SHAPE,
     "p3": SHAPE,
     "real": SHAPE,
@@ -1052,6 +1065,7 @@ NOT_BOUND = {
     "eval": f"{GAP}: B-EXPR-READ an expression's value",
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
