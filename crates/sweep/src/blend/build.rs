@@ -118,7 +118,9 @@ pub struct Blended<T: Real> {
 ///
 /// A [`BlendRefusal`] carrying [`BlendKind::Fillet`] — the verb
 /// crosses HERE, once, and the inner [`BlendError`] stays
-/// verb-neutral — around: any refusal the battery produces;
+/// verb-neutral — around: [`BlendError::Band`] when the committed
+/// tolerance admits no ambiguity band; any refusal the battery
+/// produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
 /// twice; [`BlendError::UnsupportedBody`],
 /// [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
@@ -136,10 +138,9 @@ pub fn fillet_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
-    band: Band,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendRefusal> {
-    fillet_edges_inner(body, edges, radius, band, tol).map_err(|error| BlendRefusal {
+    fillet_edges_inner(body, edges, radius, tol).map_err(|error| BlendRefusal {
         verb: BlendKind::Fillet,
         error,
     })
@@ -152,9 +153,12 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
-    band: Band,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
+    // The band is a function of the committed tolerance alone, so the
+    // verb derives it rather than taking it — one derivation per
+    // operation, at entry, as the sweep's other verbs do.
+    let band = Band::linear(tol)?;
     repeated_edge_gate(edges)?;
     // NOTE the door asymmetry: this door has no NonpositiveSize check,
     // so a zero radius reaches predicate 1 and refuses RadiusHeadroom
@@ -353,7 +357,8 @@ pub type Chamfered<T> = Blended<T>;
 ///
 /// A [`BlendRefusal`] carrying [`BlendKind::Chamfer`] — the verb
 /// crosses HERE, once, and the inner [`BlendError`] stays
-/// verb-neutral — around:
+/// verb-neutral — around: [`BlendError::Band`] when the committed
+/// tolerance admits no ambiguity band;
 /// [`BlendError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`BlendError::RepeatedEdge`] when the request names one
 /// edge twice; [`BlendError::ChamferArmUnsupported`] when a requested
@@ -372,10 +377,9 @@ pub fn chamfer_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     distance: T,
-    band: Band,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendRefusal> {
-    chamfer_edges_inner(body, edges, distance, band, tol).map_err(|error| BlendRefusal {
+    chamfer_edges_inner(body, edges, distance, tol).map_err(|error| BlendRefusal {
         verb: BlendKind::Chamfer,
         error,
     })
@@ -388,9 +392,12 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     distance: T,
-    band: Band,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
+    // The band is a function of the committed tolerance alone, so the
+    // verb derives it rather than taking it — one derivation per
+    // operation, at entry, as the sweep's other verbs do.
+    let band = Band::linear(tol)?;
     // The setback must be definitely positive, and that is a fact
     // about the REQUEST, so it is read off the bracket's low end
     // rather than metered: a `Zero`/`Negative` here is not a geometric

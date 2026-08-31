@@ -91,7 +91,7 @@ fn interval_offset_charts_together_sphere_zone() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, band, tol)
+    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
         .expect("the sphere-zone vase hollows at the certified scalar");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
 
@@ -148,7 +148,7 @@ fn interval_offset_charts_together_partial_wedge() {
         ]),
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, band, tol)
+    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
         .expect("the quarter-revolve wedge hollows at the certified scalar");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
 
@@ -185,7 +185,7 @@ fn interval_offset_charts_together_cone_frustum() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, band, tol)
+    let hollow = topo::shell(&body, iv(t), FIT_TOL, tol)
         .expect("the cone frustum hollows at the certified scalar");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
     let frustum_v =
@@ -223,8 +223,8 @@ fn interval_offset_charts_together_drum() {
         ]),
         Revolution::Full,
     );
-    let hollow = topo::shell(&body, iv(t), FIT_TOL, band, tol)
-        .expect("the drum hollows at the certified scalar");
+    let hollow =
+        topo::shell(&body, iv(t), FIT_TOL, tol).expect("the drum hollows at the certified scalar");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
     let pi = core::f64::consts::PI;
     let want = pi * r * r * h - pi * (r - t) * (r - t) * (h - 2.0 * t);

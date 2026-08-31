@@ -47,7 +47,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Tol};
+use geom_core::Tol;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::{Filleted, fillet_edges};
@@ -56,10 +56,6 @@ use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 // ------------------------------------------------------------------
@@ -112,7 +108,7 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
             2,
             "each lantern rim is two arcs before its carve"
         );
-        body = fillet_edges(&body, &arcs, r, band(), tol())
+        body = fillet_edges(&body, &arcs, r, tol())
             .unwrap_or_else(|e| {
                 panic!("the ({rim_r}, {rim_y}) rim fillets sequentially, got {e:?}")
             })
@@ -138,8 +134,8 @@ fn the_request_order_of_a_shared_wall_pair_is_structurally_inert() {
         one_rim(&body, ZONE_SPHERE_LO),
         one_rim(&body, ZONE_SPHERE_HI),
     );
-    let a = fillet_edges(&body, &[lo, hi], r, band(), tol()).expect("the pair builds");
-    let b = fillet_edges(&body, &[hi, lo], r, band(), tol()).expect("the reversed pair builds");
+    let a = fillet_edges(&body, &[lo, hi], r, tol()).expect("the pair builds");
+    let b = fillet_edges(&body, &[hi, lo], r, tol()).expect("the reversed pair builds");
     let keys = |body: &Body<f64>| {
         let mut vs: Vec<_> = body.vertices().map(|(k, _)| k).collect();
         let mut es: Vec<_> = body.edges().map(|(k, _)| k).collect();
@@ -171,7 +167,7 @@ fn a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call() {
     let mut both = rim_arcs_at(&body, LANTERN_RIMS[0].0, LANTERN_RIMS[0].1);
     both.extend(rim_arcs_at(&body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1));
     assert_eq!(both.len(), 4, "two rims, two arcs each");
-    let one = fillet_edges(&body, &both, r, band(), tol())
+    let one = fillet_edges(&body, &both, r, tol())
         .unwrap_or_else(|e| panic!("neck + shoulder build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -201,7 +197,7 @@ fn three_chained_shared_wall_rims_carve_in_one_call() {
         all.extend(rim_arcs_at(&body, rim_r, rim_y));
     }
     assert_eq!(all.len(), 6, "three rims, two arcs each");
-    let one = fillet_edges(&body, &all, r, band(), tol())
+    let one = fillet_edges(&body, &all, r, tol())
         .unwrap_or_else(|e| panic!("all three lantern rims build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 3, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -231,8 +227,7 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
         one_rim(&zone_body, ZONE_SPHERE_LO),
         one_rim(&zone_body, ZONE_SPHERE_HI),
     );
-    let zone_out =
-        fillet_edges(&zone_body, &[lo, hi], 0.08, band(), tol()).expect("the zone pair builds");
+    let zone_out = fillet_edges(&zone_body, &[lo, hi], 0.08, tol()).expect("the zone pair builds");
     partition_check(&zone_body, &zone_out);
 
     let lantern_body = lantern();
@@ -241,7 +236,7 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
         all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
     }
     let lantern_out =
-        fillet_edges(&lantern_body, &all, 0.05, band(), tol()).expect("the lantern triple builds");
+        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
     partition_check(&lantern_body, &lantern_out);
 }
 
@@ -396,7 +391,7 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
         one_rim(&body, ZONE_SPHERE_HI),
     ];
     for r in [0.749, 0.8] {
-        match fillet_edges(&body, &rims, r, band(), tol()).map_err(|r| r.error) {
+        match fillet_edges(&body, &rims, r, tol()).map_err(|r| r.error) {
             Err(
                 e @ BlendError::FaceClearanceUncertified {
                     margin,
@@ -429,13 +424,12 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     // pinned by following it): at r = 0.749 the split the refusal
     // names really builds.
     let r = 0.749;
-    let first = fillet_edges(&body, &[rims[0]], r, band(), tol())
+    let first = fillet_edges(&body, &[rims[0]], r, tol())
         .expect("the bottom rim alone builds at r = 0.749");
     fillet_edges(
         &first.body,
         &[one_rim(&first.body, ZONE_SPHERE_HI)],
         r,
-        band(),
         tol(),
     )
     .expect("the split the refusal names composes at r = 0.749");

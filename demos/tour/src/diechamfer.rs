@@ -191,10 +191,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (cube, pipped) = crate::diefillet::source_bodies(tol);
 
     // ---- the blank, both verbs, at r == d ----
-    let filleted = fillet_edges(&cube, &all_edges(&cube), R, band(tol), tol)
+    let filleted = fillet_edges(&cube, &all_edges(&cube), R, tol)
         .expect("a cube's twelve edges fillet")
         .body;
-    let chamfered = chamfer_edges(&cube, &all_edges(&cube), D, band(tol), tol)
+    let chamfered = chamfer_edges(&cube, &all_edges(&cube), D, tol)
         .expect("a cube's twelve edges chamfer")
         .body;
     let (bf, be, bv) = (
@@ -230,7 +230,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         12,
         "the only LINES are the twelve box edges"
     );
-    let die = chamfer_edges(&pipped, &box_edges, D, band(tol), tol)
+    let die = chamfer_edges(&pipped, &box_edges, D, tol)
         .expect("the pipped cube's box edges chamfer");
     assert_eq!(die.blend_faces.len(), 12, "one strip per edge");
     assert_eq!(die.corner_faces.len(), 8, "one patch per corner");

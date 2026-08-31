@@ -54,7 +54,7 @@ fn main() {
     );
 
     let edges: Vec<EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&blank, &edges, i(r), band, Tol::witness()) {
+    match fillet_edges(&blank, &edges, i(r), Tol::witness()) {
         Err(e) => println!("[ABI] fillet_edges REFUSED: {e:?}"),
         Ok(f) => {
             let scaffolds = f

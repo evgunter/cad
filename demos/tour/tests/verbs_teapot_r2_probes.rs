@@ -173,7 +173,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, top);
     println!("[r2-1] my mouth chart is {} face(s)", chart.len());
-    let cup = pncad::topo::shell_open(&body, 0.021, &chart, FIT_TOL, band(tol), tol)
+    let cup = pncad::topo::shell_open(&body, 0.021, &chart, FIT_TOL, tol)
         .expect("shell_open returns a body");
     println!(
         "[r2-1] tier3 = {:?}; shells = {}; rings = {}; genus = {}",
@@ -227,7 +227,7 @@ fn r2_revolved_tube_separates_seam_from_axis() {
         body.faces().count(),
         chart.len()
     );
-    match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, band(tol), tol) {
+    match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol) {
         Err(e) => println!("[r2-2] REFUSED: {e}"),
         Ok(cup) => {
             println!(
@@ -282,7 +282,7 @@ fn r2_partial_revolve_one_cap_face() {
     // The SEALED arm first: the wedge's meridian caps are planes
     // CONTAINING the cylinder's axis, which their stated surviving
     // class ("a plane NORMAL to a cylinder's axis") excludes.
-    match pncad::topo::shell(&body, 0.05, FIT_TOL, band(tol), tol) {
+    match pncad::topo::shell(&body, 0.05, FIT_TOL, tol) {
         Err(e) => println!("[r2-3] SEALED refuses: {}", offset_refusal(&e)),
         Ok(b) => println!(
             "[r2-3] SEALED hollows: shells = {}, genus = {}",
@@ -291,7 +291,7 @@ fn r2_partial_revolve_one_cap_face() {
         ),
     }
     if chart.len() == 1 {
-        match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, band(tol), tol) {
+        match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol) {
             Err(e) => println!("[r2-3] OPEN refuses: {e}"),
             Ok(cup) => println!(
                 "[r2-3] OPEN Ok: rings = {}, genus = {}, mesh = {:?}",
@@ -330,7 +330,7 @@ fn r2_ring_anatomy_on_a_drum() {
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, h);
     let cup =
-        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, band(tol), tol).expect("the drum opens");
+        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the drum opens");
     println!(
         "[r2-4] drum cup: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}",
         cup.vertices().count(),
@@ -436,7 +436,7 @@ fn r2_box_control_is_right() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, t, &top, FIT_TOL, band(tol), tol)
+    let cup = pncad::topo::shell_open(&body, t, &top, FIT_TOL, tol)
         .expect("a box opens at its top");
     println!(
         "[r2-5] box cup: rings = {}, genus = {}, shells = {}, tier3 = {:?}",
@@ -526,7 +526,7 @@ fn r2_oblique_plane_prisms_outside_their_table() {
         ("a CROSS prism (all square, non-convex)", cross),
     ] {
         let body = extruded(lp, 0.3, tol);
-        match pncad::topo::shell(&body, 0.02, FIT_TOL, band(tol), tol) {
+        match pncad::topo::shell(&body, 0.02, FIT_TOL, tol) {
             Err(e) => println!("[r2-6] {what}: REFUSES {}", offset_refusal(&e)),
             Ok(h) => println!(
                 "[r2-6] {what}: HOLLOWS (shells {}, genus {})",
@@ -562,7 +562,7 @@ fn r2_tangent_bullet_which_door() {
         .expect("axis")
         .into();
     let body = revolved(lp, tol);
-    match pncad::topo::shell(&body, 1.0 / 128.0, FIT_TOL, band(tol), tol) {
+    match pncad::topo::shell(&body, 1.0 / 128.0, FIT_TOL, tol) {
         Err(e) => println!("[r2-7] bullet: {}", offset_refusal(&e)),
         Ok(h) => println!("[r2-7] bullet HOLLOWS (genus {})", genus(&h)),
     }
@@ -592,7 +592,7 @@ fn r2_tangent_bullet_which_door() {
         .expect("axis")
         .into();
     let b2 = revolved(lp2, tol);
-    match pncad::topo::shell(&b2, 1.0 / 128.0, FIT_TOL, band(tol), tol) {
+    match pncad::topo::shell(&b2, 1.0 / 128.0, FIT_TOL, tol) {
         Err(e) => println!(
             "[r2-7] NON-tangent dome (Center arc): {}",
             offset_refusal(&e)
@@ -644,7 +644,7 @@ fn r2_acceptance_corpus_sits_inside_the_class() {
         ("the vessel", vessel, 0.2),
         ("the tube", tube, 0.1),
     ] {
-        match pncad::topo::shell(&body, t, FIT_TOL, band(tol), tol) {
+        match pncad::topo::shell(&body, t, FIT_TOL, tol) {
             Ok(h) => println!(
                 "[r2-8] {what} hollows (shells {}, genus {})",
                 h.shells().count(),
@@ -757,7 +757,7 @@ fn r2_annular_mouth_anatomy() {
         rings(&body),
         genus(&body)
     );
-    let sealed = pncad::topo::shell(&body, t, FIT_TOL, band(tol), tol).expect("the tube hollows");
+    let sealed = pncad::topo::shell(&body, t, FIT_TOL, tol).expect("the tube hollows");
     println!(
         "[r2-10] SEALED: shells = {}, rings = {}, genus = {}, mesh = {:?}",
         sealed.shells().count(),
@@ -771,7 +771,7 @@ fn r2_annular_mouth_anatomy() {
     );
     let chart = plane_chart_at(&body, h);
     let cup =
-        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, band(tol), tol).expect("the tube opens");
+        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the tube opens");
     println!(
         "[r2-10] OPEN: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}, tier3 = {:?}",
         cup.vertices().count(),
@@ -825,7 +825,7 @@ fn r2_step_frontier_kind() {
         ),
         tol,
     );
-    let hollow = pncad::topo::shell(&pot, 0.1, FIT_TOL, band(tol), tol).expect("hollows");
+    let hollow = pncad::topo::shell(&pot, 0.1, FIT_TOL, tol).expect("hollows");
     let e = pncad::step_export::step_string(
         &hollow,
         &pncad::step_export::StepOptions {
@@ -900,7 +900,7 @@ fn r2_the_scene_numbers() {
     println!(
         "[r2-12] sense-aware clearance = {clearance}; sense-BLIND = {blind} (inf = none found)"
     );
-    let pot = pncad::topo::shell(&sharp, wall, FIT_TOL, band(tol), tol).expect("the pot hollows");
+    let pot = pncad::topo::shell(&sharp, wall, FIT_TOL, tol).expect("the pot hollows");
     println!(
         "[r2-12] pot: V/E/F = {}/{}/{}, shells = {}, genus = {}, tier3 = {:?}",
         pot.vertices().count(),

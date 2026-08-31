@@ -2151,7 +2151,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             lant,
             &rim,
             S::from_f64(0.02),
-            pncad::geom_core::Band::linear(tol).expect("band"),
             tol,
         ),
         // margin EXACTLY zero is the finding: a co-surface seam

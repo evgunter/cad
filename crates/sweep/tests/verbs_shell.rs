@@ -136,7 +136,7 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
 #[test]
 fn a_sealed_shelled_box_is_an_outer_and_a_void() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let hollow = topo::shell(&boxy(w, d, h), t, FIT_TOL, band(), Tol::witness())
+    let hollow = topo::shell(&boxy(w, d, h), t, FIT_TOL, Tol::witness())
         .expect("a box thicker than twice the wall shells");
 
     assert_eq!(
@@ -196,7 +196,7 @@ const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
 fn shell_runs_no_intersection_machinery() {
     let body = boxy(2.0, 3.0, 4.0);
     start_verdict_log();
-    let hollow = topo::shell(&body, 0.25, FIT_TOL, band(), Tol::witness()).expect("it shells");
+    let hollow = topo::shell(&body, 0.25, FIT_TOL, Tol::witness()).expect("it shells");
     let verdicts = take_verdict_log();
     assert!(!verdicts.is_empty(), "the verb decided something");
     let crossing: Vec<&'static str> = verdicts
@@ -216,8 +216,7 @@ fn shell_runs_no_intersection_machinery() {
 #[test]
 fn a_sealed_shelled_vessel_matches_its_closed_form() {
     let (r, h, t) = (1.0, 2.0, 0.2);
-    let hollow =
-        topo::shell(&vessel(r, h), t, FIT_TOL, band(), Tol::witness()).expect("the vessel shells");
+    let hollow = topo::shell(&vessel(r, h), t, FIT_TOL, Tol::witness()).expect("the vessel shells");
     assert_eq!(
         topo::validate_geometric(&hollow, Tol::witness()),
         Ok(()),
@@ -249,7 +248,7 @@ fn an_opened_shelled_box_is_a_closed_thin_solid_with_a_rim() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let body = boxy(w, d, h);
     let top = plane_face_at(&body, h);
-    let cup = topo::shell_open(&body, t, &[top], FIT_TOL, band(), Tol::witness())
+    let cup = topo::shell_open(&body, t, &[top], FIT_TOL, Tol::witness())
         .expect("a box opens at its top");
 
     assert_eq!(
@@ -285,7 +284,7 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let body = boxy(w, d, h);
     let (top, bottom) = (plane_face_at(&body, h), plane_face_at(&body, 0.0));
-    let tubey = topo::shell_open(&body, t, &[top, bottom], FIT_TOL, band(), Tol::witness())
+    let tubey = topo::shell_open(&body, t, &[top, bottom], FIT_TOL, Tol::witness())
         .expect("a box opens at both caps");
     assert_eq!(
         topo::validate_geometric(&tubey, Tol::witness()),
@@ -310,7 +309,7 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
 #[test]
 fn a_nonpositive_thickness_refuses_typed() {
     for t in [0.0_f64, -0.1] {
-        let e = topo::shell(&boxy(2.0, 3.0, 4.0), t, FIT_TOL, band(), Tol::witness())
+        let e = topo::shell(&boxy(2.0, 3.0, 4.0), t, FIT_TOL, Tol::witness())
             .expect_err("a non-positive wall must not build");
         assert!(
             matches!(e, ShellError::Thickness { .. }),
@@ -328,7 +327,7 @@ fn a_wall_past_the_reach_refuses_typed() {
     // two cap planes are 6 m apart and a 1.2 m wall needs 2.4, so the
     // clearance gate (which runs first, and rightly) passes and the
     // refusal under test is the one the row is about.
-    let e = topo::shell(&vessel(1.0, 6.0), 1.2, FIT_TOL, band(), Tol::witness())
+    let e = topo::shell(&vessel(1.0, 6.0), 1.2, FIT_TOL, Tol::witness())
         .expect_err("a wall past the radius collapses the wall");
     assert!(
         matches!(
@@ -357,7 +356,7 @@ fn the_open_face_designation_gates_refuse_typed() {
     let bottom = plane_face_at(&body, 0.0);
     let t = 0.25;
 
-    let e = topo::shell_open(&body, t, &[top, top], FIT_TOL, band(), Tol::witness())
+    let e = topo::shell_open(&body, t, &[top, top], FIT_TOL, Tol::witness())
         .expect_err("a face designated twice");
     assert!(
         matches!(e, ShellError::OpenFaceRepeated { face } if face == top),
@@ -365,7 +364,7 @@ fn the_open_face_designation_gates_refuse_typed() {
     );
 
     let all: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    let e = topo::shell_open(&body, t, &all, FIT_TOL, band(), Tol::witness())
+    let e = topo::shell_open(&body, t, &all, FIT_TOL, Tol::witness())
         .expect_err("every face designated");
     assert!(
         matches!(e, ShellError::OpenFacesExhaustShell { .. }),
@@ -379,7 +378,7 @@ fn the_open_face_designation_gates_refuse_typed() {
         .copied()
         .filter(|f| *f != top && *f != bottom)
         .collect();
-    let e = topo::shell_open(&body, t, &walls, FIT_TOL, band(), Tol::witness())
+    let e = topo::shell_open(&body, t, &walls, FIT_TOL, Tol::witness())
         .expect_err("the remainder is disconnected");
     assert!(
         matches!(e, ShellError::OpenFacesDisconnect { components: 2, .. }),
@@ -398,7 +397,7 @@ fn the_open_face_designation_gates_refuse_typed() {
         })
         .map(|(k, _)| k)
         .unwrap();
-    let e = topo::shell_open(&v, 0.2, &[wall], FIT_TOL, band(), Tol::witness())
+    let e = topo::shell_open(&v, 0.2, &[wall], FIT_TOL, Tol::witness())
         .expect_err("a curved rim has no closed-form reading");
     assert!(
         matches!(
@@ -446,7 +445,7 @@ fn a_mixed_sense_chart_refuses_typed() {
     body.set_face_surface(inner, topo::FaceSurface::Shared(shared))
         .expect("the attach-layer door shares a live key");
 
-    let e = topo::shell(&body, 0.1, FIT_TOL, band(), Tol::witness())
+    let e = topo::shell(&body, 0.1, FIT_TOL, Tol::witness())
         .expect_err("a mixed-sense chart has no single inward");
     assert!(
         matches!(e, ShellError::ChartSenseMixed { .. }),
@@ -464,8 +463,8 @@ fn a_mixed_sense_chart_refuses_typed() {
 /// retired this row says so.
 #[test]
 fn a_curved_two_shell_shell_refuses_step_export() {
-    let hollow = topo::shell(&tube(0.6, 1.0, 2.0), 0.1, FIT_TOL, band(), Tol::witness())
-        .expect("the tube shells");
+    let hollow =
+        topo::shell(&tube(0.6, 1.0, 2.0), 0.1, FIT_TOL, Tol::witness()).expect("the tube shells");
     assert_eq!(hollow.shells().count(), 2);
     let e = step_export::step_string(
         &hollow,
@@ -525,8 +524,7 @@ fn the_shell_cost_is_measured_not_asserted() {
             k.len()
         };
         let start = Instant::now();
-        let hollow =
-            topo::shell(&body, t, FIT_TOL, band(), Tol::witness()).expect("the fixture shells");
+        let hollow = topo::shell(&body, t, FIT_TOL, Tol::witness()).expect("the fixture shells");
         let build = start.elapsed();
         let start = Instant::now();
         topo::validate_geometric(&hollow, Tol::witness()).expect("valid");
@@ -639,7 +637,7 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let e = topo::shell_open(&solid, KLEIN_WALL, &caps, FIT_TOL, band(), Tol::witness())
+    let e = topo::shell_open(&solid, KLEIN_WALL, &caps, FIT_TOL, Tol::witness())
         .expect_err("plane x torus has no route arm");
     assert!(
         matches!(
@@ -658,7 +656,7 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
 
     // The sealed arm stops at the same wall, on the same edges — the
     // blocker is the rim pair, not the opening.
-    let sealed = topo::shell(&solid, KLEIN_WALL, FIT_TOL, band(), Tol::witness())
+    let sealed = topo::shell(&solid, KLEIN_WALL, FIT_TOL, Tol::witness())
         .expect_err("the sealed arm meets the same pair");
     assert!(matches!(sealed, ShellError::Face { .. }), "got {sealed}");
 }
@@ -716,7 +714,7 @@ fn a_revolved_cap_opens_to_one_annular_rim() {
     let body = vessel(r, h);
     let chart = plane_chart_at_y(&body, h);
     assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol).expect("the drum opens");
+    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the drum opens");
 
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1, "the rim fuses the cavity in");
@@ -761,7 +759,7 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
         1,
         "a closed off-axis meridian closes its own seam, so this cap is ONE face"
     );
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol).expect("the tube opens");
+    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the tube opens");
 
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1);
@@ -846,7 +844,7 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
         ("an axis-touching cap", vessel(0.5, 0.4), 0.4, true),
         ("an annular cap", tube(0.30, 0.50, 0.40), 0.40, false),
     ] {
-        let mut sealed = topo::shell(&body, t, FIT_TOL, band(), tol).expect("the sealed shell");
+        let mut sealed = topo::shell(&body, t, FIT_TOL, tol).expect("the sealed shell");
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         assert_eq!(
@@ -991,7 +989,7 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
         ),
     ] {
         let body = prism(&pts, 0.25);
-        let hollow = topo::shell(&body, t, FIT_TOL, band(), tol)
+        let hollow = topo::shell(&body, t, FIT_TOL, tol)
             .unwrap_or_else(|e| panic!("{what}: an oblique planar junction hollows now, got {e}"));
         assert_eq!(
             topo::validate_geometric(&hollow, tol),
@@ -1054,7 +1052,7 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
     )
     .expect("the frustum revolves")
     .body;
-    let hollow = topo::shell(&frustum, t, FIT_TOL, band(), tol)
+    let hollow = topo::shell(&frustum, t, FIT_TOL, tol)
         .expect("a cone frustum's junction is inside the axial door");
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -1065,7 +1063,7 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
     // `sf2b_axial.rs` carries the closed form that says the branch
     // change did not move the answer.
     let drum = vessel(r, h);
-    topo::shell(&drum, t, FIT_TOL, band(), tol).expect("the drum still hollows");
+    topo::shell(&drum, t, FIT_TOL, tol).expect("the drum still hollows");
 }
 
 /// **The simultaneous door names its own scope, at the door.**

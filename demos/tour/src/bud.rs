@@ -314,7 +314,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // serves exactly this, so the natural spelling is the one the
     // scene ships.
     let rolled =
-        fillet_edges(&sharp, &[mouth, lip, bore_base], ROLL, band, tol).unwrap_or_else(|e| {
+        fillet_edges(&sharp, &[mouth, lip, bore_base], ROLL, tol).unwrap_or_else(|e| {
             panic!(
                 "all three rims roll in ONE call — the shared pucker cone is served by \
                  the #935 seam refresh; got {e:?}"
@@ -329,7 +329,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // the mouth first, then the two rims that share nothing on its
     // result. A widened door that DIVERGED from it would be a wrong
     // door wearing a convenience.
-    let first = fillet_edges(&sharp, &[mouth], ROLL, band, tol)
+    let first = fillet_edges(&sharp, &[mouth], ROLL, tol)
         .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim rolls, got {e:?}"));
     let lip2 = rim_between(
         &first.body,
@@ -347,7 +347,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         })
         .expect("two bore rims");
     let sequential =
-        fillet_edges(&first.body, &[lip2, base2], ROLL, band, tol).unwrap_or_else(|e| {
+        fillet_edges(&first.body, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
             panic!(
                 "the lip and the bore's base share no support face, so they roll \
                  TOGETHER on the mouth's result; got {e:?}"

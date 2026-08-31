@@ -379,7 +379,7 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let edges: Vec<pncad::topo::EdgeKey> = pad.edges().map(|(k, _)| k).collect();
     let t = tol.get();
     let band = pncad::geom_core::Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance");
-    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), band, tol)
+    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), tol)
         .expect("every edge of a rectangular pad breaks at 0.15");
     let note = format!(
         "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
@@ -594,7 +594,6 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         &body,
         &mouth,
         S::from_f64(0.05),
-        pncad::geom_core::Band::linear(tol).expect("the run's band"),
         tol,
     )
     .expect("the sphere-cone mouth rim fillets")

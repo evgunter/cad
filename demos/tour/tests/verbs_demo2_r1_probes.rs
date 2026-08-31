@@ -239,17 +239,17 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
 
     // The shared pair BUILDS in one call — and is the sequential
     // composition to the bit.
-    let one = fillet_edges(&sharp, &[mouth, lip], ROLL, band, tol)
+    let one = fillet_edges(&sharp, &[mouth, lip], ROLL, tol)
         .expect("mouth + lip share the pucker cone; one call serves the pair (#935)");
     assert_eq!(one.band_faces.len(), 2, "two bands from the shared pair");
-    let first = fillet_edges(&sharp, &[mouth], ROLL, band, tol).expect("the mouth alone");
+    let first = fillet_edges(&sharp, &[mouth], ROLL, tol).expect("the mouth alone");
     let lip2 = {
         let hits = rims_between(&first.body, SurfaceKind::Cone, SurfaceKind::Plane);
         assert_eq!(hits.len(), 1);
         hits[0]
     };
     let second =
-        fillet_edges(&first.body, &[lip2], ROLL, band, tol).expect("the lip on the result");
+        fillet_edges(&first.body, &[lip2], ROLL, tol).expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(b, tol)
             .expect("mass properties")
@@ -262,7 +262,7 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     );
 
     // Two rims with disjoint supports roll together in ONE call.
-    let rolled = fillet_edges(&sharp, &[mouth, base], ROLL, band, tol)
+    let rolled = fillet_edges(&sharp, &[mouth, base], ROLL, tol)
         .expect("mouth + bore base share no support face, so one call composes");
     assert_eq!(rolled.band_faces.len(), 2, "two bands from the one call");
 }

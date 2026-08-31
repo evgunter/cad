@@ -789,7 +789,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             &sharp_full,
             &[full_edges[0]],
             band_radius,
-            Band::linear(tol).expect("the run's band"),
             tol,
         ),
         |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
@@ -803,7 +802,6 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             &sharp_part,
             &[part_edges[0]],
             band_radius,
-            Band::linear(tol).expect("the run's band"),
             tol,
         ),
         // The SAME refusal as wall 1, and that is the pair's point: the
