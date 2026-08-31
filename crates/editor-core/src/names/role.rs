@@ -507,16 +507,16 @@ pub enum RoleSeg {
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a
 /// PATTERN rather than a predicate.
 ///
-/// Three matches classify segments by this partition and each does
+/// Four matches classify segments by this partition and each does
 /// something different with the other half — the name walk visits,
-/// the rewrite rebuilds, the selector collects. Only the negative
-/// answer is common, so only the negative answer is shared, and it is
-/// shared as an or-pattern so that none of the three loses its
-/// exhaustiveness: a variant added to [`RoleSeg`] and not added here
-/// breaks all three builds, exactly as spelling the list out three
-/// times did. What changes is that classifying it name-free is now
-/// ONE decision at one site instead of three that can be made
-/// differently.
+/// the rewrite rebuilds, the selector collects, and the attribution
+/// walk ([`super::attribute`]) stops. Only the negative answer is
+/// common, so only the negative answer is shared, and it is shared as
+/// an or-pattern so that none of them loses its exhaustiveness: a
+/// variant added to [`RoleSeg`] and not added here breaks every one of
+/// those builds, exactly as spelling the list out at each site did.
+/// What changes is that classifying it name-free is ONE decision at
+/// one site instead of four that can be made differently.
 ///
 /// A `fn` returning `bool` would not do: a caller may forget to call
 /// a predicate, and the property this list carries is the one the
