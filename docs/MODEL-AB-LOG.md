@@ -198,14 +198,18 @@ amended:
      the main-is-authority tiebreak) · S-QA 800–899 (claimed
      2026-08-29 at the S-QA program's opening — `docs/S-QA-LOG.md`) ·
      GAUTH 900–999 (claimed 2026-08-31 at the GAUTH program's
-     opening — `docs/GAUTH-LOG.md`) · S-MESH 1000–1099 and
-     S-BOOL 1100–1199 (both claimed 2026-08-31 at the two
-     programs' joint opening by one orchestrator —
-     `docs/S-MESH-LOG.md` / `docs/S-BOOL-LOG.md`; opened
-     concurrently with GAUTH, both orchestrators drew 900 within
-     the hour, GAUTH's claim reached main first, S-MESH/S-BOOL
-     renumbered per the main-is-authority tiebreak)**,
-     with **1200+ unallocated** — the orchestrator opening the next
+     opening — `docs/GAUTH-LOG.md`) · SEAT 1000–1099 (claimed
+     2026-08-31 at the SEAT program's opening —
+     `docs/SEAT-LOG.md`) · S-BOOL 1100–1199 and S-MESH 1200–1299
+     (both claimed 2026-08-31 at the two programs' joint opening
+     by one orchestrator — `docs/S-BOOL-LOG.md` /
+     `docs/S-MESH-LOG.md`; twice renumbered per the
+     main-is-authority tiebreak: the opening claim of 900 lost to
+     GAUTH, the renumber to 1000 lost to SEAT while the opening PR
+     was held for sign-off — S-BOOL's 1100–1199 was fixed on main
+     by its ordinal-1100 claim at BOOL-1's review dispatch, and
+     S-MESH takes 1200–1299)**,
+     with **1300+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
@@ -2524,3 +2528,70 @@ the program log's opening entry, not restated per row). Difficulties
 pre-logged in the plan before any draw: GAUTH-1 L; GAUTH-2/3/4/5 M.
 Block draws and dispatch ordinals recorded below as they happen;
 rows at merge per protocol.
+
+CERT-6 REVIEWS DELIVERED + ROW (2026-08-31; both on frozen ce567bad,
+sequential per the pre-recorded-and-once-amended method note on
+cert/ab-state at 19c35c5f; R2 isolated from R1; v5 instrument; fix
+pass IMPLEMENTER-INHERITED via agent resume). Ordinal 706 claimed at
+dispatch (above); sample #70 at this merge (prior highest #69;
+main's merge order rules on a collision).
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
+| CERT6 | 2026-08-31 | CERT-6 (PR #1366; spec docs/CERT-6-SPEC.md; issue 870 closed at merge; the Q1 ruling executed): the A2 area gauge as a row-5-boundary debug_assert — measurement-first (333 certified returns traced), a NEW certified boundary-chord perimeter bound, ceiling 1.0, the opt-in tightness valve FILED not built (issue 1367), issue 873's ceilings + the deliberate lower-bound row re-derived (loft 0.1986→0.189612 with "doubles exactly" corrected to 1.81×), S26/S230 recorded; post-fix the schedule is knot lines ∪ block edges ∪ two coprime grids under a max(chord, caller) denominator with the failure-direction weighing in-file, margin restated on door-authored anchors (79×/13.1×/17.6×), every threshold naming its fixture | S/M (logged at spec) | OPUS (block CERT-B2 slot 2; the unit's FIRST lane died in a container restart with nothing pushed, ~50m — this row's wall covers the second lane only) | **DUAL (ordinal 706; sample #70; byte 108 parity 0 ⇒ R1 OPUS + R2 FABLE; SEQUENTIAL on frozen ce567bad — the tip an orchestrator-direct powi(2) respell after the discipline gate fired, disclosed in the amended method note).** R1 A-W-F 1/6/5, rubric 4/2/5 — **MAJOR UNILATERAL AND EXECUTED: the 16-chord perimeter bound ALIASES (Nyquist collapse at k≡0 mod 8, measured 32.5× understatement vs the 52× margin; an understated denominator = a release-panic path since debug-assertions are on in release), plus a door-authored calibration counter-example at 2.05× the corpus max — a v6 TALLY CANDIDATE, coding at the blinded adjudication**; MINORs incl. negative p_lo, NaN asymmetry, five-home calibration figures (#651 class), triplicated assert block, filed issues absent from the body. R2 APPROVE 0/1/4, rubric 4/4/5 — unique: the balloon witness making the fallback arm LIVE (first measurement 17.6×), the flat-square anchor, every PR digit re-derived to the digit; bilateral: the primitive untested, the rational bisect digits irreproducible as stated. Verdict divergence on a unilateral executed MAJOR is calibration signal (the CERT-1 shape) | R1 counted 1 (issues 1367/1368 unnamed in the body); R2 counted 0 (two trivia) — all remedied at fix | R1 4 / R2 4 | R1 2 / R2 4 | R1 5 / R2 5 | substantial, IMPLEMENTER-INHERITED, all 11 union items, NONE declined — and the pass EXCEEDED the adjudication: it measured that the adjudicated knot-aware fix ALONE was insufficient (11× under at 64 spans where the knots are the zero crossings) and shipped the coprime-grids + max-denominator design instead, with the weighing at the claim site; 5 direct primitive rows (red-first aliasing row fails the old schedule); four bisection pairs re-taken on NAMED fixtures incl. the relative arm's first threshold (×17/×18); the ×80/×90 provenance explained (a fixture neither reviewer drove — both non-reproductions were different fixtures, no contradiction); triplication collapsed to a helper (exposing a wrong relative-arm message); calibration figures to ONE home with pointers; two adopted-row unconditional assertions given per-band/per-lane postures | impl gate 33387882285 GREEN on ce567bad (lane=both + eps=1e-6 BOTH trailer-pinned — the first unit under the full issue-1356 practice; the delivered head's only red was the discipline gate's x*x catch, respelled orchestrator-direct); fix gate 33410129923 GREEN on 0696cdbe (both axes honored); all six matrix points verified locally at both heads; MERGED #1366 at 552de049 | impl ~215k (+ ~50m lost first lane) / fix ~320k / R1 ~194k / R2 ~218k | impl ~3h / fix ~2h25m / R1 ~50m / R2 ~47m (incl. one background-waiter stall, nudged) |
+
+GAUTH-1 (PR #1375) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 900 — the GAUTH band's first claim.** v6 dual: slot byte
+**245**, parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen
+`62b034ec` (run 33411833922 verified at dispatch: head SHA matches,
+all 21 check runs success/skipped; gate point interval + eps 1e-6,
+DRAWN), R2 isolated from R1, briefs symmetric, no relaxations
+granted (contention is managed by running one dual at a time, per
+the v6 method-relaxation note). Implementer difficulty L
+(pre-logged in the plan's opening commit, pre-draw). Sample number
+at merge. Row at merge.
+
+BOOL-1 (PR #1378) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1100 — the S-BOOL band's first claim** (band 1100–1199
+per the renumbered allocation above). v6 dual: slot byte **10**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen
+`3f14f3c4` (PR head green at dispatch — 18 checks, gate point
+interval + eps 1e-6, DRAWN), R2 isolated from R1, briefs
+symmetric, no relaxations granted. Implementer difficulty S/M
+(pre-logged in the plan's opening commit, pre-draw; recorded
+numeric M). Sample number at merge. Row at merge.
+
+GAUTH-3 (PR #1376) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 901** (GAUTH band 900–999). v6 dual: slot byte **247**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `62c120ae`
+(run 33411906310 verified at dispatch: head SHA matches, all 21
+check runs success/skipped; gate point default + eps 1e-6, DRAWN),
+R2 isolated from R1, briefs symmetric, no relaxations. Dispatched
+at GAUTH-1's review conclusion per the one-dual-at-a-time
+contention posture (GAUTH-1's fix pass runs concurrently — a fix
+lane is not a dual). Implementer difficulty M (pre-logged in the
+plan's opening commit, pre-draw). Sample number at merge. Row at
+merge.
+
+GAUTH-2 (PR #1381) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 902** (GAUTH band 900–999). v6 dual: slot byte **55**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `c82c1633`
+(run 33414029064 verified at dispatch: head SHA matches, all 21
+check runs success/skipped; gate point interval + eps 1e-12,
+DRAWN), R2 isolated from R1, briefs symmetric, no relaxations.
+Dispatched at GAUTH-3's dual conclusion (one dual at a time; the
+two units' fix passes run concurrently — fix lanes are not duals).
+Implementer difficulty M (pre-logged in the plan's opening commit,
+pre-draw). Sample number at merge. Row at merge.
+| GAUTH1 | 2026-08-31 | GAUTH-1 (PR #1375; docs/GAUTH-PLAN.md unit 1): the GUI's first creation doors — NewDocument (id = derive(trimmed name), complete session replacement), datum forms, template profiles (circle-with-optional-bore, centred rectangle; world XY), extrude, revolve (two-seat tool, mate pattern); every door one committed InsertNode through the one commit door; ring acceptance now bit_eq against the committed gallery fixture via the ε re-stamp (hand twin dropped at review); WrongNodeKind unified seat-gate; Open aligned to NewDocument's mid-gesture refusal (deliberate change from GUI-3's silent clear, recorded); issues filed en route: #1374 (face-frame placement arm, spec'd fallback), #1384 (id-reuse aliasing class in tool/selection state across history rewinds — R1's demonstrated NewDocument/re-mint/stale-commit scenario), #1385 (chrome-coverage gap: CI archive builds without --features app) | L (pre-logged in the plan's opening commit, pre-draw) | FABLE (block GAUTH-B1 slot 0) | **DUAL (ordinal 900; sample #71 at merge — ledger max #70 at this writing, main's merge order rules if a concurrent recorder collides; parity byte 245 ⇒ R1 FABLE + R2 OPUS, CONCURRENT on frozen 62b034ec, v6 instrument, briefs symmetric, no relaxations — pair COUNTS toward the twelve, NO tally candidates: zero MAJORs either arm).** R1 A-W-F 0/5/5, rubric 4/4/3 — demonstrated the id-reuse aliasing (MINOR, became #1384) and the bore≥outer silent role inversion; bilateral: ring hand-twin vs machine fixture, doc misattachment, chrome-smoke narrowing. R2 A-W-F 0/6/5 + 9 style, rubric 4/4/3 — unilateral: EmptyProfile duplicate-rule (removed), both modal tools open sharing one pick stream (one-active-tool fix), name-trim undocumented; identical rubric triples, independent | R2 counted 1 silent (chrome-smoke line absent from deviations section — now recorded + #1385); R1 counted 0 | 4 | 4 | 3 | substantial, IMPLEMENTER-INHERITED, all 14 union items taken incl. the Open policy alignment (4 lines, pinned); reviewer bracket/vocabulary-exceeds-chrome rows promoted as permanent | impl CI 33411833922 GREEN (interval, 1e-6, drawn) on 62b034ec; fix CI 33415977414 GREEN (default, 1e-12, drawn) on 3560fbd5 — the branch's two gated heads span both compile lanes | impl ~265k / fix ~120k / R1 ~194k / R2 ~211k | impl ~55m / fix ~50m / R1 ~27m / R2 ~40m self-est |
+| GAUTH3 | 2026-08-31 | GAUTH-3 (PR #1376; docs/GAUTH-PLAN.md unit 3): the assembly-instance authoring door — AddInstance commits one InsertNode of InstantiatePart (empty interface, no authored placement per A11) with the DocRef minted at commit through the store door; part catalogue as a value (filename-sorted after review), Add part… chooser with snapshot+rescan; typed refusal ladder (save-first recourse, duplicate id, unknown id, self-instance) with store wording passing through byte-identical; all three resolution faults badge from the authored path; acceptance round-trips a mated two-instance assembly to at-rest Certified. Fix pass also resolved the #1375 both-sides-add merge (SessionOp/perform/chrome/all.rs; chooser deliberately outside the one-modal-tool rule, stated). Issue #1387 filed en route (memo key hashes id+pin only, so Reevaluate cannot observe any store change — newly reachable now assemblies are authorable in-app; save-as seam rebinding; no part-vs-assembly chooser vocabulary) | M (pre-logged in the plan's opening commit, pre-draw) | OPUS (block GAUTH-B1 slot 2) | **DUAL (ordinal 901; sample #72 at merge — ledger max #71 at this writing, main's merge order rules if a concurrent recorder collides; parity byte 247 ⇒ R1 FABLE + R2 OPUS, CONCURRENT on frozen 62c120ae, v6 instrument, briefs symmetric, no relaxations — pair COUNTS toward the twelve, NO tally candidates: zero MAJORs either arm).** R1 APPROVE 0/3/4, rubric 4/4/4 — bilateral: the false catalogue-ordering mechanism sentence; probes past the spec: nested instantiation works, memo-key claim verified in place. R2 A-W-F 0/6/6 + 7 style, rubric 4/4/3 — unilateral: SAVE_FIRST const with no consumer (removed), duplicated self-instance predicate (one home now), near-unreachable empty-listing arm with the wrong sentence, ε-row string surgery (re-derived on the shipped predicate + class sweep). Verdict divergence at converged substance = calibration signal | R2 counted 1 silent (acceptance-fixture substitution, disclosed as fact not filed — now deviations #4); R1 counted 0 | 4 | 4 | 4 | substantial, IMPLEMENTER-INHERITED, all 11 union items taken (resolver route unified through DirResolver::workspace — the compiler confirmed the last parallel route gone); 10 → 15 rows | impl CI 33411906310 GREEN (default, 1e-6, drawn) on 62c120ae; fix CI 33418079416 GREEN (interval, default eps, drawn) on merged head 3950acb2 — the branch's gated heads span both compile lanes | impl ~380k / fix ~240k / R1 ~161k / R2 ~163k | impl ~48m / fix ~65m / R1 ~25m / R2 ~40m |
+
+MESH-1 (PR #1389) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1200 — the S-MESH band's first claim** (band 1200–1299
+per the twice-renumbered allocation in the banding entry, corrected
+in this same commit). v6 dual: slot byte **164**, parity 0 ⇒
+**R1 OPUS + R2 FABLE**; CONCURRENT on frozen `f0618c8e` (run
+33417858164 green at dispatch — gate point interval + eps default,
+DRAWN), R2 isolated from R1, briefs symmetric, no relaxations
+granted. Implementer difficulty S (pre-logged in the plan's opening
+commit, pre-draw). Sample number at merge. Row at merge.

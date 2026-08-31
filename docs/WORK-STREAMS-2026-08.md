@@ -113,7 +113,7 @@ cut.
 ### S-MESH — mesh honesty and budget (`mesh/`)
 
 **GRADUATED (2026-08-31): opened as the S-MESH program —
-`docs/S-MESH-PLAN.md` / `docs/S-MESH-LOG.md`, A/B band 1000–1099.**
+`docs/S-MESH-PLAN.md` / `docs/S-MESH-LOG.md`, A/B band 1200–1299.**
 
 `crates/mesh` has no live program and a coherent defect list.
 

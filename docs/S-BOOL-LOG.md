@@ -22,9 +22,10 @@ defect fix whose reproduction is already pinned `#[ignore]`d on main
   opening PR rides the S-MESH session branch; see that log).
 - **A/B ordinal band: S-BOOL = 1100–1199**, claimed in
   `docs/MODEL-AB-LOG.md`'s banding entry in the same commit as
-  S-MESH's 1000–1099 (same orchestrator, one claim commit; both
-  renumbered from the opening claim after the GAUTH collision —
-  see `docs/S-MESH-LOG.md`). Implementer
+  S-MESH's 1200–1299 (same orchestrator; renumbered twice after
+  the GAUTH and SEAT collisions — see `docs/S-MESH-LOG.md`; the
+  1100–1199 band was fixed on main by the ordinal-1100 claim at
+  BOOL-1's review dispatch). Implementer
   blocks are named `BOOL-B1, BOOL-B2, …` (`BOOL-<n>` are unit names).
 - **Container and process facts are S-MESH's** (`docs/S-MESH-LOG.md`,
   Opening state): one remote container, one lane budget shared by the
