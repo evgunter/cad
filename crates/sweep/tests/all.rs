@@ -38,6 +38,10 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "bool1_fix_pass.rs"]
+mod bool1_fix_pass;
+#[path = "bool1_r1_probes.rs"]
+mod bool1_r1_probes;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -413,5 +417,7 @@ mod verbs_shell_r2b;
 #[path = "r1_p2_probes.rs"]
 mod r1_p2_probes;
 
+#[path = "bool1_r2_probes.rs"]
+mod bool1_r2_probes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;
