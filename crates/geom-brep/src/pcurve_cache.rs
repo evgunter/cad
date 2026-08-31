@@ -2588,9 +2588,9 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
 ///   chart-space region has definitely-positive model-space extent"*.
 ///   An over-stated arm inflates the extent and would certify a
 ///   model-space sliver as definitely positive. That direction needs
-///   certified LOWER bounds (`inf |S_u|`, `inf |S_v|`), which are a
-///   different derivation and carry a different name; nothing here
-///   may be read as one.
+///   certified LOWER bounds — [`chart_stretch_inf`] — which are a
+///   different derivation behind a different name; nothing here may
+///   be read as one.
 ///
 /// A sphere's true azimuth arm is `r·cos v ≤ r`, so quoting `r`
 /// **over**-states the escape and can only make containment harder —
@@ -2715,6 +2715,233 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
         }
     }
     (sup_u * ratio, sup_v * ratio)
+}
+
+/// The INF-side reading of a spline chart's derivative nets — the
+/// certified quantities a positive-extent claim needs, where
+/// [`chart_stretch_sup`] is the escape side's single sup pair.
+///
+/// See [`chart_stretch_inf`] for what each field bounds and for the
+/// assembly a caller owes before using them as lever arms.
+#[derive(Clone, Copy, Debug)]
+pub struct ChartStretchInf<T> {
+    /// A certified lower bound on `|S_u|` over the WHOLE chart, or
+    /// exactly zero when none is certified (the derivative net
+    /// crosses zero — a fold, a collapsed row, a stationary column).
+    pub inf_u: T,
+    /// The same for `|S_v|`.
+    pub inf_v: T,
+    /// `sup |S_u|` — [`chart_stretch_sup`]'s first component, carried
+    /// here so the assembly reads one consistent pair of brackets.
+    pub sup_u: T,
+    /// The same for `|S_v|`.
+    pub sup_v: T,
+    /// A certified lower bound on the AREA element `|S_u × S_v|`, or
+    /// exactly zero when none is certified. This is the term that
+    /// knows about skew: two nearly-parallel derivative columns have
+    /// large norms and a vanishing cross product.
+    pub area_inf: T,
+}
+
+/// **The certified LOWER stretch reading of a chart** — the direction
+/// [`chart_stretch_sup`] is explicitly not, for the claims it is
+/// explicitly unsafe for.
+///
+/// # The nets, and the inf read along a direction
+///
+/// The polynomial derivative nets are the same ones
+/// [`nurbs_stretch_bounds`] takes the max over: per direction,
+/// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, and `S_u(u, v)` is a
+/// **convex combination** of them (partition of unity over the
+/// degree-reduced basis; a zero divisor is a support the basis
+/// function vanishes on identically, so dropping it is exact on both
+/// sides rather than safe on one).
+///
+/// A convex combination's norm is NOT bounded below by the smallest
+/// `|Qᵢⱼ|` — a net whose columns cancel has combinations of every
+/// norm down to zero — so the inf is read **along a direction**: for
+/// the net's own summed direction `d`, every combination projects to
+/// at least `minᵢⱼ (Qᵢⱼ·d)` ([`net_inf`]). A **zero-crossing net** —
+/// a wall with a fold — has some entry on the far side of `d`, or no
+/// direction at all, and gets exactly zero. That zero is the honest
+/// answer and the caller must refuse on it: no positive bound is
+/// invented for a net whose derivative genuinely vanishes.
+///
+/// `area_inf` is the same read on the **pairwise cross products**:
+/// `S_u × S_v = Σₐ_b λₐ μ_b (Qᵘₐ × Qᵛ_b)` is a convex combination of
+/// them (a product of two convex combinations), so [`net_inf`] over
+/// that set lower-bounds the area element. A chart whose two
+/// derivative directions can align somewhere gets zero here even
+/// though both per-axis infs are healthy — which is exactly the case
+/// the per-axis pair alone cannot see.
+///
+/// **The rational factor, taken OPPOSITE to the sup side.** The
+/// rational derivative identity (Floater 1992) writes `S_u` as
+/// `Σᵢ γᵢ ΔPᵢ` with non-negative `γ` whose sum lies in
+/// `[1/ratio, ratio]` for `ratio = (w_max/w_min)²` — the same factor
+/// [`weight_ratio_factor`] computes and [`nurbs_stretch_bounds`]
+/// MULTIPLIES by. The two ends of that one bracket are the two sides:
+/// the sup multiplies, the inf **divides**, and the area element — a
+/// product of two such factors — divides by `ratio²`. A rational
+/// chart therefore earns a weaker inf reading than a unit-weight one.
+/// That is the conservative direction, and on a unit-weight net every
+/// factor is exactly 1, so nothing here moves for the polynomial
+/// charts.
+///
+/// # The assembly a caller owes: per-axis infs are not lever arms
+///
+/// A chart is not required to be orthogonal, and on a skew chart the
+/// two per-axis infs do **not** lower-bound the metric: `S_u du` and
+/// `S_v dv` can partially cancel, so a chart displacement can be
+/// shorter in metres than either axis' inf suggests. What lower-bounds
+/// the metric is the Jacobian's **smallest singular value**, and these
+/// five numbers bound it. Normalize the chart by the per-axis infs
+/// (`ũ = u·inf_u`, `ṽ = v·inf_v`) so the question is scale-free, and
+/// for the normalized Gram matrix write
+///
+/// ```text
+/// T = (sup_u/inf_u)² + (sup_v/inf_v)²      ≥ trace
+/// D = (area_inf/(inf_u·inf_v))²            ≤ det
+/// λ_min ≥ 2D / (T + √(T² − 4D))            (the stable form of
+///                                           (T − √(T²−4D))/2)
+/// ```
+///
+/// — valid because `λ_min` of a 2×2 SPD matrix decreases in the trace
+/// and increases in the determinant, so a sup trace with an inf
+/// determinant is the conservative corner. The lever arms are then
+/// `(inf_u·ρ, inf_v·ρ)` with `ρ = √λ_min ≤ 1`, and on an ORTHOGONAL
+/// chart of constant stretch `ρ` is exactly 1, so the arms are the
+/// per-axis infs verbatim — anisotropy included.
+///
+/// The assembly is left to the caller deliberately: its divisions are
+/// only well-conditioned once `inf_u` and `inf_v` are **definitely**
+/// positive, which is a band question this function has no band to
+/// ask.
+///
+/// Analytic charts do not come through here: every one of them is
+/// orthogonal by construction with a closed-form inf, and their arms
+/// are window-dependent besides. The tree's other inf-side surface
+/// bound, `offset_meters`' `‖S_u × S_v‖` floor, is `f64`-only and
+/// reads `patch_bound`'s per-cell hulls, so it is a sharper answer to
+/// a narrower question and not reusable here.
+pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
+    let zero = ChartStretchInf {
+        inf_u: T::zero(),
+        inf_v: T::zero(),
+        sup_u: T::zero(),
+        sup_v: T::zero(),
+        area_inf: T::zero(),
+    };
+    match *surface {
+        Surface::Nurbs(ref payload) => {
+            if payload.is_placeholder() {
+                // No net to bound: the placeholder certifies nothing.
+                zero
+            } else {
+                nurbs_stretch_inf(payload)
+            }
+        }
+        Surface::Approx(ref a) => nurbs_stretch_inf(a.fit()),
+        // The analytic charts' infs are closed-form and window-
+        // dependent; this door answers about derivative NETS only, and
+        // an all-zero reading is the refusing answer, never a claim.
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => zero,
+    }
+}
+
+/// A certified lower bound on `|Σ λₐ Qₐ|` over every convex
+/// combination of a derivative net, and the direction it is read
+/// along.
+///
+/// The net's own **sum** `c = Σ Qₐ` names the direction: for the unit
+/// `d = c/|c|`, every convex combination satisfies
+/// `|Σ λₐ Qₐ| ≥ (Σ λₐ Qₐ)·d ≥ minₐ (Qₐ·d)`, which is
+/// `minₐ (Qₐ·c) / |c|`. A net that CROSSES ZERO fails this at one of
+/// two places and gets exactly zero either way: a net straddling the
+/// origin has some `Qₐ·d` negative, and a net whose entries cancel
+/// outright has `|c| = 0`, whose quotient is poison. The answer is
+/// capped at the net's own `sup`, which is finite by construction, so
+/// an ill-conditioned quotient can never leak an inflated arm.
+fn net_inf<T: Real>(q: &[Vec3<T>], sup: T) -> T {
+    if q.is_empty() {
+        return T::zero();
+    }
+    let mut c = Vec3::zero();
+    for &v in q {
+        c = c + v;
+    }
+    let mut min_dot = q[0].dot(c);
+    for &v in &q[1..] {
+        min_dot = min_dot.min(v.dot(c));
+    }
+    let raw = min_dot / c.norm();
+    if raw.is_poison() {
+        T::zero()
+    } else {
+        raw.max(T::zero()).min(sup)
+    }
+}
+
+/// The `u`-direction derivative control net of a spline patch:
+/// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, degenerate supports
+/// dropped (their basis function is identically zero, so the drop is
+/// exact on both sides rather than safe on one). Pass `along_v` to
+/// read the `v` direction through the same code.
+fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3<T>> {
+    let (nu, nv) = s.control_counts();
+    let ctl = s.control();
+    let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
+    let knots = if along_v { s.knots_v() } else { s.knots_u() };
+    let (p, k) = (knots.degree(), knots.knots());
+    let at = |i: usize, j: usize| -> geom_core::Point3<T> {
+        if along_v {
+            ctl[j * nv + i]
+        } else {
+            ctl[i * nv + j]
+        }
+    };
+    let mut out = Vec::with_capacity(n_out.saturating_sub(1) * n_in);
+    #[allow(clippy::cast_precision_loss)]
+    for i in 0..n_out.saturating_sub(1) {
+        let denom = k[i + p + 1] - k[i + 1];
+        if denom == 0.0 {
+            continue;
+        }
+        let factor = T::from_f64(p as f64 / denom);
+        for j in 0..n_in {
+            out.push((at(i + 1, j) - at(i, j)) * factor);
+        }
+    }
+    out
+}
+
+/// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
+fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
+    let ratio = weight_ratio_factor::<T>(s.weights());
+    let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
+    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
+    let (poly_sup_u, poly_sup_v) = (sup_of(&q_u), sup_of(&q_v));
+    let mut crosses = Vec::with_capacity(q_u.len() * q_v.len());
+    for &a in &q_u {
+        for &b in &q_v {
+            crosses.push(a.cross(b));
+        }
+    }
+    let cross_sup = sup_of(&crosses);
+    // Each bracket taken at the end the direction needs: the sups
+    // multiply (as `nurbs_stretch_bounds` does), the infs divide, and
+    // the area element carries one factor per net.
+    ChartStretchInf {
+        inf_u: net_inf(&q_u, poly_sup_u) / ratio,
+        inf_v: net_inf(&q_v, poly_sup_v) / ratio,
+        sup_u: poly_sup_u * ratio,
+        sup_v: poly_sup_v * ratio,
+        area_inf: net_inf(&crosses, cross_sup) / (ratio * ratio),
+    }
 }
 
 /// `sup |C′|` bound for a **non-rational** spline curve — the curve

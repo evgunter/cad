@@ -68,18 +68,30 @@
 //! The intersection region's chart-space shoelace (IsoArc segments
 //! exact) crosses to model space through the chart's lever arms, and
 //! the resulting margin is `over_lever(2·A, P)` — the region's **mean
-//! width** in metres, the `split_section_area` precedent. The positive
-//! claim is restricted to charts with **exact constant arms**: plane
-//! `(1, 1)` (chart coordinates are metres) and cylinder `(r, 1)`
-//! (azimuth metres per radian is exactly `r` everywhere).
-//! `chart_arms`' documented over-statement (`sup` stretch bounds) is
-//! safe for escape-metering and UNSAFE here — an over-stated arm
-//! inflates the margin and would certify a model-space sliver as
-//! definitely positive; the safe direction needs lower stretch bounds
-//! (`inf |S_u|`, `inf |S_v|`), which do not exist. NURBS, sphere,
-//! torus and cone charts therefore refuse
-//! [`ChartRegionError::ArmUnbounded`] (the inf-bounds extension is the
-//! named follow-up issue filed with this unit's PR).
+//! width** in metres, the `split_section_area` precedent.
+//!
+//! Those arms are **inf-side**, and that is the whole of what makes
+//! the positive claim sound: scaling a chart polygon by a certified
+//! LOWER stretch bound makes it a metric contraction of the model
+//! image, so the model region's area is at least the scaled
+//! polygon's and every error refuses rather than certifies.
+//! `geom_brep::chart_stretch_sup`'s documented over-statement (`sup`
+//! stretch bounds) is safe for escape-metering and UNSAFE here — an
+//! over-stated arm inflates the margin and would certify a
+//! model-space sliver as definitely positive. The two bounds are
+//! separate doors so the wrong one cannot be reached by accident.
+//!
+//! Plane `(1, 1)` and cylinder `(r, 1)` arms are EXACT constants, not
+//! bounds. Every other kind takes a certified inf — sphere and cone
+//! over the pair's own `v`-window, torus window-free, spline charts
+//! from `geom_brep::chart_stretch_inf`'s derivative-net reading with
+//! this module's skew discount — and each is gated definitely
+//! positive by the `chart_region_arm_inf` row before it is used.
+//! A chart with no certified positive arm still refuses
+//! [`ChartRegionError::ArmUnbounded`]: a sphere window reaching a
+//! pole, a cone window straddling the apex, a degenerate ring torus,
+//! a zero-crossing (folded) derivative net. See [`certified_arms`]
+//! for each derivation.
 //!
 //! # Seam branches
 //!
@@ -156,10 +168,14 @@ pub enum ChartRegionError {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
     },
-    /// The chart has no exact constant lever arms (NURBS, sphere,
-    /// torus, cone): `sup` stretch bounds over-state in the unsafe
-    /// direction for a positive-area claim and no `inf` bounds exist —
-    /// the named follow-up extension.
+    /// The chart has no certified positive LOWER stretch bound in at
+    /// least one channel over the pair's own window, so no
+    /// positive-extent claim can be metred honestly there: a sphere
+    /// window reaching a pole, a cone window straddling the apex, a
+    /// degenerate ring torus, a spline chart whose derivative net
+    /// crosses zero or whose skew swallows its own bound. The `sup`
+    /// bounds exist for every chart and are the wrong side here
+    /// ([`certified_arms`]), so they are not a fallback.
     ArmUnbounded {
         /// The chart kind that refused.
         chart: &'static str,
@@ -227,10 +243,11 @@ impl core::fmt::Display for ChartRegionError {
             ),
             Self::ArmUnbounded { chart } => write!(
                 f,
-                "chart-region: a {chart} chart has no exact constant lever arms — the \
-                 positive-area claim needs lower stretch bounds (inf |S_u|, inf |S_v|),\
-                 which are the named follow-up extension; plane and cylinder charts \
-                 are the certified lane"
+                "chart-region: a {chart} chart has no certified positive lower stretch \
+                 bound over this pair's window, so the positive-area claim cannot be \
+                 metred honestly — restrict the pair to a window clear of the chart's \
+                 degeneracy (a pole, an apex, a fold), or read the pair on a chart that \
+                 has one"
             ),
             Self::SeamBranch => write!(
                 f,
@@ -635,8 +652,13 @@ fn overlap_of_uv<T: Decide + Bounds>(
     uv_b: &FaceUv<T>,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
-    // 3. Exact constant arms or a typed refusal.
-    let (arm_u, arm_v) = exact_arms(surface)?;
+    // 3. Certified LOWER arms over the pair's own v-window, or a
+    //    typed refusal. Inf-side because the claim below is a
+    //    POSITIVE-extent one (`certified_arms`).
+    let Some((v_lo, v_hi)) = v_window(uv_a, uv_b) else {
+        return Err(ChartRegionError::Corrupt);
+    };
+    let (arm_u, arm_v) = certified_arms(surface, v_lo, v_hi, band)?;
 
     // 4. Seam-branch gate (periodic charts).
     seam_gate(surface, uv_a, uv_b, band)?;
@@ -1298,25 +1320,156 @@ fn extract_face_uv<T: Decide + Bounds>(
     Ok(FaceUv { outer, rings })
 }
 
-/// Exact constant chart lever arms (metres per chart unit), or the
-/// typed refusal (module docs: the `chart_arms` sup-bounds are unsafe
-/// for a positive claim; no inf bounds exist).
-fn exact_arms<T: Decide>(surface: &Surface<T>) -> Result<(T, T), ChartRegionError> {
+/// **Certified LOWER chart lever arms** (metres per chart unit) over
+/// the `v`-window `[v_lo, v_hi]` the pair's own loops live in, or the
+/// typed refusal.
+///
+/// # Why the arms must be inf-side here, and what that buys
+///
+/// The machinery below scales both faces' chart polygons by these
+/// arms and reads a metre margin off the result. Scaling by a
+/// **lower** bound makes the scaled polygon a certified metric
+/// CONTRACTION of the model image: every chart displacement is at
+/// least this long in metres, so the model region's area is at least
+/// the scaled polygon's. Every error is therefore in the refusing
+/// direction — for `PositiveArea` a shrunk region has a smaller mean
+/// width and misses the band sooner, and for `Empty` a shrunk
+/// separation is harder to call definite. Reading
+/// `geom_brep::chart_stretch_sup` here would invert exactly that and
+/// certify a model-space sliver as definitely positive, which is why
+/// the two bounds are separate functions with separate names.
+///
+/// # The arms, per chart kind
+///
+/// `Plane` and `Cylinder` are EXACT constants, not bounds: a plane's
+/// coordinates ARE metres, and a cylinder's azimuth levers by exactly
+/// `r` at every latitude. Nothing about them is certified here and
+/// nothing about them moves.
+///
+/// The rest are genuine bounds and every one of them is gated by the
+/// `chart_region_arm_inf` row before it is used, so a collapsed arm
+/// refuses `ArmUnbounded` and an in-band one escalates:
+///
+/// - **Sphere** `(r·inf|cos v|, r)`. The chart is orthogonal, so the
+///   per-axis infs ARE the metric bound. `cos` is even and decreasing
+///   in `|v|`, so the window's inf is `cos` of its largest `|v|`; a
+///   window reaching `π/2` reads a non-positive number and refuses,
+///   which is the pole honestly having no azimuth extent. The polar
+///   arm is exactly `r` at every latitude.
+/// - **Torus** `(R − r, r)`. `|R + r·cos v| ≥ R − r` everywhere, so
+///   this one needs no window at all; a degenerate ring (`R ≤ r`)
+///   refuses. The window would sharpen it and is deliberately not
+///   used — a window-free bound cannot be wrong about a branch.
+/// - **Cone** `(v_inf·sin α, 1)` with `v_inf` the window's smallest
+///   `|v|`, which is zero exactly when the window straddles the apex.
+///   The cone's `v` is a length along the ruling, so its arm is 1.
+/// - **Spline charts** take `geom_brep::chart_stretch_inf`'s
+///   derivative-net reading and finish the assembly that door
+///   documents and deliberately does not do: gate the two per-axis
+///   infs definitely positive FIRST (which is what makes the
+///   assembly's divisions well-conditioned), then discount both by
+///   the skew factor `ρ` — the smallest singular value of the
+///   Jacobian in the chart those infs normalize. `ρ` is exactly 1 on
+///   an orthogonal chart of constant stretch, so the arms are the
+///   per-axis infs verbatim there, ANISOTROPY INCLUDED; it collapses
+///   to zero on a chart whose two derivative directions can align. A
+///   zero-crossing net arrives with a zero per-axis inf and refuses
+///   at the first gate, and a folded chart with healthy per-axis
+///   infs refuses at the discount.
+fn certified_arms<T: Decide + Bounds>(
+    surface: &Surface<T>,
+    v_lo: T,
+    v_hi: T,
+    band: Band,
+) -> Result<(T, T), ChartRegionError> {
+    // The arm gate: a lever arm is a metre RATE, gated as a length
+    // (the collapsed-arm idiom). Definite-positive walks on; a zero
+    // or negative arm is the chart having no certified extent in that
+    // channel; an in-band arm escalates rather than guessing.
+    let gate = |arm: T, chart: &'static str| -> Result<T, ChartRegionError> {
+        match decide("chart_region_arm_inf", Margin::of(arm), band) {
+            Ok(Sign::Positive) => Ok(arm),
+            Ok(Sign::Zero | Sign::Negative) => Err(ChartRegionError::ArmUnbounded { chart }),
+            Err(diag) => Err(ChartRegionError::Escalated(diag)),
+        }
+    };
     match *surface {
         // A plane chart's coordinates ARE metres (unit u_ref frame).
         Surface::Plane { .. } => Ok((T::one(), T::one())),
         // Azimuth radians lever by exactly r everywhere; v is metres.
         Surface::Cylinder { radius, .. } => Ok((radius, T::one())),
-        Surface::Cone { .. } => Err(ChartRegionError::ArmUnbounded { chart: "cone" }),
-        Surface::Sphere { .. } => Err(ChartRegionError::ArmUnbounded { chart: "sphere" }),
-        Surface::Torus { .. } => Err(ChartRegionError::ArmUnbounded { chart: "torus" }),
-        Surface::Nurbs(_) => Err(ChartRegionError::ArmUnbounded { chart: "NURBS" }),
-        // A fitted chart's stretch has no exact constant bound either —
-        // the same refusal its fit would earn, for the same reason.
-        Surface::Approx(_) => Err(ChartRegionError::ArmUnbounded {
-            chart: "approximating surface",
-        }),
+        Surface::Sphere { radius, .. } => {
+            let v_abs = v_lo.abs().max(v_hi.abs());
+            Ok((gate(radius * v_abs.cos(), "sphere")?, radius))
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Ok((
+            gate(major_radius - minor_radius, "torus")?,
+            gate(minor_radius, "torus")?,
+        )),
+        Surface::Cone { half_angle, .. } => {
+            // Branch-free `min |v|` over the window, zero exactly when
+            // the window straddles the apex.
+            let v_inf = v_lo.max(T::zero() - v_hi).max(T::zero());
+            Ok((gate(v_inf * half_angle.sin(), "cone")?, T::one()))
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            let chart = if matches!(*surface, Surface::Nurbs(_)) {
+                "NURBS"
+            } else {
+                "approximating surface"
+            };
+            let inf = geom_brep::chart_stretch_inf(surface);
+            // Gate the per-axis infs FIRST: they are the assembly's
+            // divisors, and only a definitely-positive one makes the
+            // divisions below well-conditioned.
+            let (inf_u, inf_v) = (gate(inf.inf_u, chart)?, gate(inf.inf_v, chart)?);
+            // The skew discount `ρ` of `chart_stretch_inf`'s
+            // assembly: the smallest singular value of the Jacobian
+            // in the chart normalized by those infs, from a sup trace
+            // and an inf determinant (the conservative corner, since
+            // `λ_min` falls with the trace and rises with the
+            // determinant). `ρ` is 1 on an orthogonal chart of
+            // constant stretch, so the arms are then the per-axis
+            // infs verbatim; it is 0 on a chart whose derivative
+            // directions can align, which is the skew case the
+            // per-axis pair alone cannot see.
+            let trace_sup = (inf.sup_u / inf_u).powi(2) + (inf.sup_v / inf_v).powi(2);
+            let det_inf = (inf.area_inf / (inf_u * inf_v)).powi(2);
+            let root = (trace_sup.powi(2) - det_inf * T::from_f64(4.0))
+                .max(T::zero())
+                .sqrt();
+            // `2D/(T + √(T²−4D))` — the cancellation-free spelling of
+            // `(T − √(T²−4D))/2`.
+            let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
+                .sqrt()
+                .min(T::one());
+            Ok((gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?))
+        }
     }
+}
+
+/// The `v` reach of a pair's extracted loops — the window the
+/// window-dependent arms of [`certified_arms`] are read over. Every
+/// vertex of both faces is inside it by construction, so an arm that
+/// lower-bounds the stretch across it lower-bounds it everywhere
+/// either region lives.
+fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> {
+    let mut reach: Option<(T, T)> = None;
+    for face in [a, b] {
+        for poly in core::iter::once(&face.outer).chain(&face.rings) {
+            for p in poly {
+                reach = Some(match reach {
+                    None => (p.y, p.y),
+                    Some((lo, hi)) => (lo.min(p.y), hi.max(p.y)),
+                });
+            }
+        }
+    }
+    reach
 }
 
 /// The seam-branch gate: on a periodic chart, EVERY extracted vertex
@@ -2894,26 +3047,36 @@ mod tests {
     }
 
     #[test]
-    fn nonconstant_arm_charts_refuse_the_area_claim_typed() {
-        // The arm gate itself: exact constant arms exist for plane
-        // and cylinder charts ONLY; every other kind refuses typed
-        // (the follow-up is inf-stretch bounds, not a sup-arm
-        // pseudo-certificate).
-        assert_eq!(exact_arms(&xy_plane()).unwrap(), (1.0, 1.0));
-        assert_eq!(exact_arms(&cyl_surface(0.25)).unwrap(), (0.25, 1.0));
-        for (surface, chart) in [
-            (
-                Surface::Sphere {
-                    center: Point3::origin(),
-                    radius: 1.0,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
-                },
-                "sphere",
-            ),
-            (Surface::nurbs_placeholder(), "NURBS"),
+    fn the_arm_gate_certifies_an_inf_or_refuses_typed() {
+        // Exact constant arms for plane and cylinder charts, which do
+        // not move. Every other kind is a certified INF over the
+        // pair's window — never a sup-arm pseudo-certificate — and
+        // refuses typed exactly where that inf collapses.
+        assert_eq!(
+            certified_arms(&xy_plane(), -1.0, 1.0, band()).unwrap(),
+            (1.0, 1.0)
+        );
+        assert_eq!(
+            certified_arms(&cyl_surface(0.25), -1.0, 1.0, band()).unwrap(),
+            (0.25, 1.0)
+        );
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        // A window clear of the poles certifies `r·cos v_max`.
+        let (arm_u, arm_v) = certified_arms(&sphere, -0.5, 0.5, band()).unwrap();
+        assert!((arm_u - 0.5_f64.cos()).abs() < 1e-15, "got {arm_u}");
+        assert_eq!(arm_v, 1.0);
+        // A pole-reaching window, and a payload with no net at all,
+        // still refuse typed.
+        for (surface, v_hi, chart) in [
+            (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
+            (Surface::nurbs_placeholder(), 0.5, "NURBS"),
         ] {
-            match exact_arms(&surface) {
+            match certified_arms(&surface, -0.5, v_hi, band()) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),
                 other => panic!("{chart} must refuse the arm gate, got {other:?}"),
             }
@@ -3202,5 +3365,222 @@ mod tests {
                 assert_eq!(overlap_of_regions(&a, &b, false, band()).unwrap(), first);
             }
         }
+    }
+}
+
+/// The certified INF-arm rows: the per-kind lower stretch bounds the
+/// positive-area lane meters by, and the direction each needs.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod inf_arms {
+    use super::{ChartRegionError, certified_arms};
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Vec3};
+    use std::sync::Arc;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn sphere(radius: f64) -> Surface<f64> {
+        Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cone(half_angle: f64) -> Surface<f64> {
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn torus(major: f64, minor: f64) -> Surface<f64> {
+        Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// A bilinear chart on `[0, 1]²` mapping to the flat rectangle
+    /// `[0, su] × [0, sv]`: `|S_u| = su`, `|S_v| = sv`, `S_u·S_v = 0`.
+    fn flat_chart(su: f64, sv: f64) -> Surface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, sv, 0.0),
+            Point3::new(su, 0.0, 0.0),
+            Point3::new(su, sv, 0.0),
+        ];
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+        ))
+    }
+
+    /// A chart whose `u`-derivative net CROSSES ZERO — a wall with a
+    /// fold. The middle column doubles back, so `S_u` vanishes
+    /// somewhere and the honest `inf |S_u|` is 0.
+    fn folded_chart() -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        // Columns at x = 0, 2, 0: the second u-difference is the
+        // negation of the first.
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+        ))
+    }
+
+    /// **A sphere window that used to refuse now certifies.** Over
+    /// `|v| ≤ 0.3` the azimuth arm's inf is `r·cos 0.3`, and the
+    /// polar arm is exactly `r`.
+    #[test]
+    fn a_sphere_window_certifies_its_inf_arms() {
+        let (arm_u, arm_v) = certified_arms(&sphere(2.0), -0.3, 0.3, band()).unwrap();
+        let expect_u = 2.0 * 0.3_f64.cos();
+        assert!(
+            (arm_u - expect_u).abs() < 1e-15,
+            "azimuth inf over the window: {arm_u} vs {expect_u}"
+        );
+        assert_eq!(arm_v, 2.0);
+        assert!(arm_u < 2.0, "the inf is strictly under the sup arm r");
+    }
+
+    /// A sphere window reaching a POLE has inf 0 and keeps refusing.
+    #[test]
+    fn a_pole_reaching_sphere_window_still_refuses() {
+        let e = certified_arms(&sphere(2.0), -0.3, core::f64::consts::FRAC_PI_2, band());
+        assert!(matches!(
+            e,
+            Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
+        ));
+    }
+
+    /// **A cone window clear of the apex certifies**; one straddling
+    /// it does not.
+    #[test]
+    fn a_cone_window_certifies_off_the_apex_and_refuses_across_it() {
+        let alpha = 0.4_f64;
+        let (arm_u, arm_v) = certified_arms(&cone(alpha), 3.0, 5.0, band()).unwrap();
+        assert!((arm_u - 3.0 * alpha.sin()).abs() < 1e-15);
+        assert_eq!(arm_v, 1.0, "the cone's v is a length along the ruling");
+        assert!(matches!(
+            certified_arms(&cone(alpha), -1.0, 5.0, band()),
+            Err(ChartRegionError::ArmUnbounded { chart: "cone" })
+        ));
+    }
+
+    /// A ring torus certifies `R − r`; a degenerate one refuses.
+    #[test]
+    fn a_ring_torus_certifies_and_a_degenerate_one_refuses() {
+        let (arm_u, arm_v) = certified_arms(&torus(5.0, 1.0), -3.0, 3.0, band()).unwrap();
+        assert_eq!(arm_u, 4.0);
+        assert_eq!(arm_v, 1.0);
+        assert!(matches!(
+            certified_arms(&torus(1.0, 1.0), -3.0, 3.0, band()),
+            Err(ChartRegionError::ArmUnbounded { chart: "torus" })
+        ));
+    }
+
+    /// **A NURBS chart that used to refuse now certifies**, at the
+    /// net's own stretch: a `[0,1]² → 4 m × 1 m` flat chart is
+    /// orthogonal, so the skew discount is exactly 1 and the arms are
+    /// the per-axis infs.
+    #[test]
+    fn an_orthogonal_nurbs_chart_certifies_its_per_axis_infs() {
+        let (arm_u, arm_v) = certified_arms(&flat_chart(4.0, 1.0), 0.0, 1.0, band()).unwrap();
+        assert!((arm_u - 4.0).abs() < 1e-14, "inf |S_u| = 4, got {arm_u}");
+        assert!((arm_v - 1.0).abs() < 1e-14, "inf |S_v| = 1, got {arm_v}");
+    }
+
+    /// **The zero-crossing net keeps refusing, typed.** Its
+    /// `u`-derivative net brackets the origin, so `inf |S_u|` is
+    /// honestly 0 and no positive bound is invented for it.
+    #[test]
+    fn a_folded_nurbs_net_still_refuses_typed() {
+        assert!(matches!(
+            certified_arms(&folded_chart(), 0.0, 1.0, band()),
+            Err(ChartRegionError::ArmUnbounded { chart: "NURBS" })
+        ));
+    }
+
+    /// **The swap row — the confusion this lane exists to prevent.**
+    /// The inf and sup readings of one chart are different numbers on
+    /// the same side of no claim: on a `[0,1]² → 4 m × 1 m` chart the
+    /// sup pair is what the escape lane quotes and the inf pair is
+    /// what the positive lane quotes; on a chart whose stretch VARIES
+    /// they separate, and reading the sup where the inf belongs
+    /// over-states the metred extent — the direction that certifies a
+    /// sliver.
+    #[test]
+    fn the_sup_reading_over_states_where_the_inf_reading_is_owed() {
+        // A chart whose u stretch runs from 0.5 (first span) to 8
+        // (second span): sup 8, inf 0.5, a factor of 16 apart.
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.25, 0.0, 0.0),
+            Point3::new(0.25, 1.0, 0.0),
+            Point3::new(4.25, 0.0, 0.0),
+            Point3::new(4.25, 1.0, 0.0),
+        ];
+        let s: Surface<f64> = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+        ));
+        let inf_u = geom_brep::chart_stretch_inf(&s).inf_u;
+        let (sup_u, _) = geom_brep::chart_stretch_sup(&s);
+        assert!((inf_u - 0.5).abs() < 1e-14, "inf |S_u| = 0.5, got {inf_u}");
+        assert!((sup_u - 8.0).abs() < 1e-14, "sup |S_u| = 8, got {sup_u}");
+        assert!(
+            sup_u > inf_u * 15.0,
+            "the two readings are 16x apart on one chart: quoting the sup \
+             where the inf is owed over-states a chart-space extent by that \
+             factor, and a 16x-inflated region certifies slivers"
+        );
+        // And the ARM the positive lane actually uses is at or below
+        // the inf reading, never above it — the skew discount only
+        // ever shrinks. A swap could not hide inside the assembly.
+        let (arm_u, _) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        assert!(
+            arm_u <= inf_u && arm_u > 0.0,
+            "the assembled arm {arm_u} must sit in (0, {inf_u}]"
+        );
+    }
+
+    /// A plane and a cylinder keep their EXACT constant arms — no
+    /// bound, nothing to certify, and bit-identical to before.
+    #[test]
+    fn the_exact_constant_arms_do_not_move() {
+        let p: Surface<f64> = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(certified_arms(&p, -5.0, 5.0, band()).unwrap(), (1.0, 1.0));
+        let c: Surface<f64> = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 3.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(certified_arms(&c, -5.0, 5.0, band()).unwrap(), (3.0, 1.0));
     }
 }
