@@ -99,8 +99,10 @@
 //!
 //! # Out of scope, refused typed
 //!
-//! Multi-link open chains (junction carry-through), concave chains
-//! (material-adding blends), partially-requested corners (run-outs),
+//! Multi-link open chains (junction carry-through), open chains whose
+//! material-adding side the requested BAND does not build (the rolling
+//! ball's; the ruled strip carves either),
+//! partially-requested corners (run-outs),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
 //! one edge, or of several arcs a chart seam split), and a LADDER rim
@@ -820,7 +822,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         if !matches!(link.convexity, Convexity::Convex) {
             return Err(unbuilt_chain(
                 link.edge,
-                "a concave chain adds material, which the surgery does not build — \
+                "a concave chain adds material, which no closed-rim carve builds — \
                  not implemented",
             ));
         }

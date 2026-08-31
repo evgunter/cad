@@ -461,17 +461,23 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
      material, which no closed-rim carve builds)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
-/// refusals: what remains outside is junction carry-through, concave
-/// (material-adding) blends, and rims that are not whole circular
-/// plane\u{2013}sphere rings. The closed-chain clause is conditioned
-/// by verb because the door it names is the fillet's alone — a
-/// chamfer has no closed-chain band, and telling a chamfer caller to
-/// request a plane\u{2013}sphere rim would name a door that cannot
-/// serve them.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single convex plane\u{2013}plane links \
-     ending at fully-requested trivalent corners — for a fillet, closed chains that \
-     are circular plane\u{2013}sphere rims also carve (a chamfer has no closed-chain \
-     band); junction carry-through, run-outs and concave blends are not implemented";
+/// refusals: what remains outside is junction carry-through, the
+/// rolling ball's material-adding band, and rims that are not whole
+/// circular plane\u{2013}sphere rings.
+///
+/// TWO of its clauses are conditioned by verb, because each names a
+/// door one verb has and the other does not: the closed chain is the
+/// fillet's alone (a chamfer has no closed-chain band, so telling a
+/// chamfer caller to request a plane\u{2013}sphere rim would name a
+/// door that cannot serve them), and the CONCAVE open chain is the
+/// chamfer's alone (its ruled strip and flat corner patch carry no
+/// convexity parameter, while the rolling ball's band and octant are
+/// derived on the convex side).
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
+     fully-requested trivalent corners — convex for either verb, concave for a CHAMFER \
+     alone; for a fillet, closed chains that are circular plane\u{2013}sphere rims also \
+     carve (a chamfer has no closed-chain band); junction carry-through, run-outs and \
+     the rolling ball's concave band are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
