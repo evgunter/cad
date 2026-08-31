@@ -1,5 +1,12 @@
 //! CERT-5 review lane R1 patch-level probes (blinded adversarial
-//! review of PR 1314, frozen head 3fc450d6). NOT for merge.
+//! review of PR 1314, frozen head 3fc450d6).
+//!
+//! **Adopted into the unit by merge, authorship kept** — this
+//! project's convention for review probes that earn a place. Three
+//! edits since: rustfmt, a clippy fix, and four items made
+//! `pub(crate)` so the independent oracle below is reused by
+//! `cert5_arm_and_cells.rs` rather than copied. The probes are
+//! otherwise unchanged.
 //!
 //! What these attack, per the review brief:
 //! - the exact `w`-uniform-in-v arm's CONTAINMENT on a patch of the

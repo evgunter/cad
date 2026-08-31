@@ -1,6 +1,14 @@
 //! CERT-5 R2 adversarial probes: knot-aligned composite cells and the
 //! `w`-uniform-in-v exact arm.
 //!
+//! **Adopted into the unit by merge, authorship kept.** Unchanged
+//! apart from rustfmt. The sliver rows here are the ones that found
+//! the hairline-cell hazard; two of the three now certify or refuse
+//! honestly, and the third (`knot_one_ulp_from_a_block_edge`) still
+//! carries a large width for a reason that is NOT this unit's cut
+//! rule — see `refine_dir`'s exact-equality insertion guard, measured
+//! and reported rather than changed here.
+//!
 //! Every probe drives the PUBLIC props door `nurbs_patch_face` and
 //! checks the returned bracket against an INDEPENDENT plain-f64
 //! Cox-de-Boor + composite Gauss-Legendre oracle. A bracket that

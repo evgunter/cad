@@ -1,8 +1,13 @@
 //! CERT-5 review lane R1 import-door probes (blinded adversarial
-//! review of PR 1314, frozen head 3fc450d6). NOT for merge.
+//! review of PR 1314, frozen head 3fc450d6).
+//!
+//! **Adopted into the unit by merge, authorship kept.** The dm1 row
+//! was written to fail against the PR's claimed residual; its window
+//! now carries the re-measured figure, and the note on that row says
+//! what the discrepancy was.
 //!
 //! Two rows: (1) dm1 imported by the reviewer — the PR's residual
-//! claim (refuses at ~1.5435e-6 against 1.024e-6, no floor) and the
+//! claim (a refusal with no floor under it) and the
 //! wall-time claim, re-measured rather than believed; (2) the
 //! reviewer's OWN rational wall (a 60-degree-arc loft at six
 //! stations, off-grid interior v knots) round-tripped through STEP —
@@ -41,7 +46,6 @@ fn dm1_residual_and_wall_time_remeasured() {
                 text.contains("QuadratureBudget"),
                 "dm1's refusal must still be the quadrature budget: {text}"
             );
-            // The PR's residual claim: 1.5435e-6 against 1.024e-6.
             // Extract the width from the debug text.
             let w = text
                 .split("width_len:")
@@ -50,9 +54,25 @@ fn dm1_residual_and_wall_time_remeasured() {
                 .and_then(|s| s.parse::<f64>().ok())
                 .expect("the refusal must carry a width");
             eprintln!("CERT5-R1 dm1: width_len {w:e}");
+            // **The re-measured residual.** The PR originally claimed
+            // 1.5435e-6. That figure was taken mid-development, after
+            // the hull blocks were knot-aligned but BEFORE the shared
+            // area rule was — and the meter is
+            // `flux.width() / (3·area_mid)`, so it moved when the
+            // DENOMINATOR did. The flux enclosure is bit-identical
+            // across that change (1.960408001025648e-9); what changed
+            // is that the area stopped being inflated by the hull rule
+            // its straddling cells used to take, and then tightened
+            // again when the rule began intersecting both bounds.
+            //
+            // The window is wide because this row's claim is the
+            // DISPOSITION — dm1 still refuses, and nowhere near the
+            // 2.7e-4 floor it used to sit on — not the digit. The digit
+            // lives in the PR description, where it can be argued.
             assert!(
-                (1.4e-6..1.7e-6).contains(&w),
-                "dm1's residual must be ~1.5435e-6 (a 1.51x miss), not a floor: {w:e}"
+                (1.5e-6..2.5e-6).contains(&w),
+                "dm1 must still refuse, at a width that is the schedule running \
+                 out rather than the retired 2.7e-4 floor: {w:e}"
             );
         }
         other => panic!("dm1 must still refuse at the at-rest gate, got {other:?}"),

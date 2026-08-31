@@ -152,6 +152,20 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
 /// the skin really does carry interior knots in the section direction,
 /// and they really are off any grid the composite could cut at.
 ///
+/// **What this reads, and what it does not.** It re-derives the knots
+/// the averaging rule would produce from the parameters the loft
+/// reports, which is a hand-copy of `skin.rs`'s Eq 9.8 rather than a
+/// reading of the vector the built surface actually carries. Nothing
+/// public on `Lofted` exposes that vector, and walking the body to its
+/// wall surface to fetch it would couple these rows to the topology
+/// layer for a hypothesis check. The cost of the copy is stated rather
+/// than hidden: if the skin ever changes its knot rule, this helper
+/// keeps agreeing with itself while describing a vector the kernel no
+/// longer builds. What would still be true in that case is everything
+/// the rows actually assert — the measured widths, the postures, and
+/// the containment of the analytic oracle — because those come from
+/// the body, not from here.
+///
 /// "Off-grid" is tested against the coarsest cut the rounds make
 /// (`QUAD2_INIT_PIECES = 8`) and every doubling of it up to the last
 /// round's `1024`: a knot that coincided with a cell edge at any of
