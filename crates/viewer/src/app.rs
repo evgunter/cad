@@ -48,6 +48,7 @@ use pncad::document::{Axis3, BooleanOp, Dimension, DocumentId, ParamName, Recipe
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
+use crate::blend::{BlendError, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
@@ -293,6 +294,14 @@ struct Drafts {
     pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pattern_step: f64,
+    /// The blend form's kind choice — which of the two doors the
+    /// commit button calls.
+    blend_kind: BlendKindChoice,
+    /// Its one Length field, metres. ONE field for both kinds by the
+    /// unit's spec: what the number means is the kind's to say
+    /// ([`BlendKindChoice::size_label`]), and a second field would be
+    /// a second place for the same quantity to be typed into.
+    blend_size: f64,
 }
 
 impl Default for Drafts {
@@ -333,6 +342,8 @@ impl Default for Drafts {
             pattern_direction: [1.0, 0.0, 0.0],
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
+            blend_kind: BlendKindChoice::Fillet,
+            blend_size: 0.001,
         }
     }
 }
@@ -1324,8 +1335,11 @@ impl eframe::App for ViewerApp {
         // frame produced is ALSO held as a tool pick (the
         // two-sequential-picks ruling — the same single-select value,
         // copied into tool state). Which vocabulary each tool reads is
-        // `Tools::feed`'s to know.
-        self.tools.feed(&ops);
+        // `Tools::feed`'s to know, and a pick a tool DECLINED comes
+        // back as a notice shown exactly as a survival drop is.
+        for notice in self.tools.feed(&ops) {
+            self.status = Some(notice.to_string());
+        }
 
         self.perform_batch(ops);
     }
@@ -1608,7 +1622,7 @@ impl ViewerBehavior<'_> {
             .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
-        let edges = self
+        let mut edges = self
             .index
             .map(|index| {
                 pick::edge_overlay(
@@ -1619,6 +1633,22 @@ impl ViewerBehavior<'_> {
                 )
             })
             .unwrap_or_default();
+        // **The open blend tool's held set is marked too** — all of
+        // it, because the set IS what the user is composing and a
+        // count alone cannot tell them WHICH twelve edges they hold.
+        //
+        // Marked as SELECTED, the mark meaning "a choice you have
+        // made". `pick::edge_segments` applies the same (node, body)
+        // narrowing a single selection gets, so a held name this
+        // evaluation does not draw there marks nothing rather than
+        // lighting some other copy of it.
+        if let (Some(index), Some(tool)) = (self.index, self.tools.blend()) {
+            for mark in tool.marks() {
+                edges
+                    .selected
+                    .extend(pick::edge_segments(index, self.display, &mark));
+            }
+        }
 
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
@@ -2258,6 +2288,13 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.pattern_tool_ui(ui);
         });
+        // The blend tools sit in their own section (GAUTH-5): they
+        // take a body that exists and reshape its EDGES, which is a
+        // third kind of move again — and the only one whose picks are
+        // a set rather than a seat.
+        ui.collapsing("Blend edges", |ui| {
+            self.blend_tool_ui(ui);
+        });
         ui.separator();
     }
 
@@ -2635,6 +2672,119 @@ impl ViewerBehavior<'_> {
                 }
             },
         );
+    }
+
+    /// The blend tool's panel: activation, the freeze sentence, the
+    /// live count of held edges, the all-edges affordance, the kind
+    /// choice with its one Length field, and the one committed edit.
+    ///
+    /// **The freeze sentence is not decoration.** #217 makes the
+    /// selection a commitment — a later edit that adds an edge does
+    /// not extend the blend, and one that strands a picked edge
+    /// refuses on the node — and the moment a user needs to know that
+    /// is while they are choosing the set, so it is stated here rather
+    /// than only in the node's docs.
+    fn blend_tool_ui(&mut self, ui: &mut egui::Ui) {
+        // Cloned like the mate tool's, for the same reason: the panel
+        // reads it while pushing ops and closing the tool. The clone
+        // carries a set of names, which is a click's worth of work and
+        // not a frame's.
+        let Some(tool) = self.tools.blend().cloned() else {
+            if ui.button("Blend tool…").clicked() {
+                self.tools.open(ToolKind::Blend);
+            }
+            return;
+        };
+        ui.label(ToolKind::Blend.says(&"pick the edges to blend"));
+        ui.weak(FREEZE_NOTE);
+        ui.weak(match tool.target() {
+            Some(target) => format!("{} edges picked on {target}", tool.count()),
+            None => "no edges picked yet".to_owned(),
+        });
+        self.all_edges_row(ui, &tool);
+        ui.horizontal(|ui| {
+            ui.label("blend");
+            for (kind, label) in BlendKindChoice::ALL {
+                ui.radio_value(&mut self.drafts.blend_kind, kind, label);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label(self.drafts.blend_kind.size_label());
+            ui.add(egui::DragValue::new(&mut self.drafts.blend_size).speed(FIELD_DRAG_SPEED));
+        });
+        self.blend_commit_row(ui, &tool);
+    }
+
+    /// **The all-edges affordance** — `editor_core::all_edges` through
+    /// the tool's own loading door, which stores what it returns as an
+    /// ordinary frozen set: indistinguishable from clicking each edge,
+    /// which is exactly why `Node::Fillet` has no every-edge variant.
+    ///
+    /// The body it is about is the one the held edges are on; with
+    /// nothing held, the selected feature. So "select the body, press
+    /// the button" works from a standing start, and once picking has
+    /// begun the button cannot move the tool to another body behind
+    /// the user's back.
+    fn all_edges_row(&mut self, ui: &mut egui::Ui, tool: &BlendTool) {
+        let target = tool.target().or_else(|| {
+            self.session
+                .selection()
+                .node()
+                .map(|node| BlendTarget { node, body: 0 })
+        });
+        let Some((target, eval)) = target.zip(self.session.evaluation()) else {
+            ui.add_enabled(false, egui::Button::new("Select all edges"))
+                .on_disabled_hover_text("select the body first, and let it evaluate");
+            return;
+        };
+        let clicked = ui
+            .button("Select all edges")
+            .on_hover_text("every edge of this body as it stands now, stored as a frozen set")
+            .clicked();
+        if !clicked {
+            return;
+        }
+        // The load reads the LANDED evaluation and writes tool state:
+        // no document edit, so no op — `BlendTool::load_all_edges` is
+        // the typed operation, callable with no renderer, and this is
+        // its one widget.
+        let event = self
+            .tools
+            .blend_mut()
+            .and_then(|tool| tool.load_all_edges(target, eval));
+        if let Some(event) = event {
+            *self.status = Some(ToolKind::Blend.says(&event));
+        }
+    }
+
+    /// The blend tool's commit/cancel row — [`ViewerBehavior::tool_commit_row`]'s
+    /// rules, spelled here because this tool's commit door refuses in
+    /// its own vocabulary ([`BlendError`]) rather than in the seats'.
+    ///
+    /// Both halves of the close rule are unchanged: the op is QUEUED
+    /// and the application closes the tool when the edit actually
+    /// commits, so a refusal at the session door leaves every picked
+    /// edge in place to correct; Cancel closes at once.
+    fn blend_commit_row(&mut self, ui: &mut egui::Ui, tool: &BlendTool) {
+        let mut close = false;
+        ui.horizontal(|ui| {
+            if ui.button("Commit blend").clicked() {
+                let op: Result<SessionOp, BlendError> = match self.drafts.blend_kind {
+                    BlendKindChoice::Fillet => tool.fillet_op(self.drafts.blend_size),
+                    BlendKindChoice::Chamfer => tool.chamfer_op(self.drafts.blend_size),
+                };
+                match op {
+                    Ok(op) => self.ops.push(op),
+                    Err(error) => *self.status = Some(ToolKind::Blend.says(&error)),
+                }
+            }
+            if ui.button("Cancel").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            self.tools.close();
+        }
     }
 
     /// **The commit/cancel row every combining tool ends with**, and

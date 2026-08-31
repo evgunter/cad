@@ -112,11 +112,25 @@ pub struct EdgeId {
 /// winning those faces became unpickable while the tool was open.
 ///
 /// **This is deliberately not a filter vocabulary.** It is two
-/// answers to one question the shipped tools actually ask, threaded
-/// through the one door that decides priority so a tool cannot get a
-/// different rule by re-implementing it. Which filters are offered
-/// where — and the third kind an edges-only tool will want — is GQ7's
-/// open clause and issue #1379, and nothing here forecloses it.
+/// answers to the one question the shipped tools actually ask,
+/// threaded through the one door that decides priority so a tool
+/// cannot get a different rule by re-implementing it.
+///
+/// **The blend tool is the mirror case and the second data point.**
+/// It consumes edges and nothing else, so a click that lands on a
+/// face is a click the tool cannot use: unfiltered, a cursor eight
+/// pixels off an edge silently re-selects the wall behind it and the
+/// user's click does nothing they can see. [`PickKinds::EdgesOnly`]
+/// makes that miss a MISS — nothing is picked, exactly as a cursor
+/// over the background picks nothing — so the answer is either an
+/// edge the tool takes or an honest empty.
+///
+/// **This is still not a filter vocabulary.** It is three answers to
+/// one question, one per shape of tool the GUI has shipped, and the
+/// enum is exhaustively matched at the door. Which filters are
+/// offered where — a general "kinds admitted" set, a per-tool cursor
+/// hint — is GQ7's open clause and issue #1379, which now carries two
+/// concrete tools rather than one; nothing here forecloses it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PickKinds {
     /// The bare cursor's rule: an edge within [`EDGE_PICK_RADIUS_PX`]
@@ -126,12 +140,28 @@ pub enum PickKinds {
     /// Faces only: the edge test is not run, so the answer is the
     /// ray path's face or nothing.
     FacesOnly,
+    /// Edges only: the edge test runs, and a cursor that no edge wins
+    /// answers NOTHING rather than the face the ray met.
+    EdgesOnly,
 }
 
 impl PickKinds {
     /// Whether an edge may win here.
     fn edges(self) -> bool {
-        matches!(self, Self::Any)
+        match self {
+            Self::Any | Self::EdgesOnly => true,
+            Self::FacesOnly => false,
+        }
+    }
+
+    /// Whether the face the ray met is an admissible answer — what
+    /// separates "no edge won, take the face" from "no edge won, so
+    /// nothing is here".
+    fn faces(self) -> bool {
+        match self {
+            Self::Any | Self::FacesOnly => true,
+            Self::EdgesOnly => false,
+        }
     }
 }
 
@@ -989,7 +1019,7 @@ impl PickIndex {
 
     /// **What the cursor is over**: the edge when one is within
     /// [`EDGE_PICK_RADIUS_PX`] and `kinds` admits edges, else the
-    /// face, else nothing.
+    /// face when `kinds` admits faces, else nothing.
     ///
     /// The pick-priority rule lives here, in one place, so the hover
     /// op and the select op cannot disagree about which entity a
@@ -1015,6 +1045,12 @@ impl PickIndex {
             && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &hit)?
         {
             return Ok(Some(Hovered::Edge(edge.selection())));
+        }
+        if !kinds.faces() {
+            // The ray met a body, but no edge won it and this caller
+            // cannot use a face: the honest answer is that nothing the
+            // cursor can mean is here, not the face it did not aim at.
+            return Ok(None);
         }
         Ok(Some(Hovered::Face(FaceSelection {
             name: hit.name,
