@@ -884,14 +884,6 @@ mod tests {
             "slit square tiled to twice-area {total}, want 2 (the full square)"
         );
     }
-}
-
-/// R2 probes for MESH-2 (PR #1421). Not part of the unit — reviewer
-/// falsification attempts against the structural-zero derivation and
-/// the bit-keying, kept in-module because `chart_frame`/`ChartFrame`
-/// are private.
-#[cfg(test)]
-mod r2_mesh2_probes {
     use geom_core::{Point3, Vec3};
 
     const FLOOR: f64 = 1.793_662_034_335_766e-43; // spade MIN_ALLOWED_VALUE
@@ -1154,15 +1146,6 @@ mod r2_mesh2_probes {
             );
         }
     }
-}
-
-/// R2 probes, part 2: the ringed-chart mechanism and the rejected
-/// alternative's actual behaviour.
-#[cfg(test)]
-mod r2_mesh2_probes_ring {
-    use geom_core::Point3;
-
-    const FLOOR: f64 = 1.793_662_034_335_766e-43;
 
     /// PROBE 9 — WHICH coordinate is sub-floor on a ringed chart. Frame
     /// from the outer square; project the concentric ring, whose
@@ -1273,12 +1256,6 @@ mod r2_mesh2_probes_ring {
              argument's second leg would be false"
         );
     }
-}
-
-/// R2 probes, part 3.
-#[cfg(test)]
-mod r2_mesh2_probes_scoping {
-    use geom_core::Point3;
 
     /// PROBE 11 — the PR body says `only_the_far_points_v_is_written`
     /// "is the row a blanket filter would fail". Run that: apply
