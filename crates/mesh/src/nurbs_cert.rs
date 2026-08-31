@@ -2983,8 +2983,8 @@ mod tests {
         let s = staggered_channels();
         let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
         // Measured whole-net figures (pre-collapse), full precision.
-        let whole_muu = 4.821_956_449_409_315_58e1;
-        let whole_mu1 = 2.000_000_000_000_002_49e1;
+        let whole_muu = 4.821_956_449_409_315_6e1;
+        let whole_mu1 = 2.000_000_000_000_002_5e1;
         assert!(
             b.muu < whole_muu * 0.8,
             "staggered muu {:.17e} is not strictly tighter than the whole-net {whole_muu:.17e}",
@@ -3002,12 +3002,12 @@ mod tests {
         let w = wavy();
         let bw = nurbs_face_bound(&w, FaceKey::default()).expect("covered");
         assert!(
-            bw.muu == 1.039_409_499_704_883_54e1,
+            bw.muu == 1.039_409_499_704_883_5e1,
             "wavy muu moved: {:.17e}",
             bw.muu
         );
         assert!(
-            bw.mv1 < 4.335_017_346_749_229_89e0,
+            bw.mv1 < 4.335_017_346_749_23,
             "wavy mv1 {:.17e} did not gain on the whole-net figure",
             bw.mv1
         );
@@ -3082,8 +3082,8 @@ mod tests {
     fn cert10_signed_reading_is_strictly_tighter_on_a_rational_face() {
         let s = quarter_cylinder();
         let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
-        let mag_muu = 3.942_263_838_556_179_68e0;
-        let mag_muv = 1.266_375_820_315_083_44e0;
+        let mag_muu = 3.942_263_838_556_179_7;
+        let mag_muv = 1.266_375_820_315_083_4;
         assert!(
             b.muu < mag_muu * 0.78,
             "quarter cylinder muu {:.17e} did not tighten on the magnitude {mag_muu:.17e}",
@@ -3113,33 +3113,33 @@ mod tests {
             (
                 "quarter_cylinder",
                 NurbsFaceBound {
-                    muu: 3.942_263_838_556_179_68e0,
-                    muv: 1.266_375_820_315_083_44e0,
-                    mvv: 4.250_461_439_678_580_78e-15,
-                    mu1: 1.758_098_729_671_621_29e0,
-                    mv1: 1.064_513_033_689_902_91e0,
+                    muu: 3.942_263_838_556_179_7,
+                    muv: 1.266_375_820_315_083_4,
+                    mvv: 4.250_461_439_678_581e-15,
+                    mu1: 1.758_098_729_671_621_3,
+                    mv1: 1.064_513_033_689_903,
                 },
                 quarter_cylinder(),
             ),
             (
                 "pie_wall",
                 NurbsFaceBound {
-                    muu: 3.757_781_184_602_715_37e0,
-                    muv: 1.187_199_279_294_388_18e0,
-                    mvv: 4.202_650_729_863_987_39e-15,
-                    mu1: 1.736_856_620_662_045_71e0,
-                    mv1: 1.060_465_116_279_076_36e0,
+                    muu: 3.757_781_184_602_715_4,
+                    muv: 1.187_199_279_294_388_2,
+                    mvv: 4.202_650_729_863_987_4e-15,
+                    mu1: 1.736_856_620_662_045_7,
+                    mv1: 1.060_465_116_279_076_4,
                 },
                 pie_wall(),
             ),
             (
                 "wavy_rational",
                 NurbsFaceBound {
-                    muu: 2.102_738_222_528_367_26e3,
-                    muv: 7.072_400_295_746_916_75e2,
-                    mvv: 3.944_546_314_591_795_52e2,
-                    mu1: 3.783_331_582_921_541_52e1,
-                    mv1: 1.429_748_990_854_184_68e1,
+                    muu: 2.102_738_222_528_367_3e3,
+                    muv: 7.072_400_295_746_917e2,
+                    mvv: 3.944_546_314_591_795_5e2,
+                    mu1: 3.783_331_582_921_541_5e1,
+                    mv1: 1.429_748_990_854_184_7e1,
                 },
                 wavy_rational(),
             ),
