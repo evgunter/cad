@@ -102,6 +102,24 @@ outside the fence and the fix is a judgement about that module's prose.
 **Every Track T lane should expect this red until #1330 lands**, and
 should check the failing job is that one before believing it.
 
+**Second incident — `main` is red at the interval / eps=1e-12 point,
+and Track T lanes will keep drawing it.** T-a's post-merge run 3821
+drew `interval, eps = 1e-12` — a point its earlier runs never drew —
+and both shards failed. The lane's own rows are green there; the whole
+`-p sweep` suite at that point has three failures
+(`m5_s12_curved_ops_interval`, `review_arceval_r1_probes` and
+`m5_s13_pips_interval`, all `certified::` rows), and **all three fail
+identically on a clean detached `origin/main`**. One root cause: a
+measured constant `1.1414768974413613e-12` pinned in two files while
+the value is now `1.1362773333939659e-12` — *"the arc chain moved;
+re-measure and re-state"* — with the third row a consequence of the
+same narrowing. Filed as **#1338**, the same class as the closed #921.
+Not fixed: the rows are outside this lane's two and the fix is a
+re-measurement someone must adjudicate, since a moved baseline is
+evidence rather than a number to restore. **Two of these three rows are
+in `crates/sweep/`, so this is Track T ground** and wants a row if it
+outlives #1338.
+
 **What the lane found and did not fix.** The `twisted_lofted` fixture's
 `theta` is not the body's roll: validation re-anchors each loop to its
 lex-min vertex and the loft pairs CANONICAL loops by index, so for
