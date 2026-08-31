@@ -843,16 +843,15 @@ klint_gate() {
 # hygiene + tests, then the fresh per-face sweep + the GATE.
 #
 # The gate compares against docs/tess-budget-data/, and it compares
-# DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
-# whose sizing got wastefuller, a scene that dropped out of the sweep,
-# or an ordinal whose two rows are not one face, which is the per-face
-# join's precondition and is announced rather than resolved. FOUR
-# rules, stated once in `tools/tess-lint`'s module docs; this points at
-# them rather than keeping a second roster, which is what it was doing
-# while the count read three. On a failure read the tool's message:
-# coarsening a demo's delta to get the number down is the one forbidden
-# move. What the absolute factors currently are, and why:
-# docs/TESS-BUDGET.md.
+# DIFFERENCES, not absolute slack. WHAT THE RULES ARE is rostered in
+# `tools/tess-lint`'s module docs and nowhere else, this file included:
+# the enumeration that used to stand here read THREE for as long as
+# rule 4 had existed, and the correction to four was stale within a day
+# when the uncovered-scene rule landed as rule 5. A pointer cannot go
+# stale; a roster kept beside the thing it describes drifts at that
+# thing's rate. On a failure read the tool's message: coarsening a
+# demo's delta to get the number down is the one forbidden move. What
+# the absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
   # No `cargo doc` here: it used to carry a copy of one, because
   # doc-gate.sh was `cargo doc --workspace` and could not see a

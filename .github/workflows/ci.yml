@@ -2986,16 +2986,17 @@ jobs:
       # (docs/TESS-BUDGET.md), so an absolute threshold could only be
       # set above them, and the one thing that must never happen is
       # someone coarsening a demo's delta to get a number down. What
-      # this catches is FOUR things, not three: a scene's mesh growing,
-      # a face's sizing getting wastefuller, a scene silently dropping
-      # out of the sweep, and — rule 4, the per-face join's own
-      # precondition — an ordinal whose two rows are not one face,
-      # announced rather than resolved into a comparison.
+      # this catches is ROSTERED IN `tools/tess-lint`'S MODULE DOCS AND
+      # NOWHERE ELSE, this file included — no count here, and no list.
       #
-      # THE RULES ARE STATED ONCE, in `tools/tess-lint`'s module docs,
-      # and this is a pointer at them rather than a second roster to
-      # keep in step. It has already drifted once by being one: the
-      # count above read three for as long as rule 4 had existed.
+      # The enumeration this replaces is why. It read THREE for as long
+      # as rule 4 had existed; corrected to four, it was stale again
+      # within a day, because the uncovered-scene rule landed as rule 5
+      # while the correction was in flight. A roster kept beside the
+      # thing it describes drifts at the rate that thing changes, and
+      # this one is three copies deep (`docs/TESS-BUDGET.md` and
+      # `local-scripts/ci-local.sh` say it the same way now). A pointer
+      # cannot go stale.
       #
       # Baseline + how to re-cut it: docs/tess-budget-data/ and the
       # tool's own failure message, which prints the recourse.

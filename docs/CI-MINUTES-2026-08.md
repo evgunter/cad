@@ -366,6 +366,45 @@ landed here: this finding measured the `fmt` job, and a claim about a
 > `k_report.rs` and the falsifier live under `crates/`, which the pin does
 > not reach.
 
+**ADDENDUM, 2026-08-31 — F6's result may have been spent, and this
+entry says so rather than leaving the −1 standing unqualified.** This
+document maintains its billed-minute figures BY HAND, deliberately and
+for the reason given under *Method*: they are not guardable, so the only
+thing that keeps them honest is a change that moves one saying so at the
+entry it moves. The D180/D301 widening (the rustdoc gate's `not(feature)`
+blind spot) has added a **third pass** to `scripts/doc-gate.sh` — one
+`--no-default-features` pass per cargo root that carries a paired
+module, five of the eight roots today.
+
+What is measured:
+
+* **It is a distinct feature unification**, so it is the shape this
+  entry's own superseding note is about: it shares almost no artifacts
+  with the `--all-features` passes and no cache configuration collapses
+  the two. It is not a caching problem and will not be fixed as one.
+* **Warm, on developer boxes**: +33.4 s on the gate-plus-selftest total
+  (4 vCPU, 2026-08-30) and +47.9 s on a second box (2026-08-31). The
+  larger reading is the floor to plan against.
+* **Hosted, COLD**: `rustdoc (gate)` ran 331 s on run `33342678074`
+  against 219/288/299 s on three contemporaneous PR runs whose cache
+  also missed (restore ≤ 2 s in all four). Roughly +20–30%.
+
+What is NOT measured, and is exactly the number this entry turns on:
+
+* **The warm hosted figure.** No run on a feature branch produces it —
+  the key is fresh, so every one of them is a cold read. It lands on the
+  first `fmt` job after the widening merges and reuses the key, and
+  **that is where to read whether the gate is still inside 2 billed
+  minutes**. F6 moved the job 136 s → 99 s; 120 s is the line.
+* **The cache entry's size.** F6's +90 MB bought the seven roots at ONE
+  selection. Pass 3 adds a second fingerprint set to five of them, in
+  the same cached target directories. Nobody has read the new figure.
+
+If the minute is gone, the lever is pass 3's root set — five roots, of
+which `demos/tour` compiles the whole kernel — and not its lint set,
+which is what makes the pass worth anything. The re-read is owed by
+whoever lands next on the `fmt` job.
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
@@ -393,7 +432,9 @@ landed here: this finding measured the `fmt` job, and a claim about a
   defaults to (F6). The list is not written into `ci.yml`: a step asks
   `scripts/doc-gate.sh --print-roots`, which runs the gate's own
   derivation, so the cache's scope cannot drift from the gate's coverage.
-  **−1 billed min.**
+  **−1 billed min** — *possibly spent again as of 2026-08-31; see F6's
+  addendum, and re-read at the first warm `fmt` run after the D180/D301
+  widening.*
 
 ### 2026-08-22, the second pass — and it is a different KIND of change
 
@@ -921,12 +962,18 @@ not a saving, it is a hole.
    > there.
 
    Sampling the rustdoc gate — the entry this replaces — is off the
-   table for now, and F6 is why: the gate is back inside 2 billed
-   minutes without giving up a root. Sampling it *would* be sound (a
-   broken intra-doc link persists in the tree, so a later draw finds it)
-   but it is the wrong tool — the six roots are independent, so sampling
-   them buys latency proportionally rather than exploiting near-certain
-   agreement the way eps does.
+   table for now, and F6 was why: the gate was back inside 2 billed
+   minutes without giving up a root. **That premise is now doubtful, and
+   the sentence is left standing as the reasoning of its date rather
+   than quietly rewritten**: the D180/D301 widening has since added a
+   third pass, and F6's addendum below says what is and is not measured
+   about it. What needs re-reading is the conclusion, not the argument.
+   Sampling it *would* be sound (a broken intra-doc link persists in the
+   tree, so a later draw finds it) but it is the wrong tool — the roots
+   are independent, so sampling them buys latency proportionally rather
+   than exploiting near-certain agreement the way eps does. If the
+   widening does cost the minute back, this is the trade to re-open
+   first.
 3. **A scheduled full run on main** — still owed from F3, and now owed
    more: with the push run trimmed and the PR run sampled, no single
    tree is gated at every point by hosted CI. Deliberately not bundled
