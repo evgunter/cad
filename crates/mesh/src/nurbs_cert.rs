@@ -78,17 +78,12 @@
 //! - `sup|S_u|` — the same recurrence one order down;
 //! - `sup|w_kl|` — the weight spline's own derivative hulls.
 //!
-//! **The divisor is `w_min`, argued not assumed.** On the cell,
-//! `w ∈ [w_min, w_max]` of the active weights (convex combination).
-//! Every numerator bound above is a NONNEGATIVE magnitude sup, and for
-//! a nonnegative numerator the conservative (sup-side) division is by
-//! the SMALLEST denominator: `|X|/w ≤ sup|X|/w_min`. This is the
-//! mirror image of the speed meter's lower-bound choice
-//! (`geom::rational_speed_lower_bound`: a nonnegative numerator
-//! divides by `w_max` for an INF bound) — same lattice, opposite side.
-//! The interval division by the cell's weight hull `[w_lo, w_hi]`
-//! computes exactly `sup/w_lo`, outward-rounded, and poisons if
-//! positivity was never proven.
+//! **The divisor is the cell's weight hull, argued not assumed.** On
+//! the cell, `w ∈ [w_min, w_max]` of the active weights (convex
+//! combination), and the recurrence is evaluated SIGNED in the ring —
+//! the true minus signs, divided by the whole hull, which is where the
+//! quotient rule's cancellations survive. The interval division
+//! poisons if positivity was never proven.
 //!
 //! **Recentring keeps the cross terms cell-sized**: with the cell's
 //! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
@@ -557,10 +552,11 @@ fn cell_component(sq: RingInterval) -> f64 {
 /// budget row carries the cell count, so a reader is never guessing
 /// which.
 ///
-/// The max over the returned cells is `≤` the face bound in every arm
-/// (the whole-patch hull is over a superset of every cell's window);
-/// this module's own `no_cell_exceeds_the_whole_patch_bound` test
-/// asserts exactly that, componentwise.
+/// The max over the returned cells IS the face bound
+/// ([`folded_face_bound`] folds exactly these cells); this module's own
+/// `no_cell_exceeds_the_whole_patch_bound` test asserts the inequality
+/// componentwise and `cert10_whole_face_bound_is_the_per_cell_fold`
+/// asserts the equality.
 ///
 /// # Errors
 ///
@@ -1185,11 +1181,12 @@ impl NurbsCellGrid {
 /// The certified Hessian sup bounds of a described NURBS face, or the
 /// typed refusal naming its class (module docs).
 ///
-/// Two arms share the gates and the finite check: the INTEGRAL arm
-/// (all weights bitwise `1.0` — the kernel's definition of
-/// non-rational) is the original hull assembly, bit-identical; the
-/// RATIONAL arm (M8-5) is the quotient-rule assembly over the
-/// homogeneous nets (module docs, "The rational arm").
+/// ONE arm for both patch classes: the fold over
+/// [`patch_bound::patch_cells`]' per-cell enclosures
+/// ([`folded_face_bound`]). Which assembly produced those cells is the
+/// patch's own business — the plain hull assembly for an integral net,
+/// the quotient rule over the homogeneous nets for a rational one
+/// (module docs, "The rational arm").
 ///
 /// # Errors
 ///

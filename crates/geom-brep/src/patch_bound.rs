@@ -8,7 +8,10 @@
 //! `S(u,v) = Σᵢⱼ Nᵢ(u)·Nⱼ(v)·Pᵢⱼ`, every partial is itself a
 //! tensor-product B-spline whose coefficient net comes from knot
 //! differencing per direction (The NURBS Book Eq. 3.24 — exactly
-//! [`geom_core::spline::hull::derivative_coeffs`], iterated). Both
+//! [`geom_core::spline::net::TensorNet::diff_u_knots`], which is
+//! [`geom_core::spline::hull::derivative_coeffs`] iterated across the
+//! net's lines; that iteration is the ONE spelling, here and in every
+//! other tensor consumer). Both
 //! bases are nonnegative partitions of unity, so on a knot-span cell
 //! every value of a partial is a convex combination of the derived
 //! coefficients active there and lies in their **signed** hull.
@@ -71,7 +74,11 @@
 //! The answer is a bound, not an estimate. Ordinary walls measure
 //! within a small factor of the true sup; extreme weight ratios can
 //! leave it orders above, because the product terms lose the sign
-//! correlation a steep ramp lives in. The cost is only how finely a
+//! correlation a steep ramp lives in — the residue of that loss, not
+//! the whole of it: what the retired magnitude reading additionally
+//! threw away was the quotient rule's OWN signs, and recovering those
+//! is worth an order of magnitude on `sup‖S_uv‖` for an arc-walled
+//! patch. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
 //! # Poison (fail-loud, D4 ¶2)
