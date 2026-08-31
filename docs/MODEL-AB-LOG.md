@@ -2623,3 +2623,17 @@ Executed in slot order — GAUTH-1 FABLE (ordinal 900) · GAUTH-2 OPUS
 (902) · GAUTH-3 OPUS (901) · GAUTH-4 OPUS (903). All four rows
 recorded; the block closes balanced as drawn. GAUTH-B2's record
 stays branch-side while it has unconcluded slots.
+
+MATE-1 (PR #1400) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1300 — the S-MATE band's first claim** (band 1300–1399
+per the banding entry above). v6 dual: slot byte **180**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen
+`1e5cf098` (run 33426460701 verified at dispatch: head SHA
+matches, every job success or habitually skipped at the STEP
+level — both default test shards ran; gate point default +
+eps 1e-6, DRAWN; the three earlier dead runs on this PR are the
+spending-limit incident, recorded in the PR body), R2 isolated
+from R1, briefs symmetric, no relaxations granted. Implementer
+difficulty M/L (pre-logged in the plan's opening commit,
+pre-draw; recorded numeric M at spec). Sample number at merge.
+Row at merge.
