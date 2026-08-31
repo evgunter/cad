@@ -35,7 +35,8 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
 use pncad::profile::SketchPlane;
-use viewer::revolvetool::{RevolveSeat, RevolveTool, RevolveToolError, RevolveToolEvent};
+use viewer::revolvetool::RevolveTool;
+use viewer::seats::{Seat, SeatError, SeatEvent};
 use viewer::session::{
     DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfileShape, Refusal,
     Selection, SessionOp,
@@ -803,13 +804,23 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
 
     let mut tool = RevolveTool::new();
     assert!(
-        matches!(tool.op(TAU), Err(RevolveToolError::NotTwoPicks)),
+        matches!(
+            tool.op(TAU),
+            Err(SeatError::Empty {
+                seat: Seat::RevolveProfile
+            })
+        ),
         "no picks, no op"
     );
     tool.pick(profile);
     assert_eq!(tool.profile(), Some(profile));
     assert!(
-        matches!(tool.op(TAU), Err(RevolveToolError::NotTwoPicks)),
+        matches!(
+            tool.op(TAU),
+            Err(SeatError::Empty {
+                seat: Seat::RevolveAxis
+            })
+        ),
         "one pick, no op"
     );
     tool.pick(axis);
@@ -837,8 +848,8 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     assert!(
         matches!(
             events.first(),
-            Some(RevolveToolEvent::PickLost {
-                seat: RevolveSeat::Axis,
+            Some(SeatEvent::PickLost {
+                seat: Seat::RevolveAxis,
                 node
             }) if *node == axis
         ),
@@ -898,8 +909,8 @@ fn a_dropped_profile_does_not_promote_the_axis() {
     assert!(
         matches!(
             events.first(),
-            Some(RevolveToolEvent::PickLost {
-                seat: RevolveSeat::Profile,
+            Some(SeatEvent::PickLost {
+                seat: Seat::RevolveProfile,
                 node
             }) if *node == profile
         ),
@@ -908,7 +919,12 @@ fn a_dropped_profile_does_not_promote_the_axis() {
     assert_eq!(tool.profile(), None, "the profile seat is empty");
     assert_eq!(tool.axis(), Some(axis), "the axis STAYS in the axis seat");
     assert!(
-        matches!(tool.op(TAU), Err(RevolveToolError::NotTwoPicks)),
+        matches!(
+            tool.op(TAU),
+            Err(SeatError::Empty {
+                seat: Seat::RevolveProfile
+            })
+        ),
         "one seat empty, no op"
     );
     // The next pick refills the PROFILE seat, not the axis.

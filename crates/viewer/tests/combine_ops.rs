@@ -23,20 +23,22 @@
 mod common;
 
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, Doc, DocEdit, Expr, Node, PatternKind, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, Doc, DocEdit, Expr, LoopProgram, Node, NodeError,
+    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::document::{BooleanValue, SplitSide};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::profile::SketchPlane;
-use viewer::combine::{
-    BooleanTool, CombineToolError, CombineToolEvent, PatternForm, PatternRuleSpec, PatternTool,
-    Seat, SplitTool, TransformTool, seat_line,
-};
+use viewer::combine::{BooleanTool, PatternTool, SplitTool, TransformTool, denotes_body};
+use viewer::pick::PickKinds;
+use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
-    DatumSpec, DocSession, NodeKindWanted, ProfileShape, Refusal, Selection, SessionOp,
+    DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, Selection,
+    SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
+use viewer::tree::{self, RowStatus};
 
 /// The big block: 40 × 20 × 10 mm, extruded up from the sketch plane.
 const A: [f64; 3] = [0.04, 0.02, 0.01];
@@ -123,6 +125,27 @@ fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
     pncad::topo::mass_properties(&body, tol)
         .expect("mass properties")
         .volume
+}
+
+/// A split node's two sides, by volume, with the seam pumped — an
+/// empty side reading as zero.
+fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f64, f64) {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let ValuePayload::Split { above, below } =
+        &eval.value(split).expect("the split evaluated").payload
+    else {
+        panic!("a split evaluates to its two sides");
+    };
+    let volume_of = |side: &SplitSide<f64>| match side {
+        SplitSide::Body(body) => {
+            pncad::topo::mass_properties(body, tol)
+                .expect("mass properties")
+                .volume
+        }
+        SplitSide::Empty => 0.0,
+    };
+    (volume_of(above), volume_of(below))
 }
 
 /// `left` and `right` agree to within a relative tolerance the planar
@@ -380,22 +403,7 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
             tool: plane,
         },
     );
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let ValuePayload::Split { above, below } =
-        &eval.value(split).expect("the split evaluated").payload
-    else {
-        panic!("a split evaluates to its two sides");
-    };
-    let volume_of = |side: &SplitSide<f64>| match side {
-        SplitSide::Body(body) => {
-            pncad::topo::mass_properties(body, tol)
-                .expect("mass properties")
-                .volume
-        }
-        SplitSide::Empty => 0.0,
-    };
-    let (up, down) = (volume_of(above), volume_of(below));
+    let (up, down) = split_volumes(&mut session, split, tol);
     let face = A[0] * A[1];
     assert!(near(up, face * (A[2] - cut)), "above the cut: {up}");
     assert!(near(down, face * cut), "below the cut: {down}");
@@ -679,8 +687,107 @@ fn a_refusal_at_any_combining_door_leaves_no_history_state() {
         );
     }
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
+
+    // The SEAT refusals record nothing either — a wrong-kind pick at
+    // any of the four doors, and the boolean's two-operands-are-one
+    // arm.
+    for op in [
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: plane,
+            b: body,
+        },
+        SessionOp::AddBoolean {
+            op: BooleanOp::Subtract,
+            a: body,
+            b: body,
+        },
+        SessionOp::AddSplit {
+            target: plane,
+            tool: plane,
+        },
+        SessionOp::AddSplit {
+            target: body,
+            tool: body,
+        },
+        SessionOp::AddTransform {
+            input: plane,
+            translation: [0.0; 3],
+            rotation_axis: [0.0, 0.0, 1.0],
+            rotation_angle: 0.0,
+        },
+        SessionOp::AddPattern {
+            input: plane,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: [1.0, 0.0, 0.0],
+                spacing: 0.05,
+            },
+        },
+        SessionOp::AddPattern {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Circular {
+                axis: body,
+                step: 1.0,
+            },
+        },
+    ] {
+        let refused = session.perform(op);
+        assert!(
+            matches!(
+                refused.refusal,
+                Some(Refusal::WrongNodeKind { .. } | Refusal::SelfBoolean { .. })
+            ),
+            "{:?}",
+            refused.refusal
+        );
+        assert!(refused.committed.is_empty(), "and commits nothing");
+    }
     assert_eq!(session.history().len(), states, "nothing was recorded");
     assert!(session.committed_doc().bit_eq(&doc), "and nothing changed");
+}
+
+/// **The authored path admits a non-positive count and the node
+/// refuses it**, typed, on its own badge — the division of labour the
+/// door states: the form declines to offer a count below one, and the
+/// op vocabulary is not narrowed to what the form offers, because the
+/// property panel can write the same number into the slot afterwards.
+#[test]
+fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    for count in [0, -3] {
+        let pattern = insert(
+            &mut session,
+            SessionOp::AddPattern {
+                input: body,
+                count,
+                rule: PatternRuleSpec::Linear {
+                    direction: [1.0, 0.0, 0.0],
+                    spacing: 0.05,
+                },
+            },
+        );
+        session.pump();
+        let eval = session.evaluation().expect("the inline seam landed");
+        assert!(
+            eval.value(pattern).is_none(),
+            "a pattern of {count} instances does not evaluate to a value"
+        );
+        let badge = tree::rows(session.committed_doc(), Some(eval))
+            .into_iter()
+            .find(|row| row.id == pattern)
+            .map(|row| row.status);
+        let Some(RowStatus::Failed { message }) = badge else {
+            panic!("the tree badge carries the node's own refusal: {badge:?}");
+        };
+        assert!(
+            message.contains("count"),
+            "and the refusal names the count: {message}"
+        );
+    }
 }
 
 /// Each tool holds its picks by ROLE, refuses typed until its seats
@@ -694,14 +801,14 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let mut boolean = BooleanTool::new();
     assert!(matches!(
         boolean.op(BooleanOp::Union),
-        Err(CombineToolError::SeatEmpty {
+        Err(SeatError::Empty {
             seat: Seat::OperandA
         })
     ));
     boolean.pick(a);
     assert!(matches!(
         boolean.op(BooleanOp::Union),
-        Err(CombineToolError::SeatEmpty {
+        Err(SeatError::Empty {
             seat: Seat::OperandB
         })
     ));
@@ -733,7 +840,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert!(
         matches!(
             events.as_slice(),
-            [CombineToolEvent::PickLost {
+            [SeatEvent::PickLost {
                 seat: Seat::OperandB,
                 node
             }] if *node == b
@@ -750,7 +857,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     split.pick(a);
     assert!(matches!(
         split.op(),
-        Err(CombineToolError::SeatEmpty {
+        Err(SeatError::Empty {
             seat: Seat::SplitPlane
         })
     ));
@@ -758,7 +865,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let mut transform = TransformTool::new();
     assert!(matches!(
         transform.op([0.0; 3], [0.0, 0.0, 1.0], 0.0),
-        Err(CombineToolError::SeatEmpty {
+        Err(SeatError::Empty {
             seat: Seat::TransformBody
         })
     ));
@@ -767,7 +874,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert!(
         matches!(
             events.as_slice(),
-            [CombineToolEvent::PickLost {
+            [SeatEvent::PickLost {
                 seat: Seat::TransformBody,
                 ..
             }]
@@ -781,23 +888,35 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let mut pattern = PatternTool::new();
     pattern.pick(a);
     assert!(matches!(
-        pattern.op(
-            3,
-            PatternForm::Linear {
-                direction: [1.0, 0.0, 0.0],
-                spacing: 0.05,
-            },
-        ),
+        pattern.linear_op(3, [1.0, 0.0, 0.0], 0.05),
         Ok(SessionOp::AddPattern { count: 3, .. })
     ));
     assert!(matches!(
-        pattern.op(3, PatternForm::Circular { step: 1.0 }),
-        Err(CombineToolError::SeatEmpty {
+        pattern.circular_op(3, 1.0),
+        Err(SeatError::Empty {
             seat: Seat::PatternAxis
         })
     ));
     pattern.clear();
     assert_eq!((pattern.input(), pattern.axis()), (None, None));
+}
+
+/// Which tools are actually holding state, read through the six
+/// accessors rather than through `open_kind`.
+///
+/// `open_kind` is a PRIORITY SCAN: it answers with the first tool it
+/// finds open, so it cannot see a second one left behind it, and in
+/// half of the ordered pairs that is exactly where a leftover would
+/// be. The exclusivity row asserts on this instead.
+fn open_flags(tools: &Tools) -> [bool; 6] {
+    [
+        tools.mate().is_some(),
+        tools.revolve().is_some(),
+        tools.boolean().is_some(),
+        tools.split().is_some(),
+        tools.transform().is_some(),
+        tools.pattern().is_some(),
+    ]
 }
 
 /// **One modal tool at a time**, and the rule is the tool set's rather
@@ -806,7 +925,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 #[test]
 fn only_one_modal_tool_is_open_at_a_time() {
     let mut tools = Tools::new();
-    assert_eq!(tools.open_kind(), None);
+    assert_eq!(open_flags(&tools), [false; 6], "nothing is open to start");
     for opened in ToolKind::ALL {
         for previous in ToolKind::ALL {
             tools.open(previous);
@@ -816,10 +935,34 @@ fn only_one_modal_tool_is_open_at_a_time() {
                 Some(opened),
                 "opening {opened:?} over {previous:?}"
             );
+            let mut want = [false; 6];
+            want[opened.ordinal()] = true;
+            assert_eq!(
+                open_flags(&tools),
+                want,
+                "opening {opened:?} over {previous:?} leaves ONLY {opened:?} holding state"
+            );
         }
     }
     tools.close();
-    assert_eq!(tools.open_kind(), None);
+    assert_eq!(open_flags(&tools), [false; 6], "close empties every seat");
+}
+
+/// `ToolKind::ALL` is a hand-written list, and `ordinal` is the
+/// exhaustive match beside it: this row reads the two against each
+/// other, so a variant added to the enum and forgotten in the list
+/// fails here rather than quietly narrowing every sweep that iterates
+/// it (this suite's exclusivity row included).
+#[test]
+fn every_tool_kind_is_listed_in_all() {
+    let mut seen = vec![false; ToolKind::ALL.len()];
+    for kind in ToolKind::ALL {
+        let at = kind.ordinal();
+        assert!(at < seen.len(), "{kind:?} ordinal {at} is off the end");
+        assert!(!seen[at], "{kind:?} shares an ordinal with another kind");
+        seen[at] = true;
+    }
+    assert!(seen.into_iter().all(|hit| hit), "every ordinal is listed");
 }
 
 /// The open tool consumes the ordinary selection stream at the
@@ -860,7 +1003,11 @@ fn the_open_tool_consumes_the_selection_stream() {
             .refusal
             .is_none()
     );
-    let notices = tools.reconcile(session.committed_doc(), session.landed_pair());
+    // `session.doc()` — the SHOWN document, which is what the
+    // application hands this call every frame. It is the committed one
+    // except under a gesture, and a tool holding picks under a gesture
+    // must still see a delete the gesture's scratch does not contain.
+    let notices = tools.reconcile(session.doc(), session.landed_pair());
     assert_eq!(notices.len(), 1, "{notices:?}");
     let sentence = notices[0].to_string();
     assert!(
@@ -895,44 +1042,69 @@ fn the_seat_line_names_the_roles() {
     );
 }
 
-/// **A tool closes on the COMMIT, not on the click** — the rule the
-/// chrome applies to the op it just performed, as a pure function of
-/// the op.
+/// **A tool closes on the COMMIT, not on the click**, and the rule is
+/// asked of the OPEN TOOL rather than of the op alone: an op a
+/// different tool authors — or one no tool does — closes nothing.
 #[test]
-fn the_tool_edits_are_the_ones_that_close_a_tool() {
-    for op in [
-        SessionOp::AddBoolean {
-            op: BooleanOp::Union,
-            a: RecipeNodeId(1),
-            b: RecipeNodeId(2),
-        },
-        SessionOp::AddSplit {
-            target: RecipeNodeId(1),
-            tool: RecipeNodeId(2),
-        },
-        SessionOp::AddTransform {
-            input: RecipeNodeId(1),
-            translation: [0.0; 3],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
-        },
-        SessionOp::AddPattern {
-            input: RecipeNodeId(1),
-            count: 2,
-            rule: PatternRuleSpec::Linear {
-                direction: [1.0, 0.0, 0.0],
-                spacing: 0.05,
+fn a_tool_closes_on_its_own_committed_edit() {
+    let edits = [
+        (
+            ToolKind::Boolean,
+            SessionOp::AddBoolean {
+                op: BooleanOp::Union,
+                a: RecipeNodeId(1),
+                b: RecipeNodeId(2),
             },
-        },
-        SessionOp::AddRevolve {
-            profile: RecipeNodeId(1),
-            axis: RecipeNodeId(2),
-            angle: 1.0,
-        },
-    ] {
-        assert!(viewer::frame::commits_a_modal_tool(&op), "{op:?}");
+        ),
+        (
+            ToolKind::Split,
+            SessionOp::AddSplit {
+                target: RecipeNodeId(1),
+                tool: RecipeNodeId(2),
+            },
+        ),
+        (
+            ToolKind::Transform,
+            SessionOp::AddTransform {
+                input: RecipeNodeId(1),
+                translation: [0.0; 3],
+                rotation_axis: [0.0, 0.0, 1.0],
+                rotation_angle: 0.0,
+            },
+        ),
+        (
+            ToolKind::Pattern,
+            SessionOp::AddPattern {
+                input: RecipeNodeId(1),
+                count: 2,
+                rule: PatternRuleSpec::Linear {
+                    direction: [1.0, 0.0, 0.0],
+                    spacing: 0.05,
+                },
+            },
+        ),
+        (
+            ToolKind::Revolve,
+            SessionOp::AddRevolve {
+                profile: RecipeNodeId(1),
+                axis: RecipeNodeId(2),
+                angle: 1.0,
+            },
+        ),
+    ];
+    let mut tools = Tools::new();
+    for (author, op) in &edits {
+        for open in ToolKind::ALL {
+            tools.open(open);
+            assert_eq!(
+                tools.commits_open_tool(op),
+                open == *author,
+                "{op:?} closes {author:?} and nothing else"
+            );
+        }
     }
-    // A creation op no modal tool authors leaves the tools alone.
+    // A creation op no modal tool authors closes nothing, whatever is
+    // open — the mate tool included, which closes at its own click.
     for op in [
         SessionOp::AddExtrude {
             profile: RecipeNodeId(1),
@@ -940,8 +1112,321 @@ fn the_tool_edits_are_the_ones_that_close_a_tool() {
         },
         SessionOp::Undo,
     ] {
-        assert!(!viewer::frame::commits_a_modal_tool(&op), "{op:?}");
+        for open in ToolKind::ALL {
+            tools.open(open);
+            assert!(!tools.commits_open_tool(&op), "{op:?} with {open:?} open");
+        }
     }
+    tools.close();
+    for (_, op) in &edits {
+        assert!(
+            !tools.commits_open_tool(op),
+            "with nothing open there is nothing to close"
+        );
+    }
+}
+
+/// **The body seat tracks the evaluator's operand door**, and this row
+/// is what holds that rather than the prose at
+/// [`viewer::combine::denotes_body`].
+///
+/// The check drives the REAL door: each candidate node is fed to a
+/// `Node::Transform`, whose single-body operand IS `body_operand`, and
+/// the transform's own failure is the verdict — `WrongOperand` means
+/// the door refused the candidate as an operand, and anything else
+/// (including a failure of the transform's own, such as the NURBS
+/// placement frontier a lofted body meets) means it did not. Two
+/// directions matter and both are asserted: a kind the seat admits
+/// that the door refuses is a lie the user meets after the edit lands,
+/// and a kind the seat refuses that the door would take is silent
+/// capability loss.
+///
+/// **The named exception**: `Sweep` is admitted by the seat and
+/// evaluates to nothing at all — it is the curved-solid frontier, so
+/// its own node fails and the transform is POISONED rather than
+/// refused. That is asserted here in the same shape, so the day the
+/// frontier moves this row notices.
+///
+/// **What it does not reach**, stated rather than implied: four of the
+/// eighteen node kinds are absent. `Mate`, `Measure` and `Assertion`
+/// need substrate this row does not build (a solved assembly, a
+/// measured expression) and are all answered `false` by the seat;
+/// `InstantiatePart` is answered `true` and needs a resolver with a
+/// sibling document on disk, so its evaluates-to-a-body path is
+/// exercised by the assembly suites instead. The fourteen that ARE
+/// here include every kind whose classification is load-bearing for
+/// this unit.
+#[test]
+fn the_body_seat_tracks_the_evaluators_operand_door() {
+    let tol = Tol::witness();
+    let mut doc = Doc::empty_derived("operand-door", tol);
+    // The substrate every candidate is built out of.
+    let (next, profile) = common::inserted(&doc, common::square(0.02), tol);
+    doc = next;
+    let (next, profile_b) = common::inserted(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::from_frame(
+                pncad::geom_core::Point3::new(0.0, 0.0, 0.01),
+                pncad::geom_core::Vec3::unit_x(),
+                pncad::geom_core::Vec3::unit_y(),
+            ),
+            loops: vec![
+                LoopProgram::polygon([(0.0, 0.0), (0.02, 0.0), (0.02, 0.02), (0.0, 0.02)])
+                    .expect("finite corners"),
+            ],
+        }),
+        tol,
+    );
+    doc = next;
+    let (next, ring) = common::inserted(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::xy(),
+            loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
+        }),
+        tol,
+    );
+    doc = next;
+    let (next, axis) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Axis {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.0)],
+            direction: [common::scl(0.0), common::scl(1.0), common::scl(0.0)],
+        }),
+        tol,
+    );
+    doc = next;
+    let (next, plane) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Plane {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.005)],
+            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    doc = next;
+    let (next, body) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.01),
+        },
+        tol,
+    );
+    doc = next;
+    let (next, other) = common::inserted(
+        &doc,
+        Node::Transform {
+            input: body,
+            translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
+            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
+
+    // A real edge of the box, for the two blends: an empty blend
+    // selection is an AUTHORING refusal, so a minimal fillet has to
+    // name an edge, and the shipped `all_edges` door is where a user
+    // would get one too.
+    // ALL of them: a blend of one box edge terminates at a trivalent
+    // corner whose other two edges were not requested, which the
+    // kernel refuses by name — the whole-body blend is the shape a
+    // minimal instance has to take.
+    let edges = {
+        let mut probe = DocSession::inline(doc.clone(), tol);
+        probe.pump();
+        let eval = probe.evaluation().expect("the inline seam landed");
+        let edges = pncad::select::all_edges(eval, body);
+        assert!(!edges.is_empty(), "the box has edges");
+        edges
+    };
+
+    // One candidate per node kind this row can build, with the seat's
+    // answer beside it. The seat's answer is READ, never restated: a
+    // kind that moves sides moves in one place.
+    let candidates: Vec<(&str, Node<ProfileProgram>)> = vec![
+        (
+            "datum",
+            Node::Datum(Datum::Point {
+                position: [common::len(0.0), common::len(0.0), common::len(0.0)],
+            }),
+        ),
+        ("profile", common::square(0.01)),
+        (
+            "extrude",
+            Node::Extrude {
+                profile,
+                distance: common::len(0.004),
+            },
+        ),
+        (
+            "revolve",
+            Node::Revolve {
+                profile: ring,
+                axis,
+                angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("finite"),
+            },
+        ),
+        (
+            "boolean",
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: body,
+                b: other,
+                declare: None,
+            },
+        ),
+        (
+            "transform",
+            Node::Transform {
+                input: body,
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            },
+        ),
+        (
+            "split",
+            Node::Split {
+                target: body,
+                tool: plane,
+            },
+        ),
+        (
+            "pattern",
+            Node::Pattern {
+                input: body,
+                count: Expr::count(2),
+                kind: PatternKind::Linear {
+                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                    spacing: common::len(0.05),
+                },
+            },
+        ),
+        (
+            "loft",
+            Node::Loft {
+                profiles: vec![profile, profile_b],
+                v_degree: Expr::count(1),
+            },
+        ),
+        (
+            "fillet",
+            Node::fillet(body, common::len(0.001), edges.clone()),
+        ),
+        (
+            "chamfer",
+            Node::chamfer(body, common::len(0.001), edges.clone()),
+        ),
+        (
+            "placed union",
+            Node::PlacedUnion {
+                input: body,
+                count: Some(Expr::count(2)),
+                kind: PatternKind::Linear {
+                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                    spacing: common::len(0.05),
+                },
+            },
+        ),
+        ("declare", Node::Declare { pairs: Vec::new() }),
+        (
+            "sweep",
+            Node::Sweep {
+                profile,
+                path: profile_b,
+                stations: Expr::count(8),
+                v_degree: Expr::count(3),
+            },
+        ),
+    ];
+
+    for (name, node) in candidates {
+        let admitted = denotes_body(&node);
+        let (with_candidate, candidate) = common::inserted(&doc, node, tol);
+        let (with_probe, probe) = common::inserted(
+            &with_candidate,
+            Node::Transform {
+                input: candidate,
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            },
+            tol,
+        );
+        let mut session = DocSession::inline(with_probe, tol);
+        session.pump();
+        let eval = session.evaluation().expect("the inline seam landed");
+        let refused_as_operand = matches!(
+            eval.result(probe).and_then(NodeResult::error),
+            Some(NodeError {
+                kind: NodeErrorKind::WrongOperand { .. },
+                ..
+            })
+        );
+        if name == "sweep" {
+            // The one exception, asserted rather than assumed: the
+            // seat admits it, and the door never gets to answer
+            // because the sweep itself is the frontier.
+            assert!(admitted, "the seat admits a sweep");
+            assert!(
+                eval.result(candidate).and_then(NodeResult::error).is_some(),
+                "the sweep node fails on its own"
+            );
+            assert!(
+                !refused_as_operand,
+                "and the transform is poisoned, not told the sweep is not a body"
+            );
+            continue;
+        }
+        if admitted {
+            assert!(
+                eval.value(candidate).is_some(),
+                "a {name} evaluates to a value: {:?}",
+                eval.result(candidate).and_then(NodeResult::error)
+            );
+            // The probe may still fail for a reason of its OWN — a
+            // rigid transform of a lofted NURBS body is its own
+            // frontier — and that is not this row's business. What is
+            // asserted is that the operand door did not answer "that
+            // is not a body" about a kind the seat admits.
+            assert!(
+                !refused_as_operand,
+                "the seat admits a {name}, so the operand door must not refuse one"
+            );
+        } else {
+            assert!(
+                refused_as_operand,
+                "the seat refuses a {name}; the operand door must refuse it too, \
+                 or the seat is losing a capability the kernel has: {:?}",
+                eval.result(probe).and_then(NodeResult::error)
+            );
+        }
+    }
+}
+
+/// **An open tool narrows what the cursor may pick, and only the mate
+/// tool narrows anything**: its alignment frames come off face
+/// geometry, where every seated tool holds NODE picks that a face and
+/// an edge answer equally well.
+#[test]
+fn only_the_mate_tool_narrows_the_cursor() {
+    let mut tools = Tools::new();
+    assert_eq!(tools.pick_kinds(), PickKinds::Any, "the bare cursor's rule");
+    for kind in ToolKind::ALL {
+        tools.open(kind);
+        let want = if kind == ToolKind::Mate {
+            PickKinds::FacesOnly
+        } else {
+            PickKinds::Any
+        };
+        assert_eq!(tools.pick_kinds(), want, "{kind:?}");
+    }
+    tools.close();
+    assert_eq!(tools.pick_kinds(), PickKinds::Any);
 }
 
 /// The vocabulary a datum-plane split needs is the one the datum form

@@ -49,7 +49,6 @@ use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
 use crate::camera::{self, Camera, CameraOp};
-use crate::combine::{self, CombineToolError, PatternForm, Seat};
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
 #[cfg(not(target_family = "wasm"))]
@@ -63,6 +62,7 @@ use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
+use crate::seats::{Seat, SeatError, seat_line};
 use crate::session::{
     BoundsTarget, DatumSpec, DocSession, ProfileShape, Refusal, Selection, SessionOp, Standing,
 };
@@ -401,11 +401,43 @@ impl ShapeKind {
         [(Self::Circle, "circle"), (Self::Rectangle, "rectangle")];
 }
 
-/// One drag tick of a creation-form numeric field, in the field's own
-/// unit — half a millimetre on the metre fields, matching the drag
-/// feel of the shipped panel value fields. One home so the forms
-/// cannot drift apart a digit at a time.
+/// One drag tick of a creation-form LENGTH field, in metres — half a
+/// millimetre, matching the drag feel of the shipped panel value
+/// fields. One home so the forms cannot drift apart a digit at a time.
 const FIELD_DRAG_SPEED: f64 = 0.0005;
+
+/// One drag tick of an ANGLE field, in radians — a third of a degree,
+/// so a full turn is a drag of a few hundred pixels rather than of
+/// several screens.
+///
+/// A separate constant because the unit is: dragging a radian field at
+/// the metre field's speed moves it by 0.0005 rad per pixel, which is
+/// a quarter-turn per three thousand pixels.
+const ANGLE_DRAG_SPEED: f64 = 0.005;
+
+/// One drag tick of a DIMENSIONLESS field — a direction or a normal
+/// component, whose useful range is roughly [-1, 1].
+///
+/// The length speed applied here made these fields effectively
+/// undraggable: at 0.0005 per pixel, moving a component from 0 to 1
+/// took two thousand pixels of drag. A hundredth per pixel spans the
+/// whole range in one comfortable gesture, and the exact value stays a
+/// keyboard edit either way.
+const UNIT_DRAG_SPEED: f64 = 0.01;
+
+/// One drag tick of a COUNT field — instances are whole, so the field
+/// is dragged in tenths of one and lands on integers.
+const COUNT_DRAG_SPEED: f64 = 0.1;
+
+/// **The smallest pattern count the form offers.**
+///
+/// A pattern of zero instances refuses at evaluation
+/// (`NonPositiveCount`, typed, on the node's own badge), so the form
+/// declines to author one — the same rule the bore field follows. There
+/// is deliberately NO upper bound: the property panel imposes none on
+/// the slot afterwards, and a cap here would be a limit the document
+/// does not have.
+const MIN_PATTERN_COUNT: i64 = 1;
 
 /// The primitives the chrome offers, with their labels. The op
 /// vocabulary accepts any [`MatePrimitive`]; these are the three the
@@ -917,7 +949,7 @@ impl ViewerApp {
         for op in ops {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
-            let tool_edit = frame::commits_a_modal_tool(&op);
+            let tool_edit = self.tools.commits_open_tool(&op);
             match self.session.perform(op).refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -1543,18 +1575,12 @@ impl ViewerBehavior<'_> {
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
         // **An open tool narrows the priority rule, it does not
-        // re-decide it.** The mate tool takes faces, and on a real
-        // part whole faces sit within the edge radius of their own
-        // boundary — a narrow shelf, a small hole's wall — so with
-        // edges always winning those faces were unpickable for as long
-        // as the tool was open. The narrowing travels through
-        // `hovered_for`, the one door that answers what a cursor
-        // means, so the tool cannot end up on a different rule.
-        let kinds = if self.mate_tool.is_some() {
-            pick::PickKinds::FacesOnly
-        } else {
-            pick::PickKinds::Any
-        };
+        // re-decide it** — which tool narrows what is
+        // `ToolKind::pick_kinds`, an exhaustive match beside the tool
+        // vocabulary, and the narrowing travels through `hovered_for`,
+        // the one door that answers what a cursor means, so a tool
+        // cannot end up on a different rule.
+        let kinds = self.tools.pick_kinds();
         if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
             for action in actions {
                 // A hover over an unchanged picture at an unmoved
@@ -2112,7 +2138,7 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label("mate tool: pick two faces in the viewport");
+        ui.label(ToolKind::Mate.says(&"pick two faces in the viewport"));
         match tool.state() {
             MateToolState::Idle => {
                 ui.weak("no picks yet");
@@ -2183,12 +2209,14 @@ impl ViewerBehavior<'_> {
                                 self.ops.push(proposal.op());
                                 close = true;
                             }
-                            Err(error) => *self.status = Some(format!("mate tool: {error}")),
+                            Err(error) => {
+                                *self.status = Some(ToolKind::Mate.says(&error));
+                            }
                         }
                     }
                     _ => {
                         *self.status = Some(
-                            "mate tool: no landed evaluation to derive frames from".to_owned(),
+                            ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
                         );
                     }
                 }
@@ -2249,11 +2277,22 @@ impl ViewerBehavior<'_> {
                 DatumKind::Point => "position (m)",
                 DatumKind::Plane | DatumKind::Axis => "origin (m)",
             },
+            FIELD_DRAG_SPEED,
             &mut self.drafts.datum_origin,
         );
         match kind {
-            DatumKind::Plane => vec3_row(ui, "normal", &mut self.drafts.datum_direction),
-            DatumKind::Axis => vec3_row(ui, "direction", &mut self.drafts.datum_direction),
+            DatumKind::Plane => vec3_row(
+                ui,
+                "normal",
+                UNIT_DRAG_SPEED,
+                &mut self.drafts.datum_direction,
+            ),
+            DatumKind::Axis => vec3_row(
+                ui,
+                "direction",
+                UNIT_DRAG_SPEED,
+                &mut self.drafts.datum_direction,
+            ),
             DatumKind::Point => {}
         }
         if ui.button("Add datum").clicked() {
@@ -2410,7 +2449,7 @@ impl ViewerBehavior<'_> {
 
     /// The revolve tool's panel: activation, the two held picks
     /// (profile, then axis), the angle field, and the one committed
-    /// edit — the mate tool's chrome shape over node picks.
+    /// edit — the same chrome shape as every other seated tool.
     fn revolve_tool_ui(&mut self, ui: &mut egui::Ui) {
         // A copy of the small tool value, for the reason the mate
         // panel takes one: the panel reads it while pushing ops and
@@ -2418,52 +2457,25 @@ impl ViewerBehavior<'_> {
         // replaced whole.
         let Some(tool) = self.tools.revolve() else {
             if ui.button("Revolve tool…").clicked() {
-                // ONE modal tool at a time — the mate activation
-                // carries the argument.
+                // ONE modal tool at a time — `Tools::open` closes
+                // whatever was open, the rule and its argument living
+                // in that value rather than at each activation.
                 self.tools.open(ToolKind::Revolve);
             }
             return;
         };
-        ui.label("revolve tool: pick the profile, then the axis");
-        match (tool.profile(), tool.axis()) {
-            (None, _) => {
-                ui.weak("no picks yet");
-            }
-            (Some(profile), None) => {
-                ui.weak(format!("profile: feature {}", profile.0));
-            }
-            (Some(profile), Some(axis)) => {
-                ui.weak(format!(
-                    "profile: feature {}; axis: feature {}",
-                    profile.0, axis.0
-                ));
-            }
-        }
+        ui.label(ToolKind::Revolve.says(&"pick the profile, then the axis"));
+        ui.weak(seat_line(&[
+            (Seat::RevolveProfile, tool.profile()),
+            (Seat::RevolveAxis, tool.axis()),
+        ]));
         ui.horizontal(|ui| {
             ui.label("angle (rad)");
-            ui.add(egui::DragValue::new(&mut self.drafts.revolve_angle).speed(0.005));
+            ui.add(egui::DragValue::new(&mut self.drafts.revolve_angle).speed(ANGLE_DRAG_SPEED));
         });
-        let mut close = false;
-        ui.horizontal(|ui| {
-            if ui.button("Commit revolve").clicked() {
-                match tool.op(self.drafts.revolve_angle) {
-                    // The op is queued; the tool is NOT closed here.
-                    // The application closes it when the op actually
-                    // COMMITS (`perform_batch`), so a wrong-kind pick
-                    // refusing typed at the session door leaves the
-                    // held picks in place to correct, instead of
-                    // costing both to a refusal.
-                    Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(format!("revolve tool: {error}")),
-                }
-            }
-            if ui.button("Cancel").clicked() {
-                close = true;
-            }
+        self.tool_commit_row(ui, "Commit revolve", ToolKind::Revolve, |drafts| {
+            tool.op(drafts.revolve_angle)
         });
-        if close {
-            self.tools.close();
-        }
     }
 
     /// The boolean tool's panel: activation, the two held picks named
@@ -2479,8 +2491,8 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label("boolean tool: pick the first body, then the second");
-        ui.weak(combine::seat_line(&[
+        ui.label(ToolKind::Boolean.says(&"pick the first body, then the second"));
+        ui.weak(seat_line(&[
             (Seat::OperandA, tool.a()),
             (Seat::OperandB, tool.b()),
         ]));
@@ -2507,8 +2519,8 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label("split tool: pick the body, then the datum plane");
-        ui.weak(combine::seat_line(&[
+        ui.label(ToolKind::Split.says(&"pick the body, then the datum plane"));
+        ui.weak(seat_line(&[
             (Seat::SplitTarget, tool.target()),
             (Seat::SplitPlane, tool.plane()),
         ]));
@@ -2524,17 +2536,23 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label("transform tool: pick the body to place");
-        ui.weak(combine::seat_line(&[(Seat::TransformBody, tool.input())]));
+        ui.label(ToolKind::Transform.says(&"pick the body to place"));
+        ui.weak(seat_line(&[(Seat::TransformBody, tool.input())]));
         vec3_row(
             ui,
             "translation (m)",
+            FIELD_DRAG_SPEED,
             &mut self.drafts.transform_translation,
         );
-        vec3_row(ui, "rotation axis", &mut self.drafts.transform_axis);
+        vec3_row(
+            ui,
+            "rotation axis",
+            UNIT_DRAG_SPEED,
+            &mut self.drafts.transform_axis,
+        );
         ui.horizontal(|ui| {
             ui.label("rotation angle (rad)");
-            ui.add(egui::DragValue::new(&mut self.drafts.transform_angle).speed(0.005));
+            ui.add(egui::DragValue::new(&mut self.drafts.transform_angle).speed(ANGLE_DRAG_SPEED));
         });
         self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
             tool.op(
@@ -2555,8 +2573,8 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label("pattern tool: pick the body, then (circular) the axis");
-        ui.weak(combine::seat_line(&[
+        ui.label(ToolKind::Pattern.says(&"pick the body, then (circular) the axis"));
+        ui.weak(seat_line(&[
             (Seat::PatternBody, tool.input()),
             (Seat::PatternAxis, tool.axis()),
         ]));
@@ -2573,13 +2591,18 @@ impl ViewerBehavior<'_> {
             // form does not offer to author a node that cannot build.
             ui.add(
                 egui::DragValue::new(&mut self.drafts.pattern_count)
-                    .speed(0.1)
-                    .range(1..=1024),
+                    .speed(COUNT_DRAG_SPEED)
+                    .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });
         match self.drafts.pattern_kind {
             PatternKindChoice::Linear => {
-                vec3_row(ui, "direction", &mut self.drafts.pattern_direction);
+                vec3_row(
+                    ui,
+                    "direction",
+                    UNIT_DRAG_SPEED,
+                    &mut self.drafts.pattern_direction,
+                );
                 ui.horizontal(|ui| {
                     ui.label("spacing (m)");
                     ui.add(
@@ -2591,22 +2614,27 @@ impl ViewerBehavior<'_> {
             PatternKindChoice::Circular => {
                 ui.horizontal(|ui| {
                     ui.label("step (rad)");
-                    ui.add(egui::DragValue::new(&mut self.drafts.pattern_step).speed(0.005));
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.pattern_step).speed(ANGLE_DRAG_SPEED),
+                    );
                 });
             }
         }
-        self.tool_commit_row(ui, "Commit pattern", ToolKind::Pattern, |drafts| {
-            let form = match drafts.pattern_kind {
-                PatternKindChoice::Linear => PatternForm::Linear {
-                    direction: drafts.pattern_direction,
-                    spacing: drafts.pattern_spacing,
-                },
-                PatternKindChoice::Circular => PatternForm::Circular {
-                    step: drafts.pattern_step,
-                },
-            };
-            tool.op(drafts.pattern_count, form)
-        });
+        self.tool_commit_row(
+            ui,
+            "Commit pattern",
+            ToolKind::Pattern,
+            |drafts| match drafts.pattern_kind {
+                PatternKindChoice::Linear => tool.linear_op(
+                    drafts.pattern_count,
+                    drafts.pattern_direction,
+                    drafts.pattern_spacing,
+                ),
+                PatternKindChoice::Circular => {
+                    tool.circular_op(drafts.pattern_count, drafts.pattern_step)
+                }
+            },
+        );
     }
 
     /// **The commit/cancel row every combining tool ends with**, and
@@ -2623,14 +2651,14 @@ impl ViewerBehavior<'_> {
         ui: &mut egui::Ui,
         label: &str,
         kind: ToolKind,
-        op: impl FnOnce(&Drafts) -> Result<SessionOp, CombineToolError>,
+        op: impl FnOnce(&Drafts) -> Result<SessionOp, SeatError>,
     ) {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(label).clicked() {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(format!("{}: {error}", kind.label())),
+                    Err(error) => *self.status = Some(kind.says(&error)),
                 }
             }
             if ui.button("Cancel").clicked() {
@@ -3264,13 +3292,20 @@ fn drag_gesture_ops(
     false
 }
 
-/// One labeled row of three draggable components — the add-datum
-/// form's vector fields.
-fn vec3_row(ui: &mut egui::Ui, label: &str, value: &mut [f64; 3]) {
+/// One labeled row of three draggable components — every creation
+/// form's vector fields (a datum's origin and normal, a placement's
+/// translation and rotation axis, a pattern's direction).
+///
+/// **The speed is the caller's** because the unit is: a metre field
+/// and a dimensionless direction component want drag rates two orders
+/// of magnitude apart, and one shared rate makes one of them
+/// undraggable. [`FIELD_DRAG_SPEED`] and [`UNIT_DRAG_SPEED`] are the
+/// two values in use.
+fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
     ui.horizontal(|ui| {
         ui.label(label);
         for component in value {
-            ui.add(egui::DragValue::new(component).speed(FIELD_DRAG_SPEED));
+            ui.add(egui::DragValue::new(component).speed(speed));
         }
     });
 }

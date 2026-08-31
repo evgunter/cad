@@ -66,6 +66,7 @@ pub mod prefs;
 pub mod props;
 pub mod revolvetool;
 pub mod scene;
+pub mod seats;
 pub mod session;
 pub mod theme;
 pub mod tools;
@@ -98,11 +99,13 @@ pub use pick::{
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
-pub use revolvetool::{RevolveSeat, RevolveTool, RevolveToolError, RevolveToolEvent};
+pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
+pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     DatumSpec, DocSession, EdgeSelection, FaceSelection, Hovered, Landing, NodeKindWanted,
-    OpOutcome, ProfileShape, Refusal, Selection, SessionOp, Standing,
+    OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp, Standing,
 };
 pub use theme::{Mark, Polarity, Safety, Theme};
+pub use tools::{ToolKind, ToolNotice, Tools};
 pub use tree::{RowStatus, TreeRow};

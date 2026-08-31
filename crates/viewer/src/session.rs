@@ -48,7 +48,7 @@ use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
 
 use crate::bounds;
-use crate::combine::{self, PatternRuleSpec};
+use crate::combine;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -872,6 +872,32 @@ pub enum ProfileShape {
         width: f64,
         /// The height (y extent), metres.
         height: f64,
+    },
+}
+
+/// The literal payload of one pattern form (GAUTH-4), beside the other
+/// two authoring specs for the reason they are here at all: the SESSION
+/// mints the `Expr` slots, so the form hands it plain numbers in
+/// canonical units and one node reference — the axis, which is a PICK
+/// rather than a field.
+///
+/// `Explicit` has no arm by the plan's ruling: a list of absolute
+/// frames is not a form's job.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PatternRuleSpec {
+    /// Stepped along a direction (`PatternKind::Linear`).
+    Linear {
+        /// Step direction components, dimensionless.
+        direction: [f64; 3],
+        /// Distance between instances, metres.
+        spacing: f64,
+    },
+    /// Stepped around a datum axis (`PatternKind::Circular`).
+    Circular {
+        /// The datum-axis node stepped around.
+        axis: RecipeNodeId,
+        /// Angular step between instances, radians.
+        step: f64,
     },
 }
 
