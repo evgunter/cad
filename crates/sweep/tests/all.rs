@@ -85,6 +85,8 @@ mod bitdump;
 mod blend1_r1_probes;
 #[path = "blend2_r2_probes.rs"]
 mod blend2_r2_probes;
+#[path = "blend6_verb_vocab.rs"]
+mod blend6_verb_vocab;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
