@@ -82,7 +82,8 @@ type Store = prefs::Absent;
 fn prefs_store() -> Store {
     #[cfg(not(target_family = "wasm"))]
     {
-        prefs::file::FileStore::discover()
+        // The path comes from `frame`, the crate's one ambient door.
+        prefs::file::FileStore::new(frame::prefs_path())
     }
     #[cfg(target_family = "wasm")]
     {

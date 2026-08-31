@@ -344,32 +344,7 @@ pub mod file {
 
     use super::{PrefsStore, StoreError};
 
-    /// The directory this project keeps user files in.
-    const DIR: &str = "pncad";
-    /// The preferences file's name inside it.
-    const FILE: &str = "viewer.toml";
-
-    /// Where preferences live: `$XDG_CONFIG_HOME/pncad/viewer.toml`,
-    /// falling back to `$HOME/.config` as the XDG base-directory
-    /// specification says to.
-    ///
-    /// Resolved by hand rather than through a crate: it is two
-    /// environment variables and a join, and the alternative
-    /// (`directories`) is a dependency whose whole value is the two
-    /// platforms this project does not build for.
-    ///
-    /// `None` when neither variable is set, which is a real
-    /// possibility in a stripped environment and is why this is not a
-    /// `PathBuf` with an invented default.
-    pub fn path() -> Option<PathBuf> {
-        let base = match std::env::var_os("XDG_CONFIG_HOME") {
-            Some(value) if !value.is_empty() => PathBuf::from(value),
-            _ => PathBuf::from(std::env::var_os("HOME")?).join(".config"),
-        };
-        Some(base.join(DIR).join(FILE))
-    }
-
-    /// Preferences in a file at [`path`].
+    /// Preferences in a file.
     #[derive(Debug, Clone)]
     pub struct FileStore {
         /// The document's path; `None` in an environment that names
@@ -379,18 +354,33 @@ pub mod file {
     }
 
     impl FileStore {
-        /// The store at this environment's config path.
+        /// A store at `path`, or an unusable one where the caller
+        /// found no config directory.
+        ///
+        /// **The path is handed in, never discovered here.** Finding
+        /// it means reading the environment, and every ambient read
+        /// this crate performs lives in `crate::frame`
+        /// (`crate::frame::prefs_path`) — the one-door ruling in
+        /// `scripts/gates/no-ambient-env.sh`. It also keeps this
+        /// module a pure value over a document and a store, which is
+        /// what lets the suite exercise the real read and write
+        /// against a temporary path rather than a stand-in.
         #[must_use]
-        pub fn discover() -> Self {
-            Self { path: path() }
+        pub fn new(path: Option<PathBuf>) -> Self {
+            Self { path }
         }
 
-        /// A store at an explicit path — what the tests use, so the
-        /// suite exercises the real read and write rather than a
-        /// stand-in for them.
+        /// A store at an explicit path.
         #[must_use]
         pub fn at(path: PathBuf) -> Self {
-            Self { path: Some(path) }
+            Self::new(Some(path))
+        }
+
+        /// The file this store writes, if it has one — carried into
+        /// every refusal so a failure names what it could not write.
+        #[must_use]
+        pub fn path(&self) -> Option<&std::path::Path> {
+            self.path.as_deref()
         }
     }
 
@@ -406,7 +396,7 @@ pub mod file {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(StoreError {
                     doing: "read preferences",
-                    because: e.to_string(),
+                    because: format!("{}: {e}", path.display()),
                 }),
             }
         }
@@ -426,7 +416,7 @@ pub mod file {
             }
             std::fs::write(path, document).map_err(|e| StoreError {
                 doing: "write preferences",
-                because: e.to_string(),
+                because: format!("{}: {e}", path.display()),
             })
         }
 
