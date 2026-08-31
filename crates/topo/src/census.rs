@@ -110,21 +110,24 @@
 //!   with a coincident vertex of the face's boundary, backed by a
 //!   declared face pair naming this face and one holding the vertex
 //!   (`vf_face_backed`), or itself a vertex of the face's boundary
-//!   (structural). Where it holds none — the bound falls on the edge's
-//!   INTERIOR, where a boundary vertex of the face rests — the bound
-//!   is a vertex-on-edge event and is backed by exactly that lane's
-//!   rung: a declared face pair holding that vertex on one boundary
-//!   and naming a face the edge bounds (`ve_face_backed`). Same
-//!   argument as the edge-edge bullet's, one dimension up: a bound of
-//!   the overlap is a point where some entity of the pair ends, and
-//!   which side's entity that is is a fact about the configuration,
-//!   not about what a declaration can hold.
-//!   The remaining looseness, stated: a bound where the face's
-//!   BOUNDARY crosses the edge away from any vertex is an
-//!   edge-edge-cross configuration the sweeps report in their own
-//!   lane, and this lane declines to reconstruct it rather than
-//!   inferring one — a decline that is a LOUDNESS the pair keeps,
-//!   reported and never blessed.
+//!   (structural). Where it holds none — the bound falls where a
+//!   boundary vertex of the face rests on the edge — the bound is a
+//!   vertex-on-edge event and is backed by exactly that lane's rung: a
+//!   declared face pair holding that vertex on one boundary and naming
+//!   a face the edge bounds (`ve_face_backed`). Same argument as the
+//!   edge-edge bullet's, one dimension up: a bound of the overlap is a
+//!   point where some entity of the pair ends, and which side's entity
+//!   that is is a fact about the configuration, not about what a
+//!   declaration can hold.
+//!   The remaining looseness, stated as the REACH gap it is: where the
+//!   face's boundary crosses the edge away from any vertex, that
+//!   crossing is never a bound at all — the overlap lane cuts the
+//!   edge's span only at the face's boundary VERTICES, so one cell
+//!   spans the crossing and is judged from its single midpoint probe.
+//!   The configuration itself is reported by the edge-edge lane, whose
+//!   crossing class is the categorically-undeclarable one (issue 973
+//!   schedules that question; part (a), this bound rung, is what is
+//!   settled).
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -700,6 +703,17 @@ fn edge_vertex_at<T: Decide>(
 /// Some boundary vertex of `f` sitting AT the point `q` satisfies
 /// `backs` — the census's own coincidence test, short-circuiting on the
 /// first vertex that backs (escalations pushed as they are decided).
+///
+/// AGREEMENT REQUIRED with [`ef_overlap_lane`]'s cut test: that lane
+/// admits a cut when the vertex's perpendicular offset from the edge's
+/// LINE is zero (`pm_census_ef_cut_gap`, a cross-product norm); this
+/// asks whether the vertex is at the bound POINT (`pm_census_bound_
+/// vertex`, a distance norm). At a cut's own span the two quantities
+/// are the same number — the parallel component is zero there — so they
+/// are one fact in two spellings, agreeing exactly when both read the
+/// same band, which they do. They are not shared as one call because
+/// this helper also serves a bound with no cut behind it, where `q` is
+/// the edge's own endpoint and no line test has been made.
 fn any_boundary_vertex_at<T: Decide>(
     f: &FaceGeo<T>,
     geo: &Geo<T>,
@@ -734,14 +748,22 @@ fn any_boundary_vertex_at<T: Decide>(
 /// boundary vertex of `f`, face-backed onto `f`, or the vertex is
 /// itself on `f`'s boundary (structural).
 ///
-/// Where it does not, the bound lies on the edge's INTERIOR and a
-/// boundary vertex of `f` rests there: the event is a vertex-on-edge,
-/// and it takes that lane's rung ([`Declared::ve_face_backed`]) — the
-/// same declared face pair, one incidence step further out, exactly as
-/// [`ee_bound_backed`]'s asymmetric arm reads it for a collinear
-/// overlap. A bound is a bound of the overlap because some entity ends
-/// there; which side's entity that is, is a fact about the
-/// configuration, not about what a declaration can hold.
+/// Where it does not, a boundary vertex of `f` rests at the bound: the
+/// event is a vertex-on-edge, and it takes that lane's rung
+/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
+/// incidence step further out, exactly as [`ee_bound_backed`]'s
+/// asymmetric arm reads it for a collinear overlap. A bound is a bound
+/// of the overlap because some entity ends there; which side's entity
+/// that is, is a fact about the configuration, not about what a
+/// declaration can hold.
+///
+/// [`edge_vertex_at`] answers `None` for TWO reasons — an interior
+/// position, and an escalated span decide — and this arm is selected by
+/// the `None`, so an escalated bound can reach the rung and be backed
+/// where it was refused before. That is louder, not weaker: the
+/// escalation is already pushed as [`ValidationError::CensusEscalated`],
+/// which refuses the body on its own, and it is the arm's caveat rather
+/// than the module docs' because it is a property of this call site.
 fn ef_bound_backed<T: Decide>(
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,

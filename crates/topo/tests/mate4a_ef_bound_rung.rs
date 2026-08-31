@@ -20,10 +20,24 @@
 //! are untouched here — the fence row pins that configuration's
 //! findings character for character.
 //!
+//! Only ONE of the four rows below is a claim about the new arm: the
+//! declared-seat row. The other three are CONTROLS and pass on main
+//! unchanged — the bare seat, the wrong-pair seat and the (b) fence all
+//! describe behaviour this unit did not move, which is exactly their
+//! job. A mutation of the rung reds the declared-seat row here and the
+//! re-blessed lemma probe, and nothing else.
+//!
 //! ε posture: every coincidence is a shared f64 literal (the cap's
 //! vertices sit on `y = 0.30` exactly, the two cap faces on `z = 0.5`
-//! exactly), every separation is ≥ 0.05 — a twentieth of a metre, far
-//! outside any band under test.
+//! exactly), so the residuals these rows turn on are exact zeros rather
+//! than small numbers. The separations are NOT all large: the shelf
+//! slab is 0.04 thick, and the smallest margin any decide reads in this
+//! seat is 8.944e-3 (`pm_census_ee_parallel`, the near-parallel cap and
+//! shelf edges). That is three orders above the loosest GATED band's
+//! escalate threshold (1e-5, at the 1e-6 row) — clear, but three orders
+//! and not five. The first band that reaches it is 1e-3, outside the
+//! gate, where it escalates honestly rather than answering differently
+//! (`review_mate4a_r2_probes` carries the measured sweep).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -121,14 +135,18 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 /// (H and B, on the shelf edge's interior) are vertex-on-edge events
 /// the declared pair holds, so the overlap is backed like any other.
 ///
-/// What the seat is left with is a DIFFERENT door's refusal: the
-/// declared patch's own region-overlap confirm refuses
-/// `TouchingBoundary`, because the cap's boundary meets the shelf
-/// underside's boundary at vertices rather than crossing it. That is a
-/// `CensusUnsupported` on the pair's face — `Attribution::Declined`,
-/// the `Uncertified` frontier — not the `Unattributed` hard error this
-/// unit retires, and closing it is the chart predicate's question, not
-/// the census rung's.
+/// What THIS seat is left with is a different door's refusal, and it is
+/// this fixture's outcome rather than the class's: the declared patch's
+/// region-overlap confirm reaches `interior_witness`'s rescue rung with
+/// a `Definite` door-1 verdict, and every candidate of that rung's fixed
+/// schedule misses the H-A-B overlap (an area of ~7.5e-3 m², seven
+/// orders above ε), so it refuses `TouchingBoundary` →
+/// `CensusUnsupported`: `Attribution::Declined`, the `Uncertified`
+/// frontier, not the `Unattributed` hard error this unit retires.
+/// A same-class seat whose overlap the schedule DOES land certifies
+/// outright (`r1_mate4a_probes::a_spike_overhang_certifies_outright`),
+/// so the outcome bifurcates on where the fixed candidates fall — issue
+/// 1435, not this rung's question and not the whole class's fate.
 #[test]
 fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
@@ -165,14 +183,29 @@ fn the_bare_overhang_seat_still_refuses() {
             CensusContact::EdgeFaceOverlap { .. }
         )),
         3,
-        "the shelf edge's dive through the cap interior, and the two \
-         cap edges resting inside the shelf's underside: {found:?}"
+        "the shelf edge's dive through the cap interior, plus the two \
+         edges of the cap's TOP face (A→B and H→A) resting inside the \
+         shelf's underside face: {found:?}"
     );
 }
 
-/// A declaration between the WRONG faces (the cap against the shelf's
-/// TOP) holds neither bound: the overlap stays a hard finding, and the
-/// census is exactly as loud as with no declaration at all.
+/// A declaration naming the shelf's TOP face holds neither bound: the
+/// overlap stays a hard finding, and the census is exactly as loud as
+/// with no declaration at all.
+///
+/// What this row does and does NOT say. It says the rung reads the
+/// declared pair's own incidence, so a pair incident to NEITHER the
+/// vertex's faces nor a face of the edge backs nothing. It does not say
+/// that only the resting pair backs this bound: `ve_face_backed` asks
+/// for a pair holding some face incident to the vertex against some
+/// face the edge bounds, and never names the face whose overlap is
+/// being certified — so pairs with no relation to the resting interface
+/// back the arm too, a declaration the confirm pass itself refutes
+/// included. That reach is the ratified region-unconfined strength
+/// working as ruled, not a leak, and
+/// `review_mate4a_r2_probes::r2_an_unrelated_declared_pair_backs_the_ef_bound`
+/// is where it is demonstrated rather than left to be inferred from
+/// this row's silence.
 #[test]
 fn a_wrong_pair_backs_no_ef_bound() {
     let (body, post_top, _, shelf_top) = overhang_seat();

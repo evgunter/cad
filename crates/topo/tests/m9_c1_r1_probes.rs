@@ -146,14 +146,16 @@ fn the_lemma_probe_undeclared_baseline() {
 /// that lane's rung — `ef_bound_backed`'s interior arm. No finding of
 /// this seat is unattributed any more.
 ///
-/// The seat still does not CERTIFY, through a door that is not the
+/// This seat still does not CERTIFY, through a door that is not the
 /// census's rungs at all: the declared patch's region-overlap confirm
-/// refuses `TouchingBoundary` (measured), because the cap's boundary
-/// meets the shelf underside's boundary at vertices rather than
-/// crossing it. That is `CensusUnsupported` on the pair's face —
-/// `Attribution::Declined`, the `Uncertified` frontier — where before
-/// it was an `Unattributed` hard error. The seat's own suite pins that
-/// residue; this probe pins the rung.
+/// runs `interior_witness`'s rescue rung on a `Definite` door-1 verdict
+/// and declines because that rung's fixed candidate schedule misses
+/// this overlap (measured) — `CensusUnsupported`,
+/// `Attribution::Declined`, the `Uncertified` frontier, where before it
+/// was an `Unattributed` hard error. That is the fixture's outcome, not
+/// the class's: a same-class seat whose overlap the schedule lands
+/// certifies outright (`r1_mate4a_probes`). The schedule's aim is issue
+/// 1435. This probe pins the rung.
 #[test]
 fn the_lemma_probe_declared() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();

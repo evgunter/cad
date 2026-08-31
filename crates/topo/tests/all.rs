@@ -103,10 +103,10 @@ mod m9_c1_r1_probes;
 mod m9_c1_rest_face_rung;
 #[path = "mate4a_ef_bound_rung.rs"]
 mod mate4a_ef_bound_rung;
-#[path = "r1_mate4a_probes.rs"]
-mod r1_mate4a_probes;
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "r1_mate4a_probes.rs"]
+mod r1_mate4a_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
