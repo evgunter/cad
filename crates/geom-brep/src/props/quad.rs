@@ -97,6 +97,7 @@
 
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
+use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -1082,7 +1083,8 @@ fn bspline_eval_ring_in_span(
 }
 
 /// One (possibly derivative-exhausted) tensor grid of a vector
-/// channel triple, row-major `iu·nv + iv` — the 2-D counterpart of
+/// channel triple, three [`TensorNet`]s over one shared extent — the
+/// 2-D counterpart of
 /// [`DerivLadder`]'s levels: a [`Dir::Const`] direction holds
 /// per-span constants, and a grid that differentiates to nothing at
 /// all is `Option<PatchGrid> = None`, read as identically zero — sound
@@ -1094,23 +1096,20 @@ struct PatchGrid {
     dv: Dir,
     nu: usize,
     nv: usize,
-    ch: [Vec<RingInterval>; 3],
+    ch: [TensorNet; 3],
 }
 impl PatchGrid {
     /// The base grid from a bracketed control net.
     fn base(kv_u: &KnotVector, kv_v: &KnotVector, control: &[RVec3]) -> Self {
-        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
-        for c in control {
-            for (k, chan) in ch.iter_mut().enumerate() {
-                chan.push(c[k]);
-            }
-        }
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
         Self {
             du: Dir::Kv(kv_u.clone()),
             dv: Dir::Kv(kv_v.clone()),
-            nu: kv_u.control_count(),
-            nv: kv_v.control_count(),
-            ch,
+            nu,
+            nv,
+            ch: core::array::from_fn(|k| {
+                TensorNet::from_flat(nu, nv, control.iter().map(|c| c[k]).collect())
+            }),
         }
     }
 
@@ -1167,21 +1166,11 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
-        for (k, chan) in ch.iter_mut().enumerate() {
-            let mut grid = vec![RingInterval::zero(); (self.nu - 1) * self.nv];
-            for j in 0..self.nv {
-                let col: Vec<RingInterval> =
-                    (0..self.nu).map(|i| self.ch[k][i * self.nv + j]).collect();
-                let d = take(&col);
-                for (i, q) in d.iter().enumerate() {
-                    if let Some(slot) = grid.get_mut(i * self.nv + j) {
-                        *slot = *q;
-                    }
-                }
-            }
-            *chan = grid;
-        }
+        // ZERO fills a slot the step did not answer, not poison: a
+        // `Raw`/`Const` direction answers nothing for a DEGENERATE
+        // (empty) span, where the function has no value and enlarging
+        // a hull can never make a containment claim false.
+        let ch = core::array::from_fn(|k| self.ch[k].diff_u(&take, RingInterval::zero()));
         Some(Self {
             du: next_dir,
             dv: self.dv.clone(),
@@ -1222,15 +1211,8 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
-        for (k, chan) in ch.iter_mut().enumerate() {
-            let mut grid = Vec::with_capacity(self.nu * (self.nv - 1));
-            for i in 0..self.nu {
-                let row = &self.ch[k][i * self.nv..(i + 1) * self.nv];
-                grid.extend(take(row));
-            }
-            *chan = grid;
-        }
+        // Zero fill, per [`PatchGrid::deriv_u`].
+        let ch = core::array::from_fn(|k| self.ch[k].diff_v(&take, RingInterval::zero()));
         Some(Self {
             du: self.du.clone(),
             dv: next_dir,
@@ -1298,7 +1280,7 @@ impl PatchGrid {
     /// Collapses one channel: v first (per u-row), then u.
     fn channel(&self, k: usize, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
         let rows: Vec<RingInterval> = (0..self.nu)
-            .map(|i| Self::collapse_1d(&self.dv, &self.ch[k][i * self.nv..(i + 1) * self.nv], v))
+            .map(|i| Self::collapse_1d(&self.dv, self.ch[k].row(i), v))
             .collect();
         Self::collapse_1d(&self.du, &rows, u)
     }
@@ -1315,14 +1297,8 @@ impl PatchGrid {
     /// per-cell `nu`-fold de Boor into a per-column one.
     fn slice_u(&self, u: Collapse<'_>) -> [Vec<RingInterval>; 3] {
         core::array::from_fn(|k| {
-            let mut col = vec![RingInterval::zero(); self.nu];
             (0..self.nv)
-                .map(|j| {
-                    for (i, c) in col.iter_mut().enumerate() {
-                        *c = self.ch[k][i * self.nv + j];
-                    }
-                    Self::collapse_1d(&self.du, &col, u)
-                })
+                .map(|j| Self::collapse_1d(&self.du, &self.ch[k].column(j), u))
                 .collect()
         })
     }

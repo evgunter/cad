@@ -103,7 +103,7 @@ use std::ops::RangeInclusive;
 use geom::surfaces::NurbsSurface;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::spline::hull::derivative_coeffs;
+use geom_core::spline::net::TensorNet;
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -359,41 +359,24 @@ pub fn split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
     add
 }
 
-/// A coefficient net as ring enclosures, u-major: `net[i][j]` is the
-/// coefficient at u-index `i`, v-index `j`.
-pub type Net = Vec<Vec<RingInterval>>;
-
-/// Differences a net once along u against `kv_u` (per fixed v index):
-/// `(nu − 1) × nv` from `nu × nv`.
-pub fn net_d_u(kv_u: &KnotVector, net: &Net) -> Net {
-    let nu = net.len();
-    let nv = net.first().map_or(0, Vec::len);
-    let cols: Vec<Vec<RingInterval>> = (0..nv)
-        .map(|j| {
-            let col: Vec<RingInterval> = (0..nu).map(|i| net[i][j]).collect();
-            derivative_coeffs(kv_u, &col)
-        })
-        .collect();
-    let nu1 = nu.saturating_sub(1);
-    (0..nu1)
-        .map(|i| {
-            (0..nv)
-                .map(|j| cols[j].get(i).copied().unwrap_or_else(RingInterval::poison))
-                .collect()
-        })
-        .collect()
-}
-
-/// Differences a net once along v against `kv_v` (per fixed u index):
-/// `nu × (nv − 1)`.
-pub fn net_d_v(kv_v: &KnotVector, net: &Net) -> Net {
-    net.iter().map(|row| derivative_coeffs(kv_v, row)).collect()
-}
+/// A coefficient net as ring enclosures — the shared tensor assembly,
+/// homed in [`geom_core::spline::net`] (issue 1006). The alias is kept
+/// so this module's own prose and its consumers keep naming the thing
+/// they read; the differencing is not this module's any more.
+pub type Net = TensorNet;
 
 /// The signed hull of `a[i][j] − c·w[i][j]` over the window
 /// `wu × wv` — the recentred homogeneous net `Ã = A − c·w` read
 /// through the linearity of knot differencing (`d(A − c·w) = dA −
 /// c·dw`, entrywise, same knots). Out-of-range indices poison.
+///
+/// This module's own READING, not the shared assembly: no other
+/// consumer of a tensor net recentres at the hull read, because no
+/// other one has a cell-local centre to recentre against.
+///
+/// Fixed association (D9): `u`-major, `i` outer and `j` inner, hulled
+/// left to right — [`TensorNet::window_hull`]'s order, so the two
+/// readings of one net agree on which coefficient came first.
 pub fn window_tilde_hull(
     a: &Net,
     w: &Net,
@@ -404,14 +387,7 @@ pub fn window_tilde_hull(
     let mut acc: Option<RingInterval> = None;
     for i in wu.clone() {
         for j in wv.clone() {
-            let (av, wv) = match (
-                a.get(i).and_then(|r| r.get(j)),
-                w.get(i).and_then(|r| r.get(j)),
-            ) {
-                (Some(&av), Some(&wv)) => (av, wv),
-                _ => (RingInterval::poison(), RingInterval::poison()),
-            };
-            let e = av - c * wv;
+            let e = a.get(i, j) - c * w.get(i, j);
             acc = Some(match acc {
                 None => e,
                 Some(h) => RingInterval::hull(h, e),
@@ -421,8 +397,9 @@ pub fn window_tilde_hull(
     acc.unwrap_or_else(RingInterval::poison)
 }
 
-/// The signed hull of `net[i][j]` over the window `wu × wv`.
-/// Out-of-range indices poison.
+/// The signed hull of `net[i][j]` over the window `wu × wv` —
+/// [`TensorNet::window_hull`], re-exported under the name this
+/// module's consumers already use.
 ///
 /// Distinct from [`window_tilde_hull`] with a zero centre on purpose:
 /// that spelling computes `a − 0·w`, and the ring's outward rounding
@@ -433,21 +410,7 @@ pub fn window_hull(
     wu: &RangeInclusive<usize>,
     wv: &RangeInclusive<usize>,
 ) -> RingInterval {
-    let mut acc: Option<RingInterval> = None;
-    for i in wu.clone() {
-        for j in wv.clone() {
-            let e = net
-                .get(i)
-                .and_then(|r| r.get(j))
-                .copied()
-                .unwrap_or_else(RingInterval::poison);
-            acc = Some(match acc {
-                None => e,
-                Some(h) => RingInterval::hull(h, e),
-            });
-        }
-    }
-    acc.unwrap_or_else(RingInterval::poison)
+    net.window_hull(wu, wv)
 }
 
 /// The `[0, sup]` magnitude enclosure of a signed hull (poison flows).
@@ -502,26 +465,20 @@ fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
     let (nu, nv) = n.control_counts();
     (0..3)
         .map(|c| {
-            (0..nu)
-                .map(|i| {
-                    (0..nv)
-                        .map(|j| {
-                            // Row-major layout: control[iu·nv + iv].
-                            let p = n.control()[i * nv + j];
-                            let x = RingInterval::point(match c {
-                                0 => p.x,
-                                1 => p.y,
-                                _ => p.z,
-                            });
-                            if weighted {
-                                RingInterval::point(n.weights()[i * nv + j]) * x
-                            } else {
-                                x
-                            }
-                        })
-                        .collect()
-                })
-                .collect()
+            Net::from_fn(nu, nv, |i, j| {
+                // Row-major layout: control[iu·nv + iv] — the net's own.
+                let p = n.control()[i * nv + j];
+                let x = RingInterval::point(match c {
+                    0 => p.x,
+                    1 => p.y,
+                    _ => p.z,
+                });
+                if weighted {
+                    RingInterval::point(n.weights()[i * nv + j]) * x
+                } else {
+                    x
+                }
+            })
         })
         .collect()
 }
@@ -543,11 +500,11 @@ impl DNets {
         kv_u1: Option<&KnotVector>,
         kv_v1: Option<&KnotVector>,
     ) -> Self {
-        let d10 = net_d_u(kv_u, base);
-        let d01 = net_d_v(kv_v, base);
-        let d11 = net_d_v(kv_v, &d10);
-        let d20 = kv_u1.map(|k1| net_d_u(k1, &d10));
-        let d02 = kv_v1.map(|k1| net_d_v(k1, &d01));
+        let d10 = base.diff_u_knots(kv_u);
+        let d01 = base.diff_v_knots(kv_v);
+        let d11 = d10.diff_v_knots(kv_v);
+        let d20 = kv_u1.map(|k1| d10.diff_u_knots(k1));
+        let d02 = kv_v1.map(|k1| d01.diff_v_knots(k1));
         Self {
             d10,
             d01,
@@ -693,13 +650,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let (kv_u, kv_v) = (r.knots_u(), r.knots_v());
     let (pu, pv) = (kv_u.degree(), kv_v.degree());
     let (nu, nv) = r.control_counts();
-    let w_grid: Net = (0..nu)
-        .map(|i| {
-            (0..nv)
-                .map(|j| RingInterval::point(r.weights()[i * nv + j]))
-                .collect()
-        })
-        .collect();
+    let w_grid = Net::from_fn(nu, nv, |i, j| RingInterval::point(r.weights()[i * nv + j]));
     // Second derivatives along a degree-1 direction are EXACTLY zero
     // in ℝ for the polynomial nets A and w (the direction is a single
     // linear span pre-refinement — the C¹ gate — and refinement's

@@ -42,8 +42,10 @@ pub mod compose;
 pub mod hull;
 pub mod knots;
 pub mod locate;
+pub mod net;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep};
 pub use compose::{BernsteinSpans, ComposeError, CompositeForm, CurveRingData, ImplicitSurface};
 pub use knots::{KnotVector, KnotVectorIssue, Span, SplineError};
 pub use locate::{SpanLocate, SpanSet};
+pub use net::TensorNet;
