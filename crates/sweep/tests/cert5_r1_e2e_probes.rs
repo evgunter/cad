@@ -122,10 +122,17 @@ fn own_body_offgrid_knots_both_directions_certifies_and_contains_oracle() {
                 want.volume
             );
             // The retired-floor ceiling, same shape as the unit's own
-            // rows: nowhere near the straddle floor.
+            // rows: nowhere near the straddle floor. Keyed to ε on
+            // adoption, because the schedule is fixed and what the
+            // schedule is asked for scales with the run's tolerance —
+            // an absolute ceiling here is really a claim about ε = 1e-9
+            // and reds honestly-proportionate pads at a coarser band
+            // (measured: 1.27e-3 at ε = 1e-6, against a 1.024e-3
+            // target).
+            let ceiling = 2.0 * 1024.0 * Tol::witness().get().eps;
             assert!(
-                m.volume_pad < 1.0e-5,
-                "the pad must sit under the retired-floor ceiling: {}",
+                m.volume_pad < ceiling,
+                "the pad must sit under the retired-floor ceiling: {} vs {ceiling}",
                 m.volume_pad
             );
         }

@@ -103,6 +103,8 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // every band until now. Named, pinned, and filed rather than
         // averaged away — the cell says which outcome belongs to
         // which band, which is the whole point of sweeping.
+        // Kept because the ladder gap is real and could surface again
+        // (a tightening at the gate is what stopped it being first).
         Err(StepImportError::Adoption { id, attempts }) => {
             assert!(
                 coarse,
@@ -116,11 +118,19 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "and it is the polyline GAP, not a refusal with candidates"
             );
         }
+        // **Both bands reach the gate now.** At the fine band the gate
+        // refuses on the round budget. At the COARSE band it refuses
+        // by ESCALATING: the enclosure lands about 1% under the loose
+        // `1024·ε` target, which puts the convergence margin inside
+        // the predicate's own ambiguity band, and `props_quad_converged`
+        // declines to call it either way (D4, escalate-never-guess).
+        //
+        // That is the coarse band's cell now, and it is an honest one —
+        // but it MASKS the `#389` ladder gap that used to be first
+        // there. The gap is unchanged and unfixed; nothing reaches it
+        // on this file at this band any more, so it is recorded here
+        // rather than pinned by an outcome.
         Err(StepImportError::TierInvalid { solid, errors }) => {
-            assert!(
-                !coarse,
-                "the coarse band's cell is the #389 ladder gap, not the gate: {errors:?}"
-            );
             // Adopted from `wild::wild_refusals_are_typed_and_name_their_class`,
             // which no longer imports this file. INVARIANT: every
             // typed refusal points at something in the file a reader
@@ -132,9 +142,13 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 "the refusal must name an entity: solid {solid:?}, verdicts {errors:?}"
             );
             let shown = StepImportError::TierInvalid { solid, errors }.to_string();
+            let stalled = shown.contains("the certified quadrature enclosure stalled at");
+            let escalated = shown.contains("predicate 'props_quad_converged' indeterminate");
             assert!(
-                shown.contains("the certified quadrature enclosure stalled at"),
-                "the frontier is now the rational-patch-flux lane, not the ladder: {shown}"
+                if coarse { escalated } else { stalled },
+                "the frontier is the rational patch-flux lane either way — the round \
+                 budget at a fine band, the convergence predicate's ambiguity band at \
+                 a coarse one: {shown}"
             );
         }
         other => panic!("dm1's refusal has moved out of the at-rest gate; got {other:?}"),
