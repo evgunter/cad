@@ -2725,3 +2725,16 @@ symmetric, no relaxations granted. Implementer difficulty S/M
 numeric M). Impl wall-clock carries an ANNOTATED usage-limit gap
 (~2h, both lanes of the wave). Sample number at merge. Row at
 merge.
+
+MATE-6 (PR #1420) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1302** (S-MATE band 1300–1399). v6 dual: slot byte **8**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; SEQUENTIAL same-head on frozen
+`65fcc134` per the method note recorded branch-side BEFORE R1 ran
+(the machine's three-lane budget is held by a sibling implementer,
+a sibling fix pass, and this R1; briefs stored symmetric pre-R1,
+R2 dispatched from the stored brief verbatim at R1's delivery —
+the CERT-6/BLEND-4 precedent). Run 33441266280 verified at
+dispatch: head SHA matches, 24 jobs, 0 failures, gate point
+default + eps default, DRAWN. Implementer difficulty M (pre-logged
+in the plan's opening commit, pre-draw). Sample number at merge.
+Row at merge.
