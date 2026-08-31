@@ -1729,6 +1729,15 @@ jobs:
     needs: [filter, build]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
+    # MEASURED, NOT ASSUMED: without this block the cost report's base-listing
+    # lookup got `Resource not accessible by integration (HTTP 403)` from the
+    # artifacts API on run 33343519165 — the default token here can read the
+    # repository and not the Actions API. `actions: read` is the whole grant,
+    # it is what `download-artifact` already needs, and nothing in this job
+    # writes anything: the block is narrower than the default it replaces.
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       # ONE ε ROW PER RUN, SAMPLED (2026-08-22 — scripts/ci-filter.py's
@@ -1936,13 +1945,23 @@ jobs:
           if [ -z "$BASE_SHA" ]; then
             REASON="this run is not a pull_request run, so it has no base tree to diff against"
           else
-            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha)
+            # NEITHER CAPTURE IS TRUSTED UNTIL IT HAS THE SHAPE OF AN ANSWER.
+            # On run 33343519165 `gh` put `Resource not accessible by
+            # integration (HTTP 403)` somewhere the substitution below picked
+            # it up, and that string went on to be spliced into a URL and
+            # reported as "found but could not be downloaded" — a report
+            # inventing a reading out of a failure, which is the one thing
+            # these blocks must not do. So: stderr is discarded, and a value
+            # that is not a tree SHA (or not an https URL) is not a value.
+            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha 2>/dev/null)
+            echo "$BASE_TREE" | grep -qE '^[0-9a-f]{40}$' || BASE_TREE=""
             NAME="test-list-$LANE-$BASE_TREE"
             if [ -z "$BASE_TREE" ]; then
               REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed (this report has no permissions of its own)"
             else
               URL=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$NAME&per_page=1" \
-                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' | head -n 1)
+                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' 2>/dev/null | head -n 1)
+              case "$URL" in https://*) ;; *) URL="" ;; esac
               if [ -z "$URL" ]; then
                 REASON="no run has published a test listing named \`$NAME\`, so the base tree \`$BASE_TREE\` has never been listed — it was tested before this report existed, its listing's retention has expired, or the lookup had no \`actions: read\`"
               elif curl -sSL -H "Authorization: Bearer $GH_TOKEN" -o "$COST/base.zip" "$URL" &&
@@ -2321,6 +2340,11 @@ jobs:
     needs: [filter, build-interval]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
+    # `actions: read` for the cost report's base-listing lookup — the argument
+    # is at the default lane's copy of this block, where the 403 was measured.
+    permissions:
+      contents: read
+      actions: read
     # ONE ε ROW, SAMPLED, AND SHARDED AGAIN. Both halves of that reverse
     # the 2026-08-20 audit's collapse of this job, and both follow from the
     # suite this lane now runs.
@@ -2464,13 +2488,23 @@ jobs:
           if [ -z "$BASE_SHA" ]; then
             REASON="this run is not a pull_request run, so it has no base tree to diff against"
           else
-            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha)
+            # NEITHER CAPTURE IS TRUSTED UNTIL IT HAS THE SHAPE OF AN ANSWER.
+            # On run 33343519165 `gh` put `Resource not accessible by
+            # integration (HTTP 403)` somewhere the substitution below picked
+            # it up, and that string went on to be spliced into a URL and
+            # reported as "found but could not be downloaded" — a report
+            # inventing a reading out of a failure, which is the one thing
+            # these blocks must not do. So: stderr is discarded, and a value
+            # that is not a tree SHA (or not an https URL) is not a value.
+            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha 2>/dev/null)
+            echo "$BASE_TREE" | grep -qE '^[0-9a-f]{40}$' || BASE_TREE=""
             NAME="test-list-$LANE-$BASE_TREE"
             if [ -z "$BASE_TREE" ]; then
               REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed (this report has no permissions of its own)"
             else
               URL=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$NAME&per_page=1" \
-                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' | head -n 1)
+                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' 2>/dev/null | head -n 1)
+              case "$URL" in https://*) ;; *) URL="" ;; esac
               if [ -z "$URL" ]; then
                 REASON="no run has published a test listing named \`$NAME\`, so the base tree \`$BASE_TREE\` has never been listed in this lane — it was tested before this report existed, its listing's retention has expired, the run that tested it drew the other lane, or the lookup had no \`actions: read\`"
               elif curl -sSL -H "Authorization: Bearer $GH_TOKEN" -o "$COST/base.zip" "$URL" &&
