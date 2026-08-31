@@ -234,37 +234,23 @@ impl fmt::Display for RunOutPolicy {
     }
 }
 
-/// The corner-configuration tags C8's scope box enumerates. Two —
-/// [`CornerConfig::ThreeConvexEdges`] and
-/// [`CornerConfig::ThreeConcaveEdges`], each with independent support
-/// normals — describe corners a verb builds; the rest are the refusal
+/// The corner-configuration tags C8's scope box enumerates. Exactly
+/// one — [`CornerConfig::ThreeConvexEdges`] with independent support
+/// normals — is constructible at M5; the rest are the refusal
 /// taxonomy, each pinned by a fixture that reaches it.
 ///
-/// **A tag describes the CORNER, not the verb's verdict on it.** The
-/// concave trihedron is one configuration, and which verb carves it is
-/// the verb's own scope: the chamfer's flat patch has no side to pick
-/// and carves both, the rolling ball's octant is derived convex-only
-/// and carves one. So the tag is a refusal payload for a fillet and
-/// never reached by a chamfer, which is a property of the doors and
-/// not of the corner.
+/// **This vocabulary has no name for the uniform CONCAVE trihedron**,
+/// which the chamfer now carves and the fillet still refuses. Minting
+/// one is a corner-taxonomy decision OQ6 reserves for Evan, opened as
+/// evgunter/cad issue 1355; until it lands, the fillet's refusal there
+/// carries [`Self::MixedConvexity`] with `convex: 0`, as it always
+/// has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {
     /// Three edges, all definitely convex, support normals definitely
     /// independent: the sphere-octant corner patch, or the chamfer's
     /// flat one. IN SCOPE for both verbs.
     ThreeConvexEdges,
-    /// Three edges, all definitely concave, support normals definitely
-    /// independent — the mirror of [`Self::ThreeConvexEdges`], and a
-    /// wedge of material rather than a wedge of air.
-    ///
-    /// IN SCOPE for the chamfer, whose corner patch is the plane
-    /// through three trimline crossings and carries no convexity
-    /// parameter. Out of scope for the fillet, whose corner ball,
-    /// contact feet and octant chart are all derived on the convex
-    /// side; that is the widening tracked as evgunter/cad issue 644,
-    /// and until it lands a fillet request refuses HERE rather than
-    /// building a half-derived corner.
-    ThreeConcaveEdges,
     /// A vertex of valence other than three. The rolling ball's
     /// contact set is not a spherical triangle there, so the corner
     /// patch is not one sphere octant.
@@ -345,11 +331,6 @@ impl fmt::Display for CornerConfig {
             Self::ThreeConvexEdges => {
                 write!(f, "three convex edges (the built corner configuration)")
             }
-            Self::ThreeConcaveEdges => write!(
-                f,
-                "three concave edges (a corner of material, which the flat corner patch \
-                 carves and the rolling ball's octant does not)"
-            ),
             Self::NEdgeVertex { valence } => write!(f, "a valence-{valence} vertex"),
             Self::MixedConvexity { convex } => {
                 write!(f, "a mixed-convexity vertex ({convex} of 3 edges convex)")
@@ -1258,7 +1239,6 @@ mod recourse_tests {
     fn a_corner_tag_names_a_policy_exactly_when_its_recourse_is_the_run_out_one() {
         for corner in [
             CornerConfig::ThreeConvexEdges,
-            CornerConfig::ThreeConcaveEdges,
             CornerConfig::NEdgeVertex { valence: 4 },
             CornerConfig::MixedConvexity { convex: 1 },
             CornerConfig::DependentNormals,

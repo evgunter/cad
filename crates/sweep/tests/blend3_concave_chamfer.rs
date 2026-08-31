@@ -288,24 +288,43 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     }
 }
 
-/// **The fillet keeps refusing, under the tag that is true of it.** Its
-/// corner ball, feet and octant chart are derived on the convex side,
-/// so the concave trihedron is named for what it is rather than
-/// reported as a mixed corner it is not.
+/// **THE DIFFERENTIAL: the fillet's refusal here did not move.**
+///
+/// The chamfer's widening is the chamfer's. A fillet asked for the
+/// same twelve edges refuses at the same door with the same payload it
+/// carried before any of this — `MixedConvexity { convex: 0 }`,
+/// feather — because the corner ball, its contact feet and the octant
+/// chart are each derived on the convex side and none of them moved
+/// (evgunter/cad issue 644 is that widening).
+///
+/// The payload is asserted rather than merely the variant, since the
+/// variant alone would stay green under a relabelling. Naming the
+/// uniform concave trihedron for what it is would read better here and
+/// is deliberately NOT done: extending the corner vocabulary is a
+/// taxonomy decision OQ6 reserves for Evan, opened as evgunter/cad
+/// issue 1355.
 #[test]
-fn the_concave_fillet_refuses_at_its_own_corner_door() {
+fn the_concave_fillet_refuses_exactly_as_it_did_before() {
     let body = vented_cavity();
     let edges = cavity_edges(&body);
     let err = fillet_edges(&body, &edges, D, band(), Tol::witness())
         .expect_err("the concave fillet refuses");
     match err.error {
         BlendError::UnsupportedCorner {
-            corner: CornerConfig::ThreeConcaveEdges,
+            corner: CornerConfig::MixedConvexity { convex },
             policy,
             ..
-        } => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
-        ref other => panic!("expected a concave-trihedron corner refusal, got {other:?}"),
+        } => {
+            assert_eq!(convex, 0, "none of the three edges is convex");
+            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
+        }
+        ref other => panic!("expected the corner-configuration refusal, got {other:?}"),
     }
+    assert!(
+        err.to_string()
+            .contains("is a mixed-convexity vertex (0 of 3 edges convex)"),
+        "the rendered sentence is the one it always was: {err}"
+    );
 }
 
 /// **The sentence that refusal ships is followable, here, as written.**

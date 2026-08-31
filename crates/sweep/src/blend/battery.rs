@@ -562,24 +562,21 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// and nothing more: zero constructor surface, refusal-payload
 /// vocabulary only.
 ///
-/// # Which convexities each verb admits, and why they differ
+/// # What this predicate does NOT decide
 ///
-/// A UNIFORM trihedron is one configuration on either side of the
-/// material, and the convexity gate is the VERB's, not the corner's:
+/// It reads the CORNER and nothing about the request's verb. A
+/// UNIFORM trihedron — three edges of one convexity — is one
+/// configuration whichever side of the material it is on, and this
+/// predicate admits it on both; a MIXED one is out of scope for every
+/// band there is, because the band would change sides mid-corner.
 ///
-/// - the **chamfer** admits both. Its corner patch is the plane
-///   through three trimline crossings, folded outward against the
-///   supports' own normal sum, and its strips' trimlines are read off
-///   the half-edge traversal — no term in either derivation takes a
-///   convexity argument, so there is no convex-only constant here to
-///   leave half-derived;
-/// - the **fillet** admits the convex side only, because its corner
-///   ball, contact feet and octant chart are each derived there
-///   (evgunter/cad issue 644 is that widening, and it moves those three
-///   together or not at all).
-///
-/// A MIXED trihedron is out of scope for both, and for the same reason
-/// as ever: the band would change sides mid-corner.
+/// **Which uniform sides a given band carves is the caller's clause,
+/// not this one's**, and it is applied one layer up in `corner_at`,
+/// where the verb is known: the chamfer's ruled strip and flat patch
+/// take no convexity argument and carve either side, while the
+/// rolling ball's corner ball, contact feet and octant chart are each
+/// derived on the convex side (evgunter/cad issue 644 is that
+/// widening, and it moves those three together or not at all).
 ///
 /// # Errors
 ///
@@ -591,7 +588,6 @@ pub fn corner_config<T: Decide + Bounds>(
     convex: usize,
     normals: [Vec3<T>; 3],
     radius: T,
-    kind: BlendKind,
     band: Band,
 ) -> Result<(), BlendError> {
     // Which run-out policy (if any) an out-of-scope configuration names
@@ -601,12 +597,11 @@ pub fn corner_config<T: Decide + Bounds>(
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
-    match (convex, kind) {
-        // The uniform trihedra the running verb builds; the
-        // independence margin below is the remaining question.
-        (3, _) | (0, BlendKind::Chamfer) => {}
-        (0, BlendKind::Fillet) => return Err(refuse(CornerConfig::ThreeConcaveEdges)),
-        _ => return Err(refuse(CornerConfig::MixedConvexity { convex })),
+    // A uniform trihedron is a configuration some band carves; a mixed
+    // one is a configuration none does. Which of the two uniform sides
+    // the RUNNING band carves is decided by the caller that knows it.
+    if !matches!(convex, 0 | 3) {
+        return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
     let margin = Margin::levered(det.abs(), radius);
@@ -1415,7 +1410,6 @@ fn corner_at<T: Decide + Bounds>(
             0,
             [Vec3::new(T::zero(), T::zero(), T::zero()); 3],
             radius,
-            kind,
             band,
         );
     }
@@ -1466,7 +1460,7 @@ fn corner_at<T: Decide + Bounds>(
         return Err(indeterminate());
     };
     if faces.len() != 3 {
-        return corner_config(vertex, faces.len(), convex, normals, radius, kind, band);
+        return corner_config(vertex, faces.len(), convex, normals, radius, band);
     }
     for (i, f) in faces.iter().enumerate() {
         // A support whose outward normal does not resolve leaves a
@@ -1475,7 +1469,25 @@ fn corner_at<T: Decide + Bounds>(
         // pass. Documented rather than silent (fix pass F6).
         normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
     }
-    corner_config(vertex, valence, convex, normals, radius, kind, band)
+    // **The verb's own convexity clause, at the layer that knows the
+    // verb.** The classifier above reads the corner and admits either
+    // uniform trihedron; the rolling ball carves only the convex one,
+    // because its ball, feet and octant chart are all derived there
+    // (evgunter/cad issue 644). It is applied HERE, after the valence
+    // check and before the independence margin, so a corner that is
+    // out of scope on two counts reports the same one it always did.
+    //
+    // The tag is the mixed-convexity one because that is the
+    // vocabulary that exists: naming the uniform concave trihedron is
+    // a corner-taxonomy question OQ6 reserves for Evan, opened as
+    // evgunter/cad issue 1355.
+    if convex == 0 && matches!(kind, BlendKind::Fillet) {
+        return Err(super::surgery::unbuilt_corner_config(
+            vertex,
+            CornerConfig::MixedConvexity { convex },
+        ));
+    }
+    corner_config(vertex, valence, convex, normals, radius, band)
 }
 
 /// Predicate 2's sweep: for each support face, every pair of its

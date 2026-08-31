@@ -17,7 +17,7 @@ use sweep::blend::battery::{
     BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
-use sweep::blend::{BlendError, BlendKind, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
@@ -124,15 +124,7 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
     let body = boxy();
     let (_, v, _) = keys(&body);
-    match corner_config(
-        v,
-        4,
-        4,
-        [Vec3::new(0.0, 0.0, 1.0); 3],
-        0.1,
-        BlendKind::Fillet,
-        band(),
-    ) {
+    match corner_config(v, 4, 4, [Vec3::new(0.0, 0.0, 1.0); 3], 0.1, band()) {
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::NEdgeVertex { valence },
             policy,
@@ -157,7 +149,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
     ];
-    match corner_config(v, 3, 3, normals, 0.1, BlendKind::Fillet, band()) {
+    match corner_config(v, 3, 3, normals, 0.1, band()) {
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::DependentNormals,
             policy,
@@ -179,7 +171,7 @@ fn corner_tag_mixed_convexity_names_feather() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    match corner_config(v, 3, 1, normals, 0.1, BlendKind::Fillet, band()) {
+    match corner_config(v, 3, 1, normals, 0.1, band()) {
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
             policy,
@@ -192,13 +184,17 @@ fn corner_tag_mixed_convexity_names_feather() {
     }
 }
 
-/// **The uniform CONCAVE trihedron is where the two verbs' corner
-/// doors part.** One configuration, one set of normals, one call each:
-/// the chamfer's flat patch carves it and the classifier passes, while
-/// the fillet's octant is derived convex-only and it refuses with the
-/// tag that says so — never as a "mixed" corner, which it is not.
+/// **The classifier reads the CORNER, and a uniform trihedron is one
+/// configuration on either side of the material.** It admits both and
+/// refuses only the mixed signs, with no verb anywhere in it — which
+/// is what lets one predicate serve two bands.
+///
+/// Which uniform side a given band carves is the caller's clause, one
+/// layer up where the verb is known, and it is pinned through the
+/// front doors instead (the concave-chamfer suite carves the concave
+/// corner and refuses the fillet at it).
 #[test]
-fn corner_tag_three_concave_edges_splits_the_two_verbs() {
+fn corner_config_admits_either_uniform_trihedron() {
     let body = boxy();
     let (_, v, _) = keys(&body);
     let normals = [
@@ -206,15 +202,18 @@ fn corner_tag_three_concave_edges_splits_the_two_verbs() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    corner_config(v, 3, 0, normals, 0.1, BlendKind::Chamfer, band())
-        .expect("the chamfer's flat patch carves a concave trihedron");
-    match corner_config(v, 3, 0, normals, 0.1, BlendKind::Fillet, band()) {
-        Err(BlendError::UnsupportedCorner {
-            corner: CornerConfig::ThreeConcaveEdges,
-            policy,
-            ..
-        }) => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
-        other => panic!("expected a concave-trihedron refusal, got {other:?}"),
+    for convex in [0, 3] {
+        corner_config(v, 3, convex, normals, 0.1, band())
+            .unwrap_or_else(|e| panic!("a uniform trihedron is a configuration, got {e:?}"));
+    }
+    for convex in [1, 2] {
+        match corner_config(v, 3, convex, normals, 0.1, band()) {
+            Err(BlendError::UnsupportedCorner {
+                corner: CornerConfig::MixedConvexity { convex: got },
+                ..
+            }) => assert_eq!(got, convex),
+            other => panic!("a mixed trihedron is out of scope for every band, got {other:?}"),
+        }
     }
 }
 
@@ -230,8 +229,7 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    corner_config(v, 3, 3, normals, 0.1, BlendKind::Fillet, band())
-        .expect("the octant corner is in scope");
+    corner_config(v, 3, 3, normals, 0.1, band()).expect("the octant corner is in scope");
     assert_eq!(
         format!("{}", CornerConfig::ThreeConvexEdges),
         "three convex edges (the built corner configuration)"
@@ -510,7 +508,6 @@ fn trio_corner_independence() {
         3,
         [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(0.0, 0.0, 1.0)],
         1.0,
-        BlendKind::Fillet,
         b,
     )
     .expect("|det| · r = 1 m");
@@ -521,7 +518,6 @@ fn trio_corner_independence() {
         3,
         [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(1.0, 1.0, 0.0)],
         1.0,
-        BlendKind::Fillet,
         b,
     )
     .unwrap_err();
@@ -544,7 +540,6 @@ fn trio_corner_independence() {
             n(0.0, 0.0, t).normalize() * t,
         ],
         1.0,
-        BlendKind::Fillet,
         b,
     );
     match escalated {
