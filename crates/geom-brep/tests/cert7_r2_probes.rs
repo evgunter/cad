@@ -71,7 +71,11 @@ fn ellipse_wall(a: f64, b: f64, t0: f64, t1: f64) -> NurbsSurface<f64> {
     let m0 = (t0.cos(), t0.sin());
     let m1 = (tm.cos() / wm, tm.sin() / wm);
     let m2 = (t1.cos(), t1.sin());
-    let mer = [(a * m0.0, b * m0.1), (a * m1.0, b * m1.1), (a * m2.0, b * m2.1)];
+    let mer = [
+        (a * m0.0, b * m0.1),
+        (a * m1.0, b * m1.1),
+        (a * m2.0, b * m2.1),
+    ];
     let mw = [1.0, wm, 1.0];
     let wl = (FRAC_PI_2 * 0.5).cos();
     let mut control = Vec::with_capacity(9);
@@ -169,7 +173,9 @@ fn r2_hostile_alternating_weights_contain_or_refuse() {
     let d = 0.25;
     let (fit, _) = fit_offset(&base, d, 1e-3, band()).unwrap();
     let n = fit.weights().len();
-    let weights: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.1 } else { 10.0 }).collect();
+    let weights: Vec<f64> = (0..n)
+        .map(|i| if i % 2 == 0 { 0.1 } else { 10.0 })
+        .collect();
     let hostile = NurbsSurface::new(
         fit.knots_u().clone(),
         fit.knots_v().clone(),
@@ -295,6 +301,9 @@ fn r2_cylinder_cells_at_both_tolerances() {
     let base = quarter_cylinder(1.25, 0.75);
     for tol in [1e-4, 3e-4] {
         let (_, cert) = fit_offset(&base, 0.3, tol, band()).unwrap();
-        eprintln!("cylinder d=0.3 tol={tol:e}: cells={} rounds={}", cert.cells, cert.rounds);
+        eprintln!(
+            "cylinder d=0.3 tol={tol:e}: cells={} rounds={}",
+            cert.cells, cert.rounds
+        );
     }
 }

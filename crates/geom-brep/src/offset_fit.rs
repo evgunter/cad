@@ -1596,6 +1596,7 @@ impl Composite {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{Refine, directional_mark, stall_verdict};
 
@@ -1645,8 +1646,7 @@ mod tests {
             .sqr()
             + RingInterval::point(crate::offset_meters::mig(comp.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(crate::offset_meters::mig(comp.e[2].cell_hull(su, sv))).sqr();
-        let e_lo_iv =
-            RingInterval::point(crate::offset_meters::sqrt_down(e_mig_sq.lo())) / wt;
+        let e_lo_iv = RingInterval::point(crate::offset_meters::sqrt_down(e_mig_sq.lo())) / wt;
         let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
         let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
         let y_sq = comp.y[0].cell_hull(su, sv).mag().powi(2)

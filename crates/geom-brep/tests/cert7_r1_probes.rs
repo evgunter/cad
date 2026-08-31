@@ -105,10 +105,30 @@ fn sampled(base: &NurbsSurface<f64>, fit: &NurbsSurface<f64>, d: f64) -> f64 {
 #[test]
 fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
     let cases: Vec<(&str, NurbsSurface<f64>, f64, f64)> = vec![
-        ("elliptic wall a=2 b=1", elliptic_wall(2.0, 1.0, 1.0), 0.1, 1e-3),
-        ("elliptic wall a=5 b=1 (hostile aspect)", elliptic_wall(5.0, 1.0, 1.0), 0.05, 1e-2),
-        ("ellipsoid band r=2 q=0.5", ellipsoid_band(2.0, 0.5, 0.25, 1.25), 0.15, 1e-3),
-        ("ellipsoid band r=2 q=0.2 (flat)", ellipsoid_band(2.0, 0.2, 0.3, 1.2), 0.05, 1e-3),
+        (
+            "elliptic wall a=2 b=1",
+            elliptic_wall(2.0, 1.0, 1.0),
+            0.1,
+            1e-3,
+        ),
+        (
+            "elliptic wall a=5 b=1 (hostile aspect)",
+            elliptic_wall(5.0, 1.0, 1.0),
+            0.05,
+            1e-2,
+        ),
+        (
+            "ellipsoid band r=2 q=0.5",
+            ellipsoid_band(2.0, 0.5, 0.25, 1.25),
+            0.15,
+            1e-3,
+        ),
+        (
+            "ellipsoid band r=2 q=0.2 (flat)",
+            ellipsoid_band(2.0, 0.2, 0.3, 1.2),
+            0.05,
+            1e-3,
+        ),
     ];
     for (name, base, d, tol) in cases {
         match approx_offset_surface(std::sync::Arc::new(base.clone()), d, tol, band()) {
@@ -122,7 +142,10 @@ fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
                 );
                 // Hand the minted fit back through the re-derivation door.
                 let again = certify_offset(&base, a.fit(), d, tol, band()).unwrap();
-                assert!((again.hull_sup - cert.hull_sup).abs() <= 0.0, "{name}: re-derivation moved");
+                assert!(
+                    (again.hull_sup - cert.hull_sup).abs() <= 0.0,
+                    "{name}: re-derivation moved"
+                );
                 eprintln!(
                     "E2E {name}: cells={} rounds={} hull_sup={:.4e} sampled={worst:.4e} \
                      (ratio {:.2}x)",
@@ -165,7 +188,11 @@ fn a_global_weight_scale_does_not_move_the_certificate() {
         );
         match certify_offset(&base, &scaled, d, tol, band()) {
             Ok(c) => {
-                assert!(c.hull_sup >= s, "k={k}: hull_sup {} under-reports {s}", c.hull_sup);
+                assert!(
+                    c.hull_sup >= s,
+                    "k={k}: hull_sup {} under-reports {s}",
+                    c.hull_sup
+                );
                 if k == 1.0 {
                     first = c.hull_sup;
                 }
@@ -192,11 +219,15 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
     let spreads: Vec<(&str, Vec<f64>)> = vec![
         (
             "alternating 1e-3 / 1e3",
-            (0..n).map(|i| if i % 2 == 0 { 1e-3 } else { 1e3 }).collect(),
+            (0..n)
+                .map(|i| if i % 2 == 0 { 1e-3 } else { 1e3 })
+                .collect(),
         ),
         (
             "one weight at 1e-12",
-            (0..n).map(|i| if i == n / 2 { 1e-12 } else { 1.0 }).collect(),
+            (0..n)
+                .map(|i| if i == n / 2 { 1e-12 } else { 1.0 })
+                .collect(),
         ),
         (
             "one weight EXACTLY zero",
@@ -204,12 +235,11 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
         ),
         (
             "one weight NEGATIVE (straddles zero)",
-            (0..n).map(|i| if i == n / 2 { -1.0 } else { 1.0 }).collect(),
+            (0..n)
+                .map(|i| if i == n / 2 { -1.0 } else { 1.0 })
+                .collect(),
         ),
-        (
-            "all weights negative",
-            (0..n).map(|_| -1.0).collect(),
-        ),
+        ("all weights negative", (0..n).map(|_| -1.0).collect()),
     ];
     for (name, w) in spreads {
         let Ok(hostile) = NurbsSurface::new(
@@ -310,13 +340,29 @@ fn hunt_for_a_genuine_refinement_stall() {
     let mut stalls = 0;
     let cases: Vec<(&str, NurbsSurface<f64>, f64)> = vec![
         ("elliptic wall 2:1", elliptic_wall(2.0, 1.0, 1.0), 0.1),
-        ("elliptic wall 20:1 (extreme aspect)", elliptic_wall(20.0, 1.0, 1.0), 0.05),
+        (
+            "elliptic wall 20:1 (extreme aspect)",
+            elliptic_wall(20.0, 1.0, 1.0),
+            0.05,
+        ),
         ("elliptic wall 1:1 tall", elliptic_wall(1.0, 1.0, 50.0), 0.1),
-        ("ellipsoid band q=0.5", ellipsoid_band(2.0, 0.5, 0.25, 1.25), 0.15),
-        ("ellipsoid band q=0.1 (very flat)", ellipsoid_band(2.0, 0.1, 0.3, 1.2), 0.02),
+        (
+            "ellipsoid band q=0.5",
+            ellipsoid_band(2.0, 0.5, 0.25, 1.25),
+            0.15,
+        ),
+        (
+            "ellipsoid band q=0.1 (very flat)",
+            ellipsoid_band(2.0, 0.1, 0.3, 1.2),
+            0.02,
+        ),
         ("thin wall", elliptic_wall(1.0, 1.0, 1e-4), 0.1),
         ("elliptic wall tiny d", elliptic_wall(1.0, 1.0, 1.0), 1e-9),
-        ("elliptic wall huge coords", elliptic_wall(1e4, 1e4, 1e4), 10.0),
+        (
+            "elliptic wall huge coords",
+            elliptic_wall(1e4, 1e4, 1e4),
+            10.0,
+        ),
     ];
     for (name, base, d) in cases {
         for tol in [1e-6, 1e-9, 1e-11, 1e-13, 1e-15, 1e-17] {
@@ -369,7 +415,10 @@ fn the_budget_refusal_conflates_the_cap_with_the_rounds() {
     .unwrap();
     for d in [1e-7_f64, 1e-6] {
         match fit_offset(&base, d, 1e-12, band()) {
-            Ok((_, c)) => eprintln!("1321 d={d:e}: certified cells={} rounds={}", c.cells, c.rounds),
+            Ok((_, c)) => eprintln!(
+                "1321 d={d:e}: certified cells={} rounds={}",
+                c.cells, c.rounds
+            ),
             Err(e) => eprintln!("1321 d={d:e}: {e}"),
         }
     }
@@ -399,6 +448,9 @@ fn full_precision_hull_sups_for_the_fast_path_comparison() {
         ("elliptic wall", elliptic_wall(2.0, 1.0, 1.0), 0.1, 1e-3),
     ] {
         let (_, c) = fit_offset(&base, d, tol, band()).unwrap();
-        eprintln!("FASTPATH {name}: hull_sup={:.17e} on_locus={:.17e} cells={}", c.hull_sup, c.on_locus_max, c.cells);
+        eprintln!(
+            "FASTPATH {name}: hull_sup={:.17e} on_locus={:.17e} cells={}",
+            c.hull_sup, c.on_locus_max, c.cells
+        );
     }
 }
