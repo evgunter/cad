@@ -941,10 +941,10 @@ fn wrapped_cone_group<T: Decide>(
                 return Err(PointInSolidError::CorruptFace { face: member });
             };
             // A rim bounds the slant window, not the azimuth.
-            if let Some(crate::null::CurveGeom::Certified(c)) = body.get_curve_geom(edge) {
-                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
-                    continue;
-                }
+            if let Some(crate::null::CurveGeom::Certified(c)) = body.get_curve_geom(edge)
+                && matches!(c.carrier(), geom::Curve3::Circle { .. })
+            {
+                continue;
             }
             let Some(neighbour) = body
                 .mate(he)
