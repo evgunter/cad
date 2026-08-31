@@ -502,3 +502,52 @@ saved); re-dispatched fresh on the same arm, recorded for its row.
 Slate: CERT-6 (re-dispatched, running), then CERT-8, CERT-10
 (opens block CERT-B3), CERT-M/CERT-N track lanes. Issue 1362
 (walk.rs anchor class, S-MESH) filed en route.
+
+## CERT-6 merged (2026-08-31) — issue 870 closed; the area enclosure has its tripwire
+
+PR 1366 at 0696cdbe, gates green with lane=both + eps=1e-6 BOTH
+trailer-pinned — the first unit under the full issue-1356 ε
+practice. The A2 gauge landed as the Q1 ruling's row-5-boundary
+debug_assert: a certified chord-traversal bound (knot lines ∪ block
+edges ∪ two coprime grids) under a max(chord, caller) denominator
+whose failure-direction weighing lives at the claim site, ceiling
+1.0 with the margin stated against DOOR-AUTHORED anchors (79× on an
+untuned public loft, 13.1× on dm1's refusing wall, 17.6× on the
+relative arm's first live witness) rather than a corpus statistic.
+
+**The dual (ordinal 706, sample at the row)**: R1 opus A-W-F 1/6/5;
+R2 fable APPROVE 0/1/4. **R1's MAJOR was UNILATERAL AND EXECUTED**
+— the delivered 16-chord schedule ALIASED (Nyquist collapse at
+k≡0 mod 8, 16.5×/273× measured), an understated denominator being
+a release-panic path, plus a door-authored calibration
+counter-example at 2× the corpus max — a v6 TALLY CANDIDATE, coding
+deferred to the blinded adjudication. R2's unique yield: the
+balloon witness that made the fallback arm live, and every PR digit
+re-derived exactly. Fix pass IMPLEMENTER-INHERITED and unusually
+strong: it reproduced the MAJOR, then MEASURED that the adjudicated
+knot-aware fix alone was insufficient (11× under at 64 spans — the
+knots ARE the zero crossings there) and shipped the stronger
+coprime + max-denominator design; every threshold now names its
+fixture (the delivered ×80/×90 pair's provenance explained, both
+reviewers' non-reproductions being different fixtures); the
+triplicated assert block collapsed to a helper, which exposed a
+wrong relative-arm message; the calibration figures reduced to ONE
+home with pointers (the #651 shape applied).
+
+Incidents owned: the delivered head redded the discipline gate's
+interval-square-allowlist (x*x in the gauge) — orchestrator-direct
+powi(2) respell, with R1 correctly noting my commit message's
+"strictly-tighter-under-straddle" rationale misfits plain-f64
+sites (the gate matched a spelling outside its subject; the respell
+stands on the policy, not that rationale). R2 stalled once on a
+background waiter (the discipline doc's exact failure mode) and was
+nudged back to foreground polling. R2 also flagged two zero-byte
+junk files (r₁, r₂) at main's root from a verbs merge — deleted
+orchestrator-direct at aae0993e. The unit's FIRST lane died in the
+container restart with nothing pushed (~50m, fragment saved) —
+the re-dispatched lane's row records it.
+
+Slate: CERT-8 (chart-stretch honesty, issues 501+528) and CERT-10
+(patch-hull consolidation — its CERT-5/CERT-7 sequencing gate is
+now satisfied) dispatch next, opening block CERT-B3; then CERT-M/
+CERT-N track lanes and the exit walk.
