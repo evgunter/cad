@@ -63,8 +63,7 @@ use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::revolvetool::RevolveTool;
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{
-    BoundsTarget, DatumSpec, DocSession, Hovered, ProfileShape, Refusal, Selection, SessionOp,
-    Standing,
+    BoundsTarget, DatumSpec, DocSession, ProfileShape, Refusal, Selection, SessionOp, Standing,
 };
 use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
@@ -1502,6 +1501,19 @@ impl ViewerBehavior<'_> {
         // rule — lives in `pick::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
+        // **An open tool narrows the priority rule, it does not
+        // re-decide it.** The mate tool takes faces, and on a real
+        // part whole faces sit within the edge radius of their own
+        // boundary — a narrow shelf, a small hole's wall — so with
+        // edges always winning those faces were unpickable for as long
+        // as the tool was open. The narrowing travels through
+        // `hovered_for`, the one door that answers what a cursor
+        // means, so the tool cannot end up on a different rule.
+        let kinds = if self.mate_tool.is_some() {
+            pick::PickKinds::FacesOnly
+        } else {
+            pick::PickKinds::Any
+        };
         if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
             for action in actions {
                 // A hover over an unchanged picture at an unmoved
@@ -1511,7 +1523,7 @@ impl ViewerBehavior<'_> {
                 if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
                     continue;
                 }
-                match index.op_under(eval, self.camera, viewport, action, self.display) {
+                match index.op_under(eval, self.camera, viewport, action, self.display, kinds) {
                     // A hover that changes nothing is not queued: an
                     // operation per frame that performs no transition
                     // is churn in the one log a test reads.
@@ -1553,12 +1565,34 @@ impl ViewerBehavior<'_> {
         // disagreement` says why ids are the wrong currency, and
         // records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
+        //
+        // **The ray side of this comparison is the FACE under the
+        // cursor, not the hover.** An id buffer can answer with a
+        // patch and nothing else, so the question both sides must
+        // answer is "which patch is here"; the hover answers a
+        // different one as soon as the priority rule picks an edge,
+        // and feeding it would report a disagreement between two
+        // questions on every frame the cursor came within
+        // `EDGE_PICK_RADIUS_PX` of an edge. So the face is re-derived
+        // through `face_under_cursor`, and only where there is a fresh
+        // answer waiting for it — `disagreement` still owns the
+        // freshness rule, this only declines to do the work when no
+        // question is outstanding at all.
+        let outstanding = self.id_log.outstanding();
+        let from_ray = outstanding.and_then(|_| {
+            let index = self.index?;
+            let eval = self.session.evaluation()?;
+            index
+                .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                .ok()
+                .flatten()
+        });
         if let Some(report) = self.index.and_then(|index| {
             frame::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
-                self.id_log.outstanding(),
-                self.session.hover().map(Hovered::name),
+                outstanding,
+                from_ray.as_ref().map(|face| &face.name),
             )
         }) {
             *self.status = Some(report.to_string());

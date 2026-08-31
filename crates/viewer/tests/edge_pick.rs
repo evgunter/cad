@@ -179,11 +179,7 @@ fn every_drawn_edge_names_an_edge_that_resolves() {
             points.len() >= 2,
             "every drawn edge is at least one segment: {id:?}"
         );
-        let name = index
-            .edge_name_of(*id)
-            .expect("an assigned edge has a name slot")
-            .as_ref()
-            .expect("naming emission is total, so no drawn edge is unnamed");
+        let name = index.edge_name_of(*id).expect("a drawn edge has a name");
         assert!(
             matches!(resolve(RunCtx { doc, eval }, name), Resolution::Resolved(_)),
             "a just-drawn edge's name resolves in the run it was drawn from"
@@ -200,9 +196,7 @@ fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
     let (id, _) = hole_rim(&index, extrude);
     let name = index
         .edge_name_of(id)
-        .expect("a name slot")
-        .as_ref()
-        .expect("a name")
+        .expect("a drawn edge has a name")
         .clone();
     let picked = EdgeSelection {
         name: name.clone(),
@@ -493,9 +487,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)
-            .expect("a slot")
-            .as_ref()
-            .expect("a name")
+            .expect("a drawn edge has a name")
             .clone(),
         node: extrude,
         body: 0,
@@ -507,9 +499,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     let hovered = EdgeSelection {
         name: index
             .edge_name_of(other.0)
-            .expect("a slot")
-            .as_ref()
-            .expect("a name")
+            .expect("a drawn edge has a name")
             .clone(),
         node: extrude,
         body: 0,
@@ -564,9 +554,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
     let edge = Selection::Edge(EdgeSelection {
         name: index
             .edge_name_of(rim)
-            .expect("a slot")
-            .as_ref()
-            .expect("a name")
+            .expect("a drawn edge has a name")
             .clone(),
         node: extrude,
         body: 0,
@@ -605,9 +593,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     let selection = EdgeSelection {
         name: index
             .edge_name_of(rim)
-            .expect("a slot")
-            .as_ref()
-            .expect("a name")
+            .expect("a drawn edge has a name")
             .clone(),
         node: extrude,
         body: 0,

@@ -180,12 +180,22 @@ struct IdPass {
 /// geometry — the drawn polyline, handed over as a line list by
 /// `crate::pick::edge_overlay`. The colour is not a new palette entry:
 /// it is the theme's OWN selected/hovered mark composited over the
-/// body colour (`Mark::over`, the same mix the shaded pass runs), drawn
-/// UNSHADED. So a marked edge and its marked face are never the same
-/// pixel value — the line is the composited colour at full strength
-/// where the surface is that colour times its shading term — and the
-/// palette's colourblind claim keeps covering exactly the colours it
-/// already covers.
+/// same base the shaded pass composites over (`Mark::over`'s mix, run
+/// on the same probe/focus-tinted body), drawn UNSHADED. The line is
+/// therefore that composited colour at full strength where the surface
+/// is the same colour times its shading term, and the palette's
+/// colourblind claim keeps covering exactly the colours it already
+/// covers.
+///
+/// **Where that separation vanishes**, stated because an earlier form
+/// of this note claimed it never did: the shading term is
+/// `ambient + (1 − ambient) · lambert`, which reaches exactly 1 on a
+/// facet facing the light head-on. A mark drawn over such a facet is
+/// the same pixel value as the facet's own mark, and there the line is
+/// legible by its position and its neighbours' shading rather than by
+/// its own value. Every other orientation separates them, and the
+/// primary distinction was always form — a one-pixel line over a
+/// filled patch — rather than value.
 ///
 /// Lines are one pixel: wgpu's core specification has no line width,
 /// and widening a mark means expanding each segment into a quad, which
@@ -206,12 +216,39 @@ struct EdgeGeometry {
     overlay: EdgeOverlay,
 }
 
-/// Which mark an edge vertex is drawn in — the value the vertex buffer
-/// carries and the shader compares. Spelled once here and substituted
-/// into the WGSL, so the two cannot drift.
+/// The edge vertex's word, as BITS: which mark it is drawn in and what
+/// its base is. Spelled once here and substituted into the WGSL, so
+/// the two cannot drift.
+///
+/// The selected mark is the absence of [`EDGE_MARK_HOVERED`] rather
+/// than a bit of its own — a vertex is drawn in exactly one mark, and
+/// two bits would admit a state meaning both.
 const EDGE_MARK_SELECTED: u32 = 0;
-/// The hovered edge's mark. See [`EDGE_MARK_SELECTED`].
+/// Set when this vertex is drawn in the HOVERED mark.
 const EDGE_MARK_HOVERED: u32 = 1;
+/// Set when this vertex's edge belongs to a free-moved instance, so
+/// its mark composites over the probe-tinted body exactly as the
+/// shaded pass's marks do (`EdgePass`'s note on the shared base).
+const EDGE_FLAG_PROBE: u32 = 2;
+
+/// The constant half of the edge pass's depth bias, in units of the
+/// smallest resolvable depth increment at the fragment.
+///
+/// **Eyeballed, and there is no measurement behind it**: the lines lie
+/// exactly on the surface (they share its positions), so any bias
+/// toward the eye large enough to clear one depth quantum is enough,
+/// and one large enough to lift a mark off a NEIGHBOURING surface
+/// would be a bug. Two quanta is the smallest value that is not one.
+/// The pass writes no depth, so an over-large bias could only make a
+/// mark show through geometry it should not — which is the reason to
+/// keep it minimal rather than to tune it.
+const EDGE_DEPTH_BIAS: i32 = -2;
+
+/// The slope-scaled half of the same bias: one depth quantum per unit
+/// of depth slope across the fragment, which is what a line lying on a
+/// steeply-angled facet needs and a flat-on one does not. Eyeballed
+/// beside [`EDGE_DEPTH_BIAS`], for the same reason.
+const EDGE_DEPTH_BIAS_SLOPE: f32 = -1.0;
 
 struct Geometry {
     positions: wgpu::Buffer,
@@ -693,8 +730,8 @@ impl EdgePass {
                 depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState {
-                    constant: -2,
-                    slope_scale: -1.0,
+                    constant: EDGE_DEPTH_BIAS,
+                    slope_scale: EDGE_DEPTH_BIAS_SLOPE,
                     clamp: 0.0,
                 },
             }),
@@ -739,12 +776,17 @@ impl EdgePass {
         let mut positions: Vec<[f32; 3]> =
             Vec::with_capacity(overlay.selected.len() + overlay.hovered.len());
         let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
-        for (mark, corners) in [
-            (EDGE_MARK_SELECTED, &overlay.selected),
-            (EDGE_MARK_HOVERED, &overlay.hovered),
+        for (mark, probed, corners) in [
+            (
+                EDGE_MARK_SELECTED,
+                overlay.selected_probed,
+                &overlay.selected,
+            ),
+            (EDGE_MARK_HOVERED, overlay.hovered_probed, &overlay.hovered),
         ] {
+            let word = if probed { mark | EDGE_FLAG_PROBE } else { mark };
             positions.extend_from_slice(corners);
-            marks.extend(std::iter::repeat_n(mark, corners.len()));
+            marks.extend(std::iter::repeat_n(word, corners.len()));
         }
         let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
         self.held = Some(EdgeGeometry {
@@ -971,6 +1013,7 @@ fn shader_source() -> String {
             &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
         )
         .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
+        .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
 }
 
 const SHADER: &str = r#"
@@ -1075,9 +1118,19 @@ fn vs_edge(
 
 @fragment
 fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
-    let base = uniforms.base_color.xyz;
+    // The SAME base the shaded pass composites its marks over: the
+    // body colour, probe-tinted where the instance is free-moved.
+    // Focus is not applied here and cannot be — it is a per-PATCH
+    // marking with no edge equivalent — which costs the mark on an
+    // edge of a focused feature the focus tint under it; that edge is
+    // marked by the selection above it in every case where the two
+    // would coincide.
+    var base = uniforms.base_color.xyz;
+    if ((in.mark & {{EDGE_FLAG_PROBE}}u) != 0u) {
+        base = tint(base, uniforms.probe);
+    }
     var color = tint(base, uniforms.selected);
-    if (in.mark == {{EDGE_MARK_HOVERED}}u) {
+    if ((in.mark & {{EDGE_MARK_HOVERED}}u) != 0u) {
         color = tint(base, uniforms.hovered);
     }
     return vec4<f32>(color, 1.0);
