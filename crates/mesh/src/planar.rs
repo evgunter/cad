@@ -101,7 +101,7 @@
 //! rejection from the normal, so `far` lies in span{normal, u} and its
 //! `v = far · (normal × u)` is a determinant with a repeated row, zero
 //! in exact arithmetic. Evaluated in floats it lands at ~ν², and for
-//! ν ≲ √(2⁻¹⁴²) ≈ 4e-22 that is nonzero BELOW spade's coordinate
+//! ν ≲ √`MIN_ALLOWED_VALUE` ≈ 4e-22 that is nonzero BELOW spade's
 //! floor — which `insert` refuses, so the face returns
 //! [`TessellateError::Triangulation`] at **every** δ and no caller can
 //! turn a tolerance to escape it.
@@ -761,7 +761,8 @@ mod tests {
     /// input exactness — anchor a boundary point verbatim, Newell
     /// in-plane components exact 0, frame out-of-plane components
     /// exact 0, and every projected chart coordinate either exactly
-    /// 0.0 or at spade-legal magnitude (≥ 2⁻¹⁴²). Re-anchoring at the
+    /// 0.0 or at spade-legal magnitude (≥ `MIN_ALLOWED_VALUE`).
+    /// Re-anchoring at the
     /// constructed centroid turns every one of these assertions red
     /// (its z rounds off the input plane and seeds the Newell sum) —
     /// this is the in-suite guard for the mutation that only the wild
