@@ -613,3 +613,28 @@ fillet3_* predicate names untouched. Brief = the ratified
 `docs/prompts/implementer-discipline.md` by path; the #1278 rule
 governs every shared recourse constant's re-measurement under both
 verbs.
+
+## 2026-08-31 — BLEND-5 residue on main: the probe prose tripped the reader-census needle (fixed by #1323, another session's PR)
+
+Evan relayed a sibling agent's report of main red after BLEND-5;
+verified against the runs: main itself never went red (the merge
+commit's run was concurrency-cancelled and the commits after were
+docs-only), but the FIRST code-tier full-suite run since the merge
+(the GUI-theming lane's) hit `reader_census` red with two
+independent causes. (1) OURS: the adopted R1 probe file names
+`blend5_rim_support.rs` inside an assertion MESSAGE, and the census
+needle counts `.rs"` string occurrences against `#[path]` mounts —
+prose naming a file read as an unledgered source-reading site.
+CLASS NOTE: probe-suite prose that names .rs files trips
+source-census needles; the honest fix is at the site (reword),
+never a needle exemption or a prose Disposition variant. (2) NOT
+ours, pre-existing: the census's hidden-component skip tested the
+ABSOLUTE path, so `.mngr` in every worktree path filtered the whole
+tree — which is also why nobody could run the census locally to
+catch (1). Both fixed by PR #1323 (mngr lane, merged by its owner
+01:38Z; our file's sentence reworded to "from the blend5_rim_support
+suite", same assertion). WHY OUR FOUR GREEN RUNS MISSED IT: the
+census row was in none of the drawn points and main ran no
+code-tier job between the merge and the GUI run — the one-point
+sampling residue, on the record here. BLEND-6's lane told to merge
+main before its first push so its runs carry the fix.
