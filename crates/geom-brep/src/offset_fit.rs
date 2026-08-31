@@ -619,9 +619,9 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 /// # Errors
 ///
 /// [`OffsetFitError`]: everything [`fit_offset`] refuses, plus
-/// [`certify_offset`]'s limb classifications. A rational fit refuses
-/// [`OffsetFitError::RationalFitUnsupported`] and the refusal
-/// propagates — nothing here bypasses it.
+/// [`certify_offset`]'s limb classifications. A rational fit takes
+/// the same path as a polynomial one — the composite is weighted, so
+/// rationality is not a refusal cause.
 pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
