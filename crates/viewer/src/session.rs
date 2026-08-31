@@ -103,6 +103,102 @@ impl FaceSelection {
     }
 }
 
+/// A picked edge: the stable name it is, and the node whose body
+/// carried it when it was picked.
+///
+/// The face selection's twin, field for field, and deliberately a
+/// DISTINCT type rather than a kind tag on one struct: the consumers
+/// differ in what they accept — a blend selects edges, a mate selects
+/// faces — so a value that could be either defers a refusal to run
+/// time for no gain. The name is still the selection and no arena key
+/// appears, which is all G1 asks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeSelection {
+    /// The picked edge's stable name — what survives re-evaluation.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+}
+
+impl EdgeSelection {
+    /// **The feature this edge is**: the node whose operation minted
+    /// the entity the name denotes — [`FaceSelection::feature`]'s
+    /// argument, unchanged. An edge carried through a later boolean is
+    /// still the edge the earlier feature made.
+    pub fn feature(&self) -> RecipeNodeId {
+        attribute(&self.name).minted_by().unwrap_or(self.node)
+    }
+}
+
+/// What the cursor is over — the one transient pick, whichever kind of
+/// entity it landed on.
+///
+/// One value rather than a field per kind, because the cursor is over
+/// AT MOST ONE thing: two fields could both be set, and then the
+/// picture and the status line would disagree about what the pointer
+/// means.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Hovered {
+    /// A face under the cursor.
+    Face(FaceSelection),
+    /// An edge under the cursor — within
+    /// [`crate::pick::EDGE_PICK_RADIUS_PX`] of it, which is what makes
+    /// an edge reachable at all where its own face fills the pixel.
+    Edge(EdgeSelection),
+}
+
+impl Hovered {
+    /// The hovered entity's stable name.
+    pub fn name(&self) -> &StableName {
+        match self {
+            Self::Face(face) => &face.name,
+            Self::Edge(edge) => &edge.name,
+        }
+    }
+
+    /// The node whose drawn body the cursor is over.
+    pub fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node,
+            Self::Edge(edge) => edge.node,
+        }
+    }
+
+    /// The feature the hovered entity belongs to.
+    pub fn feature(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.feature(),
+            Self::Edge(edge) => edge.feature(),
+        }
+    }
+
+    /// The hovered face, when the cursor is over one.
+    pub fn face(&self) -> Option<&FaceSelection> {
+        match self {
+            Self::Face(face) => Some(face),
+            Self::Edge(_) => None,
+        }
+    }
+
+    /// The hovered edge, when the cursor is over one.
+    pub fn edge(&self) -> Option<&EdgeSelection> {
+        match self {
+            Self::Edge(edge) => Some(edge),
+            Self::Face(_) => None,
+        }
+    }
+
+    /// This hover as the selection a click on it would make.
+    pub fn selection(&self) -> Selection {
+        match self {
+            Self::Face(face) => Selection::Face(face.clone()),
+            Self::Edge(edge) => Selection::Edge(edge.clone()),
+        }
+    }
+}
+
 /// What the session has selected. A typed layer-3 value: stable
 /// names, recipe node ids and parameter names, never an arena key.
 ///
@@ -127,6 +223,9 @@ pub enum Selection {
     Param(ParamName),
     /// A face, picked in the viewport.
     Face(FaceSelection),
+    /// An edge, picked in the viewport — what a blend is authored
+    /// against.
+    Edge(EdgeSelection),
 }
 
 impl Selection {
@@ -143,6 +242,7 @@ impl Selection {
         match self {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.feature()),
+            Self::Edge(edge) => Some(edge.feature()),
             Self::None | Self::Param(_) => None,
         }
     }
@@ -151,6 +251,25 @@ impl Selection {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
+            Self::None | Self::Node(_) | Self::Param(_) | Self::Edge(_) => None,
+        }
+    }
+
+    /// The picked edge, when the selection is one.
+    pub fn edge(&self) -> Option<&EdgeSelection> {
+        match self {
+            Self::Edge(edge) => Some(edge),
+            Self::None | Self::Node(_) | Self::Param(_) | Self::Face(_) => None,
+        }
+    }
+
+    /// The selected entity's stable name, when the selection is a
+    /// picked entity — the one question the resolution check asks that
+    /// does not care which kind was picked.
+    pub fn entity_name(&self) -> Option<&StableName> {
+        match self {
+            Self::Face(face) => Some(&face.name),
+            Self::Edge(edge) => Some(&edge.name),
             Self::None | Self::Node(_) | Self::Param(_) => None,
         }
     }
@@ -200,6 +319,20 @@ pub enum Standing {
         /// returned by value on every frame.
         resolution: Option<Box<Resolution>>,
     },
+    /// An edge selection, and the resolution verdict its name got.
+    ///
+    /// The same shape as [`Standing::Face`] because it is the same
+    /// question asked of the same machinery: `resolve` takes a stable
+    /// name and does not care which kind of entity minted it, so an
+    /// edge selection survives its referent vanishing by exactly the
+    /// face arm's rule rather than by a second implementation of it.
+    Edge {
+        /// The selection.
+        edge: EdgeSelection,
+        /// What the shipped resolution machinery answered — `None`
+        /// when there is no evaluation to answer against yet.
+        resolution: Option<Box<Resolution>>,
+    },
 }
 
 impl Standing {
@@ -214,7 +347,7 @@ impl Standing {
         match self {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
-            Self::Face { resolution, .. } => {
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
                 matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
             }
         }
@@ -222,12 +355,16 @@ impl Standing {
 
     /// The typed unresolved verdict, when the selection has one.
     ///
-    /// `Some` exactly when a face selection's name failed to resolve
-    /// or the evaluation could not answer for it — the two arms that
-    /// render distinctly.
+    /// `Some` exactly when a picked entity's name failed to resolve or
+    /// the evaluation could not answer for it — the two arms that
+    /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
             Self::Face {
+                resolution: Some(resolution),
+                ..
+            }
+            | Self::Edge {
                 resolution: Some(resolution),
                 ..
             } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
@@ -546,7 +683,7 @@ pub enum SessionOp {
     /// the same reason every other move here is one (G1's
     /// operations-are-API rule) — a headless test hovers by naming
     /// this op.
-    Hover(Option<FaceSelection>),
+    Hover(Option<Hovered>),
     /// Delete a recipe node **and every node downstream of it**, as
     /// one action and one undo.
     ///
@@ -856,7 +993,7 @@ pub struct DocSession {
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
     /// per-widget shadow the panels' inventory discipline forbids.
-    hover: Option<FaceSelection>,
+    hover: Option<Hovered>,
     gesture: Option<Gesture>,
     scratch: Option<Doc<ProfileProgram>>,
     eval: Box<dyn EvalService>,
@@ -1065,7 +1202,7 @@ impl DocSession {
     }
 
     /// What the cursor is over, if anything.
-    pub fn hover(&self) -> Option<&FaceSelection> {
+    pub fn hover(&self) -> Option<&Hovered> {
         self.hover.as_ref()
     }
 
@@ -1091,11 +1228,21 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self
-                    .landed_pair()
-                    .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, &face.name))),
+                resolution: self.entity_resolution(&face.name),
+            },
+            Selection::Edge(edge) => Standing::Edge {
+                edge: edge.clone(),
+                resolution: self.entity_resolution(&edge.name),
             },
         }
+    }
+
+    /// One picked name's verdict against the landed run — the shipped
+    /// `resolve` door, asked once and spelled once for both entity
+    /// kinds.
+    fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
+        self.landed_pair()
+            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
     }
 
     /// The most recent evaluation that answered the current document.
