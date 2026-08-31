@@ -20,8 +20,8 @@
 //! second the AXIS seat, and a third pick replaces the axis (the
 //! commit step is still open, and re-picking is how a user corrects
 //! it). The tool does not judge node KINDS — that is the session
-//! door's job ([`crate::session::Refusal::NotAProfile`] /
-//! [`crate::session::Refusal::NotAnAxis`]), so a wrong-kind pick
+//! door's job ([`crate::session::Refusal::WrongNodeKind`], one arm
+//! for every creation seat), so a wrong-kind pick
 //! refuses typed at commit rather than being silently ignored at
 //! pick time, and the rule lives in one place.
 //!
@@ -33,13 +33,27 @@
 //! and drops a pick whose node is gone, each drop a typed
 //! [`RevolveToolEvent`] the chrome renders. A dropped profile does
 //! NOT promote the held axis into the profile seat — the seats are
-//! roles, and the next pick refills the empty one.
+//! roles, and the next pick refills the empty one. **This is
+//! deliberately DIVERGENT from the mate tool's survival step**, which
+//! promotes a surviving second pick into the one-pick position: its
+//! picks are an interchangeable pair, so keeping the survivor as "the
+//! held pick" is meaningful there, while here it would move a node
+//! between seats that mean different things. The mate tool's shipped
+//! semantics stand unaltered; both module docs state the divergence.
 //!
 //! `reconcile` is the consumer's obligation, exactly as the mate
 //! tool's is (its module docs carry the argument): the application
-//! calls it once per frame; a headless consumer that forgets sees a
-//! stale pick refuse typed at the session door instead — late, but
-//! never silent.
+//! calls it once per frame. **A consumer that forgets it is NOT
+//! reliably caught later.** The session door refuses a stale id that
+//! no longer denotes the right kind — but a `RecipeNodeId` is a small
+//! per-document counter, so once the document is REPLACED under held
+//! picks (a `NewDocument`, an open, an undo past the picks' inserts)
+//! fresh inserts re-mint the same small ids and the stale picks
+//! silently denote the NEW nodes: a commit then authors a real edit
+//! about geometry nobody picked, with no refusal anywhere. Per-frame
+//! reconcile guards the deleted-node case only; the id-reuse aliasing
+//! is a class hazard of layer-3 state holding `RecipeNodeId`s across
+//! history rewinds, tracked as issue #1384.
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
@@ -145,6 +159,20 @@ impl RevolveTool {
         } else {
             self.axis = Some(node);
         }
+    }
+
+    /// Empty both seats — the chrome's "start the picks over" door.
+    ///
+    /// Recorded ergonomic limit of the pick rule (a review
+    /// observation, kept rather than fixed): once both seats are
+    /// full, a further pick always replaces the AXIS, so a wrong
+    /// PROFILE with both seats full is corrected by clearing and
+    /// re-picking, not by a third click. A per-seat re-pick
+    /// affordance is chrome a later unit can add without touching
+    /// this value.
+    pub fn clear(&mut self) {
+        self.profile = None;
+        self.axis = None;
     }
 
     /// Re-read the held picks against the document, dropping any

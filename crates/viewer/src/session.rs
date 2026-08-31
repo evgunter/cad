@@ -35,9 +35,9 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocumentId, EditError, EvalOptions, Evaluation, Expr, Frame, LoopProgram,
-    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
-    apply, assemble, cascade_delete_order, evaluate, parse_expr, product, run_checks,
+    DocEdit, DocParam, EditError, EvalOptions, Evaluation, Expr, Frame, LoopProgram, Node,
+    ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, apply,
+    assemble, cascade_delete_order, evaluate, parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
@@ -237,6 +237,27 @@ impl Standing {
     }
 }
 
+/// The node kind a creation op's seat requires — the payload of
+/// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
+/// in the vocabulary's own words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeKindWanted {
+    /// A `Node::Profile`.
+    Profile,
+    /// A `Node::Datum(Datum::Axis)`.
+    Axis,
+}
+
+impl NodeKindWanted {
+    /// The kind's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Profile => "a profile",
+            Self::Axis => "an axis datum",
+        }
+    }
+}
+
 /// Why an operation did not happen. Every arm is a value the chrome
 /// renders; none is a message this layer composed about someone else's
 /// failure.
@@ -283,26 +304,17 @@ pub enum Refusal {
     /// ruling logged in `docs/GAUTH-LOG.md`), so a nameless document
     /// would carry an identity nobody could ever re-derive.
     EmptyName,
-    /// The add-profile door was asked for a profile with no loops. A
-    /// profile's first loop is its outer boundary; without one there
-    /// is nothing to insert and no downstream door that could say so
-    /// better.
-    EmptyProfile,
-    /// A creation op named a node that is not a profile in this
-    /// document — absent, or of another kind. The extrude and revolve
-    /// doors require one, and refusing here keeps "that is not a
-    /// profile" a fact stated at the door rather than a failed node
-    /// discovered after the edit lands.
-    NotAProfile {
+    /// A creation op named a node that is not the kind its seat
+    /// requires — absent, or of another kind. Refusing here keeps
+    /// "that is not a profile/axis" a fact stated at the door rather
+    /// than a failed node discovered after the edit lands; one arm
+    /// for every seat, so the sentence is spelled once (GAUTH-4/5 add
+    /// more seats to the same rule).
+    WrongNodeKind {
         /// The node named.
         node: RecipeNodeId,
-    },
-    /// A creation op named a node that is not an axis datum in this
-    /// document — absent, or of another kind. The revolve door
-    /// requires one.
-    NotAnAxis {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The kind the seat requires.
+        wanted: NodeKindWanted,
     },
     /// `apply` refused the edit.
     ///
@@ -356,9 +368,7 @@ impl Refusal {
             | Self::NoSuchParam(_)
             | Self::ParamExists { .. }
             | Self::EmptyName
-            | Self::EmptyProfile
-            | Self::NotAProfile { .. }
-            | Self::NotAnAxis { .. }
+            | Self::WrongNodeKind { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -417,14 +427,13 @@ impl core::fmt::Display for Refusal {
                     "a new document needs a name; its identity is derived from it"
                 )
             }
-            Self::EmptyProfile => {
-                write!(f, "a profile needs at least one loop (the outer boundary)")
-            }
-            Self::NotAProfile { node } => {
-                write!(f, "node {} is not a profile in this document", node.0)
-            }
-            Self::NotAnAxis { node } => {
-                write!(f, "node {} is not an axis datum in this document", node.0)
+            Self::WrongNodeKind { node, wanted } => {
+                write!(
+                    f,
+                    "node {} is not {} in this document",
+                    node.0,
+                    wanted.name()
+                )
             }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
@@ -877,8 +886,13 @@ pub enum SessionOp {
     /// backing file, so its instantiate nodes refuse with the shipped
     /// no-resolver semantics until it is saved). Refused mid-gesture;
     /// a blank name refuses [`Refusal::EmptyName`].
+    ///
+    /// The name is TRIMMED before the id is derived, so `" ring "` and
+    /// `"ring"` are one document by design — surrounding whitespace is
+    /// a typing accident, not an identity a user could re-derive on
+    /// purpose.
     NewDocument {
-        /// The document's name; the id is derived from it.
+        /// The document's name; the id is derived from its trim.
         name: String,
     },
     /// Insert one datum node with literal slots — the add-datum forms'
@@ -890,21 +904,33 @@ pub enum SessionOp {
     /// Insert one profile node from template loops on a plane — the
     /// add-profile tool's one committed edit.
     ///
-    /// `loops` is the program's own convention: the FIRST loop is the
-    /// outer boundary, every later one a hole. An empty list refuses
-    /// [`Refusal::EmptyProfile`]. The plane is frozen `f64` placement
-    /// data (the program's own placement struct — a snapshot, never a
+    /// `loops` is DESCRIPTION order, nothing more: which loop is the
+    /// outer boundary and which are holes is decided by the profile
+    /// layer's containment forest at replay
+    /// (`profile::structure`), never by list position — a list
+    /// written holes-first describes the same profile. Every refusal
+    /// is the edit door's own: an empty list, a degenerate loop and a
+    /// non-nested pair all refuse through the authoring-time check
+    /// ([`Refusal::Edit`]), one rule for authored and hand-written
+    /// programs alike (only a non-finite field refuses earlier, at
+    /// the literal door). The plane is frozen `f64` placement data
+    /// (the program's own placement struct — a snapshot, never a
     /// reference to the geometry it may have been derived from).
     AddProfile {
         /// The sketch-plane placement the profile is authored on.
         plane: SketchPlane<f64>,
-        /// The template loops, outer first.
+        /// The template loops, in description order.
         loops: Vec<ProfileShape>,
     },
     /// Insert one extrude of an existing profile node — the extrude
     /// tool's one committed edit. A `profile` that is not a
     /// `Node::Profile` in this document refuses
-    /// [`Refusal::NotAProfile`] at the door.
+    /// [`Refusal::WrongNodeKind`] at the door.
+    ///
+    /// A NEGATIVE distance is admitted deliberately and builds: it is
+    /// an extrusion along the negative sketch normal, the same value
+    /// the property panel can author into the slot afterwards, and
+    /// the door does not narrow what the vocabulary means.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
@@ -913,8 +939,8 @@ pub enum SessionOp {
     },
     /// Insert one revolve of an existing profile node about an
     /// existing axis datum — the revolve tool's one committed edit.
-    /// Typed refusals at the door: [`Refusal::NotAProfile`] and
-    /// [`Refusal::NotAnAxis`].
+    /// Either seat's wrong-kind pick refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
     AddRevolve {
         /// The profile node revolved.
         profile: RecipeNodeId,
@@ -1970,7 +1996,14 @@ impl DocSession {
         }
     }
 
+    /// Refused mid-gesture, the same policy as [`SessionOp::NewDocument`]:
+    /// both replace the document a drag is previewing against, and a
+    /// gesture silently dissolved under the pointer is the kind of
+    /// half-acted state the gesture guard exists to refuse.
     fn open(&mut self, path: &Path) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
         match docio::open(path, self.tol) {
             Ok(history) => {
                 // The directory rule: the resolver is the opened
@@ -1980,7 +2013,6 @@ impl DocSession {
                 self.history = history;
                 self.selection = Selection::None;
                 self.hover = None;
-                self.gesture = None;
                 // The landed run answered the PREVIOUS document. Left
                 // in place it would render the old model's tree and
                 // resolve the new document's names against it until
@@ -2041,7 +2073,7 @@ impl DocSession {
         if name.is_empty() {
             return OpOutcome::refused(Refusal::EmptyName);
         }
-        self.history = History::new(Doc::empty(DocumentId::derive(name), self.tol));
+        self.history = History::new(Doc::empty_derived(name, self.tol));
         self.selection = Selection::None;
         self.hover = None;
         self.landed = None;
@@ -2072,12 +2104,15 @@ impl DocSession {
 
     /// Insert one profile node from template loops
     /// ([`SessionOp::AddProfile`]).
+    ///
+    /// No loop-count or nesting judgment here: an empty list, a
+    /// degenerate loop and a non-nested pair all go to `commit`, where
+    /// the edit door's authoring-time check refuses them typed in the
+    /// profile layer's own words — the one rule authored and
+    /// hand-written programs share.
     fn add_profile(&mut self, plane: SketchPlane<f64>, loops: &[ProfileShape]) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
-        }
-        if loops.is_empty() {
-            return OpOutcome::refused(Refusal::EmptyProfile);
         }
         let mut programs = Vec::with_capacity(loops.len());
         for shape in loops {
@@ -2100,7 +2135,7 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        if let Err(refusal) = self.require_profile(profile) {
+        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
         match Expr::literal(distance, Dimension::Length) {
@@ -2117,14 +2152,11 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        if let Err(refusal) = self.require_profile(profile) {
+        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if !matches!(
-            self.committed_doc().node(axis),
-            Some(Node::Datum(Datum::Axis { .. }))
-        ) {
-            return OpOutcome::refused(Refusal::NotAnAxis { node: axis });
+        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
+            return OpOutcome::refused(refusal);
         }
         match Expr::literal(angle, Dimension::Angle) {
             Ok(angle) => self.commit(DocEdit::InsertNode {
@@ -2138,14 +2170,20 @@ impl DocSession {
         }
     }
 
-    /// The profile-kind gate the extrude and revolve doors share: the
-    /// named node must be a `Node::Profile` in the committed document
-    /// — absent and wrong-kind refuse the same arm, because both mean
-    /// "there is no profile there to consume".
-    fn require_profile(&self, node: RecipeNodeId) -> Result<(), Refusal> {
-        match self.committed_doc().node(node) {
-            Some(Node::Profile(_)) => Ok(()),
-            _ => Err(Refusal::NotAProfile { node }),
+    /// The node-kind gate every creation seat shares: the named node
+    /// must be the wanted kind in the committed document — absent and
+    /// wrong-kind refuse the same arm, because both mean "there is
+    /// nothing of that kind there to consume".
+    fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
+        let held = self.committed_doc().node(node);
+        let ok = match wanted {
+            NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
+            NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(Refusal::WrongNodeKind { node, wanted })
         }
     }
 

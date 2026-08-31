@@ -96,8 +96,8 @@ pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use revolvetool::{RevolveSeat, RevolveTool, RevolveToolError, RevolveToolEvent};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use session::{
-    DatumSpec, DocSession, FaceSelection, Landing, OpOutcome, ProfileShape, Refusal, Selection,
-    SessionOp, Standing,
+    DatumSpec, DocSession, FaceSelection, Landing, NodeKindWanted, OpOutcome, ProfileShape,
+    Refusal, Selection, SessionOp, Standing,
 };
 pub use theme::{Mark, Polarity, Safety, Theme};
 pub use tree::{RowStatus, TreeRow};

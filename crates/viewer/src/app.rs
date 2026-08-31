@@ -242,23 +242,26 @@ struct Drafts {
     /// open, `None` while it is not. The op is not emitted until
     /// Create — a name in flight is a draft, not a document.
     new_doc_name: Option<String>,
-    /// The add-datum form's kind choice: an index into
-    /// [`DATUM_KINDS`].
-    datum_kind: usize,
+    /// The add-datum form's kind choice.
+    datum_kind: DatumKind,
     /// The add-datum form's origin/position, metres.
     datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
     datum_direction: [f64; 3],
-    /// The add-profile form's shape choice: an index into
-    /// [`PROFILE_SHAPES`].
-    profile_shape: usize,
+    /// The add-profile form's shape choice.
+    profile_shape: ShapeKind,
     /// The circle form's centre, metres.
     profile_centre: [f64; 2],
     /// The circle form's radius, metres.
     profile_radius: f64,
-    /// Whether the circle carries a concentric bore (a second, hole
-    /// loop) — what lets the chrome author the ring demo's annulus
-    /// while staying a template, not a sketcher.
+    /// Whether the circle carries a concentric bore (a second loop
+    /// inside the first) — what lets the chrome author the ring
+    /// demo's annulus while staying a template, not a sketcher. The
+    /// form guards bore < radius (see `add_profile_ui`): the loop
+    /// ROLES come from the profile layer's containment forest, so a
+    /// bore at or beyond the outer would not fail — it would swap
+    /// which circle is the hole, silently defeating the form's own
+    /// wording.
     profile_bored: bool,
     /// The bore's radius, metres.
     profile_bore: f64,
@@ -288,10 +291,10 @@ impl Default for Drafts {
             mate_primitive: 0,
             mate_opposed: false,
             new_doc_name: None,
-            datum_kind: 0,
+            datum_kind: DatumKind::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
-            profile_shape: 0,
+            profile_shape: ShapeKind::Circle,
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
             profile_bored: false,
@@ -303,13 +306,50 @@ impl Default for Drafts {
     }
 }
 
-/// The datum kinds the add-datum form offers, with their labels —
-/// one form, three [`DatumSpec`] arms.
-const DATUM_KINDS: [&str; 3] = ["plane", "axis", "point"];
+/// The add-datum form's kind choice — one form, the three
+/// [`DatumSpec`] arms. An enum rather than an index into a label
+/// list, so every consumer matches exhaustively and a fourth kind
+/// cannot leave a silent wildcard arm behind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DatumKind {
+    /// A plane datum.
+    Plane,
+    /// An axis datum.
+    Axis,
+    /// A point datum.
+    Point,
+}
 
-/// The template shapes the add-profile form offers, with their
-/// labels — the GAUTH-1 template vocabulary.
-const PROFILE_SHAPES: [&str; 2] = ["circle", "rectangle"];
+impl DatumKind {
+    /// Every kind with its radio label, in form order.
+    const ALL: [(Self, &'static str); 3] = [
+        (Self::Plane, "plane"),
+        (Self::Axis, "axis"),
+        (Self::Point, "point"),
+    ];
+}
+
+/// The add-profile form's template choice — the GAUTH-1 template
+/// vocabulary, an enum for the reason [`DatumKind`] is one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShapeKind {
+    /// A circle, optionally with a concentric bore.
+    Circle,
+    /// A centred rectangle.
+    Rectangle,
+}
+
+impl ShapeKind {
+    /// Every shape with its radio label, in form order.
+    const ALL: [(Self, &'static str); 2] =
+        [(Self::Circle, "circle"), (Self::Rectangle, "rectangle")];
+}
+
+/// One drag tick of a creation-form numeric field, in the field's own
+/// unit — half a millimetre on the metre fields, matching the drag
+/// feel of the shipped panel value fields. One home so the forms
+/// cannot drift apart a digit at a time.
+const FIELD_DRAG_SPEED: f64 = 0.0005;
 
 /// The primitives the chrome offers, with their labels. The op
 /// vocabulary accepts any [`MatePrimitive`]; these are the three the
@@ -820,6 +860,7 @@ impl ViewerApp {
         for op in ops {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
+            let revolved = matches!(op, SessionOp::AddRevolve { .. });
             match self.session.perform(op).refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -833,6 +874,12 @@ impl ViewerApp {
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
                 }
+                // The revolve tool closes when its edit actually
+                // COMMITS, not when its button is clicked — a refusal
+                // leaves the tool open with its picks held
+                // (`revolve_tool_ui`'s commit arm carries the other
+                // half of this rule).
+                None if revolved => self.revolve_tool = None,
                 None => {}
             }
         }
@@ -1931,6 +1978,10 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.mate_tool.clone() else {
             if ui.button("Mate tool…").clicked() {
                 *self.mate_tool = Some(MateTool::new());
+                // ONE modal tool at a time: both tools consume the
+                // same selection stream, and two open at once would
+                // fill a mate seat and a revolve seat with one click.
+                *self.revolve_tool = None;
             }
             return;
         };
@@ -2048,38 +2099,35 @@ impl ViewerBehavior<'_> {
     fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("datum");
-            for (ix, label) in DATUM_KINDS.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.datum_kind, ix, *label);
+            for (kind, label) in DatumKind::ALL {
+                ui.radio_value(&mut self.drafts.datum_kind, kind, label);
             }
         });
-        let point = self.drafts.datum_kind == 2;
+        let kind = self.drafts.datum_kind;
         vec3_row(
             ui,
-            if point { "position (m)" } else { "origin (m)" },
+            match kind {
+                DatumKind::Point => "position (m)",
+                DatumKind::Plane | DatumKind::Axis => "origin (m)",
+            },
             &mut self.drafts.datum_origin,
         );
-        if !point {
-            vec3_row(
-                ui,
-                if self.drafts.datum_kind == 0 {
-                    "normal"
-                } else {
-                    "direction"
-                },
-                &mut self.drafts.datum_direction,
-            );
+        match kind {
+            DatumKind::Plane => vec3_row(ui, "normal", &mut self.drafts.datum_direction),
+            DatumKind::Axis => vec3_row(ui, "direction", &mut self.drafts.datum_direction),
+            DatumKind::Point => {}
         }
         if ui.button("Add datum").clicked() {
-            let datum = match self.drafts.datum_kind {
-                0 => DatumSpec::Plane {
+            let datum = match kind {
+                DatumKind::Plane => DatumSpec::Plane {
                     origin: self.drafts.datum_origin,
                     normal: self.drafts.datum_direction,
                 },
-                1 => DatumSpec::Axis {
+                DatumKind::Axis => DatumSpec::Axis {
                     origin: self.drafts.datum_origin,
                     direction: self.drafts.datum_direction,
                 },
-                _ => DatumSpec::Point {
+                DatumKind::Point => DatumSpec::Point {
                     position: self.drafts.datum_origin,
                 },
             };
@@ -2096,53 +2144,97 @@ impl ViewerBehavior<'_> {
     /// face-frame placement arm is deferred as a filed issue — the
     /// interrogation vocabulary deliberately answers no "is this face
     /// planar" verdict for it to gate on.
+    ///
+    /// The bore field is guarded IN THE FORM: loop roles come from
+    /// the profile layer's containment forest, not from list order,
+    /// so a bore at or beyond the outer radius would not refuse — it
+    /// would silently swap which circle is the hole. The form says
+    /// "bore", so it disables Create until the bore is smaller, with
+    /// the reason shown. This is a chrome affordance guarding the
+    /// template's stated intent; the op stays unjudged and the
+    /// kernel's containment rule stays the one home.
     fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("profile");
-            for (ix, label) in PROFILE_SHAPES.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.profile_shape, ix, *label);
+            for (shape, label) in ShapeKind::ALL {
+                ui.radio_value(&mut self.drafts.profile_shape, shape, label);
             }
             ui.weak("on the world XY plane");
         });
         let mut loops = Vec::new();
-        if self.drafts.profile_shape == 0 {
-            ui.horizontal(|ui| {
-                ui.label("centre (m)");
-                ui.add(egui::DragValue::new(&mut self.drafts.profile_centre[0]).speed(0.0005));
-                ui.add(egui::DragValue::new(&mut self.drafts.profile_centre[1]).speed(0.0005));
-                ui.label("radius (m)");
-                ui.add(egui::DragValue::new(&mut self.drafts.profile_radius).speed(0.0005));
-            });
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.drafts.profile_bored, "with bore");
-                if self.drafts.profile_bored {
-                    ui.label("bore radius (m)");
-                    ui.add(egui::DragValue::new(&mut self.drafts.profile_bore).speed(0.0005));
-                }
-            });
-            loops.push(ProfileShape::Circle {
-                centre: self.drafts.profile_centre,
-                radius: self.drafts.profile_radius,
-            });
-            if self.drafts.profile_bored {
+        let mut blocked: Option<&'static str> = None;
+        match self.drafts.profile_shape {
+            ShapeKind::Circle => {
+                ui.horizontal(|ui| {
+                    ui.label("centre (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_centre[0])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_centre[1])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.label("radius (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_radius)
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.drafts.profile_bored, "with bore");
+                    if self.drafts.profile_bored {
+                        ui.label("bore radius (m)");
+                        ui.add(
+                            egui::DragValue::new(&mut self.drafts.profile_bore)
+                                .speed(FIELD_DRAG_SPEED),
+                        );
+                    }
+                });
                 loops.push(ProfileShape::Circle {
                     centre: self.drafts.profile_centre,
-                    radius: self.drafts.profile_bore,
+                    radius: self.drafts.profile_radius,
+                });
+                if self.drafts.profile_bored {
+                    if self.drafts.profile_bore >= self.drafts.profile_radius {
+                        blocked = Some(
+                            "the bore must be smaller than the radius — which loop is the \
+                             hole is decided by containment, so a larger bore would swap \
+                             the roles rather than refuse",
+                        );
+                    }
+                    loops.push(ProfileShape::Circle {
+                        centre: self.drafts.profile_centre,
+                        radius: self.drafts.profile_bore,
+                    });
+                }
+            }
+            ShapeKind::Rectangle => {
+                ui.horizontal(|ui| {
+                    ui.label("width (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_extent[0])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.label("height (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_extent[1])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+                loops.push(ProfileShape::Rectangle {
+                    width: self.drafts.profile_extent[0],
+                    height: self.drafts.profile_extent[1],
                 });
             }
-        } else {
-            ui.horizontal(|ui| {
-                ui.label("width (m)");
-                ui.add(egui::DragValue::new(&mut self.drafts.profile_extent[0]).speed(0.0005));
-                ui.label("height (m)");
-                ui.add(egui::DragValue::new(&mut self.drafts.profile_extent[1]).speed(0.0005));
-            });
-            loops.push(ProfileShape::Rectangle {
-                width: self.drafts.profile_extent[0],
-                height: self.drafts.profile_extent[1],
-            });
         }
-        if ui.button("Add profile").clicked() {
+        if let Some(reason) = blocked {
+            ui.weak(reason);
+        }
+        if ui
+            .add_enabled(blocked.is_none(), egui::Button::new("Add profile"))
+            .clicked()
+        {
             self.ops.push(SessionOp::AddProfile {
                 plane: pncad::profile::SketchPlane::xy(),
                 loops,
@@ -2159,7 +2251,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             ui.label("extrude");
             ui.label("distance (m)");
-            ui.add(egui::DragValue::new(&mut self.drafts.extrude_distance).speed(0.0005));
+            ui.add(egui::DragValue::new(&mut self.drafts.extrude_distance).speed(FIELD_DRAG_SPEED));
         });
         match self.session.selection().node() {
             Some(node) => {
@@ -2188,6 +2280,9 @@ impl ViewerBehavior<'_> {
         let Some(tool) = *self.revolve_tool else {
             if ui.button("Revolve tool…").clicked() {
                 *self.revolve_tool = Some(RevolveTool::new());
+                // ONE modal tool at a time — the mate activation
+                // carries the argument.
+                *self.mate_tool = None;
             }
             return;
         };
@@ -2214,14 +2309,13 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             if ui.button("Commit revolve").clicked() {
                 match tool.op(self.drafts.revolve_angle) {
-                    Ok(op) => {
-                        // Exactly one committed DocEdit; the tool
-                        // closes with it. A wrong-kind pick refuses
-                        // typed at the session door and lands on the
-                        // status line — reopen the tool to re-pick.
-                        self.ops.push(op);
-                        close = true;
-                    }
+                    // The op is queued; the tool is NOT closed here.
+                    // The application closes it when the op actually
+                    // COMMITS (`perform_batch`), so a wrong-kind pick
+                    // refusing typed at the session door leaves the
+                    // held picks in place to correct, instead of
+                    // costing both to a refusal.
+                    Ok(op) => self.ops.push(op),
                     Err(error) => *self.status = Some(format!("revolve tool: {error}")),
                 }
             }
@@ -2739,22 +2833,22 @@ fn drag_gesture_ops(
     false
 }
 
-/// The delete button: a renderer for [`DocSession::delete_affordance`]
-/// and nothing else, so the two places a delete is reachable from (a
-/// node selection and a face selection) cannot state different costs
-/// for the same operation, and the sentence itself is testable without
-/// a window.
 /// One labeled row of three draggable components — the add-datum
 /// form's vector fields.
 fn vec3_row(ui: &mut egui::Ui, label: &str, value: &mut [f64; 3]) {
     ui.horizontal(|ui| {
         ui.label(label);
         for component in value {
-            ui.add(egui::DragValue::new(component).speed(0.0005));
+            ui.add(egui::DragValue::new(component).speed(FIELD_DRAG_SPEED));
         }
     });
 }
 
+/// The delete button: a renderer for [`DocSession::delete_affordance`]
+/// and nothing else, so the two places a delete is reachable from (a
+/// node selection and a face selection) cannot state different costs
+/// for the same operation, and the sentence itself is testable without
+/// a window.
 fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: RecipeNodeId) -> bool {
     let affordance = session.delete_affordance(node);
     let button = ui.button(affordance.label);
