@@ -478,4 +478,3 @@ fn width_versus_gap_from_a_block_edge() {
     let (post, w, _) = drive("far control 0.313", &ku, &kv, &cp, &ws);
     println!("R2 GAPSCAN far-control -> {post} width={w:?}");
 }
-

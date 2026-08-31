@@ -48,6 +48,8 @@ mod cert1_r1_probes;
 mod cert1_sphere_polar;
 #[path = "cert3r1_e2e.rs"]
 mod cert3r1_e2e;
+#[path = "cert5_arm_and_cells.rs"]
+mod cert5_arm_and_cells;
 #[path = "cert5_r1_patch_probes.rs"]
 mod cert5_r1_patch_probes;
 

@@ -27,7 +27,7 @@ fn pt(x: f64) -> RingInterval {
 
 // ----- plain-f64 dense oracle (independent: Cox-de Boor + Gauss) ----
 
-fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
+pub(crate) fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     let n = knots.len() - 1;
     let mut nn = vec![0.0f64; n];
     let mut last = None;
@@ -70,7 +70,7 @@ fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     nn
 }
 
-fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
+pub(crate) fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     let n = knots.len() - 1;
     let mut low = basis(knots, degree - 1, n - (degree - 1), t);
     low.resize(n, 0.0);
@@ -87,7 +87,7 @@ fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     out
 }
 
-struct Patch {
+pub(crate) struct Patch {
     ku: Vec<f64>,
     kv: Vec<f64>,
     du: usize,
@@ -98,7 +98,7 @@ struct Patch {
 }
 
 impl Patch {
-    fn eval(&self, u: f64, v: f64) -> ([f64; 3], [f64; 3], [f64; 3]) {
+    pub(crate) fn eval(&self, u: f64, v: f64) -> ([f64; 3], [f64; 3], [f64; 3]) {
         let bu = basis(&self.ku, self.du, self.nu, u);
         let bv = basis(&self.kv, self.dv, self.nv, v);
         let dbu = dbasis(&self.ku, self.du, self.nu, u);
@@ -131,7 +131,7 @@ impl Patch {
         (s, su, sv)
     }
 
-    fn dense(&self, cells: usize) -> (f64, f64) {
+    pub(crate) fn dense(&self, cells: usize) -> (f64, f64) {
         let gx = [
             -0.906_179_845_938_664,
             -0.538_469_310_105_683,
@@ -196,7 +196,7 @@ impl Patch {
     }
 }
 
-fn oracle_patch(
+pub(crate) fn oracle_patch(
     ku: &KnotVector,
     kv: &KnotVector,
     control: &[[RingInterval; 3]],
