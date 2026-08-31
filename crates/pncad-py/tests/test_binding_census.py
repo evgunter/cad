@@ -54,17 +54,16 @@ accounted for in exactly one of three ways:
 
 1. `pncad.pyi` declares a top-level name spelled identically —
    `Doc`, `Node`, `Selector`, `SegTag`, `circle`, `Pose`. This is
-   where MOST curated names land, and no count is written down: the
+   where MOST curated names land, and NO COUNT IS WRITTEN DOWN: the
    number moves whenever either side grows, and one written here
-   would be a stale claim rather than a checked one (the guard's own
-   floors, in `the_scanners_read_something`, are what stop a scanner
-   from passing vacuously).
-1. `pncad.pyi` declares a top-level name spelled identically. A
-   hundred and twenty-four names land here — `Doc`, `Node`,
-   `Selector`, `SegTag`, `circle`. (A SNAPSHOT, like every count in
-   this file: measured at LIB-B-CHECKS' merge, where it had stood at
-   111 and read "sixty-two" — nothing checks a prose count, so it
-   decays silently between the units that re-measure it.)
+   would be a stale claim rather than a checked one. The count this
+   bullet used to carry had been caught stale once and corrected once
+   (it read "sixty-two" while standing at 111, and was rewritten to "a
+   hundred and twenty-four"), which is the argument: a prose count is
+   checked only when someone happens to look. What stops a scanner
+   passing vacuously is the FLOORS
+   asserted in `test_the_census_is_not_vacuous`, and those are
+   assertions rather than prose.
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
