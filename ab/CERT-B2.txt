@@ -16,3 +16,9 @@ in docs/S-CERT-LOG.md at the next seam): CERT-7 dispatches AHEAD of
 CERT-6 — CERT-6 calibrates the A2 gauge on the area lanes CERT-5's
 unmerged PR rewrites, so it waits for CERT-5 to land; CERT-7's
 offset_fit.rs is disjoint from everything in flight.
+slot 2 = CERT-6 (difficulty S/M, logged at spec docs/CERT-6-SPEC.md
+on cert/orchestrator before this assignment; block drawn in full at
+creation, same recorded posture). Arm for slot 2 = OPUS (byte 107,
+fable at position 3). Dispatched after CERT-5's merge per the
+recorded sequencing (the A2 gauge calibrates on the post-CERT-5
+area lanes).
