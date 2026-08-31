@@ -638,3 +638,42 @@ census row was in none of the drawn points and main ran no
 code-tier job between the merge and the GUI run — the one-point
 sampling residue, on the record here. BLEND-6's lane told to merge
 main before its first push so its runs carry the fix.
+
+## 2026-08-31 — BLEND-6 DELIVERED; reviews dispatched (ordinal 604); T-a delivered; #1330 fix PR
+
+**BLEND-6 delivered**: PR #1328, frozen head `e8707956`, hosted CI
+21/21 GREEN on drawn {default, 1e-12}. V1 wrapper
+(`BlendRefusal { verb, error }`) at both doors, double-prefix
+measured absent; measured ball-only list with gate citations;
+1278-followability pins EXECUTED for clearance and run-out;
+V3 rename landed LAST (489 refs / 80 files — grown from the
+issue's ~255 with BLEND-5), fences held incl. schema v18
+byte-untouched; #917 marker discharged with a flagged judgment
+call (OpGroup::Fillet tag name kept). Impl cost ~420k / ~2h45m
+(lane-reported).
+
+**Review dispatch (v6 dual, ordinal 604 — claim PR rides this
+dispatch):** parity byte **65** ⇒ parity 1 ⇒ **R1 FABLE +
+R2 OPUS**. CONCURRENT, separate checkouts (disk 20G free after
+reclaiming both finished lane targets), frozen `e8707956`. Briefs
+authored+stored symmetric BEFORE R1
+(`orchestrator/blend6-review-brief-{r1,r2}.md`, diff-verified);
+dispatches verbatim. Lanes blend-6-r{1,2}; probe branches
+`blend/verbvocab-r{1,2}-probes`. Impl clone kept for the fix-pass
+resume.
+
+**Track T, T-a delivered** (outside the A/B): PR #1329 — C20
+closed (three unpinned turning shapes pinned, mutations red both
+ways: sense-flip, mirror, hand-swap), D104 both artefacts retired
+with reasons, C-e/H13 verified-closed ledger edit riding, S390/
+S391 recorded, ~210k / ~1h55m. Its one CI red is MAIN's #1330
+(doc-gate --skip-viewer-toolkit vs theme.rs's app-feature links —
+drawn DETERMINISTICALLY by sweep-only diffs, conclusively proven
+by a docs-only-head reproduction). Orchestrator fix PR #1332
+opened (theme.rs names-not-links, verified both gate paths
+locally); T-a's style review queues behind the BLEND-6 review
+lanes on the 2-build-slot budget — its PR cannot go green before
+#1332 propagates anyway. Style-only review intended per C-R12
+(test rows + retirements; a row that reds is visible), to be
+ruled as T-R5 in the track log when it can ride without
+conflicting T-a's own log edits.
