@@ -46,3 +46,34 @@ remote single-orchestrator box, not the mngr fleet):**
 - Commits authored in this session carry no model-naming trailer
   (the session's own posture and the blinding rule agree here);
   implementer briefs restate the blinding half as always.
+
+## 2026-08-31 — GAUTH-1 delivered (PR #1375, merged)
+
+The five creation doors landed: NewDocument / datum forms / template
+profiles / extrude / revolve, each one committed `InsertNode`
+through the existing commit door, ring acceptance pinned `bit_eq`
+against the committed gallery fixture. Dual review A-W-F/A-W-F,
+zero MAJORs; the union fix pass took all 14 items. Notable rulings
+en route: `Open` now refuses mid-gesture like `NewDocument`
+(deliberate change from GUI-3's silent clear); the bore form guards
+bore ≥ radius in chrome while containment stays the one role rule.
+Residue owned by issues: #1374 (face-frame placement arm), #1384
+(id-reuse aliasing class in tool/selection state — demonstrated),
+#1385 (chrome-coverage gap: the CI archive builds without
+`--features app`), #1386 (session.rs accretion, cross-unit, all
+four wave-1 reviewers independently). Ledger row: ordinal 900,
+sample #71.
+
+## 2026-08-31 — GAUTH-3 delivered (PR #1376, merged)
+
+The Add part… door landed: instance authoring against the open
+file's own directory, pin minted at commit, typed refusal ladder,
+faults badging from the authored path, and a mated two-instance
+assembly round-tripping to Certified. Dual review APPROVE +
+A-W-F, zero MAJORs; all 11 union items taken, including unifying
+store access through `DirResolver::workspace()` and the
+filename-sorted chooser. Residue owned by issue #1387 (the memo
+key hashes id+pin only, so `Reevaluate` cannot observe any store
+change — the honest sentence now sits at `Save`'s docs; plus the
+save-as seam rebind and the chooser's missing part-vs-assembly
+vocabulary). Ledger row: ordinal 901, sample #72.
