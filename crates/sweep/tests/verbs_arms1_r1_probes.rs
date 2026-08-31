@@ -15,11 +15,11 @@
 //!   whose sphere wall already carries a band — red if the wall-shape
 //!   gates or the `h = depth + r` arm only hold at the equator, or if
 //!   a filleted body stops being fillet-able.
-//! - **The one-call pair on a shared wall REFUSES**: both zone rims in
-//!   one request refuse at the UPFRONT shared-support gate, naming the
-//!   sharing and the sequential-call recourse — red if it builds, or if
-//!   it goes back to dying mid-carve on a stale seam key (the
-//!   reviewer's finding; AMENDED in the fix pass to pin the fix).
+//! - **The one-call pair on a shared wall BUILDS and IS the sequential
+//!   composition** to the bit (#935's seam refresh; AMENDED twice —
+//!   the reviewer's stale-seam finding, then the upfront gate, now the
+//!   served door) — red if it refuses again, dies mid-carve, or drifts
+//!   from the sequential result.
 //! - **The unbored hemisphere refuses typed**: a profile touching the
 //!   axis mints half-walls (two seam azimuths), so its equator is a
 //!   two-arc chain over two half-disc supports — outside the annulus
@@ -97,26 +97,12 @@ fn hemisphere() -> Body<f64> {
     )
 }
 
-/// A sphere zone off the equator: sphere `R = 2` about the origin,
-/// sliced at `y = −0.5` and `y = 1`, bored at `x = bore`. Both rims
-/// are plane–sphere circles at NONZERO plane depth, of opposite signs.
+/// A sphere zone off the equator — `test_support::sphere_zone` (homed
+/// in the #935 fix pass): sphere `R = 2` about the origin, sliced at
+/// `y = −0.5` and `y = 1`, bored at `x = bore`. Both rims are
+/// plane–sphere circles at NONZERO plane depth, of opposite signs.
 fn zone(bore: f64, rev: Revolution<f64>) -> Body<f64> {
-    let big_r = 2.0f64;
-    let (y_lo, y_hi) = (-0.5f64, 1.0f64);
-    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
-    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
-    let th_lo = (y_lo / big_r).asin();
-    let th_hi = (y_hi / big_r).asin();
-    let bulge = ((th_hi - th_lo) / 4.0).tan();
-    revolved(
-        vec![
-            ProfileVertex::new(p2(bore, y_lo), 0.0),
-            ProfileVertex::new(p2(x_lo, y_lo), bulge),
-            ProfileVertex::new(p2(x_hi, y_hi), 0.0),
-            ProfileVertex::new(p2(bore, y_hi), 0.0),
-        ],
-        rev,
-    )
+    sweep::test_support::sphere_zone(bore, rev, tol())
 }
 
 /// Every closed plane–sphere rim of a body, with its circle center
@@ -271,43 +257,61 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
     );
 }
 
-/// **Both zone rims in ONE call refuse, on the shared support.**
+/// **Both zone rims in ONE call BUILD, and the result IS the
+/// sequential composition** — to the bit, in both sequential orders —
+/// and therefore the closed form the sequential row verifies.
 ///
-/// AMENDED (fix pass, disclosed): the reviewer wrote this row against
-/// the observed behaviour — each rim's plan resolves against the SOURCE
-/// body, the first band's surgery splits the shared sphere wall's seam,
-/// and the second plan's stale seam key made `rim_phase_annulus` refuse
-/// `UnsupportedChain` with a detail about geometry ("a trimline does not
-/// cross its support's seam meridian inside its span") that the geometry
-/// did not have, order-dependently. The finding is upheld and the fix is
-/// an UPFRONT gate: `shared_support_gate` refuses before any mutation,
-/// naming the sharing and the true recourse. The row now pins the honest
-/// refusal and the recourse's own correctness is pinned by
-/// `both_zone_rims_fillet_sequentially_and_match_the_closed_form`.
+/// AMENDED TWICE, each time deliberately. The reviewer wrote this row
+/// against the mid-carve stale-seam death (`UnsupportedChain`, "a
+/// trimline does not cross its support's seam meridian inside its
+/// span" — a statement about geometry raised by staleness the geometry
+/// did not have); the #932 fix pass re-pointed it at the upfront
+/// `shared_support_gate` refusal. #935 (BLEND-2) now serves the
+/// request: the carve re-reads each later rim's crossing seam KEYS
+/// against the partially-carved body immediately before that rim's own
+/// phase — identity only; every decision stays in the plan, resolved
+/// against the source — so the one-call pair carves both bands.
+/// `blend_tworims.rs` carries the widened door's own rows (seam-split
+/// pairs, chained sharing, naming totality, the colliding-band
+/// boundary).
 ///
-/// Red if the one-call pair starts building (re-examine soundness), or
-/// if it goes back to dying on a stale key mid-carve.
+/// Red if the one-call pair goes back to refusing, dies mid-carve, or
+/// drifts from the sequential composition by even one bit.
 #[test]
-fn both_zone_rims_in_one_call_refuse_on_the_shared_support() {
+fn both_zone_rims_in_one_call_match_the_sequential_composition() {
+    let r = 0.08;
     let body = zone(0.6, Revolution::Full);
     let rims = [rim_at(&body, -0.5), rim_at(&body, 1.0)];
-    match fillet_edges(&body, &rims, 0.08, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("share a support face") && detail.contains("SEQUENTIAL"),
-                "the gate names the sharing and the recourse, got {detail:?}"
-            );
-            assert!(
-                !detail.contains("trimline does not cross"),
-                "the refusal must not be the stale-key one, got {detail:?}"
-            );
-        }
-        Ok(_) => panic!(
-            "one-call shared-support pair BUILT — the gate is gone; re-examine whether \
-             the build is sound and update the register"
-        ),
-        Err(other) => panic!("expected the shared-support refusal, got {other:?}"),
-    }
+    let one = fillet_edges(&body, &rims, r, band(), tol())
+        .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
+    validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
+    assert_eq!(one.band_faces.len(), 2, "one band per rim");
+    let props = mass_properties(&one.body, tol()).expect("mass properties");
+    assert_eq!(props.volume_pad, 0.0);
+
+    let seq = |first: f64, second: f64| {
+        let a = fillet_edges(&body, &[rim_at(&body, first)], r, band(), tol())
+            .expect("the first sequential call");
+        let b = fillet_edges(&a.body, &[rim_at(&a.body, second)], r, band(), tol())
+            .expect("the second sequential call");
+        mass_properties(&b.body, tol())
+            .expect("mass properties")
+            .volume
+    };
+    let (v_lo_hi, v_hi_lo) = (seq(-0.5, 1.0), seq(1.0, -0.5));
+    assert!(
+        props.volume == v_lo_hi && props.volume == v_hi_lo,
+        "one call is the sequential composition to the bit, both orders: \
+         {:.17e} vs {v_lo_hi:.17e} / {v_hi_lo:.17e}",
+        props.volume
+    );
+    let expect =
+        washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
+    assert!(
+        (props.volume - expect).abs() <= 1e-12 * expect,
+        "one call matches the closed form: got {}, expect {expect}",
+        props.volume
+    );
 }
 
 /// **The unbored hemisphere's equator carves as ONE band.** A profile

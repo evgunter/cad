@@ -62,6 +62,8 @@ mod asm_upd_pin_update;
 mod asm_upd_schema_v10;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "cert3r1_dump.rs"]
+mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dsc_checks.rs"]
@@ -100,6 +102,12 @@ mod m10_1_analysis;
 mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
+#[path = "m10_2_measure.rs"]
+mod m10_2_measure;
+#[path = "m10_2_r1_probes.rs"]
+mod m10_2_r1_probes;
+#[path = "m10_2_schema_v17.rs"]
+mod m10_2_schema_v17;
 #[path = "m10_3_driver_interval.rs"]
 mod m10_3_driver_interval;
 #[path = "m10_3_driver_k_probe_interval.rs"]
@@ -224,6 +232,12 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_cert3_coord_dump.rs"]
+mod r2_cert3_coord_dump;
+#[path = "r2_keydiff.rs"]
+mod r2_keydiff;
+#[path = "r2_m10_2_probes.rs"]
+mod r2_m10_2_probes;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
 #[path = "respell_schema_v9.rs"]

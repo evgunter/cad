@@ -148,8 +148,15 @@ gathered across M2's full pipeline.
 
   **This break never touched the gate, and the gate reads no committed
   CSV at all.** `ci.yml`'s *K-telemetry probe sweep* runs
-  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every building
-  merge, and `tools/k-lint` lints **that fresh sweep** against constants
+  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every run that
+  gates the `dev-probe` unification — drawn 1 in 5 since the
+  configuration sampling (`KLINT_ROWS`, `scripts/ci-filter.py`), and
+  askable by name with a `CI-Config: klint=dev-probe` trailer. **Not
+  1 in 5 on every merge**: a change under `tools/` PINS `dev-default`
+  (`KLINT_PATH_ROWS`), so such a merge does not gate this row at all —
+  and that includes a change to `tools/k-lint` itself, whose binary
+  this step runs. Ask for the row by name when that is what moved. And
+  `tools/k-lint` lints **that fresh sweep** against constants
   pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
   and the rule set). Nothing under `docs/k-report-data/` is opened at
   gate time — the committed CSVs, M2's included, are a **record**, not
@@ -158,13 +165,22 @@ gathered across M2's full pipeline.
   committed CSV can weaken the gate, and `k_report.rs` is the M2-era
   instrument only.
 
-  **What CI now covers, stated precisely** (D17, closed 2026-08-20).
-  `k_report.rs` is both **type-checked and run** on every building
-  merge. The `k-lint` job's *"compile and list every probe-gated test target"*
+  **What CI now covers, stated precisely** (D17, closed 2026-08-20;
+  **the schedule restated 2026-08-30**, when the sampling made the
+  original wording false). `k_report.rs` is both **type-checked and
+  run** on every run that gates the `dev-probe` unification — **1 in
+  5**, not on every building merge, which is what this sentence said
+  until the correction, and **none at all on a merge that touches
+  `tools/`**, where the path pin substitutes `dev-default`. The row is a persistence-detector: a harness
+  that stops compiling or starts panicking stays broken until a later
+  draw finds it, so what the sampling gave up here is latency, not
+  coverage. The `k-lint` job's *"compile and list every probe-gated test target"*
   step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step
-  name, so this paragraph cannot go quietly false — and
+  name, **which is why this paragraph could go quietly false about how
+  often it runs and not about whether it exists** — a name-grep sees a
+  renamed step, never a resampled one — and
   `scripts/k_probe_sweep.sh` then *executes* this
   harness at all three ε beside the Band 4 corpus and the tour scenes.
   The two are not interchangeable: a type-check cannot see a panic, and
@@ -216,14 +232,24 @@ gathered across M2's full pipeline.
   *greenness* at `Probe`; neither compares a `Probe` result against an
   f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
   `run_doc` asserts the same predicate over every corpus document at all
-  three ε on every merge, so the ε sweep of that property is already
-  paid. What running the default selection adds is that these bodies
+  three ε **in the same sweep invocation** — both halves are
+  `k_probe_sweep.sh`, so both ride the `dev-probe` unification and run
+  on the 1 run in 5 that gates it (none, on a merge the `tools/` path
+  pin sends to `dev-default`), never on every merge — so the ε
+  sweep of that property is already paid on exactly the runs this one
+  is. What running the default selection adds is that these bodies
   execute at all, and the `#[ignore]`d complement the floor reconciles.
   It runs at a stated ε (1e-9) rather than at whatever the ambient
   default happens to be.
 
   The total is deliberately not written here: it is that gate's derived
-  tally, recomputed on every merge.
+  tally, recomputed on every building merge — and **that one really is
+  every merge**, which is why it is worth saying which half is meant.
+  `probe-suite-census.sh`'s default mode (the per-crate tally and its
+  `CENSUS_FLOOR`) is sited in `discipline`, a job the configuration
+  sampling does not touch. The `--check-executed` reconciliation
+  described just above is the other half, and it rides `dev-probe` with
+  the sweep that feeds it: 1 run in 5.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the

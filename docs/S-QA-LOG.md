@@ -144,3 +144,137 @@ messaged mid-flight); QA-3 unblocked but sequenced AFTER QA-2 lands
 — both edit `ci-filter.py`/`ci.yml` and two lanes on one file is a
 conflict by construction. QA-5's shape is settled; its dispatch
 still waits on the K/P/W fence coordination.
+
+## QA-1 merged (2026-08-30)
+
+The issue-888 residue and the census broken-pipe class, landed on a
+green hosted head (run 33275703002, all 21 jobs) after the v6 dual
+and a nine-for-nine fix pass. The dual's headline is the program's
+own charter enacted on itself: the unit's `gate-roster.sh` conversion
+could print a matcher-death diagnosis and still exit 0 — the one gate
+never calling `gate_ok` — found by a reviewer's shim, not by the
+author or the selftest; and the "too expensive" deterministic
+regression arm was built independently by both reviewers in ~3 s.
+Both are fixed and armed. Issue 888 closes on the combined record;
+`check_step.sh:92` and the `find`-in-process-substitution class have
+durable homes on that issue. Recorded for a future unit: the census
+script is now 1,100+ lines carrying five modes in one `gate()` (a
+reviewer's Q8 finding — a split candidate, not this unit's).
+
+Operational note at merge: the first gating run of the merged head
+(33332490436) went red with both default-eps test shards "failing"
+in one second each, runner_id 0, no logs — the Actions budget had
+run out, so the jobs never executed. A ghost failure wearing a red
+run's clothes is this program's charter one level down the stack;
+re-rolled with this commit once the budget was restored, pinning
+the same point by trailer so the ghost-failed configuration is the
+one re-proven.
+
+Process corrections this unit earned: lane branches now carry ONLY
+their own spec (QA-2's spec rode this PR from the shared dispatch
+commit — harmless here, sloppy in general); and the fable usage
+limit can kill lanes mid-flight — resumed with zero loss because the
+lane had pushed first, which is the push-early rule doing exactly
+what it is for.
+
+## QA-2 merged (2026-08-30)
+
+The matrix now says what it did: a red run reports its whole failure
+surface and names its mode (nextest's fail-fast default measured, not
+assumed, on the pinned version); a pinned lane says so in
+`CONFIG_SOURCE` and the basename pin itself is gone per the Q2 ruling
+— the request convention lives in the discipline doc, the
+`interval-transcendentals/` pin and the fail-closed arm stay; a draft
+run prints that it gated nothing, with the `ready_for_review` escape
+beside it; and the request-a-point door is verified end-to-end, so
+issue 1051 closes with 1128, 1122 and 1204. The dual found no MAJORs
+and one §D-rule-5 instance (the skip step asserting a false cause —
+fixed by deriving one cause in producer order, all eight combinations
+executed). The fix pass beat its instructions once: instead of gating
+four hand-synced advisory spellings it made the filter compose its
+notices into a file ci.yml relays, so the copies ceased to exist.
+Residues with homes: issue 1295 (the parity checker compares checks,
+never flags), and the not-hosted-verified tripwire disclosed at the
+site. The Actions budget outage that ghost-failed three branches'
+runs mid-unit is recorded in both units' PRs — a red run whose jobs
+never executed is this program's charter one layer down, and worth a
+future thought about whether the filter can notice a zero-step
+"failure".
+
+Next: QA-3 (the tools-scope k-lint path pin, Q1's ruling) into the
+now-freed `ci-filter.py`/`ci.yml`; QA-4 close-out verification; QA-5
+awaits the K/P/W coordination.
+
+## QA-4 closed out (2026-08-30)
+
+The landed-fix verification unit (block QA-B2 slot 1; verification-
+shaped, so it produced no A/B row — the one residue it landed is the
+nine doc-comment lines on this PR recording the ratified
+proptest-regressions decision: a written-out fixture over a seed,
+because a `cc` seed re-derives its input only through the strategy
+that drew it, and that strategy is what the rewrite replaced). All
+three verifications PAID: the panic-hook race structurally
+unrepresentable and 0-in-200 empirically (plus a load-shaped leg,
+against ~15-in-200 pre-fix); the generator's docstring and pinned
+counterexample in place; the issue-808 finish complete with the
+guard the issue said was missing. Issues 882, 1134, 774 and 808
+close on this record. Class noted for a future sweep, not acted on:
+three test files still do per-call panic-hook take/set swaps
+(topo/src/review_m1_pr2/release_corruption.rs:290,
+mesh/tests/profile_overrides.rs:140,
+sweep/tests/review_d2_adv_probes.rs:435) — each single-binary-safe
+today, all issue-882's shape; and `caught`'s `unwrap_or_default()`
+still folds a lost message to the empty string, unreachable now but
+the reintroduction path if a second set_hook caller ever lands in
+that binary.
+
+## QA-3 merged (2026-08-30); block QA-B1 complete
+
+Evan's Q1 ruling is live: a `tools/` change pins the k-lint row that
+runs that crate's own suite, announced in `CONFIG_SOURCE` and the
+notices relay, with the draw untouched everywhere else — and the pin
+caught D183's failure shape on its own PR three times (each pinned
+head would have drawn a row that builds the changed crate without
+running an assertion about it). Issue 1023 closes on this plus
+QA-2's visibility work. The dual's headline is a lesson this
+program should keep: the filter's BEHAVIOR survived fourteen
+mutations across two arms, and both MAJORs were in the WRITTEN
+record — a derivation that said "compiles" and meant "runs the
+suite", and a debt-resolution pointer that vouched for a still-false
+comment. In a program whose deliverables are instruments, the record
+is part of the instrument, and it now has its own guard
+(`_selftest_klint_workflow` parses ci.yml and reds when the mapping,
+the row roster, or the fallback's premise drifts). Also earned here:
+a debt whose locator is a phrase-grep will point at true sentences
+and miss false ones — re-derive the claim set before trusting the
+citations (the unit did, found one cited line TRUE and two uncited
+lines false, and then committed the same class itself one site over
+— caught by the dual). Track Q's declared count (18) disagrees with
+its table (16), pre-existing, verified at merge base by both
+reviewers independently — flagged for whoever owns the schedule's
+bookkeeping next.
+
+Block QA-B1 is complete: three units, three duals, ordinals 800-802,
+samples 53/54/56.
+
+## QA-9 merged (2026-08-30)
+
+The slot status line now states only what it can verify: which slots
+THIS request polls (one width-home consulted by loop and status
+alike), which it just tried, what a dead record over a still-busy
+slot actually means (the inherited-fd leak, named), and when the
+blocker has no record at all. The dual earned its keep in miniature:
+both arms independently reproduced the fix's own new line predicting
+"can take it" about a slot the request had just failed to take — the
+issue-1139 class re-minted inside its fix, §D rule 5 for the fourth
+S-QA unit out of four reviewed. Every prediction is gone; the
+transcripts in the PR body are the verification of record, since CI
+deletes local-scripts by design. Issue 1139 closes on this record.
+Two operational notes: a reviewer probe misfired into the REAL lock
+dir once (one stale holder file, orchestrator-cleaned — synthetic
+lock dirs are mandatory and both briefs said so; the classifier
+blocked the reviewer's own cleanup, which is the right failure), and
+the fix pass ran one pattern-match `pkill -x sleep` during cleanup —
+the kill-by-recorded-PIDs rule's exact violation, disclosed, with
+possible clipped sleeps in sibling lanes' poll loops (recoverable;
+none reported damage).

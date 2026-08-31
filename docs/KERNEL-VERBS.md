@@ -118,15 +118,32 @@ the table.
   (`verbs_rim_r1_probes::a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band`,
   `crates/sweep/tests/verbs_arms1_annulus.rs`).
 
-  **The bound on that unlock, stated:** it covers profiles that are
-  ANNULAR (off the axis). A profile that touches the axis mints
-  HALF-walls — two seam azimuths — so its equator is not a closed edge
-  at all but two open arcs over two half-disc supports, and it still
-  refuses typed
-  (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_refuses_typed`).
-  Two closed rims sharing one wall in ONE call also refuse typed, at an
-  upfront gate naming the sequential-call recourse, which composes
-  exactly (#935 is the one-call widening). Curved support pairs
+  **The bound on that unlock, stated:** it originally covered profiles
+  that are ANNULAR (off the axis); the multi-link closed-rim door
+  (#1022, BLEND-1) lifted it. A profile that touches the axis mints
+  HALF-walls — two seam azimuths — so its equator arrives as two arcs
+  over two half-disc supports, and the annulus band now takes that rim
+  WHOLE, walking through the seam vertices
+  (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`).
+  Two annulus rims sharing a SUPPORT FACE carve in ONE call (#935,
+  BLEND-2) — a revolution wall or a full-revolve plane cap, whose
+  radial seam is the same shape (a widening past the issue's
+  wall-sharing framing, measured and disclosed in the fix pass): the
+  carve re-reads each later rim's crossing seam keys against the
+  partially-carved body immediately before that rim's own phase —
+  identity only, every decision still made in the plan against the
+  source — and the one-call result is pinned equal to the sequential
+  composition (`sweep/tests/blend_tworims.rs`: one-edge and seam-split
+  wall pairs and chained sharing, to the bit at the fixture radii;
+  `sweep/tests/blend2_r2_probes.rs`: cap pairs, a four-rim sharing
+  CYCLE, and the measured off-radius boundary where the equality is
+  one integrator summation ulp). A LADDER
+  rim sharing a support with an annulus rim still refuses typed at the
+  upfront gate, naming the sequential recourse — nothing proves a
+  ladder plan across an annulus carve, and the shape is measured
+  unreachable through today's public doors anyway (a pip on a revolve
+  cap needs a boolean whose curved-pair box overlap the operand gate
+  refuses). Curved support pairs
   whose supports miss the shared axis still refuse `SpineUnsupported`
   at `fillet3_support_coaxiality` (`battery.rs:781`); cone×cylinder
   itself is an implemented arm now, and `klein::wall_probes` walls 1
