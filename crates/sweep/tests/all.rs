@@ -233,6 +233,8 @@ mod review_m3_pr1_sweep;
 mod review_m5_pr10;
 #[path = "review_m5_pr10_interval.rs"]
 mod review_m5_pr10_interval;
+#[path = "r1_area_gauge_probes.rs"]
+mod r1_area_gauge_probes;
 #[path = "review_m5_pr9_base_props_probe.rs"]
 mod review_m5_pr9_base_props_probe;
 #[path = "review_m5_pr9_boss_probe.rs"]

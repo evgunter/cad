@@ -1878,7 +1878,7 @@ fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
 /// these lanes certify; the true trim boundary's departure from it is
 /// the caller's separately-bounded `boundary_defect` and is not
 /// folded in here.
-fn boundary_chord_perimeter_lo(
+pub fn boundary_chord_perimeter_lo(
     rect: (f64, f64, f64, f64),
     samples: usize,
     eval: impl Fn(f64, f64) -> RVec3,
@@ -2128,6 +2128,19 @@ fn area_midpoint_taylor<E>(
             acc = acc + cell_area * mean;
         }
     }
+    // R1 PROBE ONLY — planted upward-only widening at the SHARED area
+    // return. Containment is preserved (`lo` untouched, `hi` only
+    // rises), so every containment/positivity row stays green and only
+    // the WIDTH is absurd: the one shape the A2 gauge alone can see.
+    let acc = match std::env::var("CAD_R1_AREA_BLOAT") {
+        Ok(s) => match s.parse::<f64>() {
+            Ok(f) if f > 1.0 => {
+                RingInterval::from_bounds(acc.lo(), acc.lo() + f * (acc.hi() - acc.lo()))
+            }
+            _ => acc,
+        },
+        Err(_) => acc,
+    };
     Ok(widen(acc, boundary_defect))
 }
 
@@ -2822,6 +2835,13 @@ fn rational_patch_face<T: Decide>(
             // assertion away; the assert itself is what states the class.
             if cfg!(debug_assertions) {
                 let p_lo = perimeter_lo();
+                if std::env::var("CAD_R1_GAUGE_TRACE").is_ok() {
+                    eprintln!(
+                        "R1GAUGE lane={} width={:e} p_lo={:e} gauge={:e} rel={:e} lo={:e}",
+                        "rational", area.width(), p_lo,
+                        area.width() / (p_lo * p_lo), area.width() / area.lo(), area.lo()
+                    );
+                }
                 debug_assert!(
                     area_gauge_ok(area, p_lo),
                     "the certified area bracket is wider than any boundary displacement explains: \
@@ -3076,6 +3096,13 @@ pub fn nurbs_patch_face<T: Decide>(
             // assertion away; the assert itself is what states the class.
             if cfg!(debug_assertions) {
                 let p_lo = perimeter_lo();
+                if std::env::var("CAD_R1_GAUGE_TRACE").is_ok() {
+                    eprintln!(
+                        "R1GAUGE lane={} width={:e} p_lo={:e} gauge={:e} rel={:e} lo={:e}",
+                        "nurbs-exact", area.width(), p_lo,
+                        area.width() / (p_lo * p_lo), area.width() / area.lo(), area.lo()
+                    );
+                }
                 debug_assert!(
                     area_gauge_ok(area, p_lo),
                     "the certified area bracket is wider than any boundary displacement explains: \
@@ -3158,6 +3185,13 @@ pub fn nurbs_patch_face<T: Decide>(
             // assertion away; the assert itself is what states the class.
             if cfg!(debug_assertions) {
                 let p_lo = perimeter_lo();
+                if std::env::var("CAD_R1_GAUGE_TRACE").is_ok() {
+                    eprintln!(
+                        "R1GAUGE lane={} width={:e} p_lo={:e} gauge={:e} rel={:e} lo={:e}",
+                        "nurbs-composite", area.width(), p_lo,
+                        area.width() / (p_lo * p_lo), area.width() / area.lo(), area.lo()
+                    );
+                }
                 debug_assert!(
                     area_gauge_ok(area, p_lo),
                     "the certified area bracket is wider than any boundary displacement explains: \

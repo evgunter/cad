@@ -124,6 +124,8 @@ mod review_m5_pr3_e2e;
 mod review_m5_pr7_adversarial;
 #[path = "review_m5_pr7_enclosure.rs"]
 mod review_m5_pr7_enclosure;
+#[path = "r1_perimeter_probes.rs"]
+mod r1_perimeter_probes;
 #[path = "review_m5_pr7b_ssi.rs"]
 mod review_m5_pr7b_ssi;
 #[path = "review_m5_pr9_jet_probe.rs"]
