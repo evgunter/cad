@@ -1,0 +1,116 @@
+CERT-6 dual (v6), recorded BEFORE R1 dispatch, 2026-08-31
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+next after 705).
+slot byte 108, parity 0 => R1 OPUS + R2 FABLE (cross-model).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 1084f764 (PR 1366's head; dispatch
+CONDITIONAL on its gate concluding green — if it reds, amended at
+the new head). No sibling lanes at this writing. R2 after R1 with
+the IDENTICAL stored brief, isolated. Probe branches:
+cert/6r1-probes, cert/6r2-probes. Implementer difficulty S/M
+(logged at spec); impl ~215k tokens, ~3h wall self-est (the FIRST
+lane on this unit died in a container restart with nothing pushed,
+~50m lost — recorded for the row's wall-clock honesty).
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-6 of the S-CERT
+program (repo evgunter/cad). Review PR 1366 on its FROZEN head
+1084f764 — do not review any later commit; if the branch has moved,
+say so and still review 1084f764.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-6-SPEC.md — note it cuts the
+unit to the Q1 RULING, not issue 870's original proposal), GitHub
+issues 870 and 873, the D2 addendum's row-5-boundary note in
+docs/DESIGN.md, then the PR 1366 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection; every number is the PR body's claim, not a fact):
+1. THE PERIMETER LOWER BOUND'S SOUNDNESS (highest-value item):
+   boundary_chord_perimeter_lo inscribes a 16-chords-per-side
+   polygon in the image of the RECTANGLE's boundary, every
+   difference and root in the ring, and claims a certified lower
+   bound ("a curve is at least as long as any inscribed polygon").
+   Attack it: is the inscription genuinely into the curve (are the
+   chord endpoints ON the image — ring-evaluated points — or
+   approximations); degenerate boundaries (a side collapsing to a
+   point, a periodic wrap where start=end); does the ring rounding
+   go the RIGHT WAY at every step (a lower bound rounded up is not
+   a bound). And the rational lane's new Ladder::point (S = A/w) —
+   is w's exclusion-of-zero genuinely inherited where it is used.
+2. The calibration: reproduce the corpus gauge distribution's shape
+   (you need not re-trace all 333 — instrument a representative
+   subset and check the max and the dm1 refusing-wall reading
+   7.72e-2); the 52x / 12.9x margins; the claim that both
+   nurbs_patch_face arms share ONE area enclosure built before the
+   round loop (so the gauge is ε-invariant in value — verify
+   bit-identity on one row across bands).
+3. The planted-corruption story: upward-only widening fires at the
+   bisected thresholds (x460/x470 loft, x80/x90 rational);
+   symmetric widening is caught by the extent gate FIRST
+   (DegenerateFace) — re-plant both yourself; the acceptance-row-
+   vs-tripwire layering (x1.58 vs x470).
+4. The re-derivations: m5_pr11's bit-identical claim at all six
+   points; m6_loft_body's 0.189612 with the doubles-exactly claim
+   CORRECTED to 1.81x (verify the halving still reds the ceiling);
+   the chart-probe lower-bound row's 2634x clearance and the
+   argument that Q1 retired its scheduled invalidation.
+5. The fallback disposition: the per-face relative-gauge fallback
+   has ZERO corpus coverage and its 1e3 ceiling is argued not
+   measured — check the argument, and check whether a
+   collapsed-boundary face (the trigger) can actually reach a
+   certified return at all (if it cannot, say the fallback is dead
+   code and what that means; if it can, author one).
+6. cylinder_cut_face carrying NO gauge: verify the spec-scope
+   argument and issue 873's coupling row actually pinning what the
+   disposition claims.
+7. The ε posture: CI-Config lane=both eps=1e-6 both ASKED (verify
+   via ci-filter.py on the head); the superset argument (looser ε
+   converges a superset, so 1e-6 stresses the assert more than
+   1e-12) — check the premise target_len = FACTOR·ε and whether
+   any assert-reaching face at 1e-12 is NOT reached at 1e-6.
+8. Deviations: the declined order bump's non-smoothness argument
+   (|S_u x S_v| not smooth at vanishing cross product); the
+   no-deliberate-trip-test argument; S26/S230 recording accurate
+   (read the SMELL table row).
+9. Verification: resolve the PR's gate run YOURSELF (status AND
+   head SHA = 1084f764; both axes honored); the six-point local
+   matrix claim is local and stated as such.
+STRUCTURAL (style lane's stance): a debug_assert whose message
+carries calibration numbers — will the message rot when the corpus
+moves, and is the in-file calibration record the durable home; the
+gauge reads width/perimeter_lo^2 (dimensionless) — check the
+spelled formula in code matches the body's A2/perimeter_lo prose
+(two spellings of one ratio); issue 1368 (filed from this unit's
+corpus) asserts what is true; once, read the gauge's whole
+enclosing region of props/quad.rs (Q8 — the file is 3.7k lines;
+the gauge region and the two lanes' exits suffice, say what you
+read).
+
+E2E EXERCISE (required): author your own body through the public
+door with debug assertions ON and confirm the gauge is silent on
+an honest face and fires on a corruption you plant at the shared
+area return; at both scalar lanes.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions, merge-base differentials. The unit's suites ride the
+PR gate — verify it ran; do not re-run wholesale.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MIN/NOTE counts; spec deviations reported vs silent (the PR
+body carries a three-item deviations section; anything beyond is
+silent); ratings 1-5 with one line of evidence each for
+idiom/structure, test quality, doc/comment honesty. Findings
+ranked; ## Style section with confidence vocabulary.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what
+model implemented the unit; do not read any other review lane's
+branches, notes, or reports; do not post to GitHub — commit probes
+to your probe branch locally (do NOT push) and deliver findings in
+your report. No Co-Authored-By. Foreground discipline; wrap cargo
+in local-scripts/with-build-slot.sh. Report <= 130 lines.
+---
