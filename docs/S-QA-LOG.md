@@ -403,3 +403,14 @@ eleven items and swept fourteen more sites to zero residue. Issue
 681 closes on PR #1311 + PR #1331 + the two dispositions. With
 this merge the slate is empty: #470 and #466 stay parked with
 their recorded reasons, and the program moves to its exit walk.
+
+## Seam: exit walk drafted (2026-08-31)
+
+The slate emptied at QA-6 PR 2's merge, and the walk is drafted:
+docs/S-QA-EXIT-WALK.md rides PR 1341 as a ratification
+conversation, per the standing rule that exit walks wait for
+Evan's sign-off. Thirteen clauses walked verbatim against the
+exit shape — nine MET, four MET-WITH-RECORDED-HONESTY, the two
+carries with named owners (Track W; issue 1317's register). The
+program stays open, and this log's tail stays live, until the
+walk is ratified; nothing else is scheduled.
