@@ -2710,6 +2710,62 @@ mod tests {
             at_edge.hi()
         );
     }
+
+    /// CERT-4 R2 probe (local-only): the same straddle authored on MY
+    /// numbers — the window's straddled edge at azimuth pi/2 rather
+    /// than 0, an off-axis chord end, a 2.5-radian window. The unit's
+    /// committed row uses the zero azimuth, where several quantities
+    /// are exactly representable; this one is not so friendly.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn cert4r2_the_window_edge_straddle_off_axis() {
+        use geom_core::{Bounds, Interval, Real};
+
+        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let ex = Interval::from_f64;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let w = 1e-15;
+        // p1 straddles azimuth pi/2: x in [-w, w], y hairline about 1.
+        let p1 = Point3::new(iv(-w, w), iv(1.0 - w, 1.0), ex(0.0));
+        // p2 at azimuth pi/2 + 1.2, nothing exact about it.
+        let a2 = core::f64::consts::FRAC_PI_2 + 1.2;
+        let p2 = Point3::new(ex(a2.cos()), ex(a2.sin()), ex(0.0));
+
+        let chart = ChartFrame {
+            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let carrier = geom::Curve3::Circle {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let conic = SectionConic {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            normal: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            major: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+            sa: ex(1.0),
+            sb: ex(1.0),
+            carrier,
+        };
+        let window = (
+            ex(core::f64::consts::FRAC_PI_2),
+            ex(core::f64::consts::FRAC_PI_2 + 2.5),
+        );
+
+        let (_, t0, t1) = select_arc(FaceKey::default(), band, &chart, &conic, window, p1, p2)
+            .expect("the off-axis window-edge straddle still selects the arc");
+        for (what, p) in [("t0", t0), ("t1", t1)] {
+            let width = p.hi() - p.lo();
+            assert!(
+                width <= 1e-9,
+                "{what} enclosure {width:e} wide — period-width, not input-width"
+            );
+        }
+    }
 }
 
     /// **R1 review probe (CERT-4): the NEW anchoring's own jump.**
