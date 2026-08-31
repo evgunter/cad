@@ -240,10 +240,14 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     );
 
     // ---- 21 placements, unioned into ONE cutting tool ----
-    // The group discipline is load-bearing, not a flourish: cutting
-    // the pips one at a time would present a body already carrying a
-    // TRIMMED sphere face as the next operand, which S13 refuses (the
-    // extent certificate needs the closed group).
+    // The group discipline used to be load-bearing: cutting the pips
+    // one at a time presented a body already carrying a TRIMMED sphere
+    // face as the next operand, which the extent scan refused. It is a
+    // CHOICE now — a trimmed sphere face is served through the sphere
+    // chart's own [azimuth] × [latitude] window, and the closed-group
+    // certificate is asked only where it is used — and the reason to
+    // keep it is the one below, which is about the recipe layer rather
+    // than the kernel.
     //
     // NAMED GAP (2026-08-14): the recipe layer's only way to assemble
     // a multi-shell body is a PAIRWISE `Node::Boolean(Union)`, so a
@@ -615,13 +619,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                   charted with its pole along the face it is cut by",
             delta: 5e-3,
             note: Some(format!(
-                "cutting the pips one at a time would present a TRIMMED sphere face as the \
-                 next operand, which S13 refuses typed (the extent certificate needs the \
-                 closed-group discipline); charting a ball with a tilted pole would make the \
-                 plane×sphere section non-polar, which the split-join refuses typed. Doing \
-                 both right makes it one certified operation: V = {pip_vol:.6} m³. At M5 \
-                 this and the blank were the die's two halves; the next stop is M6's \
-                 composition surgery joining them"
+                "cutting the pips one at a time used to present a TRIMMED sphere face as \
+                 the next operand, which the extent scan refused typed; the sphere chart's \
+                 [azimuth] × [latitude] window serves that face now, so the group cut here \
+                 is a CHOICE the recipe layer's pairwise-union shape makes convenient, not \
+                 a requirement. Charting a ball with a tilted pole still makes the \
+                 plane×sphere section non-polar, which the split-join refuses typed. One \
+                 certified operation either way: V = {pip_vol:.6} m³. At M5 this and the \
+                 blank were the die's two halves; the next stop is M6's composition \
+                 surgery joining them"
             )),
             view: View {
                 elev: 26.0,

@@ -582,14 +582,20 @@ pub fn curved_face_containment<T: Decide>(
     if !face_data.rings.is_empty() {
         return Ok(None);
     }
-    let Some(&geom::Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        u_ref,
-    }) = body.get_surface(face_data.surface)
-    else {
-        return Ok(None);
+    let (origin, axis, radius, u_ref) = match body.get_surface(face_data.surface) {
+        Some(&geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        }) => (origin, axis, radius, u_ref),
+        Some(&geom::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        }) => return sphere_face_containment(body, face, center, radius, axis, u_ref, q, band),
+        _ => return Ok(None),
     };
     // ON THE CHART FIRST. The trim below is parameter-domain work and
     // premises an on-wall point (`point_on_wall_in_face` says so in its
@@ -639,6 +645,72 @@ pub fn curved_face_containment<T: Decide>(
     }
     match super::solid_contain::point_on_wall_in_face(
         face, origin, axis, radius, u_ref, az, h, q, band,
+    ) {
+        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
+        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(solid_err(e)),
+    }
+}
+
+/// The SPHERE chart's arm of [`curved_face_containment`], reached after
+/// the shared boundary walk and the ring test.
+///
+/// Same three steps as the cylinder arm, in the same order and for the
+/// same reasons: the CARRIER first (a face is a subset of its surface,
+/// so a point definitely off the sphere is definitely outside the
+/// face — and the trim below is parameter-domain work that premises an
+/// on-chart point), then the chart rectangle, then membership in it.
+///
+/// The class test and the rectangle are one call
+/// ([`super::solid_contain::sphere_chart_trim`]) rather than the
+/// cylinder's two: on a sphere the two questions are the same question.
+/// Whether every boundary edge is a rim or a meridian is exactly
+/// whether the `[azimuth] × [latitude]` window describes the face, and
+/// the invariant that keeps it exact — no pole strictly inside a
+/// meridian edge, where latitude stops being monotone — is checked
+/// while those edges are being classified. `None` is the honest
+/// remainder throughout.
+///
+/// **The one place this door is stricter than the ray lane**: a
+/// FULL-PERIOD azimuth window answers `None` here. The ray lane serves
+/// it (every azimuth is in the face, so the window cannot exclude a
+/// point), but this door's contract is the remainder and its caller
+/// keeps a typed frontier there — the same posture the cylinder arm's
+/// period guard takes, kept rather than widened in passing.
+#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
+fn sphere_face_containment<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<FaceContainment>, ContainError> {
+    match decide(
+        "bool_curved_contain_carrier",
+        Margin::of((q - center).norm() - radius),
+        band,
+    ) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    let trim = match super::solid_contain::sphere_chart_trim(body, face, center, radius, axis, band)
+    {
+        Ok(Some(t)) => t,
+        // A face the rectangle cannot express is the honest
+        // remainder, not corruption of the caller's query.
+        Ok(None) => return Ok(None),
+        Err(e) => return Err(solid_err(e)),
+    };
+    if trim.az.is_none() {
+        return Ok(None);
+    }
+    match super::solid_contain::point_on_sphere_in_face(
+        face, center, radius, axis, u_ref, &trim, q, band,
     ) {
         Ok(Some(true)) => Ok(Some(FaceContainment::In)),
         Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
