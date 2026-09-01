@@ -57,6 +57,8 @@ mod issue303_signed_volume_recentring;
 mod issue1362_band_placement;
 #[path = "issue555_subfloor_cap.rs"]
 mod issue555_subfloor_cap;
+#[path = "issue685_nu1_sizing.rs"]
+mod issue685_nu1_sizing;
 #[path = "issue896_pole_guard.rs"]
 mod issue896_pole_guard;
 #[path = "m5_pr11_trimmed.rs"]
