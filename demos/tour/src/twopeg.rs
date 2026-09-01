@@ -87,6 +87,14 @@ const PEG_R: f64 = 0.5;
 /// its stations the same way. Both are the plain-body door's missing
 /// selector showing through (#1345); a document would say this with a
 /// `GeoSelect`.
+const SAME_CARRIER: f64 = 1e-12;
+/// How near two stored cylinder carriers must agree to be read as ONE.
+/// A SELECTION tolerance, not a geometric decision: it picks which face
+/// pairs the author means to declare, and the kernel then verifies
+/// every declaration it is handed. The neighbouring `plane_face` reads
+/// its stations the same way. Both are the plain-body door's missing
+/// selector showing through (#1345); a document would say this with a
+/// `GeoSelect`.
 const PEG_X: [f64; 2] = [2.0, 4.0];
 const PEG_Y: f64 = 2.0;
 /// How far each peg stands proud of its plate — and, equally, how deep
