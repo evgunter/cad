@@ -2941,3 +2941,14 @@ DRAWN, no trailer), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty S/M recorded numeric M
 (pre-logged at the spec, pre-draw). Sample number at merge. Row at
 merge.
+
+BOOL-8 (PR #1508) ordinal FIXED AT DISPATCH (2026-09-01):
+**ordinal 1103** (S-BOOL band 1100–1199). v6 dual: slot byte **180**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `6aa2684f2`
+(run 33525909911 verified at dispatch: head SHA matches, 21 checks —
+17 executed green + 4 skipped by the draw; gate point interval lane
+ASKED via trailer × eps default DRAWN), R2 isolated from R1, briefs
+symmetric, no relaxations granted. Implementer difficulty M
+(pre-logged at the spec, pre-draw). The PR is additionally HELD for
+Evan's sign-off on the PATHS §4 design surface — review proceeds,
+merge waits. Sample number at merge. Row at merge.
