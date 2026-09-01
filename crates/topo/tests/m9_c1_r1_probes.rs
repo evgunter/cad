@@ -19,8 +19,15 @@
 //!    declared pair's own incidence — a declaration between the wrong
 //!    faces (post cap x shelf TOP) backs none of the seat's events.
 //!
-//! ε posture: as the unit's own suite — all coincidences are shared
-//! f64 literals, all separations ≥ a twentieth of a metre.
+//! ε posture: all coincidences are shared f64 literals, and the
+//! separations the CENSUS rungs turn on are ≥ a twentieth of a metre.
+//! The governing margin of the overhang seat is smaller than that and
+//! is not one of them: `pm_census_ee_parallel` reads 8.944e-3 on the
+//! near-parallel cap and shelf edges, which lands in band at
+//! `CAD_TOLERANCE_EPS=1e-3` and escalates honestly there. That is why
+//! `the_lemma_probe_declared`'s whole-list assertion below is a
+//! GATED-BAND row — green at default, 1e-6 and 1e-12, red at 1e-3,
+//! which the matrix does not run.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -146,20 +153,23 @@ fn the_lemma_probe_undeclared_baseline() {
 /// that lane's rung — `ef_bound_backed`'s interior arm. No finding of
 /// this seat is unattributed any more.
 ///
-/// This seat still does not CERTIFY, through a door that is not the
-/// census's rungs at all: the declared patch's region-overlap confirm
-/// runs `interior_witness`'s rescue rung on a `Definite` door-1 verdict
-/// and declines because that rung's fixed candidate schedule misses
-/// this overlap (measured) — `CensusUnsupported`,
-/// `Attribution::Declined`, the `Uncertified` frontier, where before it
-/// was an `Unattributed` hard error. That is the fixture's outcome, not
-/// the class's: a same-class seat whose overlap the schedule lands
-/// certifies outright (`r1_mate4a_probes`). The schedule's aim is issue
-/// 1435. This probe pins the rung.
+/// The seat CERTIFIES, and this probe's outcome has now flipped twice.
+/// It was an `Unattributed` hard error; the census rungs above made it
+/// `CensusUnsupported`/`Attribution::Declined`, because the declared
+/// patch's region-overlap confirm ran `interior_witness`'s rescue rung
+/// on a `Definite` door-1 verdict and its fixed candidate schedule
+/// missed this overlap (measured — ~7.5e-3 m², seven orders above ε);
+/// completing that schedule to search the two trims' own arrangement
+/// lands the overlap and leaves nothing at all. The intermediate state
+/// was never the class's outcome — a same-class seat whose overlap the
+/// old landmarks happened to land certified outright throughout
+/// (`r1_mate4a_probes`) — which is why the last assertion below is the
+/// whole error list and no longer the census's share of it.
 #[test]
 fn the_lemma_probe_declared() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let found = undeclared(&errors(&body, &declared(post_top, shelf_bottom)));
+    let all = errors(&body, &declared(post_top, shelf_bottom));
+    let found = undeclared(&all);
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
         0,
@@ -174,6 +184,13 @@ fn the_lemma_probe_declared() {
         0,
         "and the ef interior arm reads the same rung at each bound: \
          {found:?}"
+    );
+    // Gated-band row (see the header): the whole-list form is red at
+    // 1e-3, where four honest `pm_census_ee_parallel` escalations join
+    // the list. The two census assertions above hold at every band.
+    assert!(
+        all.is_empty(),
+        "and door 2's rescue rung finds the overlap: {all:?}"
     );
 }
 

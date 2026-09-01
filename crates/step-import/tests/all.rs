@@ -57,6 +57,8 @@ mod nurbs_import;
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "poleguard.rs"]
+mod poleguard;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
