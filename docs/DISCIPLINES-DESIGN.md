@@ -148,9 +148,12 @@ emission-layer bookkeeping). So the undeclared-collinear body
 demonstrably builds, with the same topology as the slightly-off
 case; the discipline's verdicts move *acceptance* (and F7's
 `NonMaximalFaces` door downstream), never the solid. The
-lattice/`validate` divergence on exact collinearity is OPEN as
-**#433** (disposition Evan's) — a live in-repo instance of exactly
-this grade's authoring-gate vs data-gate structure. Likewise the
+lattice/`validate` divergence on exact collinearity is RULED
+(**#433**, 2026-09-01): they agree — the authoring door was missing
+its spelling, which is now the straight continuation, and the issue's
+remaining halves close with the raw-door demotion and the declared
+closer. It remains the clearest in-repo instance of this grade's
+authoring-gate vs data-gate structure. Likewise the
 smooth-vs-transverse fork (MappedCurve vs Intersection descriptions,
 wedge legality, prefer-intrinsic) resolves from sampled geometry,
 not from the declaration.

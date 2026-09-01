@@ -18,9 +18,9 @@
 //! because the sweep suite cannot link `mesh` without a dependency
 //! cycle. Both are lodgers. The file is also named after a
 //! milestone-2 PR review while now carrying the newest public API's
-//! pins — left as-is under S36's boundary (milestone naming inside
-//! test files is a backlog marker kept until the suite is combed),
-//! and recorded here so the accumulation is visible rather than
+//! pins — left as-is deliberately, because a milestone-named test file
+//! is a backlog marker that a rename would convert into an invisible
+//! backlog. Recorded here so the accumulation is visible rather than
 //! discovered.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

@@ -561,6 +561,15 @@ FAMILIES = {
         "the `evaluate(doc)` door, which today takes none — so a Python "
         "caller cannot stop a long evaluation at all"
     ),
+    "B-NOTATION": (
+        "authored notation, the D6 boundary's other half; closing it "
+        "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
+        "expression constructors, so a Python caller who writes "
+        "`25 * mm` gets a parameter that REMEMBERS the millimetres — "
+        "today the unit erases at the `Length` door and the document "
+        "records the canonical row, which is what Rust authoring "
+        "stopped doing at schema v20"
+    ),
     "B-FORMAT": (
         "the D6 display formatter; closing it binds `fmt_length` / "
         "`fmt_angle` and their refusal, so choosing digits and a symbol "
@@ -667,7 +676,10 @@ FAMILIES = {
 #:   which refuse the same CALL the writers do because the options
 #:   they validate are that call's keyword arguments.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
-#:   `Evaluation.step_string`'s `product_name=`; `AsciiOptions` and
+#:   `Evaluation.step_string`'s six keywords, one per field and each
+#:   defaulting to the Rust default — a correspondence the crate's own
+#:   `surface_census` holds to the struct, so this entry cannot go
+#:   back to naming a subset while the record grows; `AsciiOptions` and
 #:   `BinaryOptions` are `Mesh.to_stl_ascii`'s `solid_name=` and
 #:   `Mesh.to_stl_binary`'s `header=`, and their two VALIDATED
 #:   newtypes cross as the `str` those arguments take — `SolidName`
@@ -908,6 +920,11 @@ NOT_BOUND = {
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
+    # The display-unit CODE a `DocParam` carries. A one-byte index into
+    # the unit table has no Python spelling and should not get one: a
+    # notation reaches Python as its SYMBOL, which is what
+    # `DocParam.__repr__` prints.
+    "UnitSym": SHAPE,
     "PartialPath": SHAPE,
     "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
@@ -1027,6 +1044,8 @@ NOT_BOUND = {
     "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
     "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
+    "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six

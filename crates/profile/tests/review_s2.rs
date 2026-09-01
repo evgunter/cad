@@ -591,7 +591,8 @@ fn assert_swallows_nothing(
 /// carried the same `fillet_segment` → `circle_from_bulge` → per-carrier
 /// boundary check → same panic, with neither site naming the other.
 /// Nothing in either declared the copy, which is why no marker
-/// vocabulary could have found it (smell-scan S133).
+/// vocabulary could have found it: a sweep for self-disclosed
+/// duplication only finds the copies that disclosed themselves.
 ///
 /// The boundary check runs BEFORE the panic on purpose: a failure here
 /// should report what got built, and a build that swallows a carrier —

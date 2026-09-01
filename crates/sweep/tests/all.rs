@@ -50,6 +50,12 @@ mod bool2_cone_doors_interval;
 mod bool2_r1_probes;
 #[path = "bool2_r2_probes.rs"]
 mod bool2_r2_probes;
+#[path = "bool3_r1_probes.rs"]
+mod bool3_r1_probes;
+#[path = "bool3_torus_doors.rs"]
+mod bool3_torus_doors;
+#[path = "bool3_torus_doors_interval.rs"]
+mod bool3_torus_doors_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -423,6 +429,12 @@ mod mate2_cyl_rest;
 mod mate2_r1_probes;
 #[path = "mate2_r2_probes.rs"]
 mod mate2_r2_probes;
+#[path = "mate7a_r1_probes.rs"]
+mod mate7a_r1_probes;
+#[path = "mate7a_r2_probes.rs"]
+mod mate7a_r2_probes;
+#[path = "mate7a_torus_rest.rs"]
+mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

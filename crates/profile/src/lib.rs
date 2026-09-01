@@ -132,8 +132,8 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, LineTarget, Open, PartialPath, PathError,
-    PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle,
-    circle_split,
+    PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
+    circle, circle_split,
 };
 pub use structure::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,

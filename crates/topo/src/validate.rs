@@ -400,9 +400,24 @@ pub enum ValidationError {
     /// `mesh::walk::Chart::poles` is empty for a torus because a ring
     /// torus has none).
     ///
-    /// This is the net BOTH doors that can mint a torus pass through:
-    /// `sweep::revolve` refuses the configuration at construction, and
-    /// `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim.
+    /// This is the net every door that can mint a torus passes through,
+    /// and there are THREE of them rather than the two this comment used
+    /// to name:
+    ///
+    /// * `sweep::revolve` refuses the configuration at construction;
+    /// * `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim,
+    ///   so it can carry one in;
+    /// * the BLEND lane (`sweep::blend`, reachable through the public
+    ///   `fillet_edges`) mints `Surface::Torus` from a spine radius `s`
+    ///   and the blend radius `r`. Its own arms document predicate 3
+    ///   (`SpineIrregular`) as the refusal for `0 < s ≤ r` — the spindle
+    ///   and horn configurations — but that is the blend lane's claim
+    ///   about itself, not something measured here, and the surgery
+    ///   arms mint tori too.
+    ///
+    /// Which is why this check is at REST and not at any one mint: it is
+    /// the net under all three, whatever each of them believes about
+    /// itself.
     DegenerateTorus {
         /// The face whose torus is a horn or spindle.
         face: FaceKey,
@@ -2214,6 +2229,18 @@ pub(crate) enum MaterialArmOutcome {
 
 /// The material arm's fold: the flags one edge's sample loop
 /// accumulates, resolved into the ONE outcome that edge earns.
+///
+/// **Two callers accumulate those flags on two different sample
+/// schedules, deliberately.** This pass walks an EDGE — an open arc
+/// whose endpoints are vertices other rules already classify — so it
+/// samples the interior, `1..CERT_SAMPLES-1`. `boolean::rim_wedge`
+/// walks a cross-operand RIM, a closed circle with no endpoint to
+/// exclude, so every station is interior to it and it takes all
+/// `CERT_SAMPLES` at uniform phase. The fold itself is schedule-blind —
+/// it reads flags, not samples — which is what lets one function serve
+/// both; the divergence is in what "interior" means for an arc versus a
+/// circle, and it is named at both ends so neither can drift into
+/// looking like the other's bug.
 ///
 /// Total and pure, which is the point. Two of its input states —
 /// a pairing that split (`aligned == opposed`) and a wedge end that

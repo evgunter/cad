@@ -415,11 +415,23 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
     // is a certificate, overlap is a may). Operands untouched, no
     // reduction work before it.
+    //
+    // **No covered-pair rung here, and the asymmetry is the point.**
+    // The operand gate admits a declared pair because a declaration
+    // supplies the VERDICT a germ arm would have supplied. This roster
+    // is not about verdicts: it names the kinds that have a seam lane
+    // to revert through, and no declaration can supply one. A declared
+    // torus pair under ∖ or ∩ is therefore exactly as refused as an
+    // undeclared one, and says so at the same site.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;
-        if let Some(p) =
-            super::reduce::first_unsupported_pair(a, b, band, super::reduce::revert_arm_exists)?
-        {
+        if let Some(p) = super::reduce::first_unsupported_pair(
+            a,
+            b,
+            band,
+            super::reduce::revert_arm_exists,
+            |_, _, _| false,
+        )? {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
                 operand: p.operand,
@@ -1865,8 +1877,18 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 /// - against a SPHERE face the scan's own sphere arm already refuses
 ///   on reach, and it says so in the sphere's words rather than the
 ///   cylinder's — this gate must not shadow it.
-/// - cone, torus and NURBS partners never reach here: the operand gate
-///   refuses the pair up front.
+/// - cone and NURBS partners never reach here: the operand gate refuses
+///   the pair up front, on the KIND, and nothing can cover them — the
+///   certified carrier inventory has no rung for either, so neither can
+///   survive into a declaration.
+/// - a TORUS partner CAN reach here, and only through a declaration
+///   that covers the pair. The kind roster still refuses it otherwise.
+///   This gate is a cylinder-wall gate and says nothing about a torus
+///   partner either way; what answers a covered torus pair is the
+///   crossing layer's own frontier, typed. The premise this bullet used
+///   to state — that the kind never arrives — stopped being true when
+///   the gate learned to read declarations, and a stale "never reaches
+///   here" is exactly the sentence a later reader would build on.
 ///
 /// **Reach first, kind second** (the scan's cone/torus arm's rule,
 /// kept): the gate costs nothing to a wall whose certified box cannot

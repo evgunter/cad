@@ -179,3 +179,27 @@ strength's first instance, the C3/C4 doctrine edit, the legacy-rung
 measured migrations) is now spec-able; block B3 slot 3 (FABLE) is
 the next implementer arm. MATE-7a's dual is in flight (ordinal
 1307, R1 FABLE + R2 OPUS on frozen 530eb8f59).
+
+**2026-09-01 — MATE-7a MERGED (PR #1477; ordinal 1307, sample #90);
+issue 968 STAYS OPEN (kissing arm).** Items 1–2 of issue 968 landed
+(the operand gate's covered-pair admission; the carrier_eq torus
+rung) plus BOTH arms of the ratified shared-rim routing — the π
+classification built at a measured fair price (53 rows with the
+tangency screen), the kissing arm typed-refusing with the ruling
+cited. THE SPEC PREMISE REVERSED BY MEASUREMENT, confirmed by both
+review arms: lily wall 1 does NOT retire here — its refusal is the
+whole-ring torus box artifact (exact loci 2.08 m apart) and the
+weld has no torus contact to declare; a boundary-tight box retires
+it with NO declaration (min true separation 0.008 m). Durable
+homes filed at adjudication: issue 1488 (torus box tightening —
+the real wall-1 path), issue 1489 (circle_residual_harmonics'
+torus arm — VERBS' germ ground, routed; the declared-Rest torus
+lane is one function away). Issue 968 annotated with the corrected
+diagnosis. The dual carried a TALLY CANDIDATE (R2's unilateral
+executed MAJ — the missing tangency screen: a 53° transverse rim
+answered Seam; fixed red-first at the fix pass by importing the
+tier-3 arm's whole precondition set). No pin flipped anywhere —
+klein 3/4 and lily pins byte-identical, the widened admission
+reachable only via declared covered pairs. Program slate: MATE-9
+(stage 1, the crossing rung) in flight; the S-MATE exit walk is
+next once MATE-9 lands.

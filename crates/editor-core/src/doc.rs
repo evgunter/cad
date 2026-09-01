@@ -43,6 +43,32 @@ pub enum DocParam {
         dim: Dimension,
         /// The value, exact `f64`.
         value: f64,
+        /// The display unit this parameter was AUTHORED in — the same
+        /// presentation metadata a literal carries
+        /// (`Expr::display_unit`), for the same reason: a parameter
+        /// authored in millimetres should read back in millimetres.
+        ///
+        /// Not optional, for [`crate::expr::Lit`]'s reason: a
+        /// dimensionless parameter names the dimensionless row rather
+        /// than declining to name one, so no reader has to invent a
+        /// notation and no two readers can invent different ones.
+        ///
+        /// It rides with the DECLARATION, beside `dim` and
+        /// `distribution`, and not with the value — which is exactly
+        /// why [`crate::DocEdit::SetDocParamValue`] leaves it alone
+        /// (see [`DocParamValue`]): how a parameter is written is a
+        /// fact about the parameter, not about the number being typed
+        /// into it.
+        ///
+        /// The unit must MEASURE `dim`. Nothing here can enforce that
+        /// — the payload is `pub` and the dimension is data — so the
+        /// pairing is a document invariant checked by the shared
+        /// save/load validator (`persist::check`), like every other
+        /// invariant this `pub` payload can be corrupted past. The
+        /// authoring doors ([`DocParam::written_length`],
+        /// [`DocParam::written_angle`]) cannot produce a mismatched
+        /// one at all.
+        display_unit: crate::expr::UnitSym,
         /// Optional uncertainty about this parameter (ERROR-DESIGN
         /// E1/E2), as offsets from `value` in the parameter's own
         /// `dim`. Document metadata read ONLY by
@@ -110,12 +136,48 @@ impl DocParam {
         }
     }
 
-    /// A continuous parameter with no distribution — the plain
-    /// authoring spelling.
+    /// A continuous LENGTH parameter that remembers the notation it
+    /// was authored in ([`quantity::WrittenLength`]).
+    ///
+    /// **Total** — there is no dimension for the unit to disagree
+    /// with: a `WrittenLength` holds a `LengthUnit`, which is an index
+    /// into a Length row of the table (#669), and this door supplies
+    /// `Dimension::Length` itself. The mismatch the validator watches
+    /// for is unreachable through here, which is the whole reason to
+    /// author through it rather than through the `pub` payload.
+    ///
+    /// No distribution: the E1/E2 annotation belongs to the parameter
+    /// and is added through its own door, exactly as
+    /// [`DocParam::continuous`] leaves it alone.
+    pub fn written_length(written: quantity::WrittenLength) -> Self {
+        Self::Continuous {
+            dim: Dimension::Length,
+            value: written.meters(),
+            display_unit: crate::expr::UnitSym::from_def(&written.unit().def()),
+            distribution: None,
+        }
+    }
+
+    /// A continuous ANGLE parameter that remembers its authored
+    /// notation — [`DocParam::written_length`]'s mirror, total for the
+    /// same reason.
+    pub fn written_angle(written: quantity::WrittenAngle) -> Self {
+        Self::Continuous {
+            dim: Dimension::Angle,
+            value: written.radians(),
+            display_unit: crate::expr::UnitSym::from_def(&written.unit().def()),
+            distribution: None,
+        }
+    }
+
+    /// A continuous parameter with no distribution, written in the
+    /// canonical unit for its dimension — the plain authoring
+    /// spelling.
     pub fn continuous(dim: Dimension, value: f64) -> Self {
         Self::Continuous {
             dim,
             value,
+            display_unit: crate::expr::UnitSym::canonical_for(dim),
             distribution: None,
         }
     }
@@ -128,6 +190,7 @@ impl DocParam {
         Self::Continuous {
             dim,
             value,
+            display_unit: crate::expr::UnitSym::canonical_for(dim),
             distribution: Some(distribution),
         }
     }
@@ -142,8 +205,8 @@ impl DocParam {
     }
 
     /// This parameter with `value` written into it, keeping the whole
-    /// DECLARATION — the dimension and the optional distribution —
-    /// untouched. **The carry-forward, in one place**: every value
+    /// DECLARATION — the dimension, the authored display unit and the
+    /// optional distribution — untouched. **The carry-forward, in one place**: every value
     /// door goes through here rather than rebuilding a parameter from
     /// parts, so no door can drop an annotation it never mentioned.
     ///
@@ -156,12 +219,16 @@ impl DocParam {
         match (self, value) {
             (
                 Self::Continuous {
-                    dim, distribution, ..
+                    dim,
+                    display_unit,
+                    distribution,
+                    ..
                 },
                 DocParamValue::Continuous(value),
             ) => Some(Self::Continuous {
                 dim: *dim,
                 value,
+                display_unit: *display_unit,
                 distribution: *distribution,
             }),
             (Self::Count { .. }, DocParamValue::Count(value)) => Some(Self::Count { value }),
@@ -176,6 +243,16 @@ impl DocParam {
     /// Bit-semantic equality (spec D7): continuous values compare by
     /// BITS (`0.0` ≠ `-0.0` here), everything else structurally.
     ///
+    /// **The display unit is EXCLUDED**, exactly as it is from
+    /// `Expr::bit_eq` and for the same reason: it is presentation
+    /// metadata, so two parameters differing only in how they are
+    /// written are the same parameter. The consequence is the one the
+    /// literal already has — a change of notation alone is a document
+    /// edit that enters the history and persists, and is invisible to
+    /// replay identity and to `diff.rs`. Spelled out rather than
+    /// omitted, because the field is named in the pattern below and a
+    /// reader is owed the reason it is not in the comparison.
+    ///
     /// EXHAUSTIVE on purpose, on BOTH sides of the pair: the mismatched
     /// pairs are spelled out rather than swept up, so a future
     /// `DocParam` variant must say how it compares here or the compile
@@ -189,11 +266,13 @@ impl DocParam {
                 Self::Continuous {
                     dim: da,
                     value: va,
+                    display_unit: _,
                     distribution: ha,
                 },
                 Self::Continuous {
                     dim: db,
                     value: vb,
+                    display_unit: _,
                     distribution: hb,
                 },
             ) => {

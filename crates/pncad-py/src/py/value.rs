@@ -381,6 +381,12 @@ impl Verdict {
 }
 
 /// The F1 dimension as the one spelling this surface uses.
+///
+/// Capitalized on purpose: this is the Python-facing type name a
+/// `Measurement` repr reads back as, not prose. The other two
+/// spellings of the same word list are the kernel's prose rendering
+/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
+/// (the lowercase FFI tag, pinned equal to that rendering).
 fn dimension_name(dim: d::Dimension) -> &'static str {
     match dim {
         d::Dimension::Length => "Length",
@@ -893,18 +899,51 @@ impl Evaluation {
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
     /// raises a typed `ExportError`.
-    #[pyo3(signature = (node, product_name=None))]
+    ///
+    /// Every `StepOptions` field is a keyword here, and each defaults
+    /// to `None` meaning the Rust default — so the door narrows
+    /// nothing and an omitted keyword is the same file a Rust caller
+    /// gets from `StepOptions::default()`. The options struct is built
+    /// by a literal that names every field, so a field the kernel
+    /// gains does not compile until this door decides about it; that
+    /// decision is recorded, either way, in the surface census.
+    ///
+    /// `uncertainty` is the exported
+    /// `UNCERTAINTY_MEASURE_WITH_UNIT` length; omitted, the writer
+    /// reads the run's ambient tolerance, which is the ε the body was
+    /// built under. A value that is not finite and strictly positive
+    /// is the writer's refusal, not a check restated here.
+    #[pyo3(signature = (
+        node,
+        product_name = None,
+        timestamp = None,
+        author = None,
+        organization = None,
+        originating_system = None,
+        uncertainty = None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn step_string(
         &self,
         py: Python<'_>,
         node: &NodeId,
         product_name: Option<String>,
+        timestamp: Option<String>,
+        author: Option<String>,
+        organization: Option<String>,
+        originating_system: Option<String>,
+        uncertainty: Option<Length>,
     ) -> PyResult<String> {
         let tol = Tol::witness();
-        let mut options = pncad::step_export::StepOptions::default();
-        if let Some(name) = product_name {
-            options.product_name = name;
-        }
+        let defaults = pncad::step_export::StepOptions::default();
+        let options = pncad::step_export::StepOptions {
+            product_name: product_name.unwrap_or(defaults.product_name),
+            timestamp: timestamp.unwrap_or(defaults.timestamp),
+            author: author.unwrap_or(defaults.author),
+            organization: organization.unwrap_or(defaults.organization),
+            originating_system: originating_system.unwrap_or(defaults.originating_system),
+            uncertainty_m: uncertainty.map(|u| u.0.meters()).or(defaults.uncertainty_m),
+        };
         pncad::export::step_for_node(&self.inner, node.0, &options, tol)
             .map_err(|err| export_err(py, *node, &err))
     }

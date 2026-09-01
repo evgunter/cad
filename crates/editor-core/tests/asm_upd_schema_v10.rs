@@ -35,7 +35,7 @@ fn schema_version_is_current() {
     // precedent): ASM-UPD's own bump was v10; M9-1 took v11,
     // LIB-PLACEDUNION v12, ASM-R2a v13, ASM-R2b v14 and M10-1 v15, and
     // the number is what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 19);
+    assert_eq!(SCHEMA_VERSION, 20);
 }
 
 #[test]

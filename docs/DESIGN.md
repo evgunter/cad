@@ -1091,6 +1091,22 @@ dimensional types inside. The public API uses hand-rolled newtypes
 `uom`: uom's dimensional generics fight the scalar-type parameter and we
 need ~five quantities, not the SI lattice.
 
+**D6 addendum — a stored literal always names its notation (ratified
+2026-09-01, in conversation with Evan; schema v20 carries the break).**
+Units erase at the accessor doors because the kernel wants them gone.
+One consumer wants them kept: a document records what a person *wrote*,
+so it can be read back that way. Every continuous literal therefore
+carries a display unit — a row of `quantity::UNITS`, presentation
+metadata excluded from expression identity, keys and evaluation — and
+that unit is **not optional**: the table carries a dimensionless row
+(`ONE`, symbol the empty string, factor 1.0) so a `Scalar` literal
+names its notation, writing no suffix, rather than declining to name
+one. `Count` needs no row: a count is an integer, not a quantity. A
+value crossing into a document therefore carries the unit it was
+written in, never a bare number for a reader to interpret — which is
+why the GUI's creation ops carry `Expr`, and what
+`quantity::WrittenLength`/`WrittenAngle` are the library spelling of.
+
 ### D7 (agreed): Import is adoption, not admission
 
 Imported geometry is not second-class. Rather than adding an extensional

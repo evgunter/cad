@@ -111,7 +111,7 @@ fn attack_duplicate_json_keys() {
     // Duplicate the "q" param with a different value.
     let dup_param = text.replace(
         "\"q\": {",
-        "\"q\": {\"Continuous\":{\"dim\":\"Length\",\"value\":9.75}}, \"q\": {",
+        "\"q\": {\"Continuous\":{\"dim\":\"Length\",\"value\":9.75,\"display_unit\":\"m\"}}, \"q\": {",
     );
     assert_ne!(dup_param, text, "fixture must contain the param");
     match load(&dup_param, Tol::witness()) {

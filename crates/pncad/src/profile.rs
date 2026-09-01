@@ -52,7 +52,7 @@ pub use ::profile::{lift, path};
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, Bulge, Center, ClosedLoop, LineTarget,
-    Open, PartialPath, PathError, PathNoCornerReason, PointLeg, Radius, ReplayError,
+    Open, PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError,
     ReplayErrorKind, Start, Step, Sweep, TangentArcTarget, Target, TipState, Verb, Via, circle,
     circle_split, replay,
 };
