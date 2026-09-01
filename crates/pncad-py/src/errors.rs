@@ -260,3 +260,41 @@ impl ErrorClass {
         }
     }
 }
+
+/// Whether a refusal message reads as prose rather than a `Debug`
+/// rendering of a kernel value.
+///
+/// A typed exception's human message is the kernel error's own
+/// `Display`; a `Debug` dump in its place is a leak of Rust field
+/// names into a Python user's screen and a payload the caller cannot
+/// branch on either way. `crate::py::typed_err` — the single
+/// construction site — asserts this on every raise, so the rule holds
+/// at doors written after it as well as at the ones it was written
+/// for.
+///
+/// Two fingerprints, each of which prose in this crate does not carry:
+///
+/// * `" { "` — the field-brace `std` puts in every struct and
+///   struct-variant rendering, at any nesting depth (`Some(E::V { .. })`
+///   and `[V { .. }]` both carry it).
+/// * a message that is one bare CamelCase token — a fieldless
+///   variant's whole rendering. A sentence is never one word.
+///
+/// What it cannot see: a tuple variant of scalars (`Escalated(1, 2)`),
+/// a fieldless variant embedded mid-sentence, and a user-supplied
+/// string that happens to contain `" { "` (a false positive, and the
+/// only one available — quoted user text is `Debug`-rendered here on
+/// purpose, for the escaping).
+#[must_use]
+pub fn reads_as_prose(message: &str) -> bool {
+    !message.contains(" { ") && !is_bare_camel_token(message)
+}
+
+/// Whether the whole string is one identifier-shaped word starting
+/// with an uppercase letter — what `{:?}` renders a fieldless variant
+/// as, and what no sentence is.
+fn is_bare_camel_token(message: &str) -> bool {
+    let mut chars = message.chars();
+    chars.next().is_some_and(char::is_uppercase)
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}

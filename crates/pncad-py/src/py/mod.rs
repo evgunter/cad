@@ -326,7 +326,17 @@ pyo3::create_exception!(
 ///
 /// This is the single construction site for every typed refusal, so
 /// "the payload is attributes, not prose" is enforced in one place
-/// rather than repeated at each raise.
+/// rather than repeated at each raise — and so is its twin, "the
+/// message is the kernel's own `Display`, never a `Debug` dump":
+/// [`crate::errors::reads_as_prose`] runs here on every raise, which
+/// makes the rule hold for doors written after it rather than only
+/// for the ones it was written for.
+///
+/// The check is a `debug_assert`, and the wheel both CI and
+/// `run-python-tests.sh` build is a debug build, so it runs over every
+/// door the Python suite exercises. A door no test reaches is not
+/// checked, and a release wheel does not check at all — a user's
+/// refusal is never replaced by a boundary panic.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -334,6 +344,12 @@ pub(crate) fn typed_err(
     fields: &[(&str, Py<PyAny>)],
 ) -> PyErr {
     let message: String = message.into();
+    debug_assert!(
+        crate::errors::reads_as_prose(&message),
+        "{} was raised with a `Debug` rendering where its human \
+         message belongs: {message}",
+        class.class_name()
+    );
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
         ErrorClass::Evaluation => EvaluationError::new_err(message),

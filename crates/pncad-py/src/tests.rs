@@ -9,7 +9,7 @@
 // failure mechanism.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
+use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose};
 use crate::tags::{
     expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
     workspace_error_tag,
@@ -519,6 +519,38 @@ fn path_error_tags_are_stable() {
         .tangent_arc_to(Start, Tol::witness())
         .expect_err("a tangent LINE close refuses always");
     assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
+}
+
+/// The prose rule's guard, checked against what it actually guards
+/// against: real kernel refusals rendered both ways.
+///
+/// `crate::py::typed_err` asserts [`reads_as_prose`] on every raise,
+/// so this test is the half that proves the predicate can go RED — a
+/// guard verified only by a green suite is not verified. The `Debug`
+/// renderings below are exactly what the crate used to send to Python
+/// at the tessellate and select doors.
+#[test]
+fn the_prose_rule_separates_a_display_from_a_debug_dump() {
+    use pncad::prelude::{circle, p2};
+
+    let zero = circle(p2(0.0, 0.0), 0.0, Tol::witness()).expect_err("a zero radius refuses");
+    assert!(reads_as_prose(&zero.to_string()));
+    assert!(!reads_as_prose(&format!("{zero:?}")));
+
+    let entropy = pncad::workspace::WorkspaceError::RandomnessUnavailable {
+        message: "entropy source refused".to_string(),
+    };
+    assert!(reads_as_prose(&entropy.to_string()));
+    assert!(!reads_as_prose(&format!("{entropy:?}")));
+
+    // The second fingerprint: a fieldless variant renders as one bare
+    // word, which no sentence is.
+    assert!(!reads_as_prose("SeamRetrimsArcFirstSide"));
+    // And the shapes prose legitimately carries: a quoted user string
+    // (`Debug` on a `&str`, which the id doors use for its escaping),
+    // and a sentence that opens on a capital.
+    assert!(reads_as_prose("not a document id: \"nope\" — an id is 32 hex digits"));
+    assert!(reads_as_prose("Tessellate refused"));
 }
 
 /// Read one flat `key = "value"` TOML table, selected by its exact
