@@ -193,11 +193,13 @@ logged pre-draw per the protocol.
   the demonstration; lily's section leaves `RawLoop` (the named
   gap's remaining half — the demo is the ruling's demonstration,
   as BOOL-8's was for the interior half); §4's Residual paragraph
-  re-records as ruled and the verb-table row lands. The
-  f64 meaning of "on the ray" (exact-or-refuse vs anything banded)
-  is the unit's design question. PATHS §4 / verb table is design
-  surface: the unit's PR carries the text for Evan's eyes before
-  merge. After BOOL-8's merge; before BOOL-9.
+  re-records as ruled and the verb-table row lands. The f64
+  meaning of "on the ray" is RULED (fourth round, below): within
+  ε, as ever; the band's selection (which ε, its lever, the D2
+  row) and the past-band refusal are the unit's to state. PATHS
+  §4 / verb table is design surface: the unit's PR carries the
+  text for Evan's eyes before merge. After BOOL-8's merge; before
+  BOOL-9.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -270,11 +272,19 @@ this program's files — see Q3 below.
    emission-layer bookkeeping (§2c's parenthetical already homes
    identity data there). PQ4 (no mid-carrier seam) stands
    unchanged; the closer makes the corner cut sufficient for an
-   all-sides-subdivided outline. Design surface left to the unit,
-   for Evan's eyes on its PR: what "lies on the ray" means in f64
-   — exact-or-refuse constrains authoring; any banded check
-   re-admits value-inference. Scheduled as BOOL-11; §4's Residual
-   paragraph re-records as ruled when it lands.** Three stances are in
+   all-sides-subdivided outline. Scheduled as BOOL-11; §4's
+   Residual paragraph re-records as ruled when it lands.**
+   **Ruled (Evan, in-chat, 2026-09-01, fourth round — the f64
+   question): "target lies on the ray" means, as ever, TO WITHIN
+   ε. Exact-or-refuse is out. The declaration is what makes the
+   banded check legal: with the intent authored, the ε comparison
+   is authored-data CONSISTENCY — the same class as the arc verbs'
+   consistency refusals — not the value-inference the ladder
+   refuses, which reads intent OFF a coincidence no one declared.
+   Past the band the leg refuses typed (inconsistent authored
+   data). Which ε (the input-quality band is the natural home),
+   its lever, and the D2 row remain the unit's to state at the
+   site and in the §4 text for Evan's eyes.** Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
