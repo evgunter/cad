@@ -16,16 +16,19 @@
 //! The rung consults DECLARATIONS only: the bare seat and a seat
 //! declared between the wrong faces both stay as loud as before.
 //!
-//! Straddling crossings (`EdgeEdgeCross`) are a different question and
-//! are untouched here — the fence row pins that configuration's
-//! findings character for character.
+//! Straddling crossings (`EdgeEdgeCross`) were fenced OFF from this
+//! unit's claims while issue 973 part (b) was open; the fence row is
+//! now RE-BLESSED onto the crossing rung's outcome (MATE-9): the
+//! declared straddle seat's two crossings are backed at the unified
+//! strength and the seat certifies outright. The bare-straddle
+//! control beside it pins that the rung reads declarations only.
 //!
-//! Only ONE of the four rows below is a claim about the new arm: the
-//! declared-seat row. The other three are CONTROLS and pass on main
-//! unchanged — the bare seat, the wrong-pair seat and the (b) fence all
-//! describe behaviour this unit did not move, which is exactly their
-//! job. A mutation of the rung reds the declared-seat row here and the
-//! re-blessed lemma probe, and nothing else.
+//! Only ONE of the rows below is a claim about the MATE-4a arm: the
+//! declared-seat row. The bare seat and the wrong-pair seat are
+//! CONTROLS describing behaviour that unit did not move. A mutation
+//! of the ef-bound rung reds the declared-seat row here and the
+//! re-blessed lemma probe; a mutation of the crossing rung reds the
+//! re-blessed straddle row and `mate9_crossing_rung`'s suite.
 //!
 //! ε posture: every coincidence is a shared f64 literal (the cap's
 //! vertices sit on `y = 0.30` exactly, the two cap faces on `z = 0.5`
@@ -218,22 +221,55 @@ fn a_wrong_pair_backs_no_ef_bound() {
     );
 }
 
-/// **The fence.** Issue 973's section (b) — the straddling cap's two
-/// proper `EdgeEdgeCross` findings — is a separate design question and
-/// is NOT this unit's. The whole error list is pinned character for
-/// character, witnesses included, so a leak into (b) cannot pass
-/// silently: not a finding gained, not a finding lost, not a witness
-/// moved.
+/// **The fence, RE-BLESSED onto the crossing rung's outcome** (issue
+/// 973 part (b), stage 1). While (b) was open this row pinned the
+/// declared straddle seat's two `EdgeEdgeCross` findings character
+/// for character; the crossing rung answers them now — each crossing
+/// point lies in the declared pair's verified overlap region (a
+/// corner of the `[0.30,0.60] × [0.20,0.30]` interface) and the
+/// material lies on opposite sides of the shared `z = 0.5` carrier
+/// (cap below, shelf above: the legal overhang) — and the shelf
+/// edge's dive through the cap's face certifies through the
+/// (grandfathered) ef-bound rung as before, so NOTHING of the
+/// declared seat is left: the seat a user draws by dragging a part
+/// until it overhangs certifies outright.
 #[test]
-fn the_straddle_crossings_are_untouched() {
+fn the_declared_straddle_seat_certifies() {
     let (body, post_top, shelf_bottom) = straddle_seat();
     let found = errors(&body, &declared(post_top, shelf_bottom));
+    assert!(
+        found.is_empty(),
+        "the declared straddle seat's crossings are backed at the \
+         unified strength and the seat certifies: {found:?}"
+    );
+}
+
+/// The crossing rung reads DECLARATIONS only: bare, the straddle
+/// seat's whole error list is pinned character for character —
+/// witnesses included, byte-identical to what it was before the rung
+/// existed — so the rung cannot have moved an undeclared document.
+#[test]
+fn the_bare_straddle_seat_is_untouched() {
+    let (body, _, _) = straddle_seat();
+    let found = errors(&body, &ContactRecords::default());
+    let crossings: Vec<_> = found
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::EdgeEdgeCross { .. },
+                    ..
+                }
+            )
+        })
+        .collect();
     assert_eq!(
-        format!("{found:?}"),
+        format!("{crossings:?}"),
         "[UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
          b: EdgeKey(15v1) }, witness: \"Point3 { x: 0.6, y: 0.3, z: 0.5 }\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
          b: EdgeKey(15v1) }, witness: \"Point3 { x: 0.3, y: 0.3, z: 0.5 }\" }]",
-        "issue 973 part (b) stays exactly as it was"
+        "the undeclared crossings read exactly as they always did"
     );
 }
