@@ -57,6 +57,12 @@ mod issue303_signed_volume_recentring;
 mod issue1362_band_placement;
 #[path = "issue555_subfloor_cap.rs"]
 mod issue555_subfloor_cap;
+#[path = "r2_bool_door.rs"]
+mod r2_bool_door;
+#[path = "r2_split_door.rs"]
+mod r2_split_door;
+#[path = "r2_bytes.rs"]
+mod r2_bytes;
 #[path = "issue896_pole_guard.rs"]
 mod issue896_pole_guard;
 #[path = "m5_pr11_trimmed.rs"]

@@ -59,6 +59,8 @@ mod p1b_r1_import_scan;
 mod parser;
 #[path = "poleguard.rs"]
 mod poleguard;
+#[path = "r2_probes.rs"]
+mod r2_probes;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
