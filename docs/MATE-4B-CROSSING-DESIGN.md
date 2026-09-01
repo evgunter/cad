@@ -1,15 +1,19 @@
 # At-rest crossing backability (issue 973 part (b)) — design conversation
 
-**STATUS: PARTLY RULED (Evan, in-chat, 2026-09-01): question 2
-RULED — stages 0–1 build in S-MATE, stage 0 funded immediately
-(dispatched as MATE-8, spec `docs/MATE-8-SPEC.md`); question 3
-RULED — the three-valued side verdict suffices as the
-declared-interpenetration hook, the C6 vocabulary waits for its
-era. Question 1 (the strength tier) is OPEN — Evan asked what a
-unified strength story would look like; the section added at the
-end answers it, and the question now reads: two named tiers as the
-END state, or the unified strength as the end state with the
-unconfined rungs grandfathered pending a measured migration.** The MATE-4b design pass the Q2(b)
+**STATUS: RATIFIED (Evan, in-chat, 2026-09-01 — all three
+questions answered). Q1: the UNIFIED strength is the end state
+(option (ii) of the section below) — the crossing rung lands as its
+first instance, the legacy region-unconfined rungs are GRANDFATHERED
+by name and migrated one at a time, each migration MEASURED for
+regressions before it lands ("it remains to be seen how well it'll
+work in practice" — the measurements are the answer, and a
+migration that measures badly stays grandfathered with its
+measurement recorded). Q2: stages 0–1 build in S-MATE; stage 0
+funded immediately (MATE-8, `docs/MATE-8-SPEC.md`, in flight).
+Q3: the three-valued side verdict is the declared-interpenetration
+hook; the C6 vocabulary waits for its era. The C3/C4 doctrine edit
+(one strength + the grandfather note) rides stage 1's
+implementation, not this document.** The MATE-4b design pass the Q2(b)
 direction ordered (in-chat, 2026-08-31): the side/region-aware
 crossing machinery is needed eventually; this document proposes its
 SHAPE and STAGING. Two constraints from that conversation bind
