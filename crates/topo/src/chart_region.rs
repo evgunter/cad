@@ -2664,6 +2664,95 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
+    // MATE-5: the full-wrap band fast path's pieces (the public-door
+    // rows live in `tests/mate5_cyl_eps_rung.rs` and the census's own
+    // rows; no euler constructor mints a seam-doubled full-period wall
+    // at test level, so the band arm is pinned here at its unit seams).
+    // ------------------------------------------------------------------
+
+    /// A full-period chart rectangle: seam at `u0`, span exactly τ.
+    fn wrap_rect(u0: f64, v0: f64, v1: f64) -> Vec<Point2<f64>> {
+        rect(u0, v0, u0 + core::f64::consts::TAU, v1)
+    }
+
+    #[test]
+    fn mate5_wrap_band_reads_structure_and_meters_the_span() {
+        let r = 2.0;
+        // A full-period rectangle reads as a band.
+        let got = wrap_band(&wrap_rect(0.3, 0.0, 1.0), r, band()).unwrap();
+        assert_eq!(got, Some((0.0, 1.0)));
+        // An arc rectangle (span < τ) is the general walk's ground.
+        assert_eq!(
+            wrap_band(&rect(0.0, 0.0, 3.0, 1.0), r, band()).unwrap(),
+            None
+        );
+        // A five-vertex full-span polygon is NOT a band (a v-notch
+        // breaks azimuth invariance) — structure, not span, decides.
+        let tau = core::f64::consts::TAU;
+        let notched = vec![
+            pt(0.0, 0.0),
+            pt(tau, 0.0),
+            pt(tau, 1.0),
+            pt(tau * 0.5, 0.4),
+            pt(0.0, 1.0),
+        ];
+        assert_eq!(wrap_band(&notched, r, band()).unwrap(), None);
+        // A near-full span INSIDE the band escalates typed — neither
+        // silently a band nor silently a window.
+        let sliver = rect(0.0, 0.0, tau - 2e-9, 1.0);
+        assert!(matches!(
+            wrap_band(&sliver, r, band()),
+            Err(ChartRegionError::Escalated(_))
+        ));
+    }
+
+    #[test]
+    fn mate5_band_overlap_is_three_outcome_and_seam_blind() {
+        let r = 1.5;
+        let uv = |outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>| FaceUv { outer, rings };
+        // Misaligned seams, overlapping axial bands: the whole point
+        // of the fast path — no fold, no seam gate, a certified
+        // positive.
+        let a = uv(wrap_rect(0.3, 0.0, 1.0), vec![]);
+        let b = uv(wrap_rect(4.4, 0.4, 0.8), vec![]);
+        let (ba, bb) = (
+            wrap_band(&a.outer, r, band()).unwrap().unwrap(),
+            wrap_band(&b.outer, r, band()).unwrap().unwrap(),
+        );
+        assert_eq!(
+            band_overlap(&a, &b, ba, bb, r, band()).unwrap(),
+            ChartOverlap::PositiveArea
+        );
+        // Definitely disjoint axial bands: the certified Empty — the
+        // Refuted arm's currency.
+        let c = uv(wrap_rect(4.4, 2.0, 2.5), vec![]);
+        let bc = wrap_band(&c.outer, r, band()).unwrap().unwrap();
+        assert_eq!(
+            band_overlap(&a, &c, ba, bc, r, band()).unwrap(),
+            ChartOverlap::Empty
+        );
+        // Rim-sharing bands: an exact-zero axial overlap is a touch,
+        // not an area verdict in either direction.
+        let d = uv(wrap_rect(4.4, 1.0, 1.5), vec![]);
+        let bd = wrap_band(&d.outer, r, band()).unwrap().unwrap();
+        assert!(matches!(
+            band_overlap(&a, &d, ba, bd, r, band()),
+            Err(ChartRegionError::TouchingBoundary)
+        ));
+        // A ring swallowing the thin overlap: the conservative
+        // deduction drives the mean width out of the certifiable
+        // range and the query escalates — never a false positive,
+        // never an Empty.
+        let thin = uv(wrap_rect(4.4, 0.999, 1.2), vec![]);
+        let bt = wrap_band(&thin.outer, r, band()).unwrap().unwrap();
+        let ringed = uv(wrap_rect(0.3, 0.0, 1.0), vec![rect(0.1, 0.99, 6.1, 1.0)]);
+        assert!(matches!(
+            band_overlap(&ringed, &thin, ba, bt, r, band()),
+            Err(ChartRegionError::Escalated(_))
+        ));
+    }
+
+    // ------------------------------------------------------------------
     // The planar-inventory gate (item 1): structure read as structure.
     // ------------------------------------------------------------------
 

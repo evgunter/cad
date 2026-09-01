@@ -146,7 +146,9 @@ fn wall_sheet(
                 u1,
             )
         } else {
-            let s = frame.at(u1, v) - center - frame.axis * ((frame.at(u1, v) - center).dot(frame.axis));
+            let s = frame.at(u1, v)
+                - center
+                - frame.axis * ((frame.at(u1, v) - center).dot(frame.axis));
             (
                 Curve3::Circle {
                     center,
@@ -235,7 +237,15 @@ fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// is the B-chart window `[0.7 − t1, 0.7 − t0] × [0.25 − z1, 0.25 − z0]`.
 fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = wall_sheet(&mut body, frame_b(), 7002, 0.7 - t1, 0.7 - t0, 0.25 - z1, 0.25 - z0);
+    let f = wall_sheet(
+        &mut body,
+        frame_b(),
+        7002,
+        0.7 - t1,
+        0.7 - t0,
+        0.25 - z1,
+        0.25 - z0,
+    );
     (body, f)
 }
 
@@ -250,7 +260,10 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
             format!("Escalated({})", d.predicate.unwrap_or("?"))
         }
         Err(other) => format!("{other:?}")
-            .split([' ', '{', '(']).next().unwrap().to_string(),
+            .split([' ', '{', '('])
+            .next()
+            .unwrap()
+            .to_string(),
     }
 }
 
@@ -313,7 +326,8 @@ fn an_axially_disjoint_declared_cylinder_pair_is_definitely_empty() {
 /// refusing alike.
 #[test]
 fn the_verdict_does_not_depend_on_which_description_is_representative() {
-    let cases: Vec<(&str, (Body<f64>, FaceKey), (Body<f64>, FaceKey))> = vec![
+    type Sheet = (Body<f64>, FaceKey);
+    let cases: Vec<(&str, Sheet, Sheet)> = vec![
         (
             "overlapping arc seat",
             sheet_a(0.2, 1.6, 0.0, 1.0),
@@ -417,7 +431,15 @@ fn radius_disagreement_is_three_outcome_honest() {
             radius: r,
             ..frame_b()
         };
-        let f = wall_sheet(&mut body, frame, 7004, 0.7 - 1.3, 0.7 - 0.5, 0.25 - 0.7, 0.25 - 0.3);
+        let f = wall_sheet(
+            &mut body,
+            frame,
+            7004,
+            0.7 - 1.3,
+            0.7 - 0.5,
+            0.25 - 0.7,
+            0.25 - 0.3,
+        );
         (body, f)
     };
     let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
@@ -427,7 +449,14 @@ fn radius_disagreement_is_three_outcome_honest() {
         other => panic!("a definite radius disagreement refuses typed: {other:?}"),
     }
     let (b_sliver, fb_sliver) = with_radius(1.0 + 3.0 * eps);
-    match declared_pair_overlap(&a, fa, &b_sliver, fb_sliver, ContactVerdict::Definite, band()) {
+    match declared_pair_overlap(
+        &a,
+        fa,
+        &b_sliver,
+        fb_sliver,
+        ContactVerdict::Definite,
+        band(),
+    ) {
         Err(ChartRegionError::Escalated(d)) => {
             assert_eq!(d.predicate, Some("chart_region_cyl_radius"));
         }
@@ -472,6 +501,40 @@ fn a_pair_no_single_window_serves_declines_typed() {
     match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::SeamBranch) => {}
         other => panic!("the un-windowable pair declines typed: {other:?}"),
+    }
+}
+
+/// INVARIANT (Door 1's verdict is not consumed here, and that is the
+/// documented posture, pinned): unlike the planar witness rung there
+/// is no precondition the declaration could be asked to discharge —
+/// the enclosure's own gates re-decide carrier agreement at the
+/// pair's own extent — so a `Bridged` pair gets the same
+/// three-outcome answer as a `Definite` one, in both the certifying
+/// and the refuting direction.
+#[test]
+fn bridged_and_definite_get_the_same_enclosure_answer() {
+    let fixtures = [
+        (sheet_a(0.2, 1.6, 0.0, 1.0), sheet_b(0.5, 1.3, 0.3, 0.7)),
+        (sheet_a(0.2, 1.6, 0.0, 0.4), sheet_b(0.5, 1.3, 0.6, 1.0)),
+    ];
+    for ((a, fa), (b, fb)) in fixtures {
+        let definite = verdict_class(declared_pair_overlap(
+            &a,
+            fa,
+            &b,
+            fb,
+            ContactVerdict::Definite,
+            band(),
+        ));
+        let bridged = verdict_class(declared_pair_overlap(
+            &a,
+            fa,
+            &b,
+            fb,
+            ContactVerdict::Bridged,
+            band(),
+        ));
+        assert_eq!(definite, bridged);
     }
 }
 
