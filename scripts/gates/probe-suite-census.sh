@@ -223,14 +223,11 @@ CITING_FILES=(
 # NOT LIVE CLAIMS, and the reason this list exists at all. A dated scan
 # or a milestone log RECORDS what CI did on the day it was written; the
 # step name in it is history and stays correct when the step is renamed.
-# `docs/SMELL-SCAN-2026-08.md` used to sit in CITING_FILES, which made a
-# living document — 12,000 lines when this was written, and growing daily,
-# which is the point rather than the figure: nothing re-takes that count
-# and the argument is about the document's rate of change, not its size —
-# a hard CI dependency on a literal string —
-# every lane on every concurrent track edits it daily, and archiving or
-# reorganising it would have reddened the build for a reason its diff
-# could not explain. Removing it is not narrowing the guard: the rename
+# A living register under `docs/` used to sit in CITING_FILES, which made
+# a document every concurrent lane edits daily into a hard CI dependency
+# on a literal string: archiving or reorganising it would have reddened
+# the build for a reason its diff could not explain. The argument is
+# about a document's rate of change, not its size. Removing it is not narrowing the guard: the rename
 # it exists to catch is caught by the `ci.yml` check below, which is the
 # load-bearing half, and by the four live claims above.
 #
@@ -770,7 +767,7 @@ plant_undeclared_citation() {
 # the NEGATIVE CONTROL for the case above.
 plant_exempt_citation() {
   mkdir -p "$1/docs/prompts"
-  printf 'On 2026-08-20 CI ran %s.\n' "$CITED_STEP" > "$1/docs/SMELL-SCAN-2026-08.md"
+  printf 'On 2026-08-20 CI ran %s.\n' "$CITED_STEP" > "$1/docs/zz-dated-scan.md"
   printf 'A brief quoting %s.\n' "$CITED_STEP" > "$1/docs/prompts/zz-new-brief.md"
 }
 # A NEW probe suite with no declared disposition: the state every unrun

@@ -1731,9 +1731,8 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     tubes between them resolve every cell above any floor. What is
 //     needed is a fixture leaving a region neither excluded nor
 //     accounted at every width — a new fixture, not a new assertion.
-//     Scheduled as §D row C18 in `docs/SMELL-SCAN-2026-08.md`, which
-//     carries this negative result so the next taker does not repeat
-//     it.
+//     The negative result is written out here so the next taker does
+//     not repeat the naive road in.
 //   - the chart-speed guard's ZERO arm. Its non-finite arm is covered
 //     by `an_infinite_chart_speed_refuses_rather_than_receipting`; a
 //     wall whose chart speed is exactly zero has no fixture.

@@ -409,8 +409,8 @@ fn level_ring(
 /// without any orientation at all — a hole loop needs no special case,
 /// its crossings simply cancel the plate's.
 ///
-/// **A DECLARED COPY** (report §S17; this is the outermost of the
-/// ray-parity implementations it tracks). Reuse is blocked in every
+/// **A DECLARED COPY** — the outermost of the tree's ray-parity
+/// implementations. Reuse is blocked in every
 /// direction: `topo::splitting::containment::point_in_loop` is public
 /// but takes `(&Body, LoopKey)` and walks the B-rep, so it cannot
 /// consume a sampled polyline; `chart_region::point_in_polygon`,

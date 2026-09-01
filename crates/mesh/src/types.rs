@@ -213,7 +213,7 @@ pub enum TessellateError {
     ///
     /// No at-rest construction in tree mints a genuinely NOTCHED such
     /// domain today: the boolean refuses `CurvedPierceUnsupported` and
-    /// `import_step`'s tier-3 gate refuses `NotIsoRectangle` (S28).
+    /// `import_step`'s tier-3 gate refuses `NotIsoRectangle`.
     /// Both of those are *other modules'* limits; this arm is the
     /// check at the site that makes the assumption.
     ///
