@@ -109,6 +109,8 @@ mod mate5_cyl_eps_rung;
 mod mate8_witness_schedule;
 #[path = "mate9_crossing_rung.rs"]
 mod mate9_crossing_rung;
+#[path = "review_mate9_r2_probes.rs"]
+mod review_mate9_r2_probes;
 
 #[path = "merge_skip.rs"]
 mod merge_skip;
