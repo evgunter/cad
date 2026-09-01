@@ -575,3 +575,38 @@ fn probe7b_a_definitely_separated_pair_is_falsely_certified() {
         false_positives.join("\n")
     );
 }
+
+/// PROBE 1b: the same defect stated on the PR's OWN
+/// `one_axis_tilt_two_extents_two_answers` short-pair constants — the
+/// transferred axial coordinate is displaced by ~tilt·r while all three
+/// carrier gates return Zero.
+#[test]
+fn probe1b_transfer_axial_error_is_levered_by_the_radius_not_the_reach() {
+    let tol = Tol::witness();
+    let (eps, k) = (tol.eps(), tol.k());
+    let tilt = 40.0 * k * eps; // the unit's own fixture constant
+    let fb = tilted_frame(tilt);
+    let fa = frame_a();
+    let (u, v) = (0.2_f64, 1e-3_f64); // a boundary point of the short B sheet
+    let p = fb.at(u, v);
+    let v_true = (p - fa.origin).dot(fa.axis);
+    let c = (fb.origin - fa.origin).dot(fa.axis);
+    let v_xfer = c + v; // the arm's transfer, σ = +1
+    let err = (v_true - v_xfer).abs();
+    println!(
+        "transfer axial error = {err:e} m = {:.1}*eps = {:.2}*(k*eps); \
+         tilt gate margin (sin θ · axial reach) = {:e} (< eps = {eps:e} ⇒ Zero)",
+        err / eps,
+        err / (k * eps),
+        fb.axis.cross(fa.axis).norm() * 1e-3
+    );
+    assert!(
+        err <= k * eps,
+        "FINDING: the unit's own peg-extent fixture carries a transferred \
+         axial error of {:.1}*eps ({:.2}*k*eps) while all three carrier \
+         gates return Zero — 'certified everywhere within ε' does not hold \
+         once r/L > 1",
+        err / eps,
+        err / (k * eps)
+    );
+}
