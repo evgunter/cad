@@ -95,6 +95,8 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
+
+use super::surface_group::{RimExemption, surface_group};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -482,34 +484,18 @@ enum FaceGeo<T: geom_core::Real> {
 /// the question of the GROUP rather than the face is what lets the
 /// whole-sphere class through without inventing a per-face chart trim.
 ///
-/// The scan is exact-`f64` structure selection (C6): it reads arena
-/// keys and mate adjacency only, never a margin, so it has no in-band
-/// twin and does not move with ε. Rings on a sphere face make the
-/// answer `None` (a ringed sphere face is a trimmed one).
+/// The scan is [`super::surface_group`]'s, with nothing exempt: it reads
+/// arena keys and mate adjacency only, never a margin, so it has no
+/// in-band twin and does not move with ε. Rings on a sphere face make
+/// the answer `None` (a ringed sphere face is a trimmed one), and so
+/// does a body this walk cannot complete — a sphere face whose arena is
+/// broken is not a CLOSED sphere face, and the trimmed class it falls
+/// through to raises the corruption itself.
 pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<FaceKey> {
-    let surface = body.get_face(face)?.surface;
-    let group: Vec<FaceKey> = body
-        .faces()
-        .filter(|(_, f)| f.surface == surface)
-        .map(|(k, _)| k)
-        .collect();
-    for &member in &group {
-        let f = body.get_face(member)?;
-        if !f.rings.is_empty() {
-            return None;
-        }
-        let LoopBoundary::Cycle { first } = body.get_loop(f.outer)?.boundary else {
-            return None;
-        };
-        for he in body.loop_cycle(first)? {
-            let mate = body.mate(he)?;
-            let neighbour = body.get_loop(body.get_half_edge(mate)?.parent_loop)?.face;
-            if !group.contains(&neighbour) {
-                return None;
-            }
-        }
-    }
-    group.first().copied()
+    surface_group(body, face, RimExemption::None)
+        .ok()
+        .flatten()
+        .map(|g| g.representative)
 }
 
 /// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Cone, Sphere}
@@ -886,9 +872,10 @@ fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, P
 /// (an oblique plane cuts an ellipse, not a circle), so it is a rim,
 /// and every other carrier crosses `v`. So the rule is: **every
 /// boundary edge that is not a circle must be shared with another
-/// member of the group.** That is [`closed_sphere_group`]'s scan with
-/// rims exempted — arena keys, mate adjacency and curve variants only,
-/// never a margin, so it has no in-band twin and does not move with ε.
+/// member of the group.** That is [`super::surface_group`]'s scan under
+/// [`RimExemption::Circles`] — arena keys, mate adjacency and curve
+/// variants only, never a margin, so it has no in-band twin and does not
+/// move with ε.
 ///
 /// The members must also agree on their slant window, decided against
 /// the band. A group whose members' windows DIFFER is two bands stacked
@@ -911,59 +898,14 @@ fn wrapped_cone_group<T: Decide>(
     cos_a: T,
     band: Band,
 ) -> Result<Option<FaceKey>, PointInSolidError> {
-    let Some(surface) = body.get_face(face).map(|f| f.surface) else {
-        return Err(PointInSolidError::CorruptFace { face });
+    let Some(group) = surface_group(body, face, RimExemption::Circles)
+        .map_err(|face| PointInSolidError::CorruptFace { face })?
+    else {
+        return Ok(None);
     };
-    let group: Vec<FaceKey> = body
-        .faces()
-        .filter(|(_, f)| f.surface == surface)
-        .map(|(k, _)| k)
-        .collect();
-    for &member in &group {
-        let Some(f) = body.get_face(member) else {
-            return Err(PointInSolidError::CorruptFace { face: member });
-        };
-        if !f.rings.is_empty() {
-            return Ok(None);
-        }
-        let Some(LoopBoundary::Cycle { first }) = body.get_loop(f.outer).map(|l| l.boundary) else {
-            return Ok(None);
-        };
-        let Some(cycle) = body.loop_cycle(first) else {
-            return Err(PointInSolidError::CorruptFace { face: member });
-        };
-        for he in cycle {
-            let Some(edge) = body
-                .get_half_edge(he)
-                .and_then(|h| body.get_edge(h.edge))
-                .map(|e| e.curve)
-            else {
-                return Err(PointInSolidError::CorruptFace { face: member });
-            };
-            // A rim bounds the slant window, not the azimuth.
-            if let Some(crate::null::CurveGeom::Certified(c)) = body.get_curve_geom(edge)
-                && matches!(c.carrier(), geom::Curve3::Circle { .. })
-            {
-                continue;
-            }
-            let Some(neighbour) = body
-                .mate(he)
-                .and_then(|m| body.get_half_edge(m))
-                .and_then(|h| body.get_loop(h.parent_loop))
-                .map(|l| l.face)
-            else {
-                return Err(PointInSolidError::CorruptFace { face: member });
-            };
-            if !group.contains(&neighbour) {
-                return Ok(None);
-            }
-        }
-    }
-    let Some(&representative) = group.first() else {
-        return Err(PointInSolidError::CorruptFace { face });
-    };
+    let representative = group.representative;
     let reference = cone_slant_window(body, representative, apex, axis, cos_a)?;
-    for &member in &group {
+    for &member in &group.members {
         let w = cone_slant_window(body, member, apex, axis, cos_a)?;
         for margin in [w.0 - reference.0, w.1 - reference.1] {
             if decide("bool_cone_group_slant", Margin::of(margin), band)

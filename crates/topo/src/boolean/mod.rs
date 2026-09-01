@@ -77,6 +77,7 @@ pub(crate) mod reduce;
 mod rest;
 pub(crate) mod sectors;
 pub mod solid_contain;
+mod surface_group;
 pub mod tables;
 pub mod voids;
 pub(crate) mod vtxfac;
