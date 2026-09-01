@@ -142,6 +142,15 @@ logged pre-draw per the protocol.
   for anything reading the end-to-end value as a feature;
   straddle-driving rows for spines past π; VERBS coordination on
   Helix timing (sweep-ground seam).
+- **BOOL-7 — #134, the vdiff shadow-exec rung (M; assigned by
+  Evan 2026-09-01, M10 dormant).** When the vdiff engine hits an
+  empty pair population on a verdict vanish, shadow-execute exactly
+  the vanished pair's predicates from the prior evaluation's
+  context and diff those — bounded, diagnosis-time-only, recovering
+  the full `PredicateFlip` (option (a), ruled 2026-07-29; recording
+  pruned-pair pseudo-verdicts stays ruled out). Ground:
+  `editor-core/resolve/vdiff.rs` + immediate callers; M10 keep-outs
+  per the Q3 ruling.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -182,7 +191,15 @@ this program's files — see Q3 below.
    fold, a consumer audit for anything reading the end-to-end value
    as a feature, straddle-driving rows, and VERBS coordination on
    Helix timing (`loft.rs` is sweep ground — seam recorded).
-3. **Q3 — #134's charter fit.** Recommendation: **route it out** — it
+3. **Q3 — RULED (Evan, in-chat, 2026-09-01): S-BOOL takes it — M10
+   is dormant.** Scheduled as **BOOL-7** (slate): the vdiff
+   shadow-exec rung under Evan's standing option-(a) ruling
+   (2026-07-29), pure implementation. Keep-outs stay sharp:
+   `editor-core/resolve/vdiff.rs` and its immediate callers only;
+   M10's Dual arms in `product.rs` and the `AtRestPolicy` seam are
+   untouched, and the unit stops and reports if the work reaches
+   either. The original routing recommendation, kept as the
+   record: it
    is pre-ruled, unpressured, and lives in
    `editor-core/resolve/vdiff.rs`, which is nobody's ground here
    (M10's slate is the nearest live claimant and V's fence is the
