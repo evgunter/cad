@@ -728,6 +728,7 @@ class PathDirectedPoint:
     def angle(self, theta: Angle) -> PathDirected: ...
     def toward(self, dx: float, dy: float) -> PathDirected: ...
     def tangent(self) -> PathDirected: ...
+    def cusp(self) -> PathDirected: ...
     def turn(self, delta: Angle) -> PathDirected: ...
     def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
@@ -2114,7 +2115,22 @@ class Evaluation:
         self,
         node: NodeId,
         product_name: Optional[str] = None,
-    ) -> str: ...
+        timestamp: Optional[str] = None,
+        author: Optional[str] = None,
+        organization: Optional[str] = None,
+        originating_system: Optional[str] = None,
+        uncertainty: Optional[Length] = None,
+    ) -> str:
+        """The single body `node` denotes as a STEP (AP214 Part 21)
+        exchange-file string.
+
+        One keyword per `StepOptions` field; each omitted keyword is
+        the Rust default, so the Python door carries the whole options
+        record and narrows nothing. `uncertainty` is the exported
+        `UNCERTAINTY_MEASURE_WITH_UNIT` length — omitted, the writer
+        reads the run's ambient tolerance, which is the ε the body was
+        built under. An `uncertainty` that is not strictly positive is
+        an `ExportError`."""
 
 def evaluate(
     doc: Doc,

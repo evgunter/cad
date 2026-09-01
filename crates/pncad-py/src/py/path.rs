@@ -796,9 +796,18 @@ point_state!(
             PathDirected(Directed::WithIncoming(self.0.clone().tangent()))
         }
 
+        /// Depart along the REVERSE of the incoming end tangent, and
+        /// DECLARE the reverse-tangent joint on lowering — the
+        /// wedge-0/2π authoring door. A junction merely authored
+        /// within ε_input of the reverse is still `JunctionCusp`: the
+        /// declaration is this verb, never a value.
+        fn cusp(&self) -> PathDirected {
+            PathDirected(Directed::WithIncoming(self.0.clone().cusp()))
+        }
+
         /// Depart at the incoming tangent rotated by `delta`. A zero
         /// turn lands in the tangent band and refuses (use
-        /// `tangent()`); a half turn refuses as a cusp.
+        /// `tangent()`); a half turn refuses as a cusp (use `cusp()`).
         fn turn(&self, py: Python<'_>, delta: Angle) -> PyResult<PathDirected> {
             let tol = Tol::witness();
             self.0
