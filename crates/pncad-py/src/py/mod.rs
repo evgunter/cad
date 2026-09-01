@@ -332,11 +332,12 @@ pyo3::create_exception!(
 /// makes the rule hold for doors written after it rather than only
 /// for the ones it was written for.
 ///
-/// The check is a `debug_assert`, and the wheel both CI and
-/// `run-python-tests.sh` build is a debug build, so it runs over every
-/// door the Python suite exercises. A door no test reaches is not
-/// checked, and a release wheel does not check at all — a user's
-/// refusal is never replaced by a boundary panic.
+/// It is a `debug_assert`, which in this workspace is live in every
+/// profile — the root manifest keeps them on under release too — so it
+/// runs over every door the Python suite exercises and stays on in a
+/// built wheel. A Debug dump reaching a user is a binding bug, and
+/// D9's converse says a detectable bug state panics; what the check
+/// cannot see is a door no test reaches.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,

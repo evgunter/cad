@@ -85,11 +85,7 @@ impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::UnknownNode { node } => {
-                write!(
-                    f,
-                    "export: node {} has no entry in this evaluation",
-                    node.0
-                )
+                write!(f, "export: node {} has no entry in this evaluation", node.0)
             }
             Self::NodeFailed { node } => write!(
                 f,
@@ -101,8 +97,7 @@ impl core::fmt::Display for ExportError {
                 f,
                 "export: node {} never ran — poisoned through failed \
                  ancestor {}",
-                node.0,
-                through.0
+                node.0, through.0
             ),
             Self::NotABody { node, kind } => {
                 write!(
