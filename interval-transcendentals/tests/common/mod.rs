@@ -147,6 +147,48 @@ pub struct Ceiling {
     /// it is the one class where a width blow-up would otherwise be
     /// invisible to both instruments.
     pub max_steps_when_oracle_exact: i128,
+    /// Upper bound, in representable steps, on how far EACH of our
+    /// endpoints may sit outside the correctly-rounded one.
+    ///
+    /// **Why a ratio is not enough, and this is not a second spelling of
+    /// it.** `max_ratio` is scale-free: it divides two widths, so a
+    /// FIXED over-widening — a pad applied twice, a clip dropped — is
+    /// invisible to it wherever the oracle's own width is already large.
+    /// That is the whole class this field scores, and it is scored
+    /// per-endpoint precisely because a width can also hide it: widening
+    /// `lo` by `k` steps and narrowing nothing moves the width by `k`,
+    /// which is nothing against a wide box.
+    ///
+    /// **Why #786 declined it, and what answers that.** The stated
+    /// reason was that extremum capture, huge-argument degradation and
+    /// pole/branch-cut refusals all make a per-endpoint bound fire on
+    /// sound output — so what was owed was a bound that excludes those
+    /// paths from the INPUT rather than from the output. Both exclusions
+    /// exist in the tree now and neither is new here: the refusals leave
+    /// an UNBOUNDED endpoint, and this field is scored only on the class
+    /// where both enclosures are bounded and non-empty; and false
+    /// extremum capture — the sound-but-wide answer — has its onset at
+    /// `|x| ≈ 2^32`, twenty-four binades above where the
+    /// ceiling-carrying windows stop (`certify.rs`'s `WINDOWS`). A TRUE
+    /// capture is not a divergence at all: both sides return the
+    /// extremum. The accumulator that carries the huge window carries no
+    /// `Ceiling`, here as for the ratio.
+    ///
+    /// **`None` scores the ratio and not the endpoints**, for a class
+    /// whose endpoints are deliberately NOT the correctly-rounded ones —
+    /// the caller owes the divergence by name at the call site. It is not
+    /// a way to quiet a red: an excursion that is not a documented
+    /// divergence is exactly what this field exists to report.
+    ///
+    /// **Measured at effort 8** (2.4M draws per unary function): 4 steps
+    /// for every transcendental and 5 for `atan2` against an allowance of
+    /// 8; 1 step for `+ − × ÷ sqrt` against 4; and 1 to 75 for `powi`
+    /// across its exponents against its exponent-dependent allowance. One
+    /// class exceeds any fixed number and is `None`: `atan2` over an
+    /// origin-containing box, whose `[-π, π]` hull sits 9.2e18 steps from
+    /// the oracle's quadrant-tight endpoints (semantics-diffs D4) while
+    /// its width ratio stays at 4.
+    pub max_endpoint_steps: Option<i128>,
 }
 
 /// Tightness accumulator. Every drawn case lands in exactly one bucket,
@@ -206,6 +248,15 @@ pub struct Tightness {
     /// representable steps instead of as a ratio.
     pub oracle_exact: u64,
     pub worst_steps_when_oracle_exact: i128,
+    /// Draws scored per-endpoint: both enclosures bounded and non-empty,
+    /// which is exactly the class where a step distance between two
+    /// endpoints is defined. It is the union of the `ratios` and
+    /// `oracle_exact` buckets, so the anti-vacuity floor on the first
+    /// already keeps it non-empty.
+    pub endpoint_cases: u64,
+    /// The worst single endpoint excursion seen, in representable steps
+    /// (`lo` and `hi` scored separately, the worst of the two kept).
+    pub worst_endpoint_steps: i128,
 }
 
 #[cfg(feature = "oracle-inari")]
@@ -229,6 +280,16 @@ impl Tightness {
             self.mine_unbounded_oracle_bounded += 1;
             return;
         }
+        // Both bounded and non-empty: the class where an endpoint
+        // distance is defined, scored before the width buckets split
+        // because it applies to every draw in it. Containment
+        // (`assert_contains`) means `mine.lo <= iv.inf` and
+        // `iv.sup <= mine.hi`, so both distances are non-negative.
+        self.endpoint_cases += 1;
+        self.worst_endpoint_steps = self
+            .worst_endpoint_steps
+            .max(steps(mine.lo(), iv.inf()))
+            .max(steps(iv.sup(), mine.hi()));
         if ow == 0.0 {
             self.oracle_exact += 1;
             self.worst_steps_when_oracle_exact = self
@@ -299,7 +360,8 @@ impl Tightness {
         println!(
             "TIGHTNESS {label}: n={n}/{} mean={mean:.6} p50={p50:.6} p99={p99:.6} \
              max={worst:.6} wider={:.3}% | empty={} oracle_unbounded={} \
-             MINE_UNBOUNDED={} oracle_exact={} (worst {} steps)",
+             MINE_UNBOUNDED={} oracle_exact={} (worst {} steps) \
+             endpoints={} (worst {} steps)",
             self.total,
             100.0 * self.mine_wider_cases as f64 / self.total as f64,
             self.empty_cases,
@@ -307,6 +369,8 @@ impl Tightness {
             self.mine_unbounded_oracle_bounded,
             self.oracle_exact,
             self.worst_steps_when_oracle_exact,
+            self.endpoint_cases,
+            self.worst_endpoint_steps,
         );
         let Some(c) = ceiling else {
             return;
@@ -339,6 +403,19 @@ impl Tightness {
             self.oracle_exact,
             self.worst_steps_when_oracle_exact,
             c.max_steps_when_oracle_exact
+        );
+        assert!(
+            c.max_endpoint_steps
+                .is_none_or(|allowed| self.worst_endpoint_steps <= allowed),
+            "{label}: one of our endpoints sat {} representable steps outside the \
+             correctly-rounded one, over {} draws where both enclosures were \
+             bounded; the contract allows {}. This is the ABSOLUTE half of the \
+             bound — a fixed over-widening moves no width ratio wherever the \
+             oracle's own width is already large — so do not read the ratio line \
+             above as covering it.",
+            self.worst_endpoint_steps,
+            self.endpoint_cases,
+            c.max_endpoint_steps.unwrap_or_default()
         );
         assert!(
             worst <= c.max_ratio,

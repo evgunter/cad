@@ -30,7 +30,10 @@
 //! that is too small is invisible to every cheap-tier row. It also owns
 //! the upper bound on the whole enclosure, via `Tightness`' ceiling
 //! below — the cheap tier's `pad_contract.rs` bounds each pad, this
-//! bounds the result.
+//! bounds the result — and it bounds it in **two** directions, because
+//! one of them does not imply the other: a scale-free width RATIO, and
+//! an absolute PER-ENDPOINT step distance that a ratio cannot see
+//! wherever the oracle's own width is already large.
 #![cfg(feature = "oracle-inari")]
 
 mod common;
@@ -107,6 +110,7 @@ const TRANSCENDENTAL: fn() -> Ceiling = || Ceiling {
     max_ratio: 64.0,
     min_ratio_fraction: 0.25,
     max_steps_when_oracle_exact: 16,
+    max_endpoint_steps: Some(8),
 };
 
 /// The same for the 1-step ops (`+ − × ÷ sqrt`): structural worst
@@ -118,6 +122,7 @@ const ARITHMETIC: fn() -> Ceiling = || Ceiling {
     max_ratio: 8.0,
     min_ratio_fraction: 0.25,
     max_steps_when_oracle_exact: 8,
+    max_endpoint_steps: Some(4),
 };
 
 /// The exponents `certify_powi` draws.
@@ -204,6 +209,15 @@ fn powi_ceiling(n: i32) -> Option<Ceiling> {
         min_ratio_fraction: if n < 0 { 0.15 } else { 0.25 },
         #[allow(clippy::cast_possible_truncation)]
         max_steps_when_oracle_exact: (2.0 * pad) as i128,
+        // `pad` counts RELATIVE steps — the ladder's pads are applied at
+        // the intermediates and carried to the result by multiplication,
+        // not stamped on the result — so converting one to representable
+        // steps costs the same binade factor of 2 the ratio derivation
+        // pays, plus one step for the oracle's own rounding and one for
+        // ours. (The transcendentals' pads need no such conversion:
+        // `step_down(v, 4)` is already a step count at the result.)
+        #[allow(clippy::cast_possible_truncation)]
+        max_endpoint_steps: Some(2 * (pad as i128) + 2),
     })
 }
 
@@ -313,6 +327,18 @@ fn certify_sqrt() {
 fn certify_atan2() {
     let mut rng = fuzz::start("certify::atan2");
     let mut tight = Tightness::default();
+    // The D4 divergence, split out so that each half is scored by the
+    // instrument that fits it. Over an ORIGIN-CONTAINING box this crate
+    // returns the full `[-π, π]` hull where inari returns a
+    // quadrant-tight enclosure, deliberately
+    // (`docs/semantics-diffs.md` D4: at the `Trv` such a box carries,
+    // the value cannot decide anything anyway). The width RATIO stays
+    // small — both enclosures are wide — while the ENDPOINTS sit as far
+    // from the oracle's as the codomain allows, measured at 9.2e18
+    // representable steps. So this class keeps the ratio ceiling and
+    // drops the endpoint bound, and the exclusion is on the INPUT, which
+    // is what the per-endpoint bound was owed.
+    let mut tight_origin = Tightness::default();
     for i in 0..fuzz::scaled(CASES_BINARY) {
         let w = WINDOWS[i % 4];
         let y = gen_interval(&mut rng, w.0, w.1);
@@ -330,9 +356,21 @@ fn certify_atan2() {
             &oracle,
             exception,
         );
-        tight.record(&mine, &oracle);
+        if x.contains(0.0) && y.contains(0.0) {
+            &mut tight_origin
+        } else {
+            &mut tight
+        }
+        .record(&mine, &oracle);
     }
     tight.report("atan2", Some(TRANSCENDENTAL()));
+    tight_origin.report(
+        "atan2[origin-box]",
+        Some(Ceiling {
+            max_endpoint_steps: None,
+            ..TRANSCENDENTAL()
+        }),
+    );
 }
 
 #[test]

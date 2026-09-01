@@ -41,6 +41,16 @@
 //! endpoints is right, and containment properties written against
 //! `Bounds` depend on it.
 //!
+//! The backend has one operation whose result carries `Trv` on **every**
+//! input — `DInterval::intersection`, the third case of that crate's
+//! own soundness contract — and it protects nothing at this scalar
+//! today: `Interval` wraps the backend type privately and exposes no
+//! intersection, so no value here can carry that decoration and the
+//! caveat has no consumer-side content to restate. What is worth a line
+//! is the consequence if that changes, since both doors above refuse
+//! below `Def`: an exposed `intersection` would be refused on every
+//! result, however clean its operands.
+//!
 //! # Certification semantics: truth containment, not f64 containment
 //!
 //! An enclosure brackets the TRUE value — never, by contract, the `f64`
