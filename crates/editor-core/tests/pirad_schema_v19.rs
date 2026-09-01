@@ -63,7 +63,7 @@ const V17: &str = include_str!("golden/v17_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    assert_eq!(SCHEMA_VERSION, 19);
+    assert_eq!(SCHEMA_VERSION, 20);
 }
 
 #[test]

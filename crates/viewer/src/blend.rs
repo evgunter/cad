@@ -62,7 +62,7 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Expr, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
 use crate::session::{EdgeSelection, Selection, SessionOp};
@@ -584,7 +584,7 @@ impl BlendTool {
     /// selection's meaning — a stranded name, a mis-kinded one, a
     /// radius the geometry cannot take — refuses typed at evaluation
     /// on the node's own badge.
-    pub fn fillet_op(&self, radius: f64) -> Result<SessionOp, BlendError> {
+    pub fn fillet_op(&self, radius: Expr) -> Result<SessionOp, BlendError> {
         Ok(SessionOp::AddFillet {
             target: self.require_target()?,
             radius,
@@ -599,7 +599,7 @@ impl BlendTool {
     /// # Errors
     ///
     /// As [`BlendTool::fillet_op`].
-    pub fn chamfer_op(&self, distance: f64) -> Result<SessionOp, BlendError> {
+    pub fn chamfer_op(&self, distance: Expr) -> Result<SessionOp, BlendError> {
         Ok(SessionOp::AddChamfer {
             target: self.require_target()?,
             distance,

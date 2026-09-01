@@ -54,6 +54,7 @@ mod fixture;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, param_env_over};
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
@@ -118,6 +119,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(uniform(half)),
         },
     });
@@ -147,6 +149,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 0.25,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(radius),
         },
     });
@@ -155,6 +158,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 0.5,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(depth),
         },
     });
@@ -194,6 +198,7 @@ fn sliver_axis() -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Scalar,
             value: 20.0 * eps(),
+            display_unit: UnitSym::canonical_for(Dimension::Scalar),
             distribution: Some(uniform(15.0 * eps())),
         },
     });

@@ -30,7 +30,7 @@
 
 mod common;
 
-use common::insert;
+use common::{ang, insert, len, len3, scl3, shape};
 use pncad::document::{
     Dimension, Doc, Expr, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
 };
@@ -68,17 +68,17 @@ fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
         session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: side,
                 height: side,
-            }],
+            })],
         },
     );
     insert(
         session,
         SessionOp::AddExtrude {
             profile,
-            distance: side,
+            distance: len(side),
         },
     )
 }
@@ -230,7 +230,7 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     );
 
     let op = blend(&tools)
-        .fillet_op(BLEND)
+        .fillet_op(len(BLEND))
         .expect("a tool holding edges commits");
     let fillet = commit(&mut session, &mut tools, op);
 
@@ -279,7 +279,7 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     let mut tools = picked_all(&session, target);
 
     let op = blend(&tools)
-        .chamfer_op(BLEND)
+        .chamfer_op(len(BLEND))
         .expect("a tool holding edges commits");
     let chamfer = commit(&mut session, &mut tools, op);
 
@@ -328,7 +328,7 @@ fn session_with_fillet(tol: Tol) -> (DocSession, RecipeNodeId) {
     let target = boxed(&mut session, SIDE);
     session.pump();
     let mut tools = picked_all(&session, target);
-    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
     (session, fillet)
 }
@@ -356,7 +356,7 @@ fn the_all_edges_door_loads_the_set_twelve_clicks_would_have() {
     let picked = picked_all(&session, target);
     assert_eq!(blend(&tools), blend(&picked));
 
-    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
     assert_eq!(
         session.committed_doc().node(fillet),
@@ -376,7 +376,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
-                position: [0.0, 0.0, 0.0],
+                position: len3([0.0, 0.0, 0.0]),
             },
         },
     );
@@ -432,7 +432,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
 
     // The committed node is still the first box's, unchanged by the
     // stray click.
-    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
     assert!(matches!(
         session.committed_doc().node(fillet),
@@ -504,7 +504,7 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(blend(&tools).target(), None);
     assert_eq!(
         blend(&tools)
-            .fillet_op(BLEND)
+            .fillet_op(len(BLEND))
             .expect_err("a tool holding no edges refuses"),
         BlendError::NoEdges,
         "and the commit door refuses rather than authoring an empty blend"
@@ -538,7 +538,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         &mut session,
         SessionOp::AddFillet {
             target,
-            radius: BLEND,
+            radius: len(BLEND),
             selection,
         },
     );
@@ -592,7 +592,7 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
     // A radius the size of the whole cube: the rolling ball does not
     // fit, and the op refuses rather than passing the sharp box
     // through.
-    let op = blend(&tools).fillet_op(SIDE).expect("commits");
+    let op = blend(&tools).fillet_op(len(SIDE)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
     session.pump();
 
@@ -629,7 +629,7 @@ fn an_authored_blend_saves_and_reloads() {
     let target = boxed(&mut session, SIDE);
     session.pump();
     let mut tools = picked_all(&session, target);
-    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
     let volume = body_volume(&mut session, fillet, tol);
 
@@ -672,22 +672,22 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: SIDE,
                 height: SIDE,
-            }],
+            })],
         },
     );
 
     for op in [
         SessionOp::AddFillet {
             target: profile,
-            radius: BLEND,
+            radius: len(BLEND),
             selection: selection.clone(),
         },
         SessionOp::AddChamfer {
             target: profile,
-            distance: BLEND,
+            distance: len(BLEND),
             selection: selection.clone(),
         },
     ] {
@@ -722,19 +722,19 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
     tools.open(ToolKind::Blend);
     assert_eq!(
         blend(&tools)
-            .fillet_op(BLEND)
+            .fillet_op(len(BLEND))
             .expect_err("a tool holding no edges refuses"),
         BlendError::NoEdges
     );
     assert_eq!(
         blend(&tools)
-            .chamfer_op(BLEND)
+            .chamfer_op(len(BLEND))
             .expect_err("a tool holding no edges refuses"),
         BlendError::NoEdges
     );
     assert_eq!(
         blend(&tools)
-            .fillet_op(BLEND)
+            .fillet_op(len(BLEND))
             .expect_err("a tool holding no edges refuses")
             .to_string(),
         "no edges picked yet"
@@ -746,7 +746,7 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
         &mut session,
         SessionOp::AddFillet {
             target,
-            radius: BLEND,
+            radius: len(BLEND),
             selection: Vec::new(),
         },
     );
@@ -852,8 +852,8 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, SIDE / 2.0],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, SIDE / 2.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -953,9 +953,9 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_b,
-            translation: [SIDE * 0.5, SIDE * 0.25, SIDE * 0.25],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
+            translation: len3([SIDE * 0.5, SIDE * 0.25, SIDE * 0.25]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
     );
     let union = insert(
@@ -1120,7 +1120,7 @@ fn an_emptied_set_releases_its_target() {
     assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
     assert_eq!(
         blend(&tools)
-            .fillet_op(BLEND)
+            .fillet_op(len(BLEND))
             .expect_err("a tool holding no edges refuses"),
         BlendError::NoEdges
     );

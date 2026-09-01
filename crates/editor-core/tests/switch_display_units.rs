@@ -26,6 +26,7 @@ fn dim_of(row: quantity::UnitDef) -> Dimension {
     match row.quantity() {
         quantity::UnitQuantity::Length => Dimension::Length,
         quantity::UnitQuantity::Angle => Dimension::Angle,
+        quantity::UnitQuantity::Scalar => Dimension::Scalar,
     }
 }
 
@@ -102,8 +103,17 @@ fn mismatched_display_unit_refuses_at_construction() {
     }
     match Expr::literal_with_unit(0.5, Dimension::Scalar, table_row("deg")) {
         Err(DimensionError::DisplayUnitMismatch { .. }) => {}
-        other => panic!("a unit on a Scalar literal must refuse, got {other:?}"),
+        other => panic!("deg on a Scalar literal must refuse, got {other:?}"),
     }
+    // The dimensionless row is the one a Scalar literal MAY name, and
+    // it is the one `Expr::literal` gives it.
+    assert_eq!(
+        Expr::literal_with_unit(0.5, Dimension::Scalar, table_row(""))
+            .expect("the dimensionless row suits a Scalar")
+            .display_unit()
+            .map(|u| u.symbol()),
+        Some("")
+    );
     // literal()'s own doors still run underneath.
     assert!(matches!(
         Expr::literal_with_unit(f64::NAN, Dimension::Length, table_row("mm")),
@@ -112,11 +122,12 @@ fn mismatched_display_unit_refuses_at_construction() {
 }
 
 /// The load door stays strict: an unknown display-unit SYMBOL refuses
-/// (closed vocabulary), an unknown FIELD refuses (`deny_unknown_fields`
-/// kept), and a unitless literal serializes WITHOUT the field (golden
-/// byte-stability: absence is the canonical spelling of "no unit").
+/// (closed vocabulary), an unknown FIELD refuses
+/// (`deny_unknown_fields` kept), and the unit is ALWAYS on the wire —
+/// there is no "absent" spelling any more, because there is no
+/// unit-less literal to spell.
 #[test]
-fn wire_door_refuses_unknown_units_and_omits_absent_ones() {
+fn wire_door_refuses_unknown_units_and_writes_every_one() {
     let bad_symbol = r#"{"Literal":{"value":0.025,"dim":"Length","unit":"furlong"}}"#;
     let err = serde_json::from_str::<Expr>(bad_symbol).unwrap_err();
     assert!(
@@ -125,15 +136,31 @@ fn wire_door_refuses_unknown_units_and_omits_absent_ones() {
     );
     let bad_field = r#"{"Literal":{"value":0.025,"dim":"Length","units":"mm"}}"#;
     assert!(serde_json::from_str::<Expr>(bad_field).is_err());
-    // Absence round-trips as absence.
+    // A MISSING unit refuses too: it is a v19 spelling, and the field
+    // is no longer optional.
+    let absent = r#"{"Literal":{"value":0.025,"dim":"Length"}}"#;
+    assert!(
+        serde_json::from_str::<Expr>(absent).is_err(),
+        "a literal with no unit is a pre-v20 spelling and has no meaning now"
+    );
+
+    // A canonically-authored literal names the canonical row, and says
+    // so on the wire.
     let plain = Expr::literal(0.025, Dimension::Length).unwrap();
     let json = serde_json::to_string(&plain).unwrap();
+    assert!(json.contains(r#""unit":"m""#), "canonical is named: {json}");
+    let back: Expr = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.display_unit().map(|u| u.symbol()), Some("m"));
+
+    // Including the dimensionless one, whose symbol is empty.
+    let scalar = Expr::literal(0.5, Dimension::Scalar).unwrap();
+    let json = serde_json::to_string(&scalar).unwrap();
     assert!(
-        !json.contains("unit"),
-        "no unit ⇒ no field on the wire: {json}"
+        json.contains(r#""unit":"""#),
+        "dimensionless is named: {json}"
     );
     let back: Expr = serde_json::from_str(&json).unwrap();
-    assert_eq!(back.display_unit(), None);
+    assert_eq!(back.display_unit().map(|u| u.symbol()), Some(""));
 }
 
 /// **The LOAD door refuses a TABLED symbol carried on the wrong
@@ -324,7 +351,7 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
 /// rendering. The golden `.cad` documents (`tests/golden/v*.cad`) carry
 /// a `"unit": "mm"` literal each and are the same evidence at document
 /// scale — for one of these rows at one value.
-const UNIT_WIRE_GOLDEN: [(&str, &str); 7] = [
+const UNIT_WIRE_GOLDEN: [(&str, &str); 8] = [
     (
         "mm",
         r#"{"Literal":{"value":0.0025,"dim":"Length","unit":"mm"}}"#,
@@ -353,6 +380,10 @@ const UNIT_WIRE_GOLDEN: [(&str, &str); 7] = [
         "pi rad",
         r#"{"Literal":{"value":7.853981633974483,"dim":"Angle","unit":"pi rad"}}"#,
     ),
+    // The dimensionless row: its symbol is the empty string, and it is
+    // on the wire exactly as every other unit is. `2.5` with no
+    // multiply — the factor is 1.0 and there is nothing to convert.
+    ("", r#"{"Literal":{"value":2.5,"dim":"Scalar","unit":""}}"#),
 ];
 
 fn golden_wire_form(symbol: &str) -> &'static str {

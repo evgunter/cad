@@ -272,6 +272,9 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
             DocParam::Continuous {
                 dim,
                 value,
+                // Presentation metadata: it enters no evaluation, no
+                // key and no predicate, so it enters no analysis either.
+                display_unit: _,
                 distribution,
             } => {
                 let offsets = match distribution {

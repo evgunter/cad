@@ -36,9 +36,9 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, BooleanOp, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension,
     DimensionError, Doc, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Expr, Frame, Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate, parse_expr, product,
-    run_checks,
+    Expr, Frame, LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate,
+    parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
@@ -56,7 +56,6 @@ use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
 use crate::parts;
 use crate::props::{self, SlotDriver, SlotValue};
-use crate::sketch::loop_program;
 use crate::tree::{self, TreeRow};
 
 /// A picked face: the stable name it is, and the node whose body
@@ -848,26 +847,26 @@ fn kind_census(doc: &Doc<ProfileProgram>, nodes: &[RecipeNodeId]) -> String {
 /// origins and positions are Lengths, normals and directions are
 /// Scalars (an unnormalized direction; evaluation normalizes or
 /// refuses degenerate loudly).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum DatumSpec {
     /// A plane through `origin` with normal `normal`.
     Plane {
-        /// Origin components, metres.
-        origin: [f64; 3],
-        /// Normal components, unitless.
-        normal: [f64; 3],
+        /// Origin components (`Length`).
+        origin: [Expr; 3],
+        /// Normal components (`Scalar`).
+        normal: [Expr; 3],
     },
     /// An axis through `origin` along `direction`.
     Axis {
-        /// Origin components, metres.
-        origin: [f64; 3],
-        /// Direction components, unitless.
-        direction: [f64; 3],
+        /// Origin components (`Length`).
+        origin: [Expr; 3],
+        /// Direction components (`Scalar`).
+        direction: [Expr; 3],
     },
     /// A point at `position`.
     Point {
-        /// Position components, metres.
-        position: [f64; 3],
+        /// Position components (`Length`).
+        position: [Expr; 3],
     },
 }
 
@@ -880,29 +879,32 @@ pub enum DatumSpec {
 /// their own and this file is the crate's accretion case (#1386).
 pub use crate::sketch::ProfileShape;
 
-/// The literal payload of one pattern form (GAUTH-4), beside the other
-/// two authoring specs for the reason they are here at all: the SESSION
-/// mints the `Expr` slots, so the form hands it plain numbers in
-/// canonical units and one node reference — the axis, which is a PICK
-/// rather than a field.
+/// The payload of one pattern form (GAUTH-4), beside the other
+/// authoring spec for the reason it is here at all: it names what a
+/// form authors, plus the node references that are PICKS rather than
+/// fields.
 ///
 /// `Explicit` has no arm by the plan's ruling: a list of absolute
 /// frames is not a form's job.
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// **The fields are `Expr`, not numbers** — see [`SessionOp`]'s note on
+/// the authoring vocabulary. Not `Copy` in consequence, which an
+/// `Expr` cannot be.
+#[derive(Clone, Debug, PartialEq)]
 pub enum PatternRuleSpec {
     /// Stepped along a direction (`PatternKind::Linear`).
     Linear {
-        /// Step direction components, dimensionless.
-        direction: [f64; 3],
-        /// Distance between instances, metres.
-        spacing: f64,
+        /// Step direction components (`Scalar`).
+        direction: [Expr; 3],
+        /// Distance between instances (`Length`).
+        spacing: Expr,
     },
     /// Stepped around a datum axis (`PatternKind::Circular`).
     Circular {
         /// The datum-axis node stepped around.
         axis: RecipeNodeId,
-        /// Angular step between instances, radians.
-        step: f64,
+        /// Angular step between instances (`Angle`).
+        step: Expr,
     },
 }
 
@@ -970,9 +972,12 @@ pub enum SessionOp {
     /// A separate door from [`SessionOp::SetSlot`] because the value
     /// and its notation are independent facts about a literal (D7 keeps
     /// the display unit out of expression identity entirely), and an
-    /// operation that moved both could not move either alone. `None`
-    /// means "remember no unit": the value renders canonically, which
-    /// is what a literal authored without a suffix already does.
+    /// operation that moved both could not move either alone.
+    ///
+    /// There is no "remember no unit" spelling, because there is no
+    /// such state: every literal names its notation, and the canonical
+    /// one is named by naming it (`m`, `rad`, or the dimensionless
+    /// row).
     ///
     /// It is a document edit and enters the history like any other:
     /// the unit is stored in the document and persists, so changing it
@@ -982,8 +987,8 @@ pub enum SessionOp {
         node: RecipeNodeId,
         /// The slot.
         slot: SlotId,
-        /// The unit to write it in, or `None` for canonical.
-        unit: Option<UnitDef>,
+        /// The unit to write it in.
+        unit: UnitDef,
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_expr` door. This is the affordance's editing
@@ -1186,8 +1191,8 @@ pub enum SessionOp {
     AddProfile {
         /// The sketch-plane placement the profile is authored on.
         plane: SketchPlane<f64>,
-        /// The template loops, in description order.
-        loops: Vec<ProfileShape>,
+        /// The loop programs, in description order.
+        loops: Vec<LoopProgram>,
     },
     /// Insert one extrude of an existing profile node — the extrude
     /// tool's one committed edit. A `profile` that is not a
@@ -1201,8 +1206,8 @@ pub enum SessionOp {
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
-        /// The extrusion distance, metres (a literal Length slot).
-        distance: f64,
+        /// The extrusion distance (`Length`).
+        distance: Expr,
     },
     /// Insert one revolve of an existing profile node about an
     /// existing axis datum — the revolve tool's one committed edit.
@@ -1213,9 +1218,9 @@ pub enum SessionOp {
         profile: RecipeNodeId,
         /// The `Datum::Axis` node revolved about.
         axis: RecipeNodeId,
-        /// The sweep angle, radians (a literal Angle slot; the
-        /// chrome's default is a full turn).
-        angle: f64,
+        /// The sweep angle (`Angle`); the chrome's default is a full
+        /// turn.
+        angle: Expr,
     },
     /// Insert one regularized boolean of two existing bodies — the
     /// boolean tool's one committed edit (GAUTH-4).
@@ -1253,18 +1258,17 @@ pub enum SessionOp {
         tool: RecipeNodeId,
     },
     /// Insert one rigid placement of an existing body — the transform
-    /// tool's one committed edit. Literal slots throughout
-    /// (translation Length, rotation axis Scalar, angle Angle); the
-    /// property panel is the editor for all of them afterwards.
+    /// tool's one committed edit. The property panel is the editor for
+    /// every slot afterwards.
     AddTransform {
         /// The body placed.
         input: RecipeNodeId,
-        /// Translation components, metres.
-        translation: [f64; 3],
-        /// Rotation-axis components, dimensionless.
-        rotation_axis: [f64; 3],
-        /// Rotation angle, radians.
-        rotation_angle: f64,
+        /// Translation components (`Length`).
+        translation: [Expr; 3],
+        /// Rotation-axis components (`Scalar`).
+        rotation_axis: [Expr; 3],
+        /// Rotation angle (`Angle`).
+        rotation_angle: Expr,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit.
@@ -1309,8 +1313,8 @@ pub enum SessionOp {
     AddFillet {
         /// The body whose edges are blended.
         target: RecipeNodeId,
-        /// The blend radius, metres (a literal Length slot).
-        radius: f64,
+        /// The blend radius (`Length`).
+        radius: Expr,
         /// The edges to blend, by stable name.
         selection: Vec<StableName>,
     },
@@ -1328,9 +1332,8 @@ pub enum SessionOp {
     AddChamfer {
         /// The body whose edges are chamfered.
         target: RecipeNodeId,
-        /// The setback along both supports, metres (a literal Length
-        /// slot).
-        distance: f64,
+        /// The setback along both supports (`Length`).
+        distance: Expr,
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },
@@ -2043,7 +2046,7 @@ impl DocSession {
             }
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
-            SessionOp::AddProfile { plane, loops } => self.add_profile(plane, &loops),
+            SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
             SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
@@ -2261,12 +2264,13 @@ impl DocSession {
                     });
                 };
                 let value = value.as_f64();
-                let unit = props::written_unit(dimension, remembered);
-                Ok((
-                    value,
-                    props::from_written(1.0, unit),
-                    dimension == Dimension::Count,
-                ))
+                // One of whatever unit the field is written in —
+                // through `rendering_unit`, so a computed slot's step
+                // is the same unit the panel shows it in rather than a
+                // second answer to the same question.
+                let step = props::rendering_unit(dimension, remembered)
+                    .map_or(1.0, |unit| props::from_written(1.0, unit));
+                Ok((value, step, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
                 let Some(param) = self.committed_doc().params().get(name) else {
@@ -2321,12 +2325,7 @@ impl DocSession {
     /// and this op writes no number. What a driven slot refuses is the
     /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
     /// an expression has no authored notation to change.
-    fn set_slot_unit(
-        &mut self,
-        node: RecipeNodeId,
-        slot: SlotId,
-        unit: Option<UnitDef>,
-    ) -> OpOutcome {
+    fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -2600,59 +2599,44 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        match datum_node(datum) {
-            Ok(node) => self.commit(DocEdit::InsertNode { node }),
-            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
-        }
+        self.commit(DocEdit::InsertNode {
+            node: datum_node(datum),
+        })
     }
 
-    /// Insert one profile node from template loops
-    /// ([`SessionOp::AddProfile`]).
+    /// Insert one profile node ([`SessionOp::AddProfile`]).
     ///
     /// No loop-count or nesting judgment here: an empty list, a
     /// degenerate loop and a non-nested pair all go to `commit`, where
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: &[ProfileShape]) -> OpOutcome {
+    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: Vec<LoopProgram>) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        let mut programs = Vec::with_capacity(loops.len());
-        for shape in loops {
-            match loop_program(shape) {
-                Ok(program) => programs.push(program),
-                Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
-            }
-        }
         self.commit(DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane,
-                loops: programs,
-            }),
+            node: Node::Profile(ProfileProgram { plane, loops }),
         })
     }
 
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
-    fn add_extrude(&mut self, profile: RecipeNodeId, distance: f64) -> OpOutcome {
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        match Expr::literal(distance, Dimension::Length) {
-            Ok(distance) => self.commit(DocEdit::InsertNode {
-                node: Node::Extrude { profile, distance },
-            }),
-            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
-        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Extrude { profile, distance },
+        })
     }
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: f64) -> OpOutcome {
+    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -2662,16 +2646,13 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
             return OpOutcome::refused(refusal);
         }
-        match Expr::literal(angle, Dimension::Angle) {
-            Ok(angle) => self.commit(DocEdit::InsertNode {
-                node: Node::Revolve {
-                    profile,
-                    axis,
-                    angle,
-                },
-            }),
-            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
-        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Revolve {
+                profile,
+                axis,
+                angle,
+            },
+        })
     }
 
     /// Insert one regularized boolean of two existing bodies
@@ -2723,9 +2704,9 @@ impl DocSession {
     fn add_transform(
         &mut self,
         input: RecipeNodeId,
-        translation: [f64; 3],
-        rotation_axis: [f64; 3],
-        rotation_angle: f64,
+        translation: [Expr; 3],
+        rotation_axis: [Expr; 3],
+        rotation_angle: Expr,
     ) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
@@ -2733,10 +2714,9 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
-        match combine::transform_node(input, translation, rotation_axis, rotation_angle) {
-            Ok(node) => self.commit(DocEdit::InsertNode { node }),
-            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
-        }
+        self.commit(DocEdit::InsertNode {
+            node: combine::transform_node(input, translation, rotation_axis, rotation_angle),
+        })
     }
 
     /// Insert one pattern of an existing body
@@ -2753,10 +2733,9 @@ impl DocSession {
         {
             return OpOutcome::refused(refusal);
         }
-        match combine::pattern_node(input, count, rule) {
-            Ok(node) => self.commit(DocEdit::InsertNode { node }),
-            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
-        }
+        self.commit(DocEdit::InsertNode {
+            node: combine::pattern_node(input, count, rule),
+        })
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing
@@ -2774,7 +2753,7 @@ impl DocSession {
     fn add_blend(
         &mut self,
         target: RecipeNodeId,
-        size: f64,
+        size: Expr,
         selection: Vec<StableName>,
         kind: BlendKindChoice,
     ) -> OpOutcome {
@@ -2784,12 +2763,6 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
-        // Both sizes are Lengths — a radius and a setback — so the
-        // literal is minted once and the meaning is the node's.
-        let size = match Expr::literal(size, Dimension::Length) {
-            Ok(size) => size,
-            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
-        };
         // The CANONICALIZING constructors, never the struct literals:
         // canonical form is what makes two recipes over the same edges
         // bit-identical, and `persist`'s strict door treats a
@@ -2925,41 +2898,17 @@ impl DocSession {
     }
 }
 
-/// Lower one datum spec to its node, minting the literal slots —
-/// origins and positions Length, normals and directions Scalar (the
-/// [`Datum`] slot dimensions).
+/// Lower one datum spec to its node.
 ///
-/// # Errors
-///
-/// A non-finite component (the literal door's refusal).
-fn datum_node(spec: DatumSpec) -> Result<Node<ProfileProgram>, DimensionError> {
-    let lengths = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
-        Ok([
-            Expr::literal(v[0], Dimension::Length)?,
-            Expr::literal(v[1], Dimension::Length)?,
-            Expr::literal(v[2], Dimension::Length)?,
-        ])
-    };
-    let scalars = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
-        Ok([
-            Expr::literal(v[0], Dimension::Scalar)?,
-            Expr::literal(v[1], Dimension::Scalar)?,
-            Expr::literal(v[2], Dimension::Scalar)?,
-        ])
-    };
-    Ok(Node::Datum(match spec {
-        DatumSpec::Plane { origin, normal } => Datum::Plane {
-            origin: lengths(origin)?,
-            normal: scalars(normal)?,
-        },
-        DatumSpec::Axis { origin, direction } => Datum::Axis {
-            origin: lengths(origin)?,
-            direction: scalars(direction)?,
-        },
-        DatumSpec::Point { position } => Datum::Point {
-            position: lengths(position)?,
-        },
-    }))
+/// Total, for [`combine::pattern_node`]'s reason: the components arrive
+/// as `Expr`s that were checked at their own construction, and whether
+/// each suits the slot it lands in is the edit door's question.
+fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
+    Node::Datum(match spec {
+        DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },
+        DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
+        DatumSpec::Point { position } => Datum::Point { position },
+    })
 }
 
 /// One evaluation of one document, outside the seam.

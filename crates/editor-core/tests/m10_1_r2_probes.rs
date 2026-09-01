@@ -716,6 +716,7 @@ fn the_value_door_carries_the_declaration_forward() {
         DocParam::Continuous {
             dim,
             value,
+            display_unit: _,
             distribution,
         } => {
             assert_eq!(value, 0.004, "the number moved");

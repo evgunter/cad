@@ -1,4 +1,4 @@
-schema: 19
+schema: 20
 id: 5ef5ef0364b6939c4ca61f34b393f7b3
 {
   "snapshot": {
@@ -39,13 +39,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -56,13 +58,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                       {
                         "Literal": {
                           "value": 4.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -74,13 +78,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                       {
                         "Literal": {
                           "value": 4.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 2.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -92,13 +98,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 2.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -115,13 +123,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                   {
                     "Literal": {
                       "value": 1.0,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   },
                   {
                     "Literal": {
                       "value": 1.0,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   }
                 ],
@@ -139,13 +149,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                   {
                     "Literal": {
                       "value": 2.2,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   },
                   {
                     "Literal": {
                       "value": 1.0,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   }
                 ],
@@ -166,7 +178,8 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "distance": {
             "Literal": {
               "value": 0.5,
-              "dim": "Length"
+              "dim": "Length",
+              "unit": "m"
             }
           }
         }
@@ -205,13 +218,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                     {
                       "Literal": {
                         "value": 3.5,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 1.75,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -222,13 +237,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                       {
                         "Literal": {
                           "value": 4.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.75,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -240,13 +257,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                       {
                         "Literal": {
                           "value": 4.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 2.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -258,13 +277,15 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
                       {
                         "Literal": {
                           "value": 3.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 2.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -284,7 +305,8 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "distance": {
             "Literal": {
               "value": 0.25,
-              "dim": "Length"
+              "dim": "Length",
+              "unit": "m"
             }
           }
         }
@@ -347,7 +369,8 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "bound": {
             "Literal": {
               "value": 0.0,
-              "dim": "Length"
+              "dim": "Length",
+              "unit": "m"
             }
           },
           "dir": "AtLeast"
@@ -372,7 +395,8 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
       "hole_r": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.25
+          "value": 0.25,
+          "display_unit": "m"
         }
       }
     },

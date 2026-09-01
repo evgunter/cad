@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::UnitSym;
 use editor_core::{
     Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocParam, DocumentId,
     EditError, ParamName, PersistError, ProfileDoc, REGENERATE_RECOURSE, SCHEMA_VERSION, apply,
@@ -38,7 +39,7 @@ fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): M10-1's own bump was v15; LIB-G16 took v16 for the
     // chamfer recipe node, and the number is what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 19);
+    assert_eq!(SCHEMA_VERSION, 20);
 }
 
 #[test]
@@ -101,6 +102,7 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
     DocParam::Continuous {
         dim: Dimension::Length,
         value,
+        display_unit: UnitSym::canonical_for(Dimension::Length),
         distribution: Some(distribution),
     }
 }
@@ -341,6 +343,7 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     let broken = DocParam::Continuous {
         dim: Dimension::Count,
         value: 1.0,
+        display_unit: UnitSym::canonical_for(Dimension::Count),
         distribution: Some(Distribution::Normal { sigma: -1.0 }),
     };
     assert_eq!(
