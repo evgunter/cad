@@ -217,14 +217,14 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 /// from the frame parameters below and cross-checked by sampling)
 /// and every point of A's trim sits at z ≥ 0 on the unit cylinder.
 ///
-/// The tilt gate's lever (the pair's AXIAL reach) bounds the RADIAL
-/// residual but not the transfer's v-error, which is first-order
-/// r·θ·cos(φ) — levered by the RADIUS. Door 1's 1 m arm would refuse
-/// this pair (θ·1m = 2.5e-5 ≫ ε), but the cylinder arm deliberately
-/// ignores `door_one` (PR deviation 5: "the gates re-decide agreement
-/// themselves") — this row shows they do not.
-///
-/// This probe PASSING = the false certification happens.
+/// The PRE-FIX tilt gate's lever (the pair's AXIAL reach) bounded the
+/// RADIAL residual but not the transfer's v-error, which is
+/// first-order r·θ·cos(φ) — levered by the RADIUS; on that head this
+/// row demonstrated the false certification. The redesigned gate's
+/// `hyp = √(reach² + r_max²)` lever prices the radius and the
+/// `chart_region_cyl_transfer` row measures the residual at the trims
+/// themselves — the pair now refuses typed (the acceptance
+/// direction this row was adopted in).
 #[test]
 fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
     // θ = 3e-5 rad, r = 1 m: a tilt/radius pair the fixture builder's
@@ -271,25 +271,26 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
         min_d2.sqrt()
     );
 
-    // --- The enclosure's verdict on the same pair.
+    // --- The enclosure's verdict on the same pair (ADOPTED as a
+    //     red-first acceptance row at the fix pass: on the pre-fix
+    //     head this pair CERTIFIED PositiveArea — the review's central
+    //     finding; the redesigned gate prices the radius through the
+    //     `hyp` lever and refuses it typed).
     let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
-    assert_eq!(
-        got.unwrap(),
-        ChartOverlap::PositiveArea,
-        "DEFECT DEMONSTRATED IF THIS ROW IS GREEN: a 3D-disjoint pair \
-         (gap > 5e-6 m ≈ 5000·eps) certifies PositiveArea through the \
-         cylinder enclosure arm"
+    assert!(
+        matches!(got, Err(ChartRegionError::CarrierTilt)),
+        "a 3D-disjoint tilted pair (gap > 5e-6 m ≈ 5000·eps) must refuse \
+         typed at the carrier gates, got {got:?}"
     );
 }
 
-/// PROBE (defect demonstration, census-reachable tier): the same
-/// shape with a tilt INSIDE Door 1's own band (θ = 5e-9 rad: at the
-/// 1 m arm that is in [ε, k·ε), i.e. exactly what `Bridged` bridges)
-/// on a LARGE cylinder (r = 100 m): the gates pass, the arm certifies
-/// `PositiveArea`, and the trims are 3D-disjoint by ~1e-7 m (≈100·ε —
-/// beyond any "small fixed multiple of ε"). Door 1 would NOT have
-/// refused this pair, so the composition through the census admits it
-/// too: the claimed error bound is radius-levered, not ε-levered.
+/// PROBE (census-reachable tier; adopted as a red-first acceptance
+/// row): a tilt INSIDE Door 1's own band (θ = 8e-9 rad: at the 1 m
+/// arm that is in [ε, k·ε), exactly what `Bridged` bridges) on a
+/// LARGE cylinder (r = 100 m), trims 3D-disjoint by ~100·ε. On the
+/// pre-fix head the gates passed and the arm CERTIFIED — the
+/// composition through the census admitted a radius-levered error.
+/// The fixed gate's `hyp` lever refuses it typed.
 #[test]
 fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
     // θ = 8e-9 rad: at Door 1's pinned 1 m arm this is IN BAND
@@ -310,12 +311,17 @@ fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
         max_z_b < -6e-8,
         "B tops out at z = {max_z_b:.3e}: 3D-disjoint from A by > 6e-8 (60·eps)"
     );
+    // ADOPTED as a red-first acceptance row at the fix pass: on the
+    // pre-fix head this census-reachable pair CERTIFIED PositiveArea.
+    // The `hyp` lever prices the 100 m radius (sin θ · hyp ≈ 8e-7 m,
+    // definitely apart), so the gate refuses typed — under `Bridged`
+    // the premise band is additionally tightened, which can only move
+    // the outcome further from certification.
     let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Bridged, band());
-    assert_eq!(
-        got.unwrap(),
-        ChartOverlap::PositiveArea,
-        "DEFECT DEMONSTRATED IF GREEN: a Door-1-band tilt on a 100 m \
-         cylinder certifies trims that are 3D-disjoint by ~100·eps"
+    assert!(
+        matches!(got, Err(ChartRegionError::CarrierTilt)),
+        "a Door-1-band tilt on a 100 m cylinder must refuse typed at the \
+         carrier gates, got {got:?}"
     );
 }
 
@@ -336,15 +342,18 @@ fn r2_what_does_the_short_tilt_pair_actually_return() {
     let fb = wall_sheet(&mut bb, tilted_frame(1.0, tilt), 9102, 0.2, 1.6, 0.0, 1e-3);
     let short = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
     println!("short tilt pair verdict: {short:?}");
-    // MEASURED (defect documentation): the short pair is NOT decided
-    // on the geometry — it declines TouchingBoundary (its identical
-    // windows share collinear boundaries), so the unit row's
-    // `!matches!(short, Err(CarrierTilt))` assertion is vacuously
-    // satisfiable by ANY other refusal; "a peg-extent pair absorbs
-    // the tilt" is not demonstrated by that row.
+    // RE-MEASURED at the fix pass. On the pre-fix head this pair
+    // declined `TouchingBoundary` (identical windows share collinear
+    // boundaries), which made the unit row's `!CarrierTilt` assertion
+    // vacuous — the finding this probe recorded. The redesigned gate
+    // prices the RADIUS (hyp ≈ r = 1 here), so a 4e-7 rad tilt is a
+    // definite disagreement for this pair regardless of its 1 mm wall
+    // height, and the gate refuses BEFORE the walk can touch. The
+    // peg-absorbs-tilt demonstration moved to the unit row's genuinely
+    // small-`hyp` fixture (radius AND height in millimetres).
     assert!(
-        matches!(short, Err(ChartRegionError::TouchingBoundary)),
-        "re-measure: the short tilted pair now returns {short:?}"
+        matches!(short, Err(ChartRegionError::CarrierTilt)),
+        "re-measure: the r = 1 m 'short' tilted pair now returns {short:?}"
     );
 }
 

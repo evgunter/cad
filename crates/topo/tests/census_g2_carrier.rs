@@ -271,7 +271,12 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 ///   fixture's faces carry no cylinder chart images at all, and the
 ///   arm says exactly that — `MissingCache`, a typed refusal from
 ///   INSIDE the arm, where #1063 refused `ChartDivergence` at the
-///   door.
+///   door. This row alone cannot red on a FALSE certification (its
+///   fixture never reaches the walk); the rows that can are the
+///   adopted false-positive probes — `r1_mate5_probe.rs`'s probe 7/7b
+///   and 1b, `r2_probes.rs`'s tilted-disjoint and bridged-band rows —
+///   each red on the pre-fix head and green only because the gates
+///   now refuse those pairs.
 /// - SPHERE / CONE / TORUS pairs keep the door refusal unchanged,
 ///   with each kind's residue restated at the refusal site
 ///   (`declared_pair_overlap`'s kind gate).

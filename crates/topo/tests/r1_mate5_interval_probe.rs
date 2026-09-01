@@ -31,12 +31,17 @@ fn probe_i1_the_band_fast_paths_exactness_gate_at_interval() {
     let tau = Interval::tau();
     let k = (delta2 / tau + Interval::from_f64(0.5)).floor();
     println!("floor((delta/tau)+.5) = [{:e}, {:e}]", k.lo(), k.hi());
+    // ADOPTED at the fix pass as the PIN of the disclosed lane
+    // asymmetry (it was the finding's demonstration): the transferred
+    // azimuth is NOT an exact point at Interval, so `wrap_band`'s C6
+    // exact-point read rejects `uv_b` there and the full-wrap band
+    // fast path is structurally f64-ONLY — disclosed at the arm and
+    // in the PR, and the fix head gates BOTH lanes. If this width
+    // ever collapses to zero, the disclosure is stale and the band
+    // arm's lane story must be re-measured.
     assert!(
-        delta2.lo() == delta2.hi(),
-        "FINDING: the transferred chart's azimuth is not an exact point \
-         at Interval (delta width {:e}), so `wrap_band`'s `xl == xh` gate \
-         rejects `uv_b` and the full-wrap BAND FAST PATH cannot fire on \
-         the interval lane the gating CI run pinned.",
-        delta2.hi() - delta2.lo()
+        delta2.lo() < delta2.hi(),
+        "the interval atan2 became exact — re-measure the band fast \
+         path's lane asymmetry and update its disclosure"
     );
 }

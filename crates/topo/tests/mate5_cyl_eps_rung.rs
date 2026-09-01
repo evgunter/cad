@@ -146,15 +146,18 @@ fn wall_sheet(
                 u1,
             )
         } else {
-            let s = frame.at(u1, v)
-                - center
-                - frame.axis * ((frame.at(u1, v) - center).dot(frame.axis));
+            // The radial direction at u1, from the frame fields
+            // directly — a projection-based read cancels
+            // catastrophically at small radii and mints a
+            // non-structural (alive-trig) chart image.
+            let w = frame.axis.cross(frame.u_ref);
+            let s = frame.u_ref * u1.cos() + w * u1.sin();
             (
                 Curve3::Circle {
                     center,
                     axis: -frame.axis,
                     radius: frame.radius,
-                    u_ref: s.normalize(),
+                    u_ref: s,
                 },
                 0.0,
                 u1 - u0,
@@ -273,15 +276,17 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 
 /// INVARIANT (red-first, the MATE-5 closure): a declared
 /// cylinder×cylinder pair whose two descriptions genuinely diverge —
-/// no shared key, no `GeomSource`, different `u_ref`/origin/axis
-/// sign — certifies its overlapping seat through the certified-ε
-/// enclosure once Door 1 has verified the carrier.
+/// distinct `GeomSource`s, different `u_ref`/origin/axis sign —
+/// certifies its overlapping seat through the certified-ε enclosure
+/// once Door 1 has verified the carrier.
 ///
-/// On main this exact call refuses
-/// `ChartDivergence { detail: "no shared SurfaceKey and no GeomSource
-/// on both faces" }` — quoted in the PR body as the measured
-/// refusal chain (→ `CensusUnsupported{Face}` → `Declined` →
-/// `Uncertified` at the census, per the spec's situation paragraph).
+/// On main (pre-MATE-5) this exact call refuses
+/// `ChartDivergence { detail: "distinct GeomSources —
+/// equal-but-independent descriptions do not glue" }` — six rows of
+/// this suite were red there with that same fingerprint, quoted in
+/// the PR body as the measured refusal chain (→
+/// `CensusUnsupported{Face}` → `Declined` → `Uncertified` at the
+/// census, per the spec's situation paragraph).
 #[test]
 fn a_declared_cylinder_pair_with_divergent_descriptions_certifies() {
     // Overlapping arc seat: A holds azimuth [0.2, 1.6] × z [0.0, 1.0],
@@ -322,34 +327,40 @@ fn an_axially_disjoint_declared_cylinder_pair_is_definitely_empty() {
 /// INVARIANT (frame invariance, the spec's binding obligation): the
 /// verdict is a property of the pair, not of which description is the
 /// representative — `overlap(A, B)` and `overlap(B, A)` agree in
-/// verdict class on every fixture of the battery, certifying and
-/// refusing alike.
+/// verdict class on every fixture of the battery. Each fixture also
+/// pins its EXPECTED class, so the row cannot be satisfied by both
+/// orders refusing for a shared wrong reason (the fix-pass teeth): the
+/// certifying fixtures must certify, the empty ones must answer Empty.
 #[test]
 fn the_verdict_does_not_depend_on_which_description_is_representative() {
     type Sheet = (Body<f64>, FaceKey);
-    let cases: Vec<(&str, Sheet, Sheet)> = vec![
+    let cases: Vec<(&str, &str, Sheet, Sheet)> = vec![
         (
             "overlapping arc seat",
+            "PositiveArea",
             sheet_a(0.2, 1.6, 0.0, 1.0),
             sheet_b(0.5, 1.3, 0.3, 0.7),
         ),
         (
             "axially disjoint",
+            "Empty",
             sheet_a(0.2, 1.6, 0.0, 0.4),
             sheet_b(0.5, 1.3, 0.6, 1.0),
         ),
         (
             "azimuthally disjoint arcs",
+            "Empty",
             sheet_a(0.2, 0.9, 0.0, 1.0),
             sheet_b(1.4, 2.0, 0.2, 0.8),
         ),
         (
             "nested arc",
+            "PositiveArea",
             sheet_a(0.2, 2.2, 0.0, 1.0),
             sheet_b(0.8, 1.4, 0.3, 0.7),
         ),
     ];
-    for (name, (a, fa), (b, fb)) in cases {
+    for (name, expected, (a, fa), (b, fb)) in cases {
         let ab = verdict_class(declared_pair_overlap(
             &a,
             fa,
@@ -366,6 +377,7 @@ fn the_verdict_does_not_depend_on_which_description_is_representative() {
             ContactVerdict::Definite,
             band(),
         ));
+        assert_eq!(ab, expected, "{name}: wrong verdict class");
         assert_eq!(ab, ba, "{name}: the two orders disagree");
         println!("{name}: {ab} (both orders)");
     }
@@ -376,45 +388,60 @@ fn the_verdict_does_not_depend_on_which_description_is_representative() {
 // ---------------------------------------------------------------------
 
 /// INVARIANT (the extent lever, #1063's `one_tilt_two_extents`
-/// pattern): the same axis tilt is absorbed by a peg-sized pair and
-/// refused for a pair whose trims reach far enough along the axis for
-/// the tilt to open past ε — Door 1's pinned 1 m arm does not price
-/// the pair, the enclosure's own gate does.
+/// pattern, RE-DERIVED at the fix pass): the same axis tilt is
+/// absorbed by a pair whose transfer lever `hyp = √(reach² + r²)` is
+/// genuinely small — a peg is small in RADIUS as well as height,
+/// because the tilt's first-order transfer error `r·θ` is levered by
+/// the radius (the review's bilateral finding) — and refused for a
+/// pair whose lever reaches metres. Door 1's pinned 1 m arm does not
+/// price the pair; the enclosure's own gate does. The absorbed arm
+/// asserts the CERTIFIED answer, not merely the absence of one
+/// refusal (the fix-pass teeth: the pre-fix spelling was vacuously
+/// satisfiable by any other decline).
 #[test]
-fn one_axis_tilt_two_extents_two_answers() {
+fn one_axis_tilt_two_levers_two_answers() {
     let eps = Tol::witness().eps();
-    // A tilt of 40·k·eps radians about y through the A-origin: at
-    // axial extent 0.2 it opens ~8·k·eps (definitely apart at the
-    // gate's lever there only when the extent is long).
     let tilt = 40.0 * Tol::witness().k() * eps;
-    let tilted = |z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
+    let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
         let frame = CylFrame {
             origin: Point3::origin(),
             axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            radius: 1.0,
+            radius: r,
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         };
-        let f = wall_sheet(&mut body, frame, 7003, 0.2, 1.6, z0, z1);
+        let f = wall_sheet(&mut body, frame, 7003, u0, u1, z0, z1);
         (body, f)
     };
-    // Short pair: the tilt's displacement over its whole extent stays
-    // inside the band ⇒ decided on the geometry, not refused for the
-    // tilt.
-    let (a_s, fa_s) = sheet_a(0.2, 1.6, 0.0, 1e-3);
-    let (b_s, fb_s) = tilted(0.0, 1e-3);
-    let short = declared_pair_overlap(&a_s, fa_s, &b_s, fb_s, ContactVerdict::Definite, band());
-    assert!(
-        !matches!(short, Err(ChartRegionError::CarrierTilt)),
-        "a peg-extent pair absorbs the tilt: {short:?}"
+    let small = |u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame {
+            radius: 1e-3,
+            ..frame_a()
+        };
+        let f = wall_sheet(&mut body, frame, 7005, u0, u1, z0, z1);
+        (body, f)
+    };
+    // The PEG: radius 1 mm, wall 1 mm — hyp ≈ 1.4 mm, so the tilt's
+    // displacement anywhere on the pair is ≤ ~6e-10 m, inside the
+    // band. B's window strictly inside A's, so the geometry DECIDES:
+    // the seat CERTIFIES through the tilt.
+    let (a_s, fa_s) = small(0.2, 1.4, 0.0, 1e-3);
+    let (b_s, fb_s) = tilted(1e-3, 0.4, 1.2, 2e-4, 8e-4);
+    assert_eq!(
+        declared_pair_overlap(&a_s, fa_s, &b_s, fb_s, ContactVerdict::Definite, band()).unwrap(),
+        ChartOverlap::PositiveArea,
+        "a peg absorbs the tilt and the seat certifies",
     );
-    // Long pair, same tilt: the trims reach metres, the same angle is
-    // a definite separation there, and the arm refuses typed.
-    let (a_l, fa_l) = sheet_a(0.2, 1.6, 0.0, 4.0);
-    let (b_l, fb_l) = tilted(0.0, 4.0);
+    // The TABLE: the same tilt at radius 1 m — hyp ≈ 1 m regardless
+    // of wall height, the transfer error is ~4e-7 m, and the arm
+    // refuses typed. (This is exactly the pre-fix defect fixture: a
+    // 1 mm wall on a 1 m cylinder is NOT a peg.)
+    let (a_l, fa_l) = sheet_a(0.15, 1.65, 0.0, 1e-3);
+    let (b_l, fb_l) = tilted(1.0, 0.2, 1.6, 0.0, 1e-3);
     match declared_pair_overlap(&a_l, fa_l, &b_l, fb_l, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::CarrierTilt) => {}
-        other => panic!("a table-extent pair must refuse the same tilt: {other:?}"),
+        other => panic!("a metre-lever pair must refuse the same tilt: {other:?}"),
     }
 }
 
@@ -504,38 +531,65 @@ fn a_pair_no_single_window_serves_declines_typed() {
     }
 }
 
-/// INVARIANT (Door 1's verdict is not consumed here, and that is the
-/// documented posture, pinned): unlike the planar witness rung there
-/// is no precondition the declaration could be asked to discharge —
-/// the enclosure's own gates re-decide carrier agreement at the
-/// pair's own extent — so a `Bridged` pair gets the same
-/// three-outcome answer as a `Definite` one, in both the certifying
-/// and the refuting direction.
+/// INVARIANT (Door 1's verdict is CONSUMED — the fix-pass redesign): a
+/// `Bridged` carrier has already spent an in-band residue at Door 1's
+/// own rows, so the enclosure tightens its premise budget — the gate
+/// rows decide against a half-zero-edge band. Pinned from both sides:
+///
+/// - a pair whose gate margin sits in `[zero/2, zero)` (a radius
+///   disagreement of 0.7·ε here) CERTIFIES under `Definite` and
+///   ESCALATES under `Bridged`, naming the tightened row;
+/// - on a clean seat (margins ≈ 0) the two verdicts agree — the
+///   tightening moves outcomes only near the budget's edge, and only
+///   toward escalation (the conservative direction, demonstrated).
 #[test]
-fn bridged_and_definite_get_the_same_enclosure_answer() {
-    let fixtures = [
-        (sheet_a(0.2, 1.6, 0.0, 1.0), sheet_b(0.5, 1.3, 0.3, 0.7)),
-        (sheet_a(0.2, 1.6, 0.0, 0.4), sheet_b(0.5, 1.3, 0.6, 1.0)),
-    ];
-    for ((a, fa), (b, fb)) in fixtures {
-        let definite = verdict_class(declared_pair_overlap(
-            &a,
-            fa,
-            &b,
-            fb,
-            ContactVerdict::Definite,
-            band(),
-        ));
-        let bridged = verdict_class(declared_pair_overlap(
-            &a,
-            fa,
-            &b,
-            fb,
-            ContactVerdict::Bridged,
-            band(),
-        ));
-        assert_eq!(definite, bridged);
+fn a_bridged_verdict_tightens_the_premise_budget() {
+    let eps = Tol::witness().eps();
+    // The edge case: |Δr| = 0.7·ε — Zero at the run band, in-band at
+    // the halved budget.
+    let near = |r: f64| -> (Body<f64>, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame {
+            radius: r,
+            ..frame_b()
+        };
+        let f = wall_sheet(&mut body, frame, 7006, 0.7 - 1.3, 0.7 - 0.5, 0.25 - 0.7, 0.25 - 0.3);
+        (body, f)
+    };
+    let (a, fa) = sheet_a(0.2, 1.6, 0.0, 1.0);
+    let (b, fb) = near(1.0 + 0.7 * eps);
+    assert_eq!(
+        declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
+        ChartOverlap::PositiveArea,
+        "at the run band a 0.7·eps radius residue is Zero and the seat certifies",
+    );
+    match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Bridged, band()) {
+        Err(ChartRegionError::Escalated(d)) => {
+            assert_eq!(d.predicate, Some("chart_region_cyl_radius"));
+        }
+        other => panic!("the bridged budget must escalate the same pair: {other:?}"),
     }
+    // The clean seat: both verdicts agree (the tightening bites only
+    // at the edge).
+    let (b2, fb2) = sheet_b(0.5, 1.3, 0.3, 0.7);
+    let definite = verdict_class(declared_pair_overlap(
+        &a,
+        fa,
+        &b2,
+        fb2,
+        ContactVerdict::Definite,
+        band(),
+    ));
+    let bridged = verdict_class(declared_pair_overlap(
+        &a,
+        fa,
+        &b2,
+        fb2,
+        ContactVerdict::Bridged,
+        band(),
+    ));
+    assert_eq!(definite, bridged);
+    assert_eq!(definite, "PositiveArea");
 }
 
 // ---------------------------------------------------------------------
