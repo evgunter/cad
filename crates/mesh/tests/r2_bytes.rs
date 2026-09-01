@@ -27,9 +27,14 @@ fn band(rho: f64) -> Body<f64> {
         ProfileVertex::new(p2(0.3, 1.3), 0.0),
         ProfileVertex::new(p2(1.1, 0.9), 0.0),
     ]);
-    sweep::revolve(&validated(vec![lp]), axis_y(), sweep::Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    sweep::revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        sweep::Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 #[test]
@@ -67,7 +72,11 @@ fn r2_byte_stability_report() {
                     fnv(&i.to_le_bytes(), &mut h);
                 }
             }
-            lines.push(format!("{name} d={d} n={} t={} => {h:016x}", m.positions.len(), nt));
+            lines.push(format!(
+                "{name} d={d} n={} t={} => {h:016x}",
+                m.positions.len(),
+                nt
+            ));
         }
     }
     panic!("R2 HASHES\n{}", lines.join("\n"));

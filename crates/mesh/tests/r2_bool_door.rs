@@ -55,12 +55,19 @@ fn r2_bool_door_near_pole() {
                         "rho={rho:.3e}: BOOL OK, meshed {} positions, guard QUIET",
                         m.positions.len()
                     )),
-                    Ok(Err(e)) => lines.push(format!("rho={rho:.3e}: BOOL OK, tessellate refused {e:?}")),
+                    Ok(Err(e)) => {
+                        lines.push(format!("rho={rho:.3e}: BOOL OK, tessellate refused {e:?}"))
+                    }
                     Err(p) => {
-                        let s = p.downcast_ref::<String>().cloned()
+                        let s = p
+                            .downcast_ref::<String>()
+                            .cloned()
                             .or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_string()))
                             .unwrap_or_default();
-                        lines.push(format!("rho={rho:.3e}: BOOL OK, *** PANIC *** {}", &s[..s.len().min(240)]));
+                        lines.push(format!(
+                            "rho={rho:.3e}: BOOL OK, *** PANIC *** {}",
+                            &s[..s.len().min(240)]
+                        ));
                     }
                 }
             }

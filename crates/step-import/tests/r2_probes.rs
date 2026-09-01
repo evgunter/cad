@@ -27,7 +27,10 @@ fn r2_halfcap_eps7_imports_then_panics_in_the_walk() {
         mesh::tessellate(&body, 0.001, Tol::witness())
     }));
     match r {
-        Ok(v) => panic!("R2: halfcap_eps7 tessellated at eps {eps:e}: {:?}", v.map(|m| m.positions.len())),
+        Ok(v) => panic!(
+            "R2: halfcap_eps7 tessellated at eps {eps:e}: {:?}",
+            v.map(|m| m.positions.len())
+        ),
         Err(e) => {
             let s = e
                 .downcast_ref::<String>()
@@ -53,8 +56,12 @@ fn r2_halfcap_eps7_vertex_pole_distance() {
     };
     let mut lines = vec![format!("eps = {eps:e}")];
     for (fk, f) in body.faces() {
-        let Some(geom::Surface::Sphere { center, radius, axis, .. }) =
-            body.get_surface(f.surface)
+        let Some(geom::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        }) = body.get_surface(f.surface)
         else {
             continue;
         };
@@ -72,9 +79,12 @@ fn r2_halfcap_eps7_vertex_pole_distance() {
         }
     }
     let m = mesh::tessellate(&body, 0.001, Tol::witness());
-    lines.push(format!("  tessellate -> {}", match &m {
-        Ok(mm) => format!("Ok, {} positions", mm.positions.len()),
-        Err(e) => format!("Err {e:?}"),
-    }));
+    lines.push(format!(
+        "  tessellate -> {}",
+        match &m {
+            Ok(mm) => format!("Ok, {} positions", mm.positions.len()),
+            Err(e) => format!("Err {e:?}"),
+        }
+    ));
     panic!("R2 REPORT\n{}", lines.join("\n"));
 }
