@@ -152,6 +152,7 @@ pub mod euler_ring;
 pub(crate) mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
+pub mod flush;
 // This crate's own sources, read as source. A sibling of `fixtures`
 // rather than a section of it: that module's subject is canonical
 // bodies, this one's is a Rust reader. Non-doc comment for the
