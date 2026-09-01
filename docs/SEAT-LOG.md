@@ -56,3 +56,14 @@ under BOTH feature graphs” explicitly.
 
 Next: SEAT-2 (the topo query module + select_where delegation)
 dispatches on the block's next slot.
+
+## ORDINAL 1001 CLAIMED — SEAT-2 dual (2026-09-01)
+
+SEAT-2 (PR 1521, the kernel query seat) implementation delivered and
+green on the drawn lane (default, eps = 1e-12; run 33554063477; one
+earlier red was the binding census correctly catching the unrosterd
+`query` prelude name — fixed by rostering). The unit's first lane
+died at dispatch on a usage limit with nothing pushed (~23h annotated
+gap); the re-dispatched lane delivered whole. v6 dual dispatches on
+frozen head 5b269616: parity byte 9 → **R1 fable + R2 opus**.
+Difficulty M was logged pre-draw. Full row recorded at merge.

@@ -2985,3 +2985,15 @@ granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). One earlier head red on the doc gate (intra-doc links to
 a private item), disclosed in the PR. Sample number at merge. Row at
 merge.
+
+BOOL-11 (PR #1520) ordinal FIXED AT DISPATCH (2026-09-01):
+**ordinal 1104** (S-BOOL band 1100–1199). v6 dual: slot byte **184**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `0d285cd3f`
+(run 33552592630 verified at dispatch: head SHA matches, 16 executed
+green + 5 skipped by the draw; gate point interval lane ASKED via
+trailer × eps 1e-12 DRAWN), R2 isolated from R1, briefs symmetric,
+no relaxations granted. Implementer difficulty M (pre-logged at the
+spec, pre-draw). The PR is additionally HELD for Evan's sign-off on
+the band/lever/D2 §4 text; the wire spelling is DEFERRED pending a
+coordinated schema bump (main took v20 mid-cycle) — review proceeds,
+merge waits. Sample number at merge. Row at merge.
