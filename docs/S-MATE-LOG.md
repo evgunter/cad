@@ -115,3 +115,19 @@ SKIP-licensing premises (`vf_deferred`, `planar_face_bridged`,
 unsound direction; nothing demonstrated wrong, recorded so a sweep
 with that genus has a home. Next: MATE-3's dual concludes, then the
 4b design pass draft (orchestrator's own).
+
+**2026-09-01 — MATE-3 MERGED (PR #1423; issue 941 stays open for
+items 3–5, routed below).** D1's material-wedge verdict table is
+enforced in tier 3 and PATHS has its `.cusp()` door; the arm's
+first outing caught two documented corpus residuals as real
+LaminaWedge defects (one measured genuinely zero-volume, one an
+orientation defect wearing a lamina's signature — the message now
+distinguishes them). Dual ordinal 1304 (sample #85 at merge), R1
+MERGEABLE / R2 M-A-F, no MAJOR either arm; at fix the exactness
+guard landed at the bits, the vacuous precedence COLLAPSED into
+`MaterialArmOutcome`, both mixed split-states escalate, and the
+union mutation matrix runs 12/12 kills. Filed en route: issue 1439
+(the lever-arm fold's six hand-rolled siblings +
+`contact_tangent_opposed` as the pairing's twin). Handoffs routed
+on issue 941 at merge. MATE-5's soundness fix pass is the one
+remaining implementation lane; 4b design (PR #1440) awaits Evan.
