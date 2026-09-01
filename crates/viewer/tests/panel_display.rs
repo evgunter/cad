@@ -181,6 +181,15 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     assert_eq!(unit.map(|u| u.symbol()), Some("m"));
     assert_eq!(in_written(0.008, unit).to_bits(), 0.008_f64.to_bits());
 
+    // An ANGLE that remembers nothing falls back to HALF TURNS, not
+    // to radians — the notation this editor says angles in, and the
+    // one the creation forms' angle fields therefore open in: a
+    // full-turn revolve reads "2 pi rad" rather than "6.283 rad".
+    let unit = written_unit(Dimension::Angle, None);
+    assert_eq!(unit.map(|u| u.symbol()), Some("pi rad"));
+    let shown = in_written(core::f64::consts::TAU, unit);
+    assert!((shown - 2.0).abs() < 1e-12, "a full turn shown as {shown}");
+
     // A Scalar has no units at all: a direction component is a number,
     // not a quantity, and offering it `mm` would be an invitation to
     // author nonsense.

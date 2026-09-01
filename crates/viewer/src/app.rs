@@ -251,6 +251,24 @@ struct Drafts {
     datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
     datum_direction: [f64; 3],
+    /// **The unit every creation form's LENGTH field is written
+    /// in**, `None` for the canonical fallback (`props::written_unit`
+    /// — metres).
+    ///
+    /// ONE choice for all the forms, not one per form. The panel's
+    /// pickers are per literal because a literal is a thing in a
+    /// document that remembers its own notation; a form's is a
+    /// statement about how the person at the keyboard is working, and
+    /// somebody who authors a datum in millimetres is not then
+    /// authoring the extrude that consumes it in metres. The drafts
+    /// behind the fields stay canonical either way ([`unit_field`]),
+    /// so moving the picker re-writes what is on screen and changes
+    /// no value.
+    length_unit: Option<UnitDef>,
+    /// The same for every ANGLE field; `None` falls back to half
+    /// turns (`pi rad`), which is the notation this editor says
+    /// angles in.
+    angle_unit: Option<UnitDef>,
     /// The add-profile form's shape choice.
     profile_shape: ShapeKind,
     /// The circle form's centre, metres.
@@ -325,6 +343,8 @@ impl Default for Drafts {
             datum_kind: DatumKind::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
+            length_unit: None,
+            angle_unit: None,
             profile_shape: ShapeKind::Circle,
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
@@ -2426,15 +2446,24 @@ impl ViewerBehavior<'_> {
             }
         });
         let kind = self.drafts.datum_kind;
-        vec3_row(
-            ui,
-            match kind {
-                DatumKind::Point => "position (m)",
-                DatumKind::Plane | DatumKind::Axis => "origin (m)",
-            },
-            FIELD_DRAG_SPEED,
-            &mut self.drafts.datum_origin,
-        );
+        ui.horizontal(|ui| {
+            unit_vec3_row(
+                ui,
+                match kind {
+                    DatumKind::Point => "position",
+                    DatumKind::Plane | DatumKind::Axis => "origin",
+                },
+                self.drafts.length_unit,
+                FIELD_DRAG_SPEED,
+                &mut self.drafts.datum_origin,
+            );
+            unit_picker(
+                ui,
+                "datum_origin",
+                Dimension::Length,
+                &mut self.drafts.length_unit,
+            );
+        });
         match kind {
             DatumKind::Plane => vec3_row(
                 ui,
@@ -2498,30 +2527,35 @@ impl ViewerBehavior<'_> {
         let mut blocked: Option<&'static str> = None;
         match self.drafts.profile_shape {
             ShapeKind::Circle => {
+                let unit = self.drafts.length_unit;
                 ui.horizontal(|ui| {
-                    ui.label("centre (m)");
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.profile_centre[0])
-                            .speed(FIELD_DRAG_SPEED),
+                    ui.label("centre");
+                    unit_field(
+                        ui,
+                        unit,
+                        FIELD_DRAG_SPEED,
+                        &mut self.drafts.profile_centre[0],
                     );
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.profile_centre[1])
-                            .speed(FIELD_DRAG_SPEED),
+                    unit_field(
+                        ui,
+                        unit,
+                        FIELD_DRAG_SPEED,
+                        &mut self.drafts.profile_centre[1],
                     );
-                    ui.label("radius (m)");
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.profile_radius)
-                            .speed(FIELD_DRAG_SPEED),
+                    ui.label("radius");
+                    unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_radius);
+                    unit_picker(
+                        ui,
+                        "profile_circle",
+                        Dimension::Length,
+                        &mut self.drafts.length_unit,
                     );
                 });
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.drafts.profile_bored, "with bore");
                     if self.drafts.profile_bored {
-                        ui.label("bore radius (m)");
-                        ui.add(
-                            egui::DragValue::new(&mut self.drafts.profile_bore)
-                                .speed(FIELD_DRAG_SPEED),
-                        );
+                        ui.label("bore radius");
+                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
                 loops.push(ProfileShape::Circle {
@@ -2543,16 +2577,27 @@ impl ViewerBehavior<'_> {
                 }
             }
             ShapeKind::Rectangle => {
+                let unit = self.drafts.length_unit;
                 ui.horizontal(|ui| {
-                    ui.label("width (m)");
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.profile_extent[0])
-                            .speed(FIELD_DRAG_SPEED),
+                    ui.label("width");
+                    unit_field(
+                        ui,
+                        unit,
+                        FIELD_DRAG_SPEED,
+                        &mut self.drafts.profile_extent[0],
                     );
-                    ui.label("height (m)");
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.profile_extent[1])
-                            .speed(FIELD_DRAG_SPEED),
+                    ui.label("height");
+                    unit_field(
+                        ui,
+                        unit,
+                        FIELD_DRAG_SPEED,
+                        &mut self.drafts.profile_extent[1],
+                    );
+                    unit_picker(
+                        ui,
+                        "profile_rectangle",
+                        Dimension::Length,
+                        &mut self.drafts.length_unit,
                     );
                 });
                 loops.push(ProfileShape::Rectangle {
@@ -2583,8 +2628,19 @@ impl ViewerBehavior<'_> {
     fn extrude_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("extrude");
-            ui.label("distance (m)");
-            ui.add(egui::DragValue::new(&mut self.drafts.extrude_distance).speed(FIELD_DRAG_SPEED));
+            ui.label("distance");
+            unit_field(
+                ui,
+                self.drafts.length_unit,
+                FIELD_DRAG_SPEED,
+                &mut self.drafts.extrude_distance,
+            );
+            unit_picker(
+                ui,
+                "extrude_distance",
+                Dimension::Length,
+                &mut self.drafts.length_unit,
+            );
         });
         match self.session.selection().node() {
             Some(node) => {
@@ -2625,8 +2681,19 @@ impl ViewerBehavior<'_> {
             (Seat::RevolveAxis, tool.axis()),
         ]));
         ui.horizontal(|ui| {
-            ui.label("angle (rad)");
-            ui.add(egui::DragValue::new(&mut self.drafts.revolve_angle).speed(ANGLE_DRAG_SPEED));
+            ui.label("angle");
+            unit_field(
+                ui,
+                self.drafts.angle_unit,
+                ANGLE_DRAG_SPEED,
+                &mut self.drafts.revolve_angle,
+            );
+            unit_picker(
+                ui,
+                "revolve_angle",
+                Dimension::Angle,
+                &mut self.drafts.angle_unit,
+            );
         });
         self.tool_commit_row(ui, "Commit revolve", ToolKind::Revolve, |drafts| {
             tool.op(drafts.revolve_angle)
@@ -2693,12 +2760,21 @@ impl ViewerBehavior<'_> {
         };
         ui.label(ToolKind::Transform.says(&"pick the body to place"));
         ui.weak(seat_line(&[(Seat::TransformBody, tool.input())]));
-        vec3_row(
-            ui,
-            "translation (m)",
-            FIELD_DRAG_SPEED,
-            &mut self.drafts.transform_translation,
-        );
+        ui.horizontal(|ui| {
+            unit_vec3_row(
+                ui,
+                "translation",
+                self.drafts.length_unit,
+                FIELD_DRAG_SPEED,
+                &mut self.drafts.transform_translation,
+            );
+            unit_picker(
+                ui,
+                "transform_translation",
+                Dimension::Length,
+                &mut self.drafts.length_unit,
+            );
+        });
         vec3_row(
             ui,
             "rotation axis",
@@ -2706,8 +2782,19 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.transform_axis,
         );
         ui.horizontal(|ui| {
-            ui.label("rotation angle (rad)");
-            ui.add(egui::DragValue::new(&mut self.drafts.transform_angle).speed(ANGLE_DRAG_SPEED));
+            ui.label("rotation angle");
+            unit_field(
+                ui,
+                self.drafts.angle_unit,
+                ANGLE_DRAG_SPEED,
+                &mut self.drafts.transform_angle,
+            );
+            unit_picker(
+                ui,
+                "transform_angle",
+                Dimension::Angle,
+                &mut self.drafts.angle_unit,
+            );
         });
         self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
             tool.op(
@@ -2759,18 +2846,35 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.pattern_direction,
                 );
                 ui.horizontal(|ui| {
-                    ui.label("spacing (m)");
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.pattern_spacing)
-                            .speed(FIELD_DRAG_SPEED),
+                    ui.label("spacing");
+                    unit_field(
+                        ui,
+                        self.drafts.length_unit,
+                        FIELD_DRAG_SPEED,
+                        &mut self.drafts.pattern_spacing,
+                    );
+                    unit_picker(
+                        ui,
+                        "pattern_spacing",
+                        Dimension::Length,
+                        &mut self.drafts.length_unit,
                     );
                 });
             }
             PatternKindChoice::Circular => {
                 ui.horizontal(|ui| {
-                    ui.label("step (rad)");
-                    ui.add(
-                        egui::DragValue::new(&mut self.drafts.pattern_step).speed(ANGLE_DRAG_SPEED),
+                    ui.label("step");
+                    unit_field(
+                        ui,
+                        self.drafts.angle_unit,
+                        ANGLE_DRAG_SPEED,
+                        &mut self.drafts.pattern_step,
+                    );
+                    unit_picker(
+                        ui,
+                        "pattern_step",
+                        Dimension::Angle,
+                        &mut self.drafts.angle_unit,
                     );
                 });
             }
@@ -2829,7 +2933,18 @@ impl ViewerBehavior<'_> {
         });
         ui.horizontal(|ui| {
             ui.label(self.drafts.blend_kind.size_label());
-            ui.add(egui::DragValue::new(&mut self.drafts.blend_size).speed(FIELD_DRAG_SPEED));
+            unit_field(
+                ui,
+                self.drafts.length_unit,
+                FIELD_DRAG_SPEED,
+                &mut self.drafts.blend_size,
+            );
+            unit_picker(
+                ui,
+                "blend_size",
+                Dimension::Length,
+                &mut self.drafts.length_unit,
+            );
         });
         self.blend_commit_row(ui, count);
     }
@@ -3601,6 +3716,93 @@ fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
             ui.add(egui::DragValue::new(component).speed(speed));
         }
     });
+}
+
+/// **One dimensioned field of a creation form.**
+///
+/// The draft behind it is CANONICAL (metres, radians) and the field
+/// is what that value looks like written in `unit` — the property
+/// panel's own rule (`props::in_written` / `props::from_written`, the
+/// text door's one multiply), applied to the forms so a number typed
+/// into a form and the same number typed into a panel field mean the
+/// same thing.
+///
+/// Held canonical rather than as-typed for the reason the panel holds
+/// it that way: switching the unit is a change of NOTATION, and a
+/// draft that stored what was typed would silently become a different
+/// length when the picker moved.
+///
+/// The drag speed travels through the same conversion. A metre field
+/// stepping half a millimetre per pixel would step half a MICRON per
+/// pixel once the field says millimetres, which is the same gesture
+/// made a thousand times finer by a change of notation.
+fn unit_field(ui: &mut egui::Ui, unit: Option<UnitDef>, speed: f64, canonical: &mut f64) {
+    let mut written = props::in_written(*canonical, unit);
+    let response = ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, unit)));
+    // Written back only on a real edit: an untouched field would
+    // otherwise round-trip its value through a divide and a multiply
+    // every frame, which is a drift nobody asked for.
+    if response.changed() {
+        *canonical = props::from_written(written, unit);
+    }
+}
+
+/// The vector twin of [`unit_field`] — one label, three components,
+/// one unit.
+fn unit_vec3_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    unit: Option<UnitDef>,
+    speed: f64,
+    value: &mut [f64; 3],
+) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        for component in value {
+            unit_field(ui, unit, speed, component);
+        }
+    });
+}
+
+/// **The creation forms' written-unit picker.**
+///
+/// The panel's picker as a form control: the same options
+/// (`props::unit_options`, read off the closed unit table), the same
+/// fallback when nothing is chosen (`props::written_unit` — metres
+/// for a length, HALF-TURNS for an angle), and the same rule about
+/// what the label beside a field may say. **The unit is the picker's
+/// to say, not the field's**, which is why the form labels next to
+/// these are bare ("radius", not "radius (m)"): a label with the unit
+/// baked in is a second place for it to be stated, and it was the
+/// place these forms used to state it wrongly.
+///
+/// It differs from the panel's in one way, and deliberately: the
+/// panel's picker is an EDIT (`SessionOp::SetSlotUnit` — how a
+/// literal that exists is written), while this one only decides how
+/// the field in front of it reads. Nothing here reaches a document
+/// until the form's own commit button.
+fn unit_picker(ui: &mut egui::Ui, salt: &str, dimension: Dimension, chosen: &mut Option<UnitDef>) {
+    let options = props::unit_options(dimension);
+    if options.is_empty() {
+        return;
+    }
+    let shown = props::written_unit(dimension, *chosen);
+    egui::ComboBox::from_id_salt(("creation_unit", salt))
+        .selected_text(shown.as_ref().map_or("", UnitDef::symbol))
+        // Wide enough for the longest symbol the table carries
+        // (`pi rad`) plus the combo's arrow — the panel's width, for
+        // the panel's reason.
+        .width(72.0)
+        .show_ui(ui, |ui| {
+            for option in options {
+                if ui
+                    .selectable_label(shown == Some(option), option.symbol())
+                    .clicked()
+                {
+                    *chosen = Some(option);
+                }
+            }
+        });
 }
 
 /// The delete button: a renderer for [`DocSession::delete_affordance`]

@@ -825,8 +825,8 @@ fn the_kind_choice_names_what_the_one_field_means() {
     assert_eq!(
         BlendKindChoice::ALL.map(|(kind, label)| (kind, label, kind.size_label())),
         [
-            (BlendKindChoice::Fillet, "fillet", "radius (m)"),
-            (BlendKindChoice::Chamfer, "chamfer", "setback (m)"),
+            (BlendKindChoice::Fillet, "fillet", "radius"),
+            (BlendKindChoice::Chamfer, "chamfer", "setback"),
         ]
     );
     assert_eq!(BlendKindChoice::default(), BlendKindChoice::Fillet);
