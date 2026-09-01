@@ -42,6 +42,8 @@
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
 mod bool1_r1_probes;
+#[path = "bool3_scratch.rs"]
+mod bool3_scratch;
 #[path = "bool2_cone_doors.rs"]
 mod bool2_cone_doors;
 #[path = "bool2_cone_doors_interval.rs"]
