@@ -105,6 +105,8 @@ mod m9_c1_rest_face_rung;
 mod mate4a_ef_bound_rung;
 #[path = "mate5_cyl_eps_rung.rs"]
 mod mate5_cyl_eps_rung;
+#[path = "mate8_witness_schedule.rs"]
+mod mate8_witness_schedule;
 
 #[path = "merge_skip.rs"]
 mod merge_skip;
