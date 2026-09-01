@@ -90,14 +90,14 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "torax_axial.rs"]
+mod torax_axial;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
 mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
-#[path = "torax_axial.rs"]
-mod torax_axial;
 
 #[path = "bitdump.rs"]
 mod bitdump;

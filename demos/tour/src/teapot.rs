@@ -58,11 +58,14 @@
 //!    refusal.
 //!
 //!    **The frontier moved rather than vanished**, and the scene's
-//!    wall 1 moved with it. Push the belly's arc centre OFF the axis
-//!    and its wall is a TORUS, which is outside the meridian
-//!    reduction's kinds and whose plane×torus pair the C5 table routes
-//!    to the general rung — a marcher this door does not use. That
-//!    refusal names the PAIR, and it is what wall 1 pins now. A curved
+//!    wall 1 moved with it — twice, and it is now gone. Pushing the
+//!    belly's arc centre OFF the axis makes its wall a TORUS, which
+//!    the meridian reduction did not know; the body fell to the
+//!    per-chart loop and the C5 table refused its plane×torus pair.
+//!    The reduction knows the kind now — a coaxial torus's meridian is
+//!    a circle centred `(R, h_c)`, the sphere's circle with one more
+//!    number — so that pot hollows and the probe below asserts it
+//!    rather than pinning a refusal. A curved
 //!    junction can also be TANGENT, and a tangent junction has no
 //!    transversal corner to solve at all: the conditioning meter says
 //!    so in the geometry's own terms, which is why the bullet still
@@ -160,7 +163,7 @@ use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
-use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand, ReplaceFaceError, ShellError};
+use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand};
 
 use crate::{SceneBody, Stop, View};
 
@@ -911,13 +914,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // against every surface meeting it, so the arc ships and the
     // squared shoulders are gone from the scene entirely.
     //
-    // WALL 1, RE-PLANTED one step further out — the belly the model
-    // might want NEXT. Push the arc's centre OFF the axis and the wall
-    // is no longer a sphere zone but a TORUS, and the C5 intersection
-    // table has no closed-form arm for plane×torus: it routes to the
-    // general rung, which is marching, and this door does not march.
-    // The refusal names the PAIR, which is the honest boundary of a
-    // unit that widened no table.
+    // WALL 1, RE-PLANTED and now RETIRED IN TURN. The re-planted wall
+    // pushed the arc's centre OFF the axis, making the belly a TORUS —
+    // a kind the meridian reduction did not know, so the body fell to
+    // the per-chart loop and refused at the C5 table's plane×torus
+    // pair. The reduction knows the kind now: a coaxial torus's
+    // meridian is a circle centred `(R, h_c)` in the `(ρ, h)`
+    // half-plane, which is the sphere's circle centred `(0, h_c)` with
+    // one more number, so the corner solve takes it and never asks the
+    // table. The pot below is ATTEMPTED live, exactly as the wall was,
+    // and it hollows.
     let torus_belly = revolved(
         Open.at(Point2::new(0.0, 0.0))
             .line_to(Point2::new(R_FOOT, 0.0), tol)
@@ -945,22 +951,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             .into(),
         tol,
     );
-    crate::walls::wall(
-        "teapot",
-        1,
-        "hollow a pot whose belly bulges about a centre OFF the axis — a torus wall \
-         rather than a sphere zone",
-        pncad::topo::shell(&torus_belly, WALL, FIT_TOL, tol),
-        |e| {
-            matches!(
-                e,
-                ShellError::Face { error: b, .. }
-                    if matches!(**b, ReplaceFaceError::NeighborPairUnroutable { .. })
-            )
-        },
-        "retire the plane×torus arm of `geom_brep::intersect::route` — which needs the \
-         torus's exact meters conversion, not a marcher — and re-derive this pot's \
-         closed forms from the torus's own volume of revolution",
+    let torus_pot = pncad::topo::shell(&torus_belly, WALL, FIT_TOL, tol)
+        .expect("a pot bellied about a centre off the axis hollows through the axial door");
+    assert_eq!(
+        pncad::topo::validate_geometric(&torus_pot, tol),
+        Ok(()),
+        "the torus-bellied pot: tier 3"
+    );
+    assert_eq!(
+        torus_pot.shells().count(),
+        2,
+        "the torus-bellied pot's hollow is outer + cavity"
+    );
+    println!(
+        "   wall 1 — RETIRED: the torus-bellied pot hollows ({} faces over two shells); \
+         its junction corners are pinned to their closed forms in \
+         crates/sweep/tests/torax_axial.rs",
+        torus_pot.faces().count()
     );
 
     // THE MOUTH, OPENED — the scene's second finding, RETIRED. This
@@ -1102,7 +1109,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "revolve(meridian, +y, Full) -> shell_open(pot, t = 7.8125 mm, the mouth's \
               chart) for the vessel; revolve + fillet_edges(the knob's top rim) for the \
               lid; revolve + transform_rigid for the spout; tube_along_arc for the \
-              handle. Three walls pinned: a torus-bellied pot's hollow and both unions",
+              handle. Two walls pinned: both unions",
         delta: DELTA,
         note: Some(format!(
             "THE VESSEL, SEALED THEN OPENED. Sealed it is {pv} vertices, {pe} edges, \

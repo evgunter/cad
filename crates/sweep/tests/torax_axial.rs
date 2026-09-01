@@ -99,7 +99,11 @@ fn has_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
     let out = topo::shell(body, T, FIT_TOL, tol())
         .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"));
-    assert_eq!(topo::validate_geometric(&out, tol()), Ok(()), "{what}: tier 3");
+    assert_eq!(
+        topo::validate_geometric(&out, tol()),
+        Ok(()),
+        "{what}: tier 3"
+    );
     assert_eq!(out.shells().count(), 2, "{what}: outer + cavity");
     out
 }
@@ -247,7 +251,8 @@ fn torax_the_teapot_belly_corners_solve_in_closed_form() {
         "the belly's mouth junction",
     );
 
-    let gap = 5.0 / 64.0 - (3.0f64 / 64.0 - 7.0 / 64.0).hypot(8.0 / 64.0 - 1.0 / 128.0 - 5.0 / 64.0);
+    let gap =
+        5.0 / 64.0 - (3.0f64 / 64.0 - 7.0 / 64.0).hypot(8.0 / 64.0 - 1.0 / 128.0 - 5.0 / 64.0);
     assert!(
         (gap - 4.422022405807807e-3).abs() <= 1e-14 * gap,
         "the C5ARMS STOP transcript's teapot gap, got {gap}"
@@ -269,7 +274,9 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
         let out = hollowed(what, &body);
         let mut metered = 0usize;
         for (face, f) in out.faces() {
-            let surface = out.get_surface(f.surface).expect("a face carries a surface");
+            let surface = out
+                .get_surface(f.surface)
+                .expect("a face carries a surface");
             for v in face_vertices(&out, face) {
                 let p = *out
                     .get_point(out.get_vertex(v).expect("vertex").point)
@@ -295,11 +302,8 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
 /// into the arithmetic.
 #[test]
 fn torax_the_torus_corners_survive_a_rigid_re_pose() {
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map =
+        Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.7);
     for (what, body) in [
         ("the torus barrel", torus_barrel()),
         ("the teapot's torus belly", torus_belly()),
@@ -391,10 +395,7 @@ fn torax_the_partial_revolve_rim_has_one_profile_constraint() {
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
     };
-    let topo::ReplaceFaceError::TogetherAxialCorner {
-        what, surfaces, ..
-    } = *error
-    else {
+    let topo::ReplaceFaceError::TogetherAxialCorner { what, surfaces, .. } = *error else {
         panic!("the rim must refuse at the corner it is about: {error}");
     };
     assert_eq!(surfaces, 2, "wall + meridian cap");

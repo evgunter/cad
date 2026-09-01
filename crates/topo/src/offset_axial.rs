@@ -92,24 +92,32 @@
 //! Several `what:` strings here are unreachable through `shell` because
 //! an operand door refuses first, and that is said rather than left for
 //! a reader to test for. Reached by a shipped row: the tangency arm of
-//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), the torus
-//! kind gate (the belly vase), `TogetherNotAxial`'s
-//! oblique-plane arm and `TogetherEdgeDisagreement` (`sf2b_r1_probes`,
-//! `sf2b_r2_probes`). **Direct-door only**, i.e. pinned by calling
+//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), its
+//! one-profile-constraint arm (the klein elbow's rim, `torax_axial`),
+//! `TogetherNotAxial`'s oblique-plane arm and `TogetherEdgeDisagreement`
+//! (`sf2b_r1_probes`, `sf2b_r2_probes`, and the sphere lune's rim in
+//! `torax_axial`). **Direct-door only**, i.e. pinned by calling
 //! `offset_charts_together` rather than `shell`: the partial-set and
 //! chart-mixed gates. **Unreached by any fixture**, and written for
-//! correctness: the axis-pole station arm, the two seam arms' refusing
-//! sides, and the over-determined-azimuth arm — no constructible body
-//! in this workspace has more than one plane through the axis at a
-//! corner that is not also all-planar.
+//! correctness: the axis-pole station arm, its off-axis-circle arm, the
+//! three seam arms' refusing sides, and the over-determined-azimuth arm
+//! — no constructible body in this workspace has more than one plane
+//! through the axis at a corner that is not also all-planar, and a
+//! profile circle centred off the axis (a torus meridian, `ρ_c = R`)
+//! cannot contain an axis pole at all, since `R > r > 0` holds it
+//! `R − r` clear of it.
 //!
 //! # What this door does not do
 //!
 //! - **No marching, no SSI, no crossing-pipeline entry.** Every solve
 //!   above is a quadratic at worst.
-//! - **It does not widen the C5 table** and does not call it. A torus
-//!   is outside the axis gate's kinds, so the bodies whose pairs the
-//!   table declines never reach here and keep the refusal they had.
+//! - **It does not widen the C5 table** and does not call it. A body
+//!   whose surfaces are not all coaxial about one axis — or whose kind
+//!   the gate does not know — never reaches here and keeps the refusal
+//!   it had. That includes a `plane × torus` rim on a PARTIAL revolve,
+//!   whose moved cap has stopped containing the axis and whose section
+//!   is a quartic; a FULL revolve's torus rim is a latitude circle and
+//!   is this door's, without the table being asked.
 //! - **It does not touch global clearance.** `shell`'s wall-clearance
 //!   gate is the operand's and is unchanged; this door decides corners.
 //!   A sliver WEDGE whose two moved meridian planes cross outside the
@@ -240,9 +248,7 @@ impl<T: Real> Profile<T> {
     fn residual(&self, rho: T, h: T) -> T {
         match *self {
             Self::Line { n, c } => n.0 * rho + n.1 * h - c,
-            Self::Circle { rho_c, h_c, r } => {
-                Vec3::new(rho - rho_c, h - h_c, T::zero()).norm() - r
-            }
+            Self::Circle { rho_c, h_c, r } => Vec3::new(rho - rho_c, h - h_c, T::zero()).norm() - r,
         }
     }
 }

@@ -588,20 +588,30 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 ///
 /// **It does not retire in this unit, and this row is why.** A partial
 /// revolve of a disc gives a TORUS wall and two PLANAR meridian end
-/// caps, so every rim is `plane × torus` — and the C5 table has no arm
-/// for that pair. The face-replacement door refuses
-/// `NeighborPairUnroutable` naming it, and the shell verb carries that
-/// refusal up unchanged. **Widening the route to chase a green would be
-/// the wrong unit's work**; the refusal is the honest boundary, so this
-/// row pins it by name.
+/// caps, so every rim is a torus × meridian-plane seam vertex. The
+/// axial door now takes the torus KIND — the wall's meridian circle is
+/// a profile constraint like any other — but a meridian cap stops
+/// containing the axis the instant it is offset inward, and the rim
+/// vertex is then TWO distinct surfaces carrying only ONE profile
+/// constraint between them: the cap fixes an azimuth, not a `(ρ, h)`.
+/// The door says exactly that, and this row pins the sentence.
 ///
-/// **What would retire it**, concretely: a `plane × torus` section
-/// arm. The configuration these rims need is the easy one — a plane
-/// CONTAINING the torus axis cuts it in two circles, closed form, no
-/// marching — and it is the same shape as the `plane_cylinder_section`
-/// / `plane_cone_section` doors that already exist. Every other klein
-/// wall pair is revolved too, so the same arm (plus `cone × cylinder`
-/// for the flare) is what the whole debt waits on.
+/// **This is not a torus gap.** `torax_axial` measures the same refusal
+/// on a SPHERE lune — the identical body with its profile circle slid
+/// onto the axis — where the moved rim section is still a circle and
+/// the door still cannot carry it, because that circle's centre is off
+/// the axis and the latitude mint has no arm for one. What is missing
+/// is the partial revolve's RIM, for every curved wall.
+///
+/// **What would retire it**, concretely, is two things and the torus
+/// needs both: a carried datum for the wall chart's own `v`-seam (the
+/// coordinate the cap cannot supply), and a carrier for the moved rim.
+/// For the torus that carrier is a QUARTIC: a plane parallel to a
+/// torus's axis at distance `t` cuts it in a spiric section, not a
+/// circle, so this rim waits on the `plane × torus` section arm the C5
+/// table still declines. `torax_axial` carries that measurement too —
+/// on this elbow's own numbers the section's half-width and half-height
+/// differ by `2.03e-4` m, a circle's do not.
 ///
 /// The comparison this row would make once that lands: topology exactly
 /// equal, stored radii within one ulp (the two spellings reach the
@@ -611,7 +621,7 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// instead of two, and the wall stops being a number the author has to
 /// keep consistent across two call sites.
 #[test]
-fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
+fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
     // The hand construction still builds, unchanged — the debt is real
     // and the demo is not broken, it is just paid by hand.
     let by_hand = klein_elbow(vec![
@@ -638,26 +648,23 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
     let e = topo::shell_open(&solid, KLEIN_WALL, &caps, FIT_TOL, Tol::witness())
-        .expect_err("plane x torus has no route arm");
+        .expect_err("the elbow's rim has no second profile constraint");
     assert!(
         matches!(
             e,
             ShellError::Face { ref error, .. } if matches!(
                 **error,
-                topo::ReplaceFaceError::NeighborPairUnroutable {
-                    kind: geom_brep::SurfaceKind::Plane,
-                    other_kind: geom_brep::SurfaceKind::Torus,
-                    ..
-                }
+                topo::ReplaceFaceError::TogetherAxialCorner { surfaces: 2, what, .. }
+                    if what.contains("one profile constraint")
             )
         ),
-        "expected the C5 refusal naming (plane, torus), got {e}"
+        "expected the rim vertex's own refusal, got {e}"
     );
 
     // The sealed arm stops at the same wall, on the same edges — the
     // blocker is the rim pair, not the opening.
     let sealed = topo::shell(&solid, KLEIN_WALL, FIT_TOL, Tol::witness())
-        .expect_err("the sealed arm meets the same pair");
+        .expect_err("the sealed arm meets the same rim");
     assert!(matches!(sealed, ShellError::Face { .. }), "got {sealed}");
 }
 
