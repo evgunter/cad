@@ -944,8 +944,10 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// module's, and has one home.
 ///
 /// **What is shared with [`mod@crate::resolve`], and what is not.**
-/// Rungs 1 and 2 are that module's: [`ResolveError::node_gone`] mints
-/// the deleted-vs-foreign split and [`ResolveError::ambiguous`] mints
+/// Rungs 1 and 2 are that module's:
+/// [`crate::resolve::ResolveError::node_gone`] mints the
+/// deleted-vs-foreign split and
+/// [`crate::resolve::ResolveError::ambiguous`] mints
 /// the tie payload and its witness, so neither ladder restates the
 /// other's refusal and the two cannot drift about what a stranded or
 /// tie-marked name looks like. Rung 3 is NOT shared and is not the

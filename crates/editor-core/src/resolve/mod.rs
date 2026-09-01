@@ -167,8 +167,9 @@ impl core::error::Error for ResolveError {}
 /// place.
 ///
 /// Two ladders answer the same question at different scopes — this
-/// module's whole-evaluation one and [`crate::eval`]'s mid-evaluation
-/// one ([`crate::eval::wire`]'s `ladder`) — and their rungs 1 and 2
+/// module's whole-evaluation one and the mid-evaluation one the
+/// evaluation doors resolve through (`eval::wire`'s `ladder`) — and
+/// their rungs 1 and 2
 /// are the SAME refusal, derived from the same facts. What differs
 /// between them is rung order enforcement and the `Vanished` rung, so
 /// those stay where they are and these do not: a payload shape is
