@@ -218,3 +218,72 @@ fn r2_lattice_certified_counts_agree_with_the_independent_counter() {
         "declined {declined} of {total}: the certified door is refusing generic rays"
     );
 }
+
+/// Extreme radii ratios: the Ferrari branch's cube root sees inputs
+/// whose magnitudes swing with `(R/r)`, and the containment-by-sqrt
+/// argument's truncation gap grows with `|ln x|`. Thin tube (r/R =
+/// 1e-4) and fat-ish tube, rays chosen to take the two-real-root
+/// (cbrt) branch; certified roots must still match the counter.
+#[test]
+fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let axis = Vec3::new(0.0, 1.0, 0.0);
+    let c = Point3::new(0.0, 0.0, 0.0);
+    for (rr, rm) in [(1.0, 1e-4), (1.0, 0.49), (100.0, 1e-2)] {
+        // A generic oblique ray through the tube near azimuth 0 with a
+        // nonzero q̂ (e ≠ 0, n ≠ 0): the cbrt branch.
+        let q = Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm);
+        let d = Vec3::new(-0.8, -0.33, 0.31).normalize();
+        let got = line_torus_roots(q, d, c, axis, rr, rm, band);
+        let f = |t: f64| {
+            let w = Vec3::new(q.x + d.x * t, q.y + d.y * t, q.z + d.z * t);
+            let n2 = w.norm_squared();
+            (n2 + rr * rr - rm * rm).powi(2) - 4.0 * rr * rr * (n2 - w.y * w.y)
+        };
+        // Independent: bracket around the tube passage, fine grid.
+        let w0 = Vec3::new(q.x, q.y, q.z);
+        let b = w0.dot(d);
+        let reach = rr + rm;
+        let disc = b * b - w0.norm_squared() + reach * reach * 1.0000001;
+        assert!(disc > 0.0);
+        let (lo, hi) = (-b - disc.sqrt(), -b + disc.sqrt());
+        let n = 400_000usize;
+        let mut roots = Vec::new();
+        let mut pt = lo;
+        let mut pf = f(lo);
+        for i in 1..=n {
+            let t = lo + (hi - lo) * i as f64 / n as f64;
+            let v = f(t);
+            if v != 0.0 && pf != 0.0 && (v < 0.0) != (pf < 0.0) {
+                let (mut a2, mut c2, mut fa) = (pt, t, pf);
+                for _ in 0..100 {
+                    let m = 0.5 * (a2 + c2);
+                    let fm = f(m);
+                    if (fa < 0.0) != (fm < 0.0) {
+                        c2 = m;
+                    } else {
+                        a2 = m;
+                        fa = fm;
+                    }
+                }
+                roots.push(0.5 * (a2 + c2));
+            }
+            pt = t;
+            pf = v;
+        }
+        match got {
+            Ok(TorusRoots::Certified { count, ts }) => {
+                assert_eq!(count, roots.len(), "count at ratio {rr}/{rm}");
+                let mut v: Vec<f64> = ts[..count].to_vec();
+                v.sort_by(f64::total_cmp);
+                for (a, b) in v.iter().zip(roots.iter()) {
+                    assert!(
+                        (a - b).abs() < 1e-5 * (1.0 + rr),
+                        "root {a} vs {b} at ratio {rr}/{rm}"
+                    );
+                }
+            }
+            other => panic!("expected Certified at ratio {rr}/{rm}, got {other:?}"),
+        }
+    }
+}
