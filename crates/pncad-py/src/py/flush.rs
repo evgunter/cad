@@ -123,6 +123,14 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
     match class {
         s::ContactClass::Rest => Ok(ContactClass::Rest),
         s::ContactClass::Tangent => Ok(ContactClass::Tangent),
+        // `Debug` because there is nothing else: the kernel enum has
+        // no `Display`, and an unknown variant has no tag either. It
+        // holds only while the unknown variant is FIELDLESS — a struct
+        // variant renders with the struct fingerprint
+        // `crate::errors::reads_as_prose` rejects, and this graceful
+        // refusal becomes a panic at the funnel. Whoever adds one
+        // decides then: give the kernel enum a `Display`, or render
+        // the name alone here.
         other => Err(crate::py::typed_err(
             py,
             crate::errors::ErrorClass::Select,

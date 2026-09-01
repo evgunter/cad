@@ -6,16 +6,15 @@
 //! because prose is not a stable interface — and its human message is
 //! the kernel error's own `Display`, never a `Debug` dump.
 //!
-//! A tag is not the whole payload. Most doors project every arm's
-//! fields as attributes beside it — `py/readback.rs` and
-//! `py/refactor.rs` are the worked examples: one exhaustive `match`,
-//! every attribute present on every arm and `None` where the arm does
-//! not carry it, so `getattr` never raises and a caller never has to
-//! branch on `variant` first. Seven doors still cross as tag plus
-//! message alone (`EditError`, `DeclareError`, `PersistError`,
-//! [`PathError`], [`FrameError`], the STL trio, and the STEP importer,
-//! which argues its case at its own site); #1479 owns that remainder
-//! and lists what each of them withholds.
+//! A tag is not the whole payload, and the doors are split on that.
+//! Most project every arm's fields as attributes beside the tag —
+//! `py/readback.rs` and `py/refactor.rs` are the worked examples: one
+//! exhaustive `match`, no wildcard arm, every attribute present on
+//! every arm and `None` where the arm does not carry it, so `getattr`
+//! never raises and a caller never has to branch on `variant` first.
+//! The rest cross as tag plus message alone. **#1479 owns that split**
+//! — which doors are on which side, and what each unprojected one
+//! withholds; this header does not keep a second copy of that census.
 //!
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
