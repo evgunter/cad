@@ -2129,8 +2129,9 @@ class Evaluation:
         record and narrows nothing. `uncertainty` is the exported
         `UNCERTAINTY_MEASURE_WITH_UNIT` length — omitted, the writer
         reads the run's ambient tolerance, which is the ε the body was
-        built under. An `uncertainty` that is not strictly positive is
-        an `ExportError`."""
+        built under. An explicit one that is not finite and strictly
+        positive is an `ExportError`; the rule is the writer's and is
+        quoted from it, not restated."""
 
 def evaluate(
     doc: Doc,

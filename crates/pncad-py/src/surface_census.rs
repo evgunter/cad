@@ -86,6 +86,33 @@ fn mentions(hay: &str, needle: &str) -> bool {
     false
 }
 
+/// The text between a `def` block's OUTER parens — its parameter
+/// list, and nothing after it.
+///
+/// Bracket-depth-keyed rather than `rfind(')')`, so a default value or
+/// an annotation carrying its own parens ends where it opens.
+fn parameter_text(block: &str) -> String {
+    let Some(open) = block.find('(') else {
+        return String::new();
+    };
+    let mut depth = 1;
+    let mut out = String::new();
+    for ch in block[open + 1..].chars() {
+        match ch {
+            '(' | '[' => depth += 1,
+            ')' | ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    break;
+                }
+            }
+            _ => {}
+        }
+        out.push(ch);
+    }
+    out
+}
+
 /// The leading identifier of `s`, empty when it does not start with one.
 fn leading_ident(s: &str) -> &str {
     let s = s.trim_start();
@@ -232,8 +259,7 @@ impl Stub {
         self.names.contains(name)
     }
 
-    /// Every type name reachable from a signature the stub declares,
-    /// as one text.
+    /// Every type name a stub signature ACCEPTS, as one text.
     ///
     /// A mode class the stub declares but no verb accepts is a class a
     /// Python caller can construct and can pass to nothing, which is
@@ -241,8 +267,19 @@ impl Stub {
     /// `TypeAlias`es are resolved to a fixpoint because that is where
     /// the admissibility unions are written: `_PointLeg` is what
     /// `arc_to` names, and `Bulge` is inside it.
+    ///
+    /// PARAMETER positions only — the text between each `def`'s outer
+    /// parens, so a return annotation contributes nothing. A class the
+    /// surface only ever HANDS BACK is not a class a caller can
+    /// author with, and counting it would make "admitted by a verb"
+    /// mean "mentioned near one".
     fn signature_reach(&self) -> String {
-        let mut text: String = self.defs.values().cloned().collect::<Vec<_>>().join("\n");
+        let mut text: String = self
+            .defs
+            .values()
+            .map(|block| parameter_text(block))
+            .collect::<Vec<_>>()
+            .join("\n");
         loop {
             let grown: Vec<&String> = self
                 .aliases
@@ -265,22 +302,14 @@ impl Stub {
         let Some(block) = self.defs.get(qualified) else {
             return BTreeSet::new();
         };
-        let Some(open) = block.find('(') else {
-            return BTreeSet::new();
-        };
         let mut params = BTreeSet::new();
-        let mut depth = 1;
+        let mut depth = 0;
         let mut piece = String::new();
-        for ch in block[open + 1..].chars() {
+        for ch in parameter_text(block).chars() {
             match ch {
                 '(' | '[' => depth += 1,
-                ')' | ']' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-                ',' if depth == 1 => {
+                ')' | ']' => depth -= 1,
+                ',' if depth == 0 => {
                     params.insert(leading_ident(&piece).to_owned());
                     piece.clear();
                     continue;
@@ -316,8 +345,26 @@ enum Spelling {
     /// rather than defaulted: an unbound member is a decision here,
     /// and the census's whole subject is decisions that were never
     /// written down.
-    #[allow(dead_code)]
-    NotBound(&'static str),
+    ///
+    /// It names the spelling it WOULD have, and that is what keeps it
+    /// falsifiable. A variant carrying a reason alone asserts nothing
+    /// a test can check: it contributes no names, so it stays green
+    /// forever — including after someone binds the member, at which
+    /// point the reason is a lie nobody is reading.
+    /// [`the_not_bound_roster_decays`] is the other half, and it is
+    /// the half `test_binding_census.py`'s `test_the_rosters_decay`
+    /// already models for its own `NOT_BOUND`.
+    #[allow(
+        dead_code,
+        reason = "the roster's second shape; armor for its first user, with no member unbound today"
+    )]
+    NotBound {
+        /// What a caller would write if this member were bound —
+        /// checked to be ABSENT from the stub.
+        would_be: &'static [&'static str],
+        /// Why it is not.
+        reason: &'static str,
+    },
 }
 
 /// **The verb roster.** One arm per verb the transition table
@@ -435,8 +482,56 @@ fn absent(stub: &Stub, spelling: &Spelling) -> Vec<String> {
             .filter(|n| !stub.declares(n))
             .map(|n| (*n).to_owned())
             .collect(),
-        Spelling::NotBound(_) => Vec::new(),
+        Spelling::NotBound { .. } => Vec::new(),
     }
+}
+
+/// Every roster entry in the file, as `(member, spelling)` — the two
+/// rosters that use [`Spelling`], read together so a decay check
+/// cannot cover one and quietly skip the other.
+fn every_roster_entry() -> Vec<(String, Spelling)> {
+    Verb::ALL
+        .iter()
+        .map(|verb| (format!("Verb::{verb:?}"), verb_spelling(*verb)))
+        .chain(
+            step_option_keywords()
+                .into_iter()
+                .map(|(field, spelling)| (format!("StepOptions::{field}"), spelling)),
+        )
+        .collect()
+}
+
+/// **The roster decays.** A member listed as deliberately unbound
+/// whose spelling the stub NOW declares is a stale entry: someone
+/// bound it and left a reason standing that says they did not.
+///
+/// This is the half that makes [`Spelling::NotBound`] an assertion
+/// rather than a comment. Nothing is unbound today, so it asserts over
+/// an empty set — which is the point of writing it now: the first
+/// member to be declined arrives with its decay already checked,
+/// rather than depending on whoever declines it to think of this.
+#[test]
+fn the_not_bound_roster_decays() {
+    let stub = stub();
+    let stale: Vec<String> = every_roster_entry()
+        .into_iter()
+        .filter_map(|(member, spelling)| match spelling {
+            Spelling::NotBound { would_be, reason } => {
+                let found: Vec<&str> = would_be
+                    .iter()
+                    .copied()
+                    .filter(|name| stub.declares(name))
+                    .collect();
+                (!found.is_empty())
+                    .then(|| format!("{member} is bound at {found:?}, but says: {reason}"))
+            }
+            Spelling::Bound(_) => None,
+        })
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "these members are listed as not bound and the stub binds them: {stale:?}"
+    );
 }
 
 /// The scanners found a surface, so the set comparisons below mean
@@ -525,7 +620,7 @@ fn every_step_option_reaches_the_python_door() {
         .flat_map(|(field, spelling)| {
             let names = match spelling {
                 Spelling::Bound(names) => names,
-                Spelling::NotBound(_) => &[][..],
+                Spelling::NotBound { .. } => &[][..],
             };
             names
                 .iter()
@@ -551,7 +646,7 @@ fn the_stub_scanner_reads_what_it_claims() {
          _Alias: TypeAlias = Bulge | Via\n\
          class Widget:\n    \
          def wrapped(\n        self,\n        spec: _Alias,\n    ) -> None: ...\n    \
-         def plain(self) -> int: ...\n\
+         def plain(self) -> ReturnedOnly: ...\n\
          def free(x: int) -> None: ...\n",
     );
     assert!(!stub.declares("NotADeclaration"), "prose read as a class");
@@ -570,5 +665,10 @@ fn the_stub_scanner_reads_what_it_claims() {
         "an alias named in a signature is resolved into the reach"
     );
     assert!(!mentions(&reach, "Center"), "the reach invents nothing");
+    assert!(
+        !mentions(&reach, "ReturnedOnly"),
+        "a type only ever RETURNED is not a type a caller can author with, so it is \
+         not in the reach"
+    );
     assert!(mentions("a Center,", "Center") && !mentions("Centered", "Center"));
 }

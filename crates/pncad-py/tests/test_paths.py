@@ -103,6 +103,18 @@ class TestTheLatticeWalks(unittest.TestCase):
         self.assertEqual(loop.vertex_count, 3)
 
     def test_the_cusp_verb_authors_the_reverse_tangent_joint(self):
+        """Evaluating clean is the assertion that the DECLARATION
+        crossed, not merely that a loop lowered.
+
+        The Rust twin (`declared_tangency.rs`) carries an explicit red
+        half — the same loop with the declaration stripped refuses
+        `UndeclaredTangency` — and this test rides that rather than
+        repeating it. What licenses the inference here is that the
+        same figure with `turn(180 * deg)` where `cusp()` stands
+        refuses `junction_cusp` at the call: the geometry is identical
+        and only the declaration differs, so a `cusp()` that failed to
+        declare would land on that refusal instead of evaluating.
+        """
         # The lune between two internally tangent circles, cut on the
         # y axis — the wedge-0/2π figure. `cusp()` is `tangent()`'s
         # mirror: it departs along the NEGATED incoming ray, so the
