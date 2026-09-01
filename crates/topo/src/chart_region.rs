@@ -1223,7 +1223,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         }
     }
     let r_max = a.radius.max(b.radius);
-    let hyp = (reach * reach + r_max * r_max).sqrt();
+    let hyp = (reach.powi(2) + r_max.powi(2)).sqrt();
     // A gate over a SIGNED margin (the radius difference): either
     // definite sign is a genuine "definitely apart".
     let signed_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
