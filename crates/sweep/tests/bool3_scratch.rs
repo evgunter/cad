@@ -84,7 +84,10 @@ fn quarter_donut() -> Body<f64> {
 fn report(name: &str, b: &Body<f64>, pts: &[(&str, Point3<f64>)]) {
     println!("--- {name}");
     for (label, q) in pts {
-        println!("  {label}: {:?}", point_in_solid(b, *q, band(), Tol::witness()));
+        println!(
+            "  {label}: {:?}",
+            point_in_solid(b, *q, band(), Tol::witness())
+        );
     }
 }
 
@@ -107,7 +110,10 @@ fn scratch_torus_door() {
                 "inner equator (0.35,1.25,0) -> OnBoundary",
                 Point3::new(0.35, 1.25, 0.0),
             ),
-            ("top (0.5,1.40,0) -> OnBoundary", Point3::new(0.5, 1.40, 0.0)),
+            (
+                "top (0.5,1.40,0) -> OnBoundary",
+                Point3::new(0.5, 1.40, 0.0),
+            ),
             (
                 "spine off-seam (0,1.25,0.5) -> In",
                 Point3::new(0.0, 1.25, 0.5),
