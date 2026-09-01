@@ -2812,3 +2812,15 @@ machinery, Evan's must-support ruling). #347's union demand
 narrows to the circle × wall residue (design-gated, not
 specced). VERBS-7 slot 4 (FABLE per the block draw) is the
 remaining dispatch.
+## C5ARMS PR-1 DISPATCHED (2026-09-01) — VERBS-7 slot 4, FABLE
+
+Spec ratified at 8cbf00910 after a premise re-verification against
+post-#1290/#1353/#1417/#1425/#1180 main (all eight re-cuts
+applied; the spout-pair correction became cone×sphere when the
+bellied pot shipped; case-2 promoted to demanded on the arrived
+torus_barrel/teapot-wall-1 consumers; the torus-invariant STOP
+retired against the measured R>r>0 net). Slot 4's arm read from
+the VERBS-7 per-slot line at dispatch: FABLE — the block's drawn
+fable executes, no deviation. Lane verbs-c5a (reference clone of
+verbs-ga2, borrower rule in force). Brief carries the
+suites-via-CI method rule.
