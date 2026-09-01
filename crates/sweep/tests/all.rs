@@ -423,6 +423,8 @@ mod mate2_r1_probes;
 mod mate2_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "mate7a_r2_probes.rs"]
+mod mate7a_r2_probes;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

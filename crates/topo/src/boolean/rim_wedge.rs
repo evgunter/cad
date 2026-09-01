@@ -278,3 +278,93 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         }),
     }
 }
+
+/// R2 review probes for MATE-7a (PR #1477). Not the unit's rows —
+/// reviewer measurements of what the routing answers on inputs the
+/// unit's own fixtures do not cover.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+        }
+    }
+
+    fn cut_plane(sign: f64) -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.6),
+            normal: Vec3::new(0.0, 0.0, sign),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cut_rim() -> Rim<f64> {
+        Rim {
+            center: Point3::new(0.0, 0.0, 0.6),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **The routing has no TANGENCY screen.** `validate`'s check-4
+    /// material arm — whose fold this module imports — is entered only
+    /// after `classify_dihedral` reports every interior sample
+    /// definitely `Smooth`. `classify_shared_rim` runs the fold with no
+    /// such precondition, so a rim where the two surfaces genuinely
+    /// CROSS is classified anyway. Fixture: the unit sphere and the
+    /// plane `z = 0.6`, which meet at a definite 53 degrees.
+    #[test]
+    fn r2_a_plainly_transverse_rim_is_classified_as_the_smooth_seam() {
+        let got = classify_shared_rim(&sphere(), 1.0, &cut_plane(1.0), 1.0, cut_rim(), 1.6, band());
+        println!("[r2] transverse sphere/plane rim routes to {got:?}");
+        assert_eq!(
+            got.expect("the routing answers rather than escalating"),
+            RimRouting::Seam,
+            "R2: a definite crossing is reported as the wedge-pi smooth seam"
+        );
+    }
+
+    /// The same crossing with the plane's stored normal REVERSED is
+    /// sent to the other unbuilt arm: which arm a transverse rim earns
+    /// depends on a stored sign, not on the geometry.
+    #[test]
+    fn r2_the_same_crossing_flips_arm_with_the_stored_normal() {
+        let got =
+            classify_shared_rim(&sphere(), 1.0, &cut_plane(-1.0), 1.0, cut_rim(), 1.6, band());
+        println!("[r2] reversed-normal transverse rim routes to {got:?}");
+        assert!(
+            matches!(got, Ok(RimRouting::Cusp(_) | RimRouting::Lamina)),
+            "R2: expected an opposed-side answer, got {got:?}"
+        );
+    }
+
+    /// **The sample schedule is NOT the one the imported fold's other
+    /// caller uses.** `validate.rs` takes `1..CERT_SAMPLES-1` (seven
+    /// INTERIOR schedule parameters); this module takes
+    /// `0..CERT_SAMPLES` (nine uniform phases, the first of which is
+    /// the `u_ref` seam point the doc-comment says is excluded).
+    #[test]
+    fn r2_the_two_callers_of_the_fold_sample_differently() {
+        let n = geom_brep::CERT_SAMPLES;
+        let mine: Vec<u32> = (0..n).collect();
+        let theirs: Vec<u32> = (1..(n - 1)).collect();
+        println!("[r2] rim_wedge samples {mine:?}; validate check-4 samples {theirs:?}");
+        assert_ne!(mine.len(), theirs.len());
+        assert_eq!(
+            mine[0], 0,
+            "the first rim sample sits at theta = 0, the u_ref seam"
+        );
+    }
+}
