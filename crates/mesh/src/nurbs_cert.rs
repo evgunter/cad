@@ -2244,8 +2244,9 @@ mod tests {
                 );
                 // Monotone the easy way — `worst_ratio` only shrinks
                 // as the certificate grows, so a LOOSE bound passes
-                // this by a wider margin than a tight one. One of the
-                // class's three open instances; S237.
+                // this by a wider margin than a tight one. **A ceiling
+                // with no floor**, which is a known and unfixed gap
+                // here and at two more rows of the same shape.
                 assert!(
                     worst_ratio <= 1.0,
                     "{name}: a triangle's samples exceeded its certificate"
@@ -2634,7 +2635,8 @@ mod tests {
             }
             println!("r1_extreme delta={delta:.0e}: tris={tris} max d/cert={worst_ratio:.4}");
             // As above: one-sided, and a loose bound passes it more
-            // easily than a tight one (S237).
+            // easily than a tight one — the same ceiling-with-no-floor
+            // gap.
             assert!(
                 worst_ratio <= 1.0,
                 "r1_extreme: a sample exceeded its own certificate ({worst_ratio})"

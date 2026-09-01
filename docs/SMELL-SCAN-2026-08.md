@@ -34,17 +34,17 @@ forms are executed against this branch, not assumed. The surviving sentence is
 written to stand without the lookup; the lookup is for the reader who wants the
 evidence behind it.
 
-**Source comments cite these IDs too, and they are deliberately not chased.**
-`crates/` carries comments naming a finding or a decision of this file by
-number: `topo/src/face_normal.rs:186` and `topo/src/boolean/reduce.rs:254` cite
-`S67`, and five sites across four `geom-core` and `editor-core` files cite
-*"Wave 0 decision **D1** of `docs/SMELL-SCAN-2026-08.md`"*. A citation with no
-heading here resolves by the recipe above, exactly as one from inside this file
-does. **Deleting a record does not license editing the comments that name it**
-— that is `memories/docs-ledger.md`'s rule for deleted documents applied one
-level down, and rewriting six source files to chase a prune would put the
-archaeology in the code, which `docs/prompts/implementer-discipline.md` §4
-forbids.
+**No source comment may cite this document, by filename or by finding
+number** (Evan, 2026-09-01). This file is deleted as its records close, so a
+comment that points here is a pointer with an expiry, and two already expired:
+`topo/src/face_normal.rs` and `topo/src/boolean/reduce.rs` delegated the
+out-of-crate hand-multiply inventory to `S67`, which was pruned when #834
+closed it, and the list they declined to hold survived only in git. **If a
+comment needs the context, the context goes in the comment.** The sweep that
+removed the existing citations is in this branch; a new one is a defect, not a
+convention. Note also that the recovery recipe above assumes full history:
+these worktrees are shallow clones, so `git log -G` reports nothing until
+`git fetch --deepen` or `--unshallow` has run.
 
 **And the same rule binds this document's own ledger obligation.** `docs/` is
 pruned rather than archived and a deleted *document* is recorded in
