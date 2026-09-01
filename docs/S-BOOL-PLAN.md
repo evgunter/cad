@@ -169,8 +169,8 @@ logged pre-draw per the protocol.
   the lattice only); migrate writers per the ruling (fixtures →
   lattice or dev-only door, LoopBuilder precedent; step-import
   marked as materialization); `validate` remains the data checker
-  for materialized loops. After BOOL-8 (lily needs the continuation
-  first).
+  for materialized loops. After BOOL-11 (lily leaves `RawLoop` only
+  once the seam closes structurally).
 - **BOOL-10 — the arc_continue retirement (L; under the Q1
   extension).** Remove the verb, its program step, eval arm,
   profile lift, and refusal family (`ArcContinueNeedsArcCarrier`
@@ -183,6 +183,23 @@ logged pre-draw per the protocol.
   chain-state-consuming verbs are unwritable (lever arm + identity
   data confined to emission-layer types). After BOOL-8; BOOL-9's
   raw-door survey runs beside it.
+- **BOOL-11 — the declared point-target continuation and the
+  structural closer (M; under the Q1 third-round extension).** The
+  variant declaring a leg the straight continuation landing on a
+  named point — ANY authored point, CHECKED (target on the
+  departing ray, refusing when false) never inferred from a value;
+  the closer (`Start` as target) is the special case that closes
+  the seam wall. BOOL-8's seam-wall rows flip from refusal pins to
+  the demonstration; lily's section leaves `RawLoop` (the named
+  gap's remaining half — the demo is the ruling's demonstration,
+  as BOOL-8's was for the interior half); §4's Residual paragraph
+  re-records as ruled and the verb-table row lands. The f64
+  meaning of "on the ray" is RULED (fourth round, below): within
+  ε, as ever; the band's selection (which ε, its lever, the D2
+  row) and the past-band refusal are the unit's to state. PATHS
+  §4 / verb table is design surface: the unit's PR carries the
+  text for Evan's eyes before merge. After BOOL-8's merge; before
+  BOOL-9.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -238,7 +255,36 @@ this program's files — see Q3 below.
    bookkeeping legitimately lives. The enforcement Evan believed
    already existed becomes real: the sealed verb module's
    signatures narrow to the bare state values only, so a verb
-   needing chain state is unwritable. BOOL-10.** Three stances are in
+   needing chain state is unwritable. BOOL-10.**
+   **Extended (Evan, in-chat, 2026-09-01, third round — on BOOL-8's
+   measured residual, the seam wall): the straight continuation
+   gains a DECLARED POINT-TARGET form — a variant declaring the
+   leg the straight continuation landing on a named point; the
+   kernel CHECKS that the target lies on the departing directed
+   point's ray (a declared structural fact, verified — never
+   inferred from a value coincidence) and refuses when it does
+   not. The target is ANY authored point, per Evan's own widening
+   ("valid to want a line to a specific point with vertices along
+   it"); the structural CLOSER is the special case where the
+   target is `Start`, which closes the seam wall. Axiom-clean: it
+   consults the directed point's binding bits, the authored
+   target, and (for the closer) `Start`, which is the chain's own
+   emission-layer bookkeeping (§2c's parenthetical already homes
+   identity data there). PQ4 (no mid-carrier seam) stands
+   unchanged; the closer makes the corner cut sufficient for an
+   all-sides-subdivided outline. Scheduled as BOOL-11; §4's
+   Residual paragraph re-records as ruled when it lands.**
+   **Ruled (Evan, in-chat, 2026-09-01, fourth round — the f64
+   question): "target lies on the ray" means, as ever, TO WITHIN
+   ε. Exact-or-refuse is out. The declaration is what makes the
+   banded check legal: with the intent authored, the ε comparison
+   is authored-data CONSISTENCY — the same class as the arc verbs'
+   consistency refusals — not the value-inference the ladder
+   refuses, which reads intent OFF a coincidence no one declared.
+   Past the band the leg refuses typed (inconsistent authored
+   data). Which ε (the input-quality band is the natural home),
+   its lever, and the D2 row remain the unit's to state at the
+   site and in the §4 text for Evan's eyes.** Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
