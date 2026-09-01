@@ -1744,15 +1744,17 @@ impl<'a> Resolver<'a> {
             };
             let edge_id = as_ref(oe_id, edge_ref, oexpected)?;
             let forward = as_bool(oe_id, orientation, oexpected)?;
-            if let std::collections::btree_map::Entry::Vacant(slot) = edges.entry(edge_id) {
-                let spec = self.edge(oe_id, edge_id, vertices)?;
-                slot.insert(spec);
-            }
+            let spec = match edges.entry(edge_id) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    slot.insert(self.edge(oe_id, edge_id, vertices)?)
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+            };
             // Leg E's composition: an `EDGE_CURVE` read from its other
             // end (`same_sense` `.F.`) flips what "forward" means for
             // every use of it. The two orientation statements — the
             // edge's and the use's — multiply, exactly once, here.
-            let reversed = edges.get(&edge_id).is_some_and(|spec| spec.reversed);
+            let reversed = spec.reversed;
             uses.push(EdgeUse {
                 edge: edge_id,
                 forward: forward != reversed,
@@ -1950,10 +1952,16 @@ fn bounds_census(bounds: &[BoundSpec], edges: &BTreeMap<u64, EdgeSpec>) -> FaceC
         }
         for u in &bound.uses {
             edge_ids.insert(u.edge);
-            if let Some(spec) = edges.get(&u.edge) {
-                vertex_ids.insert(spec.start);
-                vertex_ids.insert(spec.end);
-            }
+            // A use's edge always resolves: `bound` inserts the edge's
+            // spec into `edges` before it pushes the use, and nothing
+            // removes one. A census that skipped a use's endpoints
+            // would understate the identity it exists to certify, so
+            // the impossibility is asserted rather than tolerated.
+            let Some(spec) = edges.get(&u.edge) else {
+                unreachable!("an EdgeUse's edge is inserted into `edges` before the use is built")
+            };
+            vertex_ids.insert(spec.start);
+            vertex_ids.insert(spec.end);
         }
     }
     FaceCensus {
