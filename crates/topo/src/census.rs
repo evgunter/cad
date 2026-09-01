@@ -1193,6 +1193,7 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         | ChartRegionError::MissingCache { .. }
                         | ChartRegionError::ArmUnbounded { .. }
                         | ChartRegionError::SeamBranch
+                        | ChartRegionError::PeriodFold
                         | ChartRegionError::CarrierTilt
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
@@ -2298,6 +2299,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 | ChartRegionError::MissingCache { .. }
                 | ChartRegionError::ArmUnbounded { .. }
                 | ChartRegionError::SeamBranch
+                | ChartRegionError::PeriodFold
                 | ChartRegionError::CarrierTilt
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }
@@ -2745,6 +2747,208 @@ mod tests {
                 }
             )),
             "{arm_only:?}"
+        );
+    }
+
+    // ============ MATE-5: the cross-description cylinder rows ==========
+    //
+    // Issue 943's residue at the CENSUS door: the same wall-sheet
+    // fixtures, but the second sheet authored in a DIVERGENT
+    // description of the same cylinder locus (origin a quarter up the
+    // axis, axis direction opposed, seam rotated 0.7 rad, its own
+    // `GeomSource`) — the cross-instance class's fingerprint, which
+    // used to dead-end `ChartDivergence` → `CensusUnsupported{Face}`
+    // → `Declined` → `Uncertified` and now flows through the
+    // certified-ε enclosure arm.
+
+    /// A wall sheet over the DIVERGENT description of the unit
+    /// cylinder: `θ_world = 0.7 − u_B`, `z_world = 0.25 − v_B`. Takes
+    /// the WORLD window and converts.
+    fn cyl_sheet_b(
+        body: &mut Body<f64>,
+        th0: f64,
+        th1: f64,
+        z0: f64,
+        z1: f64,
+        sense: bool,
+    ) -> FaceKey {
+        use geom::Curve3;
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        let d = 0.7_f64;
+        let origin = Point3::new(0.0, 0.0, 0.25);
+        let axis = -Vec3::unit_z();
+        let u_ref = Vec3::new(d.cos(), d.sin(), 0.0);
+        let (u0, u1, v0, v1) = (d - th1, d - th0, 0.25 - z1, 0.25 - z0);
+        let at = |u: f64, v: f64| -> Point3<f64> {
+            let w = axis.cross(u_ref);
+            origin + (u_ref * u.cos() + w * u.sin()) * 1.0 + axis * v
+        };
+        let (p00, p10, p11, p01) = (at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1));
+        let seed = body.mvfs(p00).unwrap();
+        let cyl = body.add_surface(Surface::Cylinder {
+            origin,
+            axis,
+            radius: 1.0,
+            u_ref,
+        });
+        body.set_surface_source(cyl, crate::GeomSource::minted(7102, 0))
+            .unwrap();
+        let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
+            let center = origin + axis * v;
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis,
+                u_ref,
+            });
+            let (carrier, t0, t1) = if ccw {
+                (
+                    Curve3::Circle {
+                        center,
+                        axis,
+                        radius: 1.0,
+                        u_ref,
+                    },
+                    u0,
+                    u1,
+                )
+            } else {
+                let s = at(u1, v) - center - axis * ((at(u1, v) - center).dot(axis));
+                (
+                    Curve3::Circle {
+                        center,
+                        axis: -axis,
+                        radius: 1.0,
+                        u_ref: s.normalize(),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: plane,
+                    witness: at((u0 + u1) * 0.5, v),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = rim(body, v0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p10,
+                bottom,
+                Tol::witness(),
+            )
+            .unwrap();
+        let e_r = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                p11,
+                Tol::witness(),
+            )
+            .unwrap();
+        let top = rim(body, v1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                p01,
+                top,
+                Tol::witness(),
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                EdgeCurveSpec::line_between(p01, p00),
+                FaceSurface::Shared(cyl),
+                Tol::witness(),
+            )
+            .unwrap()
+            .face;
+        body.set_face_sense(face, sense).unwrap();
+        face
+    }
+
+    /// One arena, two wall sheets on DIVERGENT descriptions of one
+    /// cylinder, opposed senses, distinct sources — the seat, at the
+    /// census's own door.
+    fn cross_description_pair(
+        th0: f64,
+        th1: f64,
+        z0: f64,
+        z1: f64,
+    ) -> (Body<f64>, FaceKey, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let (w1, cyl_a) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
+            .unwrap();
+        let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, w1, w2)
+    }
+
+    /// MATE-5's census half of the red-first row: the declared
+    /// cross-description cylinder seat CERTIFIES through the patch
+    /// certifier — Door 1 verifies the carrier through the record's
+    /// own declaration, Door 2 answers through the certified-ε
+    /// enclosure. Before this arm, the same records dead-ended
+    /// `CensusUnsupported{Face}` (the chain the predicate-level
+    /// red-first suite quotes).
+    #[test]
+    fn a_cross_description_cylinder_patch_record_certifies() {
+        let (body, w1, w2) = cross_description_pair(0.5, 1.3, 0.3, 0.7);
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        let findings = face_findings(&errors);
+        assert!(
+            findings.is_empty(),
+            "the declared cross-description cylinder seat certifies: \
+             {findings:?} (all: {errors:?})"
+        );
+    }
+
+    /// MATE-5's Refuted-arm acceptance row (the #1063 consequence
+    /// wiring, now live for cylinders): a cylinder declaration the
+    /// geometry refutes — the trims' axial bands definitely disjoint
+    /// on the shared carrier — is `StaleContactDeclaration`, which the
+    /// assembly attribution maps to `Refuted` naming its mate
+    /// (`editor-core`'s already-landed arm consumes this variant).
+    #[test]
+    fn a_refuted_cross_description_cylinder_record_is_stale_typed() {
+        let (body, w1, w2) = cross_description_pair(0.5, 1.3, 2.0, 2.5);
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "a refuted cylinder declaration is stale typed: {errors:?}"
         );
     }
 }

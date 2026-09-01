@@ -280,6 +280,8 @@ enum WireStep {
     },
     /// `.tangent()`.
     Tangent,
+    /// `.cusp()`.
+    Cusp,
     /// `.turn(δ)`.
     Turn(Expr),
     /// `line(len)`.
@@ -456,6 +458,7 @@ impl WireStep {
                 dy: dy.clone(),
             },
             P::Tangent => WireStep::Tangent,
+            P::Cusp => WireStep::Cusp,
             P::Turn(e) => WireStep::Turn(e.clone()),
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
@@ -492,6 +495,7 @@ impl WireStep {
             WireStep::Angle(e) => P::Angle(e),
             WireStep::Toward { dx, dy } => P::Toward { dx, dy },
             WireStep::Tangent => P::Tangent,
+            WireStep::Cusp => P::Cusp,
             WireStep::Turn(e) => P::Turn(e),
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),

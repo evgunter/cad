@@ -77,6 +77,8 @@ wrong answer is reachable (C-R12 criterion).
 | **UV-R4** | #1423 (MATE-3) is open and edits inside both fences | **KEEP-OUT while #1423 is open**: `editor-core/{assembly.rs, program.rs, persist/wire.rs, eval/}`, `profile/{path.rs, path/program.rs}`. Rows HELD by it: **D121** (`res_spec` is `program.rs`'s; the vocabulary reaches `profile/path`), **D39** (+ tracker sibling #1282 — `PathError` is `path.rs:522`), **S190's editor-core half** (`attribute` is `assembly.rs`'s). A keep-out is lifted by observing the merge, not by citing a brief (T-R7's lesson) | orchestrator, 2026-09-01 |
 | **UV-R5** | C13 (#741) / C14 (#742) — *"plan signed off before implementation"* | **Not takeable now and not waiting on Evan today.** LIB holds the plan drafting (its 08-29 register correction says so explicitly); the issues' own faces say the plans then go to Evan. U keeps the rows; when the plans exist and are signed off, implementation lands by fence (step crates = U's) | orchestrator, 2026-09-01 |
 | **UV-R6** | S190 / #855 — the fix is a `topo` signature change (`ValidationError::CensusUnsupported` carrying the pair), and `census.rs` is Track Q's fence, claimed by S-BOOL | **The kernel half is S-BOOL's; filing is the handoff** (comment posted on #855 naming this). V's residue is consumption-side only: when the pair-carrying variant exists, `attribute` answers by `by_pair` and the width-1 caveats retire. HELD on that change AND on #1423 (same file, `assembly.rs`) | orchestrator, 2026-09-01 |
+| **UV-R8** | #1423 (MATE-3) merged into main (its merge commit is on main, observed 2026-09-01) — does the UV-R4 keep-out lift? | **LIFTED, by observation of the merge** (T-R7's rule: a keep-out lifts by observing the module, not by citing an event). `D121` and `D39` (+#1282) are takeable — wave 2. `S190`'s residue stays HELD on its kernel half (UV-R6). `G4` stays held on a different ground, measured by PR 1453: the collapse reds `scripts/gates/bounds-allowlist.sh` (Track K's fence — entries for `family.rs`/`program.rs` plus KNOWN GAP 3's text), so it lands as one piece with K's `D68` answer or an allowlist row filed there; it is also a breaking `pncad::profile` API removal | orchestrator, 2026-09-01 |
+| **UV-R9** | `D361`'s closure re-exposes `S88`'s `geom-brep` half — enumerated by the census, named by no row on any track | **Filed as Track R's `D305`** in the same state-sync (the partition's filing-is-the-handoff rule); R's Items count re-derived 11 → 12 | orchestrator, 2026-09-01 |
 | **UV-R7** | Wave 1 composition | **uv-a** (V): D362 remainder + `StableName` `Display` + D81's 23 sites — one lane, one class (typed payloads reaching user prose through `Debug`); D81's own row says re-derive the count first. **uv-b** (V): G4 + D361 — both profile trait-surface rows, G4 ruled mechanical by Evan with both gates fallen (#791, #801). **uv-c** (U): D94, `step-import/src` only. Wave 2 queued: D47+D37 as one `pncad-py` lane once uv-a lands (the §D note says one lane is cheaper than either alone); C16; the UV-R4 holds when #1423 merges; D75 with LIB coordination | orchestrator, 2026-09-01 |
 
 **Noted for later, not rowed here:** (a) the **unscanned-crates
@@ -93,15 +95,76 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 
 | lane | rows | state |
 |---|---|---|
-| **uv-a** | D362 (remainder), D81, + `StableName` Display | dispatched 2026-09-01 |
-| **uv-b** | G4, D361 | dispatched 2026-09-01 |
-| **uv-c** | D94 | dispatched 2026-09-01 |
-| (held, UV-R4) | D121, D39 (+#1282), S190's editor-core half | until #1423 merges (S190 also on its kernel half, UV-R6) |
+| **uv-a** | D362 (remainder), D81, + `StableName` Display | **PR 1454** implemented + style-reviewed (one MAJOR: the fix minted a ninth hand-rolled copy of the phrase it canonicalized) + fix pass (head `76d3ba5`: three resolve forwards, three persist/check forwards incl. the "named by" drift, the edit.rs convention line, the twin-tail sync argued at the site); CI green on the fix head — **MERGED with this state-sync** |
+| **uv-b** | G4, D361 | **PR 1453**: D361 closed (argued site dispositions; reviewer-verified receipts — reach probe and pick-perturbation both red correctly); G4 STOPPED with the collapse proven mechanical and the gate entanglement measured (UV-R8). Style review: no MAJOR, two MINORs, fix pass head `09783b7`, CI green — **MERGED with this state-sync** |
+| **uv-c** | D94 | **PR 1452** implemented + style-reviewed (no MAJOR; all four claims verified by execution) + fix pass (head `7ef6129`: one-lookup restructures at the seam write and `edge()`, census-comment scope, decline story corrected to the manifold gate; `ring_samples` typed refusal deliberately kept while S14 is open); CI green (drew the interval lane on the fix head) — **MERGED with this state-sync** |
+| (held, UV-R6) | S190's editor-core residue | until S-BOOL's pair-carrying `CensusUnsupported` exists |
+| (held, UV-R8) | G4's landing | until the bounds-allowlist half lands with Track K's `D68` answer |
 | (held, UV-R5) | C13, C14 | until LIB's plans exist and Evan signs off |
-| (queued) | D47+D37 (one lane), C16, D75 | wave 2 |
+| (queued, wave 2) | D121, D39 (+#1282) — unlocked by UV-R8; D47+D37 (one lane, D47 unblocked at uv-a's merge); C16; D75 | dispatch next |
 | (blocked, kept visible) | C6 | each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format) — unchanged |
 | (not work) | D360 | a sweep rule, binding on any lane that sweeps `topo` refusal enums in this fence |
 
 ## Lane records
 
-(appended as reviews return)
+**uv-b (PR 1453, merged).** D361: both doors keep `T: Bounds` with
+disposition paragraphs — `nearest_joint` returns an index (locally
+constant selection; freezing the value channel drops no derivative;
+receipt: `generic_replay`'s dual bit-identity row reaches
+`nearest_joint::<Dual<f64>>` and goes red under a pick perturbation,
+both proven by the reviewer's own probes), `map_refusal`'s reads land
+in payloads and never re-enter computation. The rejected spellings are
+argued in the PR: `Decide + Bounds` adds an undischarged obligation and
+reds the gate; `CertifiedBounds` evicts `Dual64` from the arc surface
+against D1. Review: no MAJOR; two MINORs (read-count arithmetic,
+field-inventory precision) fixed at `09783b7`, plus the
+`fillet_select.rs` module-doc rot ("shared by two doors" — the second
+door has no production caller). Out-of-diff sibling recorded:
+`sugar.rs:295` still calls the setbacks "`nearest_candidate`'s input",
+same stale premise. G4: see UV-R8. The reviewer also flagged the
+locally-constant-vs-implicit-function clause accreting prose homes; the
+fix pass compressed the doors to pointers at the one home
+(`geom_core`'s `impl Bounds for Dual`).
+
+**uv-c (PR 1452).** D94 in `step-import`: the band-seam re-mint loop
+answered one presence question two incompatible ways five lines apart,
+with the skippable write being the round-trip-load-bearing interval;
+now one announced lookup. `apex_cone`'s `.unwrap_or(&seam)` guess
+removed — and the review established it was pipeline-dead (the shell
+manifold precondition refuses a twice-forward edge before normalize),
+so the decline guards direct `SolidSpec` constructors; prose corrected
+to say so. `bound()`/`edge()` restructured entry-yields (miss
+unrepresentable). `ring_samples`' typed internal refusal deliberately
+kept: typed-vs-panic at proven-impossible lookups is S14, open in front
+of Evan — this program does not flip typed→panic while it is. Review:
+no MAJOR. Handed back and recorded here so it has a home: the
+`map_err(|_| …)` sites in `entities.rs`/`parse.rs` are typed refusals
+discarding payloads that have `Display`s — members of the
+payload-discard class if a workspace-wide row is ever minted; and the
+`step import (freecad)` CI job is a step-EXPORT fixture lane (runs on
+`run_step_export`), a naming trap for step-import reviewers.
+
+**uv-a (PR 1454).** D362 remainder + `StableName` Display + D81 (21
+user-facing sites, count re-derived from the row's 23 — two are
+`cfg(test)` diagnostics). Review verdict: the Debug class is cleanly
+closed (mutation-verified pins, e2e refusal probe reads as a sentence);
+the one MAJOR was the fix minting a ninth hand-rolled copy of the
+kind-noun+minting-node phrase by leaving forwardable copies standing —
+fix pass forwarded the three `resolve/mod.rs` sites and both
+`persist/check.rs` "named by node" drift sites (plus a third found in
+`NonFiniteSite`), corrected the two comments that mis-stated the rule,
+and recorded the resolve/hit twin-tail sync as deliberate at the site.
+Remaining hand-rolled copies are queued in `D363`:
+`assembly.rs:416` and `eval/mod.rs:1010` (in fence again since #1423
+merged), `product.rs:202` (M10's slate — waits for it).
+
+## Incidents
+
+**Fable usage limit, 2026-09-01 ~02:20 UTC.** The account's Fable 5h
+window filled mid-wave: the uv-a and uv-c fix-pass agents and the uv-b
+review agent were terminated by 429s — all three AFTER their work was
+pushed/delivered, so nothing was lost; the orchestrator verified the
+pushed heads, CI, and PR comments itself and finished the landings.
+Consequence for wave 2: implementer lanes dispatch on opus (SMELL runs
+outside the A/B, so no protocol constraint); style reviews follow the
+standing Fable rule and wait for the window when needed.

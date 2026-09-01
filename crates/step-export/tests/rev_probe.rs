@@ -18,11 +18,18 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ValidationError, validate_geometric};
 
 /// V2: the ball's curved arm is PROVABLY silent (Unencoded, not
-/// accidentally-agreeing): flipping EITHER single band stays green.
-/// If the arm read an encoded side, exactly one direction would
-/// disagree and refuse.
+/// accidentally-agreeing) — the claim this row was written for, and it
+/// still holds: neither single-band flip earns a
+/// `CurvedSenseInverted`, and if the arm read an encoded side exactly
+/// one direction would.
+///
+/// What both flips DO earn now is tier 3's material-wedge verdict at
+/// the two bands' shared edges: one sphere, opposed material sides,
+/// osculating jets — a lamina. That is a different check reading a
+/// different datum (the PAIR at an edge, not the face), so it
+/// sharpens this row rather than contradicting it.
 #[test]
-fn ball_both_single_band_flips_green() {
+fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
     let body = common::ball();
     let bands: Vec<FaceKey> = body
         .faces()
@@ -35,7 +42,12 @@ fn ball_both_single_band_flips_green() {
         let v = validate_geometric(&flipped, Tol::witness());
         let vol = topo::mass_properties(&flipped, Tol::witness()).map(|p| p.volume);
         println!("BALL flip {k:?}: verdict={v:?} vol={vol:?}");
-        assert!(v.is_ok(), "either single-band flip must stay exempt");
+        let errs = v.expect_err("a half-flipped ball is a lamina at the shared edges");
+        assert!(
+            errs.iter()
+                .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+            "only the material-wedge arm speaks here: {errs:?}"
+        );
     }
 }
 

@@ -20,6 +20,7 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
 
 /// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
 pub mod asm;
@@ -236,6 +237,83 @@ pub fn gallery_ring_at(tol: Tol) -> String {
         .join("\n");
     text.push('\n');
     text
+}
+
+// --- session helpers for the op-vocabulary suites -------------------
+//
+// One home for the helpers every `DocSession`-driving suite wants:
+// each is a statement about the session contract (one op, one
+// committed insert; a node's value is one body), not about any one
+// suite's geometry, so a per-suite copy could only drift.
+
+use pncad::document::{BooleanValue, NodeResult};
+use pncad::prelude::ValuePayload;
+use viewer::session::{DocSession, SessionOp};
+
+/// Perform one op that must commit exactly one insert, answering the
+/// id of the node it minted.
+pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    assert!(matches!(
+        outcome.committed.first(),
+        Some(DocEdit::InsertNode { .. })
+    ));
+    *session
+        .committed_doc()
+        .order()
+        .last()
+        .expect("the insert landed")
+}
+
+/// `got` and `want` agree to one part in 10⁹, relatively.
+///
+/// The 1e-9 is a chosen bound, not a derived one: the closed-form
+/// volume rows in the suites that share this helper hold it with
+/// margin, and it is kept tight so real drift cannot hide inside it.
+pub fn near(got: f64, want: f64) -> bool {
+    ((got - want) / want).abs() < 1e-9
+}
+
+/// The evaluated volume of `node`'s single body — an extrude's, a
+/// blend's, or a boolean's — with the seam pumped.
+///
+/// The evaluation read is the SHOWN document's, so mid-gesture this
+/// measures the scratch preview exactly as the viewport does. A node
+/// that failed to evaluate panics with the node's own recorded error,
+/// not just the absence of a value.
+pub fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let value = eval.value(node).unwrap_or_else(|| {
+        panic!(
+            "the node evaluated: {:?}",
+            eval.result(node).and_then(NodeResult::error)
+        )
+    });
+    let body = match &value.payload {
+        ValuePayload::Body(body) => body.clone(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
+        other => panic!("expected a body, got {other:?}"),
+    };
+    pncad::topo::mass_properties(&body, tol)
+        .expect("mass properties")
+        .volume
+}
+
+/// The story-gallery door: the directory named by
+/// `PNCAD_STORY_GALLERY`, when the invoker of the test run set one.
+///
+/// The contract: when the variable is set, each story suite saves its
+/// finished document(s) into the named directory through the session's
+/// own save door, so the screenshot recipe in
+/// `docs/gui-shots/2026-09-01/README.md` can open them in the live app
+/// — `PNCAD_STORY_GALLERY=<dir> cargo test -p viewer --test all
+/// story_` is that README's production command. When unset, the suites
+/// skip the save; no assertion depends on the variable either way.
+pub fn story_gallery_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("PNCAD_STORY_GALLERY").map(std::path::PathBuf::from)
 }
 
 /// A fresh directory under the OS temp root, named for the caller.
