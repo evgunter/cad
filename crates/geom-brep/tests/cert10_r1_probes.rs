@@ -6,6 +6,11 @@
 //! the TRUE partials densely inside every cell of adversarial rational
 //! patches and demand the shipped enclosure contain every sample.
 
+// Lint header only, added on adoption: every sibling suite in this
+// directory carries the same line, and a probe suite without it fails
+// `-D warnings`. Nothing else in this file is this lane's.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
 use geom_core::spline::knots::KnotVector;
@@ -85,9 +90,9 @@ fn sweep(name: &'static str, n: &NurbsSurface<f64>, per_cell: usize) -> Sweep {
                 let bounds = [cell.s_u, cell.s_v, cell.s_uu, cell.s_uv, cell.s_vv];
                 let labels = ["s_u", "s_v", "s_uu", "s_uv", "s_vv"];
                 for (k, (t, bnd)) in truths.iter().zip(bounds.iter()).enumerate() {
-                    for c in 0..3 {
+                    for (c, iv) in bnd.iter().enumerate() {
                         let x = comp(*t, c);
-                        let iv = bnd[c];
+                        let iv = *iv;
                         assert!(!iv.is_poison(), "{name}: poison bound in {}", labels[k]);
                         let (lo, hi) = (iv.lo(), iv.hi());
                         let out = (lo - x).max(x - hi);

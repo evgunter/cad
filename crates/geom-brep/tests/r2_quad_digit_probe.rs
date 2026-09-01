@@ -1,6 +1,11 @@
 //! R2 digit probe: `nurbs_patch_face` on the multiplicity-=-degree
 //! rational wall (the `Dir::Raw` / `raw_deriv` path), full-precision
 //! Debug output for a bit-level merge-base vs HEAD comparison.
+// Lint header only, added on adoption: every sibling suite in this
+// directory carries the same line, and a probe suite without it fails
+// `-D warnings`. Nothing else in this file is this lane's.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_brep::props::quad::{RVec3, nurbs_patch_face};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Tol, ring_interval::RingInterval};

@@ -514,10 +514,11 @@ fn cell_component(sq: RingInterval) -> f64 {
 /// which.
 ///
 /// The max over the returned cells IS the face bound
-/// ([`folded_face_bound`] folds exactly these cells); this module's own
-/// `no_cell_exceeds_the_whole_patch_bound` test asserts the inequality
-/// componentwise and `cert10_whole_face_bound_is_the_per_cell_fold`
-/// asserts the equality.
+/// ([`NurbsCellGrid::patch`] folds exactly these cells); this module's
+/// own `no_cell_exceeds_the_whole_patch_bound` test asserts the
+/// inequality componentwise and
+/// `cert10_whole_face_bound_is_the_per_cell_fold` asserts the
+/// equality.
 ///
 /// # Errors
 ///
@@ -593,13 +594,16 @@ pub(crate) fn face_grid<'m>(
     payload: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<&'m NurbsCellGrid, TessellateError> {
-    if !memo.contains_key(&fk) {
-        let g = nurbs_cell_grid(payload, fk)?;
-        memo.insert(fk, g);
+    // The Entry API, not `contains_key` + `insert` (clippy::map_entry),
+    // and the shape matters beyond the lint: the assembly's `?` sits
+    // INSIDE the vacant arm, so a face that refuses leaves the memo
+    // untouched and refuses identically on every later ask — the
+    // "refuses on the first ask and (from the memo's absence) on every
+    // later one" contract above, made structural.
+    match memo.entry(fk) {
+        std::collections::hash_map::Entry::Occupied(e) => Ok(e.into_mut()),
+        std::collections::hash_map::Entry::Vacant(e) => Ok(e.insert(nurbs_cell_grid(payload, fk)?)),
     }
-    memo.get(&fk).ok_or(TessellateError::MissingEntity {
-        what: "NURBS face bound memo entry just inserted",
-    })
 }
 
 /// The whole-patch bound of a described NURBS face, read off the
@@ -1488,8 +1492,8 @@ mod tests {
     /// aspect cap reads (`mu1`/`mv1`, TESS-SPLIT) get the SAME
     /// falsification rows their Hessian siblings have — sampled
     /// dominance per cell and whole-patch, and cell ≤ patch
-    /// componentwise. Without this, a subtle `first_derivative_hull` /
-    /// `s1u` window bug would misplace the aspect window with nothing
+    /// componentwise. Without this, a subtle first-derivative window
+    /// or `s1u` recurrence bug would misplace the aspect window with nothing
     /// going red (the cap is policy, so no certificate catches it).
     #[test]
     fn first_derivative_sups_dominate_samples_and_refine_upward() {

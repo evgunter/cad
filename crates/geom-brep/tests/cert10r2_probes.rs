@@ -13,6 +13,11 @@
 //!    generator never reaches) — per-channel window-union hull must
 //!    equal the whole-net hull, all five derivative nets.
 
+// Lint header only, added on adoption: every sibling suite in this
+// directory carries the same line, and a probe suite without it fails
+// `-D warnings`. Nothing else in this file is this lane's.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchCell};
 use geom_core::Point3;
@@ -310,7 +315,7 @@ fn probe2_coarser_grid_still_meets_chord_tolerance() {
 fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
     for (pu, mu) in [(2usize, 1usize), (3, 2), (3, 1)] {
         let mut ku = vec![0.0; pu + 1];
-        ku.extend(std::iter::repeat(0.5).take(mu));
+        ku.extend(std::iter::repeat_n(0.5, mu));
         ku.extend(vec![1.0; pu + 1]);
         let kv_u = KnotVector::clamped(ku, pu).unwrap();
         let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
