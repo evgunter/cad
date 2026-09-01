@@ -270,9 +270,8 @@ fn a_perpendicular_pair_holding_the_point_escalates_undecided() {
     let found = errors(&body, &declared(&[pair]));
     let crossed = crossings(&found);
     assert_eq!(crossed.len(), 2, "{found:?}");
-    let (at_030, at_060): (Vec<_>, Vec<_>) = crossed
-        .iter()
-        .partition(|(_, w)| w.contains("x: 0.3,"));
+    let (at_030, at_060): (Vec<_>, Vec<_>) =
+        crossed.iter().partition(|(_, w)| w.contains("x: 0.3,"));
     assert!(
         at_030
             .iter()
