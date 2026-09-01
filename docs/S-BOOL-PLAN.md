@@ -135,6 +135,13 @@ logged pre-draw per the protocol.
   issue's flip condition); the two `m9_d1_r2_probes` sites promote to
   tier 3 and their pointer comments come out. R-fence seam as noted
   above.
+- **BOOL-6 — #368, the per-slab stacking fold (M; ruled
+  2026-09-01, scheduled on Helix demand).** Replace loft.rs's
+  ends-only stacking statement with a per-slab fold, margin = min
+  over slabs (the per-slab margins already exist); a consumer audit
+  for anything reading the end-to-end value as a feature;
+  straddle-driving rows for spines past π; VERBS coordination on
+  Helix timing (sweep-ground seam).
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -152,8 +159,15 @@ this program's files — see Q3 below.
 
 ## Rulings sought (Evan)
 
-1. **Q1 — #433's disposition** (lattice refuses exactly-collinear
-   junction vertices; validate accepts the loop). Three stances are in
+1. **Q1 — #433's disposition (OPEN; geometry clarified in-chat
+   2026-09-01).** The concrete disagreement: a loop whose two
+   consecutive straight segments lie on one carrier line (an
+   intermediate vertex splitting a straight run) is refused by the
+   constructive lattice as `SameCarrierJunction` ("carrier identity
+   is not tangency — extend the leg") and accepted by `validate` as
+   raw data. Stance (c) — intentional, stated at both sites — has
+   real texture: the constructive door refusing to MINT what the
+   data door must ACCEPT (imports exist) is coherent. Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
@@ -161,16 +175,13 @@ this program's files — see Q3 below.
    body — the conversation opens by putting that proposal (or its
    correction) up for the ruling rather than re-deriving one. Not
    implemented until ruled.
-2. **Q2 — #368's stacking fold** (planar loft spines wall at curl π
-   because the trilean is end-to-end). Recommendation: rule the
-   *shape* now — a per-slab fold with margin = min over slabs, the
-   issue's own "natural sound choice" — and leave the *scheduling*
-   demand-gated, since the issue conditions the work on curled lofts
-   being wanted and VERBS cites the wall as a live blocker-record for
-   Helix. Honest counterargument: ruling ahead of demand risks a
-   decision nobody consumes; but the cheap half (the consumer audit —
-   does anything read the end-to-end value as a feature?) is exactly
-   what a later unit would otherwise re-derive.
+2. **Q2 — RULED (Evan, in-chat, 2026-09-01): decide now — Helix
+   is coming.** The shape: a per-slab stacking fold with margin =
+   min over slabs, replacing the ends-only statement whose wall is
+   exactly π. Scheduled as **BOOL-6** (added to the slate): the
+   fold, a consumer audit for anything reading the end-to-end value
+   as a feature, straddle-driving rows, and VERBS coordination on
+   Helix timing (`loft.rs` is sweep ground — seam recorded).
 3. **Q3 — #134's charter fit.** Recommendation: **route it out** — it
    is pre-ruled, unpressured, and lives in
    `editor-core/resolve/vdiff.rs`, which is nobody's ground here
