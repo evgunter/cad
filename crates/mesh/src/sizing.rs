@@ -106,7 +106,7 @@ use geom_core::Tol;
 /// are FALSE — a poisoned length is neither separated nor coincident —
 /// and that asymmetry is the reason: `!coincident(NaN)` is `true`,
 /// which would admit a poisoned length as separated at
-/// [`crate::walk::iso_side_starts`], where today it does not. Each
+/// `walk::iso_side_starts`, where today it does not. Each
 /// method is the bare comparison its caller used to spell, so the
 /// NaN behaviour is carried through unchanged rather than re-derived.
 ///
@@ -151,7 +151,7 @@ impl Eps {
     /// things rather than one? Band excluded; false on a NaN length.
     ///
     /// The caller's decision is a CLASSIFICATION, not a state
-    /// disposition: [`crate::walk::iso_side_starts`] picks which of
+    /// disposition: `walk::iso_side_starts` picks which of
     /// two analytically-equal columns an iso side's entries carry, so
     /// no D2-addendum row applies to it (rows 1–5 dispose of a state
     /// that should not exist; this one chooses between two correct
