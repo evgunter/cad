@@ -72,6 +72,8 @@ pub(crate) mod insert;
 mod join;
 mod ops;
 pub mod plane_eq;
+#[cfg(test)]
+mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 mod rest;
