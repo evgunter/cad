@@ -36,9 +36,9 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, BooleanOp, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension,
     DimensionError, Doc, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Expr, Frame, LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate,
-    parse_expr, product, run_checks,
+    Expr, Frame, Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
+    RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate, parse_expr, product,
+    run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
@@ -56,6 +56,7 @@ use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
 use crate::parts;
 use crate::props::{self, SlotDriver, SlotValue};
+use crate::sketch::loop_program;
 use crate::tree::{self, TreeRow};
 
 /// A picked face: the stable name it is, and the node whose body
@@ -870,31 +871,14 @@ pub enum DatumSpec {
     },
 }
 
-/// One template loop of the add-profile door (GAUTH-1): the template
-/// vocabulary, not a sketcher — the two forms the plan rules in,
-/// spelled as plain numbers. The session lowers each to its
-/// [`LoopProgram`] constructor and refuses a non-finite field typed;
-/// a degenerate loop (zero radius, zero width) refuses through the
-/// edit door's own authoring-time check, exactly as a hand-written
-/// program would.
-#[derive(Clone, Copy, Debug)]
-pub enum ProfileShape {
-    /// A circle ([`LoopProgram::circle`]).
-    Circle {
-        /// The centre, in sketch coordinates (metres).
-        centre: [f64; 2],
-        /// The radius, metres.
-        radius: f64,
-    },
-    /// An axis-aligned rectangle centred on the sketch origin
-    /// ([`LoopProgram::polygon`], corners at `(±w/2, ±h/2)`).
-    Rectangle {
-        /// The width (x extent), metres.
-        width: f64,
-        /// The height (y extent), metres.
-        height: f64,
-    },
-}
+/// **The add-profile door's loop vocabulary**, re-exported from the
+/// module that owns it.
+///
+/// It is named by [`SessionOp::AddProfile`], so it has to be
+/// reachable beside the op; it is DEFINED in [`crate::sketch`],
+/// because the PATHS verb set and its lowering are a vocabulary of
+/// their own and this file is the crate's accretion case (#1386).
+pub use crate::sketch::ProfileShape;
 
 /// The literal payload of one pattern form (GAUTH-4), beside the other
 /// two authoring specs for the reason they are here at all: the SESSION
@@ -2636,7 +2620,7 @@ impl DocSession {
         }
         let mut programs = Vec::with_capacity(loops.len());
         for shape in loops {
-            match loop_program(*shape) {
+            match loop_program(shape) {
                 Ok(program) => programs.push(program),
                 Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
             }
@@ -2976,29 +2960,6 @@ fn datum_node(spec: DatumSpec) -> Result<Node<ProfileProgram>, DimensionError> {
             position: lengths(position)?,
         },
     }))
-}
-
-/// Lower one template shape to its loop program, through the
-/// program's own literal constructors.
-///
-/// # Errors
-///
-/// A non-finite field (the constructors' refusal). Degeneracy — a
-/// zero radius, a zero width — is NOT judged here: the edit door's
-/// authoring-time check replays the program and refuses it typed,
-/// which is one rule for authored and hand-written programs alike.
-fn loop_program(shape: ProfileShape) -> Result<LoopProgram, DimensionError> {
-    match shape {
-        ProfileShape::Circle { centre, radius } => {
-            LoopProgram::circle(centre[0], centre[1], radius)
-        }
-        ProfileShape::Rectangle { width, height } => {
-            let (hw, hh) = (width / 2.0, height / 2.0);
-            // Counter-clockwise from the lower-left corner — the same
-            // winding every literal outer loop in this workspace uses.
-            LoopProgram::polygon([(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)])
-        }
-    }
 }
 
 /// One evaluation of one document, outside the seam.
