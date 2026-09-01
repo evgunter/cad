@@ -110,6 +110,8 @@ mod mate5_cyl_eps_rung;
 mod r1_mate5_interval_probe;
 #[path = "r1_mate5_probe.rs"]
 mod r1_mate5_probe;
+#[path = "r2_probes.rs"]
+mod r2_probes;
 #[path = "merge_skip.rs"]
 mod merge_skip;
 #[path = "r1_mate4a_probes.rs"]
