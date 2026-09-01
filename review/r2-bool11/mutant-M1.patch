@@ -1,0 +1,17 @@
+R2 MUTANT M1 (applied to the frozen head, run once, reverted): the
+closer mints the entry vertex again — the disclosed bug reintroduced.
+
+--- a/crates/profile/src/path.rs
++++ b/crates/profile/src/path.rs
+@@ continue_to_start_kernel
+             start_ang,
+             Some(CloseSite::Seam),
+             tol,
+         )?;
++        self.core.push_line(start_pos)?; // R2 MUTANT M1: the closer mints the entry again
+         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
+         Ok(self.core.build())
+
+Result: the_subdivided_square_closes_and_validates FAILED (9 != 8);
+the_closer_mints_no_vertex_at_the_entry FAILED (6 != 5);
+r2_probe_the_closer_boundary_is_the_point_forms FAILED (6 != 5).
