@@ -6,9 +6,15 @@
 //! because prose is not a stable interface — and its human message is
 //! the kernel error's own `Display`, never a `Debug` dump.
 //!
-//! Neither [`EditError`] nor [`NodeErrorKind`] is re-exported with a
-//! field-level accessor set, so a tag plus the rendered message is the
-//! whole of what a scaffold can read today.
+//! A tag is not the whole payload, and the doors are split on that.
+//! Most project every arm's fields as attributes beside the tag —
+//! `py/readback.rs` and `py/refactor.rs` are the worked examples: one
+//! exhaustive `match`, no wildcard arm, every attribute present on
+//! every arm and `None` where the arm does not carry it, so `getattr`
+//! never raises and a caller never has to branch on `variant` first.
+//! The rest cross as tag plus message alone. **#1479 owns that split**
+//! — which doors are on which side, and what each unprojected one
+//! withholds; this header does not keep a second copy of that census.
 //!
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
@@ -18,9 +24,6 @@
 //! which forces a wildcard arm and takes the compile-time alarm away
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
-//!
-//! Full per-variant field projection (node ids, slots, operand roles)
-//! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
     AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
@@ -44,10 +47,13 @@ use pncad::workspace::WorkspaceError;
 /// kernel's own prose and the tag is the branchable discriminant —
 /// the [`persist_error_tag`] treatment, not the `Debug`-dump one.
 ///
-/// The discriminant itself is the kernel's (`PathError::kind`); what
-/// this crate owns is the FFI SPELLING of it, one stable string per
-/// kind. The match is over `PathErrorKind`'s arms, not `..`, so a new
-/// kernel refusal stops this build rather than acquiring a silent tag.
+/// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
+/// It is `PathError::kind`, and this map keys off it — one stable
+/// string per kind, over `PathErrorKind`'s arms rather than `..`, so a
+/// new kernel refusal stops this build instead of acquiring a silent
+/// tag. A kind with no arm behind it is a phantom, and the fix is to
+/// delete it kernel-side; minting a tag for one would publish an FFI
+/// name no refusal can ever carry.
 pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
         PathErrorKind::JunctionTangent => "junction_tangent",
