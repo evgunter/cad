@@ -254,6 +254,8 @@ pub mod test_support {
     }
 }
 #[cfg(test)]
+mod r2_probes;
+#[cfg(test)]
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
@@ -331,5 +333,6 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     CensusContact, ContactMark, RingContact, StaleDeclaration, ValidationError, contact_marks,
-    validate, validate_closed, validate_geometric, validate_pseudomanifold,
+    contact_marks_declared, validate, validate_closed, validate_geometric,
+    validate_geometric_declared, validate_pseudomanifold,
 };

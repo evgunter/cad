@@ -438,3 +438,68 @@ fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
         other => panic!("expected CarriersParallel, got {other:?}"),
     }
 }
+
+// --------------------------------------- the cusp door (issue 941 item 2) --
+
+/// The lune between two internally tangent circles, cut on the y axis:
+/// the cross-section of D1's own kissing-cylinders figure, and the
+/// profile a cusp-edged solid is swept from. The junction at the kiss
+/// is authored by `.cusp()` — `.tangent()`'s mirror, departing along
+/// the negated incoming ray — and every other corner is a right angle.
+fn lune() -> profile::ClosedLoop<f64> {
+    Open.at(p2(0.0, 4.0))
+        .angle(-std::f64::consts::FRAC_PI_2, tol())
+        .unwrap()
+        .line(2.0, tol())
+        .unwrap()
+        .turn(std::f64::consts::FRAC_PI_2, tol())
+        .unwrap()
+        .tangent_arc_to(p2(0.0, 0.0), tol())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, tol())
+        .unwrap()
+}
+
+/// **The authoring door for the reverse-tangent junction** (D1's
+/// wedge-0/2π arm, issue 941 item 2): the verb authors the reverse
+/// exactly and DECLARES the joint, and the profile data gate — which
+/// judges declared joints by carrier tangency, a question with no
+/// direction in it — accepts the declaration as it stands.
+///
+/// The red half is the same loop with the declaration removed: the
+/// tangency is real geometry, so the gate refuses it undeclared
+/// exactly as it refuses a same-direction one. What the verb supplies
+/// is the intent, which no margin can.
+#[test]
+fn the_cusp_verb_declares_a_joint_the_data_gate_already_accepts() {
+    let lp = pinned(lune());
+    assert_eq!(lp.tangent_joints(), &[2], "the kiss, declared once");
+    profile(vec![lp.clone()])
+        .validate(tol())
+        .expect("a declared cusp joint validates");
+    match profile(vec![lp.with_tangent_joints(Vec::new())])
+        .validate(tol())
+        .expect_err("an undeclared cusp joint must refuse")
+    {
+        ProfileError::UndeclaredTangency { joint, .. } => assert_eq!(joint, 2),
+        other => panic!("expected UndeclaredTangency, got {other:?}"),
+    }
+}
+
+/// The junction is EXACT, not merely inside the band: the kiss lands
+/// on the authored point bit for bit, and the two arcs meeting there
+/// wind opposite ways — one lip of a lune, not a smooth join.
+#[test]
+fn the_cusp_junction_is_exact_and_the_two_carriers_oppose() {
+    let lp = pinned(lune());
+    let v = lp.vertices();
+    assert_eq!(v[2].pos().x.to_bits(), 0.0f64.to_bits());
+    assert_eq!(v[2].pos().y.to_bits(), 0.0f64.to_bits());
+    let inner = v[1].bulge();
+    let outer = v[2].bulge();
+    assert!(
+        inner * outer < 0.0,
+        "the lune's two arcs must wind opposite ways: {inner} vs {outer}"
+    );
+}

@@ -859,6 +859,14 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         | ValidationError::SliverDihedral { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
+        // The material-wedge arm's two refusals are findings about an
+        // EDGE of this body, not about a contact record: the lamina
+        // states that two of its own faces osculate, and the
+        // undeclared cusp states that NO declaration names the pair —
+        // which is `UndeclaredContact`'s reasoning one granularity
+        // down, and the same reason neither can name a mate.
+        | ValidationError::UndeclaredCusp { .. }
+        | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
