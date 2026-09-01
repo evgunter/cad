@@ -176,7 +176,9 @@ fn overlap_seen(a: &Poly, b: &Poly, n: usize) -> Option<(f64, f64)> {
 fn check(name: &str, a: &Poly, b: &Poly) {
     let s = segs(&[a, b]);
     let cands = offered(&s);
-    let hit = cands.iter().any(|&(x, y)| inside(a, x, y) && inside(b, x, y));
+    let hit = cands
+        .iter()
+        .any(|&(x, y)| inside(a, x, y) && inside(b, x, y));
     let truth = overlap_seen(a, b, 400);
     println!(
         "{name}: segs={} cands={} schedule_hit={hit} bruteforce={:?}",
@@ -202,11 +204,19 @@ fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Poly {
 #[test]
 fn r1_stage2_completeness_edge_cases() {
     // Vertical edges everywhere (axis-aligned rectangles).
-    check("axis-aligned overlap", &rect(0., 0., 1., 1.), &rect(0.5, 0.5, 2., 2.));
+    check(
+        "axis-aligned overlap",
+        &rect(0., 0., 1., 1.),
+        &rect(0.5, 0.5, 2., 2.),
+    );
     // Shared full edge (the flush seat's shape).
     check("shared edge", &rect(0., 0., 1., 1.), &rect(0., 0., 1., 2.));
     // Shared vertical span, overlapping interiors.
-    check("shared span", &rect(0., 0., 1., 1.), &rect(0., 0.25, 1., 0.75));
+    check(
+        "shared span",
+        &rect(0., 0., 1., 1.),
+        &rect(0., 0.25, 1., 0.75),
+    );
     // Repeated abscissae: many vertices at the same x.
     check(
         "repeated abscissae",
@@ -215,10 +225,18 @@ fn r1_stage2_completeness_edge_cases() {
     );
     // A region much thinner than the slabs it lives in: one thin
     // horizontal sliver crossing a wide box.
-    check("thin horizontal sliver", &rect(0., 0., 10., 10.), &rect(-1., 4.999, 11., 5.001));
+    check(
+        "thin horizontal sliver",
+        &rect(0., 0., 10., 10.),
+        &rect(-1., 4.999, 11., 5.001),
+    );
     // A thin VERTICAL sliver: its width is smaller than every slab it
     // is not itself an endpoint of.
-    check("thin vertical sliver", &rect(0., 0., 10., 10.), &rect(4.999, -1., 5.001, 11.));
+    check(
+        "thin vertical sliver",
+        &rect(0., 0., 10., 10.),
+        &rect(4.999, -1., 5.001, 11.),
+    );
     // Crossings exactly at slab boundaries (vertices of one polygon on
     // the abscissae of the other).
     check(
@@ -280,7 +298,9 @@ fn r1_stage2_completeness_edge_cases() {
 fn r1_stage2_completeness_randomized() {
     let mut seed = 0x2f6e_2b19_u64;
     let mut rnd = move || {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((seed >> 33) as f64) / ((1u64 << 31) as f64)
     };
     let mut misses = 0;
@@ -300,11 +320,16 @@ fn r1_stage2_completeness_randomized() {
         let b = star(rnd() * 1.6 - 0.8, rnd() * 1.6 - 0.8, n_b, &mut rnd);
         let s = segs(&[&a, &b]);
         let cands = offered(&s);
-        let hit = cands.iter().any(|&(x, y)| inside(&a, x, y) && inside(&b, x, y));
+        let hit = cands
+            .iter()
+            .any(|&(x, y)| inside(&a, x, y) && inside(&b, x, y));
         if let Some(p) = overlap_seen(&a, &b, 200) {
             if !hit {
                 misses += 1;
-                println!("case {case}: MISS — interior at {p:?}, {} candidates", cands.len());
+                println!(
+                    "case {case}: MISS — interior at {p:?}, {} candidates",
+                    cands.len()
+                );
             }
         }
     }
@@ -339,7 +364,11 @@ fn r1_the_segment_budget_is_all_or_nothing() {
         over.len()
     );
     assert!(at_limit.len() > 100, "the in-budget pair is searched");
-    assert_eq!(over.len(), 0, "one segment over the budget searches nothing");
+    assert_eq!(
+        over.len(),
+        0,
+        "one segment over the budget searches nothing"
+    );
 }
 
 /// Holes: `boundary_segments` feeds rings in too, and the doc claims
@@ -347,9 +376,8 @@ fn r1_the_segment_budget_is_all_or_nothing() {
 /// edge. Ground truth here is even-odd over outer XOR ring.
 #[test]
 fn r1_stage2_completeness_with_holes() {
-    let in_region = |outer: &Poly, ring: &Poly, x: f64, y: f64| {
-        inside(outer, x, y) && !inside(ring, x, y)
-    };
+    let in_region =
+        |outer: &Poly, ring: &Poly, x: f64, y: f64| inside(outer, x, y) && !inside(ring, x, y);
     let outer_a = rect(0., 0., 4., 4.);
     let ring_a = rect(1., 1., 3., 3.);
     let outer_b = rect(0.5, 0.5, 3.5, 3.5);
@@ -359,14 +387,21 @@ fn r1_stage2_completeness_with_holes() {
     let hit = cands
         .iter()
         .any(|&(x, y)| in_region(&outer_a, &ring_a, x, y) && in_region(&outer_b, &ring_b, x, y));
-    println!("holed pair: segs={} cands={} hit={hit}", s.len(), cands.len());
-    assert!(hit, "annulus ∩ annulus has interior, no cell centre found it");
+    println!(
+        "holed pair: segs={} cands={} hit={hit}",
+        s.len(),
+        cands.len()
+    );
+    assert!(
+        hit,
+        "annulus ∩ annulus has interior, no cell centre found it"
+    );
     // The hole's own edges must be in X: a cell centre must exist in
     // the corridor between ring_a and ring_b (width 0.5) — check that
     // at least one candidate lands there.
-    let corridor = cands.iter().any(|&(x, y)| {
-        inside(&ring_a, x, y) && !inside(&ring_b, x, y)
-    });
+    let corridor = cands
+        .iter()
+        .any(|&(x, y)| inside(&ring_a, x, y) && !inside(&ring_b, x, y));
     println!("  corridor between the two holes sampled: {corridor}");
 }
 
@@ -376,7 +411,9 @@ fn r1_stage2_completeness_with_holes() {
 fn r1_stage2_near_parallel_stress() {
     let mut seed = 0x9e37_79b9_u64;
     let mut rnd = move || {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((seed >> 33) as f64) / ((1u64 << 31) as f64)
     };
     let mut misses = 0;
@@ -394,7 +431,9 @@ fn r1_stage2_near_parallel_stress() {
         ];
         let s = segs(&[&a, &b]);
         let cands = offered(&s);
-        let hit = cands.iter().any(|&(x, y)| inside(&a, x, y) && inside(&b, x, y));
+        let hit = cands
+            .iter()
+            .any(|&(x, y)| inside(&a, x, y) && inside(&b, x, y));
         if let Some(p) = overlap_seen(&a, &b, 300) {
             if !hit {
                 misses += 1;
