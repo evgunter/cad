@@ -24,33 +24,27 @@ ray and refusing when it does not — and the **structural closer**
 (`Start` as target) is the special case that ends the seam wall.
 Declared and checked, never inferred from a value coincidence.
 
-## THE design question (yours, argued for Evan's eyes)
+## The check — RULED (Evan, in-chat, 2026-09-01, fourth round)
 
-What "lies on the ray" means in f64 is this unit's central design
-decision, and the §4/verb-table text carrying your answer rides the
-PR for Evan's sign-off before merge. The live tension, stated
-honestly so you argue it rather than rediscover it:
+"Target lies on the ray" means, as ever, TO WITHIN ε.
+Exact-or-refuse is out. The declaration is what legalizes the
+band: with the intent authored, the ε comparison is authored-data
+CONSISTENCY (the arc verbs' consistency-refusal class), not the
+value-inference the ladder refuses — that reads intent off a
+coincidence nobody declared. A target past the band refuses TYPED
+as inconsistent authored data, message naming the declared intent
+and the measured miss.
 
-- **Exact-or-refuse** keeps the check value-free but constrains
-  authoring hard: BOOL-8 measured lily's own corner at
-  −7.85e-17 off the closing ray — arbitrary authored coordinates
-  are almost never exactly on a computed ray, so exactness likely
-  demands derived-target authoring helpers (a target constructed
-  ON the ray) and may leave the lily seam unauthorable from its
-  existing authored corners.
-- **A banded check** is not intent-inference here — the intent is
-  DECLARED; the band would be checking authored-data CONSISTENCY,
-  the same class as the arc verbs' consistency refusals and
-  `TangentLineClose`'s own ε_input usage — but the band's size,
-  its D2 row (1/3 input-quality is the natural home), and the
-  refusal past it need stating, and the §2c/§4 argument must
-  distinguish this cleanly from the value-inference the ladder
-  refuses.
-
-Weigh both (or a third shape if you find one — e.g. exact-check
-with a derived-authoring door beside it), decide, and argue the
-decision in the PR and in the §4 text. Do not split the
-difference silently.
+What remains yours to design, stated at the site and in the §4
+text for Evan's eyes: WHICH ε (the input-quality band ε_input is
+the natural home — argue it against the run band), the LEVER the
+miss is metered by (the leg is a length; the miss is a lateral
+distance — state the metering so the comparison is
+dimension-honest per the D4 discipline), and the D2 row (row 1/3
+input-quality is the natural classification). Note BOOL-8's
+measurement as your first fixture: lily's corner sits 7.85e-17
+off the closing ray — deep inside any sane band — so the closer
+must accept it, and your band boundary needs a row on BOTH sides.
 
 ## Deliverables
 
