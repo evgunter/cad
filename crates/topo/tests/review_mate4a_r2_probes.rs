@@ -34,10 +34,13 @@
 //!    and at 1e-3 (outside the gate) where the answers survive but
 //!    four honest `CensusEscalated`s from `pm_census_ee_parallel`
 //!    (margin 8.94e-3 in band [1e-3, 1e-2]) join the list. Re-measured
-//!    at all four after the schedule completion, with the declared
-//!    seat's answer moved from that one `CensusUnsupported` to an empty
-//!    list and everything else — the bare seat's census included —
-//!    unchanged at every band.
+//!    at all four after the schedule completion: the declared seat's
+//!    answer lost its one `CensusUnsupported` at every band, leaving an
+//!    empty list at the three gated ones and those four escalations
+//!    alone at 1e-3, and the bare seat's census is unmoved throughout.
+//!    The row below asserts the GATED answer, as it did before — it was
+//!    red at 1e-3 then too, for the same reason: 1e-3 is not a band the
+//!    matrix runs, and the escalations are honest there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -219,9 +222,12 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
 /// run at `CAD_TOLERANCE_EPS` = default (1e-9), 1e-12, 1e-6 and 1e-3,
 /// getting the same answers at all four — before the schedule
 /// completion and, re-measured, after it. The declared seat's answer is
-/// the one that moved, and it moved at every band together: the
-/// witness the completed schedule lands sits ~1.9e-2 m from the nearest
-/// trim boundary, three orders clear of the widest band swept.
+/// the one that moved, and it moved at every band together: the witness
+/// the completed schedule lands sits ~1.9e-2 m from the nearest trim
+/// boundary, three orders clear of the widest band swept. What this row
+/// asserts is the answer at the three GATED bands; at 1e-3 the four
+/// `pm_census_ee_parallel` escalations above are all that is left of
+/// the list, and this row was red there before this change as well.
 #[test]
 fn r2_the_new_rows_hold_at_the_default_band() {
     let (body, post_top, shelf_bottom, _, _, _) = overhang_seat_full();

@@ -1103,15 +1103,28 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///   fast path below retires the rectangular sub-class; the rest
 ///   stands as the stated residue, branch normalization being a later
 ///   rung);
-/// - a flush cylinder seat sharing trim boundary
-///   ([`ChartRegionError::TouchingBoundary`]): the planar
-///   interior-witness rung does not run here (its point construction
-///   and `contfp` discharge are plane-only today);
+/// - a cylinder seat sharing trim boundary
+///   ([`ChartRegionError::TouchingBoundary`]): the interior-witness
+///   rung does not run here at all;
 /// - the [`ChartRegionError::PeriodFold`] fold decline above.
 ///
-/// The incompleteness is the schedule's, not the geometry's — the
-/// same shape issue 1435 records for the planar witness schedule —
-/// and it is disclosed here rather than sampled around.
+/// The incompleteness is the schedule's, not the geometry's, and it is
+/// disclosed here rather than sampled around.
+///
+/// The middle bullet is the one issue 1435 has since moved, and it
+/// moved only on the planar side: [`interior_witness`]'s schedule is
+/// now complete (its own docs carry the argument), so a PLANE pair no
+/// longer declines a decidable overlap for want of a candidate. None
+/// of that reaches this arm, and the reason is worth naming exactly,
+/// because it is no longer the schedule. The schedule's completion is
+/// a decomposition of the CHART plus a certificate from
+/// [`crate::boolean::contfp`], and the decomposition transfers to
+/// `(θ·r, z)` unchanged — the blocker is the certificate: `contfp`
+/// requires the query point already on the PLANE of the face, and a
+/// cylinder pair has no plane to put it on. What this arm needs is
+/// therefore a curved-carrier containment discharge, not more
+/// candidates; until it has one, a cylinder seat's shared-boundary
+/// refusal stands.
 ///
 /// # The full-wrap band fast path
 ///
