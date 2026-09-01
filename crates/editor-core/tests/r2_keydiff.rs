@@ -71,6 +71,7 @@ fn r2_measure_free_content_keys() {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
+                display_unit: None,
                 distribution: None,
             },
         },

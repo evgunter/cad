@@ -53,6 +53,7 @@ pub fn document() -> CorpusDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: R0,
+            display_unit: None,
             distribution: None,
         },
     });

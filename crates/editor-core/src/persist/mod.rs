@@ -568,9 +568,63 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
 /// SCHEMA_VERSION`) that every entry above describes; it read 18.
 ///
+/// Version 20 is **the authored display unit on a document
+/// PARAMETER** (the creation-forms notation change):
+/// [`crate::DocParam::Continuous`] gained an optional display unit
+/// beside its dimension and its distribution, so a parameter authored
+/// in millimetres reads back in millimetres. Presentation metadata by
+/// the same rules a literal's is under — excluded from
+/// [`crate::DocParam::bit_eq`], read by no evaluation, in no key.
+///
+/// It closes the asymmetry the GUI units ruling recorded rather than
+/// papered over: every LITERAL in a document could remember its
+/// notation and no PARAMETER could, so the one value a recipe shares
+/// across features was the one value that forgot how it was written.
+///
+/// The claim reasoning, in v15's shape because this is v15's shape —
+/// an optional field on the same struct, with the same
+/// `skip_serializing_if`. The DEGENERATE CARRY: a document whose
+/// parameters were all authored canonically writes the v19 bytes
+/// exactly. The FORMAT CLAIM is the populated key: a v19 reader handed
+/// a param carrying `"display_unit"` meets a field its
+/// `deny_unknown_fields` document types have no name for and dies
+/// inside serde rather than at the version door — the direction the
+/// gate exists to fail cleanly. Forward-additive (a v19 file declares
+/// no display units), and the migration table stays empty: a v19 file
+/// refuses TYPED with the regenerate recourse.
+///
+/// **The unit is on the wire as its SYMBOL**, never as the one-byte
+/// code the type holds in memory (`crate::expr::UnitSym`'s rustdoc —
+/// the index carries no compatibility contract, and this carrier does
+/// not give it one). So a table REORDER still moves no byte of any
+/// file, exactly as for `WireExpr::Literal`.
+///
+/// Two refusals guard the new key, at the two layers that can see the
+/// two different faults. An OFF-TABLE symbol dies in `UnitSym`'s
+/// `Deserialize`, at the token. A symbol that IS a table row but does
+/// not measure the parameter's declared dimension — `mm` on an `Angle`
+/// param — is a document invariant, and refuses typed
+/// ([`PersistError::DisplayUnit`]) in the shared save/load validator,
+/// so it cannot be saved either.
+///
+/// [`crate::DocParam::Count`] gained nothing, deliberately and for
+/// v15's reason restated in units: a count has no dimension and the
+/// unit table has no row for one, so there is no notation to
+/// remember — unrepresentable rather than refused.
+///
+/// [`crate::DocEdit::SetDocParamValue`] needed no companion arm this
+/// time, and that is v15's lesson already banked: the value door
+/// carries a [`crate::DocParamValue`] and rebuilds nothing, so it
+/// keeps the whole declaration — the new unit included — without
+/// naming it.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`) that every entry above describes; it read 19.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eighteen.
-pub const SCHEMA_VERSION: u32 = 19;
+/// [`migration_step`] entry, or a ratified break like these nineteen.
+pub const SCHEMA_VERSION: u32 = 20;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

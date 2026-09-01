@@ -38,6 +38,7 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
     DocParam::Continuous {
         dim: Dimension::Length,
         value,
+        display_unit: None,
         distribution: Some(distribution),
     }
 }

@@ -154,7 +154,7 @@ impl DocParam {
         Self::Continuous {
             dim: Dimension::Length,
             value: written.meters(),
-            display_unit: written.unit().map(|u| crate::expr::UnitSym::from_def(&u.def())),
+            display_unit: Some(crate::expr::UnitSym::from_def(&written.unit().def())),
             distribution: None,
         }
     }
@@ -166,7 +166,7 @@ impl DocParam {
         Self::Continuous {
             dim: Dimension::Angle,
             value: written.radians_value(),
-            display_unit: written.unit().map(|u| crate::expr::UnitSym::from_def(&u.def())),
+            display_unit: Some(crate::expr::UnitSym::from_def(&written.unit().def())),
             distribution: None,
         }
     }

@@ -9,10 +9,22 @@
 //! what a person TYPED, so a document can be read back the way it was
 //! written.
 //!
-//! These two types are that record. Each carries the canonical value
-//! and an `Option` of the typed unit view it was authored in, which is
-//! precisely the pair a stored literal holds
-//! (`editor_core::Expr::literal_with_unit` and its `None` twin).
+//! These two types are that record: the canonical value beside the
+//! typed unit view it was authored in.
+//!
+//! # The notation is not optional
+//!
+//! A value authored through these doors ALWAYS names the unit it is
+//! written in, `WrittenLength::metres` included — that one names the
+//! metre. There is no "canonical, notation unknown" state here, and
+//! the point of not having one is that a document then says how it is
+//! written instead of leaning on whatever fallback its reader happens
+//! to apply. The reader's fallback still exists, because storage has a
+//! state this type does not: a `Scalar` literal has no notation to
+//! remember, since [`crate::UNITS`] has no dimensionless row and never
+//! will. That is why a STORED display unit is optional and an AUTHORED
+//! one is not — the two are different questions, and only one of them
+//! has a dimensionless case.
 //!
 //! # These are authoring data, not arithmetic data
 //!
@@ -22,18 +34,6 @@
 //! picked one would be inventing an authored fact nobody authored.
 //! Compute on the [`Length`] inside ([`WrittenLength::length`]), where
 //! the algebra is closed and the units have already erased.
-//!
-//! # `None` is a state, not a default
-//!
-//! `None` means **no authored notation** — "render this however the
-//! reader renders unmarked values" — and it is not the same as
-//! `Some(M)` or `Some(RAD)`. For lengths the two happen to coincide,
-//! because the canonical fallback IS the metre at factor 1. For angles
-//! they do not: an editor whose unmarked fallback is the half-turn
-//! shows `None` as `pi rad` and `Some(RAD)` as `rad`. Collapsing the
-//! `Option` would merge two states a document can tell apart, and
-//! would make these types unable to say what the literal they feed can
-//! store.
 //!
 //! # The dimension pairing is unrepresentable, not refused
 //!
@@ -47,36 +47,36 @@
 //! one is to name a unit whose quantity already agrees.
 //!
 //! ```
-//! use quantity::{MM, WrittenLength};
+//! use quantity::{M, MM, WrittenLength};
 //!
 //! // Written in millimetres: the multiply happens at the door, and
 //! // the notation survives it.
 //! let thickness = WrittenLength::in_unit(25.0, MM);
-//! assert_eq!(thickness.length().meters(), 0.025);
-//! assert_eq!(thickness.unit(), Some(MM));
+//! assert_eq!(thickness.meters(), 0.025);
+//! assert_eq!(thickness.unit(), MM);
 //!
-//! // Canonical, with nothing authored about how to write it.
+//! // Canonical — which is to say, written in metres, said out loud.
 //! let plain = WrittenLength::metres(0.025);
-//! assert_eq!(plain.length().meters(), 0.025);
-//! assert_eq!(plain.unit(), None);
+//! assert_eq!(plain.meters(), 0.025);
+//! assert_eq!(plain.unit(), M);
+//! assert_eq!(plain, WrittenLength::in_unit(0.025, M));
 //! ```
 
-use crate::{Angle, AngleUnit, Length, LengthUnit};
+use crate::{Angle, AngleUnit, Length, LengthUnit, M, RAD};
 
 /// A length as it was authored: canonical metres, plus the notation it
-/// was written in (`None` for none). See the module docs for why the
-/// `Option` is a state rather than a default, and why this type has no
-/// arithmetic.
+/// was written in. See the module docs for why the notation is not
+/// optional and why this type has no arithmetic.
 ///
 /// Equality compares BOTH halves — unlike the stored literal this feeds,
 /// where the display unit is presentation metadata excluded from
 /// expression identity. The difference is the point: here the notation
-/// is the payload, so two authorings of the same magnitude in different
-/// units are different authorings.
+/// is the payload, so the same magnitude authored in two units is two
+/// authorings.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WrittenLength {
     canonical: Length,
-    unit: Option<LengthUnit>,
+    unit: LengthUnit,
 }
 
 /// An angle as it was authored — [`WrittenLength`]'s mirror, canonical
@@ -85,7 +85,7 @@ pub struct WrittenLength {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WrittenAngle {
     canonical: Angle,
-    unit: Option<AngleUnit>,
+    unit: AngleUnit,
 }
 
 impl WrittenLength {
@@ -93,20 +93,23 @@ impl WrittenLength {
     /// and the one door here that MULTIPLIES. The factor applied is the
     /// table's, because a [`LengthUnit`] is a table row.
     ///
-    /// This is the library authoring spelling: `WrittenLength::in_unit(25.0, MM)`
-    /// is `25.0 * MM` that remembers the `MM`.
+    /// This is the library authoring spelling:
+    /// `WrittenLength::in_unit(25.0, MM)` is `25.0 * MM` that remembers
+    /// the `MM`.
     pub fn in_unit(value: f64, unit: LengthUnit) -> Self {
         Self {
             canonical: value * unit,
-            unit: Some(unit),
+            unit,
         }
     }
 
-    /// Canonical metres with **no** authored notation.
+    /// Canonical metres, written in metres — the plain spelling, and
+    /// the same value as `in_unit(metres, M)` without the multiply by
+    /// one.
     pub const fn metres(metres: f64) -> Self {
         Self {
             canonical: Length::from_meters(metres),
-            unit: None,
+            unit: M,
         }
     }
 
@@ -119,7 +122,7 @@ impl WrittenLength {
     /// display, never the value), so the authoring op carries the
     /// draft and the picker's choice side by side rather than
     /// re-deriving one from the other.
-    pub const fn metres_in(metres: f64, unit: Option<LengthUnit>) -> Self {
+    pub const fn canonical_in(metres: f64, unit: LengthUnit) -> Self {
         Self {
             canonical: Length::from_meters(metres),
             unit,
@@ -138,8 +141,8 @@ impl WrittenLength {
         self.canonical.meters()
     }
 
-    /// The notation this was authored in, if any.
-    pub const fn unit(self) -> Option<LengthUnit> {
+    /// The notation this was authored in.
+    pub const fn unit(self) -> LengthUnit {
         self.unit
     }
 }
@@ -150,21 +153,22 @@ impl WrittenAngle {
     pub fn in_unit(value: f64, unit: AngleUnit) -> Self {
         Self {
             canonical: value * unit,
-            unit: Some(unit),
+            unit,
         }
     }
 
-    /// Canonical radians with **no** authored notation.
+    /// Canonical radians, written in radians — [`WrittenLength::metres`]'s
+    /// mirror.
     pub const fn radians(radians: f64) -> Self {
         Self {
             canonical: Angle::from_radians(radians),
-            unit: None,
+            unit: RAD,
         }
     }
 
     /// An already-canonical angle that remembers `unit` — see
-    /// [`WrittenLength::metres_in`] for the form's shape this serves.
-    pub const fn radians_in(radians: f64, unit: Option<AngleUnit>) -> Self {
+    /// [`WrittenLength::canonical_in`] for the form's shape this serves.
+    pub const fn canonical_in(radians: f64, unit: AngleUnit) -> Self {
         Self {
             canonical: Angle::from_radians(radians),
             unit,
@@ -182,8 +186,8 @@ impl WrittenAngle {
         self.canonical.radians()
     }
 
-    /// The notation this was authored in, if any.
-    pub const fn unit(self) -> Option<AngleUnit> {
+    /// The notation this was authored in.
+    pub const fn unit(self) -> AngleUnit {
         self.unit
     }
 }

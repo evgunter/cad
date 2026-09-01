@@ -70,6 +70,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
+                display_unit: None,
                 distribution: Some(Distribution::TruncatedNormal {
                     sigma: 0.002,
                     lo: -0.005,

@@ -112,6 +112,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
+                display_unit: None,
                 distribution: None,
             },
         },
@@ -1080,6 +1081,7 @@ fn r1_own_document_web_and_flip() {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
+                display_unit: None,
                 distribution: None,
             },
         },

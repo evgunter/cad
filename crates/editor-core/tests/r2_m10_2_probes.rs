@@ -1356,6 +1356,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
+                display_unit: None,
                 distribution: None,
             },
         },
@@ -1422,6 +1423,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
+                display_unit: None,
                 distribution: None,
             },
         },

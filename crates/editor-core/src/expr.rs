@@ -627,12 +627,14 @@ impl Expr {
     /// the notation it was written in, together
     /// ([`quantity::WrittenLength`]).
     ///
-    /// The door library and GUI authoring should reach for: it is
-    /// [`Expr::literal`] and [`Expr::literal_with_unit`] chosen by
-    /// whether a notation was authored, so a caller never has to
-    /// decide which of the two it means, and never has to spell the
-    /// dimension — a `WrittenLength` is a length, so there is no
-    /// second fact to keep in step.
+    /// The door library and GUI authoring should reach for. A caller
+    /// never spells the dimension — a `WrittenLength` is a length, so
+    /// there is no second fact to keep in step — and the literal
+    /// ALWAYS remembers a unit, because an authored quantity always
+    /// names the one it is written in (`quantity::written`'s module
+    /// docs). [`Expr::literal`] remains the door for values with no
+    /// notation to remember: `Scalar` literals, which have no row in
+    /// the table to name.
     ///
     /// **`DisplayUnitMismatch` cannot fire here.** A
     /// [`quantity::WrittenLength`] holds a `LengthUnit`, which is an
@@ -648,10 +650,7 @@ impl Expr {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn written_length(written: quantity::WrittenLength) -> Result<Self, DimensionError> {
-        match written.unit() {
-            None => Self::literal(written.meters(), Dimension::Length),
-            Some(unit) => Self::literal_with_unit(written.meters(), Dimension::Length, unit.def()),
-        }
+        Self::literal_with_unit(written.meters(), Dimension::Length, written.unit().def())
     }
 
     /// A continuous literal from an AUTHORED angle —
@@ -662,12 +661,7 @@ impl Expr {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
-        match written.unit() {
-            None => Self::literal(written.radians_value(), Dimension::Angle),
-            Some(unit) => {
-                Self::literal_with_unit(written.radians_value(), Dimension::Angle, unit.def())
-            }
-        }
+        Self::literal_with_unit(written.radians_value(), Dimension::Angle, written.unit().def())
     }
 
     /// The display unit of a LITERAL expression, if one is stored

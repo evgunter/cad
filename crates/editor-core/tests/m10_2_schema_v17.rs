@@ -70,7 +70,7 @@ const V15: &str = include_str!("golden/v15_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    assert_eq!(SCHEMA_VERSION, 19);
+    assert_eq!(SCHEMA_VERSION, 20);
 }
 
 #[test]
@@ -138,6 +138,7 @@ fn every_form() -> ProfileDoc {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.001,
+                display_unit: None,
                 distribution: None,
             },
         },

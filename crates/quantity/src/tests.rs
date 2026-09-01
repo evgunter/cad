@@ -394,12 +394,15 @@ fn fmt_quantity_error_display_names_its_content_not_its_struct() {
 #[test]
 fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
     let written = WrittenLength::in_unit(25.0, MM);
-    assert_eq!(written.unit(), Some(MM));
-    assert_eq!(written.length().meters().to_bits(), (25.0 * MM).meters().to_bits());
+    assert_eq!(written.unit(), MM);
+    assert_eq!(
+        written.length().meters().to_bits(),
+        (25.0 * MM).meters().to_bits()
+    );
     assert_eq!(written.meters(), 0.025);
 
     let angle = WrittenAngle::in_unit(90.0, DEG);
-    assert_eq!(angle.unit(), Some(DEG));
+    assert_eq!(angle.unit(), DEG);
     assert_eq!(
         angle.angle().radians().to_bits(),
         (90.0 * DEG).radians().to_bits()
@@ -408,48 +411,45 @@ fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
     // The half-turn row is a notation carried as a unit, and it rides
     // this door like any other row: two half-turns is a full turn.
     let turn = WrittenAngle::in_unit(2.0, PI);
-    assert_eq!(turn.unit(), Some(PI));
+    assert_eq!(turn.unit(), PI);
     assert_eq!(turn.radians_value(), core::f64::consts::TAU);
 }
 
-/// `None` is "no authored notation", NOT "the canonical unit". The two
-/// coincide for lengths (the fallback IS the metre, factor 1) and come
-/// apart for angles, which is why the `Option` is a state this type has
-/// to be able to hold rather than a default it could bake in.
+/// The plain spelling NAMES the canonical unit rather than declining to
+/// name one — there is no unmarked state here, which is what lets a
+/// document say how it is written instead of leaning on its reader's
+/// fallback. `metres` skips the multiply by one; that is an
+/// optimisation, not a difference, and these compare equal.
 #[test]
-fn no_notation_is_a_state_of_its_own_and_multiplies_by_nothing() {
-    let plain = WrittenLength::metres(0.025);
-    assert_eq!(plain.unit(), None);
-    assert_eq!(plain.meters(), 0.025);
-    assert_ne!(plain, WrittenLength::in_unit(0.025, M));
+fn the_plain_spelling_is_the_canonical_unit_said_out_loud() {
+    assert_eq!(WrittenLength::metres(0.025), WrittenLength::in_unit(0.025, M));
+    assert_eq!(WrittenLength::metres(0.025).unit(), M);
+    assert_eq!(WrittenAngle::radians(1.5), WrittenAngle::in_unit(1.5, RAD));
+    assert_eq!(WrittenAngle::radians(1.5).unit(), RAD);
 
-    // Same magnitude, same canonical bits, different authorings — and
-    // the carrier tells them apart, unlike the stored literal it feeds,
-    // where the display unit is excluded from expression identity.
-    let metres = WrittenLength::in_unit(0.025, M);
-    assert_eq!(plain.meters().to_bits(), metres.meters().to_bits());
-    assert_ne!(plain.unit(), metres.unit());
-
-    // The angle pair, where the two states really do render differently.
-    assert_eq!(WrittenAngle::radians(1.0).unit(), None);
-    assert_eq!(WrittenAngle::in_unit(1.0, RAD).unit(), Some(RAD));
-    assert_ne!(WrittenAngle::radians(1.0), WrittenAngle::in_unit(1.0, RAD));
+    // Same magnitude, different authorings — the carrier tells them
+    // apart, unlike the stored literal it feeds, where the display unit
+    // is excluded from expression identity.
+    let metres = WrittenLength::metres(0.025);
+    let inches = WrittenLength::canonical_in(0.025, IN);
+    assert_eq!(metres.meters().to_bits(), inches.meters().to_bits());
+    assert_ne!(metres, inches);
 }
 
 /// The form's door: the draft is ALREADY canonical (a picker re-writes
 /// what is on screen and changes no value), so this one attaches the
-/// notation without multiplying by it. `metres_in(x, Some(u))` and
+/// notation without multiplying by it. `canonical_in(x, u)` and
 /// `in_unit(x, u)` are therefore different values, and deliberately so.
 #[test]
 fn the_already_canonical_door_attaches_notation_without_applying_it() {
-    let form = WrittenLength::metres_in(0.025, Some(MM));
+    let form = WrittenLength::canonical_in(0.025, MM);
     assert_eq!(form.meters(), 0.025, "no factor applied");
-    assert_eq!(form.unit(), Some(MM), "the notation still rides");
+    assert_eq!(form.unit(), MM, "the notation still rides");
     assert_eq!(WrittenLength::in_unit(0.025, MM).meters(), 2.5e-5);
 
-    assert_eq!(WrittenLength::metres_in(0.025, None), WrittenLength::metres(0.025));
-    assert_eq!(WrittenAngle::radians_in(1.5, None), WrittenAngle::radians(1.5));
-    assert_eq!(WrittenAngle::radians_in(1.5, Some(DEG)).radians_value(), 1.5);
+    assert_eq!(WrittenLength::canonical_in(0.025, M), WrittenLength::metres(0.025));
+    assert_eq!(WrittenAngle::canonical_in(1.5, RAD), WrittenAngle::radians(1.5));
+    assert_eq!(WrittenAngle::canonical_in(1.5, DEG).radians_value(), 1.5);
 }
 
 /// Every row of the closed table is reachable through its OWN carrier
@@ -463,36 +463,17 @@ fn each_carrier_admits_exactly_its_own_half_of_the_table() {
             UnitQuantity::Length => {
                 let unit = row.as_length().expect("a Length row has the length view");
                 let written = WrittenLength::in_unit(3.0, unit);
-                assert_eq!(written.unit().map(LengthUnitSymbol::sym), Some(row.symbol()));
+                assert_eq!(written.unit().symbol(), row.symbol());
                 assert_eq!(written.meters(), 3.0 * row.factor());
                 assert_eq!(row.as_angle(), None);
             }
             UnitQuantity::Angle => {
                 let unit = row.as_angle().expect("an Angle row has the angle view");
                 let written = WrittenAngle::in_unit(3.0, unit);
-                assert_eq!(written.unit().map(AngleUnitSymbol::sym), Some(row.symbol()));
+                assert_eq!(written.unit().symbol(), row.symbol());
                 assert_eq!(written.radians_value(), 3.0 * row.factor());
                 assert_eq!(row.as_length(), None);
             }
         }
-    }
-}
-
-/// Local symbol readers for the loop above — the views' own `symbol`
-/// takes `self` by value, which `Option::map` cannot name directly.
-trait LengthUnitSymbol {
-    fn sym(self) -> &'static str;
-}
-impl LengthUnitSymbol for crate::LengthUnit {
-    fn sym(self) -> &'static str {
-        self.symbol()
-    }
-}
-trait AngleUnitSymbol {
-    fn sym(self) -> &'static str;
-}
-impl AngleUnitSymbol for crate::AngleUnit {
-    fn sym(self) -> &'static str {
-        self.symbol()
     }
 }
