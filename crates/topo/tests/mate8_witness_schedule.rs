@@ -34,13 +34,25 @@
 //! which is the frame-invariance claim the lemma at `world_carrier`
 //! makes and this row measures.
 //!
-//! ε posture: every incidence in both seats is a shared `f64` literal
-//! (cap vertices exactly on `y = 0.30`, both cap faces exactly on
-//! `z = 0.5`), so what the rung decides are exact zeros against a
-//! ~7.5e-3 m² overlap — the seat is not near any band edge, and the
-//! witness the new schedule finds in the thin seat sits ~1.9e-2 m from
-//! the nearest trim boundary. These rows therefore read the same at
+//! ε posture, and the band this file is honest only within. Every
+//! incidence in both seats is a shared `f64` literal (cap vertices
+//! exactly on `y = 0.30`, both cap faces exactly on `z = 0.5`), so what
+//! the RUNG decides are exact zeros against a ~7.5e-3 m² overlap, and
+//! the witness the schedule finds in the thin seat sits ~1.9e-2 m from
+//! the nearest trim boundary. The rung's own answers therefore hold at
 //! every ε the matrix runs.
+//!
+//! **The rows below assert more than the rung, and that is where they
+//! stop travelling.** They assert the seat's WHOLE validation list is
+//! empty, and other predicates in that list are not so far from the
+//! band: at `CAD_TOLERANCE_EPS=1e-3` the seat carries four honest
+//! `pm_census_ee_parallel` escalations (margin 8.944e-3, band
+//! [1e-3, 1e-2]) — the near-parallel cap and shelf edges, nothing to do
+//! with the witness schedule — so these rows are RED at 1e-3 by
+//! construction. 1e-3 is not a band the gate runs; the three that are
+//! (default, 1e-6, 1e-12) are green. Stated because "the seat is not
+//! near any band edge" would be false as a claim about the whole list,
+//! and it is the whole list these rows read.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -158,6 +170,19 @@ fn both_seats_bare_are_still_loud() {
             Ok(()) => Vec::new(),
             Err(e) => e,
         };
-        assert!(!found.is_empty(), "{name}: undeclared, the seat refuses");
+        // Pin the KIND, not merely the count: "some error" would stay
+        // green if the census fell silent and an unrelated finding took
+        // its place, which is exactly the failure this control exists
+        // to catch. Undeclared, the cap resting on the shelf underside
+        // must still be reported as an unattributed contact.
+        let contacts: Vec<_> = found
+            .iter()
+            .filter(|e| matches!(e, ValidationError::UndeclaredContact { .. }))
+            .collect();
+        assert!(
+            !contacts.is_empty(),
+            "{name}: undeclared, the seat refuses with hard contact \
+             findings: {found:?}"
+        );
     }
 }

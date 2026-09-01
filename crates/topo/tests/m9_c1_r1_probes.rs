@@ -19,8 +19,15 @@
 //!    declared pair's own incidence — a declaration between the wrong
 //!    faces (post cap x shelf TOP) backs none of the seat's events.
 //!
-//! ε posture: as the unit's own suite — all coincidences are shared
-//! f64 literals, all separations ≥ a twentieth of a metre.
+//! ε posture: all coincidences are shared f64 literals, and the
+//! separations the CENSUS rungs turn on are ≥ a twentieth of a metre.
+//! The governing margin of the overhang seat is smaller than that and
+//! is not one of them: `pm_census_ee_parallel` reads 8.944e-3 on the
+//! near-parallel cap and shelf edges, which lands in band at
+//! `CAD_TOLERANCE_EPS=1e-3` and escalates honestly there. That is why
+//! `the_lemma_probe_declared`'s whole-list assertion below is a
+//! GATED-BAND row — green at default, 1e-6 and 1e-12, red at 1e-3,
+//! which the matrix does not run.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -178,6 +185,9 @@ fn the_lemma_probe_declared() {
         "and the ef interior arm reads the same rung at each bound: \
          {found:?}"
     );
+    // Gated-band row (see the header): the whole-list form is red at
+    // 1e-3, where four honest `pm_census_ee_parallel` escalations join
+    // the list. The two census assertions above hold at every band.
     assert!(
         all.is_empty(),
         "and door 2's rescue rung finds the overlap: {all:?}"
