@@ -81,6 +81,8 @@ mod verbs_shell;
 
 #[path = "bitdump.rs"]
 mod bitdump;
+#[path = "cert8_r1_probes.rs"]
+mod cert8_r1_probes;
 #[path = "blend1_r1_probes.rs"]
 mod blend1_r1_probes;
 #[path = "blend2_r2_probes.rs"]
