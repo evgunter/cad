@@ -588,8 +588,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// coincidence ladder, the mated-union doors, the stable-name count),
 /// and returning a fully built list would print all of that up front,
 /// detached from the stops it belongs to. Building each group as it is
-/// reached also keeps one group's bodies alive at a time, and lets the
-/// project box hand its body to the cutaway exactly as it always has.
+/// reached also keeps one group's bodies alive at a time.
 /// `work` is a directory the assembly stop uses as its document STORE.
 /// It is the one thing a tour scene had never needed: every other
 /// scene is one document built in memory, so `stops(tol)` was the
@@ -710,13 +709,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
-    let (box_stop, box_body) = projectbox::stop(tol);
-    visit(&box_stop);
-
-    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
-    for stop in cutaway::stops(&box_body, tol) {
-        visit(&stop);
-    }
+    visit(&projectbox::stop(tol));
 
     println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
     for stop in heatsink::stops(tol) {

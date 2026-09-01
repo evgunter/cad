@@ -13,8 +13,8 @@
 use pncad::geom_core::{Affine3, Point3, Vec3};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
 
+use crate::SceneBody;
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
 /// The narration numbers `build` reports alongside the halves:
@@ -69,7 +69,21 @@ pub(crate) fn build<S: Scalar>(
     ((moved_above, moved_below), (v_above, v_below, v_box, gap))
 }
 
-pub fn stops(boxbody: &pncad::topo::Body<f64>, tol: Tol) -> Vec<Stop> {
+/// How far along +x the sectioned pair sits from the whole box. The
+/// enclosure is 3 long, so 5 leaves 2 of clear air at the shared
+/// camera.
+pub(crate) const SECTION_GAP: f64 = 5.0;
+
+/// The two halves, placed beside the whole box for the shared cell.
+///
+/// The halves are the ones that travel because they are contact-free:
+/// split output carries no declared contacts, while the box itself is
+/// a boolean result whose `ContactRecords` name face keys that
+/// `transform_rigid` would re-mint.
+pub(crate) fn sectioned_beside(
+    boxbody: &pncad::topo::Body<f64>,
+    tol: Tol,
+) -> (Vec<SceneBody>, String) {
     let ((moved_above, moved_below), (v_above, v_below, v_box, gap)) = build(boxbody, tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
@@ -78,30 +92,16 @@ pub fn stops(boxbody: &pncad::topo::Body<f64>, tol: Tol) -> Vec<Stop> {
          {v_below:.6} = {v_box:.6}, gap {gap:.1e}); halves then moved apart by \
          rigid transforms (edge witnesses re-minted, #84) and revalidated"
     );
-    vec![Stop {
-        name: "cutaway",
-        caption: "cutaway (split + move)".to_string(),
-        montage: true,
-        story: "the project box split by a tilted plane and pulled apart — a \
-                machinist's section pair showing bosses, pockets, and wall sections",
-        ops: "topo::split(projectbox, tilted plane) -> 2 bodies -> 2 transform nodes",
-        delta: 1e-2,
-        note: Some(note),
-        // Split output is not a boolean result: no declared contacts
-        // ride it, so both halves go through the plain tier-3 gate.
-        // Camera chosen so the section normal is ~48 degrees off the
-        // view direction (#91 revision note 6): the below half's
-        // section faces the camera and the cut interior (cavity,
-        // vents, boss sections) is visible, while the halves still
-        // separate laterally on screen.
-        view: View {
-            elev: 20.0,
-            azim: 55.0,
-            up: 'z',
-        },
-        bodies: vec![
-            SceneBody::plain("cutaway_above", [0.40, 0.60, 0.72], moved_above),
-            SceneBody::plain("cutaway_below", [0.78, 0.60, 0.35], moved_below),
+    let aside = Affine3::translation(Vec3::new(SECTION_GAP, 0.0, 0.0));
+    let above = pncad::topo::transform_rigid(&moved_above, &aside, tol)
+        .expect("place the above half beside the box");
+    let below = pncad::topo::transform_rigid(&moved_below, &aside, tol)
+        .expect("place the below half beside the box");
+    (
+        vec![
+            SceneBody::plain("cutaway_above", [0.40, 0.60, 0.72], above),
+            SceneBody::plain("cutaway_below", [0.78, 0.60, 0.35], below),
         ],
-    }]
+        note,
+    )
 }

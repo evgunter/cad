@@ -88,6 +88,10 @@ const PEG_R: f64 = 0.5;
 /// selector showing through (#1345); a document would say this with a
 /// `GeoSelect`.
 const SAME_CARRIER: f64 = 1e-12;
+/// How far along +x the apart framing sits from the mated body. The
+/// plate is 6 wide, so 8 leaves 2 of clear air between the two
+/// framings at the shared camera.
+const APART_GAP: f64 = 8.0;
 const PEG_X: [f64; 2] = [2.0, 4.0];
 const PEG_Y: f64 = 2.0;
 /// How far each peg stands proud of its plate — and, equally, how deep
@@ -495,51 +499,50 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          carries NO cylinder face; each peg survives as a rim circle, an inner \
          ring on the plate's top"
     );
-    vec![
-        Stop {
-            name: "twopeg",
-            caption: "two-peg plate (mated)".to_string(),
-            montage: true,
-            story: "two plates located on each other three ways — one planar and two \
-                    CYLINDRICAL declared Rest contacts — and UNIONED into one body \
-                    through the M9-3 zip; the peg-in-hole join this tour used to say \
-                    it could not build",
-            ops: "extrude plate + 2 x extrude three-arc peg -> 2 transverse unions (P); \
-                  extrude one profile whose two inner loops are the bores (Q); declare \
-                  every shared-carrier face pair Rest -> union_with",
-            delta: 1e-2,
-            note: Some(note),
-            view: View {
-                elev: 22.0,
-                azim: -58.0,
-                up: 'z',
-            },
-            bodies: vec![SceneBody::seamed(
+    // The apart framing is placed BESIDE the mated one, not in a cell
+    // of its own: the two are one statement — these parts, and what
+    // becomes of their three contacts when the union makes them
+    // interior — and `compose_montage.py` scales every cell
+    // independently, so as two panels they arrive at two different
+    // sizes and the reader cannot lay one over the other.
+    //
+    // The MATED body stays at the origin because it is the one
+    // carrying declared contacts, and `transform_rigid` re-mints face
+    // keys: moving it would leave its `ContactRecords` naming faces
+    // that no longer exist. The apart pair is contact-free, so it is
+    // the half that travels.
+    let aside = Affine3::translation(Vec3::new(APART_GAP, 0.0, 0.0));
+    let p_aside = pncad::topo::transform_rigid(&p, &aside, tol).expect("place P aside");
+    let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside, tol).expect("place Q aside");
+    vec![Stop {
+        name: "twopeg",
+        caption: "two-peg plate — mated, and apart".to_string(),
+        montage: true,
+        story: "two plates located on each other three ways — one planar and two \
+                CYLINDRICAL declared Rest contacts — and UNIONED into one body through \
+                the M9-3 zip; the peg-in-hole join this tour used to say it could not \
+                build. Beside it the same two parts apart, Q lifted clear, so the three \
+                contacts are visible before the union makes them interior",
+        ops: "extrude plate + 2 x extrude three-arc peg -> 2 transverse unions (P); \
+              extrude one profile whose two inner loops are the bores (Q); declare \
+              every shared-carrier face pair Rest -> union_with; transform_rigid for \
+              the apart framing",
+        delta: 1e-2,
+        note: Some(note),
+        view: View {
+            elev: 22.0,
+            azim: -58.0,
+            up: 'z',
+        },
+        bodies: vec![
+            SceneBody::seamed(
                 "twopeg_mated",
                 [0.62, 0.66, 0.72],
                 mated.body,
                 mated.contacts,
-            )],
-        },
-        Stop {
-            name: "twopeg_apart",
-            caption: "two-peg plate (apart)".to_string(),
-            montage: true,
-            story: "the same two parts apart: plate P with its two pegs, plate Q with \
-                    its two bores lifted clear, so the three contacts are visible \
-                    before the union makes them interior",
-            ops: "transform_rigid(plate Q, +1.6 z) — transform witnesses re-minted",
-            delta: 1e-2,
-            note: None,
-            view: View {
-                elev: 22.0,
-                azim: -58.0,
-                up: 'z',
-            },
-            bodies: vec![
-                SceneBody::plain("twopeg_apart_p", [0.62, 0.66, 0.72], p),
-                SceneBody::plain("twopeg_apart_q", [0.78, 0.60, 0.42], q_lifted),
-            ],
-        },
-    ]
+            ),
+            SceneBody::plain("twopeg_apart_p", [0.62, 0.66, 0.72], p_aside),
+            SceneBody::plain("twopeg_apart_q", [0.78, 0.60, 0.42], q_aside),
+        ],
+    }]
 }
