@@ -55,6 +55,7 @@
 
 use core::f64::consts::PI;
 
+use geom_brep::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -64,6 +65,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
 use test_utils::vacuity::Exposure;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::{self, CurveKind, CurveKindSet, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 /// How many random edge subsets each corpus body gets — one multiple
@@ -239,26 +241,16 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
 /// never reaches `rim_phase`, which holds 6 of the 18 `unreachable!`
 /// sites this file exists to attack.
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let kind_of = |f: topo::FaceKey| -> Option<u8> {
-        match body.get_surface(body.get_face(f)?.surface)? {
-            geom::Surface::Plane { .. } => Some(0),
-            geom::Surface::Sphere { .. } => Some(1),
-            _ => Some(2),
-        }
-    };
-    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
-    };
-    body.edges()
-        .filter(|(_, e)| {
-            let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
-                return false;
-            };
-            let mut kinds = [kind_of(fa), kind_of(fb)];
-            kinds.sort_unstable();
-            kinds == [Some(0), Some(1)]
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
@@ -266,14 +258,9 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// a corpus of straight-edged boxes reaches none of the curved-spine
 /// arms.
 fn circle_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges()
-        .map(|(k, _)| k)
-        .filter(|&k| {
-            body.get_edge(k)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
-        })
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| query::edge_carrier_matches(body, k, CurveKindSet::just(CurveKind::Circle)))
         .collect()
 }
 

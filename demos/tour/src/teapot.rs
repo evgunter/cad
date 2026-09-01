@@ -157,7 +157,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
-use pncad::prelude::{Open, Start, fillet_edges};
+use pncad::prelude::{Open, Start, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
 use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand, ReplaceFaceError, ShellError};
@@ -406,27 +406,37 @@ fn spout_placement() -> Affine3<f64> {
 /// meridians, so the mouth is two half-discs sharing one plane, and
 /// `shell_open` lifts a chart as one (`ShellError::OpenFaceChartPartial`
 /// is what a half designation gets).
+///
+/// The kernel query seat materializes the candidates; the station is
+/// this scene's own read of the carrier — a numeric description the
+/// scene states in its authored coordinates.
 fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+    query::all_faces(body)
+        .into_iter()
+        .filter(|&f| {
+            matches!(
+                body.get_face(f).and_then(|face| body.get_surface(face.surface)),
+                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12
+            )
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
 /// The one closed latitude rim of `body` whose circle sits at station
-/// `y` with radius `r` — the selection said BY DESCRIPTION, by hand,
-/// because a directly revolved body has no selector (the register's
-/// standing gap; `bud::rims_between` and `klein::corner_edges` are the
-/// same scan).
+/// `y` with radius `r` — the selection said BY DESCRIPTION at the body
+/// seat: the kernel query seat materializes the candidates
+/// (`bud::rims_between` and `klein::corner_edges` say their kind
+/// halves through the seat's predicates), and the carrier match here
+/// is this scene's own read — a numeric description stated in the
+/// authored coordinates, which no kind predicate answers, with the
+/// circle kind subsumed by the same match.
 fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
+    let hits: Vec<EdgeKey> = query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
             let Some(c) = body
-                .get_curve_geom(body.get_edge(*k).expect("the edge").curve)
+                .get_edge(k)
+                .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(|g| g.certified())
             else {
                 return false;
@@ -434,7 +444,6 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
             matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
                 if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
         })
-        .map(|(k, _)| k)
         .collect();
     assert_eq!(
         hits.len(),

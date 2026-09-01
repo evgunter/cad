@@ -222,6 +222,59 @@ pub fn geometric_cube<T: geom_core::Decide>() -> GeoCube<T> {
     }
 }
 
+/// **The straddle seat** — issue 973 part (b)'s configuration,
+/// verbatim: a rectangular cap `[0.30, 0.60] x [0.20, 0.42]` (z 0 to
+/// 0.5) under a shelf `[0, 0.9] x [0, 0.30]` (z 0.5 to 0.54), contact
+/// plane `z = 0.5`, the cap straddling the shelf's `y = 0.30`
+/// boundary edge so the two cap side edges cross it properly at
+/// `(0.30, 0.30, 0.5)` and `(0.60, 0.30, 0.5)`.
+///
+/// ONE builder, shared: `mate4a_ef_bound_rung` (the re-blessed (b)
+/// fence and its bare byte-pin) and `mate9_crossing_rung` (the
+/// crossing rung's rows) assert COMPLEMENTARY things about this same
+/// seat, and two hand-copies would let a drift silently decouple
+/// them.
+pub struct StraddleSeat {
+    pub body: Body<f64>,
+    /// The cap's top face (the resting pair's post side).
+    pub post_top: topo::FaceKey,
+    /// The cap's `x = 0.30` side face (the perpendicular-pair rows).
+    pub post_side_x030: topo::FaceKey,
+    /// The shelf's underside (the resting pair's shelf side).
+    pub shelf_bottom: topo::FaceKey,
+    /// The shelf's `y = 0.30` side face (the perpendicular-pair rows).
+    pub shelf_side_y030: topo::FaceKey,
+}
+
+/// Builds [`StraddleSeat`] (post grafted first, shelf second — the
+/// arena order the fence rows' pinned keys and witnesses assume).
+pub fn straddle_seat() -> StraddleSeat {
+    let post: Prism<f64> = prism_z(
+        &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
+        0.0,
+        0.5,
+    );
+    let shelf: Prism<f64> = prism_z(
+        &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+        0.5,
+        0.54,
+    );
+    // side_faces[i] spans profile segment i → i+1: the post's [3] is
+    // (0.30, 0.42) → (0.30, 0.20), the plane x = 0.30; the shelf's
+    // [2] is (0.9, 0.30) → (0, 0.30), the plane y = 0.30.
+    let post_side_x030 = post.side_faces[3];
+    let mut body = post.body;
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, geom_core::Tol::witness())
+        .expect("the straddle graft");
+    StraddleSeat {
+        post_top: post.top_face,
+        post_side_x030,
+        shelf_bottom: keys.face(shelf.bottom_face).expect("shelf bottom maps"),
+        shelf_side_y030: keys.face(shelf.side_faces[2]).expect("shelf side maps"),
+        body,
+    }
+}
+
 /// Key bundle for a [`prism`] fixture.
 pub struct Prism<T: Real> {
     pub body: Body<T>,

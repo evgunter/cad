@@ -37,6 +37,7 @@ use geom_core::{Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
+use topo::query;
 use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FaceKey,
     FacePairDeclaration,
@@ -146,16 +147,15 @@ fn full_torus(major: f64) -> Body<f64> {
 
 /// The torus faces of a body whose tube radius is `minor`.
 fn torus_faces(body: &Body<f64>, minor: f64) -> Vec<FaceKey> {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| {
+    let hits: Vec<_> = query::all_faces(body)
+        .into_iter()
+        .filter(|&f| {
             matches!(
-                body.get_surface(f.surface),
+                body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
                 Some(geom::Surface::Torus { minor_radius, .. })
                     if (*minor_radius - minor).abs() < 1e-12
             )
         })
-        .map(|(k, _)| k)
         .collect();
     assert!(
         !hits.is_empty(),

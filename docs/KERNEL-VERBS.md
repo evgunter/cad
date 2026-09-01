@@ -90,9 +90,13 @@ shape of a spout is a swept curved section along a bent spine, which
 `ReversedStacking`; the teapot's own spout is not attempted) and no
 variable-section door exists for, so the scene's spout is a straight
 cone frustum tilted into place, a spout the way a LATHE would make
-one; and **geometric edge selection**, which is document-layer only,
-so the lid's knob rim is scanned for by hand exactly as the bud's and
-the bottle's are.
+one; and **geometric edge selection by NUMERIC description**: the kind
+half of "the knob rim" goes through the kernel query seat
+(`topo::query`, SEAT-2 — the bud's and the bottle's selections say
+their kind/adjacency halves the same way), while the station-and-radius
+half remains each scene's own carrier read — a numeric description no
+kind predicate answers, the DECIDED datum-distance door's territory at
+the document layer.
 
 ## Scope limits and defects met by consumers — NOT missing verbs
 
@@ -347,7 +351,7 @@ the table.
 - **`shell_open`'s rim on a solid of revolution — FIXED.** Added
   2026-08-27 with the junction row above (the teapot's second finding —
   formerly wall 2, now retired into the scene's inline assertions at
-  `teapot.rs:920-960` — plus the same test file) and repaired the same
+  `teapot.rs:973-1029` — plus the same test file) and repaired the same
   week. **What was wrong**: the verb
   RETURNED a body that passed tiers 1, 2 and 3 while each designated
   face carried its own cavity counterpart's boundary re-labelled as an
@@ -457,9 +461,16 @@ the table.
   cylinder come out with radii differing by tens of ulps. Same drift
   class the `tube_along_arc` door was built to retire, met from the
   profile side.
-- **Geometric edge selection is document-layer only.** `select_where`
-  + `GeomPred::AdjacentKinds` is the ratified way to say "the
-  cone×cylinder corners", and it takes an `Evaluation` — so a body
-  built by calling `revolve` directly has no selector at all and must
-  scan `body.edges()` through two back-pointers by hand
-  (`klein::corner_edges`). A gap in reach rather than a refusal.
+- **Geometric edge selection is document-layer only — RETIRED by
+  SEAT-2 (VERB-SEAT-DESIGN §1).** The kernel query seat exists:
+  `topo::query` carries the whole-body materializers
+  (`all_edges`/`all_faces`, deterministic arena order), the EXACT
+  kind predicates (`edge_carrier_matches`, `face_surface_matches`,
+  `edge_adjacent_matches`) and the DECIDED datum-distance door
+  (`datum_distance_sign`, the `sel_datum_distance` funnel), so "the
+  cone×cylinder corners" on a body built by calling `revolve`
+  directly is the materializer filtered by the adjacent-kind
+  predicate (`klein::corner_edges` is that filter now — no arena
+  back-pointer walk, no second implementation), and the document
+  layer's `select_where` runs the same predicates over its name
+  table.
