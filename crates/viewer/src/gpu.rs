@@ -255,6 +255,16 @@ const EDGE_MARK_HOVERED: u32 = 1;
 /// its mark composites over the probe-tinted body exactly as the
 /// shaded pass's marks do (`EdgePass`'s note on the shared base).
 const EDGE_FLAG_PROBE: u32 = 2;
+/// Set when this vertex belongs to a PREVIEW — a wireframe of
+/// something a form is composing, which is not in the document.
+///
+/// Drawn in the theme's probe mark, the mark that means "this
+/// placement is not committed" (`Theme::probe`, G3's honesty
+/// requirement), so a preview can never read as a selection of
+/// something that exists. A bit rather than a third value in the
+/// selected/hovered pair, because it says something orthogonal: a
+/// preview segment is neither picked nor hovered.
+const EDGE_MARK_PREVIEW: u32 = 4;
 
 /// **Half the width of an edge mark, in POINTS** — so a mark is
 /// [`EDGE_MARK_HALF_WIDTH_POINTS`]`* 2` points thick wherever it is
@@ -890,6 +900,11 @@ impl EdgePass {
                 &overlay.selected,
             ),
             (EDGE_MARK_HOVERED, overlay.hovered_probed, &overlay.hovered),
+            // A preview belongs to nothing in the document, so there
+            // is no instance for it to be free-moved WITH: the probe
+            // FLAG stays clear and the preview mark supplies the
+            // probe tint on its own.
+            (EDGE_MARK_PREVIEW, false, &overlay.preview),
         ] {
             let word = if probed { mark | EDGE_FLAG_PROBE } else { mark };
             // `chunks_exact(2)`: the overlay is a LINE LIST, so a
@@ -1146,6 +1161,7 @@ fn shader_source() -> String {
         )
         .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
+        .replace("{{EDGE_MARK_PREVIEW}}", &EDGE_MARK_PREVIEW.to_string())
         .replace("{{EDGE_CLIP_Z_SHRINK}}", &format!("{EDGE_CLIP_Z_SHRINK:e}"))
 }
 
@@ -1312,6 +1328,11 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     if ((in.mark & {{EDGE_MARK_HOVERED}}u) != 0u) {
         color = tint(base, uniforms.hovered);
     }
+    // Last, so it wins: a preview is not in the document, and saying
+    // so outranks saying which of the picked marks it would have been.
+    if ((in.mark & {{EDGE_MARK_PREVIEW}}u) != 0u) {
+        color = tint(base, uniforms.probe);
+    }
     return vec4<f32>(color, 1.0);
 }
 
@@ -1365,6 +1386,7 @@ mod tests {
             "{{FLAG_FOCUS}}",
             "{{EDGE_MARK_HOVERED}}",
             "{{EDGE_FLAG_PROBE}}",
+            "{{EDGE_MARK_PREVIEW}}",
             "{{EDGE_CLIP_Z_SHRINK}}",
         ] {
             assert!(

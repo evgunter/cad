@@ -46,6 +46,7 @@ use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::document::{Axis3, BooleanOp, Dimension, DocumentId, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
+use pncad::profile::{ArcSide, ArcSweep};
 use pncad::quantity::UnitDef;
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
@@ -67,6 +68,7 @@ use crate::seats::{Seat, SeatError, seat_line};
 use crate::session::{
     BoundsTarget, DatumSpec, DocSession, ProfileShape, Refusal, Selection, SessionOp, Standing,
 };
+use crate::sketch::{self, ArcSpec, PathStep, PathTarget, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::{ToolKind, Tools};
 use crate::tree::{RowStatus, TreeRow};
@@ -271,6 +273,16 @@ struct Drafts {
     angle_unit: Option<UnitDef>,
     /// The add-profile form's shape choice.
     profile_shape: ShapeKind,
+    /// The path form's verbs, in authoring order.
+    ///
+    /// Starts as the SQUARE a `line_to` chain spells — an empty list
+    /// is a form with nothing to look at and no example of what a
+    /// chain is supposed to look like, and this one is four verbs a
+    /// reader can take apart. It is a draft like every other field
+    /// here: nothing reaches a document until Add profile.
+    profile_path: Vec<PathStep>,
+    /// Which verb the path form's "add step" control appends.
+    path_verb: PathVerb,
     /// The circle form's centre, metres.
     profile_centre: [f64; 2],
     /// The circle form's radius, metres.
@@ -346,6 +358,14 @@ impl Default for Drafts {
             length_unit: None,
             angle_unit: None,
             profile_shape: ShapeKind::Circle,
+            profile_path: vec![
+                PathStep::At([0.0, 0.0]),
+                PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
+                PathStep::LineTo(PathTarget::Point([0.01, 0.01])),
+                PathStep::LineTo(PathTarget::Point([0.0, 0.01])),
+                PathStep::LineTo(PathTarget::Start),
+            ],
+            path_verb: PathVerb::LineTo,
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
             profile_bored: false,
@@ -364,6 +384,45 @@ impl Default for Drafts {
             pattern_step: core::f64::consts::FRAC_PI_2,
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
+        }
+    }
+}
+
+impl Drafts {
+    /// **The loops the add-profile form would author right now.**
+    ///
+    /// One home, read twice: by the form's commit button and by the
+    /// preview drawn under and around it. Two readings that built the
+    /// loops separately could draw one shape and author another,
+    /// which is the one way a live preview can lie.
+    ///
+    /// The bore is a second loop rather than a field on the first —
+    /// which is what makes the ring demo's annulus a template rather
+    /// than a special case — and the form's own guard on it lives at
+    /// the commit ([`ViewerBehavior::add_profile_ui`]), because it is
+    /// about what the loops MEAN, not about what they are.
+    fn profile_loops(&self) -> Vec<ProfileShape> {
+        match self.profile_shape {
+            ShapeKind::Circle => {
+                let mut loops = vec![ProfileShape::Circle {
+                    centre: self.profile_centre,
+                    radius: self.profile_radius,
+                }];
+                if self.profile_bored {
+                    loops.push(ProfileShape::Circle {
+                        centre: self.profile_centre,
+                        radius: self.profile_bore,
+                    });
+                }
+                loops
+            }
+            ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
+                width: self.profile_extent[0],
+                height: self.profile_extent[1],
+            }],
+            ShapeKind::Path => vec![ProfileShape::Path {
+                steps: self.profile_path.clone(),
+            }],
         }
     }
 }
@@ -416,20 +475,207 @@ impl DatumKind {
     ];
 }
 
-/// The add-profile form's template choice — the GAUTH-1 template
-/// vocabulary, an enum for the reason [`DatumKind`] is one.
+/// The add-profile form's loop choice: the two templates, or a PATH
+/// authored verb by verb.
+///
+/// An enum for the reason [`DatumKind`] is one — and the templates
+/// stay in it rather than being folded into the path arm because they
+/// are not chains: a circle is a seamless closed carrier no chain of
+/// legs can spell, and a rectangle is four `line_to`s nobody should
+/// have to type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ShapeKind {
     /// A circle, optionally with a concentric bore.
     Circle,
     /// A centred rectangle.
     Rectangle,
+    /// A chain of authoring verbs — the whole PATHS vocabulary.
+    Path,
 }
 
 impl ShapeKind {
     /// Every shape with its radio label, in form order.
-    const ALL: [(Self, &'static str); 2] =
-        [(Self::Circle, "circle"), (Self::Rectangle, "rectangle")];
+    const ALL: [(Self, &'static str); 3] = [
+        (Self::Circle, "circle"),
+        (Self::Rectangle, "rectangle"),
+        (Self::Path, "path"),
+    ];
+}
+
+/// **The authoring verbs the path form offers**, with the names the
+/// algebra itself gives them.
+///
+/// A tag beside [`PathStep`] rather than a method on it: the form
+/// needs to name a verb BEFORE it has a step (the "add" control's
+/// choice), and a step needs to name its own verb (the row's combo),
+/// so the tag is the thing both hold. [`PathVerb::fresh`] is the one
+/// place a default step per verb is written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathVerb {
+    At,
+    Angle,
+    Toward,
+    Tangent,
+    Cusp,
+    Turn,
+    Line,
+    LineTo,
+    ArcTo,
+    TangentArcTo,
+    ArcContinue,
+    Fillet,
+    FilletArc,
+    ArcFillet,
+    ArcFilletArc,
+    FarEndTo,
+    CloseTo,
+}
+
+impl PathVerb {
+    /// Every verb with its label, in the algebra's own order — the
+    /// "add step" menu, and the row combo's options.
+    const ALL: [(Self, &'static str); 17] = [
+        (Self::At, "at"),
+        (Self::Angle, "angle"),
+        (Self::Toward, "toward"),
+        (Self::Tangent, "tangent"),
+        (Self::Cusp, "cusp"),
+        (Self::Turn, "turn"),
+        (Self::Line, "line"),
+        (Self::LineTo, "line_to"),
+        (Self::ArcTo, "arc_to"),
+        (Self::TangentArcTo, "tangent_arc_to"),
+        (Self::ArcContinue, "arc_continue"),
+        (Self::Fillet, "fillet"),
+        (Self::FilletArc, "fillet_arc"),
+        (Self::ArcFillet, "arc_fillet"),
+        (Self::ArcFilletArc, "arc_fillet_arc"),
+        (Self::FarEndTo, "to (far end)"),
+        (Self::CloseTo, "to Start (close)"),
+    ];
+
+    /// This verb's label.
+    fn label(self) -> &'static str {
+        Self::ALL
+            .iter()
+            .find_map(|(verb, label)| (*verb == self).then_some(*label))
+            .unwrap_or("?")
+    }
+
+    /// Which verb a step names.
+    fn of(step: &PathStep) -> Self {
+        match step {
+            PathStep::At(_) => Self::At,
+            PathStep::Angle(_) => Self::Angle,
+            PathStep::Toward { .. } => Self::Toward,
+            PathStep::Tangent => Self::Tangent,
+            PathStep::Cusp => Self::Cusp,
+            PathStep::Turn(_) => Self::Turn,
+            PathStep::Line(_) => Self::Line,
+            PathStep::LineTo(_) => Self::LineTo,
+            PathStep::ArcTo(_) => Self::ArcTo,
+            PathStep::TangentArcTo(_) => Self::TangentArcTo,
+            PathStep::ArcContinue(_) => Self::ArcContinue,
+            PathStep::Fillet(_) => Self::Fillet,
+            PathStep::FilletArc { .. } => Self::FilletArc,
+            PathStep::ArcFillet { .. } => Self::ArcFillet,
+            PathStep::ArcFilletArc { .. } => Self::ArcFilletArc,
+            PathStep::FarEndTo(_) => Self::FarEndTo,
+            PathStep::CloseTo => Self::CloseTo,
+        }
+    }
+
+    /// A step of this verb with the form's starting numbers.
+    ///
+    /// **Millimetre-scale, never zero.** A leg of length zero and a
+    /// fillet of radius zero are both geometry refusals, so a fresh
+    /// step that carried them would put the form in a refusing state
+    /// the moment a verb was added — which reads as the form
+    /// rejecting the verb rather than waiting for its number.
+    fn fresh(self) -> PathStep {
+        let point = [0.01, 0.0];
+        let arc = ArcSpec::Radius {
+            r: 0.01,
+            side: ArcSide::Left,
+        };
+        match self {
+            Self::At => PathStep::At([0.0, 0.0]),
+            Self::Angle => PathStep::Angle(0.0),
+            Self::Toward => PathStep::Toward { dx: 1.0, dy: 0.0 },
+            Self::Tangent => PathStep::Tangent,
+            Self::Cusp => PathStep::Cusp,
+            Self::Turn => PathStep::Turn(0.0),
+            Self::Line => PathStep::Line(0.01),
+            Self::LineTo => PathStep::LineTo(PathTarget::Point(point)),
+            Self::ArcTo => PathStep::ArcTo(arc),
+            Self::TangentArcTo => PathStep::TangentArcTo(PathTarget::Point(point)),
+            Self::ArcContinue => PathStep::ArcContinue(point),
+            Self::Fillet => PathStep::Fillet(0.001),
+            Self::FilletArc => PathStep::FilletArc {
+                radius: 0.001,
+                spec: arc,
+            },
+            Self::ArcFillet => PathStep::ArcFillet {
+                spec: arc,
+                radius: 0.001,
+            },
+            Self::ArcFilletArc => PathStep::ArcFilletArc {
+                spec: arc,
+                radius: 0.001,
+                spec2: arc,
+            },
+            Self::FarEndTo => PathStep::FarEndTo(point),
+            Self::CloseTo => PathStep::CloseTo,
+        }
+    }
+}
+
+/// One arc-spec mode as the form offers it: a label, and the fresh
+/// spec picking it produces.
+type ArcMode = (&'static str, fn() -> ArcSpec);
+
+/// The arc-spec modes with their labels — the six ways [`ArcSpec`]
+/// says an arc, and the one place a fresh one per mode is written.
+const ARC_MODES: [ArcMode; 6] = [
+    ("radius", || ArcSpec::Radius {
+        r: 0.01,
+        side: ArcSide::Left,
+    }),
+    ("bulge", || ArcSpec::Bulge {
+        target: PathTarget::Point([0.01, 0.0]),
+        b: 0.5,
+    }),
+    ("via", || ArcSpec::Via {
+        q: [0.005, 0.005],
+        target: PathTarget::Point([0.01, 0.0]),
+    }),
+    ("centre", || ArcSpec::Center {
+        c: [0.0, 0.0],
+        winding: ArcSweep::Ccw,
+        target: PathTarget::Point([0.01, 0.0]),
+    }),
+    ("sweep", || ArcSpec::Sweep {
+        r: 0.01,
+        side: ArcSide::Left,
+        angle: core::f64::consts::FRAC_PI_2,
+    }),
+    ("arc length", || ArcSpec::ArcLen {
+        r: 0.01,
+        side: ArcSide::Left,
+        len: 0.01,
+    }),
+];
+
+/// Which mode an arc spec is in, as an index into [`ARC_MODES`].
+fn arc_mode(spec: &ArcSpec) -> usize {
+    match spec {
+        ArcSpec::Radius { .. } => 0,
+        ArcSpec::Bulge { .. } => 1,
+        ArcSpec::Via { .. } => 2,
+        ArcSpec::Center { .. } => 3,
+        ArcSpec::Sweep { .. } => 4,
+        ArcSpec::ArcLen { .. } => 5,
+    }
 }
 
 /// One drag tick of a creation-form LENGTH field, in metres — half a
@@ -562,6 +808,18 @@ pub struct ViewerApp {
     /// drag the layout is theirs and nothing here sizes it again.
     split_dragged: bool,
     drafts: Drafts,
+    /// Whether the add-profile form was DRAWN last frame — the
+    /// latch that decides whether a profile preview is computed and
+    /// drawn at all.
+    ///
+    /// A latch and not a question asked directly, because the form is
+    /// inside a collapsing section inside a pane inside a tiled
+    /// layout, and whether it is on screen is a fact only the frame
+    /// that drew it knows. It costs one frame at each end: the
+    /// wireframe appears the frame after the section is opened and
+    /// leaves the frame after it is closed, which is the same
+    /// staleness the preview itself carries and for the same reason.
+    profile_form_drawn: bool,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -789,6 +1047,7 @@ impl ViewerApp {
             budget_delta: None,
             tools: Tools::new(),
             part_chooser: None,
+            profile_form_drawn: false,
             checks_shown: false,
             camera,
             input,
@@ -1414,6 +1673,30 @@ impl eframe::App for ViewerApp {
         }
 
         let display = self.session.display_view();
+        // **The preview is taken once, before the panes draw**, from
+        // the drafts as they stand — so the panel's refusal line and
+        // the viewport's wireframe are two views of one replay rather
+        // than two replays that could disagree.
+        //
+        // It is therefore one frame behind an edit made DURING this
+        // frame, which the repaint request below closes: the loops
+        // are compared afterwards and a frame that changed them asks
+        // for another, so the picture catches up on the next one
+        // rather than waiting for the next input event.
+        let authored = self.drafts.profile_loops();
+        let profile_preview = self.profile_form_drawn.then(|| {
+            sketch::preview(
+                sketch::form_plane(),
+                &authored,
+                self.session.tol(),
+                self.delta.get(),
+            )
+        });
+        // A frame that did not draw the form has no preview to show
+        // and none to draw; the refusal arm stands in for it, and the
+        // form is the only reader that ever sees it.
+        let profile_preview = profile_preview.unwrap_or(Ok(ProfilePreview::default()));
+        let mut profile_form_drawn = false;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -1432,6 +1715,8 @@ impl eframe::App for ViewerApp {
                 display: &display,
                 tools: &mut self.tools,
                 part_chooser: &mut self.part_chooser,
+                profile_preview: &profile_preview,
+                profile_form_drawn: &mut profile_form_drawn,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -1444,6 +1729,13 @@ impl eframe::App for ViewerApp {
             self.tree.ui(&mut behavior, ui);
         });
         self.checks_window(ui.ctx(), &mut ops);
+        self.profile_form_drawn = profile_form_drawn;
+        // An edit made while the panes drew leaves the preview a
+        // frame behind. Asking for a repaint is what makes that one
+        // frame rather than "until the next input event".
+        if profile_form_drawn && self.drafts.profile_loops() != authored {
+            ui.ctx().request_repaint();
+        }
         // Read AFTER the frame drew, and before anything writes a
         // share back: a divider dragged this frame has already set the
         // flag, so the auto-size below stands down on the same frame
@@ -1497,6 +1789,12 @@ struct ViewerBehavior<'a> {
     tools: &'a mut Tools,
     /// The `Add part…` chooser, if open.
     part_chooser: &'a mut Option<PartChooser>,
+    /// What the add-profile form's loops would draw, taken once for
+    /// the frame: the panel says what it refuses and the viewport
+    /// draws what it replayed, from ONE reading.
+    profile_preview: &'a Result<ProfilePreview, PreviewError>,
+    /// Set by the add-profile form while it draws; read next frame.
+    profile_form_drawn: &'a mut bool,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -1774,6 +2072,38 @@ impl ViewerBehavior<'_> {
             edges
                 .selected
                 .extend(tool.mark_segments(index, self.display));
+        }
+        // **The profile being authored, drawn where it would land.**
+        //
+        // The form's loops are on a sketch plane, so they HAVE a
+        // place: the wireframe goes in the viewport, at that place,
+        // rather than into a pane of its own — a preview beside the
+        // model cannot show what a preview is mostly for, which is
+        // whether the shape is the right size and in the right spot
+        // relative to what is already there.
+        //
+        // Drawn in the probe mark, never the selection mark, because
+        // it is not in the document (`EdgeOverlay::preview`). A
+        // preview that failed to replay draws nothing and says why in
+        // the form; one that replayed but does not VALIDATE draws
+        // anyway, which is the case where looking at it is the whole
+        // point.
+        if let Ok(drawn) = self.profile_preview {
+            let plane = sketch::form_plane();
+            for polyline in &drawn.loops {
+                // Closed by construction, so the segment list wraps:
+                // the last point joins the first, which is the same
+                // thing `ProfileLoop` means by being closed.
+                for (index, point) in polyline.iter().enumerate() {
+                    let next = polyline[(index + 1) % polyline.len()];
+                    for [x, y] in [*point, next] {
+                        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
+                        edges
+                            .preview
+                            .push([world.x as f32, world.y as f32, world.z as f32]);
+                    }
+                }
+            }
         }
 
         let matrix = match self.camera.view_projection(aspect) {
@@ -2516,6 +2846,7 @@ impl ViewerBehavior<'_> {
     /// template's stated intent; the op stays unjudged and the
     /// kernel's containment rule stays the one home.
     fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
+        *self.profile_form_drawn = true;
         ui.horizontal(|ui| {
             ui.label("profile");
             for (shape, label) in ShapeKind::ALL {
@@ -2523,7 +2854,6 @@ impl ViewerBehavior<'_> {
             }
             ui.weak("on the world XY plane");
         });
-        let mut loops = Vec::new();
         let mut blocked: Option<&'static str> = None;
         match self.drafts.profile_shape {
             ShapeKind::Circle => {
@@ -2558,22 +2888,14 @@ impl ViewerBehavior<'_> {
                         unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
-                loops.push(ProfileShape::Circle {
-                    centre: self.drafts.profile_centre,
-                    radius: self.drafts.profile_radius,
-                });
-                if self.drafts.profile_bored {
-                    if self.drafts.profile_bore >= self.drafts.profile_radius {
-                        blocked = Some(
-                            "the bore must be smaller than the radius — which loop is the \
-                             hole is decided by containment, so a larger bore would swap \
-                             the roles rather than refuse",
-                        );
-                    }
-                    loops.push(ProfileShape::Circle {
-                        centre: self.drafts.profile_centre,
-                        radius: self.drafts.profile_bore,
-                    });
+                if self.drafts.profile_bored
+                    && self.drafts.profile_bore >= self.drafts.profile_radius
+                {
+                    blocked = Some(
+                        "the bore must be smaller than the radius — which loop is the \
+                         hole is decided by containment, so a larger bore would swap \
+                         the roles rather than refuse",
+                    );
                 }
             }
             ShapeKind::Rectangle => {
@@ -2600,24 +2922,163 @@ impl ViewerBehavior<'_> {
                         &mut self.drafts.length_unit,
                     );
                 });
-                loops.push(ProfileShape::Rectangle {
-                    width: self.drafts.profile_extent[0],
-                    height: self.drafts.profile_extent[1],
-                });
             }
+            ShapeKind::Path => self.path_steps_ui(ui),
         }
         if let Some(reason) = blocked {
             ui.weak(reason);
         }
+        // **What the loops would draw, said before they are
+        // authored.** The preview ran the commit door's own ladder,
+        // so a refusal here is the refusal the button would get —
+        // which is why the button waits on it rather than letting a
+        // reader find out by clicking.
+        let refused = match self.profile_preview {
+            Ok(drawn) => {
+                if let Some(invalid) = &drawn.invalid {
+                    ui.colored_label(
+                        chrome(self.theme.unresolved),
+                        format!("does not validate: {invalid}"),
+                    );
+                    true
+                } else {
+                    ui.weak(format!(
+                        "{} loop(s), drawn in the viewport",
+                        drawn.loops.len()
+                    ));
+                    false
+                }
+            }
+            Err(error) => {
+                ui.colored_label(chrome(self.theme.unresolved), error.to_string());
+                true
+            }
+        };
         if ui
-            .add_enabled(blocked.is_none(), egui::Button::new("Add profile"))
+            .add_enabled(
+                blocked.is_none() && !refused,
+                egui::Button::new("Add profile"),
+            )
             .clicked()
         {
             self.ops.push(SessionOp::AddProfile {
-                plane: pncad::profile::SketchPlane::xy(),
-                loops,
+                plane: sketch::form_plane(),
+                loops: self.drafts.profile_loops(),
             });
         }
+    }
+
+    /// **The path form's step list**: one row per verb, plus the
+    /// control that appends another.
+    ///
+    /// Each row is `[✕] [▲] [▼] <verb> <the verb's fields>` — a list
+    /// a person edits in place, because a chain IS a list and its
+    /// order is the whole content. Changing a row's verb replaces the
+    /// step with a fresh one of that verb rather than carrying
+    /// numbers across: two verbs' fields mean different things (a
+    /// `line`'s length is not a `turn`'s angle), so a carried number
+    /// would be a guess the form cannot check.
+    ///
+    /// **Nothing here judges the chain.** Which verbs are well-typed
+    /// at which tip is the lattice's to say, and it says it through
+    /// the preview under the form (`profile_preview_ui`) — the same
+    /// ladder the commit door runs. A form that offered only the
+    /// legal verbs would be a second copy of the lattice, kept in
+    /// step by hand.
+    fn path_steps_ui(&mut self, ui: &mut egui::Ui) {
+        let length_unit = self.drafts.length_unit;
+        let angle_unit = self.drafts.angle_unit;
+        ui.horizontal(|ui| {
+            ui.weak("written in");
+            unit_picker(
+                ui,
+                "path_length",
+                Dimension::Length,
+                &mut self.drafts.length_unit,
+            );
+            unit_picker(
+                ui,
+                "path_angle",
+                Dimension::Angle,
+                &mut self.drafts.angle_unit,
+            );
+        });
+        // The row edits are COLLECTED and applied after the loop: a
+        // list cannot be reordered or shortened while it is being
+        // iterated, and one edit per frame is what keeps two buttons
+        // clicked in one frame from compounding into a move nobody
+        // asked for.
+        let mut remove: Option<usize> = None;
+        let mut swap: Option<(usize, usize)> = None;
+        let last = self.drafts.profile_path.len().saturating_sub(1);
+        for index in 0..self.drafts.profile_path.len() {
+            let salt = format!("path_step_{index}");
+            ui.horizontal(|ui| {
+                if ui
+                    .small_button("✕")
+                    .on_hover_text("remove this step")
+                    .clicked()
+                {
+                    remove = Some(index);
+                }
+                if ui
+                    .add_enabled(index > 0, egui::Button::new("▲").small())
+                    .clicked()
+                {
+                    swap = Some((index, index - 1));
+                }
+                if ui
+                    .add_enabled(index < last, egui::Button::new("▼").small())
+                    .clicked()
+                {
+                    swap = Some((index, index + 1));
+                }
+                let step = &mut self.drafts.profile_path[index];
+                let mut verb = PathVerb::of(step);
+                let before = verb;
+                egui::ComboBox::from_id_salt(("path_verb", index))
+                    .selected_text(verb.label())
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        for (option, label) in PathVerb::ALL {
+                            ui.selectable_value(&mut verb, option, label);
+                        }
+                    });
+                if verb != before {
+                    *step = verb.fresh();
+                }
+                path_step_fields(ui, &salt, length_unit, angle_unit, step);
+            });
+        }
+        if let Some(index) = remove {
+            self.drafts.profile_path.remove(index);
+        }
+        if let Some((from, to)) = swap {
+            self.drafts.profile_path.swap(from, to);
+        }
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("path_add_verb")
+                .selected_text(self.drafts.path_verb.label())
+                .width(120.0)
+                .show_ui(ui, |ui| {
+                    for (option, label) in PathVerb::ALL {
+                        ui.selectable_value(&mut self.drafts.path_verb, option, label);
+                    }
+                });
+            if ui.button("Add step").clicked() {
+                let step = self.drafts.path_verb.fresh();
+                self.drafts.profile_path.push(step);
+            }
+            if ui
+                .add_enabled(
+                    !self.drafts.profile_path.is_empty(),
+                    egui::Button::new("Clear"),
+                )
+                .clicked()
+            {
+                self.drafts.profile_path.clear();
+            }
+        });
     }
 
     /// The extrude form: the current selection is the profile (a tree
@@ -3762,6 +4223,186 @@ fn unit_vec3_row(
             unit_field(ui, unit, speed, component);
         }
     });
+}
+
+/// Two Length fields, one point of the sketch frame.
+fn point_fields(ui: &mut egui::Ui, unit: Option<UnitDef>, point: &mut [f64; 2]) {
+    for component in point {
+        unit_field(ui, unit, FIELD_DRAG_SPEED, component);
+    }
+}
+
+/// A path verb's target: the entry vertex (which CLOSES the loop), or
+/// an authored point.
+///
+/// The two are one control because they are one decision — where this
+/// leg ends — and `Start` is not a point somebody could type: it is
+/// the bound entry, and aiming at it is what closing IS in this
+/// algebra (`pncad::profile::path`, which has no `close()` alias).
+fn target_fields(ui: &mut egui::Ui, salt: &str, unit: Option<UnitDef>, target: &mut PathTarget) {
+    let closing = matches!(target, PathTarget::Start);
+    let mut to_start = closing;
+    ui.checkbox(&mut to_start, "to start");
+    if to_start != closing {
+        *target = if to_start {
+            PathTarget::Start
+        } else {
+            PathTarget::Point([0.01, 0.0])
+        };
+    }
+    if let PathTarget::Point(point) = target {
+        let _ = salt;
+        point_fields(ui, unit, point);
+    }
+}
+
+/// Which side of travel an arc's centre sits on.
+fn side_picker(ui: &mut egui::Ui, salt: &str, side: &mut ArcSide) {
+    egui::ComboBox::from_id_salt(("arc_side", salt))
+        .selected_text(match side {
+            ArcSide::Left => "left",
+            ArcSide::Right => "right",
+        })
+        .width(64.0)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(side, ArcSide::Left, "left");
+            ui.selectable_value(side, ArcSide::Right, "right");
+        });
+}
+
+/// Which way round an arc about a named centre travels.
+fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSweep) {
+    egui::ComboBox::from_id_salt(("arc_winding", salt))
+        .selected_text(match winding {
+            ArcSweep::Ccw => "ccw",
+            ArcSweep::Cw => "cw",
+        })
+        .width(64.0)
+        .show_ui(ui, |ui| {
+            ui.selectable_value(winding, ArcSweep::Ccw, "ccw");
+            ui.selectable_value(winding, ArcSweep::Cw, "cw");
+        });
+}
+
+/// **One arc leg's spec**: which of the six modes, then that mode's
+/// own fields.
+///
+/// Switching the mode REPLACES the spec with a fresh one of the new
+/// mode rather than carrying numbers across. The modes do not share a
+/// meaning for their fields — a `radius` mode's `r` is a carrier and
+/// a `sweep` mode's is the same carrier with a swept angle beside it,
+/// but a `via` point is not a radius at all — so a carried number
+/// would sometimes be the right one and sometimes be a coincidence,
+/// and a form cannot tell which.
+fn arc_fields(
+    ui: &mut egui::Ui,
+    salt: &str,
+    length_unit: Option<UnitDef>,
+    angle_unit: Option<UnitDef>,
+    spec: &mut ArcSpec,
+) {
+    let mut mode = arc_mode(spec);
+    let before = mode;
+    egui::ComboBox::from_id_salt(("arc_mode", salt))
+        .selected_text(ARC_MODES[mode].0)
+        .width(88.0)
+        .show_ui(ui, |ui| {
+            for (index, (label, _)) in ARC_MODES.iter().enumerate() {
+                ui.selectable_value(&mut mode, index, *label);
+            }
+        });
+    if mode != before {
+        *spec = ARC_MODES[mode].1();
+    }
+    match spec {
+        ArcSpec::Radius { r, side } => {
+            ui.label("r");
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            side_picker(ui, salt, side);
+        }
+        ArcSpec::Bulge { target, b } => {
+            target_fields(ui, salt, length_unit, target);
+            ui.label("bulge");
+            ui.add(egui::DragValue::new(b).speed(UNIT_DRAG_SPEED));
+        }
+        ArcSpec::Via { q, target } => {
+            ui.label("via");
+            point_fields(ui, length_unit, q);
+            target_fields(ui, salt, length_unit, target);
+        }
+        ArcSpec::Center { c, winding, target } => {
+            ui.label("centre");
+            point_fields(ui, length_unit, c);
+            winding_picker(ui, salt, winding);
+            target_fields(ui, salt, length_unit, target);
+        }
+        ArcSpec::Sweep { r, side, angle } => {
+            ui.label("r");
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            side_picker(ui, salt, side);
+            ui.label("angle");
+            unit_field(ui, angle_unit, ANGLE_DRAG_SPEED, angle);
+        }
+        ArcSpec::ArcLen { r, side, len } => {
+            ui.label("r");
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            side_picker(ui, salt, side);
+            ui.label("length");
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, len);
+        }
+    }
+}
+
+/// **One authoring verb's own fields.**
+///
+/// Exhaustive on [`PathStep`], like the lowering it feeds: a verb the
+/// vocabulary gains has to be given a row here before it compiles,
+/// which is the same protection `crate::sketch`'s lowering has and
+/// for the same reason — a verb reachable in one and not the other is
+/// a verb nobody can use.
+fn path_step_fields(
+    ui: &mut egui::Ui,
+    salt: &str,
+    length_unit: Option<UnitDef>,
+    angle_unit: Option<UnitDef>,
+    step: &mut PathStep,
+) {
+    match step {
+        PathStep::At(point) | PathStep::ArcContinue(point) | PathStep::FarEndTo(point) => {
+            point_fields(ui, length_unit, point);
+        }
+        PathStep::Angle(angle) | PathStep::Turn(angle) => {
+            unit_field(ui, angle_unit, ANGLE_DRAG_SPEED, angle);
+        }
+        PathStep::Toward { dx, dy } => {
+            ui.add(egui::DragValue::new(dx).speed(UNIT_DRAG_SPEED));
+            ui.add(egui::DragValue::new(dy).speed(UNIT_DRAG_SPEED));
+        }
+        PathStep::Line(length) | PathStep::Fillet(length) => {
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, length);
+        }
+        PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
+            target_fields(ui, salt, length_unit, target);
+        }
+        PathStep::ArcTo(spec) => arc_fields(ui, salt, length_unit, angle_unit, spec),
+        PathStep::FilletArc { radius, spec } | PathStep::ArcFillet { spec, radius } => {
+            ui.label("r");
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(ui, salt, length_unit, angle_unit, spec);
+        }
+        PathStep::ArcFilletArc {
+            spec,
+            radius,
+            spec2,
+        } => {
+            arc_fields(ui, &format!("{salt}_in"), length_unit, angle_unit, spec);
+            ui.label("r");
+            unit_field(ui, length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(ui, &format!("{salt}_out"), length_unit, angle_unit, spec2);
+        }
+        // Structural verbs: the verb IS the whole step.
+        PathStep::Tangent | PathStep::Cusp | PathStep::CloseTo => {}
+    }
 }
 
 /// **The creation forms' written-unit picker.**

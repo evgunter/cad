@@ -399,6 +399,21 @@ fn program_step(step: &PathStep) -> Result<ProgramStep, DimensionError> {
 // The preview: what the loops being authored would actually draw
 // ------------------------------------------------------------------
 
+/// **The plane the add-profile form authors on.**
+///
+/// The world XY plane, and one home for that fact: the form's commit
+/// and the form's preview have to place the loops the same way, and
+/// two `SketchPlane::xy()` calls are two places for that to stop
+/// being true.
+///
+/// It is a constant because placement on a picked face's frame is
+/// deferred — the interrogation vocabulary answers no "is this face
+/// planar" verdict for the door to gate on (issue #1374). A form that
+/// offered a plane it could not check would be offering a refusal.
+pub fn form_plane() -> SketchPlane<f64> {
+    SketchPlane::xy()
+}
+
 /// **A candidate profile, replayed and flattened** — the picture a
 /// form shows of the loops in front of it, before any of it is a
 /// document.
