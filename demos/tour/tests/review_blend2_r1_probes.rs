@@ -13,7 +13,7 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{ArcSweep, BlendError, Center, Open, ProfileLoop, SketchPlane, Start};
-use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
+use pncad::prelude::{fillet_edges, mass_properties, query, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
@@ -96,23 +96,28 @@ fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
 }
 
 /// Every CLOSED edge of `body` whose carrier circle sits at latitude
-/// `y` — selection by description, the way a consumer with no selector
-/// must do it.
+/// `y` — selection by description: the kernel query seat materializes
+/// the candidates; the closedness and the station/radius are this
+/// probe's own reads (a numeric description no kind predicate
+/// answers, the circle kind subsumed by the match).
 fn rim_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            let Some(e) = body.get_edge(k) else {
+                return false;
+            };
+            let closed = body
+                .get_half_edge(e.he_plus)
+                .map(|h| Some(h.start) == body.half_edge_end(e.he_plus));
+            if closed != Some(true) {
+                return false;
             }
-            match *body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                Curve3::Circle { center, radius, .. }
-                    if (center.y - y).abs() < 1e-9 && (radius - rad).abs() < 1e-9 =>
-                {
-                    Some(k)
-                }
-                _ => None,
-            }
+            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                return false;
+            };
+            matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
+                if (center.y - y).abs() < 1e-9 && (radius - rad).abs() < 1e-9)
         })
         .collect()
 }

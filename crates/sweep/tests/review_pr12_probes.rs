@@ -11,7 +11,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::query::all_edges;
+use topo::query;
 use topo::{Body, BooleanDeclarations};
 
 fn tol() -> Tol {
@@ -74,7 +74,7 @@ fn probe_a_pipped_cube_all_edges() {
     .unwrap()
     .body
     .clone();
-    let edges = all_edges(&pipped);
+    let edges = query::all_edges(&pipped);
     println!("PROBE A: pipped cube has {} edges", edges.len());
     let req = BlendRequest {
         body: &pipped,
@@ -116,7 +116,7 @@ fn probe_b_hexagonal_prism_over_refusal() {
     // circumradius 1 => side a = 1, apothem = sqrt(3)/2 = 0.866
     let h = 4.0; // tall so cap-cap pairs never bind
     let body = prism(&pts, h);
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 18);
     for r in [0.30 * a, 0.45 * a, 0.499 * a, 0.51 * a, 0.6 * a, 0.8 * a] {
         match fillet_edges(&body, &edges, r, Tol::witness()) {
@@ -191,7 +191,7 @@ fn probe_e_hexagon_tier3_error() {
         })
         .collect();
     let body = prism(&pts, 4.0);
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let f = fillet_edges(&body, &edges, 0.3, Tol::witness()).expect("builds");
     println!(
         "PROBE E: tier3 = {:?}",
@@ -242,7 +242,7 @@ fn probe_e_hexagon_tier3_error() {
 #[test]
 fn probe_g_door_a_fields() {
     let c = cube(1.0, Tol::witness());
-    let edges = all_edges(&c);
+    let edges = query::all_edges(&c);
     let blank = fillet_edges(&c, &edges, 0.12, Tol::witness()).unwrap().body;
     let blank_v = topo::mass_properties(&blank, Tol::witness())
         .unwrap()
@@ -274,7 +274,7 @@ fn probe_g_door_a_fields() {
 #[test]
 fn probe_h_door_a_closed_tool() {
     let c = cube(1.0, Tol::witness());
-    let edges = all_edges(&c);
+    let edges = query::all_edges(&c);
     let blank = fillet_edges(&c, &edges, 0.12, Tol::witness()).unwrap().body;
     // Two pips on the top face (the diag pair of face value 2 layout,
     // scaled): a multi-ball closed-group tool, unioned first.
@@ -319,7 +319,7 @@ fn probe_h_door_a_closed_tool() {
 #[test]
 fn probe_i_door_a_full_tool() {
     let c = cube(1.0, Tol::witness());
-    let edges = all_edges(&c);
+    let edges = query::all_edges(&c);
     let blank = fillet_edges(&c, &edges, 0.12, Tol::witness()).unwrap().body;
     let (pip_r, pip_h, pip_d, h) = (0.09, 0.05, 0.22, 0.5);
     let layout = |n: u32| -> Vec<(f64, f64)> {
@@ -437,7 +437,7 @@ fn probe_i_door_a_full_tool() {
 #[test]
 fn probe_f_skinny_triangle_refusal_boundary() {
     let body = prism(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.15)], 2.0);
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     for r in [0.05, 0.06, 0.07, 0.072, 0.0735, 0.075, 0.08] {
         match fillet_edges(&body, &edges, r, Tol::witness()) {
             Ok(f) => {
@@ -492,7 +492,7 @@ fn probe_c_oblique_trihedron() {
         body.edges().count(),
         body.vertices().count()
     );
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     match fillet_edges(&body, &edges, 0.08, Tol::witness()) {
         Ok(f) => {
             println!(

@@ -24,6 +24,7 @@
 use std::fmt::Write as _;
 
 use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
@@ -31,7 +32,7 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::query::all_edges;
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
@@ -149,29 +150,17 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
 }
 
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let kind_of = |f: topo::FaceKey| -> Option<u8> {
-        match body.get_surface(body.get_face(f)?.surface)? {
-            Surface::Plane { .. } => Some(0),
-            Surface::Sphere { .. } => Some(1),
-            _ => Some(2),
-        }
-    };
-    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
-    };
-    let mut out = Vec::new();
-    for (k, e) in body.edges() {
-        let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
-            continue;
-        };
-        if matches!(
-            (kind_of(fa), kind_of(fb)),
-            (Some(0), Some(1)) | (Some(1), Some(0))
-        ) {
-            out.push(k);
-        }
-    }
-    out
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
+        })
+        .collect()
 }
 
 fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
@@ -214,7 +203,7 @@ fn bitdump_die() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = fillet_edges(&body, &all_edges(&body), 0.15, Tol::witness()).unwrap();
+    let out = fillet_edges(&body, &query::all_edges(&body), 0.15, Tol::witness()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -258,7 +247,7 @@ fn bitdump_chamfered_cube() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = chamfer_edges(&body, &all_edges(&body), 0.1, Tol::witness()).unwrap();
+    let out = chamfer_edges(&body, &query::all_edges(&body), 0.1, Tol::witness()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,

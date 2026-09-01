@@ -16,12 +16,12 @@ use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use sweep::blend::{BlendError, Filleted, fillet_edges};
 use sweep::test_support::cube;
-use topo::query::all_edges;
+use topo::query;
 use topo::{Body, EdgeKey, FaceKey};
 
 fn die(l: f64, r: f64) -> Filleted<f64> {
     let body = cube(l, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
     fillet_edges(&body, &edges, r, Tol::witness()).expect("the die body")
 }
@@ -135,7 +135,7 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
 #[test]
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let body = cube(1.0, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let err = fillet_edges(&body, &edges[..1], 0.15, Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(

@@ -15,7 +15,7 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::query::all_edges;
+use topo::query;
 use topo::{Body, BooleanDeclarations};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
@@ -57,7 +57,7 @@ fn hexagonal_prism() -> Body<f64> {
 #[test]
 fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
     let body = hexagonal_prism();
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 18, "a hexagonal prism has 18 edges");
     let f = fillet_edges(&body, &edges, 0.3, Tol::witness()).expect("the hexagonal prism fillets");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");
@@ -86,7 +86,7 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
         &[(0.0, 0.0), (2.0, 0.0), (2.6, 1.1), (1.2, 2.0), (-0.3, 1.3)],
         3.0,
     );
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let f =
         fillet_edges(&body, &edges, 0.12, Tol::witness()).expect("the pentagonal prism fillets");
     assert_eq!(
@@ -116,7 +116,7 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
 #[test]
 fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let body = hexagonal_prism();
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
 
     for r in [0.30, 0.45, 0.499] {
         let f = fillet_edges(&body, &edges, r, Tol::witness())
@@ -191,7 +191,7 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     .expect("a body")
     .body
     .clone();
-    let edges = all_edges(&clipped);
+    let edges = query::all_edges(&clipped);
     let f = fillet_edges(&clipped, &edges, 0.08, Tol::witness())
         .expect("an oblique trihedron still builds");
     assert_eq!(topo::validate(&f.body), Ok(()), "tier 1");

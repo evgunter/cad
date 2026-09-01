@@ -15,7 +15,7 @@ use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
-use topo::query::all_edges;
+use topo::query;
 use topo::{Body, EdgeKey};
 
 /// The cube side, meters.
@@ -60,7 +60,7 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 #[test]
 fn the_chamfered_cube() {
     let body = cube(L, Tol::witness());
-    let out = chamfer_edges(&body, &all_edges(&body), D, Tol::witness())
+    let out = chamfer_edges(&body, &query::all_edges(&body), D, Tol::witness())
         .expect("a cube's twelve edges chamfer");
     let out_body = out.body;
 
@@ -120,7 +120,7 @@ fn the_chamfered_cube() {
 #[test]
 fn the_chamfer_records_every_birth_and_death() {
     let body = cube(L, Tol::witness());
-    let source_edges = all_edges(&body);
+    let source_edges = query::all_edges(&body);
     let out = chamfer_edges(&body, &source_edges, D, Tol::witness()).expect("chamfers");
     let rec = out.naming.expect("the surgery is the only producer");
 
@@ -180,7 +180,7 @@ fn the_chamfer_records_every_birth_and_death() {
 #[test]
 fn fillet_and_chamfer_agree_on_a_right_corner() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
     let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
 
@@ -231,7 +231,7 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
 #[test]
 fn one_edge_of_a_cube_refuses_as_a_run_out() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
@@ -252,7 +252,7 @@ fn one_edge_of_a_cube_refuses_as_a_run_out() {
 #[test]
 fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
     let cyl = cylinder(0.5, 1.0);
-    let edges = all_edges(&cyl);
+    let edges = query::all_edges(&cyl);
     let err = chamfer_edges(&cyl, &edges, D, Tol::witness())
         .expect_err("a plane–cylinder rim has no ruled strip");
     assert!(

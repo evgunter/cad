@@ -157,7 +157,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
-use pncad::prelude::{CurveKind, CurveKindSet, Open, Start, fillet_edges, query};
+use pncad::prelude::{Open, Start, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
 use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand, ReplaceFaceError, ShellError};
@@ -424,23 +424,25 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 
 /// The one closed latitude rim of `body` whose circle sits at station
 /// `y` with radius `r` — the selection said BY DESCRIPTION at the body
-/// seat. The kind half goes through the kernel query seat
-/// (`bud::rims_between` and `klein::corner_edges` are its
-/// adjacent-kind sibling); the station and radius are this scene's
-/// own read of the carrier — numeric description stated in the
-/// authored coordinates, which no kind predicate answers.
+/// seat: the kernel query seat materializes the candidates
+/// (`bud::rims_between` and `klein::corner_edges` say their kind
+/// halves through the seat's predicates), and the carrier match here
+/// is this scene's own read — a numeric description stated in the
+/// authored coordinates, which no kind predicate answers, with the
+/// circle kind subsumed by the same match.
 fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
     let hits: Vec<EdgeKey> = query::all_edges(body)
         .into_iter()
         .filter(|&k| {
-            query::edge_carrier_matches(body, k, CurveKindSet::just(CurveKind::Circle)) && {
-                let c = body
-                    .get_curve_geom(body.get_edge(k).expect("the edge").curve)
-                    .and_then(|g| g.certified())
-                    .expect("a circle-kind edge carries a certified carrier");
-                matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
-                    if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
-            }
+            let Some(c) = body
+                .get_edge(k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+            else {
+                return false;
+            };
+            matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
+                if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
         })
         .collect();
     assert_eq!(

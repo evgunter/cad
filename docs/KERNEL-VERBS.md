@@ -90,9 +90,13 @@ shape of a spout is a swept curved section along a bent spine, which
 `ReversedStacking`; the teapot's own spout is not attempted) and no
 variable-section door exists for, so the scene's spout is a straight
 cone frustum tilted into place, a spout the way a LATHE would make
-one; and **geometric edge selection**, which is document-layer only,
-so the lid's knob rim is scanned for by hand exactly as the bud's and
-the bottle's are.
+one; and **geometric edge selection by NUMERIC description**: the kind
+half of "the knob rim" goes through the kernel query seat
+(`topo::query`, SEAT-2 — the bud's and the bottle's selections say
+their kind/adjacency halves the same way), while the station-and-radius
+half remains each scene's own carrier read — a numeric description no
+kind predicate answers, the DECIDED datum-distance door's territory at
+the document layer.
 
 ## Scope limits and defects met by consumers — NOT missing verbs
 
@@ -464,7 +468,9 @@ the table.
   kind predicates (`edge_carrier_matches`, `face_surface_matches`,
   `edge_adjacent_matches`) and the DECIDED datum-distance door
   (`datum_distance_sign`, the `sel_datum_distance` funnel), so "the
-  cone×cylinder corners" is one call on a body built by calling
-  `revolve` directly (`klein::corner_edges` is that call now), and
-  the document layer's `select_where` runs the same one
-  implementation over its name table.
+  cone×cylinder corners" on a body built by calling `revolve`
+  directly is the materializer filtered by the adjacent-kind
+  predicate (`klein::corner_edges` is that filter now — no arena
+  back-pointer walk, no second implementation), and the document
+  layer's `select_where` runs the same predicates over its name
+  table.

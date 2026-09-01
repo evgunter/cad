@@ -46,18 +46,18 @@
 //! 1. **This scene stays kernel-direct, and that is now a CHOICE.**
 //!    `Node::Chamfer` exists (LIB-G16), so the die this scene renders
 //!    is sayable as a document — `select_where(CurveKind = Line)` into
-//!    `Node::chamfer`, which
+//!    `Node::chamfer`, the path
 //!    `crates/pncad-py/tests/test_north_star.py::TestDiechamferDie`
 //!    executes. What the scene keeps recording is the KERNEL-direct
 //!    seat: it evaluates the shared recipe, takes the source body OUT,
 //!    and does the surgery beside it, so the result has no node and no
 //!    names. That is the cost of calling the verb next to a document —
-//!    the names, not the selection: "the twelve box edges" is one call
-//!    on this seat too now ([`line_edges`] is a filter of
-//!    `query::all_edges` by the kernel's own carrier-kind predicate,
-//!    the same one implementation `select_where` delegates to), so
-//!    what a document buys over a body is the NAMES the answer comes
-//!    back in, not the reach of the question.
+//!    the names, not the selection: [`line_edges`] below says "the
+//!    twelve box edges" through the seat's own doors (the materializer
+//!    filtered by the carrier-kind predicate, the same one
+//!    implementation `select_where` delegates to), so what a document
+//!    buys over a body is the NAMES the answer comes back in, not the
+//!    reach of the question.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

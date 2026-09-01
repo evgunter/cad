@@ -539,10 +539,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              {dv:.9} m³ ({:.4}%) and the area by {da:.9} m² ({:.4}%) — material \
              removed, as a convex rim's roll must. The three bands carry {band_tris} \
              triangles of this scene's mesh at δ = {DELTA}. Every rim was selected BY \
-             DESCRIPTION (the pair of adjacent surface kinds); the bore's cylinder-plane \
-             description names BOTH its ends, so the base is picked out by its axial \
-             station — and the ratified selector that would say this in the document \
-             vocabulary is document-layer only, so the scan here is by hand",
+             DESCRIPTION (the pair of adjacent surface kinds), through the kernel query \
+             seat — the same implementation the document layer's selector runs; the \
+             bore's cylinder-plane description names BOTH its ends, so the base is \
+             picked out by its axial station, this scene's own carrier read",
             100.0 * dv / sharp_props.volume,
             100.0 * da / sharp_props.surface_area
         )),

@@ -30,7 +30,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
-use topo::query::all_edges;
+use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
 mod common;
@@ -241,10 +241,10 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     // Chamfer and fillet of the cube — the two verbs built on the
     // strut surgery whose six conversion sites the unit reverted.
     let c = cube(1.0, Tol::witness());
-    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &all_edges(&c), 0.1, Tol::witness()) {
+    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &query::all_edges(&c), 0.1, Tol::witness()) {
         bodies.push(("chamfer cube (all edges)", f.body));
     }
-    if let Ok(f) = fillet_edges(&c, &all_edges(&c), 0.15, Tol::witness()) {
+    if let Ok(f) = fillet_edges(&c, &query::all_edges(&c), 0.15, Tol::witness()) {
         bodies.push(("fillet cube (all edges)", f.body));
     }
     // A PARTIAL fillet: one face's four edges. Its struts run out onto

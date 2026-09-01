@@ -49,7 +49,7 @@
 //! resolved value. Stable names themselves never appear below the G1
 //! line, which is the point.
 
-use geom::{Curve3, Surface};
+use geom::Curve3;
 use geom_brep::SurfaceKind;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -104,17 +104,6 @@ impl CurveKind {
             Self::Circle => 1,
             Self::Ellipse => 2,
             Self::Nurbs => 3,
-        }
-    }
-
-    /// The lowercase name, for refusal rendering.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Line => "line",
-            Self::Circle => "circle",
-            Self::Ellipse => "ellipse",
-            Self::Nurbs => "nurbs",
         }
     }
 }
@@ -232,12 +221,6 @@ impl SurfaceKindSet {
             .into_iter()
             .filter(move |k| self.contains(*k))
     }
-
-    /// The kind of a carrier — the tag read the EXACT predicates are.
-    #[must_use]
-    pub fn kind_of<T: Real>(s: &Surface<T>) -> SurfaceKind {
-        SurfaceKind::of(s)
-    }
 }
 
 // ---------------------------------------------------------------
@@ -340,8 +323,11 @@ pub fn edge_adjacent_matches<T: Real>(
 /// A resolved datum: geometry VALUES, not kernel entities and not
 /// recipe references. Normals/directions are UNIT — the document
 /// layer normalizes at evaluation (a degenerate vector is a typed
-/// refusal there), and a kernel-direct caller owes the same
-/// invariant.
+/// refusal there), and a kernel-direct caller OWES the same
+/// invariant: nothing here re-normalizes (not bit-preserving), and
+/// the decided door asserts unit norm in debug builds — which this
+/// workspace keeps on in release — rather than silently measuring
+/// against a scaled datum.
 #[derive(Debug, Clone)]
 pub enum DatumValue<T: Decide> {
     /// A plane through `origin` with UNIT `normal`.
@@ -411,9 +397,201 @@ pub fn datum_distance_sign<T: Decide>(
     value: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
+    // The caller-owed unit invariant (type docs), asserted rather
+    // than repaired: a signed plane distance is a length ONLY against
+    // a unit normal, and re-normalizing here would not be
+    // bit-preserving. Checked through the scalar's own decision door
+    // (`Real` deliberately has no comparison surface): the assert
+    // fires only on a DEFINITELY non-unit vector, so a wide interval
+    // enclosure never trips it spuriously.
+    debug_assert!(
+        {
+            let unit = |v: Vec3<T>| {
+                !matches!(
+                    Band::new(1e-9, 2e-9).map(|b| (v.dot(v) - T::one()).sign_within(b)),
+                    Ok(Ok(Sign::Positive | Sign::Negative))
+                )
+            };
+            match datum {
+                DatumValue::Plane { normal, .. } => unit(*normal),
+                DatumValue::Axis { dir, .. } => unit(*dir),
+                DatumValue::Point { .. } => true,
+            }
+        },
+        "DatumValue normals/directions must be unit — the document layer normalizes at \
+         evaluation; a kernel-direct caller owes the same"
+    );
     decide(
         SEL_DATUM_DISTANCE,
         Margin::of(datum_distance(datum, p) - value),
         band,
     )
+}
+
+// The door-only contracts: totality on dangling keys, materializer
+// determinism, empty-set and unordered-pair semantics, and the decided
+// door's band partition. The delegation's agreement with the document
+// layer is pinned upstairs (`editor-core`'s selector suites drive the
+// same arms through `select_where`). Boundary rows adapted from a
+// review probe.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom_core::Tol;
+
+    use super::*;
+    use crate::fixtures::{plane_surface, prism};
+
+    /// A prism fixture with one wall re-surfaced as a PLANE, so the
+    /// body carries two surface kinds (the fixture's placeholder
+    /// Nurbs everywhere else) and circle-certified carriers.
+    fn mixed() -> Body<f64> {
+        let mut p = prism(4, Tol::witness()).body;
+        let face = all_faces(&p)[0];
+        let plane = p.add_surface(plane_surface(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            geom_core::Vec3::unit_x(),
+        ));
+        p.get_face_mut(face)
+            .expect("a face the materializer just listed")
+            .surface = plane;
+        p
+    }
+
+    #[test]
+    fn materializers_are_the_arena_fold_and_deterministic() {
+        let body = mixed();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        assert_eq!(all_edges(&body), edges, "slot-index order, nothing else");
+        assert_eq!(all_faces(&body), faces);
+        assert_eq!(all_edges(&body), all_edges(&body), "same body, same answer");
+        assert!(!edges.is_empty() && !faces.is_empty(), "not vacuous");
+    }
+
+    #[test]
+    fn dangling_keys_are_an_honest_no_never_a_panic() {
+        let body = mixed();
+        let (e, f) = (EdgeKey::default(), FaceKey::default());
+        assert_eq!(edge_carrier_kind(&body, e), None);
+        assert_eq!(face_surface_kind(&body, f), None);
+        assert!(!edge_carrier_matches(
+            &body,
+            e,
+            CurveKindSet::of(CurveKind::ALL)
+        ));
+        assert!(!face_surface_matches(
+            &body,
+            f,
+            SurfaceKindSet::of(ALL_SURFACE_KINDS)
+        ));
+        assert!(!edge_adjacent_matches(
+            &body,
+            e,
+            SurfaceKindSet::of(ALL_SURFACE_KINDS),
+            SurfaceKindSet::of(ALL_SURFACE_KINDS)
+        ));
+    }
+
+    #[test]
+    fn an_empty_set_matches_nothing() {
+        let body = mixed();
+        for e in all_edges(&body) {
+            assert!(!edge_carrier_matches(&body, e, CurveKindSet::default()));
+            assert!(!edge_adjacent_matches(
+                &body,
+                e,
+                SurfaceKindSet::default(),
+                SurfaceKindSet::of(ALL_SURFACE_KINDS)
+            ));
+        }
+        for f in all_faces(&body) {
+            assert!(!face_surface_matches(&body, f, SurfaceKindSet::default()));
+        }
+    }
+
+    #[test]
+    fn the_adjacent_pair_is_unordered() {
+        let body = mixed();
+        let mut mixed_pair_hit = false;
+        for e in all_edges(&body) {
+            for a in ALL_SURFACE_KINDS {
+                for b in ALL_SURFACE_KINDS {
+                    let (sa, sb) = (SurfaceKindSet::just(a), SurfaceKindSet::just(b));
+                    assert_eq!(
+                        edge_adjacent_matches(&body, e, sa, sb),
+                        edge_adjacent_matches(&body, e, sb, sa),
+                        "swapping the sets cannot change the answer"
+                    );
+                }
+            }
+            let (pl, nu) = (
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Nurbs),
+            );
+            mixed_pair_hit |= edge_adjacent_matches(&body, e, pl, nu);
+        }
+        // The re-surfaced wall really produces a mixed pair, so the
+        // symmetry loop above is exercised on a TRUE answer with two
+        // DIFFERENT sets, not only on false ones.
+        assert!(mixed_pair_hit, "the fixture carries a Plane x Nurbs rim");
+    }
+
+    #[test]
+    fn the_decided_door_partitions_on_the_band() {
+        let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
+        let plane = DatumValue::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let axis = DatumValue::Axis {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let point = DatumValue::Point {
+            position: Point3::new(0.0, 0.0, 0.0),
+        };
+        let p = Point3::new(3.0, 4.0, -2.0);
+        // SIGNED along a plane's normal, UNSIGNED to an axis or point.
+        assert_eq!(datum_distance(&plane, p), -2.0);
+        assert_eq!(datum_distance(&axis, p), 5.0);
+        assert!((datum_distance(&point, p) - 29.0_f64.sqrt()).abs() < 1e-12);
+        // The stated value is `d - dv`, so the margin the funnel sees
+        // is `d - (d - dv)` — dv up to a rounding ulp, which is why
+        // each row sits comfortably inside its region rather than on
+        // the band's exact boundary (the boundary-inclusive semantics
+        // are `sign_within`'s own pinned contract in geom-core).
+        for datum in [&plane, &axis, &point] {
+            let d = datum_distance(datum, p);
+            // |margin| <= zero: definite Zero.
+            for dv in [0.0, 1e-7, -1e-7] {
+                assert_eq!(
+                    datum_distance_sign(datum, p, d - dv, band),
+                    Ok(Sign::Zero),
+                    "dv={dv}"
+                );
+            }
+            // Strictly inside the gray zone: refuses, either side.
+            for dv in [5e-4, -5e-4, 2e-6, -2e-6] {
+                assert!(
+                    datum_distance_sign(datum, p, d - dv, band).is_err(),
+                    "dv={dv}"
+                );
+            }
+            // |margin| >= escalate: the definite sign of (distance - value).
+            for dv in [2e-3, 1.0] {
+                assert_eq!(
+                    datum_distance_sign(datum, p, d - dv, band),
+                    Ok(Sign::Positive),
+                    "dv={dv}"
+                );
+                assert_eq!(
+                    datum_distance_sign(datum, p, d + dv, band),
+                    Ok(Sign::Negative),
+                    "dv={dv}"
+                );
+            }
+        }
+    }
 }
