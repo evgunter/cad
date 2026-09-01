@@ -906,12 +906,9 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
             vertex: x,
             support: y,
         }
-        | RoleSeg::CornerArc {
-            vertex: x,
-            edge: y,
-        } => under(x) || under(y),
+        | RoleSeg::CornerArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
-        RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(|n| under(n)),
+        RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // ANOTHER document's id space: a local name and a part-local
         // name that print alike are different names, so a walk that
         // descended here would report occurrences that are not.
@@ -993,7 +990,10 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     );
     // The same segment, carrying the needle structurally: a real
     // derivation, and the detector must not call it a phantom.
-    let derived = fixture::fname(RecipeNodeId(3), RoleSeg::BlendFace(Box::new(needle.clone())));
+    let derived = fixture::fname(
+        RecipeNodeId(3),
+        RoleSeg::BlendFace(Box::new(needle.clone())),
+    );
     assert!(
         !only_sideof_mention(&derived, &needle),
         "a blend OF the name is a derivation, not a phantom"

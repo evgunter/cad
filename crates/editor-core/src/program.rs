@@ -1028,9 +1028,7 @@ fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
         // that never changed would report as changed. The same holds
         // for the three functions below.
         (
-            LoopProgram::Chain(_)
-            | LoopProgram::Circle { .. }
-            | LoopProgram::CircleSplit { .. },
+            LoopProgram::Chain(_) | LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. },
             _,
         ) => false,
     }

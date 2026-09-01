@@ -1000,6 +1000,33 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 /// N3's structural offers: the merged name a retired constituent
 /// entered (scan for `Merged` rows containing `name`), or a vanished
 /// merged name's own constituents.
+///
+/// # Why this reads one level and [`rebind_suggestions`] reads all
+///
+/// An OFFER is a name the user can rebind TO, so it has to be a name
+/// that resolves — which is what fixes the depth here, and fixes it
+/// differently for the two halves:
+///
+/// - **Unmerge.** The constituents of `name`'s own top-level `Merged`
+///   segment are the names the merge retired; when the merge stops
+///   happening they are live again, exactly as spelled. A constituent
+///   found DEEPER — inside `FromA(m)`, say — is not: what would be
+///   live there is `FromA(x)`, so descending would offer `x`, a name
+///   nothing carries. Reaching those needs the wrapper REBUILT around
+///   each constituent, not the constituent collected, and that is a
+///   rewrite rather than a scan.
+/// - **Merge.** A retired constituent's merged row is offered from the
+///   table that HOLDS it, so the row is found whole and at its own
+///   depth. A candidate that merely embeds that row deeper (a seam
+///   across it, a boolean carrying it through) needs no separate
+///   offer: the merged row itself still resolves, at the node whose
+///   table minted it, because a lookup takes the first carrying node
+///   in evaluation order.
+///
+/// [`rebind_suggestions`] answers a different question — every
+/// derivation WRAPPING a name, so a paint can follow the entity
+/// forward — and every answer it gives is a whole table row, so
+/// depth costs it nothing.
 fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut offers = Vec::new();
     // Unmerge: the name IS a merged name — offer its constituents.

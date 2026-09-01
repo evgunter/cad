@@ -145,8 +145,9 @@ pub(crate) mod pairs {
     pub(crate) fn serialize<S: Serializer>(pairs: &Pairs, ser: S) -> Result<S::Ok, S::Error> {
         let mut out = Vec::with_capacity(pairs.len());
         for ((a, b), class) in pairs {
-            let t = spelling(*class)
-                .map_err(|why| S::Error::custom(format!("persist: declared contact class: {why}")))?;
+            let t = spelling(*class).map_err(|why| {
+                S::Error::custom(format!("persist: declared contact class: {why}"))
+            })?;
             out.push(((a, b), t));
         }
         out.serialize(ser)
