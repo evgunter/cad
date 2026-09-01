@@ -2914,3 +2914,8 @@ both lanes' test shards green; a prior identical-point green run
 33488577843 gated f640c65a), R2 isolated from R1, briefs symmetric,
 no relaxations granted. Implementer difficulty M-L (pre-logged at
 the spec, pre-draw). Sample number at merge. Row at merge.
+VERBS-TORAX review ordinal fixed at dispatch (2026-09-01, PR
+#1494 open — frozen head `086c66944`): **ordinal 110** (VERBS
+band; the #1095 shape, tiny docs PR to main at dispatch). v6
+DUAL, parity byte 105 ⇒ R1 FABLE + R2 OPUS, concurrent, briefs
+symmetric. Sample number AT MERGE in main's order. Row at merge.
