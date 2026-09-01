@@ -635,6 +635,31 @@ pub enum PersistError {
         /// The invariant that failed.
         fault: crate::distribution::DistributionFault,
     },
+    /// A document parameter's authored display unit does not MEASURE
+    /// the dimension it was declared with — `mm` on an `Angle`
+    /// parameter (LIB-SWITCH §4g's `DisplayUnitMismatch`, at the
+    /// document-parameter carrier rather than at a literal).
+    ///
+    /// Reachable two ways, which is why it is a validator walk and not
+    /// a door check: the `DocParam` payload is `pub`, and a file can
+    /// pair any dimension with any table symbol. The AUTHORING doors
+    /// ([`crate::DocParam::written_length`] /
+    /// [`crate::DocParam::written_angle`]) cannot produce one — they
+    /// take a typed carrier whose unit already agrees. Shared-validator
+    /// check, so save refuses before a byte is written and load refuses
+    /// with the same diagnostics.
+    ///
+    /// An OFF-TABLE symbol is a different fault and refuses earlier, at
+    /// the token, in `UnitSym`'s `Deserialize` — this walk sees only
+    /// units that are rows of the table.
+    DisplayUnit {
+        /// The parameter carrying the fault.
+        name: crate::doc::ParamName,
+        /// The dimension the unit measures.
+        unit: crate::expr::Dimension,
+        /// The dimension the parameter was declared with.
+        declared: crate::expr::Dimension,
+    },
     /// The serializer itself failed (I/O-free here, so effectively
     /// unreachable; surfaced rather than swallowed).
     Serialize {
@@ -752,6 +777,16 @@ impl core::fmt::Display for PersistError {
             Self::Distribution { name, fault } => {
                 write!(f, "persist: document parameter {:?}: {fault}", name.0)
             }
+            Self::DisplayUnit {
+                name,
+                unit,
+                declared,
+            } => write!(
+                f,
+                "persist: document parameter {:?} is declared {declared:?} but its display \
+                 unit measures {unit:?}",
+                name.0
+            ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
                 write!(

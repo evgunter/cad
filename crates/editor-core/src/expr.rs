@@ -272,11 +272,55 @@ pub struct Expr {
 ///   `switch_display_units.rs`'s golden and its `table_row` fixtures.
 ///
 /// The index carries **no compatibility contract**: it is never
-/// persisted (the wire stores the SYMBOL — `persist::wire`), never
-/// enters expression identity, keys or [`Expr::literal_bits`] (D7),
-/// and is minted afresh at every construction and load.
+/// persisted, never enters expression identity, keys or
+/// [`Expr::literal_bits`] (D7), and is minted afresh at every
+/// construction and load.
+///
+/// **Serialization goes through the SYMBOL, never the index**, and the
+/// impls below are what keep that true now that the type is public and
+/// two carriers store it: `persist::wire`'s `WireExpr::Literal` writes
+/// the symbol as its own field, and [`crate::DocParam::Continuous`]
+/// writes one through this type's `Serialize`. Both read back through
+/// [`quantity::unit_by_symbol`], so a table REORDER still moves no
+/// byte of any file.
+///
+/// Public because a document parameter's declaration carries one
+/// ([`crate::DocParam::Continuous`]'s `display_unit`) and an enum
+/// variant's fields are public with it. The FIELD stays private to
+/// this module, which is what every totality argument above rests on —
+/// nothing about the seal depended on the type's visibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct UnitSym(u8);
+pub struct UnitSym(u8);
+
+impl serde::Serialize for UnitSym {
+    /// As the row's surface SYMBOL — the wire spelling, for the reason
+    /// the rustdoc above gives.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.def().symbol())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for UnitSym {
+    /// Back through [`quantity::unit_by_symbol`], the same closed-table
+    /// lookup `persist::wire`'s rebuild runs.
+    ///
+    /// An off-table symbol refuses HERE, at the token, because that is
+    /// the only fact this layer can see; whether the unit agrees with
+    /// the DIMENSION it was stored beside is a document invariant, and
+    /// it is checked where document invariants are, in the shared
+    /// save/load validator (`persist::check::first_display_unit_fault`)
+    /// — typed, and symmetric across both doors rather than load-only.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let symbol = <String as serde::Deserialize>::deserialize(deserializer)?;
+        match quantity::unit_by_symbol(&symbol) {
+            Some(row) => Ok(Self::from_def(&row)),
+            None => Err(serde::de::Error::custom(format!(
+                "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
+                quantity::UNITS.len()
+            ))),
+        }
+    }
+}
 
 // The code is one byte, so the table it indexes must fit in one. Six
 // rows today; a table that grew past 255 rows fails the BUILD here.
@@ -291,7 +335,7 @@ const _: () = assert!(
 
 impl UnitSym {
     /// The table row this code names.
-    fn def(self) -> quantity::UnitDef {
+    pub fn def(self) -> quantity::UnitDef {
         // Total: the index is minted only by `from_def`, as a position
         // in the very table indexed here, and the field is private to
         // this module, so out of range is unconstructable — this is
@@ -335,7 +379,7 @@ impl UnitSym {
     /// case, and it keeps its typed refusal (D2 addendum row 1). What
     /// went away is the CONSTRUCTION site of that variant, which could
     /// only fire for a `UnitDef` no caller can build.
-    fn from_def(u: &quantity::UnitDef) -> Self {
+    pub fn from_def(u: &quantity::UnitDef) -> Self {
         let Some(i) = quantity::UNITS
             .iter()
             .position(|row| row.symbol() == u.symbol())
@@ -577,6 +621,53 @@ impl Expr {
             lit.display_unit = Some(sym);
         }
         Ok(e)
+    }
+
+    /// A continuous literal from an AUTHORED length — the value and
+    /// the notation it was written in, together
+    /// ([`quantity::WrittenLength`]).
+    ///
+    /// The door library and GUI authoring should reach for: it is
+    /// [`Expr::literal`] and [`Expr::literal_with_unit`] chosen by
+    /// whether a notation was authored, so a caller never has to
+    /// decide which of the two it means, and never has to spell the
+    /// dimension — a `WrittenLength` is a length, so there is no
+    /// second fact to keep in step.
+    ///
+    /// **`DisplayUnitMismatch` cannot fire here.** A
+    /// [`quantity::WrittenLength`] holds a `LengthUnit`, which is an
+    /// index into a Length row of the table (#669), so the unit's
+    /// quantity agrees with `Dimension::Length` by construction rather
+    /// than by a check. The refusal that remains is
+    /// [`Expr::literal`]'s: a non-finite value (ruled door 1). The
+    /// claim is executed by
+    /// `switch_display_units::every_authored_unit_reaches_a_literal_without_a_mismatch`,
+    /// not merely stated here.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn written_length(written: quantity::WrittenLength) -> Result<Self, DimensionError> {
+        match written.unit() {
+            None => Self::literal(written.meters(), Dimension::Length),
+            Some(unit) => Self::literal_with_unit(written.meters(), Dimension::Length, unit.def()),
+        }
+    }
+
+    /// A continuous literal from an AUTHORED angle —
+    /// [`Expr::written_length`]'s mirror, and everything that door's
+    /// docs say holds here with `AngleUnit` and `Dimension::Angle`.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
+        match written.unit() {
+            None => Self::literal(written.radians_value(), Dimension::Angle),
+            Some(unit) => {
+                Self::literal_with_unit(written.radians_value(), Dimension::Angle, unit.def())
+            }
+        }
     }
 
     /// The display unit of a LITERAL expression, if one is stored
