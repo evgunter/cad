@@ -1,66 +1,167 @@
-//! Test-side scalar lifts for point and vector data.
+//! Scalar lifts of the two geometry enums: **the same curve or
+//! surface, read at another scalar.**
 //!
-//! The two halves' unit tests both need "the same `f64` geometry, read
-//! at another scalar" to check derivative-vs-dual consistency and
-//! enclosure containment. The per-variant *ladders* that do that are
-//! S33's territory and stay where they are; these four converters are
-//! not ladders — they are dimension- and kind-blind, and one copy each
-//! is enough for the whole crate.
+//! `DESIGN.md` makes "evaluate the same function with a different
+//! scalar type" the reason the geometry layer is generic over `T`, and
+//! this module is where a `Curve3<f64>` becomes a `Curve3<Dual64>` or a
+//! `Curve3<Interval>` — one exhaustive match per enum, the scalar
+//! conversion as the parameter, so a caller never spells the variant
+//! ladder and a variant added to either enum fails to compile here
+//! rather than silently falling to a default arm.
+//!
+//! # What a lift is, and is not
+//!
+//! A lift is a **structural map**: every scalar field goes through `f`,
+//! every `f64` structure field (knots, weights, degrees, windows,
+//! tolerances) is carried verbatim, and no arithmetic is performed. It
+//! is therefore exact whenever `f` is — `Real::from_f64` at every
+//! scalar, `Dual::constant` for the dual lanes — and then the lifted
+//! geometry **evaluates to the source**: bit for bit in a `Dual`'s
+//! value channel, as a bracket of the source's `f64` evaluation at the
+//! interval scalar. The rows named `described_nurbs_lifts_as_its_payload`
+//! in the enum modules' tests pin exactly that.
+//!
+//! # The NURBS and approximating variants lift their PAYLOAD
+//!
+//! A [`Curve3::Nurbs`] lifts to a [`Curve3::Nurbs`] whose control net
+//! went through `f` ([`NurbsCurve3::map_scalar`]); a [`Surface::Nurbs`]
+//! and a [`Surface::Approx`] likewise ([`NurbsSurface::map_scalar`],
+//! [`ApproxSurface::map_scalar`]). No variant is mapped to the
+//! placeholder: a described curve that came back "no description yet"
+//! after a lift would be a silent substitution, and the whole reason a
+//! lift exists is to evaluate the *same* geometry at another scalar.
+//!
+//! What the placeholder and a poisoned net lift to follows from the map
+//! being structural. The placeholder's every control point is
+//! all-poison, and every scalar embedding keeps poison (`from_f64(NaN)`
+//! is the interval's poison, `Dual::constant(NaN)` a poisoned dual), so
+//! **the placeholder lifts to the placeholder** — `is_placeholder` is
+//! preserved through the map. A described net carrying poison in some
+//! points lifts to a described net carrying poison in the same points:
+//! **never the benign placeholder**, because the crate docs' rule is
+//! `all`-not-`any` and a map applied pointwise cannot turn some into
+//! all. That rule's own width (which channels `is_placeholder` reads)
+//! is untouched here; the lift neither narrows nor widens it.
 
-use geom_core::{Dual, Dual64, Point3, Vec3};
+use geom_core::Real;
 
-/// A point as `Dual64` constants — no variable component, so only the
-/// evaluation parameter carries a derivative.
-pub(crate) fn dual_point(p: Point3<f64>) -> Point3<Dual64> {
-    Point3::new(
-        Dual::constant(p.x),
-        Dual::constant(p.y),
-        Dual::constant(p.z),
-    )
+use crate::curves::Curve3;
+use crate::surfaces::Surface;
+
+#[cfg(doc)]
+use crate::curves::NurbsCurve3;
+#[cfg(doc)]
+use crate::surfaces::{ApproxSurface, NurbsSurface};
+
+impl<T: Real> Curve3<T> {
+    /// The same curve read at another scalar (module docs): analytic
+    /// fields through `f`, the NURBS payload through
+    /// [`NurbsCurve3::map_scalar`]. Exact whenever `f` is; poison
+    /// travels; the placeholder lifts to the placeholder and a
+    /// described curve to a described curve.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
+        match self {
+            Curve3::Line { origin, dir } => Curve3::Line {
+                origin: origin.map(&f),
+                dir: dir.map(&f),
+            },
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Curve3::Circle {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                radius: f(*radius),
+                u_ref: u_ref.map(&f),
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Curve3::Ellipse {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                major: f(*major),
+                minor: f(*minor),
+                u_ref: u_ref.map(&f),
+            },
+            Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
+        }
+    }
 }
 
-/// A vector as `Dual64` constants (see [`dual_point`]).
-pub(crate) fn dual_vec(v: Vec3<f64>) -> Vec3<Dual64> {
-    Vec3::new(
-        Dual::constant(v.x),
-        Dual::constant(v.y),
-        Dual::constant(v.z),
-    )
-}
-
-/// A point as degenerate intervals — each coordinate its own exact
-/// bracket, so the lift adds no width of its own.
-///
-/// The `#[cfg(test)]` below is redundant — `lib.rs` already declares
-/// this whole module test-only — and is written anyway: it is what
-/// makes the `interval` gate legible as the "test-only code" case of
-/// `scripts/check-interval-cfg-additive.py`'s rule to a checker that
-/// reads this file without its parent declaration.
-///
-/// **The redundancy is load-bearing, and in the safe direction.** The
-/// attribute that satisfies the gate is the same attribute that makes
-/// the claim true, so deleting it as "redundant" turns CI **red**
-/// rather than quietly making a gated item production-reachable.
-#[cfg(feature = "interval")]
-#[cfg(test)]
-pub(crate) fn interval_point(p: Point3<f64>) -> Point3<geom_core::Interval> {
-    use geom_core::{Interval, Real};
-    Point3::new(
-        Interval::from_f64(p.x),
-        Interval::from_f64(p.y),
-        Interval::from_f64(p.z),
-    )
-}
-
-/// A vector as degenerate intervals (see [`interval_point`]); the
-/// double gate is [`interval_point`]'s.
-#[cfg(feature = "interval")]
-#[cfg(test)]
-pub(crate) fn interval_vec(v: Vec3<f64>) -> Vec3<geom_core::Interval> {
-    use geom_core::{Interval, Real};
-    Vec3::new(
-        Interval::from_f64(v.x),
-        Interval::from_f64(v.y),
-        Interval::from_f64(v.z),
-    )
+impl<T: Real> Surface<T> {
+    /// The same surface read at another scalar (module docs): analytic
+    /// fields through `f`, the NURBS payload through
+    /// [`NurbsSurface::map_scalar`], the approximating payload through
+    /// [`ApproxSurface::map_scalar`]. Exact whenever `f` is; poison
+    /// travels; the placeholder lifts to the placeholder and a
+    /// described surface to a described surface.
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Surface<U> {
+        match self {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => Surface::Plane {
+                origin: origin.map(&f),
+                normal: normal.map(&f),
+                u_ref: u_ref.map(&f),
+            },
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => Surface::Cylinder {
+                origin: origin.map(&f),
+                axis: axis.map(&f),
+                radius: f(*radius),
+                u_ref: u_ref.map(&f),
+            },
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => Surface::Cone {
+                apex: apex.map(&f),
+                axis: axis.map(&f),
+                half_angle: f(*half_angle),
+                u_ref: u_ref.map(&f),
+            },
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => Surface::Sphere {
+                center: center.map(&f),
+                radius: f(*radius),
+                axis: axis.map(&f),
+                u_ref: u_ref.map(&f),
+            },
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => Surface::Torus {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+                u_ref: u_ref.map(&f),
+            },
+            Surface::Nurbs(n) => Surface::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
+            Surface::Approx(a) => Surface::Approx(std::sync::Arc::new(a.map_scalar(&f))),
+        }
+    }
 }

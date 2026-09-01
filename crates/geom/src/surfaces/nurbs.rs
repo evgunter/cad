@@ -321,6 +321,24 @@ impl<T: Real> NurbsSurface<T> {
         (self.knots_u.control_count(), self.knots_v.control_count())
     }
 
+    /// The same surface read at another scalar: `f` applied to every
+    /// control coordinate, both knot vectors and the weights carried
+    /// over verbatim — `f64` structure at every scalar, so the
+    /// count–weight invariants cannot move and no re-validation is
+    /// run. The contract is [`NurbsCurve3::map_scalar`]'s one
+    /// dimension up: exact whenever `f` is, poison travels, the
+    /// placeholder lifts to the placeholder.
+    ///
+    /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> NurbsSurface<U> {
+        NurbsSurface {
+            knots_u: self.knots_u.clone(),
+            knots_v: self.knots_v.clone(),
+            control: self.control.iter().map(|p| p.map(&f)).collect(),
+            weights: self.weights.clone(),
+        }
+    }
+
     /// The [`SurfaceWindow`] for a span pair already validated against
     /// THIS surface's own knot vectors — the one primitive
     /// constructor, behind [`Self::window`] and [`Self::window_at`].

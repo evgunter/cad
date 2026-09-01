@@ -154,6 +154,20 @@ pub enum SurfaceDescription<T: Real> {
     },
 }
 
+impl<T: Real> SurfaceDescription<T> {
+    /// The same description read at another scalar: the base through
+    /// [`NurbsSurface::map_scalar`], the distance through `f`. A
+    /// structural map, exact whenever `f` is.
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> SurfaceDescription<U> {
+        match self {
+            SurfaceDescription::Offset { base, d } => SurfaceDescription::Offset {
+                base: Arc::new(base.map_scalar(&f)),
+                d: f(*d),
+            },
+        }
+    }
+}
+
 /// The uncertified input to [`ApproxSurface::certify`]: the intent, the
 /// fit that claims to realize it, the window the claim is made over,
 /// and the tolerance it claims. Plain data — the certified product is
@@ -176,10 +190,11 @@ pub struct SurfaceSpec<T: Real> {
 /// tolerance and the [`OffsetCertificate`] of the run that bound them
 /// together.
 ///
-/// Fields are private and the only constructor is
-/// [`ApproxSurface::certify`], so an uncertified value is
+/// Fields are private and the only constructor from uncertified parts
+/// is [`ApproxSurface::certify`], so an uncertified value is
 /// unrepresentable (D4 ¶2 made structural — the `EdgeCurve` invariant,
-/// lifted one dimension).
+/// lifted one dimension). [`ApproxSurface::map_scalar`] only re-reads
+/// a value that already passed that door at another scalar.
 ///
 /// **The certificate is provenance, not authority.** Tier-3 validation
 /// re-derives it against the description on every call and never
@@ -261,6 +276,28 @@ impl<T: Real> ApproxSurface<T> {
     /// re-derives rather than reading this (see the type docs).
     pub fn certificate(&self) -> &OffsetCertificate {
         &self.certificate
+    }
+
+    /// The same certified surface read at another scalar: the
+    /// description and the fit through their own `map_scalar`s, the
+    /// window, tolerance and certificate carried over verbatim.
+    ///
+    /// **Not a second door.** The certificate is provenance, not
+    /// authority (type docs): it records what the construction run
+    /// measured about this geometry, and a structural map of that
+    /// geometry — exact for every scalar embedding, `Real::from_f64`
+    /// or `Dual::constant` — is the same geometry, so the record still
+    /// describes it. The validator re-derives against the description
+    /// on every call whatever scalar it reads, so a lift can neither
+    /// mint a claim nor launder one.
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ApproxSurface<U> {
+        ApproxSurface {
+            description: self.description.map_scalar(&f),
+            fit: self.fit.map_scalar(&f),
+            window: self.window,
+            tolerance: self.tolerance,
+            certificate: self.certificate,
+        }
     }
 
     /// The uncertified spec this surface would certify from — the

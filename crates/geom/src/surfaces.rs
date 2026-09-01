@@ -669,71 +669,6 @@ mod tests {
         ]
     }
 
-    /// Lifts an f64 surface to `Surface<Dual64>` with constant geometry
-    /// (only evaluation parameters become variables).
-    fn lift_dual(s: &Surface<f64>) -> Surface<Dual64> {
-        match *s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Surface::Plane {
-                origin: crate::scalar_lift::dual_point(origin),
-                normal: crate::scalar_lift::dual_vec(normal),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin: crate::scalar_lift::dual_point(origin),
-                axis: crate::scalar_lift::dual_vec(axis),
-                radius: Dual::constant(radius),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex: crate::scalar_lift::dual_point(apex),
-                axis: crate::scalar_lift::dual_vec(axis),
-                half_angle: Dual::constant(half_angle),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: crate::scalar_lift::dual_point(center),
-                radius: Dual::constant(radius),
-                axis: crate::scalar_lift::dual_vec(axis),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center: crate::scalar_lift::dual_point(center),
-                axis: crate::scalar_lift::dual_vec(axis),
-                major_radius: Dual::constant(major_radius),
-                minor_radius: Dual::constant(minor_radius),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            // The corpus below is analytic; neither spline kind lifts
-            // to a `Dual` (there is no `NurbsSurface<Dual>` fixture).
-            Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
-        }
-    }
-
     fn close3(a: Vec3<f64>, b: Vec3<f64>, tol: f64) -> bool {
         (a.x - b.x).abs() <= tol && (a.y - b.y).abs() <= tol && (a.z - b.z).abs() <= tol
     }
@@ -923,7 +858,7 @@ mod tests {
         #[test]
         fn first_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
-                let sd = lift_dual(&s);
+                let sd = s.map_scalar(Dual::constant);
                 let pf = s.eval(u, v);
 
                 let pu = sd.eval(Dual::variable(u), Dual::constant(v));
@@ -949,7 +884,7 @@ mod tests {
         #[test]
         fn second_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
-                let sd = lift_dual(&s);
+                let sd = s.map_scalar(Dual::constant);
 
                 let duu = sd.deriv_u(Dual::variable(u), Dual::constant(v));
                 let uu = s.deriv_uu(u, v);
@@ -1067,7 +1002,7 @@ mod tests {
     #[test]
     fn described_nurbs_lifts_as_its_payload_at_dual() {
         let s = arch_sheet_nurbs();
-        let sd: Surface<Dual64> = lift_dual(&s);
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
         for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
             let p = sd.eval(Dual::variable(u), Dual::constant(v));
             let q = s.eval(u, v);
@@ -1093,6 +1028,70 @@ mod tests {
         assert!(
             matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
             "a described NURBS lifted to the placeholder"
+        );
+    }
+
+    /// The approximating variant lifts as its payload too — the fit IS
+    /// the geometry, so the lifted surface evaluates to the source —
+    /// and the description, window, tolerance and certificate ride
+    /// along verbatim.
+    #[test]
+    fn approx_lifts_as_its_payload_with_its_record() {
+        let Surface::Nurbs(fit) = arch_sheet_nurbs() else {
+            panic!("fixture is a NURBS");
+        };
+        let certificate = OffsetCertificate {
+            distance: 0.25,
+            cells: 4,
+            samples: 3,
+            on_locus_max: 1e-9,
+            hull_sup: 2e-9,
+            normal_floor: 0.5,
+            curvature_reach: 1.5,
+            rounds: 2,
+        };
+        let spec = SurfaceSpec {
+            description: SurfaceDescription::Offset {
+                base: Arc::clone(&fit),
+                d: 0.25,
+            },
+            fit: (*fit).clone(),
+            window: ApproxWindow::of(&*fit),
+            tolerance: 1e-6,
+        };
+        let approx = ApproxSurface::certify(spec, |_, _, _, _| Ok::<_, ()>(certificate)).unwrap();
+        let s = Surface::Approx(Arc::new(approx));
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        let Surface::Approx(lifted) = &sd else {
+            panic!("an approximating surface lifted to another variant");
+        };
+        assert_eq!(lifted.window(), ApproxWindow::of(&*fit));
+        assert_eq!(lifted.tolerance(), 1e-6);
+        assert_eq!(lifted.certificate().hull_sup, certificate.hull_sup);
+        assert_eq!(lifted.certificate().rounds, certificate.rounds);
+        let SurfaceDescription::Offset { d, .. } = lifted.description();
+        assert_eq!(d.value, 0.25);
+        for (u, v) in [(0.0, 0.0), (0.3, 0.6), (1.0, 1.0)] {
+            let p = sd.eval(Dual::constant(u), Dual::constant(v));
+            let q = s.eval(u, v);
+            assert_eq!(p.x.value.to_bits(), q.x.to_bits(), "(u, v) = ({u}, {v}): x");
+            assert_eq!(p.y.value.to_bits(), q.y.to_bits(), "(u, v) = ({u}, {v}): y");
+            assert_eq!(p.z.value.to_bits(), q.z.to_bits(), "(u, v) = ({u}, {v}): z");
+        }
+    }
+
+    /// The placeholder lifts to the placeholder: a structural map keeps
+    /// poison, so `is_placeholder` survives the lift at both scalars.
+    #[test]
+    fn placeholder_lifts_to_the_placeholder() {
+        let n: Surface<f64> = Surface::nurbs_placeholder();
+        let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
+        assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
+        assert!(
+            nd.eval(Dual::constant(0.5), Dual::constant(0.5))
+                .x
+                .value
+                .is_nan()
         );
     }
 
@@ -1140,69 +1139,6 @@ mod tests {
 
         use super::*;
 
-        fn lift(s: &Surface<f64>) -> Surface<Interval> {
-            match *s {
-                Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
-                } => Surface::Plane {
-                    origin: crate::scalar_lift::interval_point(origin),
-                    normal: crate::scalar_lift::interval_vec(normal),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    u_ref,
-                } => Surface::Cylinder {
-                    origin: crate::scalar_lift::interval_point(origin),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    radius: Interval::from_f64(radius),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    u_ref,
-                } => Surface::Cone {
-                    apex: crate::scalar_lift::interval_point(apex),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    half_angle: Interval::from_f64(half_angle),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Sphere {
-                    center,
-                    radius,
-                    axis,
-                    u_ref,
-                } => Surface::Sphere {
-                    center: crate::scalar_lift::interval_point(center),
-                    radius: Interval::from_f64(radius),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                    u_ref,
-                } => Surface::Torus {
-                    center: crate::scalar_lift::interval_point(center),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    major_radius: Interval::from_f64(major_radius),
-                    minor_radius: Interval::from_f64(minor_radius),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                // As the dual lift: the corpus is analytic, and neither
-                // spline kind has an interval fixture to lift.
-                Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
-            }
-        }
-
         fn contains(e: Interval, x: f64) -> bool {
             e.lo() <= x && x <= e.hi()
         }
@@ -1216,7 +1152,7 @@ mod tests {
         #[test]
         fn evaluators_instantiate_and_residuals_enclose_zero() {
             for (name, s) in all_surfaces() {
-                let si = lift(&s);
+                let si = s.map_scalar(Interval::from_f64);
                 let (u, v) = (Interval::from_f64(0.7), Interval::from_f64(0.4));
                 // Instantiation coverage: every method at interval type.
                 let _ = si.eval(u, v);
@@ -1237,7 +1173,7 @@ mod tests {
                 );
             }
 
-            let sphere = lift(&all_surfaces()[3].1);
+            let sphere = all_surfaces()[3].1.map_scalar(Interval::from_f64);
             let (center, r) = match sphere {
                 Surface::Sphere { center, radius, .. } => (center, radius),
                 _ => panic!("fixture order"),
@@ -1249,7 +1185,7 @@ mod tests {
                 assert!(res.hi() - res.lo() < 1e-12);
             }
 
-            let cyl = lift(&all_surfaces()[1].1);
+            let cyl = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let (origin, axis, r) = match cyl {
                 Surface::Cylinder {
                     origin,
@@ -1273,7 +1209,7 @@ mod tests {
         #[test]
         fn plane_encloses_f64_evaluation() {
             let p = all_surfaces()[0].1.clone();
-            let pi_ = lift(&p);
+            let pi_ = p.map_scalar(Interval::from_f64);
             for (uu, vv) in [(0.0, 0.0), (1.75, -3.5), (1234.5, 0.125)] {
                 let q = p.eval(uu, vv);
                 let qi = pi_.eval(Interval::from_f64(uu), Interval::from_f64(vv));
@@ -1289,7 +1225,7 @@ mod tests {
         #[test]
         fn wide_boxes_enclose_sampled_images() {
             let p = all_surfaces()[0].1.clone(); // plane: exact ops, assertable
-            let pi_ = lift(&p);
+            let pi_ = p.map_scalar(Interval::from_f64);
             let ub = Interval::from_bounds(-1.0, 2.0);
             let vb = Interval::from_bounds(0.5, 0.75);
             let img = pi_.eval(ub, vb);
@@ -1310,7 +1246,7 @@ mod tests {
         #[test]
         fn described_nurbs_lifts_as_its_payload_at_interval() {
             let s = super::arch_sheet_nurbs();
-            let si = lift(&s);
+            let si = s.map_scalar(Interval::from_f64);
             for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
                 let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
                 let q = s.eval(u, v);
@@ -1338,7 +1274,7 @@ mod tests {
         /// interval type.
         #[test]
         fn poison_propagates_at_interval() {
-            let si = lift(&all_surfaces()[1].1);
+            let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.lo().is_nan());
             let n: Surface<Interval> = Surface::nurbs_placeholder();

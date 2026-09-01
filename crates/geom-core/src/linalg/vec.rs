@@ -35,6 +35,14 @@ impl<T: Real> Vec2<T> {
         Self { x, y }
     }
 
+    /// The same vector read at another scalar: `f` applied to each
+    /// component, in `x, y` order. A structural map — no arithmetic,
+    /// so it is exact whenever `f` is (`Real::from_f64`,
+    /// `Dual::constant`).
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec2<U> {
+        Vec2::new(f(self.x), f(self.y))
+    }
+
     /// The zero vector (the additive identity).
     pub fn zero() -> Self {
         Self::new(T::zero(), T::zero())
@@ -130,6 +138,12 @@ impl<T: Real> Vec3<T> {
     /// Builds a vector from its components.
     pub fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
+    }
+
+    /// The same vector read at another scalar: `f` applied to each
+    /// component, in `x, y, z` order (see [`Vec2::map`]).
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec3<U> {
+        Vec3::new(f(self.x), f(self.y), f(self.z))
     }
 
     /// The zero vector (the additive identity).

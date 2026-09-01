@@ -119,6 +119,30 @@ macro_rules! nurbs_curve {
                 self.knots.domain()
             }
 
+            /// The same curve read at another scalar: `f` applied to
+            /// every control coordinate, the knots and weights carried
+            /// over verbatim — they are `f64` structure at every scalar
+            /// (module docs), so nothing about the knot–weight–count
+            /// invariants can change and no re-validation is run.
+            ///
+            /// A structural map, not an evaluation: exact whenever
+            /// `f` is (`Real::from_f64`, `Dual::constant`), and then
+            /// the lifted curve evaluates to the source — bit for bit
+            /// in a `Dual`'s value channel, as a bracket of the source
+            /// at the interval scalar. Poison travels: a poisoned
+            /// control point lifts to `f(poison)`, which every scalar
+            /// embedding keeps poison, so the placeholder lifts to the
+            /// placeholder and a corrupt described net stays corrupt
+            /// and described (the crate docs' `all`-not-`any` rule is
+            /// preserved, never widened).
+            pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> $Curve<U> {
+                $Curve {
+                    knots: self.knots.clone(),
+                    control: self.control.iter().map(|p| p.map(&f)).collect(),
+                    weights: self.weights.clone(),
+                }
+            }
+
             /// The point at `t`, evaluated **in the given span** — the
             /// generic core (module docs: the span contract; the fixed
             /// single-ascending-pass association).

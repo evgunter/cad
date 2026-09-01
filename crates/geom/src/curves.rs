@@ -663,7 +663,7 @@ mod tests {
             seed in prop_oneof![-100.0..-0.01f64, 0.01..100.0f64],
         ) {
             let c = tilted_circle();
-            let cd: Curve3<Dual64> = lift_to_dual(&c);
+            let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
             let p = cd.eval(Dual::new(theta, seed));
             let d = c.deriv(theta);
             // Value channel: bit-identical to the f64 evaluation.
@@ -682,7 +682,7 @@ mod tests {
         #[test]
         fn circle_deriv2_matches_dual_of_deriv(theta in -50.0..50.0f64) {
             let c = tilted_circle();
-            let cd: Curve3<Dual64> = lift_to_dual(&c);
+            let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
             let d = cd.deriv(Dual::variable(theta));
             let d2 = c.deriv2(theta);
             prop_assert!((d.x.deriv - d2.x).abs() <= 1e-12);
@@ -698,7 +698,7 @@ mod tests {
                 origin: Point3::new(1.0, -2.0, 0.5),
                 dir: Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
             };
-            let ld: Curve3<Dual64> = lift_to_dual(&line);
+            let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
             let p = ld.eval(Dual::variable(t));
             let d = line.deriv(t);
             prop_assert_eq!(p.x.deriv.to_bits(), d.x.to_bits());
@@ -871,7 +871,7 @@ mod tests {
         #[test]
         fn ellipse_derivs_match_duals(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let ed: Curve3<Dual64> = lift_to_dual(&e);
+            let ed: Curve3<Dual64> = e.map_scalar(Dual::constant);
             let p = ed.eval(Dual::variable(theta));
             let pf = e.eval(theta);
             prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
@@ -914,7 +914,7 @@ mod tests {
         #[test]
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
-            let ei = super::interval::lift(&e);
+            let ei = e.map_scalar(geom_core::Interval::from_f64);
             let Curve3::Ellipse {
                 center,
                 axis,
@@ -941,42 +941,6 @@ mod tests {
                 let plane_res = d.dot(axis);
                 assert!(plane_res.lo() <= 0.0 && 0.0 <= plane_res.hi());
             }
-        }
-    }
-
-    /// Lifts an f64 curve to `Curve3<Dual64>` with constant (∂/∂θ = 0)
-    /// geometry — only the evaluation parameter is the variable.
-    fn lift_to_dual(c: &Curve3<f64>) -> Curve3<Dual64> {
-        match *c {
-            Curve3::Line { origin, dir } => Curve3::Line {
-                origin: crate::scalar_lift::dual_point(origin),
-                dir: crate::scalar_lift::dual_vec(dir),
-            },
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Curve3::Circle {
-                center: crate::scalar_lift::dual_point(center),
-                axis: crate::scalar_lift::dual_vec(axis),
-                radius: Dual::constant(radius),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } => Curve3::Ellipse {
-                center: crate::scalar_lift::dual_point(center),
-                axis: crate::scalar_lift::dual_vec(axis),
-                major: Dual::constant(major),
-                minor: Dual::constant(minor),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
         }
     }
 
@@ -1017,7 +981,7 @@ mod tests {
     #[test]
     fn described_nurbs_lifts_as_its_payload_at_dual() {
         let c = quarter_circle_nurbs();
-        let cd: Curve3<Dual64> = lift_to_dual(&c);
+        let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
         for t in [0.0, 0.3, 0.5, 0.75, 1.0] {
             let p = cd.eval(Dual::variable(t));
             let q = c.eval(t);
@@ -1087,40 +1051,6 @@ mod tests {
 
         use super::*;
 
-        pub(super) fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
-            match *c {
-                Curve3::Line { origin, dir } => Curve3::Line {
-                    origin: crate::scalar_lift::interval_point(origin),
-                    dir: crate::scalar_lift::interval_vec(dir),
-                },
-                Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                } => Curve3::Circle {
-                    center: crate::scalar_lift::interval_point(center),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    radius: Interval::from_f64(radius),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Curve3::Ellipse {
-                    center,
-                    axis,
-                    major,
-                    minor,
-                    u_ref,
-                } => Curve3::Ellipse {
-                    center: crate::scalar_lift::interval_point(center),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    major: Interval::from_f64(major),
-                    minor: Interval::from_f64(minor),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
-            }
-        }
-
         fn contains(enclosure: Interval, x: f64) -> bool {
             enclosure.lo() <= x && x <= enclosure.hi()
         }
@@ -1132,7 +1062,7 @@ mod tests {
         #[test]
         fn circle_residuals_enclose_zero() {
             let c = super::tilted_circle();
-            let ci = lift(&c);
+            let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle {
                     center,
@@ -1168,7 +1098,7 @@ mod tests {
                 origin: Point3::new(1.0, -2.0, 0.5),
                 dir: Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
             };
-            let li = lift(&line);
+            let li = line.map_scalar(Interval::from_f64);
             for t in [0.0, 1.75, -3.5e2, 1234.5678] {
                 let p = line.eval(t);
                 let pi = li.eval(Interval::from_f64(t));
@@ -1182,7 +1112,7 @@ mod tests {
         /// so the θ-evaluation and the shifted evaluation must overlap.
         #[test]
         fn circle_periodicity_containment_form() {
-            let ci = lift(&super::tilted_circle());
+            let ci = super::tilted_circle().map_scalar(Interval::from_f64);
             let theta = Interval::from_f64(0.7);
             let k = Interval::from_f64(3.0);
             let p = ci.eval(theta);
@@ -1204,7 +1134,7 @@ mod tests {
         /// and the Nurbs placeholder poisons at interval type too.
         #[test]
         fn poison_propagates_at_interval() {
-            let ci = lift(&super::xy_circle(2.0));
+            let ci = super::xy_circle(2.0).map_scalar(Interval::from_f64);
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
             let n: Curve3<Interval> = Curve3::nurbs_placeholder();
@@ -1217,7 +1147,7 @@ mod tests {
         #[test]
         fn described_nurbs_lifts_as_its_payload_at_interval() {
             let c = super::quarter_circle_nurbs();
-            let ci = lift(&c);
+            let ci = c.map_scalar(Interval::from_f64);
             for t in [0.0, 0.3, 0.5, 0.75, 1.0] {
                 let p = ci.eval(Interval::from_f64(t));
                 let q = c.eval(t);
@@ -1250,34 +1180,10 @@ mod tests {
             let c = super::tilted_circle();
             // Lift f64 → Interval → Dual<Interval>, constants throughout
             // except the evaluation parameter.
-            let cd: Curve3<DualInterval> = match lift(&c) {
-                Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                } => Curve3::Circle {
-                    center: Point3::new(
-                        Dual::constant(center.x),
-                        Dual::constant(center.y),
-                        Dual::constant(center.z),
-                    ),
-                    axis: Vec3::new(
-                        Dual::constant(axis.x),
-                        Dual::constant(axis.y),
-                        Dual::constant(axis.z),
-                    ),
-                    radius: Dual::constant(radius),
-                    u_ref: Vec3::new(
-                        Dual::constant(u_ref.x),
-                        Dual::constant(u_ref.y),
-                        Dual::constant(u_ref.z),
-                    ),
-                },
-                _ => panic!("fixture is a circle"),
-            };
+            let cd: Curve3<DualInterval> =
+                c.map_scalar(Interval::from_f64).map_scalar(Dual::constant);
             let p = cd.eval(Dual::variable(Interval::from_f64(0.7)));
-            let ci = lift(&c);
+            let ci = c.map_scalar(Interval::from_f64);
             let d = ci.deriv(Interval::from_f64(0.7));
             for (dual_ch, closed) in [(p.x.deriv, d.x), (p.y.deriv, d.y), (p.z.deriv, d.z)] {
                 assert!(
