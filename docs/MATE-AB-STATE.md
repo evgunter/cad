@@ -87,3 +87,11 @@ MATE-9 dispatch consumes B3 slot 3 (FABLE) — 2026-09-01, difficulty
 M-L (pre-logged at spec). Spec docs/MATE-9-SPEC.md on main
 (PR #1485). BLOCK MATE-B3 FULLY CONSUMED — the next implementer
 needs a B4 draw.
+
+MATE-9 dual DRAW (2026-09-01, recorded at dispatch): CONCURRENT on
+frozen b873d783 — only this dual holds the machine (R1 + R2 = 2 of
+3 lanes). Byte 175 parity 1 ⇒ R1 FABLE + R2 OPUS (claimed on main
+as ordinal 1308, PR #1499). Briefs symmetric, stored at
+docs/MATE-9-REVIEW-BRIEF.md on this branch pre-dispatch; only the
+R-label and probe branch substitute ({R}=R1 ⇒ mate/9r1-probes,
+{R}=R2 ⇒ mate/9r2-probes; {OTHER} = the sibling's label+branch).
