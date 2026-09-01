@@ -2667,8 +2667,12 @@ pub(super) fn line_torus_roots<T: Decide>(
         band,
     )? == Sign::Zero
     {
-        // `y⁴ + p y² + s`: `y²` solves a quadratic, so both factors are
-        // `y² + β` and `y² + γ` with `α = 0`.
+        // `y⁴ + p y² + s`: with `α = 0` the factorization's own
+        // relations collapse to `β + γ = p` and `βγ = s`, so the two
+        // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
+        // `X² − pX + s`. Those are the NEGATIVES of the roots of the
+        // quadratic in `y²`, which is the sign this arm is easy to get
+        // backwards and which no in-band case would have caught.
         let inner = p.powi(2) - four * s;
         match decide(
             "bool_ray_torus_split",
@@ -2681,10 +2685,7 @@ pub(super) fn line_torus_roots<T: Decide>(
             Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
         }
         let root = inner.max(T::zero()).sqrt();
-        (
-            (T::zero(), (T::zero() - p - root) / two),
-            (T::zero(), (T::zero() - p + root) / two),
-        )
+        ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
     } else {
         // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
         // whose constant term is negative, so its LARGEST real root is
