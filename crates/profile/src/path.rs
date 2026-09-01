@@ -850,18 +850,32 @@ pub enum PathError<T: Real> {
 /// payload.
 ///
 /// [`PathError`] is generic in the evaluation scalar and its arms carry
-/// scalar payloads, so it can never be `Eq`: `Real` deliberately omits
-/// comparison (`geom_core::real`'s module docs), and neither `Interval`
-/// nor `Dual` is `PartialEq` at all — an enclosure compared for equality
-/// is not a geometric question. This projection drops exactly the part
-/// that cannot compare, so the CLASS of a refusal rides anywhere the
-/// error itself cannot: into a `PartialEq` error enum, a hash key, an
-/// FFI tag map.
+/// scalar payloads, so it can never be `Eq` and a derived `PartialEq`
+/// would not be worth having: `Real` deliberately omits comparison
+/// (`geom_core::real`'s module docs), so the impl would hold only where
+/// the scalar supplies equality itself — `f64`, and neither `Interval`
+/// (an enclosure compared for equality is not a geometric question) nor
+/// `Dual` — and even at `f64` it is float `==`, which is not reflexive
+/// at the poison value `Real`'s totality contract promises. This
+/// projection drops exactly the part that cannot compare, so the CLASS
+/// of a refusal rides anywhere the error itself cannot: into a
+/// `PartialEq` error enum, a hash key, an FFI tag map.
 ///
 /// One variant per [`PathError`] arm, and [`PathError::kind`] matches
 /// exhaustively — a new arm stops every consumer compiling rather than
 /// falling into a wildcard.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+///
+/// The exhaustiveness runs one way only. A variant here with no arm
+/// behind it is a PHANTOM: nothing constructs it, so no test can reach
+/// it, and the only build it reds is a downstream map's — `pncad-py`'s
+/// `path_error_tag`. The fix at that red is to delete the phantom, not
+/// to give it a tag; a tag minted for a phantom publishes an FFI name
+/// no refusal can ever carry.
+///
+/// Deliberately NOT `Ord`. The declaration order mirrors [`PathError`]'s
+/// for reading, but nothing depends on it and an order derived on a
+/// public enum is a promise about a sequence that means nothing here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PathErrorKind {
     /// [`PathError::JunctionTangent`].
     JunctionTangent,
@@ -1004,38 +1018,38 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {} m on a {} m arm) — if intended, author it \
+                 (turn margin {margin} m on a {arm} m arm) — if intended, author it \
                  structurally: .tangent() at an interior junction (exact by construction), or \
                  the tangent-arc / seam-fillet close at the seam; otherwise move the geometry \
                  (or lower the tolerance)",
-                num(margin),
-                num(arm)
+                margin = num(margin),
+                arm = num(arm)
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
                 "this junction reverses onto the incoming direction at any precision you \
-                 could care about (turn margin {} m on a {} m arm): a cusp, and \
+                 could care about (turn margin {margin} m on a {arm} m arm): a cusp, and \
                  the material-wedge invariant admits one only where it is DECLARED — if \
                  intended, author it structurally: .cusp() at an interior junction (exact by \
                  construction, and it emits the declaration); otherwise move the geometry",
-                num(margin),
-                num(arm)
+                margin = num(margin),
+                arm = num(arm)
             ),
             Self::TangentLineClose { margin } => write!(
                 f,
                 "a tangent LINE close is overdetermined — direction inherited AND through Start \
-                 (margin {} m) — and refuses always, exact collinearity included: \
+                 (margin {margin} m) — and refuses always, exact collinearity included: \
                  close with the tangent ARC instead (.tangent().tangent_arc_to(Start)), or \
                  rotate the loop's authoring origin so the straight run is authored forward as \
                  side 1 and the arc becomes the closer",
-                num(margin)
+                margin = num(margin)
             ),
             Self::SameCarrierJunction { margin } => write!(
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
-                 {} m): carrier identity is not tangency — extend the leg \
+                 {margin} m): carrier identity is not tangency — extend the leg \
                  instead of minting a collinear/cocircular neighbor",
-                num(margin)
+                margin = num(margin)
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
@@ -1065,7 +1079,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         }
                     },
                 };
-                write!(f, "no corner for a radius-{} m fillet: {what}", num(radius))
+                write!(
+                    f,
+                    "no corner for a radius-{radius} m fillet: {what}",
+                    radius = num(radius)
+                )
             }
             Self::AnchorOutsideTrimmedExtent {
                 side,
@@ -1075,10 +1093,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "the fillet trim would eat the {side} side's anchoring on-path point on its \
-                 {carrier} carrier: tangent setback {} m exceeds the {} m \
+                 {carrier} carrier: tangent setback {setback} m exceeds the {available} m \
                  the anchor pins — reduce the radius or move the anchor",
-                num(setback),
-                num(available)
+                setback = num(setback),
+                available = num(available)
             ),
             Self::FilletOffsetLeverTooShort {
                 side,
@@ -1088,17 +1106,17 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin,
             } => write!(
                 f,
-                "the {side} side's offset lever rho {} m (carrier radius \
-                 {} m) is shorter than the {} m this corner's \
-                 scale needs at the run's tolerance (margin {} m): the fillet's \
+                "the {side} side's offset lever rho {offset_radius} m (carrier radius \
+                 {carrier_radius} m) is shorter than the {least_lever} m this corner's \
+                 scale needs at the run's tolerance (margin {margin} m): the fillet's \
                  tangent point is recovered by projecting its centre back onto that \
                  carrier, and dividing by a lever that short cannot place the point within \
                  tolerance — move the fillet radius away from that side's carrier radius, \
                  or bring the corner's carriers closer together",
-                num(offset_radius),
-                num(carrier_radius),
-                num(least_lever),
-                num(margin)
+                offset_radius = num(offset_radius),
+                carrier_radius = num(carrier_radius),
+                least_lever = num(least_lever),
+                margin = num(margin)
             ),
             Self::FilletEnclosesLegCarrier {
                 side,
@@ -1118,16 +1136,17 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 // be the one the author bracketed (issue #1281).
                 write!(
                     f,
-                    "a radius-{} m fillet cannot round a corner of these carriers: it would \
-                     SWALLOW {whose} (radius {} m). The offset radius rho = R - sigma*tau*r \
-                     is {} m, and a negative rho means every circle of that radius tangent \
+                    "a radius-{radius} m fillet cannot round a corner of these carriers: it \
+                     would SWALLOW {whose} (radius {carrier_radius} m). The offset radius \
+                     rho = R - sigma*tau*r is {offset_radius} m, and a negative rho means \
+                     every circle of that radius tangent \
                      to that carrier on the corner's turn side contains the carrier \
                      whole — the corner with it, since the corner sits on that carrier — so \
                      the arc could never touch the corner it was asked to round. That is not \
                      a fillet of the corner, and no door builds it",
-                    num(radius),
-                    num(carrier_radius),
-                    num(offset_radius)
+                    radius = num(radius),
+                    carrier_radius = num(carrier_radius),
+                    offset_radius = num(offset_radius)
                 )?;
                 match largest_tangent_radius {
                     // The endorsable number: a circle of this radius IS
@@ -1136,30 +1155,30 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // own words when they do.
                     Some(bound) => write!(
                         f,
-                        " — the largest circle tangent to both carriers here has radius {} m, \
-                         so try a radius below that (a short anchored leg can need less \
-                         still)",
-                        num(bound)
+                        " — the largest circle tangent to both carriers here has radius \
+                         {bound} m, so try a radius below that (a short anchored leg can \
+                         need less still)",
+                        bound = num(bound)
                     ),
                     // Nothing endorsable at this site: the class bound is
                     // necessary and not sufficient, and naming a radius
                     // below it would be a promise this gate cannot keep.
                     None => write!(
                         f,
-                        " — any fillet of this corner needs a radius below {} m, which is a \
-                         necessary bound and not a sufficient one: these carriers may admit \
-                         no fillet at all at this corner",
-                        num(carrier_radius)
+                        " — any fillet of this corner needs a radius below {carrier_radius} m, \
+                         which is a necessary bound and not a sufficient one: these carriers \
+                         may admit no fillet at all at this corner",
+                        carrier_radius = num(carrier_radius)
                     ),
                 }
             }
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
                 f,
-                "this arc spec's authored datum ({}) names no arc: a zero bulge \
+                "this arc spec's authored datum ({value}) names no arc: a zero bulge \
                  degenerates to the chord (author a line), and a sweep angle or arc length \
                  must be definitely positive",
-                num(value)
+                value = num(value)
             ),
             Self::SeamRetrimsArcFirstSide => write!(
                 f,
@@ -1169,24 +1188,24 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NonpositiveLeg { length } => write!(
                 f,
-                "a leg must advance the tip by a definitely positive length (got {} m): \
+                "a leg must advance the tip by a definitely positive length (got {length} m): \
                  a negative length runs the side backward and detaches anchored points from \
                  the final path (every authored point lies on the final path, authored once); \
                  a sub-tolerance length is a degenerate segment",
-                num(length)
+                length = num(length)
             ),
             Self::NonpositiveFilletRadius { radius } => write!(
                 f,
-                "a fillet needs a definitely positive radius (got {} m): r = 0 \
+                "a fillet needs a definitely positive radius (got {radius} m): r = 0 \
                  degenerates the arc and a negative r mirrors the tangent points past the \
                  corner — no tangent construction exists to declare",
-                num(radius)
+                radius = num(radius)
             ),
             Self::NonpositiveCircleRadius { radius } => write!(
                 f,
-                "a circle needs a definitely positive radius (got {} m): r = 0 is a \
+                "a circle needs a definitely positive radius (got {radius} m): r = 0 is a \
                  point and r < 0 names no circle",
-                num(radius)
+                radius = num(radius)
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
@@ -1203,31 +1222,31 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::ArcContinueOffCarrier { offset } => write!(
                 f,
                 "the arc_continue target does not lie on the incoming carrier (radial offset \
-                 {} m): a subdivision vertex is ON the carrier by definition — fix the \
+                 {offset} m): a subdivision vertex is ON the carrier by definition — fix the \
                  authored point rather than expecting a re-projection",
-                num(offset)
+                offset = num(offset)
             ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
                 "a director spelled as components must name a direction (got \
-                 ({}, {}), whose norm is within tolerance of zero): only the ratio \
+                 ({dx}, {dy}), whose norm is within tolerance of zero): only the ratio \
                  of the components is read, so scaling them up costs nothing",
-                num(dx),
-                num(dy)
+                dx = num(dx),
+                dy = num(dy)
             ),
             Self::ArcViaCollinear { offset } => write!(
                 f,
-                "the through-point lies on the chord line (offset {} m, within \
+                "the through-point lies on the chord line (offset {offset} m, within \
                  tolerance of zero): three collinear points name no arc — move the \
                  through-point off the chord, or author the straight segment as a line",
-                num(offset)
+                offset = num(offset)
             ),
             Self::DegenerateArcChord { chord } => write!(
                 f,
-                "an arc leg's endpoints are within tolerance of each other (chord {} \
+                "an arc leg's endpoints are within tolerance of each other (chord {chord} \
                  m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
                  chain leg",
-                num(chord)
+                chord = num(chord)
             ),
             Self::ArcCenterNotEquidistant {
                 tip_radius,
@@ -1235,18 +1254,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "the authored centre is not equidistant from the arc's endpoints \
-                 (|tip - centre| = {} m, |end - centre| = {} m): the \
+                 (|tip - centre| = {tip_radius} m, |end - centre| = {end_radius} m): the \
                  three authored points contradict each other. Nothing is re-projected — an \
                  authored point is never moved to make a construction work; fix whichever \
                  of the three is wrong",
-                num(tip_radius),
-                num(end_radius)
+                tip_radius = num(tip_radius),
+                end_radius = num(end_radius)
             ),
             Self::DegenerateArcCenter { radius } => write!(
                 f,
-                "the authored centre is within tolerance of an endpoint (radius {} \
+                "the authored centre is within tolerance of an endpoint (radius {radius} \
                  m): the carrier has no radius, so the winding selects nothing",
-                num(radius)
+                radius = num(radius)
             ),
             Self::FarEndAnchorWithoutFillet => write!(
                 f,

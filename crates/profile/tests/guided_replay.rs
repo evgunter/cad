@@ -526,3 +526,102 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     assert_eq!(vp.loops()[0].role(), profile::LoopRole::Outer);
     assert_eq!(vp.loops()[1].role(), profile::LoopRole::Hole);
 }
+
+/// A structure refusal reports both sides of a disagreement in PROSE.
+///
+/// Every payload that has a vocabulary reaches the sentence through
+/// that vocabulary's `Display`; none reaches it through `Debug`. The
+/// assertions are on exact renderings, so reverting any arm to `{:?}`
+/// fails this test rather than passing unnoticed — a fieldless
+/// variant's `Debug` spelling is the type's identifier, and putting an
+/// identifier where a word belongs is the defect being guarded.
+#[test]
+fn structure_refusal_renders_its_payloads_as_words_not_debug() {
+    use profile::{CornerGate, LoopRole, SegmentShape, StructureRefusal};
+
+    // Each converted vocabulary, rendered on its own. The paired
+    // `Debug` spelling is asserted absent: it is what a reverted arm
+    // would emit, and it differs from the prose in case alone for
+    // `LoopRole`, which a substring check would miss.
+    let rows: [(String, &str, &str); 6] = [
+        (CornerGate::Admitted.to_string(), "admitted", "Admitted"),
+        (
+            CornerGate::RefusedAdvance.to_string(),
+            "refused (corner not ahead of the incoming anchor)",
+            "RefusedAdvance",
+        ),
+        (
+            CornerGate::RefusedReach.to_string(),
+            "refused (corner not behind the arrival anchor)",
+            "RefusedReach",
+        ),
+        (LoopRole::Outer.to_string(), "outer", "Outer"),
+        (LoopRole::Hole.to_string(), "hole", "Hole"),
+        (SegmentShape::Line.to_string(), "a line", "Line"),
+    ];
+    for (rendered, prose, debug_spelling) in rows {
+        assert_eq!(rendered, prose);
+        assert!(
+            !rendered.contains(debug_spelling),
+            "{rendered:?} carries the Debug spelling {debug_spelling:?}"
+        );
+    }
+
+    // The arc carries its turn through `Sign`'s own words.
+    assert_eq!(
+        SegmentShape::Arc {
+            turn: Sign::Positive
+        }
+        .to_string(),
+        "an arc turning positive"
+    );
+
+    // The composed sentence: a `Flipped` refusal names both sides, and
+    // each side is a `DecisionValue` arm rendering through the above.
+    let refusal = StructureRefusal {
+        decision: Decision::Role { loop_: 1 },
+        kind: StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Role(LoopRole::Outer),
+            found: DecisionValue::Role(LoopRole::Hole),
+        },
+    };
+    let rendered = refusal.to_string();
+    assert!(
+        rendered.contains("selected outer, this binding gives hole"),
+        "the roles did not reach the sentence as words: {rendered}"
+    );
+
+    // The index-set arm keeps a `Debug` list — its members are
+    // identifiers-as-location — but a noun introduces it, so the list
+    // reads as a value rather than as a dump that leaked into prose.
+    let sets = StructureRefusal {
+        decision: Decision::TangentJoints { loop_: 0 },
+        kind: StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Set(vec![1, 2]),
+            found: DecisionValue::Set(vec![1, 3]),
+        },
+    };
+    assert!(
+        sets.to_string()
+            .contains("selected indices [1, 2], this binding gives indices [1, 3]"),
+        "the index sets lost their noun: {sets}"
+    );
+
+    // The gate and shape arms, composed the same way.
+    let gate = StructureRefusal {
+        decision: Decision::CornerGate {
+            fillet: 0,
+            corner: 0,
+        },
+        kind: StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Gate(CornerGate::Admitted),
+            found: DecisionValue::Gate(CornerGate::RefusedReach),
+        },
+    };
+    let g = gate.to_string();
+    assert!(
+        g.contains("selected admitted, this binding gives refused"),
+        "{g}"
+    );
+    assert!(!g.contains("Admitted"), "the gate reverted to Debug: {g}");
+}

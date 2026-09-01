@@ -130,9 +130,12 @@ pub enum SegmentShape {
 
 impl core::fmt::Display for SegmentShape {
     /// The shape as prose — the one spelling a user-facing message
-    /// uses, so a rendered shape never leans on `Debug`. The arc names
-    /// its turn sense in words, since which way it turns is half of
-    /// what distinguishes two arcs a record disagrees about.
+    /// uses, so a rendered shape never leans on `Debug`. The arc
+    /// carries its turn, since which way it turns is half of what
+    /// distinguishes two arcs a record disagrees about; it renders in
+    /// `Sign`'s vocabulary ("an arc turning positive"), which names the
+    /// sign and not the handedness — positive is counterclockwise, as
+    /// the `turn` field states.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Line => f.write_str("a line"),
@@ -423,9 +426,11 @@ impl core::fmt::Display for Decision {
 // A payload that has a vocabulary reaches prose through that
 // vocabulary's own `Display`, never through `Debug`: a refusal sentence
 // is read by a person, and a fieldless variant's `Debug` spelling is the
-// type's identifier, not a word. [`DecisionValue::Set`] is the
-// exception and stays a `Debug` list — its members are loop indices,
-// identifiers-as-location, which have no prose form to reach for.
+// type's identifier, not a word. `Set` is the exception and keeps a
+// `Debug` list — its members are loop indices, identifiers-as-location,
+// which have no prose form to reach for — but a noun introduces it, so
+// the list reads as the value it is rather than as a dump that leaked
+// into a sentence.
 impl core::fmt::Display for DecisionValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -435,7 +440,7 @@ impl core::fmt::Display for DecisionValue {
             Self::Count(n) => write!(f, "{n} of them"),
             Self::Shape(s) => write!(f, "{s}"),
             Self::Inside(b) => write!(f, "inside = {b}"),
-            Self::Set(v) => write!(f, "{v:?}"),
+            Self::Set(v) => write!(f, "indices {v:?}"),
             Self::Role(r) => write!(f, "{r}"),
         }
     }

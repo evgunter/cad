@@ -294,8 +294,12 @@ pub trait ProfilePayload {
 /// (`EvalError`/`ProfileError` are `PartialEq`, as `EditError`
 /// requires). The geometry-replay class cannot carry its cause whole:
 /// `profile::PathError` is generic in the evaluation scalar and its
-/// arms carry scalar payloads, and `Real` omits comparison, so no
-/// equality exists to derive. [`ProgramRefusal::Geometry`] therefore
+/// arms carry scalar payloads, and `Real` omits comparison. A derived
+/// `PartialEq` would not be unavailable so much as useless — it would
+/// exist only where the scalar supplies equality on its own, which is
+/// `f64` and neither `Interval` nor `Dual`, and even at `f64` it is
+/// float `==`, non-reflexive at the poison value `Real`'s totality
+/// contract promises. [`ProgramRefusal::Geometry`] therefore
 /// carries the part that does compare — `profile::PathErrorKind`, the
 /// refusal's class — beside the driver's rendered sentence and the
 /// typed coordinates. **The class is the typed interface; the prose is
