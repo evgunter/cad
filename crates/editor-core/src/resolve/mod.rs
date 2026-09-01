@@ -386,6 +386,40 @@ pub enum ResolveIndeterminate {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM — the minting node's standing, which is the half a user
+// can act on — plus the fact that makes this vocabulary its own: the
+// reference is indeterminate, not vanished, so the recourse is always
+// to restore the node's value, never to rebind. The three arms say
+// what the hit-test door's identical arms say, because it is the same
+// fact about the same evaluation reached through a different door.
+impl core::fmt::Display for ResolveIndeterminate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::TargetFailed { node } => write!(
+                f,
+                "the name's minting node {} failed this evaluation, so the reference cannot be \
+                 answered right now — fix the node's own failure and it resolves again",
+                node.0
+            ),
+            Self::TargetPoisoned { through } => write!(
+                f,
+                "the name's minting node is poisoned by the failure at node {}, so the \
+                 reference cannot be answered right now — the repair is upstream, at node {}",
+                through.0, through.0
+            ),
+            Self::TargetNotEvaluated { node } => write!(
+                f,
+                "the name's minting node {} has no result in this evaluation (a canceled run's \
+                 suffix) — re-evaluate and the reference resolves again",
+                node.0
+            ),
+        }
+    }
+}
+
+impl core::error::Error for ResolveIndeterminate {}
+
 /// One resolution's outcome (total: every input name gets exactly one
 /// of these, never a panic).
 #[derive(Debug, Clone, PartialEq)]
