@@ -3837,8 +3837,46 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 1 must name the tangent tube walls against a planar disc: {glued:?}"
+            "wall 1 must name the stem's tube wall against a planar disc of the arch: \
+             {glued:?}"
         );
+        // **What this pair actually is, measured.** The gate names the
+        // stem's tube wall against the arch's FAR cap — the disc at the
+        // top of the arch, metres from anything the stem occupies. The
+        // two exact loci never come near each other; what overlaps is
+        // the stem wall's BOX, which for a torus is the whole tube
+        // about the ring centre and reads nothing from the face's
+        // boundary, so a 22° arc of a 5 m ring is boxed as the entire
+        // 10 m ring.
+        //
+        // So wall 1 is not a germ-class wall and never was: no arm is
+        // missing for a pair that does not meet. It is the box
+        // artifact the cone arm already had fixed (its slab became the
+        // frustum its window cuts) and the torus arm has not.
+        //
+        // The weld's own contact — the stem's end disc against the
+        // arch's start disc — is plane×plane, declared and verified;
+        // the tube walls take no part in it, because the arch's tube
+        // is thinner than the stem's and the two walls share nothing
+        // but the plane they both end on.
+        let arch_far_cap = arch
+            .faces()
+            .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+                Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
+                _ => None,
+            })
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0);
+        if let (
+            BooleanError::CurvedPairUnsupported { other_face, .. },
+            Some((far, _)),
+        ) = (&glued, arch_far_cap)
+        {
+            assert_eq!(
+                *other_face, far,
+                "the pair the gate names is the stem's wall against the arch's FAR cap — \
+                 a box overlap, not a contact"
+            );
+        }
 
         let welded = pncad::topo::union(lant, arch, tol)
             .expect_err("the lantern still cannot be welded to the arch");
@@ -3857,56 +3895,6 @@ mod verbs_gate_r1_probes {
             "wall 2 must name a lantern CONE against the arch's tube — the pair the \
              gate has no arm for, with the two loci sharing one circle: {welded:?}"
         );
-    }
-
-    /// TEMPORARY measurement probe (MATE-7a).
-    #[test]
-    fn mate7a_measure_the_stem_weld() {
-        let tol = Tol::witness();
-        let pieces = plant::<f64>(tol);
-        let by = |name: &str| {
-            &pieces
-                .iter()
-                .find(|p| p.name == name)
-                .expect("named lily piece")
-                .body
-        };
-        for name in ["lily_stem", "lily_arch"] {
-            let body = by(name);
-            println!("--- {name} ---");
-            for (k, f) in body.faces() {
-                println!(
-                    "  {k:?} sense={} surf={:?}",
-                    f.sense,
-                    body.get_surface(f.surface)
-                );
-            }
-        }
-        let (stem, arch) = (by("lily_stem"), by("lily_arch"));
-        for (name, body) in [("stem", stem), ("arch", arch)] {
-            println!("--- {name} edges ---");
-            for (k, e) in body.edges() {
-                println!("  {k:?} curve={:?}", body.get_curve_geom(e.curve).map(|c| match c {
-                    pncad::topo::CurveGeom::Certified(c) => format!("{:?} params {:?}", c.carrier(), c.params()),
-                    _ => "scaffolding".to_string(),
-                }));
-            }
-        }
-        let decls = crate::booleans::flush_declarations(stem, arch, tol);
-        println!("declared pairs: {:?}", decls.coincident_faces);
-        let glued = crate::booleans::try_union_declared(stem, arch, tol);
-        match glued {
-            Ok(pncad::topo::BooleanResult::Body(b)) => {
-                println!(
-                    "WALL 1 GLUES: kind {:?}, {} faces, volume {:?}",
-                    b.kind,
-                    b.body.faces().count(),
-                    pncad::topo::mass_properties(&b.body, tol).map(|m| m.volume)
-                );
-            }
-            Ok(pncad::topo::BooleanResult::Empty) => println!("WALL 1: EMPTY"),
-            Err(e) => println!("WALL 1 refuses: {e:?}"),
-        }
     }
 
     /// The axis-aligned box of the named cone frusta of the lantern,
