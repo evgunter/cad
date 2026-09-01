@@ -5307,57 +5307,6 @@ A lane sweeping `BooleanError` — or any `topo` refusal enum — should
 sweep by VARIANT NAME, and should expect let-else and `matches!` shapes.
 A disclosed blind spot that produces a real hit is a work order.
 
-## S105. The shared refusal ladder retired one duplication and minted a documented hand-synced one
-
-`crates/editor-core/src/eval/wire.rs:717-723`'s new `ladder` module doc:
-*"**Not shared with `crate::resolve`, yet** … The two agree by hand
-across a module boundary, at coarser grain than the duplication this
-module retired; folding them is a larger change … recorded as such and
-not attempted here."* The duplication is real:
-`crates/editor-core/src/resolve/mod.rs:552-557` re-derives the
-`next_id`/`ForeignNode`/`NodeDeleted` rung and `:583`/`:606` rebuild the
-same `TieWitness`. "Recorded as such" is not a schedule.
-
-Same wave, same shape:
-`crates/editor-core/src/persist/kernel_wire.rs:17-20` says the module
-exists *"so the technique has one home and one doc instead of one per
-type"*, and `boolean_op.rs:13-15` makes a point of the read direction
-not restating the write direction — *"it calls it"*.
-`contact_class::untag` (`contact_class.rs:87-113`) restates the table
-anyway, for the enum that is `#[non_exhaustive]`, and has no equivalent
-of `boolean_op::serialize`'s round-trip guard.
-
-**Verdict:**
-
-## S170. The PATHS verb vocabulary's sixth copy is the Python surface, and it is the only silent one
-
-`crates/pncad-py/src/py/path.rs` binds the PATHS lattice state for
-state, one `#[pymethods]` block per state, and
-`crates/pncad-py/pncad.pyi` declares the same methods again. The module
-header's *"The Python layer re-implements NOTHING"* is true of the
-BODIES — every verb clones its `PartialPath` and calls the same generic
-Rust method — and false of the vocabulary: which verbs exist at which
-states is written out by hand, twice.
-
-Nothing anchors either copy. Measured: with a probe verb added to
-`transition_table!` and `editor-core`'s two exhaustive matches on
-`profile::Step` discharged, `cargo check --workspace --all-targets` is
-clean, `pncad-py` included. A verb the table gains simply does not exist
-in Python, and no test says so.
-
-S4's `Step`-verb row counted **5, across 3 crates**; with this one it
-is **6**, and its anchor list named no `pncad-py` file. Both are
-corrected at that row, which now cites every copy by name.
-
-The `editor-core` half is closed by S106's census, which cannot reach
-here: `Verb::ALL` is Rust and this surface is a PyO3 binding plus a
-`.pyi`. The shape that would work is the one S4's `RoleSeg` row already
-describes for the same crate — enumerate the Rust vocabulary and assert
-one Python attribute per member — so the first question is whether the
-`Step` mirror and the `RoleSeg` mirror want one census or two.
-
-**Verdict:**
-
 ## S195. The arc-mode vocabulary is the profile `Step` vocabulary one level down, and it has no census at all
 
 **Raised by #836 (G7/S106) out of its own claim site.** The verb
@@ -5534,7 +5483,6 @@ see §C.
   unguardable — a re-run of the import census would guard it"*. By its
   own account a guard is available and not taken; no import-census row
   exists in `ci.yml`.
-- (e) `crates/editor-core/src/eval/wire.rs:717-723` — see S105.
 - (f) `crates/topo/src/euler.rs:3220-3251` — `strum::EnumCount` named as
   the way out and declined; see S94.
 
