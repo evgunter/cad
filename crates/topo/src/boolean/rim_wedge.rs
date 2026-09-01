@@ -558,3 +558,121 @@ mod redfirst {
         );
     }
 }
+
+/// R2 review probes for MATE-7a (PR #1477). Not the unit's rows —
+/// reviewer measurements of what the routing answers on inputs the
+/// unit's own fixtures do not cover.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+        }
+    }
+
+    fn cut_plane(sign: f64) -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.6),
+            normal: Vec3::new(0.0, 0.0, sign),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cut_rim() -> Rim<f64> {
+        Rim {
+            center: Point3::new(0.0, 0.0, 0.6),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **The tangency screen, at R2's own fixture.** `validate`'s
+    /// check-4 material arm — whose fold this module imports — is
+    /// entered only after `classify_dihedral` reports every interior
+    /// sample definitely `Smooth`. R2 found `classify_shared_rim`
+    /// running that fold with no such precondition, so a rim where the
+    /// two surfaces genuinely CROSS was classified anyway: the unit
+    /// sphere and the plane `z = 0.6`, meeting at a definite 53
+    /// degrees, came back `Seam`.
+    ///
+    /// **INVERTED at the fix pass**, which is what this row is for. It
+    /// was written to demonstrate the defect and asserted the defect's
+    /// output; the screen now runs, so the same fixture answers
+    /// `Transverse` and the row asserts THAT. The fixture, the numbers
+    /// and the argument are R2's; only the expected value moved, and it
+    /// moved because the code was fixed rather than because the row was
+    /// weakened — a `Seam` here would red it again.
+    #[test]
+    fn r2_a_plainly_transverse_rim_is_not_classified_as_a_seam() {
+        let got = classify_shared_rim(&sphere(), 1.0, &cut_plane(1.0), 1.0, cut_rim(), 1.6, band());
+        println!("[r2] transverse sphere/plane rim routes to {got:?}");
+        assert_eq!(
+            got.expect("the routing answers rather than escalating"),
+            RimRouting::Transverse,
+            "a definite 53-degree crossing is a genuine corner, not a wedge-pi seam"
+        );
+    }
+
+    /// R2's sharper half: the same crossing with the plane's stored
+    /// normal REVERSED used to be sent to the OTHER unbuilt arm, so
+    /// which arm a transverse rim earned depended on a stored sign
+    /// rather than on the geometry.
+    ///
+    /// **INVERTED for the same reason, and this is the stronger claim
+    /// of the two**: transversality is a first-order fact and a face
+    /// sense cannot touch it, so both orientations must now give the
+    /// SAME answer. Asserted as an equality between the two runs rather
+    /// than as two separate expectations, so a future routing that made
+    /// them differ again reds here however it did it.
+    #[test]
+    fn r2_the_same_crossing_cannot_flip_arm_with_the_stored_normal() {
+        let up = classify_shared_rim(&sphere(), 1.0, &cut_plane(1.0), 1.0, cut_rim(), 1.6, band());
+        let down =
+            classify_shared_rim(&sphere(), 1.0, &cut_plane(-1.0), 1.0, cut_rim(), 1.6, band());
+        println!("[r2] normal up routes to {up:?}; normal down routes to {down:?}");
+        assert_eq!(
+            up.expect("the routing answers"),
+            down.expect("the routing answers"),
+            "a stored sign cannot change a first-order verdict"
+        );
+    }
+
+    /// **The sample schedule is NOT the one the imported fold's other
+    /// caller uses.** `validate.rs` takes `1..CERT_SAMPLES-1` (seven
+    /// INTERIOR schedule parameters); this module takes
+    /// `0..CERT_SAMPLES` (nine uniform phases, the first of which is
+    /// the `u_ref` point).
+    ///
+    /// The divergence is REAL and is kept — an edge is an open arc
+    /// whose endpoints other rules already classify, a rim is a closed
+    /// circle with no endpoint to exclude — so this row stands as
+    /// written and now has the reason recorded at both sites. What the
+    /// fix pass changed is the doc comment it caught: `classify_shared_rim`
+    /// no longer claims to sample interior points only, because phase
+    /// zero is an ordinary point of a closed rim rather than a boundary
+    /// site.
+    #[test]
+    fn r2_the_two_callers_of_the_fold_sample_differently() {
+        let n = geom_brep::CERT_SAMPLES;
+        let mine: Vec<u32> = (0..n).collect();
+        let theirs: Vec<u32> = (1..(n - 1)).collect();
+        println!("[r2] rim_wedge samples {mine:?}; validate check-4 samples {theirs:?}");
+        assert_ne!(mine.len(), theirs.len());
+        assert_eq!(
+            mine[0], 0,
+            "the first rim sample sits at theta = 0, the u_ref point"
+        );
+    }
+}
