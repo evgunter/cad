@@ -1079,8 +1079,10 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
 /// own expression — deliberately, because that is the right oracle for
 /// agreement — so it calls `Mat3::rotation_about` itself and both
 /// sides move together. **Any change INSIDE the rotation is invisible
-/// here**, oblique axis and `to_bits()` notwithstanding. Smell-scan
-/// **S215**. The value pins that do object live next to the subject,
+/// here**, oblique axis and `to_bits()` notwithstanding — an oracle
+/// that re-spells its caller's expression moves with the code and pins
+/// nothing about it. The value pins that do object live next to the
+/// subject,
 /// in `geom-core`'s `linalg::mat` test module — the two rows named
 /// `rotation_diagonal_takes_the_square_before_the_scale` and
 /// `rotation_off_diagonals_scale_by_t_before_the_second_component`.

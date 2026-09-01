@@ -15,8 +15,8 @@
 //! not be a rectangle (a keyway on a cylinder is bounded by lines and
 //! circles and is a U), and this walk handles such a loop perfectly
 //! well; it is [`crate::curved`]'s interior grid that needs the
-//! rectangle, and that lane checks it (S28,
-//! `TessellateError::UnsupportedCurvedDomain`). The walk classifies
+//! rectangle, and that lane checks it
+//! (`TessellateError::UnsupportedCurvedDomain`). The walk classifies
 //! each traversal structurally, assigns the constant coordinate once
 //! per ISO SIDE — never per point, so no side wobbles from point to
 //! point and the CDT sees no sliver of that kind — and unwraps the
@@ -635,18 +635,16 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
 /// column is `anchor` either way — so what it measures is **data
 /// quality**, which is what it was always really about.
 ///
-/// MEASURED, and the numbers live in ONE place: `SMELL-SCAN-2026-08`
-/// §S22 carries the closure census (wild corpus and in-tree, per file,
-/// with the instrumentation described). It is not restated here,
-/// because the previous census in this exact spot went stale and wrong
-/// — *"all 18 nonzero residues sit in one wild file"* survived into a
-/// milestone doc after a second file joined them — and three
-/// hand-synced copies of a number is the shape that produced that. The
-/// shape, which is what a reader of this function needs: nonzero
-/// closures are RARE and confined to imported files; the values repeat
-/// at a single radius, so they are one geometric feature instanced
-/// many times rather than accumulated error; and in-tree the only
-/// nonzero closures are 1 ulp, from the one obliquely-placed fixture.
+/// MEASURED, and what the measurement is FOR is the deviation ledger
+/// below: the assertion's cost is only bearable if the input class it
+/// fires on is rare. It is. Nonzero closures are confined to imported
+/// files, and the values repeat at a single radius, so they are one
+/// geometric feature instanced many times rather than accumulated
+/// error; in-tree the only nonzero closures are 1 ulp, from the one
+/// obliquely-placed fixture. **Nothing re-measures that**, and no
+/// figure is kept here for it to drift from: this crate has no
+/// dev-dependency on `step-import` and no test in this repo tessellates
+/// the wild corpus, so the input class is untested by construction.
 ///
 /// TRACED — the one file that matters, kept here because it is the
 /// argument for the bar's UNIT and not a census figure. Those closures

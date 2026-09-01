@@ -10,7 +10,7 @@
 //! sweep-authored face satisfies it; it is not a property of
 //! iso-bounded input in general (a keyway is iso-bounded and is a U),
 //! so it is CHECKED here rather than assumed —
-//! [`TessellateError::UnsupportedCurvedDomain`], S28.
+//! [`TessellateError::UnsupportedCurvedDomain`].
 //!
 //! The check is BANDED, in metres, not exact. `walk::iso_side_starts`
 //! makes an iso side carried by several edges exactly straight at the
@@ -54,19 +54,18 @@
 //! computes `nu`/`nv` itself from `(surface, delta)`, so a firing means
 //! the kernel's own sizing corrupted a mesh from a body
 //! `topo::validate` accepts — and D9's converse half makes a panic the
-//! obligation for such a state, not a tolerance. `SMELL-SCAN-2026-08.md`
-//! **S65** asked whether release should instead REFUSE typed; that is
-//! ruled out for a row-5 state, because downgrading a bug to a typed
-//! error launders it into a supported outcome. Ruled in **#884**; the
-//! flag decides only the REACH.
+//! obligation for such a state, not a tolerance. Whether release should
+//! instead REFUSE typed was asked and ruled out for a row-5 state, in
+//! **#884**, because downgrading a bug to a typed error launders it
+//! into a supported outcome. The flag decides only the REACH.
 //!
 //! **What the ruling depends on, stated because it does depend on it:**
 //! the competing reading is row 2 (*valid but unbuilt*, hence a typed
 //! refusal), and it turns on whether [`pole_columns`] closes the
 //! `nu == 2` class. If that floor is ever falsified, the state moves and
-//! so does the mechanism. S65's option C — the full-2π seam case with no
-//! floor in any build, and cross-face identification with no check at
-//! all — is **#897**, and the second of those is outside this
+//! so does the mechanism. The remaining option — the full-2π seam case
+//! with no floor in any build, and cross-face identification with no
+//! check at all — is **#897**, and the second of those is outside this
 //! re-derivation by construction: it reads THIS patch's pole-incident
 //! edges only.
 //!
@@ -232,8 +231,8 @@ pub(crate) fn tessellate_curved(
     // is why it is a refusal rather than a comment. (The hazard
     // `planar::triangulate_chart`'s header warns about is a
     // precondition of PLANAR's crossing bookkeeping, which this lane
-    // does not build; S28 in `docs/SMELL-SCAN-2026-08.md` is the one
-    // home for that history and for what spade does on a split.)
+    // does not build; the tests below pin what spade actually does on
+    // a split, which is what that warning turns on.)
     let (uspan, vspan) = (u1 - u0, v1 - v0);
     for j in 1..nv {
         #[allow(clippy::cast_precision_loss)]
@@ -769,15 +768,13 @@ fn grid_counts(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    //! **S28 — the swept-UV-rectangle premise this lane's grid rests
-    //! on, pinned by the refusal that now enforces it.**
+    //! **The swept-UV-rectangle premise this lane's grid rests on,
+    //! pinned by the refusal that now enforces it.**
     //!
-    //! The history (why `planar`'s ordering warning was never a claim
-    //! about this lane, and what spade actually does on a split) has
-    //! one home: S28 in `docs/SMELL-SCAN-2026-08.md`. These rows pin
-    //! facts, not prose — the two spade behaviours the inertness
-    //! argument rests on, the refusal itself, and the sweep showing
-    //! nothing this build authors trips it.
+    //! These rows pin facts, not prose — the two spade behaviours the
+    //! inertness argument rests on (which are why `planar`'s ordering
+    //! warning was never a claim about this lane), the refusal itself,
+    //! and the sweep showing nothing this build authors trips it.
 
     use super::*;
     use geom_core::Tol;
@@ -1216,20 +1213,21 @@ mod tests {
     /// # The floor is PER FIXTURE, and derived, not pinned
     ///
     /// `every_curved_walk_is_its_own_bounding_rectangle` two hundred
-    /// lines down argues the case (§C10): a global floor lets a fixture
+    /// lines down argues the case: a global floor lets a fixture
     /// that stopped contributing hide behind its siblings. So this row
     /// asserts, per fixture and per split pattern, that the number of
     /// placed bodies EQUALS the fixture's edge count — every edge
     /// participates — and that `split_each_edge_then_place` skipped
     /// nothing. That floor derives itself from the fixture list, so
     /// adding a fixture cannot silently shrink the sweep, which a
-    /// transcribed total (§C14) cannot promise.
+    /// transcribed total cannot promise.
     ///
     /// The totals are still REPORTED (in the failure message and by
     /// the two constants below) because a reader wants the scale; they
     /// are not what the row rests on.
     ///
-    /// # What this row cannot see (§C15)
+    /// # What this row cannot see — stated, because an unstated blind
+    /// spot reads as a verified negative
     ///
     /// - **Trim-carrier faces.** `curved_walks` skips them exactly as
     ///   the router does, and `crate::trimmed` runs its own walk. An
@@ -1249,7 +1247,7 @@ mod tests {
     ///   independently stated co-`v` `CIRCLE`s, which is a STEP
     ///   authoring job (the fixture generator in
     ///   `crates/step-import/tests/fixtures/split-iso/` is the obvious
-    ///   place); §C10's sweep entry records it as scheduled work.
+    ///   place). Owed work, not covered here.
     #[test]
     fn a_multiply_carried_iso_side_is_bitwise_straight_and_meshes_watertight() {
         // Single and double splits: two sub-edges and three, the second
@@ -1360,7 +1358,7 @@ mod tests {
     /// `continue`s (`has_trim_carrier`, `Chart::of → None`), so a
     /// global floor lets a fixture that stopped contributing hide
     /// behind its siblings' faces. The die pip is the one this matters
-    /// most for (§C10, the sweep this finding asks for): the boolean's
+    /// most for: the boolean's
     /// chart re-cut is what keeps a CUT sphere face iso-rectangular,
     /// and if a future re-cut gave the cavity rim an ellipse carrier it
     /// would drop out of the sweep silently.
@@ -1435,7 +1433,7 @@ mod tests {
     /// The fixture is a synthetic polygon because no public
     /// construction mints such a body: the boolean refuses
     /// `CurvedPierceUnsupported`, and `import_step`'s tier-3 gate
-    /// refuses `PropsError::NotIsoRectangle` before adoption (S28).
+    /// refuses `PropsError::NotIsoRectangle` before adoption.
     /// That is precisely why the guard is here — the mesher is
     /// otherwise protected only by other modules' limits.
     #[test]
@@ -1596,8 +1594,8 @@ mod tests {
     /// is the outcome the payload argument in
     /// [`require_swept_rectangle`] wants.
     ///
-    /// **The non-vacuity floor is global, not per fixture** (§C10),
-    /// and that is a real difference from the rows above: most
+    /// **The non-vacuity floor is global, not per fixture**, and that
+    /// is a real difference from the rows above: most
     /// fixtures here have no pole at all, so "this fixture stopped
     /// contributing" is not distinguishable from "this fixture never
     /// had one". What IS per fixture is the other direction — a pole

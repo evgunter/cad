@@ -353,8 +353,8 @@ mod tests {
     /// The tree's one other oblique-axis bit-exact rotation row
     /// (`editor-core/tests/asm2a_instantiate.rs`) cannot help: its
     /// oracle re-spells the caller's own expression and so moves with
-    /// the code. That is smell-scan **S215**, and this doc comment is
-    /// the reason it is only a finding rather than a hole.
+    /// the code. **That is a known gap, and this row is what keeps it
+    /// from being a hole**: the discrimination is pinned here instead.
     ///
     /// **The angles are swept, not hand-picked.** Whether a given θ
     /// separates the two spellings depends on libm's `sin_cos` to the
@@ -423,8 +423,8 @@ mod tests {
     /// The tree's one oblique-axis bit-exact rotation row outside this
     /// module (`editor-core/tests/asm2a_instantiate.rs`) cannot cover
     /// it: that oracle re-spells its own caller's expression and so
-    /// moves with the code. Smell-scan **S215**, whose remaining half
-    /// this row is.
+    /// moves with the code. This row is what covers that gap for the
+    /// oblique-axis case.
     ///
     /// **What this does NOT pin, said because the oracle shares it
     /// with the subject:** [`Vec3::normalize`]. Both sides normalize
