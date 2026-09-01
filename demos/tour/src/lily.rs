@@ -880,10 +880,13 @@ impl Section {
         // loft matches segment j to segment j and the tip and attachment
         // sections must be spelled on one vertex budget. So one junction
         // per side is a straight run subdivided, at both ends of the
-        // shoulder parameter: at `shoulder = 0` the shoulders are the
-        // midpoints of two tips (the kite), at `shoulder = 1` the tips are
-        // the midpoints of two rectangle corners. Only the eased sections
-        // in between turn at every vertex.
+        // shoulder parameter: at `shoulder = 0` each shoulder is the
+        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
+        // lies ON the rectangle edge its two neighbouring corners span —
+        // collinear with them, though only the ridge and keel tips are
+        // that edge's midpoint (the margins sit at y = 0 on an edge
+        // spanning [-keel, ridge], and no section here has keel = ridge).
+        // Only the eased sections in between turn at every vertex.
         //
         // CLOSED (issue 433, ruled 2026-09-01): those junctions are
         // carrier IDENTITY, legal undeclared, and the lattice now spells
@@ -896,7 +899,13 @@ impl Section {
         // closing leg either departs a subdivision vertex
         // (`TangentLineClose`) or lands on one (a mid-carrier seam, which
         // PATHS §6 PQ4 refuses) — `LiftRefusal::SameCarrierClose` is the
-        // same wall's name one layer down. So this loop is still
+        // same wall's name one layer down. What forces it is the strict
+        // corner/subdivision ALTERNATION that one subdivision per side
+        // produces; an outline free to distribute the same vertex budget
+        // unevenly has spellings that close, and this one is not free
+        // (the loft pins which vertex sits where). The declared
+        // structural closer that ends it is ruled and scheduled
+        // (BOOL-11). Until then this loop is still
         // raw-authored: `ProfileLoop`'s fields are sealed, and the only
         // route left is the kernel's raw door, `profile::RawLoop`, which
         // `pncad::profile` deliberately omits. That is why this crate

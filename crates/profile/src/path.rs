@@ -20,15 +20,18 @@
 //!   intrinsic data).
 //! - **Angle** = `PartialPath<T, NoPos, HasAng>` — a fillet arrival
 //!   bound angle-first (or the entry after `Open.angle(θ)`).
-//! - **Directed** = `PartialPath<T, HasPos<F>, HasAng>` — the only
-//!   state legs and [`fillet`](PartialPath::fillet) consume.
+//! - **Directed** = `PartialPath<T, HasPos<F>, HasAng>` — the state
+//!   [`fillet`](PartialPath::fillet) and every DIRECTED leg consume.
+//!   One leg form does not need it: `line(len)` also runs off a
+//!   DIRECTED POINT, departing along that point's own tangent (the
+//!   straight continuation — no authored direction, no junction).
 //!
 //! The OUTGOING angle is a binding slot, set at most once per side
 //! (a second director on a Directed tip is ill-typed); the INCOMING
 //! direction is never a slot — it is intrinsic data on a leg end,
 //! consultable by [`tangent`](PartialPath::tangent) /
-//! [`turn`](PartialPath::turn) and the junction check, settable by
-//! nothing.
+//! [`turn`](PartialPath::turn), the junction check and the straight
+//! continuation, settable by nothing.
 //!
 //! # Closure
 //!
@@ -69,8 +72,10 @@
 //!
 //! # Refusals
 //!
-//! Compile-time, from the lattice: double director; legs/`fillet` from
-//! non-Directed tips; `.tangent()` on a plain point; leading
+//! Compile-time, from the lattice: double director; `fillet` and the
+//! DIRECTED legs from non-Directed tips (`line(len)` is the exception
+//! that proves the slot: it also has a directed-POINT row, the
+//! straight continuation); `.tangent()` on a plain point; leading
 //! `.fillet`/`.tangent()`; use after close (closing verbs consume the
 //! path and return the loop). Typed runtime errors, from geometry —
 //! the lattice guarantees the authoring, never the geometry: see
@@ -557,11 +562,22 @@ pub enum PathError<T: Real> {
     /// closure): direction inherited AND through `Start` — refused
     /// ALWAYS, exact collinearity included (a ray hitting an
     /// independently-authored point is a value coincidence, and the
-    /// ratified ladder never infers from values). The two structural
-    /// spellings: close with the tangent ARC instead
+    /// ratified ladder never infers from values). Two structural
+    /// spellings exist TODAY, and both need a carrier the closer can
+    /// turn onto: close with the tangent ARC instead
     /// (`.tangent().tangent_arc_to(Start)`), or rotate the loop's
     /// authoring origin so the straight run is authored forward as
     /// side 1 and the arc becomes the closer.
+    ///
+    /// NEITHER reaches an outline whose every side is a subdivided
+    /// STRAIGHT run: rotation cannot help when the seam junction and
+    /// the junction the closer departs are adjacent and alternate in
+    /// kind, and there is no arc to close onto. That class is the
+    /// declared structural CLOSER's — the straight continuation
+    /// landing on a named target, `Start` being the special case,
+    /// checked against the departing ray rather than inferred from it
+    /// (ruled 2026-09-01; not yet built here). Until it lands, an
+    /// all-sides-subdivided outline is authored as loop DATA.
     TangentLineClose {
         /// The offending collinearity/turn margin, meters.
         margin: T,
@@ -1047,7 +1063,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  (margin {margin} m) — and refuses always, exact collinearity included: \
                  close with the tangent ARC instead (.tangent().tangent_arc_to(Start)), or \
                  rotate the loop's authoring origin so the straight run is authored forward as \
-                 side 1 and the arc becomes the closer",
+                 side 1 and the arc becomes the closer — but if EVERY side is a subdivided \
+                 straight run neither applies (no arc to close onto, and rotation only moves \
+                 the wall), and the loop is authored as data until the declared structural \
+                 closer ships",
                 margin = num(margin)
             ),
             Self::SameCarrierJunction { margin } => write!(
@@ -1766,6 +1785,27 @@ fn refuse_identical_carriers<T: Decide>(
     }
 }
 
+/// The straight leg's EMISSION, shared by the two `line(len)` rows —
+/// the directed one (a bound departure) and the straight continuation
+/// (the directed point's own tangent). Both mint the same thing and
+/// must keep minting the same thing: a line vertex at `at + û·len`, a
+/// tip whose carrier is None (a line leg leaves no arc carrier behind)
+/// and whose lever arm is the emitted segment's own length, measured
+/// head-to-end so a side squeezed between two trims measures from the
+/// trim point rather than from an authored anchor.
+fn emit_straight_leg<T: Real>(
+    core: &mut Core<T>,
+    at: Point2<T>,
+    ang: Dir<T>,
+    len: T,
+) -> Result<Tip<T>, PathError<T>> {
+    let end = at + ang.unit * len;
+    let head = core.head()?;
+    core.push_line(end)?;
+    let arm = (end - head).norm_squared().sqrt();
+    Ok(leg_end_tip(end, ang, arm, None))
+}
+
 /// Maps the shared fillet closed form's refusals into the algebra's
 /// vocabulary: a Negative leg fit here IS the anchor-fit refusal (the
 /// helper is fed the two sides' anchoring extents); an escalation
@@ -2431,9 +2471,11 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 
     /// The kernel behind the table's straight-continuation row
     /// (recording is the row's, not the kernel's): the leg departs
-    /// along the directed point's OWN intrinsic tangent, inherited
-    /// BITWISE, so consecutive legs are exactly parallel even where a
-    /// derived vertex rounds. Binding bits only — the tangent is a
+    /// along the directed point's OWN intrinsic tangent, the RAY
+    /// inherited BITWISE — consecutive legs run on one ray, not on two
+    /// that a round trip through the angle put a bit apart. (The ray is
+    /// what is exact; the vertices it lands are ordinary sums and round
+    /// like ordinary sums.) Binding bits only — the tangent is a
     /// binding bit, and nothing else about the incoming leg is read —
     /// so there is no junction to classify (no authored direction
     /// exists) and nothing is declared: the minted vertex is a
@@ -2458,15 +2500,14 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             Err(source) => return Err(PathError::Escalated { source }),
         }
         // The departure IS the incoming ray, moved wholesale: the same
-        // `Dir` value, never re-derived through its angle, which is what
-        // makes the two legs exactly parallel rather than parallel to
-        // within a `sin_cos` round trip.
-        let ang = inc.ang;
-        let end = at + ang.unit * len;
-        let head = self.core.head()?;
-        self.core.push_line(end)?;
-        let arm = (end - head).norm_squared().sqrt();
-        Ok(in_state(self.core, leg_end_tip(end, ang, arm, None)))
+        // `Dir` value, never re-derived through its angle. What that
+        // buys is exact in the DIRECTION — the two legs run on one ray,
+        // not on two rays a `sin_cos` round trip apart. It is not a
+        // claim about the emitted coordinates: `at + û·len` rounds like
+        // any other sum, so two legs of equal length lay down identical
+        // displacements only while those sums are exact.
+        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
+        Ok(in_state(self.core, tip))
     }
 
     /// The kernel behind the table's declared-subdivision row (recording
@@ -2560,11 +2601,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         {
             return Err(PathError::SameCarrierJunction { margin: T::zero() });
         }
-        let end = at + ang.unit * len;
-        let head = self.core.head()?;
-        self.core.push_line(end)?;
-        let arm = (end - head).norm_squared().sqrt();
-        Ok(in_state(self.core, leg_end_tip(end, ang, arm, None)))
+        let tip = emit_straight_leg(&mut self.core, at, ang, len)?;
+        Ok(in_state(self.core, tip))
     }
 
     /// The kernel behind the table's corner-fillet row (recording is the

@@ -828,8 +828,11 @@ transition_table! {
         row {
             /// **The straight continuation** (`directed point → directed
             /// point`): off a DIRECTED POINT — no director bound — the leg
-            /// departs along the point's own intrinsic tangent, inherited
-            /// bitwise, so consecutive legs are exactly parallel. Binding bits
+            /// departs along the point's own intrinsic tangent — the RAY
+            /// inherited bitwise, so consecutive legs run on ONE ray rather
+            /// than on two a round trip through the angle put a bit apart.
+            /// (The ray is what is exact; the vertices it lands are ordinary
+            /// sums and round like ordinary sums.) Binding bits
             /// only: there is NO junction here (no authored direction exists to
             /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
             /// declared. The minted vertex is a structural subdivision of the

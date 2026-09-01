@@ -1,10 +1,14 @@
 # R2 probe lane (BOOL-8, PR #1508, frozen head 6aa2684f2)
 
-Blinded second reviewer. Probes are ADDITIVE records: `probe-append.patch`
-(four rows appended to `crates/profile/tests/path_property.rs` for the
-runs, reverted after — the lane outside `review/r2-bool8/` is
-byte-identical to the frozen head), and two mutation patches, each
-applied once and reverted. Full findings in the R2 report.
+Blinded second reviewer. Probes were ADDITIVE records against a frozen
+head; the fix pass ADOPTED the four probe rows into
+`crates/profile/tests/path_property.rs`, where they now run on every
+CI leg, so this directory's copies of them (`probe-rows.rs`,
+`probe-append.patch`) were deleted rather than kept as a second,
+unchecked copy of rows the suite already carries. What remains is what
+the suite cannot carry: this record, and the two mutation patches —
+each applied once, run, and reverted — which are the falsifiability
+evidence for the rows' claims. Full findings in the R2 report.
 
 ## Probe rows (all green on the frozen head)
 

@@ -909,8 +909,9 @@ and the angle slot bound.
    continuation of the same line, spell it `line(len)` off the
    directed point — no junction exists there; otherwise move the
    geometry (or lower the tolerance)". The margin rides the payload
-   as data; the message never forks on exactly-on vs in-band. Within ε_input of the
-   REVERSE direction refuses as a cusp (reverse-tangent class).
+   as data; the message never forks on exactly-on vs in-band.
+   Within ε_input of the REVERSE direction refuses as a cusp (the
+   reverse-tangent class).
    Declared cusps are legal kernel geometry (D1 tier 3's declared
    second-order wedge arm; #131 ruled 2026-08-23), but the
    authoring door — a cusp analogue of `.tangent()` that authors
@@ -939,17 +940,17 @@ and the angle slot bound.
 
 **RULED (#433 — Evan, in-chat, 2026-09-01, with a second-round
 extension): the lattice and `validate` AGREE.** A straight run
-subdivided at an interior vertex is well formed as DATA (`validate`,
-unchanged: it is what STEP import and raw authored loops routinely
-produce, and nothing there claims tangency) and it is expressible
-STRUCTURALLY in the algebra — `line(len)` off a directed point,
-chained, mints subdivision vertices on the one carrier the binding
-bits already determine (item 4 above; the §3 row). The two doors
-were never measuring different things about this shape; the
-authoring door was simply missing its spelling. An AUTHORED
-direction landing in the tangent band still refuses, recourse as in
-item 1: a target that happens to be collinear is a value
-coincidence, and the ladder never reads intent off a margin.
+subdivided at an interior vertex is well formed as DATA
+(`validate`, unchanged: it is what STEP import and raw authored
+loops routinely produce, and nothing there claims tangency) and it
+is expressible STRUCTURALLY in the algebra — `line(len)` off a
+directed point, chained, mints subdivision vertices on the one
+carrier the binding bits already determine (item 4 above; the §3
+row). The two doors were never measuring different things about
+this shape; the authoring door was simply missing its spelling. An
+AUTHORED direction landing in the tangent band still refuses,
+recourse as in item 1: a target that happens to be collinear is a
+value coincidence, and the ladder never reads intent off a margin.
 
 Per the ruling's second-round extension, `arc_continue` is NOT kept
 as the §2c axiom's exception: it is scheduled for REMOVAL, its
@@ -958,23 +959,48 @@ itself — the open-carrier analog of `circle_split`, with vertices
 minted at the chain's emission layer where the axiom's bookkeeping
 legitimately lives. Companion: `RawLoop` is not an authoring door —
 the vertex table is the materialized form intensional recipes
-evaluate into. #433 closes when both land.
+evaluate into. The units: this half is **BOOL-8**, the
+`arc_continue` retirement **BOOL-10**, the declared point-target
+continuation and its closer **BOOL-11**, the raw-door demotion
+**BOOL-9** (resequenced behind BOOL-11). #433 closes when the
+lattice half and the raw-door half have both landed.
 
-**Residual, found implementing the ruling (not part of the ruled
-text):** the continuation spells INTERIOR subdivisions. A straight
-run that crosses the SEAM is still unauthorable, in either rotation:
-with the seam at a corner the closer departs the run's subdivision
-vertex (`TangentLineClose`), and with the seam at that subdivision
-vertex the seam's own junction is the straight one, which PQ4 (§6,
-no mid-carrier seam) refuses by construction. The lift layer has
-carried a name for the same wall since it was written
-(`LiftRefusal::SameCarrierClose`). A closed outline whose EVERY side
-is subdivided — the lily loft section, which is exactly this shape —
-therefore still has no algebra spelling; the demo says so at its own
-site. Whether that wants a structural closer (the seam analog of the
-continuation, checking that `Start` lies on the departing ray rather
-than inferring it from a value) is a question for the same
-conversation, not a thing this text decides.
+**The seam, measured here and RULED (third round, Evan, in-chat,
+2026-09-01).** The continuation as landed spells INTERIOR
+subdivisions only. A straight run crossing the SEAM is unauthorable
+in either rotation: with the seam at a corner the closer departs
+the run's subdivision vertex (`TangentLineClose`), and with the
+seam at that subdivision vertex the seam's own junction is the
+straight one, which PQ4 (§6, no mid-carrier seam) refuses by
+construction. What forces the choice is the strict
+corner/subdivision ALTERNATION that one subdivision per side
+produces: the seam junction and the junction the closer departs are
+then always adjacent and always of different kinds, so no rotation
+puts a corner at both. An outline free to distribute the same
+vertex budget unevenly has spellings that close; one whose vertices
+are pinned — the lily loft section, whose correspondence the loft
+fixes — is not free. The lift layer has carried a name for this
+wall since it was written (`LiftRefusal::SameCarrierClose`).
+
+The ruling: the straight continuation gains a DECLARED POINT-TARGET
+form — the leg declared to land on a NAMED point, with the kernel
+CHECKING that the target lies on the departing directed point's ray
+and refusing when it does not (a declared structural fact,
+verified, never inferred from a value coincidence). The target is
+ANY authored point, and the structural CLOSER — `Start` as the
+target — is the special case that ends the seam wall. Axiom-clean:
+it consults the directed point's binding bits, the authored target,
+and, for the closer, `Start`, which is the chain's own
+emission-layer bookkeeping. PQ4 stands unchanged; the closer makes
+a seam at
+a CORNER sufficient for an all-sides-subdivided outline. What "lies
+on the ray" means in f64 — exact-or-refuse, which constrains
+authoring, versus any banded check, which re-admits value inference
+— is the implementing unit's design question, and its text comes
+back here for Evan's eyes. Scheduled as **BOOL-11**, after this
+half merges and before the raw-door demotion; until it lands, an
+all-sides-subdivided outline is authored as loop DATA and the lily
+demo says so at its own site.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
