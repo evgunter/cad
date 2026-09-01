@@ -1128,6 +1128,24 @@ pub(crate) fn loop_polygon(
     // and gates nothing — a `debug_assert` condition; its only
     // effect is to panic. Issue 881's named-operations port
     // (MESH-4) inherits this read.
+    //
+    // REACHABILITY (the issue-896 fixture question, measured): no
+    // minting door in this build can put the state in front of
+    // `tessellate`. A junction within eps of a chart pole lies on a
+    // rim of radius at most that distance, so some boundary feature
+    // measures at most 2π·eps — and under the ratified K = 10 band
+    // (any K > 2π), import's span certification cannot clear it
+    // (`step-import/tests/poleguard.rs`, refused at all three suite
+    // ε legs), while revolve's `axis_vertex_radius` bar pins or
+    // escalates every such rim and its pcurve lane refuses far
+    // beyond it (`mesh/tests/issue896_pole_guard.rs`). What would
+    // open a route: a certification band with K < 2π, an adoption
+    // lane that skips span certification, or a consumer assembling
+    // a Body through the Euler doors directly — which no
+    // certification fronts, and which is why this guard exists and
+    // runs in release builds. The firing itself is demonstrated at
+    // the mechanism: `tests::
+    // a_rim_junction_inside_the_pole_band_trips_the_guard`.
     let near_unidentified_pole = || -> Option<(u32, Point3<f64>, f64, f64)> {
         for t in &travs {
             let jid = t.ids[0];
@@ -1969,5 +1987,76 @@ mod tests {
     fn an_empty_cycle_has_no_area() {
         let a = loop_area(&[]);
         assert_eq!((a.x, a.y, a.z), (0.0, 0.0, 0.0));
+    }
+
+    /// **Issue 896's guard, demonstrated firing** — the red-first half
+    /// of the row, at the mechanism, because no minting door in this
+    /// build can place the state in front of `tessellate` (the measured
+    /// no-route verdict beside the guard; the door rows live in
+    /// `mesh/tests/issue896_pole_guard.rs` and
+    /// `step-import/tests/poleguard.rs`).
+    ///
+    /// The body is real and valid — the nearest-the-pole sphere band
+    /// the revolve door admits (top rim 0.1 m off the axis, junction
+    /// 0.1001 m from the undeclared pole; every smaller radius refuses
+    /// at a certified bar, see the integration row). The band the
+    /// guard reads is `loop_polygon`'s `eps` PARAMETER, and 0.15 m
+    /// puts that junction inside it while keeping the two top seam
+    /// vertices (0.2 m apart) outside the declared-vertex guard's
+    /// reach — so the panic this row expects is exactly the new
+    /// guard's, not #895's, and not a construction refusal.
+    ///
+    /// Positions and chords are minted exactly as `tessellate` mints
+    /// them, so the walk sees the shape a real call would hand it.
+    #[test]
+    #[should_panic(expected = "does not identify with a chart pole")]
+    fn a_rim_junction_inside_the_pole_band_trips_the_guard() {
+        use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+        use std::collections::HashMap;
+        let tol = geom_core::Tol::witness();
+        let rho = 0.1f64;
+        let (h, rc) = (0.5f64.sin(), 0.5f64.cos());
+        let yt = (1.0 - rho * rho).sqrt();
+        let bulge = ((yt.atan2(rho) - h.atan2(rc)) / 4.0).tan();
+        let profile_loop = ProfileLoop::new(vec![
+            ProfileVertex::new(geom_core::Point2::new(rc, h), bulge),
+            ProfileVertex::new(geom_core::Point2::new(rho, yt), 0.0),
+            ProfileVertex::new(geom_core::Point2::new(0.3, 1.3), 0.0),
+            ProfileVertex::new(geom_core::Point2::new(1.1, 0.9), 0.0),
+        ]);
+        let profile = Profile::new(SketchPlane::xy(), vec![profile_loop])
+            .validate(tol)
+            .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: geom_core::Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let body = sweep::revolve(&profile, axis, sweep::Revolution::Full, tol)
+            .unwrap()
+            .body;
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, v) in body.vertices() {
+            vids.insert(vk, u32::try_from(positions.len()).unwrap());
+            positions.push(*body.get_point(v.point).unwrap());
+        }
+        let mut bounds = crate::nurbs_cert::FaceBounds::new();
+        let chords = crate::chords::compute_chords(
+            &body,
+            crate::sizing::sizing_target(0.05),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
+        let (fk, face) = body
+            .faces()
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .expect("the revolve mints a sphere wall");
+        let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
+        for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
+            let _ = loop_polygon(&body, &chart, &chords.ids, &positions, fk, lk, 0.15);
+        }
+        unreachable!("a loop of this face holds the in-band junction, so the guard fires");
     }
 }
