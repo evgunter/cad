@@ -240,6 +240,12 @@ mod mate1_member_vocab;
 mod mate1_r1_probes;
 #[path = "mate1r2_probes.rs"]
 mod mate1r2_probes;
+#[path = "mate6_gather_mints.rs"]
+mod mate6_gather_mints;
+#[path = "mate6r1_shared.rs"]
+mod mate6r1_shared;
+#[path = "mate6r2_probes.rs"]
+mod mate6r2_probes;
 #[path = "pirad_schema_v19.rs"]
 mod pirad_schema_v19;
 #[path = "placedunion_schema_v12.rs"]

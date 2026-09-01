@@ -78,3 +78,40 @@ route: 1415 (F7 merge-door frontier), 1416 (full-period carrier),
 1418 (the inherited k-lint red — montage-v3's debt, now two faces).
 Next: MATE-6's dual concludes (R2 in flight), then its fix pass;
 MATE-3 implementer still building.
+
+**2026-08-31 — MATE-6 MERGED (PR #1420; issue 946 closed).** The Q1
+drift-closure executed: minting lives in the product gather
+(assemble = product + tier-3′), and the instantiation seam needed
+ZERO eval lines — the existing carry channel just started carrying.
+Dual ordinal 1302 (sample #81 at merge), both arms M-A-F with zero
+silent deviations; R1's mint-totality-unguarded MAJ is a v6 TALLY
+CANDIDATE (unilateral, test-gap, executed — coding at the blinded
+adjudication). At fix: both probe suites adopted, three new rows
+pin each continue independently (the reverting mutant reds 3),
+issue 1429 filed (the PartValue seam channel — carried refutations
+cannot name their mate, inner mint refusals stop at the seam; the
+ruling's-letter narrowing flagged for Evan there). Remaining slate:
+MATE-3 (implementer finishing), MATE-4a (implementer running),
+MATE-4b design pass (orchestrator's, next), MATE-5 (after 4a lands,
+census.rs serialization), MATE-7 (last).
+
+**2026-09-01 — MATE-4a MERGED (PR #1432; issue 973 stays open for
+its part (b)).** The Q2(a) rung landed at exactly the ruled
+strength: `ef_bound_backed`'s interior arm reads the face rung, the
+overhang seat's hard `Unattributed` retires to the `Uncertified`
+frontier, and the (b) straddle stays byte-identical. Dual ordinal
+1303 (sample #83 at merge), both arms M-A-F with the code judged
+correct — the whole union was prose/docs plus probe adoption. The
+dual's real product is issue 1435: the residue is NOT the chart
+predicate's honest posture but an incompleteness in #1063's
+interior_witness rescue rung (its fixed D9 candidate schedule
+misses small overlaps of non-convex trims, so legal declared seats
+bifurcate per-fixture) — instrumented by one arm, demonstrated by
+the other's certifying spike-seat probe. That issue is a named
+foundation caveat for the MATE-4b design pass. Also recorded (R2's
+class observation, a future census hygiene pass): census.rs holds
+SKIP-licensing premises (`vf_deferred`, `planar_face_bridged`,
+`same_key_conformal`) that no refusal-premise sweep reaches — the
+unsound direction; nothing demonstrated wrong, recorded so a sweep
+with that genus has a home. Next: MATE-3's dual concludes, then the
+4b design pass draft (orchestrator's own).

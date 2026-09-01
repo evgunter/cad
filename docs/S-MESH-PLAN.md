@@ -165,13 +165,13 @@ logged pre-draw per the protocol.
   not conflated with #678's `nu == 2` pole floor. Retires that S29
   instance; if the unit finds the answer belongs to the sizing-policy
   conversation instead, it stops and reports rather than patching.
-- **MESH-6 — #897, the S65-residue costings (M; measurement-first).**
-  Cost the 2π-seam and cross-face-identification cases (S65's
-  measured price for the patch-local guard is stated non-transferable
-  by the issue); verify or refute `pole_columns`' own
-  MAX_ANGULAR_STEP argument as a floor for the seam case; route each
-  case to its D2 row in a written proposal. **Builds no mechanism**:
-  the output attaches to the S65 ruling request (Q1 below).
+- **MESH-6 — #897, the two uncovered S65 cases (S; discretionary
+  under the Q1 ruling).** Measure the cost of covering the full-2π
+  seam and cross-face identification; verify or refute
+  `pole_columns`' own MAX_ANGULAR_STEP argument as a floor for the
+  seam case; add the cases as debug-profile-only guards if cheap,
+  else record the verdict at the site and close #897. No shipped
+  guard either way (S65 ruled: stays compiled out).
 - **MESH-7 — #727 then #726, iso-rectangle door ownership (M/L;
   design first — Q3 below, then the C11 fold-in).** After the ruling:
   fold `mesh::curved`'s SHAPE question onto
@@ -181,12 +181,15 @@ logged pre-draw per the protocol.
   bold): the `walk::iso_side_starts` qualification either survives
   the fold or is closed by it. #723's extent gap, which #726 warned
   the fold would import, is closed (CERT-1).
-- **MESH-8 — #868, the typed warning channel (L; design conversation
-  — Q2 below — then implementation).** Retroactively re-answers the
-  #896/#897 guard shapes if a channel exists, which is why it is
-  sequenced after their measurements but before any of the three
-  detectors is re-classified. The issue's non-scope binds: no typed
-  refusals as a drive-by.
+- **MESH-8 — #868, the coherence-detector relocation (M/L; under
+  the Q2 ruling).** Delete the three mesh-side detectors; land the
+  body-side coherence examination with a non-gating findings report
+  per the ruling; the door decision (tier-adjacent examine vs
+  step-import diagnostics) is the unit's first recorded question,
+  answered by the dependency graph and the finding's audience. The
+  issue's non-scope still binds: no condition becomes a refusal as
+  a drive-by. Sequenced after MESH-3 (which may add a fourth
+  detector-adjacent guard to the same file).
 - **MESH-9 — #950, parked with a trigger.** The issue's own words:
   neither fix is needed until a body presents the configuration, and
   the failure is a typed `CertificateExceeded` refusal that names it
@@ -210,13 +213,27 @@ program's leave — same orchestrator, seam recorded in both plans.
 
 ## Rulings sought (Evan)
 
-1. **Q1 — S65's route (deferred by design).** Not asked now: MESH-6
-   first supplies the two missing costings, then the three-way S65
-   decision (leave as debug-profile-only; unconditional patch-local
-   guard at the measured +18–35% pole-patch cost; per-case coverage
-   of seam/cross-face) goes to Evan **once, with all prices on the
-   table**. Recommendation reserved until the numbers exist.
-2. **Q2 — #868's warning channel shape.** Recommendation:
+1. **Q1 — RULED (Evan, in-chat, 2026-09-01)**: S65 stays compiled
+   out — no unconditional shipped guard; there is no record of the
+   backstop itself catching anything outside dev. Coverage for the
+   two uncovered cases (full-2π seam, cross-face identification) is
+   discretionary: MESH-6 reshapes from a ruling-feeder into a small
+   unit that measures their cost, adds them as debug-profile-only
+   guards if cheap, and otherwise records the verdict and closes
+   #897.
+2. **Q2 — RULED (Evan, in-chat, 2026-09-01): option (d),
+   relocation.** The three detectors measure body-data coherence
+   (carrier-vs-vertex gaps computable from the body alone — no mesh
+   state, no δ dependence), so the conditions move to the body's own
+   examination lane and the mesh-side debug_asserts are DELETED —
+   the tessellator stops being a lint for other people's data and
+   `tessellate`'s signature never changes. MESH-8 reshapes to the
+   relocation unit: one body-side coherence examination with a
+   NON-GATING findings report (bodies that mesh today keep meshing;
+   nothing panics), the unit's first job being to confirm which door
+   carries it (tier-adjacent examine vs step-import diagnostics) and
+   its second to show each relocated condition firing on the same
+   witness the mesh assert would have caught.
    **mesh-local**, a typed `MeshWarning` (all three detectors measure
    the same thing — a gap against a lever arm, in meters, against ε,
    so the payload is a struct, not a string), returned beside the
@@ -229,7 +246,11 @@ program's leave — same orchestrator, seam recorded in both plans.
    alternative is a sidecar field on `Mesh`, which keeps signatures
    but muddies "the mesh is the output". Mesh-local now does not
    preclude hoisting the type later if a second crate demands it.
-3. **Q3 — #727's door ownership.** Recommendation: **no consumer
+3. **Q3 — RULED (Evan, in-chat, 2026-09-01): explicit doors.**
+   No consumer keeps a transitive floor — each door that needs the
+   iso-rectangle premise cites `props_rim_level` itself. MESH-7 is
+   unblocked and implements the mesh side on this ruling. The
+   original recommendation, kept as the ruling's record: **no consumer
    keeps a transitive floor** — each door that needs the
    iso-rectangle premise cites `props_rim_level` itself (the S58
    single-home predicate), so when the certified-quadrature lane

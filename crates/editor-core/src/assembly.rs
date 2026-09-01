@@ -12,6 +12,15 @@
 //!   mate mints IDENTICALLY to a determining one: minting is
 //!   declaration, not verification, and a mate that placed nothing
 //!   still says what touches what.
+//!
+//!   [`mint`] lives here because minting speaks the mate vocabulary,
+//!   but the door that CALLS it is the product gather
+//!   ([`crate::product::product_recorded`]), which is what A3's
+//!   "evaluation carries each mate's declaration" means: every
+//!   evaluated product carries its own mates' declarations, so a
+//!   sub-assembly's DECLARATIONS ride into the consuming document on
+//!   the contacts channel instead of dying at the seam. Construction
+//!   composes.
 //! - **Verification (D-3)**: the minted set goes through the kernel's
 //!   own tier-3′ door, [`topo::validate_pseudomanifold`]. Declared
 //!   contacts certify through the per-class doors; undeclared ones are
@@ -38,9 +47,18 @@
 //! - **Which classes mint** is [`crate::mate::class_admission`], the
 //!   one table this door and the solve door both read.
 //! - **What a declared contact can reach** is
-//!   [`AssemblyError::Uncertified`], the arm every declared
-//!   cross-instance pair lands in today, and which a caller must match
-//!   apart from the verdicts against their own document.
+//!   [`AssemblyError::Uncertified`], which a caller must match apart
+//!   from the verdicts against their own document. WHICH declared
+//!   pairs reach it narrowed when minting moved into the gather: the
+//!   arm requires EVERY finding to be `Declined`, and a finding is
+//!   `Declined` only when it names a declaration THIS document minted.
+//!   So the pairs that still land there are the ones this document's
+//!   own mates declared; a CARRIED declaration the census merely
+//!   declines attributes [`Attribution::Unattributed`] — its mate's
+//!   rows do not cross the instantiation seam — and routes to
+//!   [`AssemblyError::AtRest`] instead. Loud either way, and narrower
+//!   than the frontier arm says; issue 1429 is the seam channel that
+//!   would let a carried pair reach `Uncertified` under its own name.
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
@@ -221,6 +239,76 @@ pub struct AtRestFinding {
     pub error: ValidationError,
 }
 
+/// Why one mate's declaration was not minted into the product's record
+/// set — the mint door's two typed refusals, carried as DATA because
+/// the door that mints is the gather and the door that refuses is the
+/// at-rest gate.
+///
+/// A gather does not refuse over these: neither of them changes what
+/// material the document denotes, and a document whose mate reference
+/// went stale, or whose class carries no record at rest, still has a
+/// product to draw and to measure. [`assemble`] is where they become
+/// refusals ([`AssemblyError::Reference`] and
+/// [`AssemblyError::NoAtRestRecord`], in document order), because
+/// "these records are the ones this document rests on" is the at-rest
+/// gate's claim, not the gather's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MintRefusal {
+    /// A mate's reference did not resolve to a product face.
+    Reference {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side.
+        side: MateSide,
+        /// The reference.
+        name: Box<StableName>,
+        /// Why it did not resolve.
+        why: RefusedRef,
+    },
+    /// The mate's class mints no record at rest — the mint door's half
+    /// of [`crate::mate::class_admission`].
+    NoAtRestRecord {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Its class.
+        class: ContactClass,
+        /// Why that class carries nothing at rest, in the class's own
+        /// terms. Sourced from the table, never restated here.
+        why: &'static str,
+    },
+}
+
+impl MintRefusal {
+    /// The mate the refusal is about.
+    #[must_use]
+    pub fn mate(&self) -> RecipeNodeId {
+        match self {
+            Self::Reference { mate, .. } | Self::NoAtRestRecord { mate, .. } => *mate,
+        }
+    }
+}
+
+impl From<MintRefusal> for AssemblyError {
+    fn from(refusal: MintRefusal) -> Self {
+        match refusal {
+            MintRefusal::Reference {
+                mate,
+                side,
+                name,
+                why,
+            } => Self::Reference {
+                mate,
+                side,
+                name,
+                why,
+            },
+            MintRefusal::NoAtRestRecord { mate, class, why } => {
+                Self::NoAtRestRecord { mate, class, why }
+            }
+        }
+    }
+}
+
 /// Why the assembly gate refused.
 #[derive(Debug)]
 pub enum AssemblyError {
@@ -365,10 +453,20 @@ impl core::fmt::Display for AssemblyError {
 
 impl core::error::Error for AssemblyError {}
 
-/// **The A5 gate, assembled** (D-2 + D-3): gather the document's
-/// product, mint every solved mate's declaration into its contact
-/// record set, and run the kernel's tier-3′ at-rest door over the
-/// two together.
+/// **The A5 gate, assembled** (D-2 + D-3): take the document's
+/// product — whose gather already minted every solved mate's
+/// declaration into its contact record set (A3's "Declaration
+/// minting": *evaluation carries each mate's declaration into the
+/// evaluated body's contact record set*) — and run the kernel's
+/// tier-3′ at-rest door over the two together.
+///
+/// **This door mints nothing of its own.** Construction composes and
+/// verification runs once: minting belongs to the gather, so a
+/// sub-assembly's declarations are already in the product this gate is
+/// handed, arriving under the graft's own descendant map exactly as a
+/// boolean's discovered records do. What this door adds is the
+/// verification — including of the carried declarations, which are
+/// re-verified here and never trusted.
 ///
 /// This is what "an assembly is valid at rest" MEANS for a document
 /// with mates: not a stronger check bolted onto the product gather,
@@ -411,10 +509,30 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
     let Product {
         body,
         names,
-        mut contacts,
+        contacts,
+        minted,
+        unminted,
         ..
     } = product;
-    let minted = mint(doc, evaluation, &names, &mut contacts)?;
+    // The gather records what it could not mint; this door is where
+    // that becomes a refusal, in document order, because an at-rest
+    // verdict on a record set is only meaningful when the set is the
+    // whole one the document's mates declared.
+    //
+    // `into_iter().next()` rather than `first()`: the head is MOVED out
+    // of an owned vector nothing reads afterwards, and a `MintRefusal`
+    // owns a boxed `StableName`, so borrowing the head would only force
+    // a clone of it to build the error.
+    //
+    // Only the head is raised, and the rest are dropped. That is a
+    // narrower report than the gather can now support — every refusal
+    // is in `Product::unminted`, in document order — but widening it
+    // means a second refusal channel on `AssemblyError`, whose two mint
+    // arms are carried through the pncad-py façade. Recorded as a
+    // follow-up rather than taken here.
+    if let Some(refusal) = unminted.into_iter().next() {
+        return Err(refusal.into());
+    }
     match T::gate_at_rest_declared(&body, &contacts, tol) {
         Ok(_) => Ok(Assembly {
             body,
@@ -467,13 +585,21 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
 /// already refused the document in that case, so reaching here means
 /// every root evaluated, and a mate value that is absent is a node
 /// that is not live.
+///
+/// **Total over the document's live mates**: a mate this cannot mint
+/// yields a [`MintRefusal`] row and the walk CONTINUES, so the record
+/// set is every declaration the document could state rather than the
+/// prefix before its first bad one. The refusals ride back in document
+/// order for [`assemble`] to raise — one implementation of what a mate
+/// declares, and one of what it costs when it cannot.
 pub(crate) fn mint<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,
     contacts: &mut ContactRecords,
-) -> Result<Vec<MintedDeclaration>, AssemblyError> {
+) -> (Vec<MintedDeclaration>, Vec<MintRefusal>) {
     let mut minted = Vec::new();
+    let mut unminted = Vec::new();
     for &id in doc.order() {
         let Some(Node::Mate { a, b, class, .. }) = doc.node(id) else {
             continue;
@@ -486,8 +612,19 @@ pub(crate) fn mint<P, T: Decide>(
         ) {
             continue;
         }
-        let face_a = resolve_face(names, id, MateSide::A, a)?;
-        let face_b = resolve_face(names, id, MateSide::B, b)?;
+        let (face_a, face_b) = match (
+            resolve_face(names, id, MateSide::A, a),
+            resolve_face(names, id, MateSide::B, b),
+        ) {
+            (Ok(face_a), Ok(face_b)) => (face_a, face_b),
+            // The `a` side answers first when both sides refuse: one
+            // mate contributes one row, and which side it names is the
+            // order the references are written in.
+            (Err(refusal), _) | (Ok(_), Err(refusal)) => {
+                unminted.push(refusal);
+                continue;
+            }
+        };
         // The class table is the policy (`mate::class_admission`); this
         // door enforces its own half of it, and takes the REASON from
         // the table too, so the message can never be another class's.
@@ -495,13 +632,28 @@ pub(crate) fn mint<P, T: Decide>(
             // Face granularity (M9-1): a rest between two placed faces
             // IS a `PatchContact`. Same type as the boolean wrapper's
             // records, no adapter.
-            ClassAdmission::Mints => contacts.patches.push(PatchContact { face_a, face_b }),
+            //
+            // INVARIANT, pinned here because `attribute`'s
+            // `StaleContactDeclaration` arm reasons from it: this door
+            // makes patch records of two DISTINCT faces, and never a
+            // `CurveContact`. A same-instance mate is refused
+            // `SelfMate` at the solve door, so a live mate reaching
+            // here names two faces of two different instances.
+            ClassAdmission::Mints => {
+                debug_assert!(
+                    face_a != face_b,
+                    "a live mate's two references resolved to one face: \
+                     the solve door's `SelfMate` refusal was bypassed"
+                );
+                contacts.patches.push(PatchContact { face_a, face_b });
+            }
             other => {
-                return Err(AssemblyError::NoAtRestRecord {
+                unminted.push(MintRefusal::NoAtRestRecord {
                     mate: id,
                     class: *class,
                     why: other.no_record_reason(),
                 });
+                continue;
             }
         }
         minted.push(MintedDeclaration {
@@ -512,7 +664,7 @@ pub(crate) fn mint<P, T: Decide>(
             faces: (face_a, face_b),
         });
     }
-    Ok(minted)
+    (minted, unminted)
 }
 
 /// One mate reference → the product face it names, or the typed
@@ -523,8 +675,8 @@ fn resolve_face(
     mate: RecipeNodeId,
     side: MateSide,
     name: &StableName,
-) -> Result<FaceKey, AssemblyError> {
-    let refuse = |why| AssemblyError::Reference {
+) -> Result<FaceKey, MintRefusal> {
+    let refuse = |why| MintRefusal::Reference {
         mate,
         side,
         name: Box::new(name.clone()),
@@ -596,27 +748,22 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // the other direction of the certification diff. The record's
         // own faces are in the error, so it names its mate exactly.
         //
-        // **UNREACHABLE through this door today, and no row can pin
-        // its `Refuted` label.** Every `PatchContact` the gate sees
-        // here is one `mint` made (the gather itself contributes none
-        // — `row2_a` asserts that), and a minted record is
-        // cross-instance by construction, because a same-instance
-        // mate refuses `SelfMate` at the solve door. For such a pair
-        // the census's chart door answers DIVERGENCE, never `Empty`,
-        // so the staleness arm never fires; both faces are in the
-        // gathered body by construction, so its other trigger cannot
-        // fire either; and the `CurveLocus` half needs a
-        // `CurveContact`, which `mint` refuses to make at all.
+        // **No row pins its `Refuted` label**, because no fixture
+        // reaches the arm: the `CurveLocus` half needs a
+        // `CurveContact`, and [`mint`] makes `PatchContact`s of two
+        // DISTINCT faces and nothing else — the invariant its own
+        // `debug_assert` pins, and the row
+        // `mint_makes_distinct_face_patches_and_no_curve_records`
+        // asserts. The `Patch` half needs the census's chart door to
+        // answer `Empty` on a cross-instance pair, which it does not
+        // do today.
         //
-        // The label still has to be right, because it is exactly the
-        // dangerous direction: relabelled `Declined`, a REFUTED
-        // declaration would be promoted into
-        // `AssemblyError::Uncertified` and reported as an unrefuted
-        // frontier. What makes the arm live is the same census
-        // cross-instance chart rung that closes `Uncertified` — when
-        // the chart door starts answering `Empty` instead of
-        // diverging, this arm executes and wants its own acceptance
-        // row in the same change.
+        // The label still has to be right, because it is the dangerous
+        // direction: relabelled `Declined`, a REFUTED declaration would
+        // be promoted into `AssemblyError::Uncertified` and reported as
+        // an unrefuted frontier. When the chart door starts answering
+        // `Empty`, this arm executes and wants its own acceptance row
+        // in the same change.
         ValidationError::StaleContactDeclaration {
             declaration:
                 topo::StaleDeclaration::Patch { face_a, face_b }
