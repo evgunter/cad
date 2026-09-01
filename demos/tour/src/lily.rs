@@ -3865,16 +3865,21 @@ mod verbs_gate_r1_probes {
                 Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
                 _ => None,
             })
-            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0);
-        if let (BooleanError::CurvedPairUnsupported { other_face, .. }, Some((far, _))) =
-            (&glued, arch_far_cap)
-        {
-            assert_eq!(
-                *other_face, far,
-                "the pair the gate names is the stem's wall against the arch's FAR cap — \
-                 a box overlap, not a contact"
-            );
-        }
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
+            .expect("the arch carries a cap plane clear of the weld");
+        // Unconditional on both halves. Under an `if let` this row
+        // SELF-DISABLES the moment the refusal's shape changes — which
+        // is exactly when the claim it makes needs re-reading, so the
+        // one arrangement that must not be used is the one that goes
+        // quiet then.
+        let BooleanError::CurvedPairUnsupported { other_face, .. } = &glued else {
+            panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
+        };
+        assert_eq!(
+            *other_face, arch_far_cap.0,
+            "the pair the gate names is the stem's wall against the arch's FAR cap — \
+             a box overlap, not a contact"
+        );
 
         let welded = pncad::topo::union(lant, arch, tol)
             .expect_err("the lantern still cannot be welded to the arch");

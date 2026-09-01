@@ -362,6 +362,23 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         gate_operand_edges(body, operand)?;
     }
+    // **`class_of`, not `declares_rest` — and the safety of that is an
+    // ORDERING fact, so it is stated here rather than left to be
+    // rediscovered.** This predicate is class-BLIND by construction: any
+    // declared class covers the pair. That would be wrong on its own,
+    // because a `Tangent` claim licenses no same-carrier treatment and
+    // the class-aware twin (`DeclaredPairs::declares_rest`) sits sixty
+    // lines away in `mod`. What makes it right is that
+    // `verify_declared_contacts` runs BEFORE this gate and has already
+    // refused every declaration it cannot verify — for a torus pair that
+    // is every `Tangent` claim, since the witness lane has no torus arm
+    // and the rim routing refuses each of its outcomes typed. So a
+    // `Tangent` torus pair never survives to be covered here.
+    //
+    // Read the dependency the other way and it is a warning: whoever
+    // teaches the `Tangent` door to ADMIT a curved pair must revisit
+    // this predicate in the same change, because the class-blindness is
+    // load-bearing only while that door refuses.
     if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists, |operand, f, other| {
         declared
             .class_of(operand, f, operand.other(), other)

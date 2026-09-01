@@ -817,14 +817,24 @@ pub enum BooleanError {
     /// **A germ PAIR with no boolean seam lane**, refused at the
     /// operand gate.
     ///
-    /// The gate asks two questions and both have to answer yes: does
-    /// this face's KIND have a wired arm, and can this face REACH the
-    /// other operand at all. The second is decided at box-level
-    /// conservatism (`reduce::first_unsupported_pair`), which is why
-    /// the payload names a pair rather than a body: a cone or a torus
-    /// whose box clears every face of the other operand cannot enter
-    /// a crossing, a section or a germ pair, so the operation does
-    /// not depend on its kind and the gate says nothing about it.
+    /// The gate asks THREE questions, and this refusal is what a pair
+    /// that answered wrong on all three earns: does this face's KIND
+    /// have a wired arm; can this face REACH the other operand at all;
+    /// and, failing both, do the caller's DECLARATIONS speak for this
+    /// particular pair. Reach is decided at box-level conservatism
+    /// (`reduce::first_unsupported_pair`), which is why the payload
+    /// names a pair rather than a body: a cone or a torus whose box
+    /// clears every face of the other operand cannot enter a crossing,
+    /// a section or a germ pair, so the operation does not depend on
+    /// its kind and the gate says nothing about it.
+    ///
+    /// The third question is the newest and the narrowest. A
+    /// declaration is the author supplying the verdict a germ arm would
+    /// have supplied, verified at the front door before this gate runs;
+    /// a pair it covers is one the pipeline has an answer for. What may
+    /// be declared is bounded by the certified carrier inventory, so a
+    /// kind with no rung there can never be covered here — which is why
+    /// this refusal still names cones and NURBS unconditionally.
     ///
     /// **The overlap that DID fire is a may, not a does.** Boxes are
     /// supersets, so the two faces named here may in exact geometry
@@ -1928,7 +1938,13 @@ fn verify_tangent_declaration<T: Decide>(
             // geometry IS rather than only that a witness is missing.
             // Where there is no shared rim — or the samples cannot
             // settle one — the bare class refusal stands, verbatim.
-            if let Some(rim) = rim_wedge::shared_rim(a, fa, b, fb, band) {
+            // An UNDECIDABLE rim identity escalates typed rather than
+            // reading as "no rim here": the two are different findings
+            // and only one of them means the geometry was examined and
+            // cleared.
+            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
+                .map_err(|diag| BooleanError::Escalated { diag })?;
+            if let Some(rim) = rim {
                 let (sa, sb) = (
                     surface_of(a, fa, Operand::A)?,
                     surface_of(b, fb, Operand::B)?,

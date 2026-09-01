@@ -99,36 +99,68 @@ impl RimRouting {
 /// point set. Every candidate pair is examined and the FIRST match
 /// wins; a face pair riding two common circles at once is not a rim
 /// contact and is outside what this door claims to see.
+///
+/// **The angular margin is metered at the candidate's own extent**, not
+/// at unit arm. A dimensionless sine says nothing until it is priced as
+/// the displacement it induces over the reach the verdict is consumed
+/// across, and that reach is the rim's diameter — the same extent the
+/// caller then meters the wedge screen and the material arm at, so all
+/// three stages lever against one arm and their margins are comparable.
+/// The extent is DERIVED here rather than threaded in, and the reason is
+/// that it cannot be threaded: it is a property of the rim, and the
+/// caller has no rim until this function returns one. `ra.radius +
+/// rb.radius` is that diameter for any pair whose radii agree, and a
+/// pair whose radii disagree is about to be rejected on the radius
+/// margin regardless.
+///
+/// **An in-band comparison ESCALATES; it never reads as "not this
+/// pair".** Two circles a hair apart are the sliver case, not a
+/// separation: answering `None` there would make an undecidable rim
+/// indistinguishable from a definitely absent one and hand the caller
+/// the bare class refusal as though the geometry had been examined and
+/// cleared. That is the silence this module's own docs forbid.
+///
+/// # Errors
+///
+/// [`Indeterminate`] naming the rim-identity predicate that landed in
+/// the band.
 pub(crate) fn shared_rim<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Option<Rim<T>> {
+) -> Result<Option<Rim<T>>, Indeterminate> {
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            let same = [
+            // Radius and centre first, angle last: the two LENGTH data
+            // separate almost every non-rim pair definitely and cheaply,
+            // so ordering them ahead of the angular row keeps the sliver
+            // band from being consulted at all on pairs that are not
+            // candidates.
+            let mut same = true;
+            for (name, margin) in [
+                ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
                 ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
                 (
                     "rim_circle_axis_parallel",
-                    Margin::levered(ra.axis.cross(rb.axis).norm(), T::one()),
+                    Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
                 ),
-                ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-            ]
-            .into_iter()
-            .all(|(name, margin)| {
-                matches!(
-                    crate::validate::decide(name, margin, band),
-                    Ok(geom_core::Sign::Zero)
-                )
-            });
+            ] {
+                match crate::validate::decide(name, margin, band)? {
+                    geom_core::Sign::Zero => {}
+                    geom_core::Sign::Positive | geom_core::Sign::Negative => {
+                        same = false;
+                        break;
+                    }
+                }
+            }
             if same {
-                return Some(ra);
+                return Ok(Some(ra));
             }
         }
     }
-    None
+    Ok(None)
 }
 
 /// The circle carriers of a face's boundary edges.
@@ -378,6 +410,116 @@ mod redfirst {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
+        Rim {
+            center: Point3::new(center[0], center[1], center[2]),
+            axis: Vec3::new(axis[0], axis[1], axis[2]),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The rim-identity comparison, driven directly on two circles —
+    /// the three-outcome ε row every one of its margins owes, stated in
+    /// BAND UNITS so it means the same thing at every ε the matrix
+    /// runs.
+    ///
+    /// `shared_rim` reads circles off face boundaries, which no unit
+    /// fixture in this crate can mint; the comparison it performs is
+    /// this one, so the rows drive it through the same `decide` calls
+    /// with the same names and the same band.
+    fn rim_identity(ra: &Rim<f64>, rb: &Rim<f64>, band: Band) -> Result<bool, Indeterminate> {
+        let mut same = true;
+        for (name, margin) in [
+            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
+            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+            (
+                "rim_circle_axis_parallel",
+                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+            ),
+        ] {
+            match crate::validate::decide(name, margin, band)? {
+                geom_core::Sign::Zero => {}
+                _ => {
+                    same = false;
+                    break;
+                }
+            }
+        }
+        Ok(same)
+    }
+
+    /// **MIN-3, the swallowed escalation.** A radius perturbed INTO the
+    /// band is the sliver case: it must escalate typed naming the
+    /// predicate, never read as "not this pair", which is what a
+    /// definitely-different radius reads as. Three outcomes, one datum.
+    #[test]
+    fn rim_radius_epsilon_row_three_outcomes() {
+        let b = band();
+        let base = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06);
+        assert!(
+            rim_identity(&base, &base, b).unwrap(),
+            "exact: one rim"
+        );
+        let in_band = circle(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            5.06 + (b.zero() + b.escalate()) * 0.5,
+        );
+        match rim_identity(&base, &in_band, b) {
+            Err(d) => assert_eq!(d.predicate, Some("rim_circle_radius")),
+            Ok(v) => panic!("in-band must escalate, not answer {v}"),
+        }
+        let definite = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06 + b.escalate() * 1e6);
+        assert!(
+            !rim_identity(&base, &definite, b).unwrap(),
+            "definite: not this pair"
+        );
+    }
+
+    /// The centre datum's own three outcomes.
+    #[test]
+    fn rim_center_epsilon_row_three_outcomes() {
+        let b = band();
+        let base = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06);
+        let in_band = circle(
+            [(b.zero() + b.escalate()) * 0.5, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            5.06,
+        );
+        match rim_identity(&base, &in_band, b) {
+            Err(d) => assert_eq!(d.predicate, Some("rim_circle_center")),
+            Ok(v) => panic!("in-band must escalate, not answer {v}"),
+        }
+        let definite = circle([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06);
+        assert!(!rim_identity(&base, &definite, b).unwrap());
+    }
+
+    /// **MIN-2, the lever arm.** The angular datum is metered at the
+    /// rim's own diameter, so the SAME tilt answers differently on a
+    /// small rim and a large one — which is the whole content of
+    /// "levered at the consumption extent". A literal unit arm would
+    /// give one answer for both.
+    #[test]
+    fn rim_axis_tilt_is_decided_at_the_rims_own_diameter() {
+        let b = band();
+        // A tilt sub-band over a 0.12 m rim and definite over a 2000 km
+        // one, stated in band units.
+        let tilt = b.zero() * 0.5;
+        let small = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.06);
+        let small_tilted = circle([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 0.06);
+        assert!(
+            rim_identity(&small, &small_tilted, b).unwrap(),
+            "at a 0.12 m rim the tilt is below the band"
+        );
+        let big = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0e6);
+        let big_tilted = circle([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 1.0e6);
+        assert!(
+            !matches!(rim_identity(&big, &big_tilted, b), Ok(true)),
+            "the same tilt over a 2000 km rim is not the same circle"
+        );
     }
 
     /// RED-FIRST (MAJ-1): a unit sphere cut by z = 0.6 is a DEFINITE
