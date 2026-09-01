@@ -16,11 +16,8 @@ use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use sweep::blend::{BlendError, Filleted, fillet_edges};
 use sweep::test_support::cube;
+use topo::query::all_edges;
 use topo::{Body, EdgeKey, FaceKey};
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 fn die(l: f64, r: f64) -> Filleted<f64> {
     let body = cube(l, Tol::witness());

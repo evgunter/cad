@@ -27,11 +27,8 @@ use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
+use topo::query::all_edges;
 use topo::{Body, EdgeKey};
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// Extrude a convex polygon (counterclockwise vertices) by `h`.
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {

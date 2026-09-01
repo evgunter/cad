@@ -18,6 +18,7 @@ use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::all_edges;
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
@@ -128,10 +129,6 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         })
         .map(|(k, _)| k)
         .collect()
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 // ---------------------------------------------------------------------

@@ -15,7 +15,8 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::query::all_edges;
+use topo::{Body, BooleanDeclarations};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
@@ -41,10 +42,6 @@ fn hexagonal_prism() -> Body<f64> {
         })
         .collect();
     prism(&pts, 4.0)
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 /// **F2 (MAJOR), the row that would have caught it.** Every corner

@@ -30,6 +30,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
+use topo::query::all_edges;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
 mod common;
@@ -141,10 +142,6 @@ fn tube() -> Body<f64> {
         &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
         Revolution::Full,
     )
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 // ---------------------------------------------------------------

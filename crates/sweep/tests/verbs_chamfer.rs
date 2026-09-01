@@ -15,16 +15,13 @@ use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::query::all_edges;
 use topo::{Body, EdgeKey};
 
 /// The cube side, meters.
 const L: f64 = 1.0;
 /// The chamfer setback, meters.
 const D: f64 = 0.1;
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// **The chamfered cube's volume in closed form.**
 ///

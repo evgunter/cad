@@ -35,16 +35,13 @@ use sweep::blend::{BlendError, BlendKind, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::query::all_edges;
 use topo::{Body, EdgeKey, EntityId};
 
 /// The cube side, meters.
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// The shipped fillet-side guard, transcribed: what
 /// `blend6_verb_vocab.rs`'s `assert_speaks_once_as_the_fillet`

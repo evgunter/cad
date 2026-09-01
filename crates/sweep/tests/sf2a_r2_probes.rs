@@ -26,7 +26,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
-use topo::{Body, ChartMove, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
+use topo::query::all_edges;
+use topo::{Body, ChartMove, FaceKey, ReplaceFaceError, ShellError};
 
 const FIT_TOL: f64 = 1e-6;
 
@@ -50,10 +51,6 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(h), Tol::witness())
         .expect("a polygon extrudes")
         .body
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 /// `a³ − 6ad² + (16/3)d³` — the chamfered cube's own closed form

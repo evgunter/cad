@@ -31,15 +31,12 @@ use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::all_edges;
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
     let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 /// Dump one body, bit for bit, in key iteration order (identical
