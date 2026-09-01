@@ -617,7 +617,7 @@ fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Vec<[f64; 2]> {
         // other side of its own chord).
         let theta = 4.0 * bulge.atan();
         let (dx, dy) = (to.x - from.x, to.y - from.y);
-        let half = (dx * dx + dy * dy).sqrt() / 2.0;
+        let half = dx.hypot(dy) / 2.0;
         let sin_half = (theta / 2.0).sin();
         if half == 0.0 || sin_half == 0.0 {
             continue;
