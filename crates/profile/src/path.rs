@@ -846,6 +846,120 @@ pub enum PathError<T: Real> {
     },
 }
 
+/// Which arm of [`PathError`] refused — the discriminant alone, with no
+/// payload.
+///
+/// [`PathError`] is generic in the evaluation scalar and its arms carry
+/// scalar payloads, so it can never be `Eq`: `Real` deliberately omits
+/// comparison (`geom_core::real`'s module docs), and neither `Interval`
+/// nor `Dual` is `PartialEq` at all — an enclosure compared for equality
+/// is not a geometric question. This projection drops exactly the part
+/// that cannot compare, so the CLASS of a refusal rides anywhere the
+/// error itself cannot: into a `PartialEq` error enum, a hash key, an
+/// FFI tag map.
+///
+/// One variant per [`PathError`] arm, and [`PathError::kind`] matches
+/// exhaustively — a new arm stops every consumer compiling rather than
+/// falling into a wildcard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PathErrorKind {
+    /// [`PathError::JunctionTangent`].
+    JunctionTangent,
+    /// [`PathError::JunctionCusp`].
+    JunctionCusp,
+    /// [`PathError::TangentLineClose`].
+    TangentLineClose,
+    /// [`PathError::SameCarrierJunction`].
+    SameCarrierJunction,
+    /// [`PathError::NoCornerForFillet`].
+    NoCornerForFillet,
+    /// [`PathError::AnchorOutsideTrimmedExtent`].
+    AnchorOutsideTrimmedExtent,
+    /// [`PathError::FilletOffsetLeverTooShort`].
+    FilletOffsetLeverTooShort,
+    /// [`PathError::FilletEnclosesLegCarrier`].
+    FilletEnclosesLegCarrier,
+    /// [`PathError::ArcLegOnOpenFillet`].
+    ArcLegOnOpenFillet,
+    /// [`PathError::SeamRetrimsArcFirstSide`].
+    SeamRetrimsArcFirstSide,
+    /// [`PathError::NonpositiveLeg`].
+    NonpositiveLeg,
+    /// [`PathError::NonpositiveFilletRadius`].
+    NonpositiveFilletRadius,
+    /// [`PathError::NonpositiveCircleRadius`].
+    NonpositiveCircleRadius,
+    /// [`PathError::DegenerateArcSpec`].
+    DegenerateArcSpec,
+    /// [`PathError::CircleSplitCount`].
+    CircleSplitCount,
+    /// [`PathError::ArcContinueNeedsArcCarrier`].
+    ArcContinueNeedsArcCarrier,
+    /// [`PathError::ArcContinueOffCarrier`].
+    ArcContinueOffCarrier,
+    /// [`PathError::ZeroDirection`].
+    ZeroDirection,
+    /// [`PathError::ArcViaCollinear`].
+    ArcViaCollinear,
+    /// [`PathError::DegenerateArcChord`].
+    DegenerateArcChord,
+    /// [`PathError::ArcCenterNotEquidistant`].
+    ArcCenterNotEquidistant,
+    /// [`PathError::DegenerateArcCenter`].
+    DegenerateArcCenter,
+    /// [`PathError::FarEndAnchorWithoutFillet`].
+    FarEndAnchorWithoutFillet,
+    /// [`PathError::Escalated`].
+    Escalated,
+    /// [`PathError::Band`].
+    Band,
+    /// [`PathError::Structure`].
+    Structure,
+    /// [`PathError::UnderdeterminedLeg`].
+    UnderdeterminedLeg,
+    /// [`PathError::OverdeterminedJunction`].
+    OverdeterminedJunction,
+}
+
+impl<T: Real> PathError<T> {
+    /// Which arm refused, without the payload.
+    ///
+    /// Exhaustive over [`PathError`]: adding an arm there is a compile
+    /// error here and in every consumer that maps this enum.
+    pub fn kind(&self) -> PathErrorKind {
+        match self {
+            Self::JunctionTangent { .. } => PathErrorKind::JunctionTangent,
+            Self::JunctionCusp { .. } => PathErrorKind::JunctionCusp,
+            Self::TangentLineClose { .. } => PathErrorKind::TangentLineClose,
+            Self::SameCarrierJunction { .. } => PathErrorKind::SameCarrierJunction,
+            Self::NoCornerForFillet { .. } => PathErrorKind::NoCornerForFillet,
+            Self::AnchorOutsideTrimmedExtent { .. } => PathErrorKind::AnchorOutsideTrimmedExtent,
+            Self::FilletOffsetLeverTooShort { .. } => PathErrorKind::FilletOffsetLeverTooShort,
+            Self::FilletEnclosesLegCarrier { .. } => PathErrorKind::FilletEnclosesLegCarrier,
+            Self::ArcLegOnOpenFillet { .. } => PathErrorKind::ArcLegOnOpenFillet,
+            Self::SeamRetrimsArcFirstSide => PathErrorKind::SeamRetrimsArcFirstSide,
+            Self::NonpositiveLeg { .. } => PathErrorKind::NonpositiveLeg,
+            Self::NonpositiveFilletRadius { .. } => PathErrorKind::NonpositiveFilletRadius,
+            Self::NonpositiveCircleRadius { .. } => PathErrorKind::NonpositiveCircleRadius,
+            Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
+            Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
+            Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
+            Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
+            Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
+            Self::ArcViaCollinear { .. } => PathErrorKind::ArcViaCollinear,
+            Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
+            Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
+            Self::DegenerateArcCenter { .. } => PathErrorKind::DegenerateArcCenter,
+            Self::FarEndAnchorWithoutFillet => PathErrorKind::FarEndAnchorWithoutFillet,
+            Self::Escalated { .. } => PathErrorKind::Escalated,
+            Self::Band(_) => PathErrorKind::Band,
+            Self::Structure(_) => PathErrorKind::Structure,
+            Self::UnderdeterminedLeg { .. } => PathErrorKind::UnderdeterminedLeg,
+            Self::OverdeterminedJunction { .. } => PathErrorKind::OverdeterminedJunction,
+        }
+    }
+}
+
 /// Render a scalar payload inside a refusal sentence.
 ///
 /// [`Real`] carries `Debug` and no `Display`, so an arm below can only
@@ -858,8 +972,9 @@ pub enum PathError<T: Real> {
 /// keeps the exact scalar, and every claim a caller branches on reads
 /// the field, never this string.
 ///
-/// The older arms still render `{:?}` directly. That is one class, filed
-/// as issue #1282 rather than swept in here.
+/// Every arm below renders its scalars through here. Non-scalar payloads
+/// — a side, a carrier, an index, a `&'static str` site — are not this
+/// helper's business and reach the sentence through their own `Display`.
 fn num<T: core::fmt::Debug>(v: &T) -> String {
     let raw = format!("{v:?}");
     let Ok(x) = raw.parse::<f64>() else {
@@ -889,32 +1004,38 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin:?} m on a {arm:?} m arm) — if intended, author it \
+                 (turn margin {} m on a {} m arm) — if intended, author it \
                  structurally: .tangent() at an interior junction (exact by construction), or \
                  the tangent-arc / seam-fillet close at the seam; otherwise move the geometry \
-                 (or lower the tolerance)"
+                 (or lower the tolerance)",
+                num(margin),
+                num(arm)
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
                 "this junction reverses onto the incoming direction at any precision you \
-                 could care about (turn margin {margin:?} m on a {arm:?} m arm): a cusp, and \
+                 could care about (turn margin {} m on a {} m arm): a cusp, and \
                  the material-wedge invariant admits one only where it is DECLARED — if \
                  intended, author it structurally: .cusp() at an interior junction (exact by \
-                 construction, and it emits the declaration); otherwise move the geometry"
+                 construction, and it emits the declaration); otherwise move the geometry",
+                num(margin),
+                num(arm)
             ),
             Self::TangentLineClose { margin } => write!(
                 f,
                 "a tangent LINE close is overdetermined — direction inherited AND through Start \
-                 (margin {margin:?} m) — and refuses always, exact collinearity included: \
+                 (margin {} m) — and refuses always, exact collinearity included: \
                  close with the tangent ARC instead (.tangent().tangent_arc_to(Start)), or \
                  rotate the loop's authoring origin so the straight run is authored forward as \
-                 side 1 and the arc becomes the closer"
+                 side 1 and the arc becomes the closer",
+                num(margin)
             ),
             Self::SameCarrierJunction { margin } => write!(
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
-                 {margin:?} m): carrier identity is not tangency — extend the leg \
-                 instead of minting a collinear/cocircular neighbor"
+                 {} m): carrier identity is not tangency — extend the leg \
+                 instead of minting a collinear/cocircular neighbor",
+                num(margin)
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
@@ -944,7 +1065,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         }
                     },
                 };
-                write!(f, "no corner for a radius-{radius:?} m fillet: {what}")
+                write!(f, "no corner for a radius-{} m fillet: {what}", num(radius))
             }
             Self::AnchorOutsideTrimmedExtent {
                 side,
@@ -954,8 +1075,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "the fillet trim would eat the {side} side's anchoring on-path point on its \
-                 {carrier} carrier: tangent setback {setback:?} m exceeds the {available:?} m \
-                 the anchor pins — reduce the radius or move the anchor"
+                 {carrier} carrier: tangent setback {} m exceeds the {} m \
+                 the anchor pins — reduce the radius or move the anchor",
+                num(setback),
+                num(available)
             ),
             Self::FilletOffsetLeverTooShort {
                 side,
@@ -965,13 +1088,17 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin,
             } => write!(
                 f,
-                "the {side} side's offset lever rho {offset_radius:?} m (carrier radius \
-                 {carrier_radius:?} m) is shorter than the {least_lever:?} m this corner's \
-                 scale needs at the run's tolerance (margin {margin:?} m): the fillet's \
+                "the {side} side's offset lever rho {} m (carrier radius \
+                 {} m) is shorter than the {} m this corner's \
+                 scale needs at the run's tolerance (margin {} m): the fillet's \
                  tangent point is recovered by projecting its centre back onto that \
                  carrier, and dividing by a lever that short cannot place the point within \
                  tolerance — move the fillet radius away from that side's carrier radius, \
-                 or bring the corner's carriers closer together"
+                 or bring the corner's carriers closer together",
+                num(offset_radius),
+                num(carrier_radius),
+                num(least_lever),
+                num(margin)
             ),
             Self::FilletEnclosesLegCarrier {
                 side,
@@ -1029,9 +1156,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
                 f,
-                "this arc spec's authored datum ({value:?}) names no arc: a zero bulge \
+                "this arc spec's authored datum ({}) names no arc: a zero bulge \
                  degenerates to the chord (author a line), and a sweep angle or arc length \
-                 must be definitely positive"
+                 must be definitely positive",
+                num(value)
             ),
             Self::SeamRetrimsArcFirstSide => write!(
                 f,
@@ -1041,21 +1169,24 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NonpositiveLeg { length } => write!(
                 f,
-                "a leg must advance the tip by a definitely positive length (got {length:?} m): \
+                "a leg must advance the tip by a definitely positive length (got {} m): \
                  a negative length runs the side backward and detaches anchored points from \
                  the final path (every authored point lies on the final path, authored once); \
-                 a sub-tolerance length is a degenerate segment"
+                 a sub-tolerance length is a degenerate segment",
+                num(length)
             ),
             Self::NonpositiveFilletRadius { radius } => write!(
                 f,
-                "a fillet needs a definitely positive radius (got {radius:?} m): r = 0 \
+                "a fillet needs a definitely positive radius (got {} m): r = 0 \
                  degenerates the arc and a negative r mirrors the tangent points past the \
-                 corner — no tangent construction exists to declare"
+                 corner — no tangent construction exists to declare",
+                num(radius)
             ),
             Self::NonpositiveCircleRadius { radius } => write!(
                 f,
-                "a circle needs a definitely positive radius (got {radius:?} m): r = 0 is a \
-                 point and r < 0 names no circle"
+                "a circle needs a definitely positive radius (got {} m): r = 0 is a \
+                 point and r < 0 names no circle",
+                num(radius)
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
@@ -1072,26 +1203,31 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::ArcContinueOffCarrier { offset } => write!(
                 f,
                 "the arc_continue target does not lie on the incoming carrier (radial offset \
-                 {offset:?} m): a subdivision vertex is ON the carrier by definition — fix the \
-                 authored point rather than expecting a re-projection"
+                 {} m): a subdivision vertex is ON the carrier by definition — fix the \
+                 authored point rather than expecting a re-projection",
+                num(offset)
             ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
                 "a director spelled as components must name a direction (got \
-                 ({dx:?}, {dy:?}), whose norm is within tolerance of zero): only the ratio \
-                 of the components is read, so scaling them up costs nothing"
+                 ({}, {}), whose norm is within tolerance of zero): only the ratio \
+                 of the components is read, so scaling them up costs nothing",
+                num(dx),
+                num(dy)
             ),
             Self::ArcViaCollinear { offset } => write!(
                 f,
-                "the through-point lies on the chord line (offset {offset:?} m, within \
+                "the through-point lies on the chord line (offset {} m, within \
                  tolerance of zero): three collinear points name no arc — move the \
-                 through-point off the chord, or author the straight segment as a line"
+                 through-point off the chord, or author the straight segment as a line",
+                num(offset)
             ),
             Self::DegenerateArcChord { chord } => write!(
                 f,
-                "an arc leg's endpoints are within tolerance of each other (chord {chord:?} \
+                "an arc leg's endpoints are within tolerance of each other (chord {} \
                  m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
-                 chain leg"
+                 chain leg",
+                num(chord)
             ),
             Self::ArcCenterNotEquidistant {
                 tip_radius,
@@ -1099,15 +1235,18 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "the authored centre is not equidistant from the arc's endpoints \
-                 (|tip - centre| = {tip_radius:?} m, |end - centre| = {end_radius:?} m): the \
+                 (|tip - centre| = {} m, |end - centre| = {} m): the \
                  three authored points contradict each other. Nothing is re-projected — an \
                  authored point is never moved to make a construction work; fix whichever \
-                 of the three is wrong"
+                 of the three is wrong",
+                num(tip_radius),
+                num(end_radius)
             ),
             Self::DegenerateArcCenter { radius } => write!(
                 f,
-                "the authored centre is within tolerance of an endpoint (radius {radius:?} \
-                 m): the carrier has no radius, so the winding selects nothing"
+                "the authored centre is within tolerance of an endpoint (radius {} \
+                 m): the carrier has no radius, so the winding selects nothing",
+                num(radius)
             ),
             Self::FarEndAnchorWithoutFillet => write!(
                 f,
