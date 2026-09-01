@@ -153,23 +153,32 @@ the table.
   itself is an implemented arm now, and `klein::wall_probes` walls 1
   and 2 have moved to `RadiusHeadroom` — the ball is bigger than the
   neck wall's curvature allows, not a missing arm.
-- **`mesh::planar`'s banked sub-floor case is no longer synthetic.**
-  That module's docs bank exactly one uncovered class — a planar
-  face whose boundary points carry off-plane noise, where the chart
-  frame's far point has an *engineered* exact-zero v-coordinate whose
-  float residue lands below spade's `MIN_ALLOWED_VALUE` (2⁻¹⁴²) — and
-  say of it "synthetic today (no corpus body hits it; wild translator
-  noise observed so far is axis noise)". The Klein bottle's bulb hits
-  it with an ordinary annular cap at plain coordinates: `insert`
-  refuses at `(0.4978884624952483, 3.94e-47)` and the face returns
-  `Triangulation`, at every δ. Whether it fires is a roundoff lottery
-  over parameters that do not touch the cap — sweeping flare angle
-  against rim radius, it fires at (30°, 0.85 m) and (34°, 1.00 m) and
-  not at their neighbours. `klein::wall_probes` wall 7 pins it by
-  building the shipped bottle with a 5 cm wider rim. Same shape as
-  #284 — a valid body that refuses tessellation — and filed as
-  **#555**, since #284 itself is closed and its fix deliberately did
-  not claim this case.
+- **`mesh::planar`'s banked sub-floor case — met by a consumer, then
+  CLOSED (issue 555).** That module's docs used to bank one uncovered
+  class: a planar face whose boundary points carry off-plane noise ν,
+  where a chart coordinate that is an exact zero in real arithmetic has
+  a float residue ~ν² landing below spade's `MIN_ALLOWED_VALUE`, so
+  `insert` refuses and the face returns `Triangulation` at every δ. The
+  docs called it "synthetic today (no corpus body hits it)"; the Klein
+  bottle's bulb hit it with an ordinary annular cap at plain
+  coordinates, which is what took it off the bank. Whether it fired was
+  a roundoff lottery over parameters that do not touch the cap —
+  sweeping flare angle against rim radius it fired at (30°, 0.85 m) and
+  (34°, 1.00 m), and on re-sweep at (24°, 0.85 m) and (26°, 0.75 m) too,
+  so the lottery was denser than first recorded.
+
+  Closed in two layers, because the defect had two halves. The chart
+  frame's FAR point has a v-coordinate that is zero by the frame's own
+  construction (`u` is that point's rejection from the normal), and the
+  projection now WRITES it rather than reading the residue back. Points
+  on an anchor→through-chord diagonal are zero by GEOMETRY instead, and
+  on ringed or concentric faces they are seated there by symmetry — a
+  plate with a hole and a square annulus refused over the same ν band —
+  so every chart coordinate additionally passes spade's own
+  `mitigate_underflow`, which moves only values already inside the band
+  `insert` refuses. `klein::wall_probes` wall 7 is retired from pinning
+  the refusal and now requires all four lottery cells to mesh.
+
 - **`sweep_body` cannot round a U-turn.** The loft's canonical
   stacking trilean compares the LAST placement's mean displacement
   against the FIRST section's plane normal, so any path that ends
@@ -344,7 +353,8 @@ the table.
   face carried its own cavity counterpart's boundary re-labelled as an
   interior ring — genus 1 where `topo::shell`'s docs say a cup is genus
   0, and `mesh::tessellate` refusing `Triangulation` at every δ. Not
-  the `mesh::planar` sub-floor lottery of #555: swept over five wall
+  the `mesh::planar` sub-floor lottery of #555 (closed — see the entry
+  above): swept over five wall
   thicknesses, mouth radii at two scales (41.25 mm and 46.875 mm — 14%
   apart, one cluster — and 1 m) and three chord budgets, every case
   gave the same two wrong numbers, the simplest fixture (a cylindrical

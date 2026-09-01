@@ -928,11 +928,11 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 ///    ambiguity (N5), so the tied set expressed in names is the name
 ///    itself, and the witness carries the multiplicity and the
 ///    minting site.
-/// 3. [`ladder::Landing::Absent`] → `Vanished`, with the honest
-///    single-run fallback diagnosis: no prior run is consultable
-///    mid-evaluation, so `NodeChanged` names the minting node as the
-///    disagreement SITE, not a claim that an edit happened, and
-///    `last_good` is `None` because nothing was banked.
+/// 3. [`ladder::Landing::Absent`] → `Vanished`, through
+///    [`crate::resolve::ResolveError::vanished_fallback`]: no prior
+///    run is consultable mid-evaluation, so there is no evidence to
+///    weigh and nothing to bank, which is exactly the payload that
+///    constructor names.
 ///
 /// The refusals come out BOXED, which is how both doors' error
 /// variants carry a `ResolveError` anyway.
@@ -943,17 +943,29 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// the door's business. Which typed refusal comes out is this
 /// module's, and has one home.
 ///
-/// **Not shared with [`mod@crate::resolve`], yet.** That module's
-/// whole-evaluation ladder re-derives rung 1 from the same two facts
-/// (`doc.node(..).is_none()`, then the id against the mint counter)
-/// and builds the same [`crate::resolve::TieWitness`]. The two agree
-/// by hand across a module boundary, at coarser grain than the
-/// duplication this module retired; folding them is a larger change
-/// than one evaluation door, recorded as such and not attempted here.
+/// **What is shared with [`mod@crate::resolve`], and what is not.**
+/// Every PAYLOAD is that module's, minted by one constructor each —
+/// [`crate::resolve::ResolveError::node_gone`] for the
+/// deleted-vs-foreign split, [`crate::resolve::ResolveError::ambiguous`]
+/// for the tie and its witness,
+/// [`crate::resolve::ResolveError::vanished_fallback`] for the
+/// no-evidence vanish — so neither ladder restates the other's refusal
+/// and the two cannot drift about what a stranded, tie-marked or
+/// vanished name looks like.
+///
+/// What is NOT shared is how rung 3 is REACHED. That module arrives at
+/// the same fallback only after a diagnosis ladder over two
+/// evaluations comes up empty; here it is the immediate answer,
+/// because mid-evaluation there is neither a prior run nor a
+/// whole-evaluation index to run that ladder against. Same value, two
+/// different roads, and only the value is worth holding in one place.
+///
+/// What stays here is what is this module's subject: the rung ORDER,
+/// the [`ladder::Live`] token that enforces it, and a door's arity.
 mod ladder {
     use crate::names::{EntityRef, Entry, NameTable, StableName};
     use crate::program::ProfileProgram;
-    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+    use crate::resolve::ResolveError;
 
     /// Where a name landed in ONE table (rungs 2 and 3, as data).
     pub(super) enum Landing {
@@ -990,22 +1002,16 @@ mod ladder {
         }
     }
 
-    /// Rung 1: `NodeGone` with the deleted-vs-foreign split.
+    /// Rung 1: `NodeGone` with the deleted-vs-foreign split, taken
+    /// from the one home that mints it ([`ResolveError::node_gone`]).
     pub(super) fn live<'n>(
         name: &'n StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
     ) -> Result<Live<'n>, Box<ResolveError>> {
-        if doc.node(name.node).is_some() {
-            return Ok(Live(name));
+        match ResolveError::node_gone(name, doc) {
+            None => Ok(Live(name)),
+            Some(gone) => Err(Box::new(gone)),
         }
-        Err(Box::new(ResolveError::NodeGone {
-            name: name.clone(),
-            edit: if name.node.0 < doc.next_id {
-                RecipeEditRef::NodeDeleted { node: name.node }
-            } else {
-                RecipeEditRef::ForeignNode { node: name.node }
-            },
-        }))
     }
 
     /// Rungs 2 and 3: the entity, or the refusal its landing earns.
@@ -1016,22 +1022,16 @@ mod ladder {
         let name = live.0;
         match landing {
             Landing::Unique(ent) => Ok(ent),
-            Landing::Tied(width) => Err(Box::new(ResolveError::Ambiguous {
-                name: name.clone(),
-                candidates: vec![name.clone()],
-                tie: TieWitness {
-                    node: name.node,
-                    at: name.clone(),
-                    width,
-                },
-            })),
-            Landing::Absent => Err(Box::new(ResolveError::Vanished {
-                name: name.clone(),
-                diagnosis: Diagnosis::RecipeEdit {
-                    edit: RecipeEditRef::NodeChanged { node: name.node },
-                },
-                last_good: None,
-            })),
+            // The tie row is the name itself: a door resolves the
+            // authored name against one table, so there is no widened
+            // base to tie against here.
+            Landing::Tied(width) => Err(Box::new(ResolveError::ambiguous(
+                name,
+                name.clone(),
+                name.node,
+                width,
+            ))),
+            Landing::Absent => Err(Box::new(ResolveError::vanished_fallback(name))),
         }
     }
 }

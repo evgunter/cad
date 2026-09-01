@@ -9,18 +9,25 @@
 //!    every induced v-on-e to the interface closure" lemma is false —
 //!    the region-unconfined strength is exercised by a positive-area
 //!    pair, not only by the zero-area fixture the strength row uses.
-//! 2. The same fixture reaches `ef_bound_backed`'s interior arm
-//!    (census.rs:687): the shelf's boundary edge dives through the
-//!    cap's interior between two cap vertices resting on the edge's
-//!    interior. The PR dispositions that arm as "unreachable from any
-//!    flush-seat configuration"; this is a declared coplanar rest seat
-//!    (an overhanging post) that reaches it and stays a hard finding.
+//! 2. The same fixture reaches `ef_bound_backed`'s interior arm: the
+//!    shelf's boundary edge dives through the cap's interior between
+//!    two cap vertices resting on the edge's interior. A flush seat
+//!    cannot reach that arm; this declared coplanar rest seat (an
+//!    overhanging post) does, and the arm reads the vertex-on-edge
+//!    rung at each bound, so the overlap is backed with the events.
 //! 3. `a_wrong_pair_backs_nothing`: the rung consults exactly the
 //!    declared pair's own incidence — a declaration between the wrong
 //!    faces (post cap x shelf TOP) backs none of the seat's events.
 //!
-//! ε posture: as the unit's own suite — all coincidences are shared
-//! f64 literals, all separations ≥ a twentieth of a metre.
+//! ε posture: all coincidences are shared f64 literals, and the
+//! separations the CENSUS rungs turn on are ≥ a twentieth of a metre.
+//! The governing margin of the overhang seat is smaller than that and
+//! is not one of them: `pm_census_ee_parallel` reads 8.944e-3 on the
+//! near-parallel cap and shelf edges, which lands in band at
+//! `CAD_TOLERANCE_EPS=1e-3` and escalates honestly there. That is why
+//! `the_lemma_probe_declared`'s whole-list assertion below is a
+//! GATED-BAND row — green at default, 1e-6 and 1e-12, red at 1e-3,
+//! which the matrix does not run.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -140,27 +147,50 @@ fn the_lemma_probe_undeclared_baseline() {
 /// event outside its interface closure; the confinement lemma does not
 /// hold, and region-unconfinement is not a zero-area-only phenomenon.
 ///
-/// AND: the edge-on-face overlap between the same two entities stays a
-/// hard UNDECLARED finding even though the pair is declared — the
-/// `ef_bound_backed` interior arm (census.rs:687) is reached by this
-/// declared coplanar rest seat and declines before any rung.
+/// AND: the edge-on-face overlap between the same two entities is
+/// backed too. Its two bounds fall on the shelf edge's INTERIOR, where
+/// cap vertices rest, so each bound is a vertex-on-edge event and reads
+/// that lane's rung — `ef_bound_backed`'s interior arm. No finding of
+/// this seat is unattributed any more.
+///
+/// The seat CERTIFIES, and this probe's outcome has now flipped twice.
+/// It was an `Unattributed` hard error; the census rungs above made it
+/// `CensusUnsupported`/`Attribution::Declined`, because the declared
+/// patch's region-overlap confirm ran `interior_witness`'s rescue rung
+/// on a `Definite` door-1 verdict and its fixed candidate schedule
+/// missed this overlap (measured — ~7.5e-3 m², seven orders above ε);
+/// completing that schedule to search the two trims' own arrangement
+/// lands the overlap and leaves nothing at all. The intermediate state
+/// was never the class's outcome — a same-class seat whose overlap the
+/// old landmarks happened to land certified outright throughout
+/// (`r1_mate4a_probes`) — which is why the last assertion below is the
+/// whole error list and no longer the census's share of it.
 #[test]
 fn the_lemma_probe_declared() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let found = undeclared(&errors(&body, &declared(post_top, shelf_bottom)));
+    let all = errors(&body, &declared(post_top, shelf_bottom));
+    let found = undeclared(&all);
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
         0,
         "the rung backs all three, the out-of-interface tangent \
          included: {found:?}"
     );
-    assert!(
+    assert_eq!(
         count(&found, |c| matches!(
             c,
             CensusContact::EdgeFaceOverlap { .. }
-        )) > 0,
-        "and the ef interior arm still declines the declared seat's \
-         own edge-on-face overlap — reachable, loud: {found:?}"
+        )),
+        0,
+        "and the ef interior arm reads the same rung at each bound: \
+         {found:?}"
+    );
+    // Gated-band row (see the header): the whole-list form is red at
+    // 1e-3, where four honest `pm_census_ee_parallel` escalations join
+    // the list. The two census assertions above hold at every band.
+    assert!(
+        all.is_empty(),
+        "and door 2's rescue rung finds the overlap: {all:?}"
     );
 }
 

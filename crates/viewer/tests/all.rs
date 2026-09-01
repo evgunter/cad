@@ -78,6 +78,8 @@ mod mate_tool_flow;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "path_authoring.rs"]
+mod path_authoring;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "review_gui0_r1.rs"]
@@ -102,6 +104,12 @@ mod review_m10_1_r1;
 mod scene_build;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "story_assembly.rs"]
+mod story_assembly;
+#[path = "story_authoring.rs"]
+mod story_authoring;
+#[path = "story_parametric.rs"]
+mod story_parametric;
 #[path = "theme.rs"]
 mod theme;
 #[path = "tree_badges.rs"]

@@ -25,8 +25,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyString};
 
 use crate::errors::ErrorClass;
+use crate::py::doc::persist_err;
 use crate::py::typed_err;
-use crate::tags::{persist_error_tag, workspace_error_tag};
+use crate::tags::workspace_error_tag;
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::workspace as ws;
@@ -46,25 +47,6 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
              hex digits, the spelling `Doc.id` answers"
         ))
     })
-}
-
-/// Raise `PersistError` carrying the refusal's stable tag.
-///
-/// The pin doors are persistence doors: they run the shared validator
-/// and the canonical serializer, so their refusals are the same
-/// vocabulary `Doc.save` and `load` already speak.
-fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
-    typed_err(
-        py,
-        ErrorClass::Persist,
-        err.to_string(),
-        &[(
-            "variant",
-            PyString::new(py, persist_error_tag(err))
-                .unbind()
-                .into_any(),
-        )],
-    )
 }
 
 /// Raise `WorkspaceError` carrying the refusal's stable tag and the
@@ -315,6 +297,10 @@ impl Workspace {
     /// carrying `wanted` and `found`), never a silent retarget: a
     /// reference names a VERSION, and the recourse is to record the
     /// acceptance of the new one.
+    ///
+    /// The load's replay runs below the `Doc` wrapper, so the returned
+    /// document reports no `last_maintenance` even where the replayed
+    /// history's last edit performed some — that reading starts here.
     ///
     /// Raises `WorkspaceError`, typed.
     fn resolve(&self, py: Python<'_>, reference: &DocRef) -> PyResult<super::doc::Doc> {

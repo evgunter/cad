@@ -75,3 +75,33 @@ cap-rim arm on a falsified premise), 1391 (three drifted spellings
 of the staleness ladder want one home). Slate next: BOOL-2 (the
 point_in_solid cone arm) after the MESH-1 cycle concludes — the two
 programs interleave dispatches per the shared lane budget.
+
+## BOOL-2 merged (2026-09-01) — the cone arm lands; issue 1011 stays open for the torus half
+
+PR 1425 at fix head `95ca01b3`. Gates: interval lane trailer-asked
+on both gated heads (1e-6 drawn), all six matrix points local at
+both. point_in_solid answers cone-bearing solids: quadratic + nappe
++ axial trim, apex OnBoundary with its √(K·ε·v_ext) escalation
+shell documented, grazing typed-escalating at three sites. The
+delivered head's k-lint red was main-inherited (PR 1351's lofts
+renames never re-cut into the tess-budget baseline) — repaired
+orchestrator-direct at PR 1428 per the S-CERT PR-1257 precedent,
+with the twopeg dead-const clippy red the forced row exposed ported
+in the same PR.
+
+**The dual (ordinal 1101, sample at the row)**: twin A-W-F (R1
+0/4/2, R2 1/5/3), the load-bearing finding BILATERAL at split
+severity — the clamp floor's "five orders" derivation wrong (the
+shell scales as √ε; K=1000 turns the row red) — so no tally
+candidates. R2's analytic oracle put 2000 points through the arm
+with zero mismatches. The planar-cap misread (every full-revolve
+cap; the cone base answers In) is homed on issue 1076 with both
+lanes' measurements and an #[ignore]d reproduction. Fix pass
+IMPLEMENTER-INHERITED, all 11 items; the shell law is now guarded
+by a row that re-measures it.
+
+Recorded for BOOL-3's spec: the wrapped_cone_group/
+closed_sphere_group scan wants one home before the torus copy
+lands; the three per-suite probe-offset spellings likewise. Slate
+next: BOOL-3 (the torus arm) or BOOL-5 (#542) per lane budget;
+issues 1434, 1401, 1402 filed en route this wave.

@@ -912,12 +912,13 @@ impl core::fmt::Display for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "instance {}'s seam declaration from mate {} names a {} of the part \
+                "instance {}'s seam declaration from mate {} names {} {} of the part \
                  (minted by its node {}), which the pinned part's product does not \
                  name — the crossing does not re-verify against this version of the \
                  part",
                 instance.0,
                 mate.0,
+                name.kind.article(),
                 name.kind.noun(),
                 name.node.0
             ),
@@ -953,7 +954,7 @@ impl core::fmt::Display for NodeErrorKind {
                 found,
             } => write!(
                 f,
-                "input {} is a {found}; the operand needs a {expected}",
+                "input {} carries kind {found}; the operand needs kind {expected}",
                 input.0
             ),
             Self::EmptyOperand { input } => write!(
@@ -1005,12 +1006,13 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
             ),
+            // Forwards `StableName`'s `Display` rather than
+            // re-spelling the kind-plus-minting-node phrase; the pin
+            // builds its expectation from the impl.
             Self::DeclareBothOperands { name } => write!(
                 f,
-                "the declared {} name minted by node {} resolves in BOTH operands — the \
-                 declaration cannot pick a side",
-                name.kind.noun(),
-                name.node.0
+                "the declared {name} resolves in BOTH operands — the declaration cannot \
+                 pick a side"
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -1032,8 +1034,9 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection name minted by node {} denotes a {}, not an edge",
+                "the {verb} selection name minted by node {} denotes {} {}, not an edge",
                 name.node.0,
+                found.article(),
                 found.noun()
             ),
             Self::BlendSelectionEmpty { verb } => write!(
@@ -1071,8 +1074,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureMalformed(fault) => write!(f, "{fault}"),
             Self::AssertionDimension { measured, bound } => write!(
                 f,
-                "the assertion's bound is {bound:?} and the measure it constrains is \
-                 {measured:?} — an assertion compares like with like or not at all"
+                "the assertion's bound is {} {bound} and the measure it constrains is \
+                 {} {measured} — an assertion compares like with like or not at all",
+                bound.article(),
+                measured.article()
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -2180,6 +2185,7 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::Angle => 12,
         V::Toward => 13,
         V::Tangent => 14,
+        V::Cusp => 41,
         V::Turn => 15,
         V::Line => 16,
         V::LineTo => 17,
@@ -2305,7 +2311,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, *dx);
             f(h, *dy);
         }
-        Step::Tangent | Step::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
         Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
@@ -2417,7 +2423,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
             f(h, dx);
             f(h, dy);
         }
-        Step::Tangent | Step::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
         Step::ArcTo(s) => spec(h, s),
         Step::Fillet { radius } => f(h, radius),

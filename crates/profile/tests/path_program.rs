@@ -29,8 +29,8 @@ use common::{coverage_corpus, pinned};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
-    ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
-    Target, TipState, Verb, replay,
+    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind,
+    Start, Step, Target, TipState, Verb, replay,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -46,6 +46,44 @@ fn program_of(closed: &ClosedLoop<f64>) -> Vec<Step<f64>> {
 /// inventory assertion.
 fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
     program.iter().map(Step::verb).collect()
+}
+
+/// Every arc mode a program names, in step order — the two fused
+/// verbs' incoming and arrival specs counted separately.
+///
+/// Exhaustive on [`Step`], with the spec-free verbs named rather than
+/// swept into a trailing arm: which verbs carry an arc spec is the one
+/// thing this helper assumes, and a verb that GAINS one has to be
+/// adjudicated here rather than silently falling out of reach.
+fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
+    let mut out = Vec::new();
+    for step in program {
+        match step {
+            Step::ArcTo(spec) | Step::FilletArc { spec, .. } | Step::ArcFillet { spec, .. } => {
+                out.push(spec.mode());
+            }
+            Step::ArcFilletArc { spec, spec2, .. } => {
+                out.push(spec.mode());
+                out.push(spec2.mode());
+            }
+            Step::At(_)
+            | Step::Angle(_)
+            | Step::Toward { .. }
+            | Step::Tangent
+            | Step::Cusp
+            | Step::Turn(_)
+            | Step::Line(_)
+            | Step::LineTo(_)
+            | Step::TangentArcTo(_)
+            | Step::ArcContinue(_)
+            | Step::Fillet { .. }
+            | Step::FarEndTo(_)
+            | Step::CloseTo
+            | Step::Circle { .. }
+            | Step::CircleSplit { .. } => {}
+        }
+    }
+    out
 }
 
 // ------------------------------------------------------------------
@@ -500,6 +538,37 @@ fn every_table_verb_is_replayed_by_the_corpus() {
     );
 }
 
+/// **Every arc mode the vocabulary declares is exercised by a
+/// record→replay round-trip.**
+///
+/// The mode travels INSIDE a verb, so the verb census above cannot see
+/// it: `ArcTo` is replayed by one chain whatever the other five modes
+/// do, and a mode whose dispatcher arm goes missing or over-strict
+/// takes nothing red with it. This row is that arm's only standing
+/// pressure, anchored on [`ArcMode::ALL`] and therefore unable to fall
+/// behind a mode the vocabulary gains.
+///
+/// Granularity is honest for the same reason the verb census's is:
+/// this is mode coverage, not (state, mode) coverage — the pairs the
+/// §2c matrix admits at more than one state are covered here only
+/// where the corpus reaches them.
+#[test]
+fn every_arc_mode_is_replayed_by_the_corpus() {
+    let mut seen: Vec<ArcMode> = Vec::new();
+    for closed in coverage_corpus() {
+        seen.extend(arc_modes(&closed.program));
+        // The round-trip itself: replay the recording, bit-identical.
+        pinned(closed);
+    }
+    let missing: Vec<&ArcMode> = ArcMode::ALL.iter().filter(|m| !seen.contains(m)).collect();
+    assert!(
+        missing.is_empty(),
+        "these arc modes are declared but never replayed by the corpus: {missing:?} \
+         — every mode's dispatcher arm must be exercised by a record->replay chain, \
+         so add one to `coverage_corpus` (see this test's rustdoc)"
+    );
+}
+
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
     match replay(program, Tol::witness()) {
         Err(ReplayError {
@@ -653,6 +722,37 @@ fn unclosed_trailing_and_empty_programs_are_the_transition_class() {
         1,
         TipState::Closed,
         Some(Verb::At),
+    );
+}
+
+/// A lattice refusal renders the (tip state, verb) pair as the
+/// transition table's own spellings, each introduced by the noun it
+/// is. The pair is a COORDINATE — the row a reader looks up next — so
+/// a prose paraphrase of either half would name nothing findable; this
+/// pin is what makes the `Debug` spelling a decision rather than an
+/// oversight, and it fails if either half is worded away.
+#[test]
+fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
+    let unwalkable = replay(&[Step::Fillet { radius: 0.5 }], Tol::witness())
+        .expect_err("a leading fillet binds nothing, so it is off the lattice");
+    assert_eq!(
+        unwalkable.to_string(),
+        "step 0: the Fillet verb is not a legal continuation of tip state Entry \
+         (lattice violation — no authoring surface can produce this program)"
+    );
+
+    let unclosed = replay(
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::LineTo(Target::Point(p2(1.0, 0.0))),
+        ],
+        Tol::witness(),
+    )
+    .expect_err("a chain that never returns to Start does not close");
+    assert_eq!(
+        unclosed.to_string(),
+        "step 2: the program ends at tip state DirectedPoint without closing the loop \
+         (lattice violation — a chain must end at Start)"
     );
 }
 

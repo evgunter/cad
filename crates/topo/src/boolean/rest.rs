@@ -536,9 +536,10 @@ pub fn flush_pair_relation<T: Decide>(
 /// the material side exactly as that door does (S10).
 ///
 /// `None` for a surface kind outside the `Rest` ladder's inventory
-/// (cone, torus, NURBS): the C4 table names plane, sphere and
-/// cylinder, and a kind it cannot compare refuses typed at the caller
-/// rather than being approximated by one it can.
+/// (cone, NURBS, `Approx`): the C4 table names the kinds
+/// [`mod@super::carrier_eq`] carries a rung for, and a kind it cannot
+/// compare refuses typed at the caller rather than being approximated
+/// by one it can.
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.get_face(face)?;
     let sign = f.sense_sign::<T>();
@@ -567,6 +568,19 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
             origin: *origin,
             axis: *axis,
             radius: *radius,
+            outward,
+        }),
+        Some(geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }) => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
             outward,
         }),
         _ => None,

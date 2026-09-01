@@ -10,24 +10,11 @@
 mod common;
 
 use common::asm;
-use pncad::document::{AxisSense, ClassAdmission, MatePrimitive, MateSide, solve_document};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::document::{ClassAdmission, MateSide, solve_document};
+use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, Ray};
-use viewer::matetool::{
-    MateChoice, MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes,
-};
+use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
 use viewer::session::{DocSession, FaceSelection, SessionOp};
-
-/// The default choice the rows commit: a Rest at frame coincidence,
-/// axes opposed (a seat).
-fn seat_choice() -> MateChoice {
-    MateChoice {
-        class: ContactClass::Rest,
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
-}
 
 /// Pick a face through the session's real ray path.
 fn pick_at(session: &DocSession, ray: &Ray) -> FaceSelection {
@@ -37,15 +24,6 @@ fn pick_at(session: &DocSession, ray: &Ray) -> FaceSelection {
         .face_at_for(eval, ray, &session.display_view())
         .expect("the pick answers")
         .expect("the ray hits")
-}
-
-/// A ray UP from below the assembly — how the shelf's underside is
-/// picked.
-fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    }
 }
 
 /// The two picks every committing row starts from: post_b's top cap,
@@ -61,7 +39,7 @@ fn two_picks(session: &DocSession, bench: &asm::Bench) -> (FaceSelection, FaceSe
     assert_eq!(post_top.node, bench.post_b);
     let shelf_bottom = pick_at(
         session,
-        &up_at(
+        &asm::up_at(
             asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
             asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
         ),
@@ -105,7 +83,7 @@ fn two_picks_one_choice_one_committed_edit() {
     // into part coordinates through each instance's placement.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, seat_choice())
+        .proposal(doc, eval, tol, asm::seat())
         .expect("the seat proposes");
     assert_eq!(proposal.class, ContactClass::Rest);
     assert_eq!(proposal.admission, ClassAdmission::Mints);
@@ -168,7 +146,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     // No picks yet: NotTwoPicks.
     let tool = MateTool::new();
     assert!(matches!(
-        tool.proposal(doc, eval, tol, seat_choice()),
+        tool.proposal(doc, eval, tol, asm::seat()),
         Err(MateToolError::NotTwoPicks)
     ));
 
@@ -178,7 +156,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(post_top.clone());
     tool.pick(post_top.clone());
     assert!(matches!(
-        tool.proposal(doc, eval, tol, seat_choice()),
+        tool.proposal(doc, eval, tol, asm::seat()),
         Err(MateToolError::SamePick { instance }) if instance == bench.post_b
     ));
 
@@ -195,7 +173,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     session2.pump();
     let (doc2, eval2) = session2.landed_pair().expect("landed");
     assert!(matches!(
-        tool.proposal(doc2, eval2, tol, seat_choice()),
+        tool.proposal(doc2, eval2, tol, asm::seat()),
         Err(MateToolError::NotAnInstancePick {
             side: MateSide::B,
             ..

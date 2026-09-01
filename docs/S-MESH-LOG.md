@@ -96,3 +96,67 @@ a natural MESH-4 rider). Two walk.rs style classes recorded there
 rather than widened into this unit. Slate next: MESH-2 (issue 555,
 the sub-floor engineered zeros) interleaved with S-BOOL's BOOL-2;
 walk.rs stays sequenced (MESH-3 #896 before MESH-4 #881).
+
+## MESH-2 merged (2026-08-31) — issue 555 closed; sub-floor engineered zeros mesh, in two layers
+
+PR 1421 at fix head `22228e47`. Gates: both heads drew default/1e-12
+(the fix head's k-lint budget row gated against the same-day lofts
+re-cut — see the seam entry below); three ε rows + tour + clippy
+local at both heads. The chart frame writes the far point's
+structurally-zero v at the projection site (bit-keyed), and spade's
+`mitigate_underflow` floors the insert feed for the ringed/diagonal
+residue R2 demonstrated systematic — the adjudicated two-layer
+close, each layer red-first under its own mutant. The Klein wall-7
+pin retired to banked-case-closed; the refusal lottery re-swept
+denser than the issue recorded (four cells, all meshing, counts
+pinned).
+
+**The dual (ordinal 1201, sample at the row)**: R1 APPROVE 0/2/0
+(5/5/4) with every claim executed; R2 A-W-F 2/4/2 (4/3/3) with two
+executed unilateral MAJORs — the siting defense's spade premise
+falsified at the source, and the ringed residue shown in-class and
+closable (the blanket variant run green across suite and tour).
+Both are v6 tally candidates. Fix pass IMPLEMENTER-INHERITED, all
+8 items.
+
+**Seam entry — two main repairs orchestrator-direct en route** (the
+S-CERT PR-1257 precedent): PR 1428 re-cut the tess-budget baseline
+for PR 1351's un-re-cut lofts renames (the landmine detonated on
+BOOL-2's draw first), and ported the twopeg dead-const clippy red
+the forced k-lint row exposed. Issues filed this cycle: 1434 (the
+tour test suite never executes the wall probes — Track X's), and
+the ball-quarter member recorded on 1396. Slate next: MESH-3
+(issue 896, the undeclared-pole guard) after BOOL-2's cycle
+concludes; walk.rs stays sequenced.
+
+## MESH-3 merged (2026-09-01) — issue 896 closed; the undeclared-pole guard lands single-homed
+
+PR 1460 at fix head `9ef9dc88` (+ a main merge before state-sync).
+Gates: impl head drew interval/1e-12, fix head default/1e-6 — the
+two heads span both compile lanes and two ε rows, with the local
+three-ε battery at both. The guard is a D2-row-5 debug_assert
+beside #895's: no junction emitted `pole: false` lies within ε of
+a chart pole, junctions-only for #895's load-bearing reason, and
+the identified side deliberately unasserted (whether an in-band
+junction really IS the pole is an intent question). After the fix
+pass the pole find has one home (`pole_index`) and the route
+argument one holder (`poleguard.rs`) with both firing branches
+derived and the K>2π premise guarded by a row against the live Tol.
+
+**The dual (ordinal 1202, sample at the row)**: twin A-W-F (R1
+0/3/3, R2 2/4/4) — R1's arm was interrupted by the account's fable
+limit and resumed same-arm, so the pair is 3(e)-EXCLUDED from the
+tally and the twelve. Both lanes built independent byte instruments
+(36/36 and 63/63 identical) and independently measured the boolean
+door shut. The bilateral finding: the halfcap_eps7 en-route report
+was false at 1e-6 (it tessellates watertight there, pole
+identified) — the corrected band shape is pinned in-tree and homed
+on issue 881 as MESH-4 substrate, along with R2's premise
+falsification (an in-tree vertex 1.0e-9 m inside the 1e-6 band of
+an undeclared pole). R1's K=3 experiment is the cycle's best find:
+below 2π the span argument voids and the door HOLDS anyway, at the
+adoption transversality bar — the site now says so.
+
+Slate next: MESH-5 (#685) dispatches on lane-budget room; MESH-8
+inherits the corrected halfcap witness. Issue 881 carries the two
+new measurements as MESH-4 substrate.

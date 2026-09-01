@@ -61,6 +61,19 @@ impl EntityKind {
             Self::Vertex => "vertex",
         }
     }
+
+    /// The indefinite article agreeing with [`EntityKind::noun`] — the
+    /// value decides it ("an edge", "a face"), so a sentence that
+    /// hard-codes one is wrong for some kind it can reach. Rendered as
+    /// `"{} {}"` beside the noun, or beside a whole [`StableName`]
+    /// whose kind this is. `Dimension`'s `article` is the same idiom
+    /// and states the rule.
+    pub(crate) fn article(self) -> &'static str {
+        match self {
+            Self::Body | Self::Face | Self::Vertex => "a",
+            Self::Edge => "an",
+        }
+    }
 }
 
 /// N1's stable name: a derivation path — the minting node plus an
@@ -80,6 +93,25 @@ pub struct StableName {
     pub node: RecipeNodeId,
     /// The role path within that operation.
     pub path: RolePath,
+}
+
+// The human-readable rendering: the kind (through [`EntityKind::noun`],
+// never `Debug`) plus the minting node — the half of a name a user can
+// act on. The role path is a derivation, not something a person reads
+// mid-sentence, so prose never renders it; the typed value remains the
+// machine channel for anything that needs the path. Article-free
+// ("face name minted by node 3") so a sentence supplies its own
+// article. Refusal prose that names a name forwards this rather than
+// re-spelling it.
+impl core::fmt::Display for StableName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} name minted by node {}",
+            self.kind.noun(),
+            self.node.0
+        )
+    }
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
