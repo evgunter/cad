@@ -42,6 +42,8 @@
 mod arc_fillet;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
+#[path = "bool11_probes.rs"]
+mod bool11_probes;
 #[path = "bool8_r1_probes.rs"]
 mod bool8_r1_probes;
 #[path = "canonical_invariance.rs"]

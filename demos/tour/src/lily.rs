@@ -873,8 +873,9 @@ impl Section {
         let keel = (0.0, -self.keel);
         // NAMED GAP — the one place in the tour the presented surface
         // cannot say what the demo means, recorded rather than worked
-        // around (main.rs's purpose block). Half of it is now closed and
-        // the half that remains is a different, sharper thing.
+        // around (main.rs's purpose block). Both halves the ruling
+        // named are closed; what is left is a third thing, and it is
+        // about THIS SECTION FAMILY rather than about the lattice.
         //
         // This outline is FOUR corners said on EIGHT vertices, because a
         // loft matches segment j to segment j and the tip and attachment
@@ -888,29 +889,38 @@ impl Section {
         // spanning [-keel, ridge], and no section here has keel = ridge).
         // Only the eased sections in between turn at every vertex.
         //
-        // CLOSED (issue 433, ruled 2026-09-01): those junctions are
-        // carrier IDENTITY, legal undeclared, and the lattice now spells
-        // them — `line(len)` off a directed point continues the run
-        // structurally, minting the subdivision vertex without declaring
-        // anything. That is the interior case.
+        // CLOSED: those junctions are carrier IDENTITY, legal
+        // undeclared, and the lattice spells them — `line(len)` off a
+        // directed point for an interior subdivision, `continue_to(p)`
+        // where the subdivision lands on a named point, and
+        // `continue_to(Start)` for a run that crosses the seam. A
+        // single section of this family authors end to end today.
         //
-        // OPEN: a run that crosses the SEAM has no spelling. Every side
-        // here is subdivided, so whichever vertex the loop is cut at, the
-        // closing leg either departs a subdivision vertex
-        // (`TangentLineClose`) or lands on one (a mid-carrier seam, which
-        // PATHS §6 PQ4 refuses) — `LiftRefusal::SameCarrierClose` is the
-        // same wall's name one layer down. What forces it is the strict
-        // corner/subdivision ALTERNATION that one subdivision per side
-        // produces; an outline free to distribute the same vertex budget
-        // unevenly has spellings that close, and this one is not free
-        // (the loft pins which vertex sits where). The declared
-        // structural closer that ends it is ruled and scheduled
-        // (BOOL-11). Until then this loop is still
-        // raw-authored: `ProfileLoop`'s fields are sealed, and the only
-        // route left is the kernel's raw door, `profile::RawLoop`, which
-        // `pncad::profile` deliberately omits. That is why this crate
-        // carries a second kernel dependency — the gap stays loud in the
-        // dependency graph instead of hidden in a struct literal.
+        // OPEN, and measured (`bool8_r1_probes`): the closer needs the
+        // seam cut at a CORNER, and this family's corners MOVE. In the
+        // kite the corners are the tips, so the sections whose seam is
+        // a tip author — starts 0, 2, 4, 6 of the ring below. In the
+        // rectangle the corners are the shoulders, so those sections
+        // want starts 1, 3, 5, 7. The two sets are disjoint, and not by
+        // accident: the kite's corner set IS its tips and the
+        // rectangle's IS its shoulders, which are disjoint points of
+        // the outline whatever budget is spent on it. A loft matches
+        // segment j of every section to segment j of every other, so
+        // every section here must be authored at ONE rotation — and
+        // `leaf_a_plan` carries a `shoulder = 1` base AND a
+        // `shoulder = 0` belly, so no rotation gives all of them a
+        // corner at the seam. The section that misses out closes on a
+        // subdivision vertex, which is a mid-carrier seam: PATHS §6
+        // PQ4, deliberately left standing by the ruling.
+        //
+        // So this loop is still raw-authored: `ProfileLoop`'s fields
+        // are sealed, and the only route left is the kernel's raw door,
+        // `profile::RawLoop`, which `pncad::profile` deliberately
+        // omits. That is why this crate carries a second kernel
+        // dependency — the gap stays loud in the dependency graph
+        // instead of hidden in a struct literal. What would close it is
+        // a ruling on whether a DECLARED subdivision vertex is an
+        // admissible seam; the question is put in PATHS §4.
         let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![RawLoop::new(vec![
             v(right),

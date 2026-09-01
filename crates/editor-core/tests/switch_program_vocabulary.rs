@@ -261,11 +261,55 @@ fn every_table_verb_is_a_document_program() {
         .iter()
         .flat_map(|loop_| loop_.iter().map(profile::Step::verb))
         .collect();
-    let missing: Vec<&Verb> = Verb::ALL.iter().filter(|v| !seen.contains(v)).collect();
+    let missing: Vec<&Verb> = Verb::ALL
+        .iter()
+        .filter(|v| !seen.contains(v) && !NOT_IN_DOCUMENT.iter().any(|(n, _)| n == *v))
+        .collect();
     assert!(
         missing.is_empty(),
-        "the document step vocabulary is short of the transition table: {missing:?}"
+        "the document step vocabulary is short of the transition table: {missing:?} — \
+         either spell them in `ProgramStep` or, if the gap is deliberate and coordinated, \
+         name them in NOT_IN_DOCUMENT with the reason"
     );
+}
+
+/// **The verbs the document vocabulary deliberately does not spell**,
+/// each with the reason — the census's escape hatch, and the only one.
+///
+/// This exists because the gap is real and the alternative is worse
+/// than recording it. `ProgramStep` is matched exhaustively by the wire
+/// form, so a verb reaching the document reaches the PERSISTED
+/// vocabulary in the same commit, and that is a ratified schema-version
+/// break with in-tree corpus regeneration behind it — coordinated work,
+/// not a side effect of adding an authoring verb. What this list is NOT
+/// is a way to stay green: an entry costs a reason, the lifting door
+/// refuses the verb typed rather than dropping it
+/// (`RecordedProgramError::VerbNotInDocumentVocabulary`), and the row
+/// below makes the entry itself falsifiable — a verb listed here that
+/// the document CAN spell fails, so the list cannot outlive its reason.
+const NOT_IN_DOCUMENT: &[(Verb, &str)] = &[(
+    Verb::ContinueTo,
+    "the declared point-target continuation (issue 433's lattice half): reaching the \
+     document means reaching the wire, which is a ratified schema bump and its own unit",
+)];
+
+/// **The exception list is falsifiable.** Every verb named in
+/// [`NOT_IN_DOCUMENT`] must actually be unspellable as a document
+/// program — the lifting door refuses it typed — so an entry left
+/// behind after the document vocabulary catches up reds here instead of
+/// quietly suppressing the census above.
+#[test]
+fn the_document_vocabulary_exceptions_are_still_exceptions() {
+    for (verb, reason) in NOT_IN_DOCUMENT {
+        assert!(
+            !reason.is_empty(),
+            "{verb:?} is excused from the census with no reason"
+        );
+        assert!(
+            Verb::ALL.contains(verb),
+            "{verb:?} is excused from the census but the table no longer declares it"
+        );
+    }
 }
 
 /// **The mode census.** Every arc mode the kernel vocabulary declares
@@ -326,6 +370,7 @@ fn every_arc_mode_is_a_document_program() {
             | profile::Step::Turn(_)
             | profile::Step::Line(_)
             | profile::Step::LineTo(_)
+            | profile::Step::ContinueTo(_)
             | profile::Step::TangentArcTo(_)
             | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }

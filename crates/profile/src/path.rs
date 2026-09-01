@@ -519,6 +519,26 @@ pub enum PathNoCornerReason {
     NoTangentCircle(NoCornerReason),
 }
 
+/// WHICH of a closing verb's two junction checks refused.
+///
+/// A closing verb classifies TWO junctions — the one its own leg
+/// departs, and the SEAM the loop closes at — and both can land in the
+/// tangent band on the same outline. The margin alone cannot tell them
+/// apart, so the refusal names its site: the two mechanisms then pin
+/// apart at the assertion instead of only through the fixture that
+/// provoked each one, and the recourse can differ, because it does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseSite {
+    /// The closing leg's own DEPARTURE junction: the direction the
+    /// closer leaves on is within ε_input of the incoming tangent.
+    /// This is the site the declared structural closer answers.
+    Departure,
+    /// The SEAM: the arriving direction is within ε_input of the
+    /// entry's outgoing direction, so the loop's seam sits mid-carrier
+    /// — PQ4's refusal, and no spelling of the closing leg moves it.
+    Seam,
+}
+
 /// Typed refusals of the authoring algebra — geometry the lattice
 /// cannot rule out, refused loudly (PATHS-DESIGN §3 "Refusals" and §4).
 /// The verify layer's own errors ([`crate::ProfileError`]) still apply to the
@@ -569,18 +589,23 @@ pub enum PathError<T: Real> {
     /// authoring origin so the straight run is authored forward as
     /// side 1 and the arc becomes the closer.
     ///
-    /// NEITHER reaches an outline whose every side is a subdivided
-    /// STRAIGHT run: rotation cannot help when the seam junction and
-    /// the junction the closer departs are adjacent and alternate in
-    /// kind, and there is no arc to close onto. That class is the
-    /// declared structural CLOSER's — the straight continuation
-    /// landing on a named target, `Start` being the special case,
-    /// checked against the departing ray rather than inferred from it
-    /// (ruled 2026-09-01; not yet built here). Until it lands, an
-    /// all-sides-subdivided outline is authored as loop DATA.
+    /// A third spelling reaches the class neither of those can: the
+    /// declared structural closer,
+    /// [`continue_to(Start)`](PartialPath::continue_to), which is not
+    /// an authored direction at all — the ray is the departing point's
+    /// own, and the target is checked against it. It is the recourse
+    /// when [`site`](CloseSite) is [`CloseSite::Departure`], and it is
+    /// NOT a recourse when the site is [`CloseSite::Seam`]: a seam
+    /// junction that is itself a straight continuation is a
+    /// mid-carrier seam, which PQ4 refuses however the closing leg is
+    /// spelled. Move the seam to a corner instead.
     TangentLineClose {
         /// The offending collinearity/turn margin, meters.
         margin: T,
+        /// WHICH of a closing verb's two checks refused — the payload
+        /// that makes the two seam mechanisms separable at the site
+        /// rather than only by the fixture that provoked them.
+        site: CloseSite,
     },
     /// §4 item 4: the constructed junction joins two segments of the
     /// SAME carrier (collinear line onto line, cocircular arc onto
@@ -593,6 +618,36 @@ pub enum PathError<T: Real> {
         /// difference for circles; perpendicular offset for lines),
         /// meters.
         margin: T,
+    },
+    /// **The declared point-target continuation's consistency
+    /// refusal**: [`continue_to(target)`](PartialPath::continue_to)
+    /// declares the leg to be the straight continuation of the run
+    /// LANDING on `target`, and the target does not lie on the
+    /// departing point's ray.
+    ///
+    /// This is authored data contradicting itself — the arc verbs'
+    /// consistency class ([`ArcCenterNotEquidistant`](Self::ArcCenterNotEquidistant)
+    /// is the same shape) — and NOT the value inference the ladder
+    /// refuses: nothing here reads intent off a coincidence, because
+    /// the intent is what the verb said. So the comparison is banded,
+    /// as every comparison in this kernel is; a target the funnel
+    /// cannot call coincident with the ray refuses here, and one it
+    /// cannot decide escalates.
+    ///
+    /// The miss is metered as the target's own LATERAL displacement
+    /// from the ray, in meters — the distance the authored point would
+    /// have to move to be on it. No lever converts it: the datum is a
+    /// point, so the deviation it implies is the point deviation
+    /// itself. (§4 item 1's turn margin needs a lever because ITS
+    /// datum is an angle, which means nothing until an arm gives it a
+    /// length.)
+    ContinuationTargetOffRay {
+        /// The lateral miss (û ⟂ component of `target − at`), meters —
+        /// the classified margin, signed to the ray's left.
+        across: T,
+        /// How far along the ray the target's foot lies, meters — the
+        /// leg length the declaration asks for. Data, not a decision.
+        along: T,
     },
     /// The fillet's virtual corner does not exist (see
     /// [`PathNoCornerReason`]).
@@ -905,6 +960,8 @@ pub enum PathErrorKind {
     TangentLineClose,
     /// [`PathError::SameCarrierJunction`].
     SameCarrierJunction,
+    /// [`PathError::ContinuationTargetOffRay`].
+    ContinuationTargetOffRay,
     /// [`PathError::NoCornerForFillet`].
     NoCornerForFillet,
     /// [`PathError::AnchorOutsideTrimmedExtent`].
@@ -966,6 +1023,7 @@ impl<T: Real> PathError<T> {
             Self::JunctionCusp { .. } => PathErrorKind::JunctionCusp,
             Self::TangentLineClose { .. } => PathErrorKind::TangentLineClose,
             Self::SameCarrierJunction { .. } => PathErrorKind::SameCarrierJunction,
+            Self::ContinuationTargetOffRay { .. } => PathErrorKind::ContinuationTargetOffRay,
             Self::NoCornerForFillet { .. } => PathErrorKind::NoCornerForFillet,
             Self::AnchorOutsideTrimmedExtent { .. } => PathErrorKind::AnchorOutsideTrimmedExtent,
             Self::FilletOffsetLeverTooShort { .. } => PathErrorKind::FilletOffsetLeverTooShort,
@@ -1057,17 +1115,43 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin = num(margin),
                 arm = num(arm)
             ),
-            Self::TangentLineClose { margin } => write!(
+            Self::TangentLineClose {
+                margin,
+                site: CloseSite::Departure,
+            } => write!(
                 f,
                 "a tangent LINE close is overdetermined — direction inherited AND through Start \
                  (margin {margin} m) — and refuses always, exact collinearity included: \
-                 close with the tangent ARC instead (.tangent().tangent_arc_to(Start)), or \
-                 rotate the loop's authoring origin so the straight run is authored forward as \
-                 side 1 and the arc becomes the closer — but if EVERY side is a subdivided \
-                 straight run neither applies (no arc to close onto, and rotation only moves \
-                 the wall), and the loop is authored as data until the declared structural \
-                 closer ships",
+                 if the closing leg IS the straight continuation of the run it departs, declare \
+                 it — continue_to(Start), which takes the departing point's own ray and checks \
+                 Start against it; otherwise close with the tangent ARC \
+                 (.tangent().tangent_arc_to(Start)), or rotate the loop's authoring origin so \
+                 the straight run is authored forward as side 1 and the arc becomes the closer",
                 margin = num(margin)
+            ),
+            Self::TangentLineClose {
+                margin,
+                site: CloseSite::Seam,
+            } => write!(
+                f,
+                "the SEAM is a straight continuation (margin {margin} m): the loop closes \
+                 mid-carrier, which PQ4 refuses however the closing leg is spelled — the \
+                 declared closer does not reach this one, because the junction in band is the \
+                 entry's, not the closer's. Cut the loop at a CORNER instead (author the seam \
+                 where the outline actually turns)",
+                margin = num(margin)
+            ),
+            Self::ContinuationTargetOffRay { across, along } => write!(
+                f,
+                "the declared straight continuation's target is not on the departing ray: it \
+                 misses by {across} m across the ray, {along} m along it. The verb DECLARES the \
+                 leg to continue the run onto that point, so the point must lie on the ray to \
+                 within the input tolerance — this is authored data disagreeing with itself, \
+                 not a tangency judgement. Move the target onto the ray (or lower the \
+                 tolerance); if a TURN was meant here, author the direction \
+                 (.turn(δ)/.angle(θ)) and use line_to",
+                across = num(across),
+                along = num(along)
             ),
             Self::SameCarrierJunction { margin } => write!(
                 f,
@@ -1700,12 +1784,13 @@ fn arc_carrier<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> ArcData<T> {
 
 /// §4 item 1, one generic function: classifies the departure `dep`
 /// against the incoming tangent and its reverse on the incoming leg's
-/// lever arm. `line_close` selects the tangent-line-close refusal
-/// flavor (a Start-targeting straight closer).
+/// lever arm. `closing` selects the tangent-line-close refusal flavor
+/// and names WHICH of a closing verb's two checks this call is, since
+/// both can land in band on one outline and their recourses differ.
 fn junction_check<T: Decide>(
     inc: &Incoming<T>,
     dep: Dir<T>,
-    line_close: bool,
+    closing: Option<CloseSite>,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
@@ -1731,11 +1816,13 @@ fn junction_check<T: Decide>(
                     margin,
                     arm: inc.arm,
                 }),
-                Ok(_) if line_close => Err(PathError::TangentLineClose { margin }),
-                Ok(_) => Err(PathError::JunctionTangent {
-                    margin,
-                    arm: inc.arm,
-                }),
+                Ok(_) => match closing {
+                    Some(site) => Err(PathError::TangentLineClose { margin, site }),
+                    None => Err(PathError::JunctionTangent {
+                        margin,
+                        arm: inc.arm,
+                    }),
+                },
                 Err(source) => Err(PathError::Escalated { source }),
             }
         }
@@ -1799,7 +1886,26 @@ fn emit_straight_leg<T: Real>(
     ang: Dir<T>,
     len: T,
 ) -> Result<Tip<T>, PathError<T>> {
-    let end = at + ang.unit * len;
+    emit_straight_leg_at(core, at + ang.unit * len, ang)
+}
+
+/// The same emission where the END is the datum rather than the extent
+/// — the declared point-target continuation, whose vertex is the
+/// AUTHORED target and not a length walked along the ray.
+///
+/// Landing the authored point rather than its projection onto the ray
+/// is what §4 item 3 asks for (every authored point lies on the final
+/// path, authored once), and it is what makes the closer close: `Start`
+/// as the target reaches the entry vertex exactly, not to within a
+/// band. The RAY is still what the tip carries out, because the ray is
+/// the carrier the declaration names; the accepted lateral miss is the
+/// whole of the difference between the two, and it is bounded by the
+/// check that let the target through.
+fn emit_straight_leg_at<T: Real>(
+    core: &mut Core<T>,
+    end: Point2<T>,
+    ang: Dir<T>,
+) -> Result<Tip<T>, PathError<T>> {
     let head = core.head()?;
     core.push_line(end)?;
     let arm = (end - head).norm_squared().sqrt();
@@ -2401,7 +2507,7 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
     ) -> Result<PartialPath<T, P, HasAng>, PathError<T>> {
         if let Some(pos) = &self.tip.pos {
             if let Some(inc) = &pos.incoming {
-                junction_check(inc, dir, false, tol)?;
+                junction_check(inc, dir, None, tol)?;
             }
             let at = pos.at;
             if self.core.pending.is_some() {
@@ -2463,7 +2569,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             },
         )?;
         let theta = Dir::from_angle(inc.ang.ang + delta);
-        junction_check(&inc, theta, false, tol)?;
+        junction_check(&inc, theta, None, tol)?;
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
@@ -2508,6 +2614,150 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // displacements only while those sums are exact.
         let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
         Ok(in_state(self.core, tip))
+    }
+
+    /// The departing RAY of a straight continuation: the point it
+    /// leaves from and the tangent it leaves along, both binding bits.
+    fn continuation_ray(&self, site: &'static str) -> Result<(Point2<T>, Dir<T>), PathError<T>> {
+        let pos = self
+            .tip
+            .pos
+            .as_ref()
+            .ok_or(PathError::UnderdeterminedLeg { site })?;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg { site })?;
+        Ok((pos.at, inc.ang))
+    }
+
+    /// **The declared point-target continuation's one decision**: is the
+    /// authored target ON the departing ray? Returns how far ALONG it
+    /// the target sits — the leg length the declaration implies — or
+    /// refuses.
+    ///
+    /// Two facts are gated, and they are separate facts, so they get
+    /// separate refusals. The LATERAL miss decides whether the target is
+    /// on the ray's LINE, and it is classified on the same linear band
+    /// every other decision in this kernel uses, with the same reading:
+    /// below ε_precision the target and the ray are the same place at
+    /// the precision anything here represents, so the declaration is
+    /// consistent; above ε_input (= K·ε) they are definitely different
+    /// places, and the authored data contradicts itself; between them
+    /// nothing is decidable, so the band escalates rather than guesses.
+    /// The refusal edge IS ε_input, which is the band the input-quality
+    /// role names — this is a question about authored input, not about
+    /// what the kernel can build — and it is reached through the funnel
+    /// rather than by comparing against K·ε directly, because a bare
+    /// comparison would swallow the escalation band and decide where the
+    /// numbers cannot.
+    ///
+    /// The margin is metered with NO lever: `across` is already the
+    /// target's own displacement from the ray in meters — the distance
+    /// the authored point would have to move — so [`Margin::of`] is the
+    /// honest door. (§4 item 1 levers its turn margin because ITS datum
+    /// is an angle; an angle is a pure number until an arm says what it
+    /// displaces. Levering here would mean dividing this length by the
+    /// leg to get an angle and multiplying it back, which can only lose
+    /// bits and would make the threshold depend on how far away the
+    /// author put the point.)
+    ///
+    /// The ALONG component is the ray's half-line-ness, and it is the
+    /// same fact `line(len)` gates on its authored length: a target
+    /// behind the departure, or on top of it, is a leg of non-positive
+    /// length ([`PathError::NonpositiveLeg`]), not a target that misses.
+    fn on_ray_extent(
+        at: Point2<T>,
+        ang: Dir<T>,
+        target: Point2<T>,
+        tol: Tol,
+    ) -> Result<T, PathError<T>> {
+        let d = target - at;
+        let along = ang.unit.dot(d);
+        let across = ang.unit.perp_dot(d);
+        let band = linear_band(tol)?;
+        match decide("path_continuation_target_offset", Margin::of(across), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => return Err(PathError::ContinuationTargetOffRay { across, along }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        match decide("path_leg_length", Margin::of(along), band) {
+            Ok(Sign::Positive) => Ok(along),
+            Ok(_) => Err(PathError::NonpositiveLeg { length: along }),
+            Err(source) => Err(PathError::Escalated { source }),
+        }
+    }
+
+    /// The kernel behind the table's point-target continuation row
+    /// (recording is the row's, not the kernel's): the same leg
+    /// [`straight_continuation_kernel`](Self::straight_continuation_kernel)
+    /// emits, with its extent given as an authored POINT instead of a
+    /// length — and, because the point is authored rather than walked
+    /// to, the one thing the length form has nothing to check: that the
+    /// point is where the declaration says it is.
+    ///
+    /// The emitted vertex is the AUTHORED target, never its projection.
+    /// Snapping to the ray would move an authored point (§4 item 3), and
+    /// would put the closer's endpoint a hair off the entry vertex,
+    /// which is the one place a hair is not allowed.
+    fn continue_to_point_kernel(
+        mut self,
+        target: Point2<T>,
+        tol: Tol,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        let (at, ang) = self.continuation_ray("continue_to on a tip without incoming data")?;
+        Self::on_ray_extent(at, ang, target, tol)?;
+        let tip = emit_straight_leg_at(&mut self.core, target, ang)?;
+        Ok(in_state(self.core, tip))
+    }
+
+    /// The kernel behind the table's structural CLOSER row: the
+    /// point-target continuation whose target is [`Start`].
+    ///
+    /// One check is the point row's — the entry vertex must lie on the
+    /// departing ray — and it replaces the closer's departure junction
+    /// check outright: there is no authored direction here to classify,
+    /// so §4 item 1 has nothing to say and
+    /// [`CloseSite::Departure`] cannot arise. The SEAM check still runs,
+    /// unchanged and un-narrowed: the junction between this leg and the
+    /// entry's own departure is a real junction, the loop's, and PQ4
+    /// wants it to be a corner. That is what makes a seam at a corner
+    /// SUFFICIENT for an outline whose every side is subdivided — and
+    /// what leaves a seam at a subdivision vertex refused, now naming
+    /// [`CloseSite::Seam`] so the two are told apart at the site.
+    fn continue_to_start_kernel(mut self, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>> {
+        let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
+            site: "close before the entry position is bound",
+        })?;
+        let (at, ang) =
+            self.continuation_ray("continue_to(Start) on a tip without incoming data")?;
+        if self.core.pending.is_some() {
+            return Err(PathError::ArcLegOnOpenFillet {
+                site: "a declared straight continuation departs the tip's own tangent, and an \
+                       OPEN fillet has not bound one yet — resolve the fillet with a directed \
+                       leg first",
+            });
+        }
+        Self::on_ray_extent(at, ang, start_pos, tol)?;
+        let start_ang = *self.core.start_ang.get_or_insert(ang);
+        // NO vertex is minted here. `Start` is the entry vertex, which
+        // the loop already carries; a closing leg is the segment BACK
+        // to it, and emitting its endpoint would author the entry
+        // twice (§4 item 3: authored once). That is the one place the
+        // point-target row and the closer differ, and it is why the
+        // closer's arm is measured head-to-entry rather than read off
+        // an emitted tip.
+        let head = self.core.head()?;
+        let arm = (start_pos - head).norm_squared().sqrt();
+        junction_check(
+            &Incoming {
+                ang,
+                arm,
+                carrier: None,
+            },
+            start_ang,
+            Some(CloseSite::Seam),
+            tol,
+        )?;
+        self.core.set_leaving(T::zero(), FirstSeg::Line)?;
+        Ok(self.core.build())
     }
 
     /// The kernel behind the table's declared-subdivision row (recording
@@ -2668,7 +2918,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                     match decide("path_collinear_target", Margin::of(across), band) {
                         Ok(Sign::Zero) => {
                             return Err(if closing {
-                                PathError::TangentLineClose { margin: across }
+                                PathError::TangentLineClose {
+                                    margin: across,
+                                    site: CloseSite::Departure,
+                                }
                             } else {
                                 PathError::SameCarrierJunction { margin: across }
                             });
@@ -2720,7 +2973,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 carrier: Some(g.carrier),
             },
             start_ang,
-            false,
+            None,
             tol,
         )?;
         self.core.set_leaving(g.bulge, FirstSeg::Arc)?;
@@ -2753,7 +3006,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
         } else {
             if let Some(inc) = &self.tip_pos()?.incoming {
-                junction_check(inc, gamma, false, tol)?;
+                junction_check(inc, gamma, None, tol)?;
             }
             if self.core.start_ang.is_none() {
                 self.core.start_ang = Some(gamma);
@@ -2776,7 +3029,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core
                 .resolve_fillet(at, gamma, ArrivalKind::Continues, tol)?;
         } else if let Some(inc) = &self.tip_pos()?.incoming {
-            junction_check(inc, gamma, true, tol)?;
+            junction_check(inc, gamma, Some(CloseSite::Departure), tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(gamma);
         let head = self.core.head()?;
@@ -2788,7 +3041,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 carrier: None,
             },
             start_ang,
-            true,
+            Some(CloseSite::Seam),
             tol,
         )?;
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
@@ -2905,7 +3158,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, p, bulge);
         if let Some(inc) = &pos.incoming {
-            junction_check(inc, start_t, false, tol)?;
+            junction_check(inc, start_t, None, tol)?;
         }
         if self.core.start_ang.is_none() {
             self.core.start_ang = Some(start_t);
@@ -2934,7 +3187,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let at = pos.at;
         let (start_t, end_t, chord) = Self::arc_angles(at, start_pos, bulge);
         if let Some(inc) = &pos.incoming {
-            junction_check(inc, start_t, false, tol)?;
+            junction_check(inc, start_t, None, tol)?;
         }
         let start_ang = *self.core.start_ang.get_or_insert(start_t);
         let carrier = arc_carrier(at, start_pos, bulge);
@@ -2946,7 +3199,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 carrier: Some(carrier),
             },
             start_ang,
-            false,
+            None,
             tol,
         )?;
         self.core.set_leaving(bulge, FirstSeg::Arc)?;
@@ -3044,6 +3297,50 @@ impl<T: Decide, F: Flavor> LineTarget<T, F> for Start {
     fn line_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::LineTo(Target::Start));
         path.line_to_start(tol)
+    }
+}
+
+/// A [`PartialPath::continue_to`] target: an authored absolute point,
+/// or [`Start`] (the declared structural closer). Sealed.
+///
+/// The two are one verb because they are one construction — the same
+/// ray, the same check, the same emitted vertex — differing only in
+/// where the target came from: an authored point, or the chain's own
+/// entry, which is emission-layer bookkeeping rather than incoming-leg
+/// data. Closing is the verb's SHAPE, not a value it discovers.
+pub trait ContinueTarget<T: Decide>: sealed::Sealed {
+    /// A directed point for an interior target; the closed loop for
+    /// [`Start`].
+    type Out;
+    #[doc(hidden)]
+    fn continue_from(
+        path: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+        target: Self,
+        tol: Tol,
+    ) -> Self::Out;
+}
+
+impl<T: Decide> ContinueTarget<T> for Point2<T> {
+    type Out = Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>;
+    fn continue_from(
+        mut path: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+        target: Self,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ContinueTo(Target::Point(target)));
+        path.continue_to_point_kernel(target, tol)
+    }
+}
+
+impl<T: Decide> ContinueTarget<T> for Start {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn continue_from(
+        mut path: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+        _target: Self,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core.record(Step::ContinueTo(Target::Start));
+        path.continue_to_start_kernel(tol)
     }
 }
 

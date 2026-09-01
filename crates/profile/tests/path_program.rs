@@ -74,6 +74,7 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::Turn(_)
             | Step::Line(_)
             | Step::LineTo(_)
+            | Step::ContinueTo(_)
             | Step::TangentArcTo(_)
             | Step::ArcContinue(_)
             | Step::Fillet { .. }
