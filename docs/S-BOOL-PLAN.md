@@ -171,6 +171,18 @@ logged pre-draw per the protocol.
   marked as materialization); `validate` remains the data checker
   for materialized loops. After BOOL-8 (lily needs the continuation
   first).
+- **BOOL-10 — the arc_continue retirement (L; under the Q1
+  extension).** Remove the verb, its program step, eval arm,
+  profile lift, and refusal family (`ArcContinueNeedsArcCarrier`
+  et al.); re-spell the subdivision need as a declared-subdivision
+  arc form (the `circle_split` precedent — exact spec shape rides
+  the unit's PR for Evan's eyes, PATHS §2c design surface); wire
+  documents carrying the step migrate at read (schema bump,
+  coordinated on the away channel — schema is contended ground);
+  narrow the sealed verb-module signatures to bare state values so
+  chain-state-consuming verbs are unwritable (lever arm + identity
+  data confined to emission-layer types). After BOOL-8; BOOL-9's
+  raw-door survey runs beside it.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -210,7 +222,23 @@ this program's files — see Q3 below.
    dependency; fixtures to the lattice or a dev-only door per the
    LoopBuilder→test_support precedent; step-import as a
    materialization door marked as such): BOOL-9, survey-first.
-   #433 closes when both land, with both sites' prose updated. Three stances are in
+   #433 closes when both land, with both sites' prose updated.
+   **Extended (Evan, in-chat, 2026-09-01, second round): the
+   straight continuation is spelled `line(len)` off a directed
+   point — no new verb (`line_continue` was drafted and dropped: a
+   line is the one carrier the binding bits fully determine, and
+   the inherited-bitwise tangent makes consecutive legs exactly
+   parallel). And `arc_continue` is REMOVED rather than kept as the
+   axiom's exception: it consults incoming-carrier data and
+   branches on what the previous leg was, both of which §2c calls
+   unrepresentable. Its recorded need (authored arc subdivision —
+   the half-disc equator) re-spells as declared subdivision on the
+   arc leg itself, the open-carrier analog of `circle_split`, with
+   vertices minted at the chain's emission layer where the axiom's
+   bookkeeping legitimately lives. The enforcement Evan believed
+   already existed becomes real: the sealed verb module's
+   signatures narrow to the bare state values only, so a verb
+   needing chain state is unwritable. BOOL-10.** Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
