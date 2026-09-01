@@ -67,8 +67,13 @@
 //!
 //! The intersection region's chart-space shoelace (IsoArc segments
 //! exact) crosses to model space through the chart's lever arms, and
-//! the resulting margin is `over_lever(2·A, P)` — the region's **mean
-//! width** in metres, the `split_section_area` precedent.
+//! the resulting margin is `over_lever(2·A, P)` — the **mean width**
+//! of the METRED CHART region, the `split_section_area` precedent.
+//! On the exact-arm charts that is the model region's own mean
+//! width; on a bounded-arm chart it is a reading on a contracted
+//! copy, and the claim is written to the AREA positivity that
+//! transfers unconditionally rather than past it — see
+//! [`ChartOverlap::PositiveArea`], which carries the transfer factor.
 //!
 //! Those arms are **inf-side**, and that is the whole of what makes
 //! the positive claim sound: scaling a chart polygon by a certified
@@ -127,9 +132,37 @@ use crate::validate::decide;
 /// non-definite configuration is a typed error).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChartOverlap {
-    /// The trim regions' intersection has definitely-positive area
-    /// (mean width definitely above the band) — the `PatchContact`
-    /// blessing direction.
+    /// The trim regions' intersection has **definitely-positive
+    /// model-space area** — the `PatchContact` blessing direction.
+    ///
+    /// # Exactly what the margin behind this says, and about what
+    ///
+    /// The decided margin (`chart_region_area`) is the region's mean
+    /// width `2A/P` **in the metred chart** — the chart polygon
+    /// scaled by [`certified_arms`]' lever arms. That copy is a
+    /// certified metric CONTRACTION of the model image, so what
+    /// transfers to model space is the AREA: `|det| ≥ 1` pointwise
+    /// gives `A_model ≥ A_scaled > 0`, and area positivity is what
+    /// this variant claims.
+    ///
+    /// **The mean width does NOT transfer as-is, and this variant
+    /// does not claim it does.** Under a contraction the perimeter
+    /// grows as well as the area, and `2A/P` is not monotone: the
+    /// honest general relation is
+    /// `mw_model ≥ (ρ/√T)·mw_scaled`, with `ρ` and `T` the assembly's
+    /// own skew discount and normalized trace bound
+    /// ([`certified_arms`]), a factor that is exactly **1** on a
+    /// plane or cylinder chart — whose arms are exact constants, so
+    /// the metred chart IS the model metric and the scaled reading is
+    /// the model reading — and as small as ~0.026 on a rational
+    /// spline wall. A chart whose stretch is concentrated in thin
+    /// boundary layers is the shape that separates the two readings
+    /// (`a_stretch_concentrating_chart_separates_the_two_widths`).
+    ///
+    /// So: definite area, always; a mean width that is the model
+    /// region's only on the exact-arm charts, and elsewhere a reading
+    /// on the contracted copy that bounds the model's only after the
+    /// `ρ/√T` factor.
     PositiveArea,
     /// The trim regions are definitely disjoint — a `PatchContact`
     /// claiming this pair is stale.
@@ -2240,6 +2273,12 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // the conservative ring deduction cannot certify EITHER direction
     // (the region exists; only its hole-adjusted area is unresolved)
     // and escalates typed.
+    // The mean width of the METRED CHART region. On an exact-arm
+    // chart (plane, cylinder) that is the model region's mean width;
+    // on a bounded-arm chart it is a reading on the contraction, and
+    // only the AREA positivity transfers unconditionally. See
+    // [`ChartOverlap::PositiveArea`] — the claim is written to what
+    // this margin establishes, not past it.
     let area_margin = Margin::over_lever(net_2a, tot_p);
     match decide("chart_region_area", area_margin, band) {
         Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
@@ -3373,14 +3412,92 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms {
-    use super::{ChartRegionError, certified_arms};
+    use super::{
+        ChartOverlap, ChartRegionError, FaceUv, certified_arms, overlap_of_uv, v_window,
+    };
+    use crate::body::Body;
+    use crate::entity::FaceKey;
+    use crate::euler::FaceSurface;
     use geom::{NurbsSurface, Surface};
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Vec3};
+    use geom_core::{Band, Point2, Point3, Vec3};
     use std::sync::Arc;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn xy_plane() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
+        vec![
+            Point2::new(x0, y0),
+            Point2::new(x1, y0),
+            Point2::new(x1, y1),
+            Point2::new(x0, y1),
+        ]
+    }
+
+    /// A one-loop planar face: the pipeline needs a body and a face
+    /// only for the loop keys its refusals name, so the cheapest
+    /// well-formed sheet is the right fixture here — the CHART under
+    /// test is the one passed alongside.
+    fn sheet(body: &mut Body<f64>) -> FaceKey {
+        use crate::euler::{MefSite, MevSite};
+        use geom_brep::EdgeCurveSpec;
+        use geom_core::Tol;
+        let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let (a, b, cc, d) = (c(0.0, 0.0), c(1.0, 0.0), c(1.0, 1.0), c(0.0, 1.0));
+        let seed = body.mvfs(a).unwrap();
+        let e_ab = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                b,
+                Tol::witness(),
+            )
+            .unwrap();
+        let e_bc = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_ab.he_minus,
+                    he2: e_ab.he_minus,
+                },
+                cc,
+                Tol::witness(),
+            )
+            .unwrap();
+        let e_cd = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_bc.he_minus,
+                    he2: e_bc.he_minus,
+                },
+                d,
+                Tol::witness(),
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: he,
+                he2: e_ab.he_plus,
+            },
+            EdgeCurveSpec::line_between(d, a),
+            FaceSurface::New(xy_plane()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .face
     }
 
     fn sphere(radius: f64) -> Surface<f64> {
@@ -3555,26 +3672,149 @@ mod inf_arms {
              where the inf is owed over-states a chart-space extent by that \
              factor, and a 16x-inflated region certifies slivers"
         );
-        // And the ARM the positive lane actually uses is at or below
-        // the inf reading, never above it — the skew discount only
-        // ever shrinks. A swap could not hide inside the assembly.
-        let (arm_u, _) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        // **And the assembled arm is pinned to its DERIVED value**,
+        // not to a range a swap could satisfy. `arm_u <= inf_u` does
+        // NOT bind: `sup·ρ ≈ inf·√D ≤ inf` whenever `D ≤ 1`, so an
+        // assembly that read sups throughout lands at 0.5 and an
+        // accidental single sup read lands at 0.49903 — both inside
+        // that range, and the review measured a full sup-swap of
+        // `certified_arms` passing the entire topo+sweep suite green
+        // behind it. The digits below are the only thing that reds:
+        // `T = (8/0.5)² + (1/1)² = 257`, `D = (0.5/(0.5·1))² = 1`,
+        // `ρ = √(2/(257 + √(257²−4))) ≈ 0.062378`, so
+        // `arm_u = 0.5·ρ ≈ 0.031189`. A sup-read assembly is 16×
+        // larger and misses this by four orders of the tolerance.
+        let (arm_u, arm_v) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        let t = (sup_u / inf_u).powi(2) + 1.0;
+        let rho = (2.0 / (t + (t * t - 4.0).sqrt())).sqrt();
         assert!(
-            arm_u <= inf_u && arm_u > 0.0,
-            "the assembled arm {arm_u} must sit in (0, {inf_u}]"
+            (arm_u - inf_u * rho).abs() < 1e-12,
+            "arm_u must be the derived {} , got {arm_u}",
+            inf_u * rho
         );
+        assert!(
+            (arm_u - 0.031_189_379_189_942_3).abs() < 1e-12,
+            "the fixture's published digit, got {arm_u}"
+        );
+        assert!((arm_v - rho).abs() < 1e-12, "arm_v = inf_v·ρ = ρ here");
+        // The falsification threshold the review measured: an
+        // accidental sup read of `inf.inf_u` alone assembles to
+        // 0.499034, and a whole-assembly sup swap to exactly 0.5.
+        // Both are more than an order above the true arm.
+        assert!(
+            arm_u < inf_u / 2.0,
+            "a sup-read assembly lands at >= 0.499; the true arm is {arm_u}"
+        );
+    }
+
+    /// **Item-1 exhibit, adopted from the review: a chart whose
+    /// stretch concentrates in thin boundary layers separates the
+    /// metred-chart mean width from the model region's.**
+    ///
+    /// The strip is `[0,1]² → 100 m × 1 m` with the `u` stretch
+    /// pushed into `1e-4`-wide layers at each end. `σ_min` stays 1
+    /// everywhere, so the metred copy is a legitimate contraction and
+    /// the AREA claim is sound — but the model region is a long thin
+    /// strip whose mean width is far under the square-ish scaled
+    /// reading. This row pins the separation as a FACT about the
+    /// pair, which is why `ChartOverlap::PositiveArea` claims area
+    /// and not width.
+    #[test]
+    fn a_stretch_concentrating_chart_separates_the_two_widths() {
+        // Degree 3 in u over one span, control x at 0, 0, 100, 100:
+        // the derivative net is (0, 300, 0)·(3/1) scaled — stretch
+        // concentrated in the middle rather than at the ends, which
+        // is the same separation in a net this small can express.
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let xs = [0.0, 0.02, 99.98, 100.0];
+        let mut control = Vec::new();
+        for x in xs {
+            control.push(Point3::new(x, 0.0, 0.0));
+            control.push(Point3::new(x, 1.0, 0.0));
+        }
+        let s: Surface<f64> = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+        ));
+        let inf = geom_brep::chart_stretch_inf(&s);
+        // The u stretch spans three orders on ONE chart: the middle
+        // control gap carries essentially all 100 m.
+        assert!(
+            inf.sup_u > inf.inf_u * 1000.0,
+            "sup {} vs inf {}",
+            inf.sup_u,
+            inf.inf_u
+        );
+        let (arm_u, arm_v) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        // The metred unit square reads a mean width of `2A/P` on a
+        // near-square `arm_u x arm_v` box; the honest transfer factor
+        // to the MODEL region's mean width is `ρ/√T`, and here that
+        // factor is small enough that the two readings are nowhere
+        // near each other. Pin the factor, since it is the number the
+        // enum's doc now quotes.
+        let t = (inf.sup_u / inf.inf_u).powi(2) + (inf.sup_v / inf.inf_v).powi(2);
+        let rho = arm_u / inf.inf_u;
+        let transfer = rho / t.sqrt();
+        assert!(
+            transfer < 1e-3,
+            "the width transfer factor on this chart is {transfer}, which is \
+             exactly why the certified claim is AREA and not width"
+        );
+        assert!(arm_u > 0.0 && arm_v > 0.0, "the area claim still stands");
+    }
+
+    /// **The window WIRING, pinned at the pipeline stage that owns
+    /// it** (review item 3: mutating `v_window` to read `p.x` used to
+    /// pass the whole suite, because no row drove a window-DEPENDENT
+    /// chart through the arms).
+    ///
+    /// A sphere pair whose `v` reach is pole-clear (`|v| ≤ 0.3`,
+    /// arm `2·cos 0.3 ≈ 1.9107`) but whose `u` reach spans `π/2`.
+    /// Reading the right axis certifies; reading `u` as the window
+    /// hands `cos 1.65 < 0` to the gate and refuses `ArmUnbounded`.
+    /// The two verdicts are on opposite sides of the gate, so the
+    /// axis swap cannot pass this row.
+    #[test]
+    fn the_v_window_reads_the_second_channel_and_the_arms_follow_it() {
+        let mut ba = Body::<f64>::new();
+        let fa = sheet(&mut ba);
+        let mut bb = Body::<f64>::new();
+        let fb = sheet(&mut bb);
+        let s = sphere(2.0);
+        // u spans π/2 (1.5708); v stays inside |v| ≤ 0.3.
+        let uv = |x0: f64, y0: f64, x1: f64, y1: f64| FaceUv {
+            outer: rect(x0, y0, x1, y1),
+            rings: Vec::new(),
+        };
+        let uv_a = uv(1.40, -0.30, 1.60, -0.10);
+        let uv_b = uv(1.45, -0.25, 1.65, -0.05);
+        // The honest window is the v reach [-0.30, -0.05].
+        let (v_lo, v_hi) = v_window(&uv_a, &uv_b).unwrap();
+        assert_eq!((v_lo, v_hi), (-0.30, -0.05), "the SECOND channel");
+        let (arm_u, arm_v) = certified_arms(&s, v_lo, v_hi, band()).unwrap();
+        assert!((arm_u - 2.0 * 0.30_f64.cos()).abs() < 1e-15);
+        assert_eq!(arm_v, 2.0);
+        // Driven through the pipeline stage that does the wiring.
+        assert_eq!(
+            overlap_of_uv(&ba, fa, &bb, fb, &s, &uv_a, &uv_b, band()).unwrap(),
+            ChartOverlap::PositiveArea
+        );
+        // The axis the mutation would read is pole-crossing, and the
+        // gate says so — this is the verdict the swap produces.
+        assert!(matches!(
+            certified_arms(&s, 1.40, 1.65, band()),
+            Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
+        ));
     }
 
     /// A plane and a cylinder keep their EXACT constant arms — no
     /// bound, nothing to certify, and bit-identical to before.
     #[test]
     fn the_exact_constant_arms_do_not_move() {
-        let p: Surface<f64> = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        assert_eq!(certified_arms(&p, -5.0, 5.0, band()).unwrap(), (1.0, 1.0));
+        assert_eq!(
+            certified_arms(&xy_plane(), -5.0, 5.0, band()).unwrap(),
+            (1.0, 1.0)
+        );
         let c: Surface<f64> = Surface::Cylinder {
             origin: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
