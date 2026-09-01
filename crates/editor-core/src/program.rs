@@ -140,13 +140,15 @@ pub enum ProgramStep {
 /// literal (`side`, `winding`, `Start`).
 ///
 /// It is the arc-mode vocabulary's second spelling, and it has to be
-/// for the reason [`ProgramStep`] does. Nothing in this crate is
-/// exhaustive on `profile::ArcData` in a way that would force a mode
-/// to arrive here: `res_spec` matches THIS type and CONSTRUCTS the
-/// kernel one, so a mode the kernel gains can be discharged in the
-/// content-key hashers alone and leave this enum, the wire and the
-/// expression-slot roles quietly short. What forces arrival is the
-/// mode census in `tests/switch_program_vocabulary.rs`, keyed on
+/// for the reason [`ProgramStep`] does. A mode the kernel vocabulary
+/// gains does break this crate at compile — `spec_lit` and the two
+/// content-key hashers are exhaustive on `profile::ArcData` — but
+/// each of those breaks can be discharged where it stands, with a
+/// refusal arm and a tag, while this enum, the wire and the
+/// expression-slot roles stay short: the hop that would need them,
+/// `res_spec`, matches THIS type and CONSTRUCTS the kernel one, so it
+/// keeps compiling. What forces arrival is the mode census in
+/// `tests/switch_program_vocabulary.rs`, keyed on
 /// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
 /// so a mode with no document spelling is a compile error there.
 #[derive(Debug, Clone, PartialEq)]

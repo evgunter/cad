@@ -39,11 +39,17 @@
 //! # The arc modes, one level down
 //!
 //! The same three spellings carry a second vocabulary INSIDE the
-//! steps — the §2c arc modes — through the same hops, and a
-//! verb-keyed census is blind to it: every mode travels inside
-//! `ArcTo` and the three fused verbs, so the verb census above is
-//! green whatever the modes do. `profile` declares the mode set once
-//! and projects `ArcMode::ALL` from that declaration; the mode census
+//! steps — the §2c arc modes — and a verb-keyed census is blind to
+//! it: every mode travels inside `ArcTo` and the three fused verbs,
+//! so the verb census above is green whatever the modes do.
+//!
+//! The hops are the same ones, one level down. `program::spec_lit`
+//! and both content-key hashers are exhaustive on `profile::ArcData`,
+//! so a mode the kernel gains breaks this crate at compile — and, as
+//! above, each break can be discharged where it stands while
+//! `res_spec` keeps constructing and the document, wire and slot
+//! vocabularies stay short. `profile` declares the mode set once and
+//! projects `ArcMode::ALL` from that declaration; the mode census
 //! below is keyed on it, and its witness is a MATCH on the tag, so a
 //! mode with no document spelling does not fail an assertion here —
 //! it fails to compile.
