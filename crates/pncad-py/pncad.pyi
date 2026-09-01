@@ -192,7 +192,8 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`, `malformed_real`, `topology`,
+    `declaration_unresolved`, `vertex_without_point`,
+    `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:

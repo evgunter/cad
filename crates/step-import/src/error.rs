@@ -1,5 +1,7 @@
-//! Typed import failure (closed enum, D4 ¶3). Every variant names the
-//! offending entity id or line — the reader never panics and never
+//! Typed import failure (closed enum, D4 ¶3). Every variant names its
+//! subject as precisely as the failure has one — the offending entity
+//! id or line where the failure is a FILE's, the anchor or the
+//! verdicts where it is not — and the reader never panics and never
 //! silently degrades a file into a different model.
 
 use core::fmt;
@@ -146,9 +148,26 @@ pub enum StepImportError {
     DeclarationUnresolved {
         /// The anchor position that failed to resolve.
         at: [f64; 3],
-        /// How many candidate vertices were found within the gate
-        /// band (a vertex-rest anchor needs exactly two).
+        /// How many candidate vertices were found within ε_in of the
+        /// anchor (a vertex-rest anchor needs exactly two).
         found: usize,
+    },
+    /// A vertex of the assembled body carries a point key that does
+    /// not resolve in that body's own point arena, found while
+    /// resolving a position-anchored declaration
+    /// ([`crate::ImportContact`]).
+    ///
+    /// Such a vertex has no position to compare against the anchor,
+    /// and passing over it would understate the anchor's coincidence
+    /// count — a resolvable anchor would report as
+    /// [`StepImportError::DeclarationUnresolved`] with the wrong
+    /// `found`, and a three-way coincidence would resolve as exactly
+    /// two. The resolution refuses instead: a corrupt body is
+    /// announced, never silently miscounted.
+    VertexWithoutPoint {
+        /// The anchor position being resolved when the dangling point
+        /// key was found.
+        anchor: [f64; 3],
     },
     /// A real token failed to parse as an f64.
     MalformedReal {
@@ -341,6 +360,12 @@ impl fmt::Display for StepImportError {
                  coincident vertices on the assembled body (a vertex-rest anchor needs \
                  exactly two) — fix the anchor or remove the declaration; unresolved \
                  intent never silently drops"
+            ),
+            Self::VertexWithoutPoint { anchor } => write!(
+                f,
+                "step import: resolving the declared contact anchored at {anchor:?} found a \
+                 vertex of the assembled body whose point key does not resolve — the body is \
+                 corrupt, and skipping the vertex would miscount the anchor's coincidences"
             ),
             Self::MalformedReal { id, token } => write!(
                 f,
