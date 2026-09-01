@@ -434,7 +434,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // placement moved" needs a reader to be able to see.
     //
     // GAP RECORDED, NOT WORKED AROUND (`memories/demo-purpose.md`):
-    // the natural spelling here is the `twopeg_apart` / teapot-lid one
+    // the natural spelling here is `twopeg`'s / the teapot lid's one
     // — build the body, then place it with `transform_rigid` — and it
     // REFUSES on this body: `TransformError::NurbsPlaceholder`, from an
     // arm that matches the `Surface::Nurbs` VARIANT while its own text
