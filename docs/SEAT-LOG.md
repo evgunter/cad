@@ -56,3 +56,35 @@ under BOTH feature graphs” explicitly.
 
 Next: SEAT-2 (the topo query module + select_where delegation)
 dispatches on the block's next slot.
+
+## ORDINAL 1001 CLAIMED — SEAT-2 dual (2026-09-01)
+
+SEAT-2 (PR 1521, the kernel query seat) implementation delivered and
+green on the drawn lane (default, eps = 1e-12; run 33554063477; one
+earlier red was the binding census correctly catching the unrosterd
+`query` prelude name — fixed by rostering). The unit's first lane
+died at dispatch on a usage limit with nothing pushed (~23h annotated
+gap); the re-dispatched lane delivered whole. v6 dual dispatches on
+frozen head 5b269616: parity byte 9 → **R1 fable + R2 opus**.
+Difficulty M was logged pre-draw. Full row recorded at merge.
+
+## SEAT-2 MERGED (2026-09-01, PR 1521)
+
+The kernel query seat landed: topo owns the materializers, the EXACT
+kind predicates and the relocated decided door; select_where
+delegates with behavior pinned unchanged — both reviewers' own
+execution probes found zero disagreements. Dual outcome: converged
+substance (the retired premise surviving in shipped prose; the
+citation hand-off list wrong both directions), R2 grading it MAJOR
+where R1 graded MINOR — no unilateral, pair counts toward the
+twelve. One R1 method correction (background waiter → foreground,
+rule 2b). Fix pass took all 8 union items; 15 surviving named
+helper scans re-authored; 5 new topo door-contract rows; issue 1527
+filed (DatumValue unit-normal enforcement design). Full row:
+MODEL-AB-LOG SEAT2 (ordinal 1001, sample #94 at merge). Register
+sugar note, consumer-gated, recorded here: no edges_matching(body,
+pred) one-call door exists; KERNEL-VERBS:465 now states the
+materializer+filter truth.
+
+Next: SEAT-3 (the flush detector at the body seat, retiring the
+issue-757 producer gap) dispatches on the block's next slot.

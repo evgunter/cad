@@ -157,7 +157,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "crosslap_exploded",
             caption: "cross-lap (exploded)".to_string(),
             // Off the sheet with its own glued cell (see above);
-            // `twopeg_apart` is the apart framing the sheet now
+            // `twopeg`'s apart framing is what the sheet now
             // carries.
             montage: false,
             story: "the same joint exploded: beam B lifted by a rigid transform \

@@ -125,16 +125,28 @@ fn count_ef(cs: &[CensusContact]) -> usize {
         .count()
 }
 
-/// **Probe 1 — the rung's reach.** The declaration names the post's two
-/// vertical side faces against the shelf's vertical side face. It does
-/// NOT name `post_top` (the face the edge-on-face overlap is ON) and it
-/// does NOT name `shelf_bottom`. Nothing in it asserts a coplanar rest.
+/// **Probe 1 — the rung's reach, now the GRANDFATHER's documented
+/// anomaly.** The declaration names the post's two vertical side
+/// faces against the shelf's vertical side face. It does NOT name
+/// `post_top` (the face the edge-on-face overlap is ON) and it does
+/// NOT name `shelf_bottom`. Nothing in it asserts a coplanar rest.
 ///
-/// Measured at head 72140467: it backs both bounds anyway, and the hard
-/// `EdgeFaceOverlap` on `post_top` is gone. `ve_face_backed(w, e)` asks
-/// for a pair holding SOME face incident to `w` against SOME face of
-/// `e`; the overlap's own face is constrained only by `w` lying on its
-/// boundary.
+/// Measured at head 72140467: it backs both bounds anyway, and the
+/// hard `EdgeFaceOverlap` on `post_top` is gone. `ve_face_backed(w,
+/// e)` asks for a pair holding SOME face incident to `w` against SOME
+/// face of `e`; the overlap's own face is constrained only by `w`
+/// lying on its boundary.
+///
+/// Under the UNIFIED strength (CONTACT-DESIGN C3/C4's annotation;
+/// MATE-9) this reach is exactly what `ef_bound_backed`'s
+/// grandfathering carries: the rung's region-confined variant was
+/// implemented and MEASURED, and it refuses the overlap lane's cell
+/// bounds wherever the cut schedule's reach gap puts a bound outside
+/// the interface — the declared straddle seat's own dive cell
+/// regresses — so the rung stays grandfathered, this row stays green
+/// as the anomaly's pin, and the migration waits on
+/// boundary-crossing cuts (the grandfather note names it). The
+/// measurement is in MATE-9's PR and in this branch's history.
 #[test]
 fn r2_an_unrelated_declared_pair_backs_the_ef_bound() {
     let (body, post_top, _shelf_bottom, side_ha, side_ab, shelf_side) = overhang_seat_full();

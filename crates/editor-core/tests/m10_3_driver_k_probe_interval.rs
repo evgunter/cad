@@ -38,8 +38,10 @@
 //!
 //! Both features are needed, and that is inherent: `Probe` is the
 //! `probe` feature's scalar and the driver is the `interval` feature's
-//! service. Neither hosted lane builds that pair today, so this file's
-//! standing row runs locally and under `local-scripts/ci-local.sh`.
+//! service. The k-lint gate's probe-gated build row DOES build this
+//! pair on every hosted run (`--features probe,interval --no-run`), so
+//! a compile break here reds every PR — the row below also runs
+//! locally and under `local-scripts/ci-local.sh`.
 #![cfg(all(feature = "probe", feature = "interval"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -52,7 +54,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, KProbe, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram,
+    ProfileProgram, UnitSym,
 };
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 use geom_core::{Sign, Tol};
@@ -70,6 +72,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
         name: ParamName::new("depth"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(Distribution::Uniform {

@@ -59,7 +59,7 @@ plane×torus or cone×cylinder question:
   feeds the pair-scoped box scan
   (`UnsupportedPair`/`first_unsupported_pair`,
   `reduce.rs:~200-240`).
-- wall 4 (call at `klein.rs:~846`; test `:1112-1125`, `op:
+- wall 4 (call at `klein.rs:~846`; test `:1116-1130`, `op:
   Some(Subtract)`) pins `(Torus, Torus)` — a rung-3 arm blocked
   on the torus's exact meters conversion
   (`intersect.rs:340-347`), not in this unit at all.
@@ -97,7 +97,7 @@ the bottle.
 arm — and (re-cut 2026-09-01) its real pair is now
 `cone × sphere`, not `cone × cylinder`.** The task's caveat is
 right about the gate — wall 3 NAMES `(Cone, Plane)`
-(`teapot.rs:~1063-1082`, whose own comment says it is "not the
+(`teapot.rs:~1070-1089`, whose own comment says it is "not the
 belly wall the spout actually pierces"). But SHELLFIX PR-2b
 (#1180) shipped the BELLIED pot: `R_BELLY` is now "the belly's
 sphere radius" (`teapot.rs:176`; `vessel_meridian` arc at

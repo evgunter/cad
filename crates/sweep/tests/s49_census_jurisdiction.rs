@@ -35,6 +35,7 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude};
+use topo::query;
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -100,14 +101,16 @@ fn is_planar(body: &Body<f64>, f: FaceKey) -> bool {
 /// exactly the two faces in contact, so a row can name the pair it
 /// means instead of accepting any planar refusal.
 fn faces_in_plane(body: &Body<f64>, h: f64) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(Surface::Plane { origin, normal, .. }) => {
-                normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
+    query::all_faces(body)
+        .into_iter()
+        .filter(
+            |&f| match body.get_face(f).and_then(|fd| body.get_surface(fd.surface)) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
+                }
+                _ => false,
+            },
+        )
         .collect()
 }
 

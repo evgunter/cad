@@ -203,3 +203,26 @@ klein 3/4 and lily pins byte-identical, the widened admission
 reachable only via declared covered pairs. Program slate: MATE-9
 (stage 1, the crossing rung) in flight; the S-MATE exit walk is
 next once MATE-9 lands.
+
+**2026-09-01 — MATE-9 MERGED (PR #1496; ordinal 1308, sample #94);
+issue 973 STAYS OPEN (pierce arm, C6-era by name). THE SLATE IS
+COMPLETE.** Stage 1 of the 4b design landed: `ee_cross_backed` as
+the unified strength's first instance — crossing point AND both
+edges on-carrier, region-verified through door 1 + door 2 +
+MATE-8's witness rung, the three-valued side verdict through the
+tier-3 sense algebra with its Smooth precondition established
+(same-side refuses naming the verdict — the C6 hook; undecided
+escalates typed, order-free). The C3/C4 doctrine edit carries the
+ratified unified sentence + the grandfather roster by name. The
+ef_bound_backed migration was implemented, measured NOT clean, and
+grandfathered with the measurement recorded — issue 1500 (the D3
+boundary-crossing cuts) is its scheduled home. The dual was the
+program's richest: TWO tally candidates, one each arm, both
+unilateral and executed (R1's diving-edge soundness break; R2's
+unguarded region conjunct), plus the bilateral dropped-Smooth
+precondition — the same class the MATE-7a dual caught, predicted
+in the briefs. The fix pass survived a ~75m usage-limit
+interruption (state preserved by an orchestrator WIP snapshot,
+resumed same-arm) and closed with a full per-conjunct mutation
+table. NEXT: the S-MATE exit walk (a design conversation — waits
+for Evan's ratification).
