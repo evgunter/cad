@@ -106,6 +106,8 @@ mod mate4a_ef_bound_rung;
 #[path = "mate5_cyl_eps_rung.rs"]
 mod mate5_cyl_eps_rung;
 
+#[path = "r1_mate5_interval_probe.rs"]
+mod r1_mate5_interval_probe;
 #[path = "r1_mate5_probe.rs"]
 mod r1_mate5_probe;
 #[path = "merge_skip.rs"]
