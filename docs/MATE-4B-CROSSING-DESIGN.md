@@ -1,6 +1,15 @@
 # At-rest crossing backability (issue 973 part (b)) — design conversation
 
-**STATUS: DRAFT — for Evan.** The MATE-4b design pass the Q2(b)
+**STATUS: PARTLY RULED (Evan, in-chat, 2026-09-01): question 2
+RULED — stages 0–1 build in S-MATE, stage 0 funded immediately
+(dispatched as MATE-8, spec `docs/MATE-8-SPEC.md`); question 3
+RULED — the three-valued side verdict suffices as the
+declared-interpenetration hook, the C6 vocabulary waits for its
+era. Question 1 (the strength tier) is OPEN — Evan asked what a
+unified strength story would look like; the section added at the
+end answers it, and the question now reads: two named tiers as the
+END state, or the unified strength as the end state with the
+unconfined rungs grandfathered pending a measured migration.** The MATE-4b design pass the Q2(b)
 direction ordered (in-chat, 2026-08-31): the side/region-aware
 crossing machinery is needed eventually; this document proposes its
 SHAPE and STAGING. Two constraints from that conversation bind
@@ -113,3 +122,56 @@ shape, nothing more.
 
 Recommendation: option A, staging as given, stage 0 funded
 immediately either way.
+
+## The unified strength story (added 2026-09-01, answering Evan's question)
+
+Unifying DOWN is not on the table — crossings at unconfined
+strength would bless transverse interpenetration. So the unified
+story is UNIFY UP: every backing rung, not just the crossing one,
+requires that the backed event lie within the declared pair's
+VERIFIED overlap region, with the side condition applying exactly
+where the event class can cross (touching-class events satisfy it
+vacuously). One sentence then covers all backing: *a declared pair
+answers exactly for its verified interface — the overlap region,
+with material opposition being what "interface" means for a
+crossing.*
+
+What it buys:
+- The CENSUS-REST Q3 latitude — ratified at reduced confidence
+  ("less sure but ok"), with the gap-1 review ordered to attack
+  exactly "can a declared face pair back an event that plainly does
+  not belong to its interface?" — is REPAIRED rather than carried.
+- The demonstrated anomaly goes away: the MATE-4a dual showed an
+  unrelated declared pair (one the confirm pass itself REFUTES)
+  backing the ef bound, faithful to the unconfined strength. Under
+  the unified strength that cannot happen.
+
+What it costs:
+- Every rung consults the region layer, so issue 1435's schedule
+  quality becomes load-bearing for ALL backing (stage 0 is
+  foundational either way — now funded), and each backed event
+  pays a certified region decision.
+- Region tests can DECLINE; seats that today certify through purely
+  structural backing could move to the Uncertified frontier. That
+  is a measured-migration question, per rung, not a blanket switch.
+
+The two end states, restated:
+- **Two tiers (the original proposal)**: the unconfined strength
+  stays ratified doctrine for the touching-class rungs; the
+  confined+side-aware tier exists only where crossing demands it.
+  C3/C4 carry both tiers permanently.
+- **Unified**: the confined strength is the doctrine; the crossing
+  rung lands as its FIRST instance; the legacy rungs are
+  GRANDFATHERED by name and migrated one at a time, each migration
+  measured for regressions (a migration that measures badly stays
+  grandfathered with its measurement recorded). C3/C4 state one
+  strength plus a shrinking grandfather note.
+
+Recommendation, updated: rule the UNIFIED end state. The two-tier
+state still exists transitionally either way — the difference is
+only whether C3/C4 enshrine it or treat it as debt — and the
+unified sentence is the one a reader can hold. Honest
+counterargument: if the migrations measure badly, the grandfather
+note becomes long-lived and the doctrine overpromises; the two-tier
+ruling never overpromises but permanently carries the Q3 latitude
+and the demonstrated anomaly as ratified behavior.
