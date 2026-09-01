@@ -323,14 +323,14 @@ fn r1_stage2_completeness_randomized() {
         let hit = cands
             .iter()
             .any(|&(x, y)| inside(&a, x, y) && inside(&b, x, y));
-        if let Some(p) = overlap_seen(&a, &b, 200) {
-            if !hit {
-                misses += 1;
-                println!(
-                    "case {case}: MISS — interior at {p:?}, {} candidates",
-                    cands.len()
-                );
-            }
+        if let Some(p) = overlap_seen(&a, &b, 200)
+            && !hit
+        {
+            misses += 1;
+            println!(
+                "case {case}: MISS — interior at {p:?}, {} candidates",
+                cands.len()
+            );
         }
     }
     assert_eq!(misses, 0, "the schedule missed a decidable overlap");
@@ -434,15 +434,15 @@ fn r1_stage2_near_parallel_stress() {
         let hit = cands
             .iter()
             .any(|&(x, y)| inside(&a, x, y) && inside(&b, x, y));
-        if let Some(p) = overlap_seen(&a, &b, 300) {
-            if !hit {
-                misses += 1;
-                if misses < 6 {
-                    println!(
-                        "case {case} (eps={eps:.3e}, w={w:.3e}): MISS at {p:?}, {} candidates",
-                        cands.len()
-                    );
-                }
+        if let Some(p) = overlap_seen(&a, &b, 300)
+            && !hit
+        {
+            misses += 1;
+            if misses < 6 {
+                println!(
+                    "case {case} (eps={eps:.3e}, w={w:.3e}): MISS at {p:?}, {} candidates",
+                    cands.len()
+                );
             }
         }
     }

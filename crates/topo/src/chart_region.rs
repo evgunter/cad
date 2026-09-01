@@ -1535,9 +1535,9 @@ fn band_overlap<T: Decide + Bounds>(
     }
 }
 
-/// **The interior-witness rung** — `true` when the fixed candidate
-/// schedule exhibits a point strictly inside BOTH faces, run through
-/// the census's own `contfp` on the shared carrier.
+/// **The interior-witness rung** — `true` when the candidate schedule
+/// exhibits a point strictly inside BOTH faces, run through the
+/// census's own `contfp` on the shared carrier.
 ///
 /// The rung exists because the world carrier alone does not close a
 /// FLUSH seat: a shared trim edge is a collinear boundary overlap, the
@@ -1607,15 +1607,30 @@ fn band_overlap<T: Decide + Bounds>(
 ///
 /// The obvious seeding — clip the two regions and take a point per
 /// piece — is unavailable HERE, by this rung's own entry condition:
-/// the rung runs only after [`overlap_of_regions`] has already refused
-/// [`ChartRegionError::TouchingBoundary`], which is exactly the answer
-/// [`proper_crossings`] gives when the boundaries meet at a vertex or
-/// share a span. The clip has declined before the rung is reached, so
-/// it cannot be its seed. What stage 2 keeps of that idea is the
-/// clip's COMBINATORICS — the vertex and edge-crossing abscissae —
-/// taken as an uncertified hint and verified pointwise instead.
-/// Per-piece centroids would not have sufficed either: a non-convex
-/// piece's centroid need not lie in the piece.
+/// the rung runs only on a [`ChartRegionError::TouchingBoundary`] out
+/// of [`overlap_of_regions`], and there are exactly THREE places that
+/// answer can come from. The clip is unavailable at all three, though
+/// not for one reason:
+///
+/// - [`proper_crossings`]' collinear-overlap refusal (the boundaries
+///   share a span) and its Zero-span refusal (they meet AT a vertex):
+///   the clip has been asked and has DECLINED. It cannot seed what it
+///   just refused to compute.
+/// - [`overlap_of_regions`]' `(None, _) | (_, None)` arm — the
+///   defense-in-depth arm, reached at ZERO proper crossings when
+///   neither polygon has a definite vertex verdict against the other.
+///   Here the clip has not declined; it has no INPUT. The walk in
+///   [`intersection_pieces`] is driven entirely by crossings and
+///   refuses an empty set outright, so with none there is nothing to
+///   walk and no piece to take a point from. Equally unavailable, by
+///   absence rather than by refusal.
+///
+/// What stage 2 keeps of the idea is the clip's COMBINATORICS — the
+/// vertex and edge-crossing abscissae — taken as an uncertified hint
+/// and verified pointwise instead, which needs no crossing to be
+/// certifiable and no piece to be built. Per-piece centroids would not
+/// have sufficed even where the clip does run: a non-convex piece's
+/// centroid need not lie in the piece.
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
 fn interior_witness<T: Decide + Bounds>(
     body_a: &Body<T>,
@@ -1674,11 +1689,30 @@ fn interior_witness<T: Decide + Bounds>(
 /// Both are the honest half of "complete or honest": inside them the
 /// schedule is complete in the sense argued at
 /// [`decomposition_witness`], and outside them it declines and the
-/// region walk's own typed refusal stands — it never silently narrows
-/// the search and calls the result a decision. A trim pair with more
-/// than `SEGMENTS` boundary segments is refused rather than
-/// half-searched because the decomposition is quadratic in that count;
-/// the pair the rung is reached with in practice carries a few dozen.
+/// region walk's own typed refusal stands. A trim pair with more than
+/// `segments` boundary segments is refused rather than half-searched
+/// because the decomposition is quadratic in that count.
+///
+/// # What these limits cost, stated rather than implied
+///
+/// **Neither is out of reach, and `cells` is reachable INSIDE
+/// `segments`.** A pair of trims with ~50 stacked runs against one
+/// tilted crosser exceeds 4096 cells at ~125 segments — under the
+/// segment cap, so "large enough never to bind" is not a claim this
+/// constant can make. What it is is a bound on the work, chosen so
+/// that the trim pairs this rung is actually reached with (a few dozen
+/// segments; the seats in the suite carry twelve) search exhaustively.
+///
+/// **A budget decline is indistinguishable from a thin-overlap
+/// decline.** Both return `false` here, both leave the region walk's
+/// [`ChartRegionError::TouchingBoundary`] standing, and both surface to
+/// a caller as the same `CensusUnsupported` on the same face — so a
+/// reader cannot tell "the overlap is too thin to certify at this ε"
+/// from "the search was cut off". That is the honest gap in the rung's
+/// three-outcome contract, and closing it means giving the decline a
+/// TYPE. It is not closed here: the decline's type would have to reach
+/// this module's error enum, whose exhaustive matches live in
+/// `census.rs`, outside this unit's fence. Scheduled as issue 1478.
 const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
     segments: 128,
     cells: 4096,
@@ -1711,6 +1745,20 @@ struct WitnessBudget {
 /// function offers lies in it. That is the property a fixed handful of
 /// landmarks does not have and cannot be given.
 ///
+/// **The argument is exact-arithmetic; the arrangement is `f64`.** So
+/// what is delivered is completeness UP TO `f64` ROUNDING OF THE
+/// ARRANGEMENT: a meeting abscissa computed here can land an ulp off
+/// the true one, and in the sub-ulp neighbourhood where that matters a
+/// vertex of `P` can fall a hair inside a slab instead of on its
+/// boundary, which is precisely the hypothesis the trapezoid step
+/// needs. The failure is one-directional and that is why the rounding
+/// is tolerated rather than removed: a slab whose interior holds a
+/// vertex still yields cell centres, they are simply no longer
+/// guaranteed to cover every component — so the rung can DECLINE where
+/// an exact arrangement would have certified. It cannot certify
+/// anything false, because no candidate is believed until `contfp`
+/// certifies it on the lane's own arithmetic.
+///
 /// # What the argument does NOT claim
 ///
 /// - **Positive area is not positive MARGIN.** The centre is the
@@ -1737,7 +1785,15 @@ fn decomposition_witness<T: Decide + Bounds>(
     uv_b: &FaceUv<T>,
     mut probe: impl FnMut(f64, f64) -> bool,
 ) -> bool {
-    let segments = boundary_segments(uv_a, uv_b);
+    // Decline cause 1: a coordinate the arrangement cannot describe.
+    // FAIL-CLOSED rather than edge-dropping — see `boundary_segments`.
+    let Some(segments) = boundary_segments(uv_a, uv_b) else {
+        return false;
+    };
+    // Decline cause 2: no arrangement to build. One segment bounds no
+    // cell, and the rung's own extraction refuses loops under three
+    // vertices, so this is the empty-trim guard rather than a budget.
+    // Decline cause 3: the segment budget.
     if segments.len() < 2 || segments.len() > WITNESS_BUDGET.segments {
         return false;
     }
@@ -1797,6 +1853,23 @@ impl NominalSeg {
     /// included — the remaining vertices of the intersection region.
     /// Parallel pairs (including collinear ones, whose shared span's
     /// ends are already endpoint abscissae) contribute nothing.
+    ///
+    /// # Two spellings of one determinant, on purpose
+    ///
+    /// `perp_dot(r, s)` and the two advance fractions below are the same
+    /// quantities [`proper_crossings`] computes, and this is deliberately
+    /// NOT a call into it. The difference is the whole hint/certificate
+    /// split: there, every one of them is a DECIDED row
+    /// (`chart_region_parallel`, `chart_region_cross_span`) carrying a
+    /// named margin and a typed refusal, and the answer is a certificate;
+    /// here they are bare `f64` with `== 0.0` and `0..=1` tests, and the
+    /// answer is only a place to LOOK. Routing this through the certified
+    /// rows would refuse exactly where the rung is reached (that refusal
+    /// is its entry condition) and would put a decided row behind an
+    /// answer nothing certifies. If either spelling changes, they are not
+    /// required to agree: the certified one is the contract, this one is
+    /// allowed to be wrong and is checked by `contfp` before anything
+    /// rests on it.
     fn meeting_abscissa(&self, other: &Self) -> Option<f64> {
         let r = [self.q[0] - self.p[0], self.q[1] - self.p[1]];
         let s = [other.q[0] - other.p[0], other.q[1] - other.p[1]];
@@ -1821,7 +1894,22 @@ impl NominalSeg {
 /// decomposition that ignored them would propose cell centres inside a
 /// hole (harmless, `contfp` reads rings and answers `Out`) and, worse,
 /// merge two genuine cells across a hole's edge and propose neither.
-fn boundary_segments<T: Decide + Bounds>(uv_a: &FaceUv<T>, uv_b: &FaceUv<T>) -> Vec<NominalSeg> {
+///
+/// `None` when any vertex's bracket has no finite midpoint. **That is
+/// fail-closed on purpose**: skipping the offending edge and carrying on
+/// would silently delete a boundary from the arrangement, which merges
+/// two cells that the deleted edge separated and can therefore lose the
+/// only witness — completeness broken with nothing said. Declining the
+/// whole search says it instead, at the cost of a rescue this rung was
+/// never going to make. (No committed seat reaches it: a chart
+/// coordinate that is not finite means `extract_face_uv` handed back a
+/// poisoned trim, and its own gates refuse first. It is guarded rather
+/// than asserted unreachable because that argument is about a caller,
+/// and this function should not need one.)
+fn boundary_segments<T: Decide + Bounds>(
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+) -> Option<Vec<NominalSeg>> {
     let mut out = Vec::new();
     for uv in [uv_a, uv_b] {
         for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
@@ -1829,19 +1917,18 @@ fn boundary_segments<T: Decide + Bounds>(uv_a: &FaceUv<T>, uv_b: &FaceUv<T>) -> 
                 continue;
             }
             let nominal = |p: &Point2<T>| {
-                Some([midpoint(p.x.lo(), p.x.hi()), midpoint(p.y.lo(), p.y.hi())])
-                    .filter(|c| c[0].is_finite() && c[1].is_finite())
+                let c = [midpoint(p.x.lo(), p.x.hi()), midpoint(p.y.lo(), p.y.hi())];
+                (c[0].is_finite() && c[1].is_finite()).then_some(c)
             };
             for i in 0..poly.len() {
-                let (Some(p), Some(q)) = (nominal(&poly[i]), nominal(&poly[(i + 1) % poly.len()]))
-                else {
-                    continue;
-                };
-                out.push(NominalSeg { p, q });
+                out.push(NominalSeg {
+                    p: nominal(&poly[i])?,
+                    q: nominal(&poly[(i + 1) % poly.len()])?,
+                });
             }
         }
     }
-    out
+    Some(out)
 }
 
 /// The decomposition's slab boundaries: every segment endpoint's
@@ -1865,8 +1952,37 @@ fn event_abscissae(segments: &[NominalSeg]) -> Vec<f64> {
     xs
 }
 
-/// The exact midpoint of two finite `f64`s, without the overflow the
-/// naive sum has at the top of the range.
+/// A point between two `f64`s — `a + (b − a)/2` rather than
+/// `(a + b)/2`.
+///
+/// # What it guarantees, which is less than "the midpoint"
+///
+/// It is NOT exact: `midpoint(1.0, 1e16)` is an ulp off the true middle,
+/// because `b − a` rounds. It does not remove overflow either, it trades
+/// one family for another: `(a + b)/2` overflows on two same-sign
+/// halves of the range, this form overflows on OPPOSITE ends —
+/// `midpoint(-1e308, 1e308)` is `inf`. What it does guarantee is what
+/// both callers need and nothing more: for finite `a < b` the result is
+/// finite-or-`inf` and lies in `[a, b]`, never outside the bracket.
+///
+/// Which is why **both call sites re-test the result** rather than
+/// trusting it. [`decomposition_witness`] takes a slab or cell centre
+/// only when it is STRICTLY between the two ends, so an ulp of drift or
+/// a collapse onto an endpoint drops that cell instead of proposing a
+/// point outside it; and a non-finite coordinate is rejected at
+/// [`boundary_segments`]. The rounding therefore reaches the answer only
+/// as a missed candidate, never as a bad one.
+///
+/// # Siblings, not one utility
+///
+/// Two other bracket-midpoint spellings exist — `geom_brep`'s
+/// `props/quad.rs` `mid` and `topo`'s `props.rs` `mid_pad` — and this is
+/// deliberately not unified with either. They compute different
+/// quantities for different jobs (`mid_pad` pads, quad's `mid` is a
+/// quadrature abscissa on a certified path); this one is an uncertified
+/// hint that its own callers re-validate. Merging three formulas whose
+/// only shared property is the word "midpoint" would give one of them
+/// the wrong rounding contract.
 fn midpoint(a: f64, b: f64) -> f64 {
     a + 0.5 * (b - a)
 }
