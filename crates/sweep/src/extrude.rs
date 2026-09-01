@@ -107,7 +107,18 @@ pub enum Extrusion<T: Real> {
 /// and downstream passes (tessellation, mass properties) address it by.
 #[derive(Debug)]
 pub struct Extruded<T: Real> {
-    /// The built body — a closed solid passing tiers 1–3.
+    /// The built body — a closed solid, tiers 1–2 by construction.
+    ///
+    /// Tier 3 holds for every profile whose joints are transverse, but
+    /// NOT unconditionally: extruding a profile with a DECLARED cusp
+    /// joint (`.cusp()`) builds a body whose rim edge subtends material
+    /// wedge 0, and the at-rest gate refuses that undeclared
+    /// (`topo::ValidationError::UndeclaredCusp`) — correctly, because
+    /// this builder emits no contact record for the profile's
+    /// declaration. Such a body must be validated through
+    /// `topo::validate_geometric_declared` with the caller's own
+    /// declaration until the sweep lane emits one (the declaration-
+    /// emission handoff, MATE-3).
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
@@ -1184,8 +1195,13 @@ fn upgrade_rim<T: Decide>(
         // Believed unreachable for a normal extrusion (the cap plane is
         // perpendicular to every wall along the rim); kept total per
         // the D2 conventional split rather than papered over with a
-        // panic — tier 3's prefer-intrinsic enforcement exempts
-        // definitely-smooth edges, so a Smooth rim stays valid.
+        // panic. What a Smooth rim is NOT is automatically valid: the
+        // prefer-intrinsic enforcement does exempt definitely-smooth
+        // edges, but tier 3's material arm reads the same edge again
+        // with the faces' senses put back, and a Smooth rim whose
+        // material sides oppose is a wedge-0/2π edge — legal only where
+        // declared (MATE-3). This arm builds it; the at-rest gate
+        // judges it.
         Ok(DihedralClass::Smooth) => Ok(()),
         Err(source) => Err(ExtrudeError::SliverRim {
             loop_index,

@@ -670,6 +670,35 @@ transition_table! {
         }
     }
 
+    #[doc = " `.cusp()` — reverse onto the incoming end tangent and DECLARE the joint."]
+    verb Cusp bind {} rows {
+        row {
+            /// Consumes a **directed point only**, exactly as
+            /// [`tangent`](Self::tangent) does, and departs along the
+            /// REVERSE of the incoming end tangent — the ray negated, so the
+            /// junction is exactly reverse-tangent by construction and
+            /// nothing is left for verification to contradict — emitting the
+            /// same DECLARED flag on lowering.
+            ///
+            /// This is the wedge-0/2π authoring door (D1's tier-3 ruling):
+            /// a solid swept from a loop with such a joint carries a cusp
+            /// edge, which is legal at rest exactly where the contact is
+            /// declared. A junction merely AUTHORED within ε_input of the
+            /// reverse is still [`PathError::JunctionCusp`] — the ladder
+            /// never infers a declaration from values, and this verb is what
+            /// that refusal now names.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn cusp [(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng>] {
+                self.core.record(Step::Cusp);
+                self.cusp_kernel()
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.cusp()))),
+            }
+        }
+    }
+
     #[doc = " `.turn(δ)` — depart at the incoming tangent rotated by δ."]
     verb Turn(T) bind (delta) rows {
         row {

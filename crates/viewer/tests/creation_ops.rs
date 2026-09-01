@@ -28,9 +28,10 @@ mod common;
 
 use core::f64::consts::TAU;
 
+use common::{body_volume, insert, near};
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
-    RecipeNodeId, SlotId,
+    Datum, Dimension, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
@@ -52,37 +53,6 @@ const RI: f64 = 0.05;
 /// arbitrary "whatever was open".
 fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("creation-start", tol), tol)
-}
-
-/// Perform one op that must commit exactly one edit, answering the id
-/// of the node it inserted (the newest node in the document).
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
-}
-
-/// The evaluated volume of `node`'s body, with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    match &eval.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(body) => {
-            pncad::topo::mass_properties(body, tol)
-                .expect("mass properties")
-                .volume
-        }
-        other => panic!("expected a body, got {other:?}"),
-    }
 }
 
 /// A synthetic face selection for the hover row: `Hover` stores the
@@ -320,10 +290,7 @@ fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
     );
     let v = body_volume(&mut session, extrude, tol);
     let want = (0.06 * 0.03 - 2.0 * core::f64::consts::PI * 0.005 * 0.005) * 0.01;
-    assert!(
-        ((v - want) / want).abs() < 1e-9,
-        "plate with two bores: {v} vs {want}"
-    );
+    assert!(near(v, want), "plate with two bores: {v} vs {want}");
 }
 
 #[test]
