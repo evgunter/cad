@@ -466,8 +466,10 @@ impl Real for Interval {
     }
 }
 
-/// Bound extraction (certification/driver scope — see [`Bounds`]):
-/// the enclosure's exact endpoints. Poison surfaces honestly: NaI **and**
+/// The enclosure's exact endpoints — a bracket read, never a
+/// certification: that door is [`crate::real::CertifiedEnclosure`],
+/// implemented just below, and where a `Bounds` bound may be written is
+/// [`Bounds`]'s scope rule. Poison surfaces honestly: NaI **and**
 /// the empty enclosure both yield NaN from both accessors, so either
 /// bracket fails every downstream `residual ≤ ε` certification loudly
 /// (D4 ¶2) — `NaN ≤ ε` is false under every comparison direction.
