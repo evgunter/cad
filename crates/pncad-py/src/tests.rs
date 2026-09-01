@@ -9,7 +9,9 @@
 // failure mechanism.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose};
+use crate::errors::{
+    ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
+};
 use crate::tags::{
     expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
     workspace_error_tag,
@@ -549,7 +551,9 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     // And the shapes prose legitimately carries: a quoted user string
     // (`Debug` on a `&str`, which the id doors use for its escaping),
     // and a sentence that opens on a capital.
-    assert!(reads_as_prose("not a document id: \"nope\" — an id is 32 hex digits"));
+    assert!(reads_as_prose(
+        "not a document id: \"nope\" — an id is 32 hex digits"
+    ));
     assert!(reads_as_prose("Tessellate refused"));
 }
 
