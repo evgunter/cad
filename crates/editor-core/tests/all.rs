@@ -250,6 +250,8 @@ mod mate6r2_probes;
 mod pirad_schema_v19;
 #[path = "placedunion_schema_v12.rs"]
 mod placedunion_schema_v12;
+#[path = "r1_bool11_ec_probe.rs"]
+mod r1_bool11_ec_probe;
 #[path = "r1_dual_probes.rs"]
 mod r1_dual_probes;
 #[path = "r1_m10_1_corruptions.rs"]
