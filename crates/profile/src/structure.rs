@@ -63,6 +63,18 @@ pub enum CornerGate {
     RefusedReach,
 }
 
+impl core::fmt::Display for CornerGate {
+    /// The outcome as prose — the one spelling a user-facing message
+    /// uses, so a rendered gate never leans on `Debug`.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Admitted => "admitted",
+            Self::RefusedAdvance => "refused (corner not ahead of the incoming anchor)",
+            Self::RefusedReach => "refused (corner not behind the arrival anchor)",
+        })
+    }
+}
+
 /// One fillet resolution's discrete decisions.
 ///
 /// A line×line fillet derives its single corner from the carrier pair
@@ -114,6 +126,19 @@ pub enum SegmentShape {
         /// Counterclockwise is `Positive`.
         turn: Sign,
     },
+}
+
+impl core::fmt::Display for SegmentShape {
+    /// The shape as prose — the one spelling a user-facing message
+    /// uses, so a rendered shape never leans on `Debug`. The arc names
+    /// its turn sense in words, since which way it turns is half of
+    /// what distinguishes two arcs a record disagrees about.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Line => f.write_str("a line"),
+            Self::Arc { turn } => write!(f, "an arc turning {turn}"),
+        }
+    }
 }
 
 /// The structure one validation selected, for one loop.
@@ -395,17 +420,23 @@ impl core::fmt::Display for Decision {
     }
 }
 
+// A payload that has a vocabulary reaches prose through that
+// vocabulary's own `Display`, never through `Debug`: a refusal sentence
+// is read by a person, and a fieldless variant's `Debug` spelling is the
+// type's identifier, not a word. [`DecisionValue::Set`] is the
+// exception and stays a `Debug` list — its members are loop indices,
+// identifiers-as-location, which have no prose form to reach for.
 impl core::fmt::Display for DecisionValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Gate(g) => write!(f, "{g:?}"),
-            Self::Sign(s) => write!(f, "{s:?}"),
+            Self::Gate(g) => write!(f, "{g}"),
+            Self::Sign(s) => write!(f, "{s}"),
             Self::Index(i) => write!(f, "index {i}"),
             Self::Count(n) => write!(f, "{n} of them"),
-            Self::Shape(s) => write!(f, "{s:?}"),
+            Self::Shape(s) => write!(f, "{s}"),
             Self::Inside(b) => write!(f, "inside = {b}"),
             Self::Set(v) => write!(f, "{v:?}"),
-            Self::Role(r) => write!(f, "{r:?}"),
+            Self::Role(r) => write!(f, "{r}"),
         }
     }
 }

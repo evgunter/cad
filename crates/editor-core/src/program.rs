@@ -300,7 +300,7 @@ pub trait ProfilePayload {
 /// refusal's class — beside the driver's rendered sentence and the
 /// typed coordinates. **The class is the typed interface; the prose is
 /// for a reader.** A consumer asking WHICH geometry refusal fired
-/// matches [`ProgramRefusal::Geometry::kind`] and never the string.
+/// matches that variant's `kind` and never the string.
 /// The full typed error remains the EVALUATION surface's contract
 /// (`NodeErrorKind` carries it unaltered); the edit door is the early
 /// ergonomic mirror. REPORTED shape, not silent (LIB-SWITCH §10).
