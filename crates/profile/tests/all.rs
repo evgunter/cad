@@ -72,6 +72,8 @@ mod path_differential;
 mod path_program;
 #[path = "path_property.rs"]
 mod path_property;
+#[path = "r1_bool11_review_probes.rs"]
+mod r1_bool11_review_probes;
 #[path = "rejections.rs"]
 mod rejections;
 #[path = "review_m2_pr2.rs"]
