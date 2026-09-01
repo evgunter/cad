@@ -1054,8 +1054,9 @@ pub(crate) fn loop_polygon(
     // classification below compares a junction against an UNDECLARED
     // analytic chart point (`Chart::poles()` computes it from the
     // surface), and where the pole carries no vertex of its own this
-    // guard cannot see it. That case is **#896** and is NOT discharged
-    // here.
+    // guard cannot see it. That comparison has its own row-5 guard
+    // beside `pole_v` below (issue 896), scoped to junctions the
+    // classification does NOT identify with a pole.
     //
     // Equal ids are skipped rather than compared: one declared vertex
     // visited twice by one loop (a seam walked both ways) is that
@@ -1090,6 +1091,70 @@ pub(crate) fn loop_polygon(
             .find(|(pp, _)| (p - *pp).norm() <= eps)
             .map(|&(_, pv)| pv)
     };
+    // D2 addendum row 5, beside the declared-vertex guard above, and
+    // the case that guard's SCOPE paragraph names as out of its reach
+    // (issue 896): a chart pole is an UNDECLARED analytic point
+    // (`Chart::poles` computes it from the surface), so a junction
+    // coinciding with one is invisible to any declared-vs-declared
+    // comparison. The invariant: a junction the emission below will
+    // carry as `pole: false` lies within eps of no chart pole. Inside
+    // that band the coordinate the entry carries (the vertex's own
+    // measured v) and the entry count (one, not a fan seed) can only
+    // be read as correct by taking a numerical coincidence for
+    // intent, which this project never does — so the state is a
+    // kernel bug, and it is not observable in a branch: seeing it
+    // takes this re-derivation over every junction × pole pair.
+    //
+    // The band's identified side is NOT asserted on: a meridian
+    // junction within eps of the pole it is identified with is the
+    // classification working as specified (the pole's exact v is
+    // substituted and the fan seed emitted), and whether that
+    // junction is REALLY the pole is precisely the intent question
+    // the project refuses to ask. What this leaves uncaught is a
+    // misidentification in the identified direction; what it
+    // catches is every junction the classification passes over —
+    // a rim junction on a pole (a zero-radius row stated as an
+    // ordinary one), and a junction within eps of a second pole
+    // beyond the one it is identified with (a degenerate chart).
+    //
+    // JUNCTIONS ONLY, for the same load-bearing reason as the guard
+    // above: chord interior points on a pole-incident edge approach
+    // the pole legitimately as delta shrinks, so comparing them
+    // would fire on correct input.
+    //
+    // The `within` re-derivation mirrors `pole_v`'s find (same
+    // order, same band), so the two cannot disagree about which
+    // pole a junction is identified with. The eps read is terminal
+    // and gates nothing — a `debug_assert` condition; its only
+    // effect is to panic. Issue 881's named-operations port
+    // (MESH-4) inherits this read.
+    let near_unidentified_pole = || -> Option<(u32, Point3<f64>, f64, f64)> {
+        for t in &travs {
+            let jid = t.ids[0];
+            let p = positions[jid as usize];
+            let within: Vec<bool> = poles
+                .iter()
+                .map(|&(pp, _)| (p - pp).norm() <= eps)
+                .collect();
+            let identified = matches!(t.kind, TravKind::Meridian { .. })
+                .then(|| within.iter().position(|w| *w))
+                .flatten();
+            for (ix, &(pp, pv)) in poles.iter().enumerate() {
+                if within[ix] && identified != Some(ix) {
+                    return Some((jid, pp, pv, (p - pp).norm()));
+                }
+            }
+        }
+        None
+    };
+    debug_assert!(
+        near_unidentified_pole().is_none(),
+        "face {face:?} loop {lk:?}: a junction the walk does not identify with a chart \
+         pole lies within eps {eps} of one (junction id, pole point, pole v, gap in \
+         metres) {:?}. Intent is never read from a numerical coincidence, so this is a \
+         kernel bug and not a near-pole vertex to admit.",
+        near_unidentified_pole()
+    );
     // Pole-to-pole bands: precompute every column from the loop's 3-D
     // area vector (module docs).
     let band_u: Option<Vec<f64>> = if no_rim {

@@ -185,26 +185,30 @@ fn every_suite_file_is_aggregated() {
 ///   (`budget` feature). Counted after a cut since #887, which gave
 ///   the file its first test module; the total did not move, because
 ///   that module reads no ε.
-/// - **`walk.rs` — 13.** **Four** `eps` parameters (`gap_is_noise`,
+/// - **`walk.rs` — 14.** **Four** `eps` parameters (`gap_is_noise`,
 ///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
 ///   hand-offs (`closing_column`'s and `loop_polygon`'s two
 ///   `gap_is_noise` calls, `loop_polygon`'s calls to
-///   `iso_side_starts` and `closing_column`), and **four** terminal
+///   `iso_side_starts` and `closing_column`), and **five** terminal
 ///   reads: `gap_is_noise`'s `gap * lever < eps` (one predicate, four
 ///   call sites — the domain guard above plus three `debug_assert`
 ///   detectors that gate nothing), `iso_side_starts`' `radial > eps`,
-///   `pole_v`'s `norm() <= eps`, and `loop_polygon`'s
+///   `pole_v`'s `norm() <= eps`, `loop_polygon`'s
 ///   `coincident_declared` closure, whose `d <= eps` asks whether two
-///   DECLARED vertices of one loop are the same point.
-///   4 + 5 + 4 = 13.
+///   DECLARED vertices of one loop are the same point, and its
+///   `near_unidentified_pole` closure, whose `norm() <= eps` asks
+///   whether a junction the classification passes over sits on a
+///   chart pole (issue 896's guard).
+///   4 + 5 + 5 = 14.
 ///
-///   It was **12** until `coincident_declared` landed. That read
-///   **gates nothing and moves no coordinate**: it is the condition of
-///   a `debug_assert` (D2 addendum row 5), so its only effect is to
-///   panic. It CAPTURES `eps` rather than taking it as a parameter,
-///   which is why only the terminal-read term moved.
+///   It was **12** until `coincident_declared` landed and **13**
+///   until `near_unidentified_pole` did. Both reads **gate nothing
+///   and move no coordinate**: each is the condition of a
+///   `debug_assert` (D2 addendum row 5), so its only effect is to
+///   panic. Each CAPTURES `eps` rather than taking it as a
+///   parameter, which is why only the terminal-read term moved.
 ///
-/// Eight consumer sites, five terminal reads across the crate. **The
+/// Nine consumer sites, six terminal reads across the crate. **The
 /// per-file totals above are pinned; every other number in this doc is
 /// hand-written and is not.** They are checkable — each file's
 /// breakdown sums to its pinned total, which is the arithmetic a
@@ -284,7 +288,7 @@ fn the_eps_inventory_is_pinned() {
         ("sizing.rs", 1),
         ("tessellate.rs", 3),
         ("trimmed.rs", 1),
-        ("walk.rs", 13),
+        ("walk.rs", 14),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let needle = concat!("e", "ps");
