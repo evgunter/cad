@@ -32,6 +32,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// **This document is written in MILLIMETRES and DEGREES**, and it is
+// the MIXED half of the units exhibit: `ring` authors one unit
+// throughout, `heatsink` and `checks` author canonically, and this one
+// carries two units and a dimensionless axis in the same recipe.
+//
+// It also shows the OTHER authoring door. `ring` types its numbers in
+// the unit it means (`WrittenLength::in_unit(300.0, MM)`); every length
+// here is DERIVED from the die's geometry, already in canonical metres,
+// and only its notation is being chosen — which is `canonical_in`, and
+// is exactly the shape a GUI form has, where the draft is canonical
+// whatever the picker shows.
+
 use core::f64::consts::PI;
 
 use pncad::document::{BooleanOp, BooleanValue, save};
@@ -61,17 +73,7 @@ const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
-// **This document is written in MILLIMETRES and DEGREES**, and it is
-// the MIXED half of the units exhibit: `ring` authors one unit
-// throughout, `heatsink` and `checks` author canonically, and this one
-// carries two units and a dimensionless axis in the same recipe.
-//
-// It also shows the OTHER authoring door. `ring` types its numbers in
-// the unit it means (`WrittenLength::in_unit(300.0, MM)`); every
-// length here is DERIVED from the die's geometry, already in canonical
-// metres, and only its notation is being chosen — which is
-// `canonical_in`, and is exactly the shape a GUI form has, where the
-// draft is canonical whatever the picker shows.
+/// A length, written in the millimetres this document is authored in.
 fn len(v: f64) -> Expr {
     Expr::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
 }

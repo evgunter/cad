@@ -2264,11 +2264,12 @@ impl DocSession {
                     });
                 };
                 let value = value.as_f64();
-                // One of whatever unit the field is written in. A slot
-                // driven by an EXPRESSION remembers none — there is no
-                // authored notation for a computed value — and takes
-                // one canonical unit.
-                let step = remembered.map_or(1.0, |unit| props::from_written(1.0, unit));
+                // One of whatever unit the field is written in —
+                // through `rendering_unit`, so a computed slot's step
+                // is the same unit the panel shows it in rather than a
+                // second answer to the same question.
+                let step = props::rendering_unit(dimension, remembered)
+                    .map_or(1.0, |unit| props::from_written(1.0, unit));
                 Ok((value, step, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
@@ -2897,13 +2898,11 @@ impl DocSession {
     }
 }
 
-/// Lower one datum spec to its node, minting the literal slots —
-/// origins and positions Length, normals and directions Scalar (the
-/// [`Datum`] slot dimensions).
+/// Lower one datum spec to its node.
 ///
-/// # Errors
-///
-/// A non-finite component (the literal door's refusal).
+/// Total, for [`combine::pattern_node`]'s reason: the components arrive
+/// as `Expr`s that were checked at their own construction, and whether
+/// each suits the slot it lands in is the edit door's question.
 fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
     Node::Datum(match spec {
         DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },

@@ -164,14 +164,15 @@ impl DocParam {
     pub fn written_angle(written: quantity::WrittenAngle) -> Self {
         Self::Continuous {
             dim: Dimension::Angle,
-            value: written.radians_value(),
+            value: written.radians(),
             display_unit: crate::expr::UnitSym::from_def(&written.unit().def()),
             distribution: None,
         }
     }
 
-    /// A continuous parameter with no distribution and no authored
-    /// notation — the plain authoring spelling.
+    /// A continuous parameter with no distribution, written in the
+    /// canonical unit for its dimension — the plain authoring
+    /// spelling.
     pub fn continuous(dim: Dimension, value: f64) -> Self {
         Self::Continuous {
             dim,

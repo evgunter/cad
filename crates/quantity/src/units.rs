@@ -56,16 +56,12 @@ pub enum UnitQuantity {
     /// dimensionless number is written is with no suffix at all.
     ///
     /// It is a row rather than an absence so that every stored literal
-    /// can name the notation it was written in, with no "no notation"
-    /// state for two readers to interpret differently — which is what
-    /// they did: the text formatter resolved an unmarked angle to
-    /// `rad` and the property panel resolved the same literal to
-    /// `pi rad`.
+    /// can name the notation it was written in, leaving no "no
+    /// notation" state for two readers to interpret differently.
     ///
-    /// A picker offers nothing for it (`unit_options` answers an empty
-    /// list), because a choice between one option is not a choice. That
-    /// is the one place the dimensionless row is special-cased, and it
-    /// is a chrome rule, not a storage one.
+    /// A chooser has nothing to offer for it — one option is not a
+    /// choice — but that is a rule for whatever draws the chooser, not
+    /// one this table keeps.
     Scalar,
 }
 
@@ -255,8 +251,7 @@ pub const UNITS: [UnitDef; 8] = [
         quantity: UnitQuantity::Angle,
         factor: core::f64::consts::PI,
     },
-    // The dimensionless row: no suffix, factor exactly 1.0. Last, so
-    // that the rows a user can PICK are a prefix of the table.
+    // The dimensionless row: no suffix, factor exactly 1.0.
     UnitDef {
         symbol: "",
         quantity: UnitQuantity::Scalar,

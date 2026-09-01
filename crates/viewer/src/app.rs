@@ -267,12 +267,10 @@ struct Drafts {
     /// behind the fields stay canonical either way ([`unit_field`]),
     /// so moving the picker re-writes what is on screen and changes
     /// no value.
-    /// Not optional: an authored value always names the notation it
-    /// is written in (`quantity::written`'s module docs), and a form
-    /// that declined to name one would be handing the panel a value
-    /// whose spelling only a reader-side fallback could supply — which
-    /// is how the field and the picker beside it came to disagree
-    /// about what an unmarked angle meant.
+    /// Not optional: an authored value always names the notation it is
+    /// written in (`quantity::written`'s module docs), so the field and
+    /// the picker beside it read one fact rather than each resolving an
+    /// absence its own way.
     length_unit: LengthUnit,
     /// The same for every ANGLE field. Defaults to half turns
     /// (`pi rad`), the notation this editor says angles in.
@@ -488,8 +486,9 @@ impl Drafts {
 }
 
 /// Three dimensionless literals — a normal, a direction, a rotation
-/// axis. Not a [`Drafts`] method and carrying no notation: `Scalar` has
-/// no row in the unit table, so there is nothing for one to remember.
+/// axis. Not a [`Drafts`] method, because there is no notation to
+/// carry from the form: a dimensionless number has one spelling, and
+/// `Expr::literal` stores that row itself.
 ///
 /// # Errors
 ///
@@ -4166,9 +4165,9 @@ impl ViewerBehavior<'_> {
             if let Some((probed, result)) = self.session.bounds()
                 && *probed == target
             {
-                // A document parameter stores no display unit
-                // (`props`' module docs name the asymmetry), so its
-                // range reads in the canonical one.
+                // A document parameter's authored unit is stored but
+                // not yet read here (`props`' module docs name the
+                // asymmetry), so its range reads in the canonical one.
                 ui.weak(result.wording(props::rendering_unit(dimension, None)));
             }
             if ui

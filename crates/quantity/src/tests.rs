@@ -433,7 +433,7 @@ fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
     // this door like any other row: two half-turns is a full turn.
     let turn = WrittenAngle::in_unit(2.0, PI);
     assert_eq!(turn.unit(), PI);
-    assert_eq!(turn.radians_value(), core::f64::consts::TAU);
+    assert_eq!(turn.radians(), core::f64::consts::TAU);
 }
 
 /// The plain spelling NAMES the canonical unit rather than declining to
@@ -444,17 +444,20 @@ fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
 #[test]
 fn the_plain_spelling_is_the_canonical_unit_said_out_loud() {
     assert_eq!(
-        WrittenLength::metres(0.025),
+        WrittenLength::from_meters(0.025),
         WrittenLength::in_unit(0.025, M)
     );
-    assert_eq!(WrittenLength::metres(0.025).unit(), M);
-    assert_eq!(WrittenAngle::radians(1.5), WrittenAngle::in_unit(1.5, RAD));
-    assert_eq!(WrittenAngle::radians(1.5).unit(), RAD);
+    assert_eq!(WrittenLength::from_meters(0.025).unit(), M);
+    assert_eq!(
+        WrittenAngle::from_radians(1.5),
+        WrittenAngle::in_unit(1.5, RAD)
+    );
+    assert_eq!(WrittenAngle::from_radians(1.5).unit(), RAD);
 
     // Same magnitude, different authorings — the carrier tells them
     // apart, unlike the stored literal it feeds, where the display unit
     // is excluded from expression identity.
-    let metres = WrittenLength::metres(0.025);
+    let metres = WrittenLength::from_meters(0.025);
     let inches = WrittenLength::canonical_in(0.025, IN);
     assert_eq!(metres.meters().to_bits(), inches.meters().to_bits());
     assert_ne!(metres, inches);
@@ -473,13 +476,13 @@ fn the_already_canonical_door_attaches_notation_without_applying_it() {
 
     assert_eq!(
         WrittenLength::canonical_in(0.025, M),
-        WrittenLength::metres(0.025)
+        WrittenLength::from_meters(0.025)
     );
     assert_eq!(
         WrittenAngle::canonical_in(1.5, RAD),
-        WrittenAngle::radians(1.5)
+        WrittenAngle::from_radians(1.5)
     );
-    assert_eq!(WrittenAngle::canonical_in(1.5, DEG).radians_value(), 1.5);
+    assert_eq!(WrittenAngle::canonical_in(1.5, DEG).radians(), 1.5);
 }
 
 /// Every row of the closed table is reachable through its OWN carrier
@@ -505,7 +508,7 @@ fn each_carrier_admits_exactly_its_own_half_of_the_table() {
                 let unit = row.as_angle().expect("an Angle row has the angle view");
                 let written = WrittenAngle::in_unit(3.0, unit);
                 assert_eq!(written.unit().symbol(), row.symbol());
-                assert_eq!(written.radians_value(), 3.0 * row.factor());
+                assert_eq!(written.radians(), 3.0 * row.factor());
                 assert_eq!(row.as_length(), None);
             }
         }

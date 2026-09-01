@@ -25,16 +25,18 @@
 //!
 //! * **An edit to a number never changes how the number is written.**
 //!   [`slot_edit`] takes the slot's STORED unit and re-attaches it, so
-//!   dragging a slider cannot silently canonicalize a literal, and a
-//!   literal that remembers nothing keeps remembering nothing.
+//!   dragging a slider cannot silently re-write a literal into another
+//!   unit.
 //! * **Changing how it is written is its own operation.** That is
 //!   `SessionOp::SetSlotUnit`, which rewrites the display unit and
 //!   leaves the canonical bits alone.
 //!
-//! Document parameters are the one asymmetry, and it is the storage's:
-//! `DocParam::Continuous` has no unit field, so a parameter has no
-//! authored unit to remember and its row shows the canonical one. The
-//! panel does not paper over that.
+//! Document parameters are the remaining asymmetry, and it is now the
+//! PANEL's rather than the storage's: `DocParam::Continuous` carries an
+//! authored unit (schema v20), and nothing here reads it — a parameter
+//! row still shows the canonical unit, and the create-parameter
+//! affordance still authors one. Stated rather than papered over; the
+//! storage is ready for the row that renders it.
 //!
 //! # Structural is not continuous
 //!
@@ -151,15 +153,11 @@ pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
 /// The `None` case is not a literal's; a literal always names its unit
 /// (`Expr::display_unit` answers `None` only for the kinds that are not
 /// literals). It is a COMPUTED value's, and a computed value was never
-/// written by anyone, so some reader has to choose. This function is
-/// the one place that choice is made, which is the whole point of it
-/// existing: its predecessor made the choice for literals too, and
-/// disagreed with the text formatter about unmarked angles — the same
-/// stored value read `0.7 rad` through `unparse` and
-/// `0.22281692032865351 pi rad` through the panel.
-///
-/// The choice is CANONICAL, so the two now agree by construction rather
-/// than by two files being edited together.
+/// written by anyone, so a reader has to choose. Every reader in this
+/// crate chooses through here, which is the point of it being a
+/// function: the choice is CANONICAL, and `unparse` renders such a
+/// value the same way, so the panel and the text door agree by
+/// construction rather than by two files being edited together.
 ///
 /// `Count` has no units at all — an instance count is a number, not a
 /// quantity — and answers `None`.
@@ -178,12 +176,6 @@ pub fn rendering_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Opti
 /// A canonical value as it is WRITTEN in `unit` — one divide, the
 /// inverse of the text door's one multiply.
 ///
-/// There is no fallback arm and no `Option`: every literal names the
-/// notation it was written in, so this is always given the unit it is
-/// meant to divide by. The function this replaced had one, and its
-/// fallback for an unmarked ANGLE (`pi rad`) disagreed with the text
-/// formatter's (`rad`) — the same stored value rendered two ways
-/// depending on which reader reached it.
 pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
     canonical / unit.factor()
 }

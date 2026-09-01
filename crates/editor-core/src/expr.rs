@@ -356,29 +356,6 @@ impl UnitSym {
         *row
     }
 
-    /// The code for a table row, by symbol — TOTAL, exactly as
-    /// [`Self::def`] is total in the other direction.
-    ///
-    /// **Symbol-keyed is sufficient because the symbol DETERMINES the
-    /// row (issue #650, closed structurally).** Every `UnitDef` a
-    /// caller can hold is a COPY OF A TABLE ROW — the seal, and why no
-    /// whole-row re-check was added here, are stated once on
-    /// [`quantity::UnitDef`]'s rustdoc. So matching on `symbol` alone
-    /// selects the row the caller already had, and it always finds one.
-    ///
-    /// Both impossible branches take D2 addendum row 4, the same answer
-    /// [`Self::def`] takes for its unconstructable index: a check for a
-    /// state the type system excludes is dead code pretending to be a
-    /// guard, so the state is announced as a kernel bug rather than
-    /// carried as a typed refusal a caller could believe in.
-    ///
-    /// [`DimensionError::UnknownDisplayUnit`] is NOT dead — it is
-    /// raised by `persist::wire`, where a display-unit SYMBOL arrives
-    /// as a string out of a file and `quantity::unit_by_symbol` really
-    /// can fail. That is the one reachable, input-driven off-table
-    /// case, and it keeps its typed refusal (D2 addendum row 1). What
-    /// went away is the CONSTRUCTION site of that variant, which could
-    /// only fire for a `UnitDef` no caller can build.
     /// The unit a value of `dim` is written in when nothing else was
     /// authored: metres, radians, or the dimensionless row.
     ///
@@ -405,8 +382,29 @@ impl UnitSym {
         Self::from_def(&row)
     }
 
-    /// The code for a table row — the public mint, total since the
-    /// #650 seal (every `UnitDef` a caller can hold IS a table row).
+    /// The code for a table row, by symbol — TOTAL, exactly as
+    /// [`Self::def`] is total in the other direction.
+    ///
+    /// **Symbol-keyed is sufficient because the symbol DETERMINES the
+    /// row (issue #650, closed structurally).** Every `UnitDef` a
+    /// caller can hold is a COPY OF A TABLE ROW — the seal, and why no
+    /// whole-row re-check was added here, are stated once on
+    /// [`quantity::UnitDef`]'s rustdoc. So matching on `symbol` alone
+    /// selects the row the caller already had, and it always finds one.
+    ///
+    /// Both impossible branches take D2 addendum row 4, the same answer
+    /// [`Self::def`] takes for its unconstructable index: a check for a
+    /// state the type system excludes is dead code pretending to be a
+    /// guard, so the state is announced as a kernel bug rather than
+    /// carried as a typed refusal a caller could believe in.
+    ///
+    /// [`DimensionError::UnknownDisplayUnit`] is NOT dead — it is
+    /// raised by `persist::wire`, where a display-unit SYMBOL arrives
+    /// as a string out of a file and `quantity::unit_by_symbol` really
+    /// can fail. That is the one reachable, input-driven off-table
+    /// case, and it keeps its typed refusal (D2 addendum row 1). What
+    /// went away is the CONSTRUCTION site of that variant, which could
+    /// only fire for a `UnitDef` no caller can build.
     pub fn from_def(u: &quantity::UnitDef) -> Self {
         let Some(i) = quantity::UNITS
             .iter()
@@ -440,12 +438,9 @@ impl UnitSym {
 ///
 /// **The unit is not optional.** Every literal names the notation it
 /// was written in, dimensionless ones included ([`quantity::ONE`], the
-/// empty symbol). It used to be an `Option`, and the absence had no
-/// single meaning: this module's own formatter resolved an unmarked
-/// angle to `rad` while the property panel resolved the same literal to
-/// `pi rad`. A stored value that two readers render differently is not
-/// presentation metadata, it is a hole; closing it is what the
-/// dimensionless row exists for.
+/// empty symbol), so there is no absence for two readers to resolve
+/// differently — which is what the dimensionless row exists for. The
+/// break that introduced it (schema v20) carries the incident.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Lit {
     /// The exact canonical-units value (bit-exact per D7).
@@ -670,9 +665,9 @@ impl Expr {
     /// there is no second fact to keep in step — and the literal
     /// ALWAYS remembers a unit, because an authored quantity always
     /// names the one it is written in (`quantity::written`'s module
-    /// docs). [`Expr::literal`] remains the door for values with no
-    /// notation to remember: `Scalar` literals, which have no row in
-    /// the table to name.
+    /// docs). [`Expr::literal`] remains the door for a value whose
+    /// notation is not a CHOICE — it stores the canonical row for the
+    /// dimension, `quantity::ONE` for a `Scalar`.
     ///
     /// **`DisplayUnitMismatch` cannot fire here.** A
     /// [`quantity::WrittenLength`] holds a `LengthUnit`, which is an
@@ -699,11 +694,7 @@ impl Expr {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
-        Self::literal_with_unit(
-            written.radians_value(),
-            Dimension::Angle,
-            written.unit().def(),
-        )
+        Self::literal_with_unit(written.radians(), Dimension::Angle, written.unit().def())
     }
 
     /// The display unit of a LITERAL expression — `None` for every
@@ -1456,15 +1447,30 @@ fn write_expr(expr: &Expr, out: &mut String) {
 fn write_literal(lit: &Lit, dim: Dimension) -> String {
     let remembered = lit.unit_def();
     let formatted = match dim {
-        // The stored unit and the dimension agree by construction
-        // (`Expr::literal_with_unit` checks the pairing, `literal`
-        // supplies the canonical row), so the typed view is there.
+        // The stored unit and the dimension agree by construction —
+        // `Expr::literal_with_unit` checks the pairing and `literal`
+        // supplies the canonical row — so the typed view is there, and
+        // its absence is D2 addendum row 4 rather than a default: a
+        // quiet fallback here would render a corrupt literal as if it
+        // were fine.
         Dimension::Length => {
-            let unit = remembered.as_length().unwrap_or(quantity::M);
+            let Some(unit) = remembered.as_length() else {
+                unreachable!(
+                    "a Length literal remembers {:?}, which measures {:?}",
+                    remembered.symbol(),
+                    remembered.quantity()
+                )
+            };
             quantity::fmt_length(lit.value, unit)
         }
         Dimension::Angle => {
-            let unit = remembered.as_angle().unwrap_or(quantity::RAD);
+            let Some(unit) = remembered.as_angle() else {
+                unreachable!(
+                    "an Angle literal remembers {:?}, which measures {:?}",
+                    remembered.symbol(),
+                    remembered.quantity()
+                )
+            };
             quantity::fmt_angle(lit.value, unit)
         }
         // The dimensionless row's symbol is empty, so there is no

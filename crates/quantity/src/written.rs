@@ -15,16 +15,11 @@
 //! # The notation is not optional
 //!
 //! A value authored through these doors ALWAYS names the unit it is
-//! written in, `WrittenLength::metres` included — that one names the
-//! metre. There is no "canonical, notation unknown" state here, and
-//! the point of not having one is that a document then says how it is
+//! written in, [`WrittenLength::from_meters`] included — that one
+//! names the metre. There is no "canonical, notation unknown" state,
+//! and the point of not having one is that a document says how it is
 //! written instead of leaning on whatever fallback its reader happens
-//! to apply. The reader's fallback still exists, because storage has a
-//! state this type does not: a `Scalar` literal has no notation to
-//! remember, since [`crate::UNITS`] has no dimensionless row and never
-//! will. That is why a STORED display unit is optional and an AUTHORED
-//! one is not — the two are different questions, and only one of them
-//! has a dimensionless case.
+//! to apply.
 //!
 //! # These are authoring data, not arithmetic data
 //!
@@ -56,7 +51,7 @@
 //! assert_eq!(thickness.unit(), MM);
 //!
 //! // Canonical — which is to say, written in metres, said out loud.
-//! let plain = WrittenLength::metres(0.025);
+//! let plain = WrittenLength::from_meters(0.025);
 //! assert_eq!(plain.meters(), 0.025);
 //! assert_eq!(plain.unit(), M);
 //! assert_eq!(plain, WrittenLength::in_unit(0.025, M));
@@ -103,12 +98,12 @@ impl WrittenLength {
         }
     }
 
-    /// Canonical metres, written in metres — the plain spelling, and
-    /// the same value as `in_unit(metres, M)` without the multiply by
-    /// one.
-    pub const fn metres(metres: f64) -> Self {
+    /// Canonical meters, written in meters — the plain spelling, and
+    /// the same value as `in_unit(meters, M)` without the multiply by
+    /// one. Named for [`Length::from_meters`], whose job it is doing.
+    pub const fn from_meters(meters: f64) -> Self {
         Self {
-            canonical: Length::from_meters(metres),
+            canonical: Length::from_meters(meters),
             unit: M,
         }
     }
@@ -118,13 +113,13 @@ impl WrittenLength {
     /// happened.
     ///
     /// This is the shape a form has: a draft field holds canonical
-    /// metres whatever unit is on screen (the picker re-writes the
+    /// meters whatever unit is on screen (the picker re-writes the
     /// display, never the value), so the authoring op carries the
     /// draft and the picker's choice side by side rather than
     /// re-deriving one from the other.
-    pub const fn canonical_in(metres: f64, unit: LengthUnit) -> Self {
+    pub const fn canonical_in(meters: f64, unit: LengthUnit) -> Self {
         Self {
-            canonical: Length::from_meters(metres),
+            canonical: Length::from_meters(meters),
             unit,
         }
     }
@@ -157,9 +152,9 @@ impl WrittenAngle {
         }
     }
 
-    /// Canonical radians, written in radians — [`WrittenLength::metres`]'s
-    /// mirror.
-    pub const fn radians(radians: f64) -> Self {
+    /// Canonical radians, written in radians —
+    /// [`WrittenLength::from_meters`]'s mirror.
+    pub const fn from_radians(radians: f64) -> Self {
         Self {
             canonical: Angle::from_radians(radians),
             unit: RAD,
@@ -182,7 +177,7 @@ impl WrittenAngle {
 
     /// The canonical value in radians ([`Self::angle`] then
     /// [`Angle::radians`]).
-    pub const fn radians_value(self) -> f64 {
+    pub const fn radians(self) -> f64 {
         self.canonical.radians()
     }
 

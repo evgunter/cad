@@ -228,15 +228,15 @@ pub enum PathStep {
 /// program would.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProfileShape {
-    /// A circle ([`LoopProgram::circle`]).
+    /// A circle (`LoopProgram::Circle`).
     Circle {
         /// The centre, in sketch coordinates (metres).
         centre: [f64; 2],
         /// The radius, metres.
         radius: f64,
     },
-    /// An axis-aligned rectangle centred on the sketch origin
-    /// ([`LoopProgram::polygon`], corners at `(±w/2, ±h/2)`).
+    /// An axis-aligned rectangle centred on the sketch origin: a
+    /// `LoopProgram::Chain` with corners at `(±w/2, ±h/2)`.
     Rectangle {
         /// The width (x extent), metres.
         width: f64,
@@ -290,8 +290,9 @@ impl Notation {
     }
 
     /// A dimensionless literal — a bulge, a director component. No
-    /// notation: `Dimension::Scalar` has no row in the unit table, so
-    /// there is nothing for it to remember.
+    /// notation to CHOOSE, rather than none to remember: there is one
+    /// way to write a dimensionless number, and `Expr::literal` stores
+    /// that row itself.
     fn scalar(self, v: f64) -> Result<Expr, DimensionError> {
         Expr::literal(v, Dimension::Scalar)
     }
@@ -304,6 +305,13 @@ impl Notation {
 
 /// Lower one template shape to its loop program, minting every literal
 /// in `notation`.
+///
+/// **The `LoopProgram` variants are built here rather than through
+/// `LoopProgram::circle` / `polygon`**, which is the one thing in this
+/// function a reader will want to fold back: those constructors take
+/// `f64` and mint CANONICAL literals, so routing through them would
+/// drop the notation this function exists to carry. They stay the right
+/// door for a caller with nothing to remember.
 ///
 /// # Errors
 ///

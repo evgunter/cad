@@ -489,8 +489,8 @@ it (`unit_field` divides the draft by the picked factor for display),
 but `SessionOp::AddExtrude { distance: f64 }` carried only canonical
 metres, so `DocSession::add_extrude` minted `Expr::literal` and the
 notation died one field before it could be stored. Not GUI-only — the
-demos author with `Expr::literal` too, so the tour's 10 mm ring opened
-in the panel as `0.01 m`.
+demos author with `Expr::literal` too, so the tour's 300 mm ring opened
+in the panel as `0.3 m`.
 
 Three rulings, all Evan's in the conversation that asked for it.
 
@@ -570,8 +570,8 @@ half turns, dimensionless for the rotation axes — and it exercises the
 other authoring door, `WrittenLength::canonical_in`, because its
 lengths are DERIVED from the die's geometry and only their notation is
 being chosen, which is exactly a GUI form's shape; `checks` and
-`heatsink` stay canonical, and say in a comment that they are the
-control. `ring`'s constants moved to millimetres with the canonical
+`heatsink` stay canonical and each says so in a comment, so a reader
+who opens one knows it is the control rather than an oversight. `ring`'s constants moved to millimetres with the canonical
 metres derived through `quantity::MILLI`, so the analytic oracle and
 the recipe cannot drift.
 

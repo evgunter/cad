@@ -616,10 +616,16 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// re-runs, and a parameter's by the shared save/load validator
 /// ([`PersistError::DisplayUnit`]), so it cannot be saved either.
 ///
-/// Forward-additive as ever (a v19 file has no units to carry), and the
-/// migration table stays empty: a v19 file refuses TYPED with the
+/// **Not additive in EITHER direction**, unlike most bumps here: a v19
+/// body may omit `unit` and the v20 field is required, so a v19 body
+/// cannot deserialize; and a v20 body carries the key on every literal,
+/// which a v19 reader's `deny_unknown_fields` types have no name for.
+/// (v19 files are not unit-LESS — v19 was the `pi rad` respelling, and
+/// its literals carry symbols; what they may omit is the field.) The
+/// version gate is therefore the operative door in both directions, and
+/// the migration table stays empty: a v19 file refuses TYPED with the
 /// regenerate recourse. A migration COULD be written — the mapping is
-/// total, since an absent unit meant the canonical row on the text
+/// total, since an omitted unit meant the canonical row on the text
 /// side — but the standing rule stops it: no migration machinery
 /// exists (LQ7a), the kernel is unreleased, and every file in this
 /// lineage replays from its own recipe.
