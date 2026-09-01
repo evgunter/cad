@@ -21,3 +21,16 @@ any collision (CERT-8's export deliberately kept out of
 geom_core::spline).
 Branch-side block record per the v6 convention; reviewers are never
 pointed here.
+slot 2 = CERT-M1 (Track M's trait-ground rows: H3+H4, H10+S211, D78,
+D221 — H5/S90-impl/S213 deferred to CERT-M2/M3; difficulty M, logged at
+spec docs/CERT-M1-SPEC.md on cert/orchestrator at bacc06e27 BEFORE this
+assignment; block drawn in full at creation, same recorded posture).
+Arm for slot 2 = OPUS (byte 27, fable at position 3).
+slot 3 = CERT-N1 (Track N's scalar-lift lane: D240+D241 with D242,
+D243, C24 — H2 (ADV) and S235/D98/D31 deferred to CERT-N2/N3;
+difficulty M, logged at spec docs/CERT-N1-SPEC.md at bacc06e27 before this
+assignment). Arm for slot 3 = FABLE (byte 27, fable at position 3 — the
+block's fable slot). Block CERT-B3 is now fully assigned.
+Sequencing note: CERT-M1 dispatches immediately (its fence is disjoint
+from CERT-10's in-flight files); CERT-N1 dispatches after CERT-10 merges
+(D243 sits in geom-core/src/spline/, beside CERT-10's TensorNet home).
