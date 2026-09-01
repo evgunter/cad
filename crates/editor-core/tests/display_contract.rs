@@ -15,8 +15,9 @@
 
 use editor_core::persist::MigrationError;
 use editor_core::{
-    CapEnd, DeclareError, EntityKind, InterrogateError, ParseError, RecipeNodeId, ResolveFault,
-    RoleSeg, SelectRefusal, StableName,
+    CapEnd, DeclareError, EntityKind, HitTestError, InterrogateError, MeshPickError, NodePickError,
+    ParseError, RecipeNodeId, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal,
+    StableName,
 };
 
 /// Asserts the F6 shape over one rendering: the wanted content is
@@ -50,6 +51,89 @@ fn face_name() -> StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(7),
         path: vec![RoleSeg::Cap(CapEnd::Top)],
+    }
+}
+
+/// A stable name renders as its kind plus its minting node — the half
+/// a user can act on — and never its role path: a derivation is not
+/// something a person reads mid-sentence.
+#[test]
+fn stable_name_display_is_kind_plus_minting_node() {
+    let shown = face_name().to_string();
+    assert_eq!(shown, "face name minted by node 7");
+    assert!(
+        !shown.contains("Cap") && !shown.contains('['),
+        "the role path leaked into prose: {shown:?}"
+    );
+}
+
+#[test]
+fn node_pick_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(4);
+    let dumps = ["NotABody", "NoSuchBody", "Standing", "Tessellate", "Index"];
+    let cases = [
+        (
+            NodePickError::NotABody { node },
+            vec!["node 4", "not body-denoting"],
+        ),
+        (
+            NodePickError::NoSuchBody { node, body: 2 },
+            vec!["node 4", "index 2"],
+        ),
+        // The wrapped standing/kernel refusals are forwarded in their
+        // own doors' words, not paraphrased.
+        (
+            NodePickError::Standing(HitTestError::NodeFailed { node }),
+            vec!["hit test:", "node 4", "failed"],
+        ),
+        (
+            NodePickError::Index(MeshPickError::PositionOutOfRange {
+                patch: 1,
+                triangle: 5,
+                index: 99,
+            }),
+            vec!["triangle 5", "patch 1", "position 99"],
+        ),
+    ];
+    for (err, wants) in cases {
+        assert_f6(&err, &wants, &dumps);
+    }
+    // The tessellation arm forwards the kernel's own prose, prefix
+    // included.
+    let err =
+        NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance { value: -1.0 });
+    let shown = err.to_string();
+    assert!(
+        shown.contains("tessellate:") && shown.contains("chordal tolerance"),
+        "the kernel refusal was not forwarded: {shown:?}"
+    );
+}
+
+#[test]
+fn resolve_indeterminate_display_names_its_content_not_its_struct() {
+    let dumps = ["TargetFailed", "TargetPoisoned", "TargetNotEvaluated"];
+    let cases = [
+        (
+            ResolveIndeterminate::TargetFailed {
+                node: RecipeNodeId(6),
+            },
+            vec!["minting node 6", "failed"],
+        ),
+        (
+            ResolveIndeterminate::TargetPoisoned {
+                through: RecipeNodeId(2),
+            },
+            vec!["poisoned", "node 2", "upstream"],
+        ),
+        (
+            ResolveIndeterminate::TargetNotEvaluated {
+                node: RecipeNodeId(6),
+            },
+            vec!["minting node 6", "no result"],
+        ),
+    ];
+    for (err, wants) in cases {
+        assert_f6(&err, &wants, &dumps);
     }
 }
 

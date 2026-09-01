@@ -82,6 +82,25 @@ pub struct StableName {
     pub path: RolePath,
 }
 
+// The human-readable rendering: the kind (through [`EntityKind::noun`],
+// never `Debug`) plus the minting node — the half of a name a user can
+// act on. The role path is a derivation, not something a person reads
+// mid-sentence, so prose never renders it; the typed value remains the
+// machine channel for anything that needs the path. Article-free
+// ("face name minted by node 3") so a sentence supplies its own
+// article. Refusal prose that names a name forwards this rather than
+// re-spelling it.
+impl core::fmt::Display for StableName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} name minted by node {}",
+            self.kind.noun(),
+            self.node.0
+        )
+    }
+}
+
 /// A sequence of role segments (N1). Usually length 1; composition
 /// (`[FromA(..), Fragment(..)]`) grows it.
 pub type RolePath = Vec<RoleSeg>;

@@ -79,15 +79,21 @@ pub enum NamingError {
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The role path rides along here, alone among the crate's
+            // name renderings: a duplicate mint is a kernel bug report,
+            // and the PATH is what distinguishes the colliding name
+            // from every other name the node minted.
             Self::Duplicate { name } => write!(
                 f,
-                "the name {name:?} was minted twice — names alias silently only over the \
-                 kernel's dead body"
+                "the {name} (role path {:?}) was minted twice — names alias silently only \
+                 over the kernel's dead body",
+                name.path
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
-                "a live {kind:?} of output body {body} was left unnamed — a kernel-emission \
-                 gap, not a naming choice"
+                "a live {} of output body {body} was left unnamed — a kernel-emission \
+                 gap, not a naming choice",
+                kind.noun()
             ),
             Self::MissingUpstream { node } => write!(
                 f,
@@ -760,14 +766,14 @@ mod display_tests {
                 NamingError::Duplicate {
                     name: Box::new(name),
                 },
-                vec!["Face", "7", "Cap"],
+                vec!["face", "7", "Cap"],
             ),
             (
                 NamingError::Unnamed {
                     kind: EntityKind::Edge,
                     body: 3,
                 },
-                vec!["Edge", "3"],
+                vec!["edge", "3"],
             ),
             (
                 NamingError::MissingUpstream {
