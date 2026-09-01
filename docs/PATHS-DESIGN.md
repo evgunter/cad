@@ -908,8 +908,8 @@ and the angle slot bound.
    makes it exact by construction; if intended as a straight
    continuation of the same line, spell it `line(len)` off the
    directed point — no junction exists there; otherwise move the
-   geometry (or lower the tolerance)". The margin rides the payload as data; the message
-   never forks on exactly-on vs in-band. Within ε_input of the
+   geometry (or lower the tolerance)". The margin rides the payload
+   as data; the message never forks on exactly-on vs in-band. Within ε_input of the
    REVERSE direction refuses as a cusp (reverse-tangent class).
    Declared cusps are legal kernel geometry (D1 tier 3's declared
    second-order wedge arm; #131 ruled 2026-08-23), but the
