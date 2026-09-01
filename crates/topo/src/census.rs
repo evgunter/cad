@@ -1346,8 +1346,7 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
             }
         };
         if side == CrossingSideVerdict::OppositeSides {
-            if pair_region_verified(body, fa, fb, band)
-                || pair_region_verified(body, fb, fa, band)
+            if pair_region_verified(body, fa, fb, band) || pair_region_verified(body, fb, fa, band)
             {
                 backed = true;
             }

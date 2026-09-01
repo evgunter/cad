@@ -246,41 +246,109 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
     );
 }
 
-/// **The third verdict: UNDECIDED escalates typed.** The post's
-/// `x = 0.30` side face against the shelf's `y = 0.30` side face —
-/// two PERPENDICULAR planes that both pass through the crossing point
-/// `(0.30, 0.30, 0.5)` — is a declared pair that HOLDS that point
-/// (closed-region containment on both), and the sense algebra's
-/// margin there is an exact zero at every ε: `material_wedge_side`
-/// answers neither aligned nor opposed, the rung escalates
-/// `CensusEscalated` (typed, never sampled), and the finding names
-/// the undecided verdict. The OTHER crossing `(0.60, 0.30, 0.5)` is
-/// off that pair's carriers, so it stays a plain unanswered finding —
-/// one seat, two crossings, two different honest refusals.
+/// **The EDGE screen: a pair that holds the POINT but not the EDGES
+/// names nothing at all.** The post's `x = 0.30` side face against
+/// the shelf's `y = 0.30` side face — two PERPENDICULAR planes that
+/// both pass through the crossing point `(0.30, 0.30, 0.5)` — holds
+/// that point in both closed regions, and before the fix pass it
+/// reached the sense algebra there: a question about "the shared
+/// carrier" asked of a pair that HAS no shared carrier, answered
+/// `MarginDiag::Invalid` at every band and mis-named "undecided at
+/// this ε" (`review_mate9_r2_probes` probe 1 is that record). The
+/// edge screen now refuses the pair before any side question is
+/// posed — the cap's crossing edge does not lie in the shelf-side
+/// plane — so: no escalation, no named verdict, both crossings stay
+/// PLAIN hard findings, and the only refusal the perpendicular
+/// declaration earns is its own (`ContactContradicted`, Door 1's
+/// carrier non-identity, at the confirm pass — loudness lives where
+/// the pair's own state is reported).
 #[test]
-fn a_perpendicular_pair_holding_the_point_escalates_undecided() {
+fn a_perpendicular_pair_holding_the_point_names_nothing() {
     let (body, _, post_side_x030, _, shelf_side_y030) = straddle_parts();
     let pair = (post_side_x030, shelf_side_y030);
     let found = errors(&body, &declared(&[pair]));
     let crossed = crossings(&found);
     assert_eq!(crossed.len(), 2, "{found:?}");
-    let (at_030, at_060): (Vec<_>, Vec<_>) =
-        crossed.iter().partition(|(_, w)| w.contains("x: 0.3,"));
     assert!(
-        at_030
-            .iter()
-            .all(|(_, w)| w.contains("side verdict: undecided")),
-        "the held crossing names the undecided verdict: {crossed:?}"
+        crossed.iter().all(|(_, w)| !w.contains("side verdict")),
+        "no side question is posed for a pair whose carrier does not \
+         hold the crossing edges: {crossed:?}"
     );
     assert!(
-        at_060.iter().all(|(_, w)| !w.contains("side verdict")),
-        "the unheld crossing stays plain: {crossed:?}"
+        !found
+            .iter()
+            .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
+        "and nothing escalates — the invalid question is screened out, \
+         not asked and apologized for: {found:?}"
     );
     assert!(
         found
             .iter()
-            .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
-        "undecided escalates typed: {found:?}"
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "the perpendicular declaration's own refusal stands at the \
+         confirm pass: {found:?}"
+    );
+}
+
+/// **The Door-2 isolator — the row `pair_region_verified` did not
+/// have** (R2's MAJ-2: mutating that call to `true` left the whole
+/// tree green). A corner block hangs beside the shelf, its underside
+/// at `z = 0.5` spanning `[0.10, 0.30] x [0.30, 0.50]` — kitty-corner
+/// to the cap across the crossing point `(0.30, 0.30, 0.5)`. Declared
+/// `(post_top, block_bottom)`, the pair passes EVERYTHING up to the
+/// doors: coplanar carriers holding the point (cap `OnEdge`, block
+/// `OnVertex` — the closed containment), both crossing edges in the
+/// carrier, a Smooth site, material genuinely OPPOSED (post below,
+/// block above). What fails is the verified interface itself: the two
+/// regions share only the boundary segment `x = 0.30,
+/// y ∈ [0.30, 0.42]` — zero area — so the region walk refuses
+/// `TouchingBoundary`, the witness rung finds no interior point, and
+/// Door 2 never answers `PositiveArea`. The pair answers for nothing;
+/// the crossing it corner-touches stays a hard finding.
+///
+/// GUARD CONTRACT: this row goes red under the mutation
+/// `pair_region_verified(..) → true` — the verified-interface
+/// conjunct's coverage. The point-half's control mutation
+/// (`pair_holds_point(..) → true`) is covered by
+/// `a_verified_pair_elsewhere_backs_no_crossing`. Both mutations'
+/// measured red counts are recorded in the PR.
+#[test]
+fn an_unverified_point_holding_pair_backs_no_crossing() {
+    let post: common::Prism<f64> = common::prism_z(
+        &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
+        0.0,
+        0.5,
+    );
+    let shelf: common::Prism<f64> = common::prism_z(
+        &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+        0.5,
+        0.54,
+    );
+    let block: common::Prism<f64> = common::prism_z(
+        &[(0.10, 0.30), (0.30, 0.30), (0.30, 0.50), (0.10, 0.50)],
+        0.5,
+        0.54,
+    );
+    let post_top = post.top_face;
+    let mut body = post.body;
+    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let bkeys = topo::graft_disjoint_all_keyed(&mut body, &block.body, Tol::witness()).unwrap();
+    let block_bottom = bkeys.face(block.bottom_face).unwrap();
+
+    let bare = crossings(&errors(&body, &ContactRecords::default()));
+    let found = errors(&body, &declared(&[(post_top, block_bottom)]));
+    let with = crossings(&found);
+    assert_eq!(
+        format!("{bare:?}"),
+        format!("{with:?}"),
+        "a point-holding, edge-holding, opposite-sided pair whose \
+         overlap region has no positive area answers for nothing"
+    );
+    assert_eq!(with.len(), 2, "{found:?}");
+    assert!(
+        with.iter().all(|(_, w)| !w.contains("side verdict")),
+        "and no verdict is named — the pair never verified, so it \
+         never spoke: {with:?}"
     );
 }
 

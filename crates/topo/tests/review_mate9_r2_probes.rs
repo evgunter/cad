@@ -1,41 +1,44 @@
 //! **R2 review probes for MATE-9** (the `EdgeEdgeCross` backing rung,
-//! PR #1496 at `b873d783`). Adversarial rows only — nothing here is a
-//! blessing of the unit's behaviour; each row DOCUMENTS what the rung
-//! does today so the fix pass can decide whether that is what it
-//! should do.
+//! written against PR #1496 at `b873d783`; probe 2 INVERTED by the
+//! fix pass to pin its fix, red-first order adopt → fix → invert).
 //!
 //! Three probes:
 //!
 //! 1. **The dropped precondition.** `classify_material_pairing`'s own
 //!    doc says it answers "at an on-locus point where the tangent
 //!    planes already classified [`DihedralClass::Smooth`]", and both
-//!    existing consumers (`validate.rs` tier-3 check 4, gated on
+//!    prior consumers (`validate.rs` tier-3 check 4, gated on
 //!    `all_smooth`; `boolean/rim_wedge.rs`, which comments "the
-//!    material arm, now validly posed") establish that first. The
-//!    crossing rung does NOT: it hands the algebra any declared pair
-//!    that merely holds the crossing point. Probe 1 shows the pair the
-//!    unit's own undecided row uses is `Transverse`, not `Smooth`, and
-//!    that the resulting `Indeterminate` carries `MarginDiag::Invalid`
-//!    — "the question was never validly posed here" — not an in-band
-//!    residue. `CrossingSideVerdict::Undecided`'s doc ("could not
-//!    decide at this ε") therefore misdescribes its only in-suite
-//!    instance.
+//!    material arm, now validly posed") establish that first. At the
+//!    frozen head the crossing rung did NOT: it handed the algebra
+//!    any declared pair that merely held the crossing point, and the
+//!    unit's own perpendicular row mis-read the resulting
+//!    `MarginDiag::Invalid` — "the question was never validly posed
+//!    here" — as an in-band ε residue. This probe is the RECORD of
+//!    those algebra facts (it consults `geom_brep` directly, so it is
+//!    green before and after): the reason the rung now runs the edge
+//!    screen and the `classify_dihedral == Smooth` gate before ever
+//!    consuming the pairing algebra.
 //!
-//! 2. **The escalation a losing candidate leaves behind.** The rung
-//!    pushes `CensusEscalated` from inside its candidate loop and
-//!    never retracts it, so a crossing that a LATER pair backs can
-//!    still carry a hard escalation raised by an earlier candidate.
-//!    Probe 2 pins that the census's error list depends on a
-//!    declaration that answers for nothing.
+//! 2. **Order-sensitivity, now order-freedom** (inverted). At the
+//!    frozen head the rung pushed `CensusEscalated` from inside its
+//!    candidate loop: duplicates per stored orientation, silenced by
+//!    whichever backing pair sorted first. The two-pass rung walks
+//!    unordered pairs, collects, and emits once; the perpendicular
+//!    fixture is screened before its invalid question is posed. The
+//!    row pins both.
 //!
-//! 3. **`pair_region_verified` is unguarded.** Bypassing the entire
+//! 3. **`pair_region_verified` was unguarded.** Bypassing the entire
 //!    verified-interface half of the rung (Door 1
 //!    `contact_pair_verdict(Rest)` + Door 2 `declared_overlap`, MATE-8's
-//!    witness rung included) leaves the whole topo suite AND the viewer
-//!    windmill story green. Probe 3 is the row that would go red: an
-//!    OPPOSED, point-holding, but UNVERIFIED declared pair must not
-//!    back a crossing. It passes at this head — it is a coverage row,
-//!    filed because nothing else in the tree is.
+//!    witness rung included) left the whole topo suite AND the viewer
+//!    windmill story green at the frozen head. Probe 3 is the
+//!    conjunction control (a verified-but-remote pair backs nothing)
+//!    and stays as written; the Door-2-ISOLATING row it says the unit
+//!    owes now exists —
+//!    `mate9_crossing_rung::an_unverified_point_holding_pair_backs_no_crossing`,
+//!    the kitty-corner pair that fails ONLY region verification and
+//!    goes red under the `pair_region_verified → true` mutation.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -181,28 +184,29 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     );
 }
 
-/// **Probe 2 — the rung's escalation is not a property of the
-/// crossing: it duplicates, and an unrelated backing silences it.**
+/// **Probe 2 — the rung's posture is a total function of the
+/// geometry** (INVERTED; at the frozen head it pinned a duplicated,
+/// order-silenced escalation).
 ///
-/// The side test pushes `CensusEscalated` from inside the candidate
-/// loop and the loop neither de-duplicates nor unwinds. Two
-/// consequences, both pinned here on the unit's own perpendicular
-/// fixture:
+/// At head b873d783 the side test pushed `CensusEscalated` from
+/// inside the candidate loop: one perpendicular pair pushed TWO
+/// identical escalations (both stored orientations ran), and adding
+/// an unrelated backing pair made the loop `return` before the
+/// escalating candidate — the side question's fate depended on
+/// `FaceKey` sort order. The fix pass restructured the rung two-pass
+/// (one walk per UNORDERED pair, outcomes collected, emission once)
+/// AND screened the perpendicular pair out before any side question
+/// is posed (`pair_holds_edges` — the pair's carrier does not hold
+/// the crossing edges). Pinned now:
 ///
-/// 1. **Duplication.** `Declared::index` stores BOTH orientations of a
-///    face pair, so one declared pair holding one crossing point runs
-///    the side test twice and pushes TWO identical escalations for one
-///    crossing. The unit's own row asserts only `.any(..)`, so the
-///    duplicate is invisible there.
-/// 2. **Silencing.** Adding a second, unrelated declaration that backs
-///    the crossing makes the loop `return` before the escalating
-///    candidate is reached, and the undecided side question vanishes
-///    from the output entirely — no escalation, no named verdict.
-///    Whether an undecidable side question is reported therefore
-///    depends on which pair sorts first in `Declared::faces`, not on
-///    the geometry.
+/// 1. the perpendicular declaration alone raises NO escalation and
+///    names nothing — the invalid question is never asked (its own
+///    `ContactContradicted` at the confirm pass is its refusal);
+/// 2. the combined outcome is identical WHICHEVER order the two
+///    declarations are recorded in — nothing about the census's
+///    answer reads declaration order.
 #[test]
-fn r2_the_side_escalation_duplicates_and_an_unrelated_backing_silences_it() {
+fn r2_the_side_question_is_order_free_and_never_duplicated() {
     let (body, post_top, post_side_x030, shelf_bottom, shelf_side_y030) = straddle_parts();
 
     let perp_only = errors(&body, &declared(&[(post_side_x030, shelf_side_y030)]));
@@ -211,30 +215,49 @@ fn r2_the_side_escalation_duplicates_and_an_unrelated_backing_silences_it() {
         .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
         .count();
     assert_eq!(
-        escalations, 2,
-        "one declared pair, one crossing point: the side test runs once \
-         per stored orientation and pushes a duplicate escalation — \
-         {perp_only:?}"
+        escalations, 0,
+        "the perpendicular pair is screened before the side question \
+         exists — no escalation, duplicated or otherwise: {perp_only:?}"
+    );
+    assert_eq!(
+        crossings(&perp_only).len(),
+        2,
+        "and the crossings stay plain hard findings: {perp_only:?}"
     );
 
     // The seat certifies alone through the resting pair.
     let clean = errors(&body, &declared(&[(post_top, shelf_bottom)]));
     assert!(clean.is_empty(), "the seat certifies alone: {clean:?}");
 
-    // Both declarations together: the resting pair sorts first, backs,
-    // and the loop returns — the perpendicular pair's undecidable side
-    // question is never asked and never reported.
-    let both = errors(
+    // Both declarations together, in BOTH record orders: identical
+    // output — the crossings are backed by the seat pair, the
+    // perpendicular pair contributes exactly its own confirm-pass
+    // refusal, and nothing depends on which pair sorts first.
+    let ab = errors(
         &body,
         &declared(&[(post_top, shelf_bottom), (post_side_x030, shelf_side_y030)]),
     );
-    assert!(crossings(&both).is_empty(), "crossings backed: {both:?}");
+    let ba = errors(
+        &body,
+        &declared(&[(post_side_x030, shelf_side_y030), (post_top, shelf_bottom)]),
+    );
+    assert_eq!(
+        format!("{ab:?}"),
+        format!("{ba:?}"),
+        "the census's answer is order-free in the declarations"
+    );
+    assert!(crossings(&ab).is_empty(), "crossings backed: {ab:?}");
     assert!(
-        !both
-            .iter()
+        !ab.iter()
             .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
-        "the escalation the same declaration raised on its own is GONE \
-         once an unrelated pair backs first: {both:?}"
+        "and still no escalation — same screened question, backed or \
+         not: {ab:?}"
+    );
+    assert!(
+        ab.iter()
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "the perpendicular declaration's own refusal is what remains: \
+         {ab:?}"
     );
 }
 
