@@ -62,3 +62,7 @@ fable in slot 3. Triple: slot 1 OPUS · slot 2 OPUS · slot 3 FABLE.
 MATE-8 dispatch consumes B3 slot 1 (OPUS) — 2026-09-01, difficulty
 M (pre-logged at spec). Spec docs/MATE-8-SPEC.md on main
 (PR #1470). B3 slots 2–3 unconsumed.
+
+MATE-7a dispatch consumes B3 slot 2 (OPUS) — 2026-09-01, difficulty
+L (pre-logged at spec). Spec docs/MATE-7A-SPEC.md on main
+(PR #1471). B3 slot 3 (FABLE) unconsumed.
