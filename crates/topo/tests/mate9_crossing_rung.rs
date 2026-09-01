@@ -7,16 +7,31 @@
 //! bodies' material lies on opposite sides of the shared carrier
 //! (an overhanging seat, ordinary authoring) — while a TRANSVERSE
 //! crossing (material on ONE side) is interpenetration. The rung's
-//! side verdict is deliberately THREE-valued, and all three arms are
-//! reached below: opposite-sides backs (the seat certifies),
-//! same-side refuses NAMING the verdict (the C6
-//! declared-interpenetration hook — a future class consumes it as
-//! admission evidence), undecided escalates typed. The region half is
-//! exercised by the verified-elsewhere control: a declared pair that
-//! does not hold the crossing point answers for nothing, so the rung
-//! is born WITHOUT the reach the grandfathered rungs carry
-//! (`review_mate4a_r2_probes`' probe 1 pins that reach where it still
-//! lives).
+//! side verdict is deliberately THREE-valued: opposite-sides backs
+//! (the seat certifies), same-side refuses NAMING the verdict (the
+//! C6 declared-interpenetration hook — a future class consumes it as
+//! admission evidence), undecided escalates typed. The first two arms
+//! are reached below; the THIRD is not reachable on this corpus, and
+//! that is a statement about the fix-pass screens rather than a
+//! coverage gap: undecided now requires a candidate that HOLDS the
+//! whole crossing (point and both edges in its carrier) yet cannot
+//! validly reach a side answer — an in-band margin, or a
+//! Smooth-precondition failure AFTER the carrier screens passed —
+//! and exact-literal fixtures decide every such margin. The
+//! perpendicular- and skew-pair fixtures that used to reach a
+//! verdict here are exactly what the edge screen now refuses
+//! silently (`review_mate9_r1_probes`, `review_mate9_r2_probes`
+//! carry that history).
+//!
+//! The rung's confinement is exercised from every side: the
+//! verified-elsewhere control (a verified pair that does not hold the
+//! crossing point answers for nothing), the Door-2 isolator (a pair
+//! that holds the point, passes the side test, and still backs
+//! nothing because its overlap region has no positive area), and the
+//! perpendicular control (a pair that holds the POINT but not the
+//! EDGES names nothing at all). So the rung is born WITHOUT the reach
+//! the grandfathered rungs carry (`review_mate4a_r2_probes`' probe 1
+//! pins that reach where it still lives).
 //!
 //! `EdgeFacePierce` takes no rung at all: a transverse dive is
 //! interpenetration until C6's recorded gate-skips exist, and the
@@ -24,21 +39,23 @@
 //! The pierce pin below holds that door shut.
 //!
 //! The re-blessed (b) fence — the declared straddle seat certifying
-//! outright, and its bare control byte-identical — lives with the
-//! MATE-4a rows in `mate4a_ef_bound_rung.rs`.
+//! outright, and its bare control byte-pinned — lives with the
+//! MATE-4a rows in `mate4a_ef_bound_rung.rs`; the seat itself is
+//! [`common::straddle_seat`], one builder for both suites.
 //!
 //! ε posture (issue-1356 discipline): every coincidence is a shared
-//! f64 literal, so the crossing point (`pm_census_ee_gap`/`_span`),
-//! the region decisions (`pm_census_confined_carrier`, `contfp`'s
-//! rows, the chart-region rows behind `declared_overlap`) and the
-//! side test (`material_wedge_side`, levered by the shorter crossing
-//! edge through `folded_lever_arm`) all read exact zeros or margins
-//! orders above every gated band; the seat's governing margin is the
-//! near-parallel `pm_census_ee_parallel` at 8.944e-3 (the MATE-4a
-//! suites' measured sweep), three orders above the loosest gated
-//! band's escalate threshold. The perpendicular-pair row is the
-//! deliberate exception: its side margin is an EXACT zero at every ε,
-//! which is what makes the undecided arm reachable at all.
+//! f64 literal and every fixture here is AXIS-ALIGNED, so the margins
+//! the crossing point (`pm_census_ee_gap`/`_span`), the region
+//! decisions (`pm_census_confined_carrier`, `contfp`'s rows, the
+//! chart-region rows behind `declared_overlap`), the dihedral gate
+//! and the side test (`dihedral_wedge`, `material_wedge_side`)
+//! read are exact zeros or plain coordinate differences: the
+//! smallest nonzero separation any fixture in THIS file carries is
+//! 0.04 m (the shelf slab's thickness; the next are 0.05 and 0.08 —
+//! the flush block's and corner block's offsets), six orders above
+//! the loosest gated band's escalate threshold (1e-5, at the 1e-6
+//! row). The often-quoted 8.944e-3 near-parallel margin belongs to
+//! the MATE-4a OVERHANG seat's slanted cap and does not occur here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -46,39 +63,16 @@ mod common;
 use geom_core::Tol;
 use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
 
-/// The straddle seat of issue 973's section (b), verbatim from the
-/// MATE-4a fence: a rectangular cap `[0.30, 0.60] x [0.20, 0.42]`
-/// under a shelf `[0, 0.9] x [0, 0.30]`, contact plane `z = 0.5`, the
-/// cap straddling the shelf's `y = 0.30` boundary edge so the two cap
-/// side edges cross it properly at `(0.30, 0.30)` and `(0.60, 0.30)`.
-/// Returns `(body, post_top, post_side_x030, shelf_bottom,
-/// shelf_side_y030)` — the resting pair plus the two perpendicular
-/// side faces the undecided row declares.
+/// [`common::straddle_seat`] as this file's tuple:
+/// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.
 fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
-    let post: common::Prism<f64> = common::prism_z(
-        &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
-        0.0,
-        0.5,
-    );
-    let shelf: common::Prism<f64> = common::prism_z(
-        &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
-        0.5,
-        0.54,
-    );
-    // side_faces[i] spans profile segment i → i+1: the post's [3] is
-    // (0.30, 0.42) → (0.30, 0.20), the plane x = 0.30; the shelf's
-    // [2] is (0.9, 0.30) → (0, 0.30), the plane y = 0.30.
-    let post_side_x030 = post.side_faces[3];
-    let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
-    let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
-    let shelf_side_y030 = keys.face(shelf.side_faces[2]).unwrap();
+    let seat = common::straddle_seat();
     (
-        body,
-        post.top_face,
-        post_side_x030,
-        shelf_bottom,
-        shelf_side_y030,
+        seat.body,
+        seat.post_top,
+        seat.post_side_x030,
+        seat.shelf_bottom,
+        seat.shelf_side_y030,
     )
 }
 

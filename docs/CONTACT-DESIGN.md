@@ -360,9 +360,9 @@ variant refuses the overlap lane's cell bounds wherever the cut
 schedule's reach gap (the D3 rule's stated looseness) places a bound
 outside the interface — the declared straddle seat's own dive cell is
 bounded at its edge's far endpoints — so that migration waits, by
-name, on the lane learning boundary-crossing cuts; the measurement is
-recorded in MATE-9's PR. Design of record for the end state and the
-staging: `docs/MATE-4B-CROSSING-DESIGN.md`.
+name, on the lane learning boundary-crossing cuts, scheduled as issue
+1500; the measurement is recorded in MATE-9's PR. Design of record
+for the end state and the staging: `docs/MATE-4B-CROSSING-DESIGN.md`.
 
 *Alternative — area-sampled patch certification*: rejected; sampling
 can miss a trim hole and certify a contact that is not there — the
