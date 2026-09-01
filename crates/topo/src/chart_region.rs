@@ -1103,15 +1103,28 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 ///   fast path below retires the rectangular sub-class; the rest
 ///   stands as the stated residue, branch normalization being a later
 ///   rung);
-/// - a flush cylinder seat sharing trim boundary
-///   ([`ChartRegionError::TouchingBoundary`]): the planar
-///   interior-witness rung does not run here (its point construction
-///   and `contfp` discharge are plane-only today);
+/// - a cylinder seat sharing trim boundary
+///   ([`ChartRegionError::TouchingBoundary`]): the interior-witness
+///   rung does not run here at all;
 /// - the [`ChartRegionError::PeriodFold`] fold decline above.
 ///
-/// The incompleteness is the schedule's, not the geometry's — the
-/// same shape issue 1435 records for the planar witness schedule —
-/// and it is disclosed here rather than sampled around.
+/// The incompleteness is the schedule's, not the geometry's, and it is
+/// disclosed here rather than sampled around.
+///
+/// The middle bullet is the one issue 1435 has since moved, and it
+/// moved only on the planar side: [`interior_witness`]'s schedule is
+/// now complete (its own docs carry the argument), so a PLANE pair no
+/// longer declines a decidable overlap for want of a candidate. None
+/// of that reaches this arm, and the reason is worth naming exactly,
+/// because it is no longer the schedule. The schedule's completion is
+/// a decomposition of the CHART plus a certificate from
+/// [`crate::boolean::contfp`], and the decomposition transfers to
+/// `(θ·r, z)` unchanged — the blocker is the certificate: `contfp`
+/// requires the query point already on the PLANE of the face, and a
+/// cylinder pair has no plane to put it on. What this arm needs is
+/// therefore a curved-carrier containment discharge, not more
+/// candidates; until it has one, a cylinder seat's shared-boundary
+/// refusal stands.
 ///
 /// # The full-wrap band fast path
 ///
@@ -1522,9 +1535,9 @@ fn band_overlap<T: Decide + Bounds>(
     }
 }
 
-/// **The interior-witness rung** — `true` when the fixed candidate
-/// schedule exhibits a point strictly inside BOTH faces, run through
-/// the census's own `contfp` on the shared carrier.
+/// **The interior-witness rung** — `true` when the candidate schedule
+/// exhibits a point strictly inside BOTH faces, run through the
+/// census's own `contfp` on the shared carrier.
 ///
 /// The rung exists because the world carrier alone does not close a
 /// FLUSH seat: a shared trim edge is a collinear boundary overlap, the
@@ -1560,15 +1573,64 @@ fn band_overlap<T: Decide + Bounds>(
 /// stands. Three-outcome honest: a proof, a decline, or the refusal it
 /// was already carrying.
 ///
-/// The schedule is each outer trim's vertex centroid then its ear
-/// midpoints `(v[i−1] + v[i+1])/2`, face A's trim then face B's, in
-/// cycle order (fixed, D9). Every `contfp` verdict but `In` — a
-/// boundary coincidence, an exterior point, an in-band containment, an
-/// exhausted ray schedule — means THIS candidate proves nothing and
-/// the walk moves on; the rung's whole output is a proof or its
-/// absence. A candidate is never counted from one face alone: `contfp`
-/// reads each face's own rings, so a point in a hole of either is
-/// `Out` of that face.
+/// # The schedule, and why it is two stages
+///
+/// Every `contfp` verdict but `In` — a boundary coincidence, an
+/// exterior point, an in-band containment, an exhausted ray schedule —
+/// means THIS candidate proves nothing and the walk moves on; the
+/// rung's whole output is a proof or its absence. A candidate is never
+/// counted from one face alone: `contfp` reads each face's own rings,
+/// so a point in a hole of either is `Out` of that face.
+///
+/// Because every candidate is CERTIFIED at the point of use, the
+/// schedule that proposes them is a hint and nothing else. No certified
+/// claim rests on how a candidate was chosen, which is what lets stage
+/// 2 below compute in plain `f64` off the trims' nominal coordinates:
+/// a bad hint costs a wasted `contfp` pair, never a wrong answer.
+///
+/// **Stage 1 — the trims' own landmarks** ([`candidate_points`]): each
+/// outer trim's vertex centroid then its ear midpoints, face A's trim
+/// then face B's, in cycle order. A FLUSH seat — the configuration this
+/// rung exists for — certifies on the very first of these, and stage 2
+/// is not built at all in that case.
+///
+/// **Stage 2 — the pair's own arrangement**
+/// ([`decomposition_witness`]): the cell centres of the vertical
+/// decomposition of both trims' boundaries. This is the completion: a
+/// fixed handful of landmarks is not a search, and legal seats of one
+/// class bifurcated on where those landmarks happened to fall (issue
+/// 1435 — a ~7.5e-3 m² overlap, seven orders above ε, missed by all
+/// fourteen stage-1 candidates on a non-convex trim while a
+/// geometrically equivalent seat certified on its first).
+///
+/// # Why the candidates are not seeded from an exact clip
+///
+/// The obvious seeding — clip the two regions and take a point per
+/// piece — is unavailable HERE, by this rung's own entry condition:
+/// the rung runs only on a [`ChartRegionError::TouchingBoundary`] out
+/// of [`overlap_of_regions`], and there are exactly THREE places that
+/// answer can come from. The clip is unavailable at all three, though
+/// not for one reason:
+///
+/// - [`proper_crossings`]' collinear-overlap refusal (the boundaries
+///   share a span) and its Zero-span refusal (they meet AT a vertex):
+///   the clip has been asked and has DECLINED. It cannot seed what it
+///   just refused to compute.
+/// - [`overlap_of_regions`]' `(None, _) | (_, None)` arm — the
+///   defense-in-depth arm, reached at ZERO proper crossings when
+///   neither polygon has a definite vertex verdict against the other.
+///   Here the clip has not declined; it has no INPUT. The walk in
+///   [`intersection_pieces`] is driven entirely by crossings and
+///   refuses an empty set outright, so with none there is nothing to
+///   walk and no piece to take a point from. Equally unavailable, by
+///   absence rather than by refusal.
+///
+/// What stage 2 keeps of the idea is the clip's COMBINATORICS — the
+/// vertex and edge-crossing abscissae — taken as an uncertified hint
+/// and verified pointwise instead, which needs no crossing to be
+/// certifiable and no piece to be built. Per-piece centroids would not
+/// have sufficed even where the clip does run: a non-convex piece's
+/// centroid need not lie in the piece.
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
 fn interior_witness<T: Decide + Bounds>(
     body_a: &Body<T>,
@@ -1602,15 +1664,327 @@ fn interior_witness<T: Decide + Bounds>(
             Ok(crate::boolean::FaceContainment::In)
         )
     };
+    let strictly_inside_both = |x: T, y: T| -> bool {
+        let q = origin + u_ref * x + v_ref * y;
+        inside(body_a, face_a, normal, q) && inside(body_b, face_b, normal_b, q)
+    };
+    // Stage 1: the trims' own landmarks. A flush seat lands on the
+    // first candidate and stage 2 is never built.
     for poly in [&uv_a.outer, &uv_b.outer] {
         for c in candidate_points(poly) {
-            let q = origin + u_ref * c.x + v_ref * c.y;
-            if inside(body_a, face_a, normal, q) && inside(body_b, face_b, normal_b, q) {
+            if strictly_inside_both(c.x, c.y) {
+                return true;
+            }
+        }
+    }
+    // Stage 2: the pair's own arrangement.
+    decomposition_witness(uv_a, uv_b, |x, y| {
+        strictly_inside_both(T::from_f64(x), T::from_f64(y))
+    })
+}
+
+/// The most cell centres [`decomposition_witness`] probes before it
+/// declines, and the most boundary segments it will decompose.
+///
+/// Both are the honest half of "complete or honest": inside them the
+/// schedule is complete in the sense argued at
+/// [`decomposition_witness`], and outside them it declines and the
+/// region walk's own typed refusal stands. A trim pair with more than
+/// `segments` boundary segments is refused rather than half-searched
+/// because the decomposition is quadratic in that count.
+///
+/// # What these limits cost, stated rather than implied
+///
+/// **Neither is out of reach, and `cells` is reachable INSIDE
+/// `segments`.** A pair of trims with ~50 stacked runs against one
+/// tilted crosser exceeds 4096 cells at ~125 segments — under the
+/// segment cap, so "large enough never to bind" is not a claim this
+/// constant can make. What it is is a bound on the work, chosen so
+/// that the trim pairs this rung is actually reached with (a few dozen
+/// segments; the seats in the suite carry twelve) search exhaustively.
+///
+/// **A budget decline is indistinguishable from a thin-overlap
+/// decline.** Both return `false` here, both leave the region walk's
+/// [`ChartRegionError::TouchingBoundary`] standing, and both surface to
+/// a caller as the same `CensusUnsupported` on the same face — so a
+/// reader cannot tell "the overlap is too thin to certify at this ε"
+/// from "the search was cut off". That is the honest gap in the rung's
+/// three-outcome contract, and closing it means giving the decline a
+/// TYPE. It is not closed here: the decline's type would have to reach
+/// this module's error enum, whose exhaustive matches live in
+/// `census.rs`, outside this unit's fence. Scheduled as issue 1478.
+const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
+    segments: 128,
+    cells: 4096,
+};
+
+struct WitnessBudget {
+    segments: usize,
+    cells: usize,
+}
+
+/// **The completion of the witness schedule**: the cell centres of the
+/// two trims' vertical decomposition, in fixed order, each offered to
+/// `probe` until one is certified.
+///
+/// # Why this is a complete schedule and not a bigger handful
+///
+/// Let `P` be the region the rung is asking about — face A's trim minus
+/// its holes, intersected with face B's the same way — and let `X` be
+/// the abscissae of every vertex of both boundaries together with every
+/// boundary edge-pair crossing. Every vertex of `P` is one of those
+/// points, so no vertex of `P` has an abscissa strictly inside a slab
+/// `(x_i, x_i+1)` of consecutive members of `X`. Hence every boundary
+/// edge that meets such a slab crosses it FULLY, and `P ∩ slab` is a
+/// union of trapezoids each spanning the slab's whole width. The
+/// slab's midline therefore meets each of them in a vertical segment of
+/// positive height whose two ends are CONSECUTIVE members of the
+/// midline's sorted crossing list — nothing may lie between them,
+/// since anything that did would be a boundary crossing the trapezoid's
+/// interior. So if `P` has interior at all, some cell centre this
+/// function offers lies in it. That is the property a fixed handful of
+/// landmarks does not have and cannot be given.
+///
+/// **The argument is exact-arithmetic; the arrangement is `f64`.** So
+/// what is delivered is completeness UP TO `f64` ROUNDING OF THE
+/// ARRANGEMENT: a meeting abscissa computed here can land an ulp off
+/// the true one, and in the sub-ulp neighbourhood where that matters a
+/// vertex of `P` can fall a hair inside a slab instead of on its
+/// boundary, which is precisely the hypothesis the trapezoid step
+/// needs. The failure is one-directional and that is why the rounding
+/// is tolerated rather than removed: a slab whose interior holds a
+/// vertex still yields cell centres, they are simply no longer
+/// guaranteed to cover every component — so the rung can DECLINE where
+/// an exact arrangement would have certified. It cannot certify
+/// anything false, because no candidate is believed until `contfp`
+/// certifies it on the lane's own arithmetic.
+///
+/// # What the argument does NOT claim
+///
+/// - **Positive area is not positive MARGIN.** The centre is the
+///   deepest point of its cell in the two decomposition directions, not
+///   of `P`; a real but slivered overlap can put every cell centre
+///   within ε of a boundary, where `contfp` answers in-band rather than
+///   `In` and the rung declines. That decline is the honest one — the
+///   overlap is not certifiable at this ε — and it is the same posture
+///   [`overlap_of_regions`] takes on a thin region.
+/// - **The hint is nominal.** Candidates are built from each
+///   coordinate's bracket midpoint, so on an enclosure lane the
+///   decomposition describes the nominal trims rather than every member
+///   of the enclosure. It cannot mislead: the certificate is `contfp`'s
+///   and is taken on the lane's own arithmetic.
+/// - **The frame still rotates.** The decomposition is a function of
+///   the unordered PAIR of trims — swapping the arguments permutes
+///   nothing in `X` — but not of the pair alone: it is taken along the
+///   chart's own x-axis, and a declared pair's chart is the FIRST
+///   face's plane. Certified answers are frame-invariant
+///   ([`world_carrier`]'s lemma); which candidate certifies them is
+///   not, and never was.
+fn decomposition_witness<T: Decide + Bounds>(
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+    mut probe: impl FnMut(f64, f64) -> bool,
+) -> bool {
+    // Decline cause 1: a coordinate the arrangement cannot describe.
+    // FAIL-CLOSED rather than edge-dropping — see `boundary_segments`.
+    let Some(segments) = boundary_segments(uv_a, uv_b) else {
+        return false;
+    };
+    // Decline cause 2: no arrangement to build. One segment bounds no
+    // cell, and the rung's own extraction refuses loops under three
+    // vertices, so this is the empty-trim guard rather than a budget.
+    // Decline cause 3: the segment budget.
+    if segments.len() < 2 || segments.len() > WITNESS_BUDGET.segments {
+        return false;
+    }
+    let mut spent = 0usize;
+    let abscissae = event_abscissae(&segments);
+    for slab in abscissae.windows(2) {
+        let x = midpoint(slab[0], slab[1]);
+        // An adjacent-float slab has no interior to sample.
+        if !(x > slab[0] && x < slab[1]) {
+            continue;
+        }
+        let mut ys: Vec<f64> = segments.iter().filter_map(|s| s.at_abscissa(x)).collect();
+        ys.sort_by(f64::total_cmp);
+        for cell in ys.windows(2) {
+            let y = midpoint(cell[0], cell[1]);
+            if !(y > cell[0] && y < cell[1]) {
+                continue;
+            }
+            spent += 1;
+            if spent > WITNESS_BUDGET.cells {
+                return false;
+            }
+            if probe(x, y) {
                 return true;
             }
         }
     }
     false
+}
+
+/// One boundary segment of one trim, in nominal chart coordinates.
+struct NominalSeg {
+    p: [f64; 2],
+    q: [f64; 2],
+}
+
+impl NominalSeg {
+    /// Where this segment crosses the vertical line at `x`, when it
+    /// crosses it strictly between the endpoints. A segment parallel to
+    /// the line never does; nor does one whose endpoint sits on it,
+    /// since every endpoint abscissa is a slab BOUNDARY and `x` is
+    /// strictly interior to a slab.
+    fn at_abscissa(&self, x: f64) -> Option<f64> {
+        let run = self.q[0] - self.p[0];
+        if run == 0.0 {
+            return None;
+        }
+        let t = (x - self.p[0]) / run;
+        if !(t > 0.0 && t < 1.0) {
+            return None;
+        }
+        let y = self.p[1] + t * (self.q[1] - self.p[1]);
+        y.is_finite().then_some(y)
+    }
+
+    /// The abscissa where this segment meets `other`, endpoints
+    /// included — the remaining vertices of the intersection region.
+    /// Parallel pairs (including collinear ones, whose shared span's
+    /// ends are already endpoint abscissae) contribute nothing.
+    ///
+    /// # Two spellings of one determinant, on purpose
+    ///
+    /// `perp_dot(r, s)` and the two advance fractions below are the same
+    /// quantities [`proper_crossings`] computes, and this is deliberately
+    /// NOT a call into it. The difference is the whole hint/certificate
+    /// split: there, every one of them is a DECIDED row
+    /// (`chart_region_parallel`, `chart_region_cross_span`) carrying a
+    /// named margin and a typed refusal, and the answer is a certificate;
+    /// here they are bare `f64` with `== 0.0` and `0..=1` tests, and the
+    /// answer is only a place to LOOK. Routing this through the certified
+    /// rows would refuse exactly where the rung is reached (that refusal
+    /// is its entry condition) and would put a decided row behind an
+    /// answer nothing certifies. If either spelling changes, they are not
+    /// required to agree: the certified one is the contract, this one is
+    /// allowed to be wrong and is checked by `contfp` before anything
+    /// rests on it.
+    fn meeting_abscissa(&self, other: &Self) -> Option<f64> {
+        let r = [self.q[0] - self.p[0], self.q[1] - self.p[1]];
+        let s = [other.q[0] - other.p[0], other.q[1] - other.p[1]];
+        let denom = r[0] * s[1] - r[1] * s[0];
+        if denom == 0.0 || !denom.is_finite() {
+            return None;
+        }
+        let d = [other.p[0] - self.p[0], other.p[1] - self.p[1]];
+        let t = (d[0] * s[1] - d[1] * s[0]) / denom;
+        let u = (d[0] * r[1] - d[1] * r[0]) / denom;
+        if !(0.0..=1.0).contains(&t) || !(0.0..=1.0).contains(&u) {
+            return None;
+        }
+        let x = self.p[0] + t * r[0];
+        x.is_finite().then_some(x)
+    }
+}
+
+/// Every boundary segment of both trims — outer then rings, face A then
+/// face B, cycle order (fixed, D9). Holes are in: they bound the region
+/// the rung is asking about exactly as the outers do, and a
+/// decomposition that ignored them would propose cell centres inside a
+/// hole (harmless, `contfp` reads rings and answers `Out`) and, worse,
+/// merge two genuine cells across a hole's edge and propose neither.
+///
+/// `None` when any vertex's bracket has no finite midpoint. **That is
+/// fail-closed on purpose**: skipping the offending edge and carrying on
+/// would silently delete a boundary from the arrangement, which merges
+/// two cells that the deleted edge separated and can therefore lose the
+/// only witness — completeness broken with nothing said. Declining the
+/// whole search says it instead, at the cost of a rescue this rung was
+/// never going to make. (No committed seat reaches it: a chart
+/// coordinate that is not finite means `extract_face_uv` handed back a
+/// poisoned trim, and its own gates refuse first. It is guarded rather
+/// than asserted unreachable because that argument is about a caller,
+/// and this function should not need one.)
+fn boundary_segments<T: Decide + Bounds>(
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+) -> Option<Vec<NominalSeg>> {
+    let mut out = Vec::new();
+    for uv in [uv_a, uv_b] {
+        for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
+            if poly.len() < 3 {
+                continue;
+            }
+            let nominal = |p: &Point2<T>| {
+                let c = [midpoint(p.x.lo(), p.x.hi()), midpoint(p.y.lo(), p.y.hi())];
+                (c[0].is_finite() && c[1].is_finite()).then_some(c)
+            };
+            for i in 0..poly.len() {
+                out.push(NominalSeg {
+                    p: nominal(&poly[i])?,
+                    q: nominal(&poly[(i + 1) % poly.len()])?,
+                });
+            }
+        }
+    }
+    Some(out)
+}
+
+/// The decomposition's slab boundaries: every segment endpoint's
+/// abscissa and every segment-pair meeting's, ascending and deduplicated
+/// (`total_cmp`, so the order is total and fixed whatever the values).
+fn event_abscissae(segments: &[NominalSeg]) -> Vec<f64> {
+    let mut xs = Vec::with_capacity(2 * segments.len());
+    for s in segments {
+        xs.push(s.p[0]);
+        xs.push(s.q[0]);
+    }
+    for i in 0..segments.len() {
+        for j in (i + 1)..segments.len() {
+            if let Some(x) = segments[i].meeting_abscissa(&segments[j]) {
+                xs.push(x);
+            }
+        }
+    }
+    xs.sort_by(f64::total_cmp);
+    xs.dedup();
+    xs
+}
+
+/// A point between two `f64`s — `a + (b − a)/2` rather than
+/// `(a + b)/2`.
+///
+/// # What it guarantees, which is less than "the midpoint"
+///
+/// It is NOT exact: `midpoint(1.0, 1e16)` is an ulp off the true middle,
+/// because `b − a` rounds. It does not remove overflow either, it trades
+/// one family for another: `(a + b)/2` overflows on two same-sign
+/// halves of the range, this form overflows on OPPOSITE ends —
+/// `midpoint(-1e308, 1e308)` is `inf`. What it does guarantee is what
+/// both callers need and nothing more: for finite `a < b` the result is
+/// finite-or-`inf` and lies in `[a, b]`, never outside the bracket.
+///
+/// Which is why **both call sites re-test the result** rather than
+/// trusting it. [`decomposition_witness`] takes a slab or cell centre
+/// only when it is STRICTLY between the two ends, so an ulp of drift or
+/// a collapse onto an endpoint drops that cell instead of proposing a
+/// point outside it; and a non-finite coordinate is rejected at
+/// [`boundary_segments`]. The rounding therefore reaches the answer only
+/// as a missed candidate, never as a bad one.
+///
+/// # Siblings, not one utility
+///
+/// Two other bracket-midpoint spellings exist — `geom_brep`'s
+/// `props/quad.rs` `mid` and `topo`'s `props.rs` `mid_pad` — and this is
+/// deliberately not unified with either. They compute different
+/// quantities for different jobs (`mid_pad` pads, quad's `mid` is a
+/// quadrature abscissa on a certified path); this one is an uncertified
+/// hint that its own callers re-validate. Merging three formulas whose
+/// only shared property is the word "midpoint" would give one of them
+/// the wrong rounding contract.
+fn midpoint(a: f64, b: f64) -> f64 {
+    a + 0.5 * (b - a)
 }
 
 /// The witness schedule of one trim polygon (fixed order, D9): its
@@ -3945,5 +4319,198 @@ mod tests {
                 assert_eq!(overlap_of_regions(&a, &b, false, band()).unwrap(), first);
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_mate8_probes {
+    //! Blinded-review probes (lane R2, PR #1472): adversarial edge
+    //! cases for `decomposition_witness`'s completeness argument and
+    //! its budget guard. Probe-branch only; not part of the unit.
+    use super::*;
+
+    fn pt(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
+        vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
+    }
+
+    fn uv(outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>) -> FaceUv<f64> {
+        FaceUv { outer, rings }
+    }
+
+    /// Strict even-odd containment of `(x, y)` in `poly`, with a
+    /// straight-line boundary margin so "strictly inside" is honest.
+    fn strictly_in(poly: &[Point2<f64>], x: f64, y: f64, margin: f64) -> bool {
+        let mut inside = false;
+        for i in 0..poly.len() {
+            let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
+            // Distance to the segment must exceed the margin.
+            let (dx, dy) = (q.x - p.x, q.y - p.y);
+            let len2 = dx * dx + dy * dy;
+            let t = (((x - p.x) * dx + (y - p.y) * dy) / len2).clamp(0.0, 1.0);
+            let (cx, cy) = (p.x + t * dx, p.y + t * dy);
+            if ((x - cx).powi(2) + (y - cy).powi(2)).sqrt() <= margin {
+                return false;
+            }
+            if (p.y > y) != (q.y > y) && x < p.x + (y - p.y) * dx / dy {
+                inside = !inside;
+            }
+        }
+        inside
+    }
+
+    fn in_region(uv: &FaceUv<f64>, x: f64, y: f64) -> bool {
+        strictly_in(&uv.outer, x, y, 1e-9) && uv.rings.iter().all(|r| !strictly_in(r, x, y, -1.0))
+    }
+
+    /// P1 — every boundary edge of the overlap is VERTICAL or
+    /// horizontal (the axis-aligned seat): vertical segments produce no
+    /// midline crossings, and the argument says they need not.
+    #[test]
+    fn r2p1_axis_aligned_vertical_edges_find_a_witness() {
+        let a = uv(rect(0.0, 0.0, 4.0, 4.0), vec![]);
+        let b = uv(rect(1.0, -1.0, 3.0, 2.0), vec![]);
+        let mut hit = None;
+        let found = decomposition_witness(&a, &b, |x, y| {
+            let ok = in_region(&a, x, y) && in_region(&b, x, y);
+            if ok {
+                hit = Some((x, y));
+            }
+            ok
+        });
+        assert!(found, "axis-aligned overlap must yield a witness");
+        let (x, y) = hit.unwrap();
+        assert!(x > 1.0 && x < 3.0 && y > 0.0 && y < 2.0, "({x}, {y})");
+    }
+
+    /// P2 — a COLLINEAR SHARED SPAN between the two boundaries (the
+    /// TouchingBoundary trigger class itself): parallel pairs
+    /// contribute no meeting abscissae and must not be needed.
+    #[test]
+    fn r2p2_collinear_shared_span_finds_a_witness() {
+        let a = uv(rect(0.0, 0.0, 4.0, 2.0), vec![]);
+        let b = uv(rect(1.0, 0.0, 3.0, 3.0), vec![]);
+        assert!(decomposition_witness(&a, &b, |x, y| {
+            in_region(&a, x, y) && in_region(&b, x, y)
+        }));
+    }
+
+    /// P2b — bit-identical outers (every segment duplicated): the
+    /// duplicate midline crossings form zero-height cells, which must
+    /// be skipped, and the real cell must still be offered.
+    #[test]
+    fn r2p2b_identical_outers_find_a_witness() {
+        let a = uv(rect(0.0, 0.0, 2.0, 2.0), vec![]);
+        let b = uv(rect(0.0, 0.0, 2.0, 2.0), vec![]);
+        assert!(decomposition_witness(&a, &b, |x, y| {
+            in_region(&a, x, y) && in_region(&b, x, y)
+        }));
+    }
+
+    /// P3 — a RING swallowing the naive centre: holes must be in the
+    /// decomposition (the doc's own claim), else the two genuine cells
+    /// beside the hole are merged and neither centre offered.
+    #[test]
+    fn r2p3_ring_blocking_the_centre_finds_a_witness() {
+        let a = uv(rect(0.0, 0.0, 4.0, 4.0), vec![rect(1.4, 1.4, 2.6, 2.6)]);
+        let b = uv(rect(1.0, 1.0, 3.0, 3.0), vec![]);
+        let mut hit = None;
+        let found = decomposition_witness(&a, &b, |x, y| {
+            let ok = in_region(&a, x, y) && in_region(&b, x, y);
+            if ok {
+                hit = Some((x, y));
+            }
+            ok
+        });
+        assert!(found, "the region minus its hole still has interior");
+        let (x, y) = hit.unwrap();
+        assert!(
+            !(x > 1.4 && x < 2.6 && y > 1.4 && y < 2.6),
+            "witness ({x}, {y}) must not be in the hole"
+        );
+    }
+
+    /// P4 — repeated abscissae (three vertices sharing x = 2.0) and a
+    /// non-convex outer: dedup must not merge distinct events away.
+    #[test]
+    fn r2p4_repeated_abscissae_find_a_witness() {
+        let a = uv(
+            vec![
+                pt(0.0, 0.0),
+                pt(2.0, 0.0),
+                pt(2.0, 1.0),
+                pt(3.0, 2.0),
+                pt(2.0, 3.0),
+                pt(0.0, 3.0),
+            ],
+            vec![],
+        );
+        let b = uv(rect(1.0, 0.2, 1.8, 2.8), vec![]);
+        assert!(decomposition_witness(&a, &b, |x, y| {
+            in_region(&a, x, y) && in_region(&b, x, y)
+        }));
+    }
+
+    /// P5 — the SEGMENT budget: two 70-gon "discs" in fat, decidable
+    /// overlap carry 140 > 128 segments, and the schedule declines
+    /// WITHOUT PROBING AT ALL — a silent `false`, spelled by the caller
+    /// as the carried `TouchingBoundary`. This pins the honesty
+    /// boundary the PR's deviation 2 discloses: exhaustion never
+    /// mis-certifies, but nothing at the call site says "budget".
+    #[test]
+    fn r2p5_segment_budget_declines_a_fat_decidable_overlap_silently() {
+        let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
+            (0..n)
+                .map(|i| {
+                    let t = core::f64::consts::TAU * (i as f64) / (n as f64);
+                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                })
+                .collect()
+        };
+        let a = uv(ngon(0.0, 70), vec![]);
+        let b = uv(ngon(1.0, 70), vec![]);
+        let mut calls = 0usize;
+        let found = decomposition_witness(&a, &b, |x, y| {
+            calls += 1;
+            in_region(&a, x, y) && in_region(&b, x, y)
+        });
+        assert!(!found, "over-budget: the schedule declines");
+        assert_eq!(calls, 0, "and it declines before offering anything");
+        // The same pair one segment under the cap certifies fine —
+        // the decline above is the budget's, not the geometry's.
+        let a64 = uv(ngon(0.0, 64), vec![]);
+        let b64 = uv(ngon(1.0, 64), vec![]);
+        assert!(decomposition_witness(&a64, &b64, |x, y| {
+            in_region(&a64, x, y) && in_region(&b64, x, y)
+        }));
+    }
+
+    /// P6 — the CELL budget is a hard cap on probe calls (structural
+    /// companion to P5): an always-false probe on a busy pair is
+    /// called at most `WITNESS_BUDGET.cells` times.
+    #[test]
+    fn r2p6_cell_budget_caps_probe_calls() {
+        let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
+            (0..n)
+                .map(|i| {
+                    let t = core::f64::consts::TAU * (i as f64) / (n as f64);
+                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                })
+                .collect()
+        };
+        let a = uv(ngon(0.0, 60), vec![]);
+        let b = uv(ngon(1.0, 60), vec![]);
+        let mut calls = 0usize;
+        let found = decomposition_witness(&a, &b, |_, _| {
+            calls += 1;
+            false
+        });
+        assert!(!found);
+        assert!(calls <= WITNESS_BUDGET.cells, "{calls} probes");
+        assert!(calls > 0, "the pair is busy enough to probe at all");
     }
 }
