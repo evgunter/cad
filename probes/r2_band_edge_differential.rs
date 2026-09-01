@@ -132,21 +132,46 @@ fn main() {
         for (lname, x) in battery(*band) {
             // 1. gap_is_noise: probed as (gap, lever) pairs whose
             //    product is x, plus the lever==0 limit the doc claims.
-            for (gap, lever) in [(x, 1.0), (1.0, x), (x, 0.0), (0.0, x), (x, 2.0), (x / 3.0, 3.0)] {
+            for (gap, lever) in [
+                (x, 1.0),
+                (1.0, x),
+                (x, 0.0),
+                (0.0, x),
+                (x, 2.0),
+                (x / 3.0, 3.0),
+            ] {
                 let b = base_gap_is_noise(gap, lever, *band);
                 let h = head_gap_is_noise(gap, lever, *band);
                 checks += 1;
                 if b != h {
                     fails += 1;
-                    println!("MISMATCH gap_is_noise band={bname} {lname} gap={gap:e} lever={lever:e}: base={b} head={h}");
+                    println!(
+                        "MISMATCH gap_is_noise band={bname} {lname} gap={gap:e} lever={lever:e}: base={b} head={h}"
+                    );
                 }
             }
             // 2..5: the single-length predicates.
             let pairs: [(&str, bool, bool); 4] = [
-                ("iso_side_starts", base_iso_side(x, *band), head_iso_side(x, *band)),
-                ("pole_index", base_pole_index(x, *band), head_pole_index(x, *band)),
-                ("coincident_declared", base_coincident_declared(x, *band), head_coincident_declared(x, *band)),
-                ("pole_guard", base_pole_guard(x, *band), head_pole_guard(x, *band)),
+                (
+                    "iso_side_starts",
+                    base_iso_side(x, *band),
+                    head_iso_side(x, *band),
+                ),
+                (
+                    "pole_index",
+                    base_pole_index(x, *band),
+                    head_pole_index(x, *band),
+                ),
+                (
+                    "coincident_declared",
+                    base_coincident_declared(x, *band),
+                    head_coincident_declared(x, *band),
+                ),
+                (
+                    "pole_guard",
+                    base_pole_guard(x, *band),
+                    head_pole_guard(x, *band),
+                ),
             ];
             for (name, b, h) in pairs {
                 checks += 1;
@@ -165,7 +190,11 @@ fn main() {
                 let same = b.to_bits() == h.to_bits() || (b.is_nan() && h.is_nan());
                 if !same {
                     fails += 1;
-                    println!("MISMATCH trimmed_ratio band={bname} bound={lname}({x:e}) d={d:e}: base={b:e}({:016x}) head={h:e}({:016x})", b.to_bits(), h.to_bits());
+                    println!(
+                        "MISMATCH trimmed_ratio band={bname} bound={lname}({x:e}) d={d:e}: base={b:e}({:016x}) head={h:e}({:016x})",
+                        b.to_bits(),
+                        h.to_bits()
+                    );
                 }
             }
         }
@@ -184,7 +213,10 @@ fn main() {
                 }
             }
             // "both are FALSE on a NaN"
-            if separates(*band, f64::NAN) || coincident(*band, f64::NAN) || dominates(*band, f64::NAN) {
+            if separates(*band, f64::NAN)
+                || coincident(*band, f64::NAN)
+                || dominates(*band, f64::NAN)
+            {
                 claim_fails += 1;
                 println!("CLAIM FAIL NaN band={bname}");
             }
@@ -192,7 +224,11 @@ fn main() {
             let differ = dominates(*band, x) != coincident(*band, x);
             if differ && !(x == *band) {
                 claim_fails += 1;
-                println!("CLAIM FAIL edge-only band={bname} {lname} x={x:e}: dominates={} coincident={}", dominates(*band, x), coincident(*band, x));
+                println!(
+                    "CLAIM FAIL edge-only band={bname} {lname} x={x:e}: dominates={} coincident={}",
+                    dominates(*band, x),
+                    coincident(*band, x)
+                );
             }
             // "pad widens UP by exactly one band"
             let p = pad(*band, x);

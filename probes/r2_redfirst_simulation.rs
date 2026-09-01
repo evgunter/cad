@@ -110,7 +110,10 @@ fn row_pad(v: Variant) -> Vec<&'static str> {
 fn main() {
     let variants = [
         ("CORRECT (as shipped)", Variant::Correct),
-        ("MUTANT: coincident flipped to `<`", Variant::CoincidentStrict),
+        (
+            "MUTANT: coincident flipped to `<`",
+            Variant::CoincidentStrict,
+        ),
         (
             "MUTANT: separates written as `!coincident`",
             Variant::SeparatesAsNotCoincident,
@@ -120,7 +123,10 @@ fn main() {
     for (name, v) in variants {
         println!("--- {name}");
         for (row, red) in [
-            ("the_band_edges_are_where_the_operations_differ", row_band_edges(v)),
+            (
+                "the_band_edges_are_where_the_operations_differ",
+                row_band_edges(v),
+            ),
             ("a_poisoned_length_is_neither_near_nor_far", row_poisoned(v)),
             ("pad_widens_upward_by_one_band", row_pad(v)),
         ] {
