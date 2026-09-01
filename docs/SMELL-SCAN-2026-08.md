@@ -7636,6 +7636,92 @@ a sweep's authority is how a lane's scope grows after dispatch.
 
 ---
 
+# Findings raised by the SMELL-UV commission scan (2026-09-01)
+
+**The scan §D's closing note owed**: the five crates the second scan never
+scoped (`step-import/`, `step-export/`, `stl/`, `pncad-py/`, `profile/`),
+read after the seven SMELL-UV lanes of 2026-09-01 landed, calibrated
+against those lanes' own disclosed blind spots. **`stl/` and `profile/`
+came back clean** — `stl` is small and argued at every choice point, and
+every fresh flag in `profile` resolved to a documented ratified position;
+an empty result on a just-worked crate is itself the datum. Instrument
+blind spots as stated by the scan: `step-import`'s `entities/normalize/
+adopt/chart/recognize*` bodies (~8.7k lines) and `pncad-py`'s
+`select/mate/refactor/store/checks` modules were grep-swept, not read
+end to end; everything is static (no red/green witnesses run).
+
+## S410. `resolve_declarations` silently skips a vertex whose point key dangles
+
+**Confidence: sure** (the discard); **likely** (that the fix is the D21
+ladder rather than a keep). `step-import`'s `lib.rs::resolve_declarations`
+does `let Some(p) = body.get_point(v.point) else { continue; }` while
+resolving M9-2 position-anchored contact declarations — a dangling
+`v.point` is a corrupt-body state, and the skip understates `hits`: it can
+turn a resolvable anchor into `DeclarationUnresolved { found: 1 }`, or let
+a 3-coincident case resolve as exactly-two. This is the exact discard
+idiom PR 1452 swept the crate for, in the one src file its hit list does
+not name — its own blind-spot paragraph ("transitive callees not
+exhaustively read") is where this sits. The same fn's doc says resolution
+is *"exact-arithmetic proximity at ε_in"* while the code computes a
+rounded f64 sum of squares. Nothing at the site argues the skip. Row
+**D342**.
+
+## S411. Class B was never swept over the two STEP crates, and their refusal prose diverges on how to name an entity
+
+**Confidence: sure** (the sites); **likely** (the arena-key half is an
+adjudication, possibly a deliberate floor). PR 1490 swept
+typed-payload-through-`Debug` over `profile`+`editor-core` and said so;
+PR 1481 over `pncad-py`+`pncad`. Between them: `step-import`'s
+`error.rs` `Display` renders `Placement`/`Instance` kernel sources
+`{source:?}` while sibling arms forward `{source}` (`TierInvalid`'s
+`{e:?} — {e}` is argued at the site — cite it before converting; the
+`{at:?}` coordinate triple is location); `step-export`'s `lib.rs` has
+eight `{key:?}` arena spellings (`FaceKey(3v1)`-style) reaching Python
+through `pncad`'s export door, against `pncad-py`'s stated
+never-an-arena-key posture — and against `step-import`, which names
+Part 21 `#id`s from the file. Two members ride the same lane:
+`writer.rs::closed_shell` emits unconditionally under a prose-only
+"currently unreachable" note while a faceless `CLOSED_SHELL` violates the
+schema (the guard is one `is_empty()` refusal), and
+`writer.rs::tests::the_carrier_placeholder_refuses_typed` never drives
+the `UnsupportedCurve` refusal it is named for — no test anywhere can
+red that arm (the `UnsupportedSurface` twin is witnessed). Row **D343**.
+
+## S413. `pncad-py`'s `Doc` has four accepting doors and only one maintains `maintenance`
+
+**Confidence: sure** (code shape); **likely** (user-visible staleness).
+`py/doc.rs::Doc::insert` calls the same `d::apply`, keeps `applied.doc`
+and **drops `applied.maintenance`**, so `last_maintenance` — documented
+as describing "the LAST accepted edit" — carries a previous edit's
+record; `declare`/`declare_all` likewise swap the doc without touching
+it. Inserting a `Node.mate` through `insert` is precisely an edit that
+joins clusters. `apply`'s own docstring ("maintenance rides the edit")
+contradicts `insert`. Fix shape: one swap point, or clear on every
+accept. Row **D344**.
+
+## S414. `endpoint_params`' conic self-loop path returns before the finiteness refusal
+
+**Confidence: likely.** `step-import`'s `geometry.rs`: `if self_loop
+{ return Ok((t0, t0 + tau)); }` precedes the `!t0.is_finite()` check, so
+a self-loop vertex at the conic's centre — the case the refusal text
+names — returns `Ok((NaN, NaN))` and the typed refusal is unreachable on
+that path. Module docs argue downstream certification pins wrong
+derivations: diagnostics-quality, not soundness. Unrowed.
+
+## S415. Two scan residues, recorded not urged
+
+The two scaffold-strut mint sites in `step-import`'s `assemble.rs` hold
+the zero-length hazard to different standards (`plant` guards bitwise
+coincidence; `insert_selfloop_tied` mints at `p.x + 1.0` with no
+argument — at |p.x| ≳ 2⁵³ that IS `p.x`; **unsure** on reachability,
+sure on the asymmetry). The printable-ASCII band `0x20..=0x7E` is
+spelled independently three times across the three boundary crates —
+three formats' genuinely separate rules sharing a constant. And
+`pncad-py` mints two literal tags (`"no_minted_id"`, `"name_serialize"`)
+against `Doc.new`'s stated through-`crate::tags` rule — no kernel enum
+exists behind either, so the question is whether the rule's statement
+should carry the exception (**unsure**).
+
 # §D. The schedule
 
 > **READ THIS FIRST. Every track A–I is closed, and what they left is
@@ -7815,7 +7901,7 @@ re-scoped or re-argued by being moved.
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 *(re-derived from the track's own table, 2026-08-31; had read 18 against 16 rows)* |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census; `D305` filed 2026-09-01 by SMELL-UV at `D361`'s closure, so 12)* |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
-| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 3 *(re-derived 2026-09-01: `E-m`/#711, `D94`, `D47`, `D37`, `C16` and `D340` landed — PRs 1452, 1481, 1490, 1493; `D341` filed by uv-g)* |
+| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 6 *(re-derived 2026-09-01: six rows landed — PRs 1452, 1481, 1490, 1493; `D341` filed by uv-g, `D342`–`D344` by the commission scan, S410–S415)* |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 10 *(re-derived 2026-09-01: `D361`, `D362`, `D81`, `D121`, `D39` and `D75` landed — PRs 1453, 1454, 1475, 1490, 1493; `D363`–`D366` filed by the closing lanes)* |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 11 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
@@ -8026,6 +8112,9 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | # | What | Was |
 |---|---|---|
 | **D341** | **The `Node` constructor vocabulary is the method-name shape the surface censuses cannot see** (filed at PR 1493's close from its review, confidence `unsure` on urgency, concrete on mechanism): kernel `Node<P>` has ~18 variants and Python spells them as hand-written constructors (`Node.extrude`, `Node.mate`, …) with no `match Node` census — today every variant is accounted for through the name-based curated-export census, but a future variant whose payload reuses already-curated types mints no new curated name and lands silently, which is exactly how `D75` survived earlier sweeps. The `verb_spelling` mold in `surface_census.rs` closes it | uv-g, unrowed |
+| **D342** | **`resolve_declarations`' dangling-point skip** (`S410`): the discard idiom in the declared-contact resolution path — dispose per `D21`'s ladder (the proof is not local: the body was per-solid gated only when `instances.len() > 1`), and fix the *"exact-arithmetic"* doc overclaim beside it. The M9-2 channel can misresolve today | S410 |
+| **D343** | **Class B over the two STEP crates, as one lane** (`S411`): the `{source:?}` arms in `step-import/error.rs`, the eight arena-key prose spellings in `step-export/lib.rs` (adjudicate against `D363`'s identifiers-as-location rule first — naming a face may have no better spelling in-crate), the `closed_shell` one-line conformance guard, and a body-driven witness for the `UnsupportedCurve` refusal its src test is named for. The rule, the guard idiom and the adjudication precedents all exist (PRs 1481/1490) | S411 |
+| **D344** | **`Doc`'s `maintenance` field is maintained by one of four accepting doors** (`S413`): route `insert`/`declare`/`declare_all` through the one swap point or clear on every accept; the test is insert-a-mate-through-`insert`, read `last_maintenance` | S413 |
 | **C13** | ε has no type of its own, so `StepOptions::uncertainty_m` and two bare `f64`s restate `Tolerance::init`'s finite-and-strictly-positive rule by hand (#741). **Wants a plan signed off before implementation** — cross-crate public API. **HELD (UV-R5): LIB drafts the plan, then Evan signs off; implementation lands here after** | Track C |
 | **C14** | The STEP writer hardcodes two Part 21 header fields the standard assigns to the user (#742). **Same signed-off-plan caveat and the same UV-R5 hold** | Track C |
 
@@ -8107,9 +8196,9 @@ orchestrator without breaking the partition.
   which will be resolved incidentally by the tracks above.
 - **The unscanned crates**, which are a scanning input rather than a work item:
   the second scan never scoped `crates/step-import/`, `step-export/`, `stl/`, `bvh/`,
-  `quantity/`, `pncad-py/` or `profile/`. Tracks **U**, **V** and **M** now own
-  that ground, so a scan of it is theirs to commission and no longer collides
-  with a live lane.
+  `quantity/`, `pncad-py/` or `profile/`. **U/V's five were scanned 2026-09-01
+  by the SMELL-UV commission** (findings section above §D; S410–S415, rows
+  `D342`–`D344`); `bvh/` and `quantity/` remain Track M's to commission.
 
 ---
 
