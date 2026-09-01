@@ -557,7 +557,12 @@ fn a_cone_face_still_cannot_be_declared_at_all() {
     };
     let cone_face = cone
         .faces()
-        .find(|(_, f)| matches!(cone.get_surface(f.surface), Some(geom::Surface::Cone { .. })))
+        .find(|(_, f)| {
+            matches!(
+                cone.get_surface(f.surface),
+                Some(geom::Surface::Cone { .. })
+            )
+        })
         .map(|(k, _)| k)
         .expect("the revolve mints a cone face");
     let other = segment_a();
@@ -615,7 +620,10 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
         })
         .filter(|d| *d < 1e-12)
         .count();
-    assert_eq!(shared, 1, "exactly one cap plane is shared between the segments");
+    assert_eq!(
+        shared, 1,
+        "exactly one cap plane is shared between the segments"
+    );
     match topo::union_with(&a, &b, &BooleanDeclarations::none(), Tol::witness()) {
         Ok(BooleanResult::Body(_) | BooleanResult::Empty) => {
             panic!("an undeclared torus chain must not silently succeed")

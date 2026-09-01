@@ -100,15 +100,15 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Option<Rim<T>> {
-    for (ca, aa, ra, ua) in face_boundary_circles(a, fa) {
-        for (cb, ab, rb, _) in face_boundary_circles(b, fb) {
+    for ra in face_boundary_circles(a, fa) {
+        for rb in face_boundary_circles(b, fb) {
             let same = [
-                ("rim_circle_center", Margin::norm3(ca - cb)),
+                ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
                 (
                     "rim_circle_axis_parallel",
-                    Margin::levered(aa.cross(ab).norm(), T::one()),
+                    Margin::levered(ra.axis.cross(rb.axis).norm(), T::one()),
                 ),
-                ("rim_circle_radius", Margin::of(ra - rb)),
+                ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
             ]
             .into_iter()
             .all(|(name, margin)| {
@@ -118,12 +118,7 @@ pub(crate) fn shared_rim<T: Decide>(
                 )
             });
             if same {
-                return Some(Rim {
-                    center: ca,
-                    axis: aa,
-                    radius: ra,
-                    u_ref: ua,
-                });
+                return Some(ra);
             }
         }
     }
@@ -131,10 +126,7 @@ pub(crate) fn shared_rim<T: Decide>(
 }
 
 /// The circle carriers of a face's boundary edges.
-fn face_boundary_circles<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Vec<(Point3<T>, Vec3<T>, T, Vec3<T>)> {
+fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     let mut out = Vec::new();
     let Some(f) = body.get_face(face) else {
         return out;
@@ -162,7 +154,12 @@ fn face_boundary_circles<T: Real>(
                     u_ref,
                 } = *c.carrier()
             {
-                out.push((center, axis, radius, u_ref));
+                out.push(Rim {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                });
             }
         }
     }
@@ -208,16 +205,23 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     let mut side: Option<MaterialWedge> = None;
     let mut side_mixed = false;
     let n = geom_brep::CERT_SAMPLES;
+    let phase = |i: u32| core::f64::consts::TAU * (f64::from(i) / f64::from(n));
     for i in 0..n {
-        let theta = T::from_f64(
-            core::f64::consts::TAU * (f64::from(u32::try_from(i).unwrap_or(0)) / n as f64),
-        );
+        let theta = T::from_f64(phase(i));
         let (s, c) = (theta.sin(), theta.cos());
         let p = center + (u * c + v * s) * radius;
         // The rim's own tangent there: the derivative of the circle.
         let dir = (v * c - u * s) * radius;
         let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
-        match geom_brep::classify_material_pairing(s_plus, sense_plus, s_minus, sense_minus, p, arm, band)? {
+        match geom_brep::classify_material_pairing(
+            s_plus,
+            sense_plus,
+            s_minus,
+            sense_minus,
+            p,
+            arm,
+            band,
+        )? {
             geom_brep::MaterialPairing::Aligned => opposed = false,
             geom_brep::MaterialPairing::Opposed => aligned = false,
         }

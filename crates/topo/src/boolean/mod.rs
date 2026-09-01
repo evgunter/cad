@@ -1327,10 +1327,7 @@ impl core::fmt::Display for BooleanError {
                  refused at the door rather than ignored inside",
                 class.name()
             ),
-            Self::RimArmUnbuilt {
-                declaration,
-                wedge,
-            } => write!(
+            Self::RimArmUnbuilt { declaration, wedge } => write!(
                 f,
                 "boolean op: faces {:?}/{:?} share a rim circle whose material wedge is {} — \
                  the ratified routing (docs/MATE-7-TANGENCY-DESIGN.md) sends {}, and this \
@@ -1915,9 +1912,13 @@ fn verify_tangent_declaration<T: Decide>(
             // Where there is no shared rim — or the samples cannot
             // settle one — the bare class refusal stands, verbatim.
             if let Some(rim) = rim_wedge::shared_rim(a, fa, b, fb, band) {
-                let (sa, sb) = (surface_of(a, fa, Operand::A)?, surface_of(b, fb, Operand::B)?);
+                let (sa, sb) = (
+                    surface_of(a, fa, Operand::A)?,
+                    surface_of(b, fb, Operand::B)?,
+                );
                 let senses = |body: &Body<T>, f: FaceKey| {
-                    body.get_face(f).map_or_else(T::one, |face| face.sense_sign::<T>())
+                    body.get_face(f)
+                        .map_or_else(T::one, |face| face.sense_sign::<T>())
                 };
                 // The rim's own diameter is the extent the angular
                 // margins are metered at: it is the reach over which
@@ -1931,13 +1932,9 @@ fn verify_tangent_declaration<T: Decide>(
                     rim,
                     extent,
                     band,
-                ) {
-                    if let Some(wedge) = routing.wedge() {
-                        return Err(BooleanError::RimArmUnbuilt {
-                            declaration,
-                            wedge,
-                        });
-                    }
+                ) && let Some(wedge) = routing.wedge()
+                {
+                    return Err(BooleanError::RimArmUnbuilt { declaration, wedge });
                 }
             }
             return Err(BooleanError::UnsupportedDeclarationClass {

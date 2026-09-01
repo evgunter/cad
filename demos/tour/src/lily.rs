@@ -3866,10 +3866,8 @@ mod verbs_gate_r1_probes {
                 _ => None,
             })
             .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0);
-        if let (
-            BooleanError::CurvedPairUnsupported { other_face, .. },
-            Some((far, _)),
-        ) = (&glued, arch_far_cap)
+        if let (BooleanError::CurvedPairUnsupported { other_face, .. }, Some((far, _))) =
+            (&glued, arch_far_cap)
         {
             assert_eq!(
                 *other_face, far,

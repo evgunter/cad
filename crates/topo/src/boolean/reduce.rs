@@ -363,7 +363,9 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
         gate_operand_edges(body, operand)?;
     }
     if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists, |operand, f, other| {
-        declared.class_of(operand, f, operand.other(), other).is_some()
+        declared
+            .class_of(operand, f, operand.other(), other)
+            .is_some()
     })? {
         return Err(BooleanError::CurvedPairUnsupported {
             op: None,
