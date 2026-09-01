@@ -703,7 +703,11 @@ pub enum EditError {
 // metadata keys) render via `Debug` because they ARE the location,
 // while stable names and kinds render through their own prose
 // spellings (`StableName`'s `Display`, the `noun` renderings), never
-// `Debug`. The typed variant remains the machine contract.
+// `Debug`. A name is parenthesized apposition when the sentence's
+// subject is a role word ("the rebind target ({name})") and inline
+// when the name itself is the subject ("the {name} does not
+// resolve"); new arms copy whichever their sentence shape calls for.
+// The typed variant remains the machine contract.
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

@@ -127,11 +127,13 @@ pub enum ResolveError {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in prose — the name by its kind and minting node (a
-// stable name is a derivation path, and the node is the half a user
-// can act on), the WHY forwarded from the payload's own rendering.
-// Composing layers (`NodeErrorKind`'s two resolve arms) FORWARD this
-// rather than re-stating it.
+// the PROBLEM in prose — the name through `StableName`'s own
+// `Display` (its kind and minting node — the half a user can act on),
+// the WHY forwarded from the payload's own rendering. `NodeGone`
+// alone re-spells the name, because its sentence interleaves the
+// fields ("the name's minting node …"). Composing layers
+// (`NodeErrorKind`'s two resolve arms) FORWARD this rather than
+// re-stating it.
 impl core::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -139,18 +141,13 @@ impl core::fmt::Display for ResolveError {
                 name, diagnosis, ..
             } => write!(
                 f,
-                "the {} name minted by node {} no longer resolves in this evaluation: \
-                 {diagnosis}",
-                name.kind.noun(),
-                name.node.0
+                "the {name} no longer resolves in this evaluation: {diagnosis}"
             ),
             Self::Ambiguous { name, tie, .. } => write!(
                 f,
-                "the {} name minted by node {} is tie-marked: {} equally-admissible \
+                "the {name} is tie-marked: {} equally-admissible \
                  candidates at its recorded site — a tie is never broken by picking; \
                  refine the reference until one candidate remains",
-                name.kind.noun(),
-                name.node.0,
                 tie.width
             ),
             Self::NodeGone { name, edit } => write!(
@@ -236,10 +233,8 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::Cascade { through } => write!(
                 f,
-                "the upstream {} name minted by node {} vanished first; its own \
-                 resolution failure carries the root cause",
-                through.kind.noun(),
-                through.node.0
+                "the upstream {through} vanished first; its own \
+                 resolution failure carries the root cause"
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -391,8 +386,13 @@ pub enum ResolveIndeterminate {
 // can act on — plus the fact that makes this vocabulary its own: the
 // reference is indeterminate, not vanished, so the recourse is always
 // to restore the node's value, never to rebind. The three arms say
-// what the hit-test door's identical arms say, because it is the same
-// fact about the same evaluation reached through a different door.
+// what the hit-test and interrogate doors' identical arms say — the
+// same fact about the same evaluation reached through a different
+// door — and the shared recourse tail ("the repair is upstream, at
+// node N") is deliberately word-for-word across the three standing
+// renderings, hand-synced: each door's sentence differs in subject
+// and consequence, so only the tail is common and it is too small a
+// fragment to be worth a shared helper.
 impl core::fmt::Display for ResolveIndeterminate {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
