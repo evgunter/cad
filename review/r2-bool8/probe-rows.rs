@@ -158,9 +158,14 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
     assert!(parked_on_start.line_to(Start, t).is_err());
 }
 
-/// PROBE 4 (claim 1): three continuation legs of equal length lay down
-/// three bit-identical displacements — the inheritance is transitive
-/// at the bits, not just pairwise on the PR's fixture.
+/// PROBE 4 (claim 1), REVISED after a first run: the bit-identical
+/// DISPLACEMENT property is a fixture artifact, not the inherited
+/// thing. From the origin, `0 + d` and `d + d` are exact, so the first
+/// two displacements match bitwise — but the THIRD leg's endpoint
+/// rounds (`2d + d` is inexact) and its realized displacement differs
+/// in the last bit. What is inherited bitwise is the `Dir`; the vertex
+/// table only shows it exactly while the additions are exact. This
+/// probe pins the boundary: d(0) == d(1), d(1) != d(2).
 #[test]
 fn r2_probe_bitwise_inheritance_is_transitive() {
     let t = Tol::witness();
@@ -186,8 +191,13 @@ fn r2_probe_bitwise_inheritance_is_transitive() {
             (v[i + 1].pos().y - v[i].pos().y).to_bits(),
         )
     };
-    assert_eq!(d(0), d(1));
-    assert_eq!(d(1), d(2));
+    assert_eq!(d(0), d(1), "doubling from the origin is exact");
+    assert_ne!(
+        d(1),
+        d(2),
+        "the third endpoint rounds: bit-identical displacements are the \
+         fixture's property, not the inheritance's"
+    );
     assert!(lp.tangent_joints().is_empty());
     validate_lp(&lp);
 }
