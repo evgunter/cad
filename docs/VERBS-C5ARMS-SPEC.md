@@ -1,5 +1,19 @@
 # VERBS-C5ARMS — the two C5 section arms (#1057)
 
+**HOLD (2026-09-01).** PR-1 is held behind **`docs/VERBS-TORAX-SPEC.md`**
+(the offset-axial torus arm). PR-1's own item-1 STOP fired at
+dispatch: with the flag scratch-flipped, ALL FOUR named consumers
+(klein elbow ×2, torus_barrel, teapot wall 1) stop at the
+per-chart corner-accumulation refusal (`ReanchorOffCarrier`,
+`replace_face.rs:1922-1930`) — real 0.85–6.1 mm corner errors
+from rigid per-chart transport, correctly refused, and not a door
+a geom-brep section arm can satisfy. Adjudicated option (c)
+(VERBS-LOG 2026-09-01): TORAX lands first; rows 3/4/8/12/13
+below are unreachable until it does (rows 12/13 unblock on
+TORAX's barrel/teapot half if its elbow-split STOP fires).
+Branch `verbs/c5arms-1` stays pushed at main with zero commits;
+the PR opens when the hold lifts.
+
 Issue #1057, filed from the teapot unit (#1078) and OFF-D PR-2
 (#1048). Two arms of the C5 table: `plane × torus` and
 `cone × cylinder`. Branches `verbs/c5arms-1`, `verbs/c5arms-2`.
