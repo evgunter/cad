@@ -50,3 +50,7 @@ MATE-4a dispatch consumes B2 slot 2 (OPUS) — 2026-08-31, difficulty
 M (pre-logged in the plan's MATE-4 entry, impl half). Spec
 docs/MATE-4A-SPEC.md on main (PR #1430). B2 slot 3 (FABLE)
 unconsumed.
+
+MATE-5 dispatch consumes B2 slot 3 (FABLE) — 2026-09-01, difficulty
+L (pre-logged in the plan). Spec docs/MATE-5-SPEC.md on main
+(PR #1438). BLOCK MATE-B2 FULLY CONSUMED.
