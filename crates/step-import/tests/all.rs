@@ -85,6 +85,8 @@ mod r1_dm1_probe;
 mod r1_probe_halfcap;
 #[path = "r2_import_door.rs"]
 mod r2_import_door;
+#[path = "r2_probes.rs"]
+mod r2_probes;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]

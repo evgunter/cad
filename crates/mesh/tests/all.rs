@@ -83,12 +83,18 @@ mod r1_probe_hash;
 mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
+#[path = "r2_bool_door.rs"]
+mod r2_bool_door;
+#[path = "r2_bytes.rs"]
+mod r2_bytes;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
 #[path = "r2_mesh1_probes.rs"]
 mod r2_mesh1_probes;
 #[path = "r2_mesh2_probes.rs"]
 mod r2_mesh2_probes;
+#[path = "r2_split_door.rs"]
+mod r2_split_door;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]
