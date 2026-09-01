@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom::Surface;
+use geom_brep::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
@@ -22,6 +22,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 const DIE_L: f64 = 1.0;
@@ -69,29 +70,17 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
 }
 
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let kind_of = |f: topo::FaceKey| -> Option<u8> {
-        match body.get_surface(body.get_face(f)?.surface)? {
-            Surface::Plane { .. } => Some(0),
-            Surface::Sphere { .. } => Some(1),
-            _ => Some(2),
-        }
-    };
-    let face_of = |he: topo::HalfEdgeKey| -> Option<topo::FaceKey> {
-        Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face)
-    };
-    let mut out = Vec::new();
-    for (k, e) in body.edges() {
-        let (Some(fa), Some(fb)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
-            continue;
-        };
-        if matches!(
-            (kind_of(fa), kind_of(fb)),
-            (Some(0), Some(1)) | (Some(1), Some(0))
-        ) {
-            out.push(k);
-        }
-    }
-    out
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
+        })
+        .collect()
 }
 
 /// The pipped cube of `corpus/die_composed.rs`, its 12 surviving box

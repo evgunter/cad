@@ -34,7 +34,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use geom_core::{Decide, Indeterminate, Point3, Vec3};
+use geom_core::{Decide, Indeterminate};
 use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError};
 use topo::splitting::SplitError;
@@ -335,31 +335,14 @@ pub enum SplitSide<T: Decide> {
     Body(Arc<Body<T>>),
 }
 
-/// An evaluated datum (spec D3): geometry VALUES, not kernel entities.
-/// Normals/directions are normalized at evaluation; a degenerate
-/// (decided-zero-length) vector is a typed refusal.
-#[derive(Debug, Clone)]
-pub enum DatumValue<T: Decide> {
-    /// A plane through `origin` with UNIT `normal`.
-    Plane {
-        /// A point on the plane.
-        origin: Point3<T>,
-        /// The unit normal.
-        normal: Vec3<T>,
-    },
-    /// An axis through `origin` along UNIT `dir`.
-    Axis {
-        /// A point on the axis.
-        origin: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
-    },
-    /// A point.
-    Point {
-        /// Its position.
-        position: Point3<T>,
-    },
-}
+// An evaluated datum (spec D3): geometry VALUES, not kernel entities,
+// which is why the type itself lives at the kernel query seat
+// (`topo::query`) — it is the resolved comparand the decided distance
+// predicate takes, and this layer's evaluation is what mints one
+// (normals/directions normalized; a degenerate, decided-zero-length
+// vector is a typed refusal). Re-exported at its historical home so
+// this crate's public surface is unchanged.
+pub use topo::query::DatumValue;
 
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in

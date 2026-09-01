@@ -35,16 +35,13 @@ use sweep::blend::{BlendError, BlendKind, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::query;
 use topo::{Body, EdgeKey, EntityId};
 
 /// The cube side, meters.
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// The shipped fillet-side guard, transcribed: what
 /// `blend6_verb_vocab.rs`'s `assert_speaks_once_as_the_fillet`
@@ -153,7 +150,7 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
 #[test]
 fn the_closed_chamfer_arm_would_speak_the_other_verb_if_it_ever_fired() {
     let body = cube(L, Tol::witness());
-    let edge = all_edges(&body)[0];
+    let edge = query::all_edges(&body)[0];
     let refusal = BlendRefusal {
         verb: BlendKind::Chamfer,
         error: BlendError::UnsupportedChain {
@@ -225,7 +222,7 @@ fn no_chamfer_refusal_is_ever_one_of_the_ball_only_arms() {
 #[test]
 fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
     let cyl = cylinder(0.5, 1.0);
-    let edges = all_edges(&cyl);
+    let edges = query::all_edges(&cyl);
     let t = Tol::witness();
 
     // The chamfer door reaches its own arm on this fixture.
@@ -279,7 +276,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
 fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     let mut out = chamfer_refusals();
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let t = Tol::witness();
 
     out.push((
@@ -306,7 +303,7 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
 /// Every refusal the shipped fixtures reach through the CHAMFER door.
 fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let t = Tol::witness();
     let mut out = vec![(
         "nonpositive size",
@@ -359,7 +356,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let mut two = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut two, &other, Tol::witness()).expect("a disjoint graft");
-    let two_edges = all_edges(&two);
+    let two_edges = query::all_edges(&two);
     out.push((
         "two-solid body",
         chamfer_edges(&two, &two_edges[..1], D, t)
@@ -388,7 +385,10 @@ fn top_loop(body: &Body<f64>) -> Vec<EdgeKey> {
                 .is_some_and(|p| p.z > L - 1e-9)
         })
     };
-    all_edges(body).into_iter().filter(|e| at_top(*e)).collect()
+    query::all_edges(body)
+        .into_iter()
+        .filter(|e| at_top(*e))
+        .collect()
 }
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m.

@@ -12,7 +12,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use pncad::prelude::{Open, Start, fillet_edges};
+use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{
     Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
@@ -176,18 +176,11 @@ fn bud(tol: Tol) -> Body<f64> {
 }
 
 fn rims_between(body: &Body<f64>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
-    let kind_at = |he| {
-        let l = body.get_half_edge(he)?.parent_loop;
-        let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface)
-            .map(SurfaceKind::of)
-    };
-    body.edges()
-        .filter(|(_, e)| {
-            let (ka, kb) = (kind_at(e.he_plus), kind_at(e.he_minus));
-            (ka, kb) == (Some(a), Some(b)) || (ka, kb) == (Some(b), Some(a))
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| {
+            query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
