@@ -1692,10 +1692,6 @@ impl eframe::App for ViewerApp {
                 self.delta.get(),
             )
         });
-        // A frame that did not draw the form has no preview to show
-        // and none to draw; the refusal arm stands in for it, and the
-        // form is the only reader that ever sees it.
-        let profile_preview = profile_preview.unwrap_or(Ok(ProfilePreview::default()));
         let mut profile_form_drawn = false;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
@@ -1792,7 +1788,13 @@ struct ViewerBehavior<'a> {
     /// What the add-profile form's loops would draw, taken once for
     /// the frame: the panel says what it refuses and the viewport
     /// draws what it replayed, from ONE reading.
-    profile_preview: &'a Result<ProfilePreview, PreviewError>,
+    ///
+    /// `None` is "no preview was taken this frame" — the frame the
+    /// form first comes on screen, before the latch below has told
+    /// anyone to take one. Distinct from `Some(Ok(empty))`, which is
+    /// a preview that WAS taken and drew nothing, and which the form
+    /// is entitled to say so about.
+    profile_preview: &'a Option<Result<ProfilePreview, PreviewError>>,
     /// Set by the add-profile form while it draws; read next frame.
     profile_form_drawn: &'a mut bool,
     pending_fit: &'a mut bool,
@@ -2088,7 +2090,7 @@ impl ViewerBehavior<'_> {
         // the form; one that replayed but does not VALIDATE draws
         // anyway, which is the case where looking at it is the whole
         // point.
-        if let Ok(drawn) = self.profile_preview {
+        if let Some(Ok(drawn)) = self.profile_preview {
             let plane = sketch::form_plane();
             for polyline in &drawn.loops {
                 // Closed by construction, so the segment list wraps:
@@ -2934,7 +2936,12 @@ impl ViewerBehavior<'_> {
         // which is why the button waits on it rather than letting a
         // reader find out by clicking.
         let refused = match self.profile_preview {
-            Ok(drawn) => {
+            // The first frame this form is on screen: the latch has
+            // not asked for a preview yet, so there is nothing
+            // honest to say about one. The commit door is still the
+            // judge, so the button is not held for a frame either.
+            None => false,
+            Some(Ok(drawn)) => {
                 if let Some(invalid) = &drawn.invalid {
                     ui.colored_label(
                         chrome(self.theme.unresolved),
@@ -2949,7 +2956,7 @@ impl ViewerBehavior<'_> {
                     false
                 }
             }
-            Err(error) => {
+            Some(Err(error)) => {
                 ui.colored_label(chrome(self.theme.unresolved), error.to_string());
                 true
             }
@@ -4239,7 +4246,7 @@ fn point_fields(ui: &mut egui::Ui, unit: Option<UnitDef>, point: &mut [f64; 2]) 
 /// leg ends — and `Start` is not a point somebody could type: it is
 /// the bound entry, and aiming at it is what closing IS in this
 /// algebra (`pncad::profile::path`, which has no `close()` alias).
-fn target_fields(ui: &mut egui::Ui, salt: &str, unit: Option<UnitDef>, target: &mut PathTarget) {
+fn target_fields(ui: &mut egui::Ui, unit: Option<UnitDef>, target: &mut PathTarget) {
     let closing = matches!(target, PathTarget::Start);
     let mut to_start = closing;
     ui.checkbox(&mut to_start, "to start");
@@ -4251,7 +4258,6 @@ fn target_fields(ui: &mut egui::Ui, salt: &str, unit: Option<UnitDef>, target: &
         };
     }
     if let PathTarget::Point(point) = target {
-        let _ = salt;
         point_fields(ui, unit, point);
     }
 }
@@ -4321,20 +4327,20 @@ fn arc_fields(
             side_picker(ui, salt, side);
         }
         ArcSpec::Bulge { target, b } => {
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, length_unit, target);
             ui.label("bulge");
             ui.add(egui::DragValue::new(b).speed(UNIT_DRAG_SPEED));
         }
         ArcSpec::Via { q, target } => {
             ui.label("via");
             point_fields(ui, length_unit, q);
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, length_unit, target);
         }
         ArcSpec::Center { c, winding, target } => {
             ui.label("centre");
             point_fields(ui, length_unit, c);
             winding_picker(ui, salt, winding);
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, length_unit, target);
         }
         ArcSpec::Sweep { r, side, angle } => {
             ui.label("r");
@@ -4382,7 +4388,7 @@ fn path_step_fields(
             unit_field(ui, length_unit, FIELD_DRAG_SPEED, length);
         }
         PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
-            target_fields(ui, salt, length_unit, target);
+            target_fields(ui, length_unit, target);
         }
         PathStep::ArcTo(spec) => arc_fields(ui, salt, length_unit, angle_unit, spec),
         PathStep::FilletArc { radius, spec } | PathStep::ArcFillet { spec, radius } => {
