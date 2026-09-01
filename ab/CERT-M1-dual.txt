@@ -1,0 +1,154 @@
+CERT-M1 dual (v6), recorded BEFORE R1 dispatch, 2026-09-01
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+expected 709 — next free after CERT-8's 708; take the next free
+ordinal at claim time and record which).
+slot byte 112 (od /dev/urandom, one byte), parity 0 => R1 OPUS + R2 FABLE
+(cross-model).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head ef27ed03a — the delivered head, six
+commits on merge base 75e98361, no orchestrator-direct commits past
+it at this writing (if the gate reds and a discipline fix is needed,
+this note is amended pre-R1 per its own rule and the frozen head
+restated). Dispatch CONDITIONAL on ef27ed03a's gate (run 33572342088)
+concluding green on PR 1533. CERT-N1's implementation lane runs
+concurrently on ITS fence (geom/src, geom-core spline/ and linalg/);
+the two grounds are file-disjoint. R2 after R1 with the IDENTICAL
+stored brief, isolated. Probe branches: cert/m1r1-probes,
+cert/m1r2-probes (local until close-out). Implementer difficulty M
+(logged at spec pre-draw, docs/CERT-M1-SPEC.md at bacc06e2); impl
+~445k tokens, ~81m active by the usage counter, single lane, no
+restarts. Unit shape for the reviewers' weighting: NO kernel
+behaviour moves and no public signature changes — every row is a doc,
+test or instrument change, so the two track questions ("is the
+original problem completely gone"; "was it closed in the best way
+available") and §D rule 5 carry the review, and the one place a
+wrong NUMBER is reachable is D78's derived ceilings.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-M1 of the
+S-CERT program (repo evgunter/cad) — the first of the absorbed SMELL
+tracks. Review PR 1533 on its FROZEN head ef27ed03a — do not review
+any later commit; if the branch has moved, say so and still review
+ef27ed03a.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-M1-SPEC.md — it fixes the rows,
+the order, the fence and the landing convention; your target is
+whether each row is COMPLETELY closed and closed in the BEST way
+available, and whether any fix mints a fresh instance of the defect it
+closes), docs/SMELL-SCAN-2026-08.md at the MERGE BASE (git show
+75e98361:docs/SMELL-SCAN-2026-08.md — the Track M table and findings
+S85, S89, S210, S211, S134 as they stood BEFORE this PR deleted them;
+the deleted text is your specification), the repartition rules in
+that file (§"Tracks K–X — the repartition": rule 1 fence, rule 3
+landing, rule 5 no fresh instance), docs/SMELL-H-LOG.md H-R3 and
+H-R16, the D2 addendum in docs/DESIGN.md, then the PR 1533 diff and
+body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution beats
+inspection; every number is the PR body's claim, not a fact):
+1. D78(a) — powi's DERIVED ceiling (highest-value item: the one place
+   a wrong number is reachable). Re-derive the induction yourself:
+   is u <= 3*2^-53 the right per-multiplication relative deviation
+   for mul_lo/mul_hi (read the backend's padding, including the
+   mul_exact witness gated at 2^-960 that refuted the lane's e(1)=0
+   first draft)? Is e(a+b) <= e(a)+e(b)+u sound for the ladder's
+   actual pairing (directed binary exponentiation — does it only
+   ever form x^{a+b} from x^a and x^b, or does squaring reuse an
+   already-padded operand twice, which the induction must count
+   twice)? Is the step-to-ratio conversion (3m steps per endpoint
+   -> ratio <= 12|n|+1, +12 for the reciprocal) correct in binades?
+   Then EXECUTE the oracle tier at effort >= 2 (release,
+   oracle-inari; effort 8 if the machine allows) and compare the
+   worst ratios against the body's table (3/13, 2/25, 6/37, 8/49,
+   13/61, 20/85, 39/145, 120/373 at n=31; 17/25, 6/37, 12/49) —
+   and against the finding's OLD measurement (117/122 at |n|<=31):
+   is 120 at n=31 the same phenomenon, and is a ceiling of 373
+   loose enough to hide a real regression? Construct an adversarial
+   base (subnormal window, near-overflow) and ask whether the "huge
+   window keeps no ceiling" exclusion is an argued exclusion or an
+   escape hatch.
+2. D78(b) — the per-endpoint absolute bound. #786 declined it for
+   three reasons; the body says all three are now excluded FROM THE
+   INPUT. Verify each exclusion is an input predicate and not an
+   output filter (pole/branch-cut refusals; extremum capture onset at
+   |x| ~ 2^32 vs the ceiling-carrying windows; atan2's origin box
+   split by x.contains(0) && y.contains(0)). Check the 9.2e18-step
+   atan2 observation reproduces, and that max_endpoint_steps = None
+   at that accumulator is a named divergence at the call site rather
+   than a silent skip. Reproduce the measured steps (4/5 vs 8; 1 vs
+   4; powi 1–75 vs 2*pad+2) at effort >= 2.
+3. D78(c) — the retired caveat: confirm Interval exposes no
+   intersection and nothing in crates/ calls one (grep yourself,
+   including macro-generated and trait-provided paths); is the
+   replacement "trigger" sentence true of BOTH refusal doors?
+4. H3 — the Bounds doc block: is the headline now TRUE (bracket
+   extraction; certification is CertifiedEnclosure, which Dual does
+   not implement) — check the impls; did any RULE get lost in the
+   399 -> 261 cut (diff the old block against the new one clause by
+   clause; list every deleted sentence that was a rule, not
+   archaeology); is the deviation (261 vs the finding's 234) argued
+   from a real fence (does moving the ledger out really need
+   lib.rs, and do four out-of-fence pointers really name entries by
+   position)? Rule 5: does the new block add prose about the prose?
+5. H4 — the census is gone "with no shorter roster in its place":
+   verify no count or list survives anywhere in the fence's docs;
+   verify the three re-derived alias citations (hull.rs:116,
+   ssi/enclose.rs:195, props.rs:1174) and that the finding's
+   ring_interval.rs:160 really was a doc line; verify
+   decoration_seam.rs's new claim (this crate's crossing only) by
+   running it, and that the two named sibling suites
+   (topo::props bracket_seam_tests, geom_brep::ssi::certify
+   normal_crossing_tests) exist and pin what the header says.
+6. H10 + S211 — the 23-site census: RE-TAKE IT independently
+   (walk crates/*/src for a generic parameter list whose single
+   bound is Bounds or Enclosure, comments/strings blanked, multi-line
+   lists included) and diff against the body's roster — a missed
+   site falsifies the census; check the six "never censused" topo
+   doors and the negative result for sweep/editor-core/mesh/step-*.
+   Verify bvh/src/lib.rs's new sentence is TRUE in both halves (no
+   grep watches the sole form; the compound form DOES fire in
+   crates/bvh/ because the crate is not on the file allowlist — run
+   the gate with a planted compound bound there). Verify the
+   "instrument filed, not landed" argument: does
+   reader_census.rs's set-equality row really red on a new
+   source-reading test, and is that file really Track W's?
+7. D221 — the header/assertion argument: is the evenness line really
+   NOT implied (per-case vs distributional), and is the class sweep
+   (42 bodies, one instance) right?
+8. The SMELL-SCAN edits under rule 3: for every deleted row and
+   finding, was every STANDING RULE relocated before deletion (find
+   one rule that vanished with its finding and the landing is
+   wrong); was S210 — a finding the lane did NOT close — edited
+   legitimately (recording a walk) or did the edit change its
+   substance; are S88's re-homed pointers correct; did the "Seven
+   items" count drop leave a dangling reference elsewhere.
+9. The seven filed rows: are the citations right today (re-derive
+   each), is the owner assignment right (props.rs really unowned?),
+   and is anything filed that the lane could have landed inside its
+   fence (a filing used as an escape).
+10. The three sweeps: re-run each pattern; check at least two
+    "kept" dispositions and the flagged_census.rs header fix (does
+    the tree really have nine sites?).
+11. The eps/lane posture: trailer premise vs scripts/ci-filter.py
+    (including the ORACLE_PATHS arm pinning interval-transcendentals
+    to the interval lane); run geom-core + bvh at all three bands in
+    both lanes yourself.
+Also: Q3 (do the rows exercise what they claim on constructed
+inputs?), Q8 (how much of real.rs's 636-line diff did you read
+clause by clause?).
+
+RULES: work in your own worktree from the frozen head; do NOT push to
+cert/m1-trait-ground; put probes on your assigned probe branch (local
+commits; the orchestrator collects them); no GitHub writes of any
+kind; no Co-Authored-By; serialize heavy builds through
+/home/user/cad/local-scripts/with-build-slot.sh -- <cmd>; foreground
+discipline (never wait on a background notifier — poll); check
+df -h / before big builds and clean your own target dir if free space
+nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
+NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
+severities, executed-vs-inspected marked per item, and the rubric
+scores per the style lane. Report <=150 lines.
