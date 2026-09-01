@@ -317,7 +317,7 @@ fn description_references_keep_a_surface_alive() {
 /// the inner wall's material is OUTSIDE its cylinder (`sense: false`),
 /// the outer wall's INSIDE its own. Every other edge is a definite
 /// corner.
-fn cusp_prism(tol: Tol) -> crate::fixtures::Prism {
+pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::Prism {
     let mut p = crate::fixtures::prism(3, tol);
     // Cross-section corners, in the winding the fixture's caps expect
     // (counterclockwise from +z): the kiss, the outer circle's far
