@@ -2853,22 +2853,42 @@ mod tests {
     #[test]
     fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
         let mut rng = fuzz::start("nurbs_cert::cert10_fold_vs_whole_net");
+        /// Interior multiplicities are drawn up to `p - 1`, the C¹
+        /// gate's ceiling — NOT left at 1. That is where the fold's
+        /// coverage premise is TIGHT: a cell window is
+        /// `Span::window()` / `first_derived_window()` /
+        /// `derived_window(2)`, and the claim that those windows COVER
+        /// the derivative nets is what makes `max over cells == whole
+        /// net` per channel. Raising a multiplicity shortens the
+        /// derivative net and shifts every window; at `p - 1` the
+        /// second-derivative net is at its shortest that
+        /// `check_direction` still admits, which is exactly the case a
+        /// multiplicity-1 generator never reaches.
         fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
             let spans = 1 + r.below(4);
             let mut k = vec![0.0; p + 1];
             for i in 1..spans {
                 #[allow(clippy::cast_precision_loss)]
-                k.push(i as f64 / spans as f64);
+                let t = i as f64 / spans as f64;
+                // 1 ..= p - 1 (a degree-1 direction admits no interior
+                // knot at all — `check_direction`'s Degree1Crease).
+                let m = if p >= 2 { 1 + r.below(p - 1) } else { 1 };
+                for _ in 0..m {
+                    k.push(t);
+                }
             }
             k.extend(vec![1.0; p + 1]);
             KnotVector::clamped(k, p).unwrap()
         }
         let mut strict = 0usize;
+        let mut saw_high_mult = false;
         let trials = fuzz::scaled(60);
         for _ in 0..trials {
             let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
             let kv_u = mk(&mut rng, pu);
             let kv_v = mk(&mut rng, pv);
+            saw_high_mult |= kv_u.interior_knots().any(|(_, m)| m >= 2)
+                || kv_v.interior_knots().any(|(_, m)| m >= 2);
             let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
             let control: Vec<Point3<f64>> = (0..nu * nv)
                 .map(|_| {
@@ -2904,8 +2924,17 @@ mod tests {
                 }
             }
         }
-        // COVERAGE FLOOR: an inequality nothing ever makes strict is a
-        // tautology. If a run trips this, RAISE the trial count.
+        // COVERAGE FLOOR, both halves. An inequality nothing ever
+        // makes strict is a tautology; and a sweep that never leaves
+        // multiplicity 1 never challenges the coverage premise the
+        // inequality rests on. If a run trips either, RAISE the trial
+        // count — never lower the floor.
+        assert!(
+            saw_high_mult,
+            "the sweep never drew an interior multiplicity >= 2, so the fold's window \
+             coverage went unchallenged where it is tight — {}",
+            fuzz::replay()
+        );
         assert!(
             strict > trials,
             "the sweep must keep producing STRICT gaps: {strict} strict of {} \
