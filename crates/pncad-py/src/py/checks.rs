@@ -469,11 +469,17 @@ impl ChecksReport {
 /// without first branching on `err.variant`.
 fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     let none = || py.None();
+    // Exhaustive on purpose, no wildcard: an arm added kernel-side
+    // arrives here as a compile error rather than as a silently
+    // unprojected payload.
     let node = match err {
         d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
-        _ => none(),
+        // A tolerance that forms no band and a gather that yields no
+        // product are both refusals about the WHOLE document; neither
+        // has a node to name.
+        d::ChecksError::Band { .. } | d::ChecksError::Product { .. } => none(),
     };
     typed_err(
         py,

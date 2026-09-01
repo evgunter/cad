@@ -469,6 +469,24 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "not_a_body")
         self.assertEqual(caught.exception.kind, "profile")
 
+    def test_the_export_refusal_names_the_node_as_a_bare_id(self):
+        """A node reaches prose as its number, not as a Rust wrapper.
+
+        The one part of an export refusal a caller can act on is which
+        node it is about. `RecipeNodeId`'s `Debug` spelling puts a Rust
+        type name in front of that number — a token with no meaning on
+        this side of the boundary.
+        """
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        profile_node = doc.order()[0]
+        ev = evaluate(doc)
+        with self.assertRaises(pncad.ExportError) as caught:
+            ev.step_string(profile_node)
+        message = str(caught.exception)
+        self.assertNotIn("RecipeNodeId", message)
+        self.assertRegex(message, r"node \d+ ")
+
     def test_export_of_a_failed_node_is_a_typed_refusal(self):
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)

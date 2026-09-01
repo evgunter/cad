@@ -152,10 +152,15 @@ impl BlendKindChoice {
 
     /// What the one Length field means for this kind, for the field's
     /// own label.
+    ///
+    /// The QUANTITY and not its unit: the field's unit is the picker
+    /// beside it to say (`app`'s `unit_picker`), and a label that
+    /// carried one too would be a second place for it to be stated —
+    /// free to say metres beside a field written in millimetres.
     pub fn size_label(self) -> &'static str {
         match self {
-            Self::Fillet => "radius (m)",
-            Self::Chamfer => "setback (m)",
+            Self::Fillet => "radius",
+            Self::Chamfer => "setback",
         }
     }
 }

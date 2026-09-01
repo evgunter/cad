@@ -779,7 +779,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
         ),
         "no picks, no op"
     );
-    tool.pick(profile);
+    tool.pick(session.committed_doc(), profile);
     assert_eq!(tool.profile(), Some(profile));
     assert!(
         matches!(
@@ -790,7 +790,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
         ),
         "one pick, no op"
     );
-    tool.pick(axis);
+    tool.pick(session.committed_doc(), axis);
     assert_eq!(tool.axis(), Some(axis));
 
     // The tool's op commits exactly one insert through the session.
@@ -806,8 +806,8 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     // seat and the node, the profile stays held, and the next pick
     // refills the empty seat.
     let mut tool = RevolveTool::new();
-    tool.pick(profile);
-    tool.pick(axis);
+    tool.pick(session.committed_doc(), profile);
+    tool.pick(session.committed_doc(), axis);
     let deleted = session.perform(SessionOp::DeleteNode { node: axis });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     let events = tool.reconcile(session.committed_doc());
@@ -833,7 +833,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
             },
         },
     );
-    tool.pick(axis);
+    tool.pick(session.committed_doc(), axis);
     assert_eq!(tool.axis(), Some(axis), "the next pick refills the seat");
     assert!(tool.op(TAU).is_ok());
 }
@@ -866,8 +866,8 @@ fn a_dropped_profile_does_not_promote_the_axis() {
         },
     );
     let mut tool = RevolveTool::new();
-    tool.pick(profile);
-    tool.pick(axis);
+    tool.pick(session.committed_doc(), profile);
+    tool.pick(session.committed_doc(), axis);
     // Delete the profile alone: nothing consumes it, so the cascade
     // is just the profile.
     let deleted = session.perform(SessionOp::DeleteNode { node: profile });
@@ -905,7 +905,7 @@ fn a_dropped_profile_does_not_promote_the_axis() {
             }],
         },
     );
-    tool.pick(profile);
+    tool.pick(session.committed_doc(), profile);
     assert_eq!(tool.profile(), Some(profile));
     assert_eq!(tool.axis(), Some(axis));
     assert!(tool.op(TAU).is_ok());
@@ -945,8 +945,8 @@ fn reconcile_drops_both_picks_across_a_new_document() {
         },
     );
     let mut tool = RevolveTool::new();
-    tool.pick(profile);
-    tool.pick(axis);
+    tool.pick(session.committed_doc(), profile);
+    tool.pick(session.committed_doc(), axis);
     let out = session.perform(SessionOp::NewDocument {
         name: "fresh".to_owned(),
     });
