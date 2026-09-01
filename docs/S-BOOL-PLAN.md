@@ -151,6 +151,26 @@ logged pre-draw per the protocol.
   pruned-pair pseudo-verdicts stays ruled out). Ground:
   `editor-core/resolve/vdiff.rs` + immediate callers; M10 keep-outs
   per the Q3 ruling.
+- **BOOL-8 — #433 half (i), the line-continuation junction (M;
+  under the Q1 ruling).** `junction_check`'s zero-turn-forward arm
+  distinguishes line-onto-line (carrier identity, legal undeclared —
+  validate's normative semantics) from curved undeclared tangency
+  (still refused); cusp and `SameCarrierJunction` untouched; the
+  `ArcContinueNeedsArcCarrier` doc's retired premise rewritten; lily
+  migrates onto the lattice through the public surface in the same
+  unit (the demo is the ruling's demonstration and the named-gap
+  close). PATHS §4 is design surface: the unit's PR carries the
+  amended junction semantics for Evan's eyes before merge.
+  `crates/profile` is SMELL track V fence ground — seam noted, the
+  cut assigned the issue here.
+- **BOOL-9 — #433 half (ii), the RawLoop demotion (L;
+  survey-first).** Enumerate every in-repo `RawLoop` writer; demote
+  the vertex table to the materialized/cache form (authoring through
+  the lattice only); migrate writers per the ruling (fixtures →
+  lattice or dev-only door, LoopBuilder precedent; step-import
+  marked as materialization); `validate` remains the data checker
+  for materialized loops. After BOOL-8 (lily needs the continuation
+  first).
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -168,15 +188,29 @@ this program's files — see Q3 below.
 
 ## Rulings sought (Evan)
 
-1. **Q1 — #433's disposition (OPEN; geometry clarified in-chat
-   2026-09-01).** The concrete disagreement: a loop whose two
-   consecutive straight segments lie on one carrier line (an
-   intermediate vertex splitting a straight run) is refused by the
-   constructive lattice as `SameCarrierJunction` ("carrier identity
-   is not tangency — extend the leg") and accepted by `validate` as
-   raw data. Stance (c) — intentional, stated at both sites — has
-   real texture: the constructive door refusing to MINT what the
-   data door must ACCEPT (imports exist) is coherent. Three stances are in
+1. **Q1 — RULED (Evan, in-chat, 2026-09-01), two halves.**
+   (i) The lattice's zero-turn-forward refusal is corrected for the
+   line-onto-line case: `junction_check` refuses every zero-turn
+   forward junction as `JunctionTangent` (the undeclared-tangency
+   doctrine over-applied), though collinear line/line is carrier
+   IDENTITY — legal undeclared, which is already `validate`'s
+   normative semantics (`tangent_joints`). A plain `line` leg after
+   a `line` leg IS the straight continuation (§2c: only the
+   directed point binds); the "no use case" premise recorded at
+   `ArcContinueNeedsArcCarrier` is retired — lily's loft vertex
+   budget is the use case, named since LIB-RETTAIL. Curved
+   zero-turn junctions, cusps, and declared-tangency-onto-identity
+   all keep refusing. This aligns the doors instead of arbitrating
+   them: BOOL-8. (ii) **`RawLoop` does not remain writable**: the
+   vertex table demotes to a CACHE — the materialized form
+   intensional recipes evaluate into, like the kernel's other
+   recipe→geometry seams — with authoring through the lattice only;
+   in-repo writers migrate (lily onto the lattice through the
+   public surface, retiring the tour's reach-around kernel
+   dependency; fixtures to the lattice or a dev-only door per the
+   LoopBuilder→test_support precedent; step-import as a
+   materialization door marked as such): BOOL-9, survey-first.
+   #433 closes when both land, with both sites' prose updated. Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
