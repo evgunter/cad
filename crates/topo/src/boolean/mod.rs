@@ -736,26 +736,38 @@ pub enum BooleanError {
         /// The class that was declared.
         class: ContactClass,
     },
-    /// **A shared-rim contact routed to an arm that is DEFINED but not
-    /// BUILT** (`docs/MATE-7-TANGENCY-DESIGN.md`, RATIFIED).
+    /// **A declared shared rim the routing classified as the wedge-π
+    /// SEAM** (`docs/MATE-7-TANGENCY-DESIGN.md`, RATIFIED).
     ///
-    /// The ruling routes a rim by the material wedge its two faces
-    /// subtend: π is the smooth seam, which is structural and needs no
-    /// declaration at all; 0 and 2π are the declared-cusp family,
-    /// whose verification consumes a certified witness along the rim
-    /// that the witness lane does not yet mint. Either way the
-    /// declaration in hand is not the one the routing wants, and the
-    /// refusal says which arm the geometry actually earned rather than
-    /// reporting the class as merely unsupported.
+    /// The π arm IS built — this refusal is not a gap in the design and
+    /// not a gap in the classification, which ran and answered. Two
+    /// things are true at once and the message says both: a wedge-π rim
+    /// is a seam of one composite wall and takes NO declaration, so a
+    /// `Tangent` claim on it is the wrong instrument; and the join
+    /// wiring that would consume this verdict while zipping is not
+    /// built, so the op cannot proceed on it either.
     ///
-    /// This is the A11-rider shape: the design is settled, one arm is
-    /// built, and the other refuses by pointing at the ruling that
-    /// defines it.
-    RimArmUnbuilt {
+    /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`] because
+    /// the two are different facts. One variant covering both would
+    /// have to call the π arm unbuilt, which is false.
+    RimSeamNotDeclarable {
         /// The declaration whose face pair carries the rim.
         declaration: crate::contact::DeclaredContact,
-        /// The wedge the rim's material subtends — the routing's own
-        /// verdict, taken on the geometry rather than assumed.
+    },
+    /// **A declared shared rim routed to the cusp family, which is
+    /// DEFINED but not BUILT** (the same ruling).
+    ///
+    /// Wedge 0 or 2π: the material pinches to a knife edge or opens to
+    /// a circular slit. This is the declared-cusp family, and it is the
+    /// arm the ruling deliberately left unbuilt — its verification
+    /// consumes a certified witness along the rim that the witness lane
+    /// does not yet mint. The A11-rider shape: the design is settled and
+    /// the refusal points at the ruling that settles it.
+    RimCuspArmUnbuilt {
+        /// The declaration whose face pair carries the rim.
+        declaration: crate::contact::DeclaredContact,
+        /// Which end of the wedge range the rim's material subtends —
+        /// the routing's own verdict, taken on the geometry.
         wedge: geom_brep::MaterialWedge,
     },
     /// A [`BooleanDeclarations`] payload references an entity that
@@ -1327,24 +1339,29 @@ impl core::fmt::Display for BooleanError {
                  refused at the door rather than ignored inside",
                 class.name()
             ),
-            Self::RimArmUnbuilt { declaration, wedge } => write!(
+            Self::RimSeamNotDeclarable { declaration } => write!(
+                f,
+                "boolean op: faces {:?}/{:?} share a rim circle the ratified routing \
+                 (docs/MATE-7-TANGENCY-DESIGN.md) classified as the SEAM (wedge π) — the two \
+                 walls continue one another smoothly through it. That arm is BUILT and it \
+                 answered; what is refused is the DECLARATION. A seam is structural and takes \
+                 no contact declaration at all, so a {} claim on it names the wrong class — \
+                 and separately, the join wiring that would consume this verdict while \
+                 zipping is not built, so the op cannot proceed on the pair either",
+                declaration.a,
+                declaration.b,
+                declaration.class.name()
+            ),
+            Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
                 f,
                 "boolean op: faces {:?}/{:?} share a rim circle whose material wedge is {} — \
-                 the ratified routing (docs/MATE-7-TANGENCY-DESIGN.md) sends {}, and this \
-                 declaration of class {} is not what that arm consumes",
+                 the ratified routing (docs/MATE-7-TANGENCY-DESIGN.md) sends a wedge-0/2π rim \
+                 to the declared-{} cusp family, whose certified rim witness is DEFINED BUT \
+                 UNBUILT: the declaration is the right instrument and there is nothing yet to \
+                 verify it against",
                 declaration.a,
                 declaration.b,
                 wedge.name(),
-                match wedge {
-                    geom_brep::MaterialWedge::Seam =>
-                        "a wedge-π rim to the smooth-seam zip, which is structural and takes \
-                         no declaration",
-                    geom_brep::MaterialWedge::Cusp | geom_brep::MaterialWedge::Slit =>
-                        "a wedge-0/2π rim to the declared-Tangent cusp family, whose certified \
-                         rim witness is DEFINED BUT UNBUILT",
-                    geom_brep::MaterialWedge::Transverse =>
-                        "a transverse rim to the ordinary crossing lanes",
-                },
                 declaration.class.name()
             ),
             Self::InvalidDeclaration { operand, what } => write!(
@@ -1920,11 +1937,14 @@ fn verify_tangent_declaration<T: Decide>(
                     body.get_face(f)
                         .map_or_else(T::one, |face| face.sense_sign::<T>())
                 };
-                // The rim's own diameter is the extent the angular
-                // margins are metered at: it is the reach over which
-                // this contact's verdict is consumed.
+                // The rim's own diameter is the extent every angular
+                // margin here is metered at — the screen's, the
+                // material arm's and the rim identification's alike:
+                // it is the reach over which this contact's verdict is
+                // consumed, and three stages levering against three
+                // different arms would not be comparable.
                 let extent = rim.radius + rim.radius;
-                if let Ok(routing) = rim_wedge::classify_shared_rim(
+                match rim_wedge::classify_shared_rim(
                     &sa,
                     senses(a, fa),
                     &sb,
@@ -1932,9 +1952,51 @@ fn verify_tangent_declaration<T: Decide>(
                     rim,
                     extent,
                     band,
-                ) && let Some(wedge) = routing.wedge()
-                {
-                    return Err(BooleanError::RimArmUnbuilt { declaration, wedge });
+                ) {
+                    // Wedge π: the arm is built and it answered; the
+                    // declaration is what is wrong.
+                    Ok(rim_wedge::RimRouting::Seam) => {
+                        return Err(BooleanError::RimSeamNotDeclarable { declaration });
+                    }
+                    // Wedge 0/2π: the ruling's unbuilt arm.
+                    Ok(rim_wedge::RimRouting::Cusp(wedge)) => {
+                        return Err(BooleanError::RimCuspArmUnbuilt { declaration, wedge });
+                    }
+                    // **Definite counter-evidence CONTRADICTS**, and
+                    // this is C4's invariant rather than a new rule:
+                    // every definite verdict wins over every
+                    // declaration. A rim whose tangent planes are
+                    // definitely distinct at every station is a
+                    // crossing, and a rim whose opposed sheets osculate
+                    // is conformal contact — a `Rest` claim wearing a
+                    // rim's clothes. Neither is a tangency, and saying
+                    // so is strictly better than reporting the CLASS as
+                    // unsupported: the geometry, not the kernel's
+                    // coverage, is what refuses.
+                    Ok(routing @ (rim_wedge::RimRouting::Transverse | rim_wedge::RimRouting::Lamina)) => {
+                        return Err(BooleanError::ContactContradicted {
+                            declaration,
+                            steer: None,
+                            margin: Indeterminate {
+                                margin: MarginDiag::Invalid,
+                                band,
+                                // Display-only, the `contact_tangent_
+                                // conformal` precedent: the deciding
+                                // `decide` calls ran inside the routing
+                                // and are already in the funnel under
+                                // their own names, so this labels the
+                                // FINDING for the reader rather than
+                                // claiming a second measurement.
+                                predicate: Some(match routing {
+                                    rim_wedge::RimRouting::Lamina => "contact_tangent_rim_lamina",
+                                    _ => "contact_tangent_rim_transverse",
+                                }),
+                            },
+                        });
+                    }
+                    // The samples could not settle the rim: the bare
+                    // class refusal below stands, verbatim.
+                    Err(_) => {}
                 }
             }
             return Err(BooleanError::UnsupportedDeclarationClass {

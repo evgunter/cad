@@ -393,27 +393,26 @@ fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
 /// The declaration is `Tangent` because that is the only class an
 /// author has to state a rim contact with today — and the routing's
 /// answer is precisely that this rim does not want one: a wedge-π rim
-/// is structural. The refusal says so, naming the wedge it measured.
+/// is structural. The refusal is its own variant so it can say that
+/// without also claiming the π arm is unbuilt, which it is not.
 #[test]
 fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     let (a, b) = (segment_a(), segment_b());
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("the π arm's join wiring is not built; the routing still answers");
-    match err {
-        BooleanError::RimArmUnbuilt { wedge, .. } => {
-            assert_eq!(
-                wedge,
-                geom_brep::MaterialWedge::Seam,
-                "a G1 chain's rim is the wedge-π seam"
-            );
-        }
-        other => panic!("expected the routing's verdict, got {other:?}"),
-    }
+        .expect_err("a seam takes no declaration, and the join wiring is not built");
+    assert!(
+        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+        "a G1 chain's rim is the wedge-π seam: {err:?}"
+    );
     let text = format!("{err}");
     assert!(
         text.contains("MATE-7-TANGENCY-DESIGN"),
         "the refusal must cite the ruling of record: {text}"
+    );
+    assert!(
+        !text.contains("UNBUILT"),
+        "the π arm IS built — the seam refusal must not claim otherwise: {text}"
     );
 }
 
@@ -430,7 +429,7 @@ fn a_kissing_torus_rim_routes_to_the_unbuilt_cusp_family() {
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("the cusp family is defined and unbuilt");
     match err {
-        BooleanError::RimArmUnbuilt { wedge, .. } => {
+        BooleanError::RimCuspArmUnbuilt { wedge, .. } => {
             assert_eq!(
                 wedge,
                 geom_brep::MaterialWedge::Slit,
@@ -464,14 +463,22 @@ fn the_two_arms_are_decided_by_the_rim_and_not_by_the_kind() {
         let d = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
         topo::union_with(&a, &b, &d, Tol::witness()).expect_err("kiss refuses")
     };
-    let wedge = |e: &BooleanError| match *e {
-        BooleanError::RimArmUnbuilt { wedge, .. } => wedge,
-        _ => panic!("expected the routing's verdict"),
-    };
-    assert_ne!(
-        wedge(&chain),
-        wedge(&kiss),
-        "one routing, two geometries, two answers"
+    // The two arms are DIFFERENT VARIANTS, which is the sharper form
+    // of the same claim: the routing did not merely fill one payload
+    // two ways, it sent the two geometries down two paths.
+    assert!(
+        matches!(chain, BooleanError::RimSeamNotDeclarable { .. }),
+        "the G1 chain routes to the seam: {chain:?}"
+    );
+    assert!(
+        matches!(
+            kiss,
+            BooleanError::RimCuspArmUnbuilt {
+                wedge: geom_brep::MaterialWedge::Slit,
+                ..
+            }
+        ),
+        "the kissing pair routes to the cusp family: {kiss:?}"
     );
 }
 

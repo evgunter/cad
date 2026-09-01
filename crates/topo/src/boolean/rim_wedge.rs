@@ -64,6 +64,11 @@ pub(crate) enum RimRouting {
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
     Lamina,
+    /// Tangent planes definitely DISTINCT at every station: a genuine
+    /// corner, which is the ordinary crossing lanes' business and not a
+    /// rim contact at all. A first-order verdict, decided by the screen
+    /// and never by the material arm.
+    Transverse,
 }
 
 impl RimRouting {
@@ -77,6 +82,7 @@ impl RimRouting {
         match self {
             Self::Seam => Some(MaterialWedge::Seam),
             Self::Cusp(w) => Some(w),
+            Self::Transverse => Some(MaterialWedge::Transverse),
             Self::Lamina => None,
         }
     }
@@ -169,12 +175,48 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// **The routing itself**: the wedge the two faces' material subtends
 /// across the rim, sampled around the circle.
 ///
+/// **The first-order screen runs FIRST, and it is the precondition the
+/// imported fold is only valid behind.** Check 4's material arm reads
+/// `sign(n̂₊ · n̂₋)`, which distinguishes one material side from two —
+/// and NOTHING else. On a pair whose tangent planes are definitely
+/// distinct that sign is still perfectly well defined and perfectly
+/// meaningless: a sphere cut by a plane at 53° has aligned normals at
+/// its rim and would read "seam", which is a false statement about the
+/// geometry rather than a missing verdict. Tier 3 never asks the
+/// question there because it reaches the material arm only after every
+/// interior sample classified definitely `Smooth`; this door owes the
+/// same screen, so `classify_dihedral` runs per sample before anything
+/// second-order is computed. Importing a fold means importing what it
+/// is defined over.
+///
+/// The five outcomes are the validator's own, one for one:
+///
+/// - every sample `Transverse` ⇒ [`RimRouting::Transverse`], set
+///   DIRECTLY and never through the fold (which cannot produce it —
+///   the material arm is not consulted on a genuine corner);
+/// - every sample `Smooth` ⇒ the material arm, whose verdicts are the
+///   seam, the two cusp ends and the lamina;
+/// - samples that DISAGREE ⇒ escalated, naming `dihedral_wedge`: a rim
+///   that is a corner in one place and a tangency in another is not
+///   one contact, and no single routing is honest for it;
+/// - a `classify_dihedral` escalation ⇒ passed through verbatim;
+/// - a spline-chart face on either side ⇒ escalated: the implicit
+///   gradient is poison on a fit, so neither the screen nor the arm can
+///   run, and answering from a poisoned normal is worse than declining.
+///
 /// The samples are the certification schedule's
-/// (`geom_brep::CERT_SAMPLES`, interior points only — an endpoint of a
-/// closed rim is a seam site, not a sample), and every one must agree:
-/// a rim whose own samples disagree about which configuration it is
-/// escalates rather than picking the majority. That is the fold's rule
-/// and it is imported, not restated.
+/// (`geom_brep::CERT_SAMPLES`), taken at uniform phase around the CLOSED
+/// rim starting at its own `u_ref`. **That schedule differs from tier
+/// 3's on purpose and the divergence is named at both ends**: an edge is
+/// an open arc whose endpoints are vertices already classified by other
+/// rules, so the validator samples its interior (`1..CERT_SAMPLES-1`); a
+/// rim is a closed circle with no endpoint to exclude, so every sample
+/// is interior to it and the phase-zero sample is an ordinary point of
+/// the contact, not a boundary site. Sampling `1..n-1` here would drop
+/// two of nine readings for a reason that does not apply. Every sample
+/// must agree either way — a rim whose own samples disagree escalates
+/// rather than being decided by majority, which is the fold's rule and
+/// is imported, not restated.
 ///
 /// `extent` is the lever arm the angular margins are metered at — the
 /// contact's own reach, so a misalignment is priced as the
@@ -199,19 +241,67 @@ pub(crate) fn classify_shared_rim<T: Decide>(
         u_ref: u,
     } = rim;
     let v = axis.cross(u);
+    let n = geom_brep::CERT_SAMPLES;
+    let phase = |i: u32| core::f64::consts::TAU * (f64::from(i) / f64::from(n));
+    // The sample points and their rim tangents, derived once: the
+    // first-order screen and the material arm must read the SAME
+    // stations, or the screen certifies a rim the arm did not judge.
+    let station = |i: u32| {
+        let theta = T::from_f64(phase(i));
+        let (s, c) = (theta.sin(), theta.cos());
+        (
+            center + (u * c + v * s) * radius,
+            (v * c - u * s) * radius,
+        )
+    };
+
+    // ---- The first-order screen (docs above): the precondition the
+    // material arm is only defined behind. ----
+    //
+    // A spline chart on either side is exempt by KIND and says so: the
+    // implicit gradient both stages read is poison on a fit, so this is
+    // "the question cannot be posed here", not "the answer is no".
+    if s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some() {
+        return Err(Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some("dihedral_wedge"),
+        });
+    }
+    let mut all_transverse = true;
+    let mut all_smooth = true;
+    for i in 0..n {
+        let (p, _) = station(i);
+        match geom_brep::classify_dihedral(s_plus, s_minus, p, extent, band)? {
+            geom_brep::DihedralClass::Transverse => all_smooth = false,
+            geom_brep::DihedralClass::Smooth => all_transverse = false,
+        }
+    }
+    if all_transverse {
+        // Set DIRECTLY, exactly as the validator does: a genuine corner
+        // is a first-order verdict and the material arm has no say in
+        // it. This is also why the fold below can never return
+        // `Transverse` — nothing routes to it there.
+        return Ok(RimRouting::Transverse);
+    }
+    if !all_smooth {
+        // Corner at one station, tangency at another: not one contact,
+        // and no single routing is honest for it.
+        return Err(Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some("dihedral_wedge"),
+        });
+    }
+
+    // ---- The material arm, now validly posed. ----
     let mut aligned = true;
     let mut opposed = true;
     let mut jet_determinate = true;
     let mut side: Option<MaterialWedge> = None;
     let mut side_mixed = false;
-    let n = geom_brep::CERT_SAMPLES;
-    let phase = |i: u32| core::f64::consts::TAU * (f64::from(i) / f64::from(n));
     for i in 0..n {
-        let theta = T::from_f64(phase(i));
-        let (s, c) = (theta.sin(), theta.cos());
-        let p = center + (u * c + v * s) * radius;
-        // The rim's own tangent there: the derivative of the circle.
-        let dir = (v * c - u * s) * radius;
+        let (p, dir) = station(i);
         let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
         match geom_brep::classify_material_pairing(
             s_plus,
@@ -264,11 +354,12 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     }
     match material_arm_outcome(aligned, opposed, jet_determinate, side, side_mixed) {
         MaterialArmOutcome::Wedge(MaterialWedge::Seam) => Ok(RimRouting::Seam),
-        MaterialArmOutcome::Wedge(MaterialWedge::Transverse) => Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("material_wedge_side"),
-        }),
+        // `Transverse` is unreachable from the fold BY CONSTRUCTION —
+        // the validator sets it directly off the first-order screen and
+        // so does the screen above, so nothing routes to it here. Kept
+        // total rather than `unreachable!`: a verdict this door cannot
+        // account for is reported, never assumed away.
+        MaterialArmOutcome::Wedge(MaterialWedge::Transverse) => Ok(RimRouting::Transverse),
         MaterialArmOutcome::Wedge(w) => Ok(RimRouting::Cusp(w)),
         MaterialArmOutcome::Lamina => Ok(RimRouting::Lamina),
         MaterialArmOutcome::Split { predicate } => Err(Indeterminate {
@@ -276,5 +367,52 @@ pub(crate) fn classify_shared_rim<T: Decide>(
             band,
             predicate: Some(predicate),
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod redfirst {
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// RED-FIRST (MAJ-1): a unit sphere cut by z = 0.6 is a DEFINITE
+    /// 53-degree crossing, not a tangency. The routing must not call
+    /// it a seam.
+    #[test]
+    fn a_transverse_rim_is_not_a_seam() {
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.6),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let rim = Rim {
+            center: Point3::new(0.0, 0.0, 0.6),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let got = classify_shared_rim(&sphere, 1.0, &plane, 1.0, rim, 1.6, band());
+        println!("transverse rim answers {got:?}");
+        assert!(
+            !matches!(got, Ok(RimRouting::Seam)),
+            "a definite 53-degree crossing is not a smooth seam: {got:?}"
+        );
+        let flipped = classify_shared_rim(&sphere, 1.0, &plane, -1.0, rim, 1.6, band());
+        println!("transverse rim, reversed sense, answers {flipped:?}");
+        assert!(
+            !matches!(flipped, Ok(RimRouting::Cusp(_))),
+            "reversing a face sense cannot turn a crossing into a cusp: {flipped:?}"
+        );
     }
 }
