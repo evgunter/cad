@@ -293,6 +293,16 @@ pub enum ContactMark {
     /// the must-carry by this very verdict.
     SmoothUnderdetermined,
     /// A `Seam`-described edge — exempt by kind, as always.
+    ///
+    /// **Not [`geom_brep::MaterialWedge::Seam`]**, which sits four
+    /// lines away in the same check and means something else entirely:
+    /// that one is the material VERDICT wedge π (the two faces
+    /// continue one another), while this one is a statement about the
+    /// edge's DESCRIPTION (a chart seam), and an exemption rather than
+    /// a verdict. Both names are load-bearing in their own
+    /// vocabularies — the ruling calls wedge π the seam, and chart
+    /// seams have been `Seam` since M2 — so neither is renamed; the
+    /// hazard is called out instead, here and there.
     Seam,
     /// No definite whole-edge verdict: mixed samples, or an
     /// escalation already reported as its own error.
@@ -595,13 +605,34 @@ pub enum ValidationError {
     ///
     /// This is conformal contact along the locus, which fails the
     /// declared arm's curve-locus condition: the surfaces do not
-    /// determine which end of the wedge range this is (there is no
-    /// crescent, only a zero-thickness sheet), so the body is a
-    /// lamina — a zero-volume geometric defect, exactly as before the
-    /// declared arm existed. **No declaration cures it**, which is why
-    /// this refusal outranks [`Self::UndeclaredCusp`] on an edge that
-    /// would earn both: telling a modeler to declare a contact that
-    /// cannot be certified is worse than silence.
+    /// determine which end of the wedge range this is — there is no
+    /// crescent, only a zero-thickness sheet — and **no declaration
+    /// cures it**, because there is no certifiable curve-locus
+    /// tangency to declare.
+    ///
+    /// **Two different defects wear this local signature**, and the
+    /// message says so rather than picking one:
+    ///
+    /// - a genuine **lamina** — a zero-volume sheet (the flipped
+    ///   rimless ball measures exactly 0.0). Recourse: move the
+    ///   geometry.
+    /// - an **orientation defect** in a body of real volume: two
+    ///   faces lying on ONE surface with one face's `sense` inverted
+    ///   read as opposed material sides with osculating jets, because
+    ///   osculation is what two faces of the same surface DO. The
+    ///   flipped conic-trim `cut_cylinder` is this shape, and it
+    ///   measures 3.9269908167918763, not zero. Recourse: fix the
+    ///   sense.
+    ///
+    /// The check is edge-LOCAL, so it cannot tell the two apart — both
+    /// are genuinely refused, and the diagnosis belongs to whoever
+    /// reads the faces. Claiming "zero-volume" of both would be a
+    /// false diagnosis attached to a true catch.
+    ///
+    /// It shares no edge with [`Self::UndeclaredCusp`]: a collapsed
+    /// κ_rel yields no wedge end, so the two refusals are mutually
+    /// exclusive by construction (`MaterialArmOutcome`), not by a
+    /// precedence between them.
     ///
     /// In-band κ_rel is NOT this: an osculation the run cannot decide
     /// escalates as [`Self::SliverDihedral`] with the
@@ -1418,9 +1449,14 @@ impl fmt::Display for ValidationError {
                 f,
                 "edge {edge:?}: its two faces have opposed material sides and OSCULATING \
                  jets (κ_rel definitely collapsed) — conformal contact along the locus, \
-                 not the curve-locus tangency the declared wedge-0/2π arm admits. That is \
-                 a lamina: a zero-volume geometric defect, and no contact declaration \
-                 cures it — move the geometry"
+                 not the curve-locus tangency the declared wedge-0/2π arm admits, and no \
+                 contact declaration cures it (there is no certifiable tangency to \
+                 declare). Two defects wear this signature and this edge-local reading \
+                 cannot separate them: a genuine zero-thickness LAMINA (move the \
+                 geometry), or a body of real volume whose two faces share ONE surface \
+                 with one face's SENSE inverted — osculation is what two faces of the \
+                 same surface do (fix the sense). Read the two faces' surfaces and senses \
+                 before moving anything"
             ),
             Self::LoopRoleInverted { face, r#loop } => write!(
                 f,
@@ -1992,9 +2028,12 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    `Tangent` contact on the face pair DECLARES the tangency
 ///    ([`ValidationError::UndeclaredCusp`]) and the jet is determinate
 ///    — a collapsed κ_rel there is conformal contact along the locus,
-///    the lamina the arm does not admit
-///    ([`ValidationError::LaminaWedge`]), and an in-band κ_rel is the
-///    ordinary `SliverDihedral` escalation.
+///    which the arm does not admit under any declaration
+///    ([`ValidationError::LaminaWedge`]: a true lamina, or an
+///    inverted face sense on a shared surface — that error's own doc
+///    separates them), and an in-band κ_rel is the ordinary
+///    `SliverDihedral` escalation. Samples that DISAGREE along one
+///    edge escalate too, rather than falling silent.
 /// 5. **Planar-boundary containment** (same edge sweep, same samples;
 ///    M2 PR 3 fix pass): each interior carrier sample is checked
 ///    against each **adjacent planar** face's plane — the
@@ -2143,6 +2182,92 @@ fn declares_tangent_contact(declarations: &[DeclaredContact], a: FaceKey, b: Fac
         d.class == crate::contact::ContactClass::Tangent
             && ((d.a == a && d.b == b) || (d.a == b && d.b == a))
     })
+}
+
+/// What check 4's **material arm** concluded about one edge.
+///
+/// One value rather than a pair of flags, because the outcomes are
+/// mutually exclusive BY CONSTRUCTION and this type is where that is
+/// enforced: a collapsed κ_rel yields no end, so an edge can never
+/// earn both the lamina refusal and the undeclared-wedge refusal.
+/// (The earlier shape carried `lamina: bool` beside
+/// `material: Option<MaterialWedge>` and documented a PRECEDENCE
+/// between them — a ranking that could never fire, and a reader
+/// cannot tell a dead branch from a live one. The exclusivity is
+/// structural now, so there is no ranking left to state.)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MaterialArmOutcome {
+    /// One material wedge for the whole edge (every sample agreed).
+    Wedge(MaterialWedge),
+    /// Opposed material sides whose jets **osculate** — conformal
+    /// contact along the locus, refused as [`ValidationError::LaminaWedge`].
+    Lamina,
+    /// The samples did not deliver ONE verdict: the named predicate
+    /// classified differently at different samples along the edge (or,
+    /// unreachably, at none of them). Escalated, never silent — see
+    /// [`material_arm_outcome`].
+    Split {
+        /// The predicate whose per-sample verdicts disagreed.
+        predicate: &'static str,
+    },
+}
+
+/// The material arm's fold: the flags one edge's sample loop
+/// accumulates, resolved into the ONE outcome that edge earns.
+///
+/// Total and pure, which is the point. Two of its input states —
+/// a pairing that split (`aligned == opposed`) and a wedge end that
+/// split (`side_mixed`) — are not known to be reachable through
+/// certified geometry, and an unreachable state's handling can only be
+/// pinned by CALLING the fold with it; `material_arm_split_states_escalate`
+/// does exactly that.
+///
+/// Both split states **escalate** rather than fall silent. Silence
+/// there would validate an undeclared cusp clean on an edge whose own
+/// samples disagreed about which material configuration it is — the
+/// opposite of the refusal the arm exists for. This is the same
+/// posture the sibling decisions already take one order up
+/// (`material_wedge_side`'s unreachable `Zero` is announced as
+/// `Invalid` rather than guessed), and it is NOT the first-order
+/// pass's mixed transverse/smooth exemption: that one exempts an edge
+/// from a DEMAND (carry an intrinsic description), while this one
+/// would exempt it from a REFUSAL.
+pub(crate) fn material_arm_outcome(
+    aligned: bool,
+    opposed: bool,
+    jet_determinate: bool,
+    side: Option<MaterialWedge>,
+    side_mixed: bool,
+) -> MaterialArmOutcome {
+    match (aligned, opposed) {
+        // Every sample: one material side. The two faces continue one
+        // another and the wedge is the legal π seam — a verdict the
+        // second-order margin has no say in.
+        (true, false) => MaterialArmOutcome::Wedge(MaterialWedge::Seam),
+        // Every sample: opposed material sides. The wedge is one of
+        // the two ends, and which one is the second-order question.
+        (false, true) => {
+            if !jet_determinate {
+                MaterialArmOutcome::Lamina
+            } else {
+                match side {
+                    Some(wedge) if !side_mixed => MaterialArmOutcome::Wedge(wedge),
+                    // Split, or (unreachably, with CERT_SAMPLES = 9)
+                    // no sample at all: both are "the end did not
+                    // resolve", and neither may pass as legal.
+                    _ => MaterialArmOutcome::Split {
+                        predicate: "material_cusp_side",
+                    },
+                }
+            }
+        }
+        // The pairing itself split across samples, or classified at no
+        // sample: no material configuration is established for this
+        // edge at all.
+        _ => MaterialArmOutcome::Split {
+            predicate: "material_wedge_side",
+        },
+    }
 }
 
 /// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
@@ -2444,14 +2569,28 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //    per edge-face pair). Curved-face containment is NOT checked
     //    (`validate_geometric`'s not-yet-checked list; #638).
     //
-    // S10 CATEGORY C, both: neither reads a face orientation at all.
-    // Check 4 takes the two SURFACES (never the faces) and classifies
-    // the UNSIGNED tangent-plane wedge from implicit-form gradients —
-    // it distinguishes transverse from smooth, never which side the
-    // material is on (that is the deferred material-wedge check, named
-    // in the header). Check 5 tests `(p − origin)·n` against `Zero`,
-    // sign-invariant for the same reason as check 3. `sense_sign` is
-    // deliberately absent from both.
+    // S10, one category per ARM — not one per check, because check 4
+    // has two arms and they differ:
+    //
+    // - **Check 4, first-order pass: CATEGORY C.** It takes the two
+    //   SURFACES (never the faces) and classifies the UNSIGNED
+    //   tangent-plane wedge from implicit-form gradients: transverse
+    //   or smooth, never which side the material is on. No
+    //   `sense_sign`, and its verdict is invariant under `revert`.
+    // - **Check 4, MATERIAL arm: CATEGORY A.** It reads both faces'
+    //   `Face::sense_sign`, and must — the material side IS the face
+    //   orientation, and the whole content of "unsigned" above is that
+    //   the first-order pass cannot see it (D1's ratified wedge table,
+    //   the #131 second-order ruling; the arm's own note sits at its
+    //   code below). Its verdict is NOT revert-invariant: reverting a
+    //   body maps `Cusp` ↔ `Slit`, which is the ruling's own symmetry.
+    // - **Check 5: CATEGORY C.** It tests `(p − origin)·n` against
+    //   `Zero`, sign-invariant for the same reason as check 3.
+    //
+    // (This header said CATEGORY C of both checks, on the strength of
+    // a deferral the material arm retired. Two contradictory category
+    // claims about one function is exactly what the D6 hand-multiply
+    // discipline reads this header to prevent.)
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
         // Null scaffolding cannot reach the tier-3 passes: the coarse
@@ -2579,15 +2718,20 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // locus — a lamina, refused as `LaminaWedge` and not curable
         // by any declaration; in-band is `SliverDihedral`, the honest
         // escalation. A whole-edge verdict needs every sample to
-        // agree: a mixed edge is exempt by the predicate, exactly as
-        // the mixed transverse/smooth set is.
+        // agree, and an edge whose samples DISAGREE — about the
+        // pairing, or about which end — escalates
+        // (`MaterialArmOutcome::Split`) rather than falling silent:
+        // silence there would validate an undeclared cusp clean on the
+        // strength of its own samples contradicting one another. That
+        // is the opposite of the first-order pass's mixed
+        // transverse/smooth exemption, which exempts an edge from a
+        // DEMAND rather than from a REFUSAL.
         //
         // S10 CATEGORY A: this arm reads `Face::sense`, and must —
         // the material side IS the face orientation, and the deferral
         // this closes was precisely that the first-order pass cannot
         // see it.
-        let mut material: Option<MaterialWedge> = None;
-        let mut lamina = false;
+        let mut arm: Option<MaterialArmOutcome> = None;
         #[allow(clippy::if_same_then_else)]
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
@@ -2599,7 +2743,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         ) {
             ContactMark::Seam
         } else if all_transverse {
-            material = Some(MaterialWedge::Transverse);
+            arm = Some(MaterialArmOutcome::Wedge(MaterialWedge::Transverse));
             ContactMark::Transverse
         } else if all_smooth {
             let sense_plus = match body.get_face(f_plus) {
@@ -2644,6 +2788,18 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
                 match decide("tangent_second_order", margin, band) {
                     Ok(Sign::Positive) => {}
+                    // ONE zero-side sample ends the edge's determinacy
+                    // — and on the opposed arm that is the lamina
+                    // refusal for the WHOLE edge, on the strength of a
+                    // single sample. Deliberate, and conservative in
+                    // the direction the ε rule cares about: the
+                    // declared arm's condition is that the surfaces
+                    // determine the locus ALONG the edge, so one place
+                    // they do not is enough to deny it (the same rule
+                    // the mark already follows — any zero-side sample
+                    // marks `SmoothUnderdetermined`). ε-tightening
+                    // makes zero-side verdicts RARER, so it can only
+                    // remove this refusal, never introduce one.
                     Ok(Sign::Zero | Sign::Negative) => {
                         jet_determinate = false;
                         break;
@@ -2700,20 +2856,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                 }
             }
             if !jet_escalated {
-                material = if opposed && !aligned {
-                    if !jet_determinate {
-                        lamina = true;
-                        None
-                    } else if side_mixed {
-                        None
-                    } else {
-                        side
-                    }
-                } else if aligned && !opposed {
-                    Some(MaterialWedge::Seam)
-                } else {
-                    None
-                };
+                arm = Some(material_arm_outcome(
+                    aligned,
+                    opposed,
+                    jet_determinate,
+                    side,
+                    side_mixed,
+                ));
             }
             if jet_escalated {
                 ContactMark::Unmarked
@@ -2725,19 +2874,35 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         } else {
             ContactMark::Unmarked
         };
-        // The verdict table's two refusing rows. The lamina outranks
-        // the missing declaration on an edge that earns both: a
-        // conformal contact is not certifiable as the curve-locus
-        // tangency the arm admits, so "declare it" would be a lie.
-        if lamina {
-            errors.push(ValidationError::LaminaWedge { edge: edge_key });
-        } else if let Some(wedge) = material.filter(|w| w.is_declared_arm())
-            && !declares_tangent_contact(declarations, f_plus, f_minus)
-        {
-            errors.push(ValidationError::UndeclaredCusp {
-                edge: edge_key,
-                wedge,
-            });
+        // The verdict table's refusing rows, read off the ONE outcome
+        // the arm produced (`MaterialArmOutcome` — the states are
+        // exclusive by construction, so nothing here ranks anything).
+        // `None` is an edge the arm never judged: exempt by kind, or
+        // already escalated with its own error.
+        match arm {
+            Some(MaterialArmOutcome::Lamina) => {
+                errors.push(ValidationError::LaminaWedge { edge: edge_key });
+            }
+            Some(MaterialArmOutcome::Split { predicate }) => {
+                errors.push(ValidationError::SliverDihedral {
+                    edge: edge_key,
+                    cause: Indeterminate {
+                        margin: geom_core::MarginDiag::Invalid,
+                        band,
+                        predicate: Some(predicate),
+                    },
+                });
+            }
+            Some(MaterialArmOutcome::Wedge(wedge))
+                if wedge.is_declared_arm()
+                    && !declares_tangent_contact(declarations, f_plus, f_minus) =>
+            {
+                errors.push(ValidationError::UndeclaredCusp {
+                    edge: edge_key,
+                    wedge,
+                });
+            }
+            Some(MaterialArmOutcome::Wedge(_)) | None => {}
         }
         if mark == ContactMark::Tangent
             && curve.authority().is_declared()

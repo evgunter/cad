@@ -2840,3 +2840,67 @@ impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Start {
         path.tangent_arc_to_start(tol)
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **The cusp door's exactness guard.**
+    ///
+    /// [`Dir::reversed`] promises the departure ray is the incoming ray
+    /// NEGATED, never re-derived as `ang + π` — and that promise is the
+    /// reason a declared cusp is a structural fact rather than a value
+    /// coincidence. Until this row existed the promise was held by
+    /// prose alone: the `ang + π` mutant passed every suite in the
+    /// workspace, because every downstream check reads the junction
+    /// through a TOLERANCE and the two spellings differ by ulps.
+    ///
+    /// A tolerance can never catch that, so the guard is at the bit
+    /// level, at the door itself, and it asserts both halves:
+    ///
+    /// 1. the reversed ray is bit-exactly the negation, and
+    /// 2. the `ang + π` spelling would NOT be — on every case here,
+    ///    axis-aligned and axis-oblique alike. Both parts of (2) matter:
+    ///    on an axis the mutant leaks the quantization of π into the
+    ///    zero component (`sin π = 1.22e-16`), and off-axis it lands
+    ///    ulps away in BOTH components because the sum `ang + π` rounds
+    ///    before `sin_cos` ever sees it.
+    ///
+    /// This is a unit row rather than an authored-path row on purpose:
+    /// `Dir`'s fields are private, and the negation is exactly the fact
+    /// no observable path predicate can distinguish.
+    #[test]
+    fn the_cusp_door_negates_the_ray_it_never_re_derives_it_from_the_angle() {
+        // Unit rays: three on-axis, two oblique.
+        let cases: [Vec2<f64>; 5] = [
+            Vec2::new(1.0, 0.0),
+            Vec2::new(0.0, 1.0),
+            Vec2::new(-1.0, 0.0),
+            Vec2::new(0.6, 0.8),
+            Vec2::new(0.28, 0.96),
+        ];
+        for u in cases {
+            let incoming = Dir::from_unit(u);
+            let reversed = incoming.reversed();
+            assert_eq!(
+                reversed.unit.x.to_bits(),
+                (-u.x).to_bits(),
+                "the reversed ray's x is the negated bits ({u:?})"
+            );
+            assert_eq!(
+                reversed.unit.y.to_bits(),
+                (-u.y).to_bits(),
+                "the reversed ray's y is the negated bits ({u:?})"
+            );
+            // The mutation this row exists to kill.
+            let via_angle = Dir::from_angle(incoming.ang + core::f64::consts::PI);
+            assert!(
+                via_angle.unit.x.to_bits() != reversed.unit.x.to_bits()
+                    || via_angle.unit.y.to_bits() != reversed.unit.y.to_bits(),
+                "`ang + π` must NOT reproduce the negation ({u:?}) — if it does, this \
+                 guard is vacuous and the door's promise is untestable here"
+            );
+        }
+    }
+}

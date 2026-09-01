@@ -9,10 +9,13 @@
 //!   genuine corner, and an [`crate::EdgeDescription::Intersection`]
 //!   description is well-conditioned there (the margin below *is* D2's
 //!   transversality margin).
-//! - **Smooth** — tangent planes coincide at tolerance: the legal
-//!   π-wedge seam case (coplanar splits, smooth profile joins, seams).
-//!   The construction stores a conventional description
-//!   (`MappedCurve`/`Seam`).
+//! - **Smooth** — tangent planes coincide at tolerance. This is
+//!   UNSIGNED and therefore not a legality verdict: the legal π seam
+//!   (coplanar splits, smooth profile joins, seams), the cusp (wedge
+//!   0) and the knife slit (2π) all classify `Smooth`, because
+//!   coincident tangent planes are all this predicate sees. Signing it
+//!   is the material section below. The construction stores a
+//!   conventional description (`MappedCurve`/`Seam`).
 //! - **Sliver** — the in-band remainder, surfaced as the typed
 //!   [`Indeterminate`] escalation (D4 ¶3): near-tangent geometry is
 //!   certifiable as neither intrinsic nor conventional, and a
@@ -94,8 +97,13 @@ pub enum DihedralClass {
     /// Tangent planes definitely distinct: a genuine corner;
     /// `Intersection`'s transversality precondition holds here.
     Transverse,
-    /// Tangent planes coincident at tolerance: the legal smooth/seam
-    /// case (wedge = π).
+    /// Tangent planes coincident at tolerance — and NOTHING more:
+    /// this variant does not say the wedge is π, nor that the edge is
+    /// legal. Tangent *planes* are all that is compared, so the seam
+    /// (π), the cusp (0) and the knife slit (2π) all land here; which
+    /// of the three it is takes the faces' material sides
+    /// ([`MaterialWedge`], [`classify_material_pairing`]) and, for the
+    /// two ends, the second-order jet.
     Smooth,
 }
 
@@ -184,6 +192,15 @@ pub fn classify_dihedral<T: Decide>(
 /// not comparable: the first-order wedge ([`classify_dihedral`]), the
 /// material pairing ([`classify_material_pairing`]) and the
 /// second-order jet margin the tier-3 validator decides.
+///
+/// "One home" is **aspiration, not fact**, and the gap is filed as
+/// issue 1439: six hand-rolled siblings of this fold remain across
+/// the workspace, and `contact_tangent_opposed` is
+/// [`classify_material_pairing`]'s own twin — the same C1 lemma
+/// between bodies rather than within one. Consolidating them is that
+/// issue's work, deliberately NOT absorbed here; until it lands, a
+/// new site levering against its own fold is a silent
+/// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
     curvature_lever_arm(s1, p)
         .min(curvature_lever_arm(s2, p))
@@ -219,6 +236,12 @@ pub enum MaterialWedge {
     /// Wedge ∈ (0, 2π), bounded away from both ends: a genuine corner.
     Transverse,
     /// Wedge = π: the smooth seam — one material side, two faces.
+    ///
+    /// **Not `topo::ContactMark::Seam`**, which is a statement about an
+    /// edge's DESCRIPTION (a chart seam, exempt by kind) rather than a
+    /// material verdict. The two names sit four lines apart in tier
+    /// 3's check 4; each is load-bearing in its own vocabulary, so the
+    /// collision is named rather than renamed.
     Seam,
     /// Wedge = 0: a cusp, material in the vanishing crescent between
     /// two tangent faces.

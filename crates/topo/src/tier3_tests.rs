@@ -19,7 +19,10 @@ use geom_core::{Point3, Vec3};
 use crate::contact::{ContactClass, DeclaredContact};
 use crate::euler::FaceSurface;
 use crate::fixtures::test_curve;
-use crate::validate::{ValidationError, validate, validate_geometric, validate_geometric_declared};
+use crate::validate::{
+    MaterialArmOutcome, ValidationError, material_arm_outcome, validate, validate_geometric,
+    validate_geometric_declared,
+};
 use crate::{Body, MefSite, MevSite};
 use geom_brep::MaterialWedge;
 use geom_core::Indeterminate;
@@ -779,4 +782,110 @@ fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
     }
     let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
     validate_geometric(&flipped, tol).unwrap_err()
+}
+
+/// **The material arm's fold, state by state** — including the two
+/// states no certified geometry is known to reach.
+///
+/// `material_arm_outcome` is the whole of check 4's material verdict:
+/// the sample loop accumulates flags, and this fold turns them into the
+/// ONE outcome the edge earns. Two of its states are the reason it is a
+/// separate function at all:
+///
+/// - **the pairing SPLIT** (`aligned == opposed`): different samples
+///   along one edge disagreed about which way the material faces, or
+///   no sample classified;
+/// - **the end SPLIT** (`side_mixed`): the pairing agreed, the jet was
+///   determinate, and different samples still called different ends.
+///
+/// Both previously fell to "no verdict" — silence — which validated an
+/// undeclared cusp CLEAN on an edge whose own samples contradicted one
+/// another. They escalate now, and because no fixture can force them,
+/// calling the fold directly is the only way to pin that. The row also
+/// pins the exclusivity the outcome type exists to guarantee: no input
+/// yields both a lamina and a wedge.
+#[test]
+fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
+    use MaterialArmOutcome as O;
+    let cusp = Some(MaterialWedge::Cusp);
+
+    // Aligned at every sample: the legal seam, whatever the jet says
+    // (a seam's legality is a first-order fact).
+    assert_eq!(
+        material_arm_outcome(true, false, true, None, false),
+        O::Wedge(MaterialWedge::Seam)
+    );
+    assert_eq!(
+        material_arm_outcome(true, false, false, None, false),
+        O::Wedge(MaterialWedge::Seam)
+    );
+    // Opposed at every sample, jet determinate, one end: that end.
+    assert_eq!(
+        material_arm_outcome(false, true, true, cusp, false),
+        O::Wedge(MaterialWedge::Cusp)
+    );
+    assert_eq!(
+        material_arm_outcome(false, true, true, Some(MaterialWedge::Slit), false),
+        O::Wedge(MaterialWedge::Slit)
+    );
+    // Opposed with a collapsed jet: the lamina refusal — and NOT a
+    // wedge, which is why no edge can earn both refusals.
+    assert_eq!(
+        material_arm_outcome(false, true, false, None, false),
+        O::Lamina
+    );
+    assert_eq!(
+        material_arm_outcome(false, true, false, cusp, false),
+        O::Lamina
+    );
+    // The two split states escalate, each naming the predicate whose
+    // per-sample verdicts disagreed.
+    assert_eq!(
+        material_arm_outcome(false, true, true, cusp, true),
+        O::Split {
+            predicate: "material_cusp_side"
+        },
+        "the end split must escalate, never validate as the end it saw first"
+    );
+    assert_eq!(
+        material_arm_outcome(false, true, true, None, false),
+        O::Split {
+            predicate: "material_cusp_side"
+        },
+        "opposed, determinate, and no end at all is the same non-verdict"
+    );
+    assert_eq!(
+        material_arm_outcome(false, false, true, cusp, false),
+        O::Split {
+            predicate: "material_wedge_side"
+        },
+        "a pairing that split across samples must escalate"
+    );
+    assert_eq!(
+        material_arm_outcome(true, true, true, cusp, false),
+        O::Split {
+            predicate: "material_wedge_side"
+        },
+        "no sample classified at all: also a non-verdict, never silence"
+    );
+
+    // Exhaustive: over every flag combination, the fold is total and
+    // never returns a legal-looking wedge on a split input.
+    for aligned in [false, true] {
+        for opposed in [false, true] {
+            for determinate in [false, true] {
+                for mixed in [false, true] {
+                    for side in [None, cusp, Some(MaterialWedge::Slit)] {
+                        let out = material_arm_outcome(aligned, opposed, determinate, side, mixed);
+                        if aligned == opposed {
+                            assert!(matches!(out, O::Split { .. }), "{aligned} {opposed}");
+                        }
+                        if mixed && aligned != opposed && opposed && determinate {
+                            assert!(matches!(out, O::Split { .. }), "a mixed end never resolves");
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
