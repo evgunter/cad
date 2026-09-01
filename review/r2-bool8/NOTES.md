@@ -41,6 +41,17 @@ evidence for the rows' claims. Full findings in the R2 report.
 
 ## Mutants (each applied alone, suite run, reverted)
 
+The two patch files are RECORDS against the frozen head's text, not
+machine-applicable patches (no line numbers, and the fix pass has since
+moved the emission tail into `emit_straight_leg`). Re-run M1 today by
+passing `Dir::from_angle(inc.ang.ang)` where
+`straight_continuation_kernel` passes `inc.ang`; M3 by adding
+`self.core.declare_last()` to that kernel. M1 was RE-RUN after the fix
+pass in that spelling: two rows red — R2's own
+`r2_probe_bitwise_inheritance_is_transitive` joins the PR row it
+originally reded, because the adopted probe pins the same ray through
+the boundary case. The falsifiability claim holds after the refactor.
+
 - M1 (`mutant-M1.patch`, angle round trip instead of bitwise
   inheritance): exactly one row reds —
   `straight_continuation_inherits_the_tangent_bitwise`. The row's
