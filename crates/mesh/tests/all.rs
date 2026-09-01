@@ -52,6 +52,15 @@ mod genus;
 mod issue111_az_needle;
 #[path = "issue303_signed_volume_recentring.rs"]
 mod issue303_signed_volume_recentring;
+
+#[path = "issue1362_band_placement.rs"]
+mod issue1362_band_placement;
+#[path = "issue555_subfloor_cap.rs"]
+mod issue555_subfloor_cap;
+#[path = "issue685_nu1_sizing.rs"]
+mod issue685_nu1_sizing;
+#[path = "issue896_pole_guard.rs"]
+mod issue896_pole_guard;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -68,10 +77,26 @@ mod prisms;
 mod probe_review;
 #[path = "profile_overrides.rs"]
 mod profile_overrides;
+#[path = "r1_probe_bool_route.rs"]
+mod r1_probe_bool_route;
+#[path = "r1_probe_hash.rs"]
+mod r1_probe_hash;
+#[path = "r1_probes_issue1362.rs"]
+mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
+#[path = "r2_bool_door.rs"]
+mod r2_bool_door;
+#[path = "r2_bytes.rs"]
+mod r2_bytes;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
+#[path = "r2_mesh1_probes.rs"]
+mod r2_mesh1_probes;
+#[path = "r2_mesh2_probes.rs"]
+mod r2_mesh2_probes;
+#[path = "r2_split_door.rs"]
+mod r2_split_door;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]
@@ -148,9 +173,9 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What the tokens are, per file
 ///
-/// Roles, not line numbers: lines move, and this crate's own S65
-/// record cites by name for that reason. A **hand-off** passes `eps`
-/// on; a **terminal read** compares or adds it.
+/// Roles, not line numbers: lines move, so every citation in this
+/// crate's ε inventory names a target instead. A **hand-off** passes
+/// `eps` on; a **terminal read** compares or adds it.
 ///
 /// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
 ///   else: `Tol::witness().get().eps` (two tokens on one line) and the
@@ -174,26 +199,31 @@ fn every_suite_file_is_aggregated() {
 ///   (`budget` feature). Counted after a cut since #887, which gave
 ///   the file its first test module; the total did not move, because
 ///   that module reads no ε.
-/// - **`walk.rs` — 13.** **Four** `eps` parameters (`gap_is_noise`,
+/// - **`walk.rs` — 14.** **Four** `eps` parameters (`gap_is_noise`,
 ///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
 ///   hand-offs (`closing_column`'s and `loop_polygon`'s two
 ///   `gap_is_noise` calls, `loop_polygon`'s calls to
-///   `iso_side_starts` and `closing_column`), and **four** terminal
+///   `iso_side_starts` and `closing_column`), and **five** terminal
 ///   reads: `gap_is_noise`'s `gap * lever < eps` (one predicate, four
 ///   call sites — the domain guard above plus three `debug_assert`
 ///   detectors that gate nothing), `iso_side_starts`' `radial > eps`,
-///   `pole_v`'s `norm() <= eps`, and `loop_polygon`'s
-///   `coincident_declared` closure, whose `d <= eps` asks whether two
-///   DECLARED vertices of one loop are the same point.
-///   4 + 5 + 4 = 13.
+///   `pole_index`'s `norm() <= eps` (the pole-membership find — the
+///   ONE home both `pole_v` and the issue-896 guard consume),
+///   `loop_polygon`'s `coincident_declared` closure, whose `d <= eps`
+///   asks whether two DECLARED vertices of one loop are the same
+///   point, and the issue-896 guard's own `gap <= eps`, asking
+///   whether a junction × pole pair the classification passes over
+///   coincides.
+///   4 + 5 + 5 = 14.
 ///
-///   It was **12** until `coincident_declared` landed. That read
-///   **gates nothing and moves no coordinate**: it is the condition of
-///   a `debug_assert` (D2 addendum row 5), so its only effect is to
-///   panic. It CAPTURES `eps` rather than taking it as a parameter,
-///   which is why only the terminal-read term moved.
+///   It was **12** until `coincident_declared` landed and **13**
+///   until the issue-896 guard did. Both new reads **gate nothing
+///   and move no coordinate**: each is the condition of a
+///   `debug_assert` (D2 addendum row 5), so its only effect is to
+///   panic. Each CAPTURES `eps` rather than taking it as a
+///   parameter, which is why only the terminal-read term moved.
 ///
-/// Eight consumer sites, five terminal reads across the crate. **The
+/// Nine consumer sites, six terminal reads across the crate. **The
 /// per-file totals above are pinned; every other number in this doc is
 /// hand-written and is not.** They are checkable — each file's
 /// breakdown sums to its pinned total, which is the arithmetic a
@@ -273,7 +303,7 @@ fn the_eps_inventory_is_pinned() {
         ("sizing.rs", 1),
         ("tessellate.rs", 3),
         ("trimmed.rs", 1),
-        ("walk.rs", 13),
+        ("walk.rs", 14),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let needle = concat!("e", "ps");

@@ -2699,3 +2699,186 @@ tests the measurements): the chord-lane widening, and the absent
 radius-equality declaration channel (also blocks SPHSPH's arms
 option (a)). Dual: parity byte 30 ⇒ R1 OPUS + R2 FABLE, frozen
 874a5ff3; claim to main at dispatch.
+## SPHSPH MERGED (#1290, 2026-08-31) — ordinal-108 row (sample #66)
+
+The union fix pass landed whole: the signed radical-plane offset
+in all three tangency branches (mirroring seg.rs; both operand
+orders pinned RED-THEN-GREEN — the red run named sphere B's own
+centre); the latitude lever PINNED by the rimmed_ball fixture at
+a MEASURED constructive window (u_r=1e-2, δ=30ε; three-arm
+mutation table: baseline green / axial mutant exactly one red /
+sign-flip control 9 red); four §7 remainder rows planted through
+public doors + two declined with measurement onto #1291; the
+polar-gate prose rewritten (no gate anywhere — the blanket
+refusal, stronger than (a)); VolumeUncertified and
+sphere_chart_trim error-genus splits; the register sentence
+scoped; #1342 filed en route (E6 driver k-probe red isolated to
+main with crates/ reverted wholesale). The demos-tour #99-ε-pin
+step EXECUTED hosted for the first time on the branch and
+passed. The merge to main crossed FOUR races in one night (two
+renumbers: drafted #61 → #66; one committed-markers incident on
+my own blind union of a .rs conflict — caught by the pre-push
+fmt hook, reset unpushed, handed to the implementer who resolved
+it semantically: main's D104 fingerprint retirement + our x4b,
+module header rewritten). Final head green as a genuine
+pull_request run, step-verified; the CI-Config trailer voided by
+the merge per the known rule, sampled draw safe, the named-point
+record on the prior head. #1290 closes ordinal 108. Tally: the
+unilateral candidate (R2's missing-acceptance-rows MAJ) awaits
+the blinded coding with 107's two.
+## ORDINAL 109 — MID-REVIEW METHOD CORRECTION (2026-08-31, Evan's)
+
+Evan, watching R2's lane burn ~12 CPU-hours: reviewers should NOT
+re-run the REGULAR suite locally — hosted CI (step-verified) is
+the suite evidence; local compute is for the reviewer's OWN
+probes, mutations, and instrumented measurements. R2's full-suite
+battery was killed by the orchestrator (binary 1216417, disclosed
+to R2 in the same message) with instructions to finish from its
+probes + the hosted runs. PAIR NOTE for the blinded coding: R1
+had already completed its local full battery before this
+correction existed — an evidence-source asymmetry (correction,
+not relaxation, per the #1090/#1091 line; the claims to falsify
+are unchanged both arms). Future briefs carry the rule; the
+brief template's "build and run the full test suite" wording is
+retired.
+## ORDINAL 109 RETURNED AND ADJUDICATED (2026-09-01)
+
+R1 (opus) 1 MAJ / 3 MIN, 5/3/3. R2 (fable, post-correction — its
+full-suite battery was killed mid-run on Evan's method ruling;
+its evidence base is probes + step-verified hosted CI + the
+partial 35-suite/2482-green run, an evidence-source asymmetry
+noted for the coding, correction not relaxation) 0 MAJ / 2 MIN,
+5/4/4. THE UNIT HELD: both arms independently re-derived the
+pinch theorem (R2 attacked it at seven angles including 1°/179°
+and three radii off-axis — survived), verified the door, the
+STOP's three obstacles verbatim at their sites, the re-pose
+bit-for-bit including the 1e-12 escalation payload, deviation 1
+by mutation (all three rows red with the sibling-half-wall miss
+when the old fall-through returns), and the CI table row-for-row.
+Findings:
+- PRINCIPAL, BILATERAL (R1 MAJ-1 = R2 MIN-1, severity
+  disagreement adjudicated toward R1's reading since the PR's
+  lane-request justification leaned on it): the certified-scalar
+  'both arms' pin DOES NOT EXIST — the skew pose stops at the
+  crossing layer and bool_germ_frame_axes_coplanar is never
+  evaluated at Interval anywhere (R1 instrumented the dispatch:
+  no reach at either eps; frame_dispatch_tests is f64-only); the
+  skew row also lacks its re-posed twin. No tally candidate
+  (bilateral).
+- BILATERAL MIN (R1 m2 = R2 MIN-2): same_door_or_escalated is
+  substring-loose AND accepts escalation at eps rows where the
+  measurement shows exact door equality (escalation is real only
+  at 1e-12).
+- R1-only MIN: the door's Display text writes the pinch formula
+  with a NON-UNIT cross product — 0.59 m off at 20° on a 0.9 m
+  fixture — and the suite PINS the wrong string (the theorem is
+  right; the sentence is wrong in the one place a user reads it).
+  Also the widened NoArm matcher losing variant pins for the
+  sphere rows.
+- R2 nits: two line cites off-by-one/two; the nine-row-block
+  sentence; the interval header's 'zero vector by construction'
+  stronger than measured.
+- SPEC TENSION (both arms, routed here): the re-cut's 'steinmetz
+  row retyped' premise is falsified by the PR's own tangency
+  theorem (the pose never reaches the frame) — the spec text
+  corrects orchestrator-side post-merge; deviation 2 stands.
+NO TALLY CANDIDATES — tally 1/8 unchanged; pair COUNTS (R2's
+kill-order asymmetry flagged). Union fix pass out. S-MATE
+coordination (#1417's parallel Placement split) settled
+on-thread: they unify second-to-merge; our fix pass adds the
+cross-reference only.
+## GERMARMS PR-2 MERGED (#1353, 2026-09-01) — ordinal-109 row (sample #85)
+
+The fix pass landed the union AND the inverted coordination:
+S-MATE's #1417 merged first, so the settled unification landed
+here — EndpointPlacement retired for main's Placement, both
+behavior changes kept, three falsified main-side comments
+corrected, the mutation re-run post-merge (the old fall-through
+reds exactly the three pose rows). The certified-scalar gap
+closed with frame_dispatch_interval_tests (both arms, three eps
+rows, dyadic, red-then-green by the axis-projection mutation —
+the reviewer's suggested mutation measured to red NOTHING and
+that measurement declared at the site); same_door_or_escalated
+shape-matched; the Display formula fixed to the unit form
+everywhere including the pinned string. Final head green as a
+pull_request run; two dispatch runs carried an inherited main
+red routed as #1449 (demos dead-const from d485124ca, invisible
+to pull_request runs — the fourth-face family). Sample number
+corrected post-merge #81→#85 (MATE6 held #81; ledger at #84;
+PR #1466, the M10-P precedent). GERMARMS closes: PR-1 ring lane
++ PR-2 typed-refusal branch; the family's future is #1372
+(parameter identity) → chord-lane widening → #1377 (pinch
+machinery, Evan's must-support ruling). #347's union demand
+narrows to the circle × wall residue (design-gated, not
+specced). VERBS-7 slot 4 (FABLE per the block draw) is the
+remaining dispatch.
+## C5ARMS PR-1 DISPATCHED (2026-09-01) — VERBS-7 slot 4, FABLE
+
+Spec ratified at 8cbf00910 after a premise re-verification against
+post-#1290/#1353/#1417/#1425/#1180 main (all eight re-cuts
+applied; the spout-pair correction became cone×sphere when the
+bellied pot shipped; case-2 promoted to demanded on the arrived
+torus_barrel/teapot-wall-1 consumers; the torus-invariant STOP
+retired against the measured R>r>0 net). Slot 4's arm read from
+the VERBS-7 per-slot line at dispatch: FABLE — the block's drawn
+fable executes, no deviation. Lane verbs-c5a (reference clone of
+verbs-ga2, borrower rule in force). Brief carries the
+suites-via-CI method rule.
+## C5ARMS PR-1 STOPPED AT THE OPENING MEASUREMENT — ADJUDICATED (c) (2026-09-01)
+
+The spec's item-1 STOP fired exactly as pre-registered: with
+(Plane,Torus) flipped true in a scratch probe, ALL FOUR demanded
+consumers (klein elbow shell_open + sealed, torus_barrel hollow,
+teapot wall-1 hollow) stop at ReanchorOffCarrier — the per-chart
+corner-accumulation refusal at replace_face.rs:1922-1930, NOT a
+certification/adjacency row a section arm can satisfy. The lane's
+measurement is exemplary: every gap decodes to ~13 digits as one
+chart's rigid transport checked against a neighbour's unmoved
+carrier (klein 8.47e-4 = √(1.475²+0.05²)−1.475; barrel 6.10e-3
+and teapot 4.42e-3 as the exact hypot forms) — the refusal
+correctly rejects genuinely wrong corner geometry. Mechanically:
+offset_axial::axial_frame's roster is plane/cylinder/cone/sphere;
+Torus falls to the sequential per-chart loop whose corners are
+transported rigidly once per chart. Zero commits, no PR — the
+report is the deliverable.
+
+ADJUDICATED: option (c) — HOLD C5ARMS PR-1 behind a new enabling
+unit, VERBS-TORAX (the torus arm of offset_axial: axial_frame
+widens to Torus with the circle ProfileConstraint the sphere arm
+already uses, plus the meridian-plane cap azimuth constraint the
+elbow needs — the SHELLFIX-2b axial-corner lineage, one kind
+wider). (a) rejected: crosses the unit's specced layer
+(geom-brep section vs topo offset-orchestration). (b) rejected:
+the unit's only effect on every named consumer would be renaming
+their refusal — an arm with no live consumer. No settled design
+decision moves; this is sequencing within the program's remit
+(noted for Evan's visibility, non-blocking). The C5ARMS spec
+gains a hold note; branch verbs/c5arms-1 stays pushed at main;
+the roster instance (the spec's flag-flip-moves-the-refusal
+premise landing on a foreclosing door) records in
+refusal-text-is-not-cause per the spec's own instruction WHEN the
+unit lands. VERBS-8 block draw next; TORAX takes slot 1.
+## ORDINAL 110 CLAIMED — TORAX dual (2026-09-01)
+
+TORAX delivered on the ELBOW-SPLIT STOP branch: the
+barrel/teapot half lands (rho_c generalization at the three
+arithmetic sites, bit-identity receipt CLEAN — the general form
+is the only spelling, no two-spelling fence needed; seven
+torax_axial rows with exact closed forms ρ=3(2−√2)/64 etc.;
+≥16 metered incidences ≤1e-15; hollow-and-repose commutation),
+and the elbow WAITS on a measured capability gap: the spec's
+item-5 premise (extend the sphere-rim path) is FALSE at this
+head — no sphere-rim path exists; the partial revolve's rim is
+unbuilt for EVERY curved wall (the sphere lune refuses
+TogetherEdgeDisagreement gap 0.05), and the torus rim
+additionally needs a quartic carrier (half-width 0.2252027 vs
+half-height 0.225 measured). C5ARMS rows 12/13 UNBLOCK; 3/4/8
+wait on a rim capability, not the kind roster. Opening
+measurement hit the expected pair gate and reproduced the
+C5ARMS STOP gaps to the last digit under the scratch flip.
+Three declared deviations (mint_carrier torus-seam arm;
+surface_residual torus arm; the unauthorable planted red —
+needs a move_point_for_tests door, scheduled as an adjudication
+ask). Teapot wall 1 RETIRED (shipped pot unchanged). Dual:
+parity byte 105 ⇒ R1 FABLE + R2 OPUS, frozen 086c66944; claim
+to main at dispatch.

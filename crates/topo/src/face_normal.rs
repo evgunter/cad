@@ -36,8 +36,9 @@
 //! **"One door" is true of these consumers, not of the workspace.**
 //! Other outward normals are still built by hand-multiplying a chart
 //! normal by [`Face::sense_sign`](crate::entity::Face::sense_sign),
-//! and this module is where they belong when smell-scan D6 is
-//! executed. **Where they are is computed, not recited**: the guard
+//! and this module is where they belong when they are consolidated —
+//! work that is owed and not scheduled here. **Where they are is
+//! computed, not recited**: the guard
 //! test below walks `topo/src`, counts every occurrence of that method
 //! in code, and fails on one its dispositioned table does not carry.
 //! The count is of the whole tree this crate can see; the rest of the
@@ -335,8 +336,8 @@ mod tests {
             assert!(
                 !(text.contains("Surface::Plane {") && text.contains("from_chart")),
                 "{} mints an OutwardNormal from a plane's chart normal — the planar \
-                 sense flip has been re-forked out of face_normal.rs (smell scan S5 / \
-                 S10). Call `face_outward_normal` instead.",
+                 sense flip has been re-forked out of face_normal.rs, which must hold \
+                 the only one. Call `face_outward_normal` instead.",
                 path.display()
             );
         }
@@ -347,8 +348,8 @@ mod tests {
         );
     }
 
-    /// **The hand-multiply inventory** — smell-scan D6's `grep
-    /// sense_sign` written as a gate rather than as a sentence. Every
+    /// **The hand-multiply inventory**, written as a gate rather than
+    /// as a sentence, because a sentence was what drifted. Every
     /// **occurrence** of [`Face::sense_sign`](crate::entity::Face::sense_sign)
     /// in the CODE of `topo/src` (comments and literal bodies removed
     /// by [`crate::fixtures::code_only`]) is counted per file and
@@ -367,13 +368,35 @@ mod tests {
     /// - `boolean/rest.rs` — `face_carrier`, the curved generalization
     ///   of the door; it binds the `±1` to a local before multiplying,
     ///   which is the form a textual `* ….sense_sign` sweep misses.
+    /// - `boolean/mod.rs` — the shared-rim routing's two face senses,
+    ///   handed to `boolean::rim_wedge` and through it to the same two
+    ///   `geom_brep` entry points check 4's material arm uses. It
+    ///   cannot take the door for that arm's reason and one more of
+    ///   its own: the question is a PAIR of material sides at a point
+    ///   on a shared rim, over kinds [`face_outward_normal_at`]
+    ///   answers `None` for (torus above all), and the operands are
+    ///   two different bodies, so there is no single body the door
+    ///   could be asked about.
     /// - `merge_faces.rs` — two sense-tuple reads in the coplanarity
     ///   gate and the survivor's plane hand-multiply.
     /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
     ///   Not a normal multiply, and the only read whose consumer is a
     ///   curved carrier.
-    /// - `validate.rs` — check 6's outward normal, where the sense bit
-    ///   is read as a claim to be falsified rather than honored.
+    /// - `validate.rs` — three, all in tier 3. Check 6's outward
+    ///   normal, where the sense bit is read as a claim to be
+    ///   falsified rather than honored; and check 4's material arm,
+    ///   which hands the plus and minus faces' `±1` to
+    ///   `geom_brep::classify_material_pairing` and
+    ///   `geom_brep::material_kappa_rel`. The arm cannot take the
+    ///   door: its question is the PAIR of material sides at a point
+    ///   on a shared carrier, over every kind with an implicit form
+    ///   (cone and torus tangencies included, which
+    ///   [`face_outward_normal_at`] answers `None` for), and the
+    ///   normals it needs are the gradients the wedge classifier
+    ///   already computes — routing them back out and in would fold
+    ///   the sign in one crate and the gradient in another. The `±1`
+    ///   is threaded as a scalar, which is what
+    ///   `contact_verify`'s tangency arm does with the same lemma.
     /// - `face_normal.rs` — **zero**: the door takes the sense BIT
     ///   through [`OutwardNormal::from_chart`], never the `±1`. That
     ///   is why the walk below reads the method name out of `concat!`
@@ -399,25 +422,25 @@ mod tests {
     ///    consumer, and a legitimate one).
     /// 3. An identifier a macro assembles, which no textual walk sees.
     /// 4. **Every crate but this one.** The walk is `topo/src` because
-    ///    that is the tree this crate can see, and the workspace half
-    ///    is D6's. **It is deliberately not enumerated here**: a roster
-    ///    of other crates is exactly the artifact this row replaced,
-    ///    and reciting one beside a computed inventory would mint the
-    ///    same defect one level out. The out-of-crate readers are
-    ///    inventoried once, in `docs/SMELL-SCAN-2026-08.md` at S67,
-    ///    beside D6's work order — a list that is recited and says so,
-    ///    in the document where a work order belongs.
+    ///    that is the tree this crate can see. **It is deliberately
+    ///    not enumerated here**: a roster of other crates is exactly
+    ///    the artifact this row replaced, and reciting one beside a
+    ///    computed inventory would mint the same defect one level out.
+    ///    The out-of-crate readers are recited once, in
+    ///    [`crate::boolean::reduce`]'s `face_plane`, which says that it
+    ///    recites them.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
-        const PINNED: [(&str, usize); 8] = [
+        const PINNED: [(&str, usize); 9] = [
             ("boolean/join.rs", 1),
+            ("boolean/mod.rs", 1),
             ("boolean/rest.rs", 1),
             ("boolean/solid_contain.rs", 2),
             ("entity.rs", 1),
             ("face_normal.rs", 0),
             ("merge_faces.rs", 3),
             ("props.rs", 1),
-            ("validate.rs", 1),
+            ("validate.rs", 3),
         ];
         let needle = concat!("sense", "_sign");
         let root = crate::source_walk::src_root();

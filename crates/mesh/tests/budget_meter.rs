@@ -200,8 +200,8 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// assertion messages say NURBS for that reason. The gap is real and
 /// is not this row's to close: giving the meter a cylinder row means a
 /// `FaceMeasure` whose NURBS-only columns have no meaning, which is a
-/// change to the consumer contract in `tools/`. Recorded as **S236**
-/// in `docs/SMELL-SCAN-2026-08.md`, unowned.
+/// change to the consumer contract in `tools/`. **Known and unfixed** —
+/// do not read this row's silence about cylinders as coverage.
 #[test]
 fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     let body = loft_prism();

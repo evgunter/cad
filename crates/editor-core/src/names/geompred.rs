@@ -499,7 +499,7 @@ impl core::fmt::Display for SelectRefusal {
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
-                 dimension {dim:?}"
+                 dimension {dim}"
             ),
             Self::PairInBand {
                 pair,
@@ -646,16 +646,20 @@ pub(crate) fn candidate_matches<T: Decide>(
 ) -> Result<bool, SelectRefusal> {
     for atom in atoms {
         let ok = match atom {
+            // The kinds an atom does not apply to answer an honest NO,
+            // and they are LISTED rather than swept up: an entity kind
+            // added to the model is a decision about which atoms can
+            // read it, and it is owed here rather than defaulted to no.
             Prepared::Curve(set) => match key {
                 EntityKey::Edge(e) => carrier_kind(body, e).is_some_and(|k| set.contains(k)),
-                _ => false,
+                EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Surface(set) => match key {
                 EntityKey::Face(f) => body
                     .get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
                     .is_some_and(|s| set.contains(SurfaceKind::of(s))),
-                _ => false,
+                EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Adjacent(a, b) => match key {
                 EntityKey::Edge(e) => body.get_edge(e).is_some_and(|edge| {
@@ -668,10 +672,12 @@ pub(crate) fn candidate_matches<T: Decide>(
                         (Some(p), Some(m)) => {
                             (a.contains(p) && b.contains(m)) || (a.contains(m) && b.contains(p))
                         }
-                        _ => false,
+                        // A side whose face kind cannot be read is an
+                        // honest NO for an exact atom.
+                        (None, _) | (_, None) => false,
                     }
                 }),
-                _ => false,
+                EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Distance { datum, cmp, value } => {
                 let point = super::interrogate::entity_point(body, key).map_err(|error| {

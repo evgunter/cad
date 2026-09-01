@@ -43,9 +43,7 @@ fn chamfered_cube() -> topo::Body<f64> {
         .expect("the cube extrudes")
         .body;
     let edges: Vec<topo::EdgeKey> = cube.edges().map(|(k, _)| k).collect();
-    let tol = Tol::witness().get();
-    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("a band");
-    chamfer_edges(&cube, &edges, D, band, Tol::witness())
+    chamfer_edges(&cube, &edges, D, Tol::witness())
         .expect("a cube's twelve edges chamfer")
         .body
 }

@@ -15,8 +15,8 @@
 //! not be a rectangle (a keyway on a cylinder is bounded by lines and
 //! circles and is a U), and this walk handles such a loop perfectly
 //! well; it is [`crate::curved`]'s interior grid that needs the
-//! rectangle, and that lane checks it (S28,
-//! `TessellateError::UnsupportedCurvedDomain`). The walk classifies
+//! rectangle, and that lane checks it
+//! (`TessellateError::UnsupportedCurvedDomain`). The walk classifies
 //! each traversal structurally, assigns the constant coordinate once
 //! per ISO SIDE — never per point, so no side wobbles from point to
 //! point and the CDT sees no sliver of that kind — and unwraps the
@@ -82,6 +82,12 @@
 //!   half (interior-left + the face's OUTWARD normal; verified
 //!   derivation in the PR log), and each meridian takes the branch
 //!   nearest `atan2(A·v_ref, A·u_ref)`.
+//!
+//!   Only `A`'s DIRECTION is read, and that direction is the band's own
+//!   only because the fold is anchored on the loop rather than on the
+//!   world origin — see [`loop_area`], which carries that premise. A
+//!   fixed anchor makes the branch pick a function of where the body
+//!   was placed, and the result is a wrong half-sphere, not a refusal.
 //!
 //!   That derivation is stated in the outward frame while `u_ref` /
 //!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
@@ -629,18 +635,16 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
 /// column is `anchor` either way — so what it measures is **data
 /// quality**, which is what it was always really about.
 ///
-/// MEASURED, and the numbers live in ONE place: `SMELL-SCAN-2026-08`
-/// §S22 carries the closure census (wild corpus and in-tree, per file,
-/// with the instrumentation described). It is not restated here,
-/// because the previous census in this exact spot went stale and wrong
-/// — *"all 18 nonzero residues sit in one wild file"* survived into a
-/// milestone doc after a second file joined them — and three
-/// hand-synced copies of a number is the shape that produced that. The
-/// shape, which is what a reader of this function needs: nonzero
-/// closures are RARE and confined to imported files; the values repeat
-/// at a single radius, so they are one geometric feature instanced
-/// many times rather than accumulated error; and in-tree the only
-/// nonzero closures are 1 ulp, from the one obliquely-placed fixture.
+/// MEASURED, and what the measurement is FOR is the deviation ledger
+/// below: the assertion's cost is only bearable if the input class it
+/// fires on is rare. It is. Nonzero closures are confined to imported
+/// files, and the values repeat at a single radius, so they are one
+/// geometric feature instanced many times rather than accumulated
+/// error; in-tree the only nonzero closures are 1 ulp, from the one
+/// obliquely-placed fixture. **Nothing re-measures that**, and no
+/// figure is kept here for it to drift from: this crate has no
+/// dev-dependency on `step-import` and no test in this repo tessellates
+/// the wild corpus, so the input class is untested by construction.
 ///
 /// TRACED — the one file that matters, kept here because it is the
 /// argument for the bar's UNIT and not a census figure. Those closures
@@ -771,10 +775,15 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
 /// measures straightness and watertightness, not whether two sides
 /// were correctly distinguished.
 ///
-/// **Reachable today: no**, by two upstream gates. `topo::boolean`
-/// refuses a tilted plane × sphere section typed (`SectionInvariant`;
-/// an axis-aligned slab cut succeeds and re-charts, a 0.7 rad rotated
-/// one refuses — executed). `import_step`'s tier-3
+/// **Reachable today: no**, by two upstream gates. `topo`'s boolean
+/// doors refuse plane × sphere cuts typed, wider than any tilt
+/// distinction: `splitting::split` refuses every sphere-face cut
+/// `CurvedBooleanUnsupported` and `boolean_op_with` refuses
+/// `CurvedPierceUnsupported`, measured across cut heights in the
+/// issue-896 review rows (an earlier form of this sentence cited a
+/// `SectionInvariant` refusal with an axis-aligned cut succeeding —
+/// that witness does not reproduce on today's tree, and the refusal
+/// is now broader than it claimed). `import_step`'s tier-3
 /// `props::curved::sphere_boundary` admits a circle only as a coaxial
 /// rim or a great circle centred at the sphere centre — read, not
 /// executed, and so the one door not directly witnessed. Recorded
@@ -939,6 +948,37 @@ fn closing_side(starts: &[bool]) -> usize {
     (0..starts.len()).rev().find(|&k| starts[k]).unwrap_or(0)
 }
 
+/// The 3-D vector area of the closed cycle `pts`,
+/// `Σᵢ (pᵢ − o) × (pᵢ₊₁ − o)`, with `o` the points' own bbox centre.
+///
+/// The fold wraps (`i + 1` mod `n`), so the cycle is closed by
+/// construction and the sum is anchor-independent over ℝ: an anchor's
+/// extra terms telescope to `o × Σᵢ(pᵢ₊₁ − pᵢ)`, and that displacement
+/// sum is zero around a cycle. The anchor is therefore a CONDITIONING
+/// choice and not a value one, and a position-derived anchor is the
+/// one that keeps every operand at the loop's own scale: a fixed
+/// anchor pays cancellation in proportion to the loop's distance from
+/// it, which the direction-only consumer in [`loop_polygon`] reads as
+/// a rotated — eventually reversed — area vector. Overflow-robust
+/// midpoint, the spelling `validate::signed_volume` uses.
+///
+/// An empty cycle has no anchor and no area.
+fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
+    let Some(&first) = pts.first() else {
+        return Vec3::new(0.0, 0.0, 0.0);
+    };
+    let (lo, hi) = pts
+        .iter()
+        .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
+    let o = lo + (hi - lo) * 0.5;
+    let mut area = Vec3::new(0.0, 0.0, 0.0);
+    for (i, p) in pts.iter().enumerate() {
+        let q = pts[(i + 1) % pts.len()];
+        area = area + (*p - o).cross(q - o);
+    }
+    area
+}
+
 /// Walks a curved face's loop into its UV polygon (module docs: the
 /// classification, unwrapping, pole, and disambiguation rules).
 ///
@@ -1017,8 +1057,9 @@ pub(crate) fn loop_polygon(
     // classification below compares a junction against an UNDECLARED
     // analytic chart point (`Chart::poles()` computes it from the
     // surface), and where the pole carries no vertex of its own this
-    // guard cannot see it. That case is **#896** and is NOT discharged
-    // here.
+    // guard cannot see it. That comparison has its own row-5 guard
+    // beside `pole_v` below (issue 896), scoped to junctions the
+    // classification does NOT identify with a pole.
     //
     // Equal ids are skipped rather than compared: one declared vertex
     // visited twice by one loop (a seam walked both ways) is that
@@ -1046,26 +1087,106 @@ pub(crate) fn loop_polygon(
         coincident_declared()
     );
     let poles = chart.poles();
-    let pole_v = |id: u32| -> Option<f64> {
+    // ONE home for the pole-membership find: the classification
+    // (`pole_v`) and the row-5 guard below both consume this index,
+    // so they cannot disagree about which pole a junction is
+    // identified with — the equivalence is structural, not prose.
+    // The eps read is terminal; issue 881's named-operations port
+    // (MESH-4) inherits it.
+    let pole_index = |id: u32| -> Option<usize> {
         let p = positions[id as usize];
-        poles
-            .iter()
-            .find(|(pp, _)| (p - *pp).norm() <= eps)
-            .map(|&(_, pv)| pv)
+        poles.iter().position(|&(pp, _)| (p - pp).norm() <= eps)
     };
+    let pole_v = |id: u32| -> Option<f64> { pole_index(id).map(|ix| poles[ix].1) };
+    // D2 addendum row 5, beside the declared-vertex guard above, and
+    // the case that guard's SCOPE paragraph names as out of its reach
+    // (issue 896): a chart pole is an UNDECLARED analytic point
+    // (`Chart::poles` computes it from the surface), so a junction
+    // coinciding with one is invisible to any declared-vs-declared
+    // comparison. The invariant: a junction the emission below will
+    // carry as `pole: false` lies within eps of no chart pole. Inside
+    // that band the coordinate the entry carries (the vertex's own
+    // measured v) and the entry count (one, not a fan seed) can only
+    // be read as correct by taking a numerical coincidence for
+    // intent, which this project never does — so the state is a
+    // kernel bug, and it is not observable in a branch: seeing it
+    // takes this re-derivation over every junction × pole pair.
+    //
+    // The band's identified side is NOT asserted on: a meridian
+    // junction within eps of the pole it is identified with is the
+    // classification working as specified (the pole's exact v is
+    // substituted and the fan seed emitted), and whether that
+    // junction is REALLY the pole is precisely the intent question
+    // the project refuses to ask. What this leaves uncaught is a
+    // misidentification in the identified direction; what it
+    // catches is every junction × pole pair the classification
+    // passes over — a rim junction on a pole (a zero-radius row
+    // stated as an ordinary one), and a junction within eps of a
+    // SECOND pole beyond the one it is identified with (a
+    // degenerate chart).
+    //
+    // JUNCTIONS ONLY, for the same load-bearing reason as the guard
+    // above: chord interior points on a pole-incident edge approach
+    // the pole legitimately as delta shrinks, so comparing them
+    // would fire on correct input.
+    //
+    // REACHABILITY (the issue-896 fixture question): measured shut
+    // at every minting door probed, with the route argument's single
+    // home in `step-import/tests/poleguard.rs` (tier_gate points
+    // there too) — the sketch: EITHER firing branch forces a
+    // sub-band boundary feature (a rim junction inside the band
+    // forces a rim of radius <= eps; the second-pole branch forces a
+    // sphere of radius <= eps, its poles being 2r apart), so some
+    // edge measures at most 2π·eps, which the ratified K = 10 span
+    // certification cannot clear; below K = 2π the span argument
+    // voids and the import door is MEASURED to shift to the adoption
+    // transversality bar, not to open. Construction doors:
+    // `mesh/tests/issue896_pole_guard.rs` (revolve, profile) and the
+    // adopted review rows (plane split and boolean, both refusing
+    // sphere-face cuts typed at every probed rho). Doors named
+    // unmeasured, and what would open a route — a consumer
+    // assembling a Body through the Euler doors directly, which no
+    // certification fronts — live in the route argument's home; the
+    // Euler residue is why this guard exists and runs in release
+    // builds. The firing itself is demonstrated at the mechanism:
+    // `tests::a_rim_junction_inside_the_pole_band_trips_the_guard`.
+    #[cfg(debug_assertions)]
+    {
+        let mut offending: Option<(u32, Point3<f64>, f64, f64)> = None;
+        'guard: for t in &travs {
+            let jid = t.ids[0];
+            let p = positions[jid as usize];
+            let identified = matches!(t.kind, TravKind::Meridian { .. })
+                .then(|| pole_index(jid))
+                .flatten();
+            for (ix, &(pp, pv)) in poles.iter().enumerate() {
+                let gap = (p - pp).norm();
+                if gap <= eps && identified != Some(ix) {
+                    offending = Some((jid, pp, pv, gap));
+                    break 'guard;
+                }
+            }
+        }
+        debug_assert!(
+            offending.is_none(),
+            "face {face:?} loop {lk:?}: a junction lies within eps {eps} of a chart pole \
+             it is not being identified with (junction id, pole point, pole v, gap in \
+             metres) {offending:?}. Intent is never read from a numerical coincidence, \
+             so this is a kernel bug and not a near-pole vertex to admit."
+        );
+    }
     // Pole-to-pole bands: precompute every column from the loop's 3-D
     // area vector (module docs).
     let band_u: Option<Vec<f64>> = if no_rim {
-        let mut area = Vec3::new(0.0, 0.0, 0.0);
         let pts: Vec<Point3<f64>> = travs
             .iter()
             .flat_map(|t| t.ids[..t.ids.len() - 1].iter())
             .map(|&id| positions[id as usize])
             .collect();
-        for (i, p) in pts.iter().enumerate() {
-            let q = pts[(i + 1) % pts.len()];
-            area = area + (*p - Point3::origin()).cross(q - Point3::origin());
-        }
+        // Only the DIRECTION of `area` is read below, and only a
+        // loop-local anchor makes that direction the loop's own rather
+        // than its placement's ([`loop_area`]).
+        let area = loop_area(&pts);
         // CATEGORY A (S10). `area` is the loop's 3-D vector area, so it
         // points along the face's OUTWARD normal side — but it is read
         // here as a direction in the CHART frame (`u_ref`/`v_ref`), to
@@ -1712,5 +1833,232 @@ mod tests {
             iso_side_starts(&travs, &c, &p, 1e-9),
             vec![false, true, true]
         );
+    }
+
+    /// A rimless pole-to-pole band's own point cycle: south pole, up
+    /// the meridian at azimuth `a0` in `n` steps, north pole, down the
+    /// meridian at azimuth `a1`. Sphere of radius `r` centred at `c`,
+    /// about the `+z` axis of [`z_chart`] — the shape `loop_polygon`
+    /// collects from `travs` before folding it.
+    fn band_cycle(r: f64, c: Point3<f64>, a0: f64, a1: f64, n: usize) -> Vec<Point3<f64>> {
+        let on = |a: f64, t: f64| {
+            Point3::new(
+                c.x + r * a.cos() * t.sin(),
+                c.y + r * a.sin() * t.sin(),
+                c.z + r * t.cos(),
+            )
+        };
+        let step = core::f64::consts::PI / (n as f64);
+        let mut pts = vec![Point3::new(c.x, c.y, c.z - r)];
+        pts.extend((1..n).map(|k| on(a0, core::f64::consts::PI - (k as f64) * step)));
+        pts.push(Point3::new(c.x, c.y, c.z + r));
+        pts.extend((1..n).map(|k| on(a1, (k as f64) * step)));
+        pts
+    }
+
+    /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
+    /// pole-to-pole arm spells it. `sense_sign` is omitted because it
+    /// is a bitwise `±1` scale on `area`: it cannot change how well
+    /// conditioned the fold that produced `area` was.
+    fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
+        let area = loop_area(pts);
+        area.dot(chart.v_ref).atan2(area.dot(chart.u_ref))
+    }
+
+    /// A 1.3 mm band's own geometry, placed at seven distances from
+    /// the world origin. Non-symmetric, non-dyadic placement on
+    /// purpose: an axis-symmetric or dyadic offset cancels the fold's
+    /// terms pairwise-exactly and hides the defect.
+    fn placed_band(d: f64) -> Vec<Point3<f64>> {
+        band_cycle(
+            1.3e-3,
+            Point3::new(1.3 * d, -2.7 * d, 0.9 * d),
+            0.37,
+            2.27,
+            8,
+        )
+    }
+
+    /// **Issue 1362.** The band's area vector is read for its
+    /// DIRECTION only, so the direction must be the band's own and not
+    /// its placement's. The fold is over a closed cycle, so it is
+    /// anchor-independent over ℝ; in f64 the anchor is the whole
+    /// question, and a world-origin anchor pays cancellation growing
+    /// with the placement distance.
+    ///
+    /// Budget `1e-11·d` radians: the placement enters the POSITIONS
+    /// themselves, so the honest floor is the coordinate ulp against
+    /// the band's own size — `ulp(2.7·d)/1.3e-3 ≈ 4.6e-13·d` — and
+    /// agreement beyond that is not available from the inputs. The
+    /// budget sits ~20x above it; the local-anchor fold lands one to
+    /// two orders under it at every row, and the origin-anchored
+    /// spelling misses the FIRST row (`d = 1e2`, i.e. a band a few
+    /// hundred metres out) by 1.6e-6 rad against a 1e-9 budget, then
+    /// degrades to 3.4 rad — a direction pointing the other way.
+    #[test]
+    fn the_band_area_direction_is_the_bands_not_its_placements() {
+        let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
+        let at_origin = band_mid_az(&chart, &placed_band(0.0));
+        for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
+            let far = band_mid_az(&chart, &placed_band(d));
+            let drift = (far - at_origin).abs();
+            let budget = 1e-11 * d;
+            assert!(
+                drift < budget,
+                "placement {d:e}: azimuth {far} vs {at_origin} at the origin \
+                 (drift {drift:e} rad, budget {budget:e})"
+            );
+        }
+    }
+
+    /// The consumer, pinned end to end: `mid_az` exists only to pick
+    /// each meridian's `2πk` branch, so a placement that moves the
+    /// azimuth far enough moves the COLUMN — the mesh takes the
+    /// complementary half of the sphere. Both of this band's meridians
+    /// must take the same branch wherever the band sits.
+    ///
+    /// The rows are the same placements as the direction row. Under an
+    /// origin-anchored fold BOTH the `1e6` and `1e8` rows flip the
+    /// azimuth by 3.4 rad — over π, so a whole `2π` off in `u`. The row
+    /// aborts at the first failure and so only names `1e6` when it
+    /// fires; the drift is not monotone in the placement, because how
+    /// much of the true area survives the cancellation depends on the
+    /// bit patterns of the particular coordinates, not on their size
+    /// alone.
+    #[test]
+    fn a_far_placement_picks_the_same_meridian_branch() {
+        let chart = z_chart(ChartKind::Sphere { r: 1.3e-3 });
+        let at_origin = band_mid_az(&chart, &placed_band(0.0));
+        for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
+            let far = band_mid_az(&chart, &placed_band(d));
+            for u_raw in [0.37, 2.27] {
+                let (near_col, far_col) = (unwrap_near(u_raw, at_origin), unwrap_near(u_raw, far));
+                assert!(
+                    (near_col - far_col).abs() < 1e-9,
+                    "placement {d:e}: meridian u_raw {u_raw} takes column \
+                     {far_col} there and {near_col} at the origin \
+                     ({} branches apart)",
+                    ((far_col - near_col) / TAU).round()
+                );
+            }
+        }
+    }
+
+    /// **The direction itself, against known geometry.** Every other
+    /// row here compares one fold against another fold, so all of them
+    /// would pass a `loop_area` that ignored its input and answered a
+    /// constant. This one pins the ANSWER: for a band bounded by
+    /// meridians at azimuths `a0` and `a1`, the cycle runs up `a0` and
+    /// down `a1`, so by the right-hand rule its vector area points
+    /// radially INWARD at the pair's bisector — chart-frame azimuth
+    /// `(a0 + a1)/2 − π`. Closed form, derived from the geometry and
+    /// not from the fold, checked over a spread of openings and at two
+    /// placements.
+    #[test]
+    fn the_area_direction_is_the_bands_inward_bisector() {
+        let chart = z_chart(ChartKind::Sphere { r: 1.0 });
+        for (a0, a1) in [
+            (0.37, 2.27),
+            (0.0, 1.0),
+            (-1.1, 0.4),
+            (2.0, 4.5),
+            (0.2, 3.0),
+        ] {
+            for d in [0.0, 1e3] {
+                let c = Point3::new(1.3 * d, -2.7 * d, 0.9 * d);
+                let got = band_mid_az(&chart, &band_cycle(1.0, c, a0, a1, 8));
+                let want = (a0 + a1) / 2.0 - core::f64::consts::PI;
+                // Compare modulo 2π: the azimuth is a branch, not a
+                // number, and `atan2` answers in (−π, π].
+                let err = (unwrap_near(got, want) - want).abs();
+                assert!(
+                    err < 1e-12,
+                    "meridians {a0} and {a1} at placement {d:e}: area azimuth \
+                     {got} is {err:e} rad off the inward bisector {want}"
+                );
+            }
+        }
+    }
+
+    /// An empty cycle has no anchor and no area. The guarded hazard is
+    /// the anchor, not the fold: deriving a bbox centre needs a first
+    /// point, so `loop_area` returns zero before reaching for one.
+    /// (The fold body's own `% pts.len()` is unreachable on an empty
+    /// slice — the loop never runs — so it is not what this row pins.)
+    #[test]
+    fn an_empty_cycle_has_no_area() {
+        let a = loop_area(&[]);
+        assert_eq!((a.x, a.y, a.z), (0.0, 0.0, 0.0));
+    }
+
+    /// **Issue 896's guard, demonstrated firing** — the red-first half
+    /// of the row, at the mechanism, because no minting door in this
+    /// build can place the state in front of `tessellate` (the measured
+    /// no-route verdict beside the guard; the door rows live in
+    /// `mesh/tests/issue896_pole_guard.rs` and
+    /// `step-import/tests/poleguard.rs`).
+    ///
+    /// The body is real and valid — the nearest-the-pole sphere band
+    /// the revolve door admits (top rim 0.1 m off the axis, junction
+    /// 0.1001 m from the undeclared pole; every smaller radius refuses
+    /// at a certified bar, see the integration row). The band the
+    /// guard reads is `loop_polygon`'s `eps` PARAMETER, and 0.15 m
+    /// puts that junction inside it while keeping the two top seam
+    /// vertices (0.2 m apart) outside the declared-vertex guard's
+    /// reach — so the panic this row expects is exactly the new
+    /// guard's, not #895's, and not a construction refusal.
+    ///
+    /// Positions and chords are minted exactly as `tessellate` mints
+    /// them, so the walk sees the shape a real call would hand it.
+    #[test]
+    #[should_panic(expected = "of a chart pole it is not being identified with")]
+    fn a_rim_junction_inside_the_pole_band_trips_the_guard() {
+        use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+        use std::collections::HashMap;
+        let tol = geom_core::Tol::witness();
+        let rho = 0.1f64;
+        let (h, rc) = (0.5f64.sin(), 0.5f64.cos());
+        let yt = (1.0 - rho * rho).sqrt();
+        let bulge = ((yt.atan2(rho) - h.atan2(rc)) / 4.0).tan();
+        let profile_loop = ProfileLoop::new(vec![
+            ProfileVertex::new(geom_core::Point2::new(rc, h), bulge),
+            ProfileVertex::new(geom_core::Point2::new(rho, yt), 0.0),
+            ProfileVertex::new(geom_core::Point2::new(0.3, 1.3), 0.0),
+            ProfileVertex::new(geom_core::Point2::new(1.1, 0.9), 0.0),
+        ]);
+        let profile = Profile::new(SketchPlane::xy(), vec![profile_loop])
+            .validate(tol)
+            .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: geom_core::Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let body = sweep::revolve(&profile, axis, sweep::Revolution::Full, tol)
+            .unwrap()
+            .body;
+        let mut positions = Vec::new();
+        let mut vids = HashMap::new();
+        for (vk, v) in body.vertices() {
+            vids.insert(vk, u32::try_from(positions.len()).unwrap());
+            positions.push(*body.get_point(v.point).unwrap());
+        }
+        let mut bounds = crate::nurbs_cert::FaceBounds::new();
+        let chords = crate::chords::compute_chords(
+            &body,
+            crate::sizing::sizing_target(0.05),
+            &vids,
+            &mut positions,
+            &mut bounds,
+        )
+        .unwrap();
+        let (fk, face) = body
+            .faces()
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .expect("the revolve mints a sphere wall");
+        let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
+        for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
+            let _ = loop_polygon(&body, &chart, &chords.ids, &positions, fk, lk, 0.15);
+        }
+        unreachable!("a loop of this face holds the in-band junction, so the guard fires");
     }
 }

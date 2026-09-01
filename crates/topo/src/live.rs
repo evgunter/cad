@@ -27,8 +27,8 @@
 //! That no `Live` exists without a lookup rests on this file's privacy,
 //! and **the crate's usual instrument cannot check it**: a
 //! `compile_fail` doctest cannot name a `pub(crate)` type. A
-//! source-level guard can, and is placed as `SMELL-SCAN-2026-08.md`'s
-//! **D50**; until it lands the claim rests on review of this file.
+//! source-level guard can, and is owed; until one lands the claim rests
+//! on review of this file.
 //!
 //! # The other arenas
 //!

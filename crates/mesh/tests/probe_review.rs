@@ -142,12 +142,11 @@ fn z1_per_triangle_certificate_falsification() {
             // runs: `worst_ratio` only shrinks as `bound` grows, so a
             // loose certificate passes this by a WIDER margin than a
             // tight one. `budget_meter.rs`'s sibling row grew a
-            // measured floor beside its ceiling; this one has not, and
-            // the asymmetry is recorded as **S237**
-            // (`docs/SMELL-SCAN-2026-08.md`), unowned — with two more
-            // instances of the same shape in `nurbs_cert.rs`'s own
-            // test module, which #887's sweep missed and its
-            // adversarial review found.
+            // measured floor beside its ceiling; this one has not.
+            // **The asymmetry is known and unfixed**, here and in two
+            // more instances of the same shape in `nurbs_cert.rs`'s own
+            // test module: a ceiling with no floor cannot tell a tight
+            // certificate from a loose one.
             for f in &measures {
                 assert!(
                     f.worst_ratio <= 1.0,

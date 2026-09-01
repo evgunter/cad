@@ -187,7 +187,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
     }
 }
 
-/// **The ε-row pins.** Three corpus files' dispositions are a function
+/// **The ε-row pins.** Six corpus files' dispositions are a function
 /// of the ambient ε, and hiding that behind one row per file would make
 /// the suite either red for an honest reason or green for a wrong one.
 /// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
@@ -217,7 +217,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). At ambient 1e-6 both
@@ -287,6 +287,31 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
     // fix — the `#389` ladder gap that used to be this cell.
     (DM1, 1e-6, "file", Refused(QUAD_CONVERGED_ESCALATED)),
     (DM1, 1e-12, "file", Refused(RATIONAL_FLUX_STALL)),
+    // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). The near-pole feature is
+    // 0.9e-9 m by construction, so which certification refuses is a
+    // function of the ambient band alone: the span escalates in the
+    // default band's indeterminate zone, certifies ZERO at 1e-6, and
+    // at 1e-12 the spans clear and the rim/sphere near-tangency
+    // refuses at adoption — `poleguard.rs` holds the route argument.
+    (POLEBAND, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
+    (POLEBAND, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
+    // The ε-relative sibling's cells mirror the twins' one band down:
+    // its 5.65e-12 m span escalates exactly where the band is 1e-12
+    // and certifies ZERO at both coarser bands.
+    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND12, 1e-12, "file", Refused(PARAM_SPAN_ESCALATED)),
+    (POLEFRUSTUM, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
+    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (
+        POLEFRUSTUM,
+        1e-12,
+        "file",
+        Refused(TANGENT_SECOND_ORDER_ZERO),
+    ),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
@@ -297,6 +322,18 @@ const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step"
 /// that moves the refusal to another door fails these cells.
 const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
+const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
+const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
+const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
+/// The poleguard twins' coarse-band sub-reason: the sub-band span
+/// certifies zero, and the attachment gate refuses the degenerate
+/// interval by name.
+const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward";
+/// Their fine-band sub-reason: with the spans certified, adoption
+/// refuses the rim/sphere near-tangency — the second-order arm's own
+/// verdict, so a regression that moves the refusal to another door
+/// fails these cells.
+const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
 /// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
 /// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
 /// quadrature converges there — it quarters cleanly per refinement
@@ -349,7 +386,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 70] = [
+const CORPUS: [(&str, Disposition); 73] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -486,6 +523,25 @@ const CORPUS: [(&str, Disposition); 70] = [
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
     ),
+    // -- tests/fixtures/poleguard/ (issue 896) ------------------------
+    // The mesh walk's undeclared-pole guard, import-door half: a
+    // sphere truncated 9e-8 rad below its pole, so its top rim's
+    // vertices sit 0.9e-9 m from a chart pole no vertex declares.
+    // `poleguard.rs` states the route argument (any authoring of the
+    // state carries a boundary feature of at most 2π·ε, which the
+    // K = 10 band cannot certify clear); here the twins are corpus
+    // like any other file, AMBIENT-sensitive by construction, pinned
+    // cell by cell in `EPS_ROWS`: the sub-band span escalates at the
+    // default band, certifies ZERO at 1e-6, and at 1e-12 — where the
+    // spans certify — the near-tangent rim/sphere contact refuses one
+    // level up, at adoption.
+    ("tests/fixtures/poleguard/poleband.step", EpsSensitive),
+    // The ε-relative sibling: the same band form with the vertex
+    // 0.9e-12 m from the pole, so the 1e-12 band also pins a fixture
+    // whose near-pole feature is INSIDE it (the two twins above sit
+    // 900× outside that band and pin the adoption bar there instead).
+    ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
+    ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits

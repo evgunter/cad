@@ -419,9 +419,15 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 }
 
 /// Normalizes a direction-valued vector; decided-zero length refuses,
-/// in-band indeterminacy escalates (all through the one door).
-fn unit<T: Decide>(v: Vec3<T>, role: &'static str, tol: Tol) -> Result<Vec3<T>, NodeErrorKind> {
-    match decide("eval_direction_norm", Margin::norm3(v), band(tol)?) {
+/// in-band indeterminacy escalates (all through the one door). Shared
+/// with the mate solve's derived-offset derivation, so a direction is
+/// decided under the same predicate wherever it is read.
+pub(crate) fn unit<T: Decide>(
+    v: Vec3<T>,
+    role: &'static str,
+    band: Band,
+) -> Result<Vec3<T>, NodeErrorKind> {
+    match decide("eval_direction_norm", Margin::norm3(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
         Err(source) => Err(NodeErrorKind::Escalated {
@@ -459,14 +465,18 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
-            normal: unit(need_vec3(vals, SlotId::Normal)?, "datum plane normal", tol)?,
+            normal: unit(
+                need_vec3(vals, SlotId::Normal)?,
+                "datum plane normal",
+                band(tol)?,
+            )?,
         },
         Datum::Axis { .. } => DatumValue::Axis {
             origin: need_point3(vals, SlotId::Origin)?,
             dir: unit(
                 need_vec3(vals, SlotId::Direction)?,
                 "datum axis direction",
-                tol,
+                band(tol)?,
             )?,
         },
         Datum::Point { .. } => DatumValue::Point {
@@ -819,8 +829,8 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
-    let filleted = sweep::blend::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
-        .map_err(blend_refused)?;
+    let filleted =
+        sweep::blend::build::fillet_edges(&body, &edges, radius, tol).map_err(blend_refused)?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
@@ -875,8 +885,8 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let distance = need_scalar(vals, SlotId::ChamferDistance)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
-    let chamfered = sweep::blend::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
-        .map_err(blend_refused)?;
+    let chamfered =
+        sweep::blend::build::chamfer_edges(&body, &edges, distance, tol).map_err(blend_refused)?;
     // The assembly always keeps records, so `None` is a kernel bug —
     // the fillet door's argument unchanged: an empty table would leave
     // every downstream reference into this body silently unresolvable.
@@ -918,11 +928,11 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 ///    ambiguity (N5), so the tied set expressed in names is the name
 ///    itself, and the witness carries the multiplicity and the
 ///    minting site.
-/// 3. [`ladder::Landing::Absent`] → `Vanished`, with the honest
-///    single-run fallback diagnosis: no prior run is consultable
-///    mid-evaluation, so `NodeChanged` names the minting node as the
-///    disagreement SITE, not a claim that an edit happened, and
-///    `last_good` is `None` because nothing was banked.
+/// 3. [`ladder::Landing::Absent`] → `Vanished`, through
+///    [`crate::resolve::ResolveError::vanished_fallback`]: no prior
+///    run is consultable mid-evaluation, so there is no evidence to
+///    weigh and nothing to bank, which is exactly the payload that
+///    constructor names.
 ///
 /// The refusals come out BOXED, which is how both doors' error
 /// variants carry a `ResolveError` anyway.
@@ -933,17 +943,29 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// the door's business. Which typed refusal comes out is this
 /// module's, and has one home.
 ///
-/// **Not shared with [`mod@crate::resolve`], yet.** That module's
-/// whole-evaluation ladder re-derives rung 1 from the same two facts
-/// (`doc.node(..).is_none()`, then the id against the mint counter)
-/// and builds the same [`crate::resolve::TieWitness`]. The two agree
-/// by hand across a module boundary, at coarser grain than the
-/// duplication this module retired; folding them is a larger change
-/// than one evaluation door, recorded as such and not attempted here.
+/// **What is shared with [`mod@crate::resolve`], and what is not.**
+/// Every PAYLOAD is that module's, minted by one constructor each —
+/// [`crate::resolve::ResolveError::node_gone`] for the
+/// deleted-vs-foreign split, [`crate::resolve::ResolveError::ambiguous`]
+/// for the tie and its witness,
+/// [`crate::resolve::ResolveError::vanished_fallback`] for the
+/// no-evidence vanish — so neither ladder restates the other's refusal
+/// and the two cannot drift about what a stranded, tie-marked or
+/// vanished name looks like.
+///
+/// What is NOT shared is how rung 3 is REACHED. That module arrives at
+/// the same fallback only after a diagnosis ladder over two
+/// evaluations comes up empty; here it is the immediate answer,
+/// because mid-evaluation there is neither a prior run nor a
+/// whole-evaluation index to run that ladder against. Same value, two
+/// different roads, and only the value is worth holding in one place.
+///
+/// What stays here is what is this module's subject: the rung ORDER,
+/// the [`ladder::Live`] token that enforces it, and a door's arity.
 mod ladder {
     use crate::names::{EntityRef, Entry, NameTable, StableName};
     use crate::program::ProfileProgram;
-    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+    use crate::resolve::ResolveError;
 
     /// Where a name landed in ONE table (rungs 2 and 3, as data).
     pub(super) enum Landing {
@@ -980,22 +1002,16 @@ mod ladder {
         }
     }
 
-    /// Rung 1: `NodeGone` with the deleted-vs-foreign split.
+    /// Rung 1: `NodeGone` with the deleted-vs-foreign split, taken
+    /// from the one home that mints it ([`ResolveError::node_gone`]).
     pub(super) fn live<'n>(
         name: &'n StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
     ) -> Result<Live<'n>, Box<ResolveError>> {
-        if doc.node(name.node).is_some() {
-            return Ok(Live(name));
+        match ResolveError::node_gone(name, doc) {
+            None => Ok(Live(name)),
+            Some(gone) => Err(Box::new(gone)),
         }
-        Err(Box::new(ResolveError::NodeGone {
-            name: name.clone(),
-            edit: if name.node.0 < doc.next_id {
-                RecipeEditRef::NodeDeleted { node: name.node }
-            } else {
-                RecipeEditRef::ForeignNode { node: name.node }
-            },
-        }))
     }
 
     /// Rungs 2 and 3: the entity, or the refusal its landing earns.
@@ -1006,22 +1022,16 @@ mod ladder {
         let name = live.0;
         match landing {
             Landing::Unique(ent) => Ok(ent),
-            Landing::Tied(width) => Err(Box::new(ResolveError::Ambiguous {
-                name: name.clone(),
-                candidates: vec![name.clone()],
-                tie: TieWitness {
-                    node: name.node,
-                    at: name.clone(),
-                    width,
-                },
-            })),
-            Landing::Absent => Err(Box::new(ResolveError::Vanished {
-                name: name.clone(),
-                diagnosis: Diagnosis::RecipeEdit {
-                    edit: RecipeEditRef::NodeChanged { node: name.node },
-                },
-                last_good: None,
-            })),
+            // The tie row is the name itself: a door resolves the
+            // authored name against one table, so there is no widened
+            // base to tie against here.
+            Landing::Tied(width) => Err(Box::new(ResolveError::ambiguous(
+                name,
+                name.clone(),
+                name.node,
+                width,
+            ))),
+            Landing::Absent => Err(Box::new(ResolveError::vanished_fallback(name))),
         }
     }
 }
@@ -1575,7 +1585,7 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     let rot_axis = unit(
         need_vec3(vals, SlotId::RotationAxis)?,
         "transform rotation axis",
-        tol,
+        band(tol)?,
     )?;
     let angle = need_scalar(vals, SlotId::RotationAngle)?;
     // PR 1's die convention: rotate about the axis THROUGH THE WORLD
@@ -1598,17 +1608,56 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table))
 }
 
+/// The resolved operands of a stepped placement rule: what the rule's
+/// math consumes once every slot or expression is evaluated and every
+/// direction is unit (through [`unit()`]'s decided normalization).
+pub(crate) enum SteppedOperands<T: geom_core::Real> {
+    /// A linear rule: unit direction, spacing per step.
+    Linear {
+        /// The stepping direction, already unit.
+        direction: Vec3<T>,
+        /// The per-step translation distance along it.
+        spacing: T,
+    },
+    /// A circular rule: the datum axis and the angle per step.
+    Circular {
+        /// A point on the rotation axis.
+        origin: Point3<T>,
+        /// The axis direction, already unit.
+        dir: Vec3<T>,
+        /// The rotation angle per step.
+        step: T,
+    },
+}
+
 /// The rigid map of placement `i` under a STEPPED rule (linear or
-/// circular) — the one derivation both placement-rule nodes read, so a
-/// pattern and a placed union of the same rule place their copies bit
-/// for bit alike.
+/// circular) — **the one home of the stepped placement rule's math**,
+/// read by both placement-rule nodes (through [`stepped_map`]) and by
+/// the mate solve's derived-offset derivation, so a pattern, a placed
+/// union, and a mate to a pattern-placed member all derive one and the
+/// same copy map, bit for bit.
 ///
 /// Index 0 is the identity by construction (`i = 0` scales the step to
-/// zero), which is why both callers may take the prototype VERBATIM as
+/// zero), which is why callers may take the prototype VERBATIM as
 /// instance 0 rather than mapping it. `i as f64` is exact far beyond
-/// any representable pattern (2^53). Slot reads stay INSIDE this
-/// function so a rule's operands are demanded exactly when a step
-/// actually uses them.
+/// any representable pattern (2^53).
+pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> Affine3<T> {
+    let step = T::from_f64(i as f64);
+    match ops {
+        SteppedOperands::Linear { direction, spacing } => {
+            Affine3::translation(*direction * (*spacing * step))
+        }
+        SteppedOperands::Circular {
+            origin,
+            dir,
+            step: angle,
+        } => Affine3::rotation_about_axis(*origin, *dir, *angle * step),
+    }
+}
+
+/// [`stepped_rule_map`] behind the evaluation's slot reads. Slot reads
+/// stay INSIDE this function so a rule's operands are demanded exactly
+/// when a step actually uses them.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
     i: i64,
@@ -1616,17 +1665,15 @@ fn stepped_map<T: Decide>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> Result<Affine3<T>, NodeErrorKind> {
-    let step = T::from_f64(i as f64);
-    match kind {
-        PatternKind::Linear { .. } => {
-            let dir = unit(
+    let ops = match kind {
+        PatternKind::Linear { .. } => SteppedOperands::Linear {
+            direction: unit(
                 need_vec3(vals, SlotId::Direction)?,
                 "pattern direction",
-                tol,
-            )?;
-            let spacing = need_scalar(vals, SlotId::Spacing)?;
-            Ok(Affine3::translation(dir * (spacing * step)))
-        }
+                band(tol)?,
+            )?,
+            spacing: need_scalar(vals, SlotId::Spacing)?,
+        },
         PatternKind::Circular { axis, .. } => {
             let av = value_of(results, *axis)?;
             let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
@@ -1636,15 +1683,21 @@ fn stepped_map<T: Decide>(
                     found: av.payload.kind_name(),
                 });
             };
-            let angle = need_scalar(vals, SlotId::Step)?;
-            Ok(Affine3::rotation_about_axis(*origin, *dir, angle * step))
+            SteppedOperands::Circular {
+                origin: *origin,
+                dir: *dir,
+                step: need_scalar(vals, SlotId::Step)?,
+            }
         }
         // An explicit rule steps nothing: its frames ARE the maps, and
         // a caller that reached here read the rule wrong.
-        PatternKind::Explicit(_) => Err(NodeErrorKind::PlacementRule(
-            crate::node::PlacementRuleFault::CountSpelling,
-        )),
-    }
+        PatternKind::Explicit(_) => {
+            return Err(NodeErrorKind::PlacementRule(
+                crate::node::PlacementRuleFault::CountSpelling,
+            ));
+        }
+    };
+    Ok(stepped_rule_map(&ops, i))
 }
 
 fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(

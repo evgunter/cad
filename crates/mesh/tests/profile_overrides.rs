@@ -32,8 +32,8 @@
 /// header is absent.
 ///
 /// **A text scanner, not a TOML parser — its blind spots are stated here
-/// rather than left to be discovered** (§C15; the posture `pncad-py`'s
-/// `toml_table` takes). It tolerates the two ordinary TOML forms a human
+/// rather than left to be discovered**, the posture `pncad-py`'s
+/// `toml_table` takes. It tolerates the two ordinary TOML forms a human
 /// edit produces: a trailing `# comment` on a value, and quoting around
 /// bare keys (`[profile.dev.package."spade"]`). It does **not** understand
 /// inline tables, dotted keys, multi-line values, `{}`-wrapped bodies, or

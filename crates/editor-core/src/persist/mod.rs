@@ -568,9 +568,80 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
 /// SCHEMA_VERSION`) that every entry above describes; it read 18.
 ///
+/// Version 20 is **every literal names the notation it was written
+/// in** — one break with two halves, taken together because they are
+/// one decision.
+///
+/// The first half is the DOCUMENT PARAMETER:
+/// [`crate::DocParam::Continuous`] gained a display unit beside its
+/// dimension and its distribution, so a parameter authored in
+/// millimetres reads back in millimetres. That closes the asymmetry the
+/// GUI units ruling recorded rather than papered over — every LITERAL
+/// in a document could remember its notation and no PARAMETER could, so
+/// the one value a recipe shares across features was the one value that
+/// forgot how it was written.
+///
+/// The second half is that the unit stopped being OPTIONAL, on the
+/// literal ([`crate::expr::Expr`]'s `Lit`) and on the parameter alike.
+/// The absence had no single meaning, and two readers of this very
+/// repository disagreed about it: `unparse` rendered an unmarked angle
+/// in `rad`, and the property panel rendered the same stored literal in
+/// `pi rad`. A value that reads two ways depending on who reads it is
+/// not presentation metadata, it is a hole. What closes it is a
+/// dimensionless row in `quantity::UNITS` ([`quantity::ONE`], symbol
+/// the EMPTY string, factor 1.0), so that a `Scalar` literal can name
+/// its notation — writing no suffix — instead of declining to name one.
+/// `Count` needs no row: a count is an integer
+/// (`ExprKind::CountLiteral`), never a `Lit`.
+///
+/// So `WireExpr::Literal`'s `unit` is now a plain `String` rather than
+/// a skipped `Option`, and **every literal in every document carries
+/// one**. There is no degenerate carry this time: a v19 document and
+/// its v20 regeneration differ on nearly every literal, which is the
+/// honest shape of the break rather than a bump hiding behind an
+/// absent key. `DocParam::Continuous`'s new field is written the same
+/// way and for the same reason.
+///
+/// The unit is on the wire as its SYMBOL, never as the one-byte code
+/// the type holds in memory (`crate::expr::UnitSym`'s rustdoc — the
+/// index carries no compatibility contract, and this does not give it
+/// one). A table REORDER still moves no byte of any file.
+///
+/// Two refusals guard the key, at the two layers that see the two
+/// faults. An OFF-TABLE symbol dies where the symbol is read — in
+/// `WireExpr`'s rebuild for a literal, in `UnitSym`'s `Deserialize` for
+/// a parameter. A symbol that IS a table row but does not measure the
+/// dimension it sits beside — `mm` on an `Angle` — is a document
+/// invariant: a literal's is checked by the constructor the load door
+/// re-runs, and a parameter's by the shared save/load validator
+/// ([`PersistError::DisplayUnit`]), so it cannot be saved either.
+///
+/// **Not additive in EITHER direction**, unlike most bumps here: a v19
+/// body may omit `unit` and the v20 field is required, so a v19 body
+/// cannot deserialize; and a v20 body carries the key on every literal,
+/// which a v19 reader's `deny_unknown_fields` types have no name for.
+/// (v19 files are not unit-LESS — v19 was the `pi rad` respelling, and
+/// its literals carry symbols; what they may omit is the field.) The
+/// version gate is therefore the operative door in both directions, and
+/// the migration table stays empty: a v19 file refuses TYPED with the
+/// regenerate recourse. A migration COULD be written — the mapping is
+/// total, since an omitted unit meant the canonical row on the text
+/// side — but the standing rule stops it: no migration machinery
+/// exists (LQ7a), the kernel is unreleased, and every file in this
+/// lineage replays from its own recipe.
+///
+/// [`crate::DocEdit::SetDocParamValue`] needed no companion arm, and
+/// that is v15's lesson already banked: the value door carries a
+/// [`crate::DocParamValue`] and rebuilds nothing, so it keeps the whole
+/// declaration — the new unit included — without naming it.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`) that every entry above describes; it read 19.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these eighteen.
-pub const SCHEMA_VERSION: u32 = 19;
+/// [`migration_step`] entry, or a ratified break like these nineteen.
+pub const SCHEMA_VERSION: u32 = 20;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -634,6 +705,31 @@ pub enum PersistError {
         name: crate::doc::ParamName,
         /// The invariant that failed.
         fault: crate::distribution::DistributionFault,
+    },
+    /// A document parameter's authored display unit does not MEASURE
+    /// the dimension it was declared with — `mm` on an `Angle`
+    /// parameter (LIB-SWITCH §4g's `DisplayUnitMismatch`, at the
+    /// document-parameter carrier rather than at a literal).
+    ///
+    /// Reachable two ways, which is why it is a validator walk and not
+    /// a door check: the `DocParam` payload is `pub`, and a file can
+    /// pair any dimension with any table symbol. The AUTHORING doors
+    /// ([`crate::DocParam::written_length`] /
+    /// [`crate::DocParam::written_angle`]) cannot produce one — they
+    /// take a typed carrier whose unit already agrees. Shared-validator
+    /// check, so save refuses before a byte is written and load refuses
+    /// with the same diagnostics.
+    ///
+    /// An OFF-TABLE symbol is a different fault and refuses earlier, at
+    /// the token, in `UnitSym`'s `Deserialize` — this walk sees only
+    /// units that are rows of the table.
+    DisplayUnit {
+        /// The parameter carrying the fault.
+        name: crate::doc::ParamName,
+        /// The dimension the unit measures.
+        unit: crate::expr::Dimension,
+        /// The dimension the parameter was declared with.
+        declared: crate::expr::Dimension,
     },
     /// The serializer itself failed (I/O-free here, so effectively
     /// unreachable; surfaced rather than swallowed).
@@ -752,6 +848,16 @@ impl core::fmt::Display for PersistError {
             Self::Distribution { name, fault } => {
                 write!(f, "persist: document parameter {:?}: {fault}", name.0)
             }
+            Self::DisplayUnit {
+                name,
+                unit,
+                declared,
+            } => write!(
+                f,
+                "persist: document parameter {:?} is declared {declared:?} but its display \
+                 unit measures {unit:?}",
+                name.0
+            ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
                 write!(

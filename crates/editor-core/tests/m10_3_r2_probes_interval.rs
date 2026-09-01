@@ -38,6 +38,7 @@ mod fixture;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, param_env_over};
 use editor_core::drive::{
     BudgetKind, DriveConfig, ReasonClass, RefusalReason, VerdictVector, drive,
@@ -77,6 +78,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
         },
     });
@@ -630,6 +632,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 value: DocParam::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
+                    display_unit: UnitSym::canonical_for(Dimension::Length),
                     distribution: Some(Distribution::Uniform {
                         lo: -scale * eps(),
                         hi: scale * eps(),

@@ -30,6 +30,14 @@ use pncad::document::Dimension;
 ///
 /// Total over the D6 closed set: adding a dimension stops this
 /// function compiling.
+///
+/// One of three spellings of this word list. The FFI tag is this
+/// crate's to own, but it happens to be word-for-word the kernel's
+/// prose rendering (`Dimension`'s `Display`) and
+/// `dimension_tags_match_the_kernel_prose` pins the two equal, so a
+/// drift is a test failure rather than a quiet divergence. The third
+/// is `py::value::dimension_name`, capitalized for the Python
+/// `Measurement` repr.
 pub const fn dimension_tag(dim: Dimension) -> &'static str {
     match dim {
         Dimension::Length => "length",
@@ -259,4 +267,58 @@ impl ErrorClass {
             Self::Enforce => "CheckRefusal",
         }
     }
+}
+
+/// Whether a refusal message reads as prose rather than a `Debug`
+/// rendering of a kernel value.
+///
+/// A typed exception's human message is the kernel error's own
+/// `Display`; a `Debug` dump in its place is a leak of Rust field
+/// names into a Python user's screen and a payload the caller cannot
+/// branch on either way. `crate::py::typed_err` — the single
+/// construction site — asserts this on every raise, so the rule holds
+/// at doors written after it as well as at the ones it was written
+/// for.
+///
+/// Two fingerprints, each of which prose in this crate does not carry:
+///
+/// * `" { "` — the field-brace `std` puts in every struct and
+///   struct-variant rendering, at any nesting depth (`Some(E::V { .. })`
+///   and `[V { .. }]` both carry it).
+/// * a message that is one bare CamelCase token — a fieldless
+///   variant's whole rendering. A sentence is never one word.
+///
+/// What it cannot see: a tuple variant of scalars (`Escalated(1, 2)`)
+/// and a fieldless variant embedded mid-sentence.
+///
+/// Its false positive is **user text echoed into kernel `Display`
+/// prose** — a path, a name, an OS message — which reaches the message
+/// verbatim, braces included, and so can carry the struct fingerprint
+/// without any `Debug` being involved. `WorkspaceError`'s path arms are
+/// the live example. Delimiting the echo makes it legible but does not
+/// neutralise it: a caller who names a directory `a { b` turns an
+/// honest typed refusal into a panic, and because this workspace keeps
+/// `debug_assert` on under release, in a built wheel too. The trade is
+/// deliberate — the fingerprint has to be something prose does not
+/// carry, and no cheaper discriminator was available — but it is a
+/// trade, not a free check.
+///
+/// One arm disagrees with it on purpose: `crate::py::flush`'s
+/// unknown-`ContactClass` refusal renders the unknown variant through
+/// `Debug`, having nothing else to render it with. Today that is a
+/// fieldless name mid-sentence, which passes. A future STRUCT variant
+/// of that kernel enum would trip this assertion and panic where that
+/// arm means to refuse gracefully; the site says so too.
+#[must_use]
+pub fn reads_as_prose(message: &str) -> bool {
+    !message.contains(" { ") && !is_bare_camel_token(message)
+}
+
+/// Whether the whole string is one identifier-shaped word starting
+/// with an uppercase letter — what `{:?}` renders a fieldless variant
+/// as, and what no sentence is.
+fn is_bare_camel_token(message: &str) -> bool {
+    let mut chars = message.chars();
+    chars.next().is_some_and(char::is_uppercase)
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }

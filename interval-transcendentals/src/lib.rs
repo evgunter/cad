@@ -112,8 +112,9 @@
 //! `powi`'s is a deferral, not an unguardable**: something downstream
 //! does compute with that width (`crates/geom-core`'s
 //! `powi_f64_lane_is_contained_by_the_padded_enclosure`), and an
-//! exponent-dependent ceiling is derivable and not derived. Scheduled as
-//! smell-scan **S134** / §D row **D78**.
+//! exponent-dependent ceiling is derivable and not derived. **That is
+//! owed work, not a contract** — do not read the absence of a ceiling
+//! here as a statement that none exists.
 
 #![forbid(unsafe_code)]
 

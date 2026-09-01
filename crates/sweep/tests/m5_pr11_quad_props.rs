@@ -126,7 +126,7 @@ fn half_area_enclosures_bracket_the_closed_form() {
         // no such tie (there the same body can carry a 1e-13 volume
         // pad against a 0.2 area pad).
         //
-        // This is the row that reports S26's defect as stated: it goes
+        // This is the row that reports the defect as stated: it goes
         // red when the area bracket stops shrinking alongside the flux
         // bracket, not merely when the pad gets large, and it bites
         // identically on every ε leg.

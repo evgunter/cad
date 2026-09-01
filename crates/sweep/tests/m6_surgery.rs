@@ -319,7 +319,7 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
 #[test]
 fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect("the surgery fillets the pipped cube");
     let body = out.body;
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
@@ -410,13 +410,13 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
 /// in ONE further call.
 fn composed_die() -> Body<f64> {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness())
+    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
         .expect("the box edges fillet in place")
         .body;
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
-    let out = fillet_edges(&blanked, &rims, RIM_R, band(), Tol::witness())
-        .expect("the rims fillet to tori");
+    let out =
+        fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
@@ -484,7 +484,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
     // (a) One box edge: its corners' other edges are not requested.
-    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, band(), Tol::witness())
+    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
         .expect_err("a partially-requested corner is a run-out, not implemented");
     let text = format!("{err}");
     assert!(
@@ -498,7 +498,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     // The refusal is one door earlier than the surgery's own front
     // door, and that is the honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
-    let err = fillet_edges(&pipped, &rims[..1], RIM_R, band(), Tol::witness())
+    let err = fillet_edges(&pipped, &rims[..1], RIM_R, Tol::witness())
         .expect_err("an open rim arc has no classifiable termination");
     let text = format!("{err}");
     assert!(
@@ -519,8 +519,7 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .map(|(k, f)| (k, f.rings.len(), f.sense))
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
-    let out =
-        fillet_edges(&pipped, &box_edges, DIE_R, band(), Tol::witness()).expect("the surgery");
+    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness()).expect("the surgery");
     for (k, n, sense) in rings_before {
         let f = out.body.get_face(k).expect("the shrunk face keeps its key");
         assert_eq!(f.rings.len(), n, "ring count carried");

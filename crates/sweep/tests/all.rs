@@ -38,6 +38,24 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "bool1_fix_pass.rs"]
+mod bool1_fix_pass;
+#[path = "bool1_r1_probes.rs"]
+mod bool1_r1_probes;
+#[path = "bool2_cone_doors.rs"]
+mod bool2_cone_doors;
+#[path = "bool2_cone_doors_interval.rs"]
+mod bool2_cone_doors_interval;
+#[path = "bool2_r1_probes.rs"]
+mod bool2_r1_probes;
+#[path = "bool2_r2_probes.rs"]
+mod bool2_r2_probes;
+#[path = "bool3_r1_probes.rs"]
+mod bool3_r1_probes;
+#[path = "bool3_torus_doors.rs"]
+mod bool3_torus_doors;
+#[path = "bool3_torus_doors_interval.rs"]
+mod bool3_torus_doors_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -50,6 +68,12 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "r1_mate3_probes.rs"]
+mod r1_mate3_probes;
+#[path = "r2_mate3_probes.rs"]
+mod r2_mate3_probes;
+#[path = "r2_mesh1_donut_probes.rs"]
+mod r2_mesh1_donut_probes;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -197,6 +221,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "r1_probes_issue1362_donut.rs"]
+mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
@@ -310,6 +336,10 @@ mod verbs_cylcylb_r1_blinded_probes;
 mod verbs_ga_r2_probes;
 #[path = "verbs_germarms.rs"]
 mod verbs_germarms;
+#[path = "verbs_germarms2.rs"]
+mod verbs_germarms2;
+#[path = "verbs_germarms2_interval.rs"]
+mod verbs_germarms2_interval;
 #[path = "verbs_germarms_interval.rs"]
 mod verbs_germarms_interval;
 #[path = "verbs_germarms_r1_probes.rs"]
@@ -396,6 +426,18 @@ mod m9_3_wall_door;
 
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
+#[path = "mate2_cyl_rest.rs"]
+mod mate2_cyl_rest;
+#[path = "mate2_r1_probes.rs"]
+mod mate2_r1_probes;
+#[path = "mate2_r2_probes.rs"]
+mod mate2_r2_probes;
+#[path = "mate7a_r1_probes.rs"]
+mod mate7a_r1_probes;
+#[path = "mate7a_r2_probes.rs"]
+mod mate7a_r2_probes;
+#[path = "mate7a_torus_rest.rs"]
+mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
@@ -418,5 +460,7 @@ mod verbs_shell_r2b;
 #[path = "r1_p2_probes.rs"]
 mod r1_p2_probes;
 
+#[path = "bool1_r2_probes.rs"]
+mod bool1_r2_probes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;

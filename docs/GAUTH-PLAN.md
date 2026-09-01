@@ -1,8 +1,11 @@
 # GAUTH — part authoring in the GUI: the plan
 
-**STATUS: OPEN. Scope ruled by Evan in-chat (2026-08-31): Phase A
-and Phase B definitely; fillet/chamfer authoring and assembly
-instance authoring wanted.** Program prefix `gauth/`; A/B ordinal
+**STATUS: CLOSED 2026-08-31 — all five units merged (PRs #1375,
+#1381, #1376, #1397, #1407); closed on Evan's in-chat ruling that
+no exit walk is needed, recorded in `docs/GAUTH-LOG.md`'s closing
+entry, which is the done-state of record. Scope was ruled by Evan
+in-chat (2026-08-31): Phase A and Phase B definitely; fillet/
+chamfer authoring and assembly instance authoring wanted.** Program prefix `gauth/`; A/B ordinal
 band **900–999** (claimed in `docs/MODEL-AB-LOG.md` in this plan's
 opening commit); blocks named `GAUTH-B<n>`. The live status is the
 tail of `docs/GAUTH-LOG.md`.

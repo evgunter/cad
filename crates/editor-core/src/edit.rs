@@ -699,8 +699,15 @@ pub enum EditError {
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
 // applies — each arm states the PROBLEM (and where it is), not the
-// enum's guts; identifiers render via `Debug` because they ARE the
-// location, and the typed variant remains the machine contract.
+// enum's guts; textual identifiers (slot ids, parameter names,
+// metadata keys) render via `Debug` because they ARE the location,
+// while stable names, kinds and dimensions render through their own
+// prose spellings (`StableName`'s `Display`, the `noun` renderings,
+// `Dimension`'s `Display`), never `Debug`. A name is parenthesized apposition when the sentence's
+// subject is a role word ("the rebind target ({name})") and inline
+// when the name itself is the subject ("the {name} does not
+// resolve"); new arms copy whichever their sentence shape calls for.
+// The typed variant remains the machine contract.
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -737,7 +744,9 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "edit: slot {slot:?} needs a {expected:?} expression, got {found:?}"
+                "edit: slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
                 f,
@@ -759,8 +768,8 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: document parameter {:?} is declared {declared:?} but node {}'s \
-                 measurement payload references it as {referenced:?}",
+                "edit: document parameter {:?} is declared {declared} but node {}'s \
+                 measurement payload references it as {referenced}",
                 name.0, node.0
             ),
             Self::MeasureMalformed { node, fault } => {
@@ -779,9 +788,12 @@ impl core::fmt::Display for EditError {
                 bound,
             } => write!(
                 f,
-                "edit: assertion node {} bounds a {measured:?} measure (node {}) with a \
-                 {bound:?} expression — an assertion compares like with like or not at all",
-                node.0, measure.0
+                "edit: assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression — an assertion compares like with like or not at all",
+                node.0,
+                measured.article(),
+                measure.0,
+                bound.article()
             ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
@@ -796,12 +808,12 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared:?} but node {} (slot {slot:?}) references it as {referenced:?}",
+                "edit: parameter {:?} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
                 name.0, node.0
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
+                "edit: parameter {:?}: a continuous parameter cannot be a count — use a count parameter",
                 name.0
             ),
             Self::DocParamNotDeclared { name } => write!(
@@ -816,7 +828,7 @@ impl core::fmt::Display for EditError {
                 offered,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared:?} but the value edit offered a \
+                "edit: parameter {:?} is declared {declared} but the value edit offered a \
                  {offered} — changing a parameter's kind is a redeclaration",
                 name.0
             ),
@@ -826,7 +838,7 @@ impl core::fmt::Display for EditError {
             Self::Dimension(e) => write!(f, "edit: {e}"),
             Self::DeclareNamesMissingNode { name } => write!(
                 f,
-                "edit: declared name {name:?} refers to a node that is not live"
+                "edit: the declared {name} refers to a node that is not live"
             ),
             Self::NonFiniteDocParam { name } => write!(
                 f,
@@ -838,23 +850,25 @@ impl core::fmt::Display for EditError {
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
-                "edit: rebind target {name:?} refers to a node that is not live"
+                "edit: the rebind target ({name}) refers to a node that is not live"
             ),
             Self::RebindUnknownName { name } => write!(
                 f,
-                "edit: rebind source {name:?} was never minted by this document"
+                "edit: the rebind source ({name}) was never minted by this document"
             ),
             Self::RebindKindMismatch { from, to } => write!(
                 f,
-                "edit: a rebind cannot cross entity kinds ({from:?} to {to:?})"
+                "edit: a rebind cannot cross entity kinds ({} to {})",
+                from.noun(),
+                to.noun()
             ),
             Self::RebindIdentity { name } => write!(
                 f,
-                "edit: rebinding {name:?} to itself is a recorded no-op — refused"
+                "edit: rebinding the {name} to itself is a recorded no-op — refused"
             ),
             Self::RebindNoReferences { name } => write!(
                 f,
-                "edit: no document site references {name:?} — nothing to repair"
+                "edit: no document site references the {name} — nothing to repair"
             ),
             Self::WitnessOnNonSketch { node } => write!(
                 f,
@@ -871,22 +885,24 @@ impl core::fmt::Display for EditError {
             }
             Self::NameUnresolvedInEvaluation { name } => write!(
                 f,
-                "edit: name {name:?} does not resolve in the supplied evaluation — recording the reference would strand it"
+                "edit: the {name} does not resolve in the supplied evaluation — recording the \
+                 reference would strand it"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
-                "edit: the rebind would land two {kind:?} attributes on {name:?} — clear one first"
+                "edit: the rebind would land two {} attributes on the {name} — clear one first",
+                kind.noun()
             ),
             Self::AppearanceWrongKind { name } => write!(
                 f,
-                "edit: appearance attaches to faces and bodies only (refused for {name:?})"
+                "edit: appearance attaches to faces and bodies only (refused for the {name})"
             ),
             Self::AppearanceNamesMissingNode { name } => write!(
                 f,
-                "edit: appearance name {name:?} refers to a node that is not live"
+                "edit: the appearance target ({name}) refers to a node that is not live"
             ),
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "edit: no {kind:?} attribute is set on {name:?}")
+                write!(f, "edit: no {} attribute is set on the {name}", kind.noun())
             }
             Self::InvalidTolerance { value } => write!(
                 f,
@@ -894,19 +910,20 @@ impl core::fmt::Display for EditError {
             ),
             Self::MetaUnversioned { name, key, error } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} does not carry the D7 integer \"v\" \
+                "edit: metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
                  version field: {error}"
             ),
             Self::MetaNonFinite { name, key, path } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} carries a non-finite float at {path}"
+                "edit: metadata {key:?} on the {name} carries a non-finite float at {path}"
             ),
             Self::MetaNotSet { name, key } => {
-                write!(f, "edit: no metadata {key:?} is set on {name:?}")
+                write!(f, "edit: no metadata {key:?} is set on the {name}")
             }
             Self::RebindMetadataCollision { name, key } => write!(
                 f,
-                "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
+                "edit: the rebind would land two values under metadata {key:?} on the {name} — \
+                 clear one first"
             ),
             Self::Roots(fault) => write!(f, "edit: {fault}"),
             Self::PlacementOnNonInstance { node } => write!(

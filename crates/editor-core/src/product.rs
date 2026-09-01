@@ -352,6 +352,24 @@ pub struct Product<T: Decide> {
     /// and contact carries are — never re-derived by looking at the
     /// gathered geometry.
     pub solid_roots: Vec<SolidOrigin>,
+    /// One row per mate of THIS document whose declaration the gather
+    /// minted into `contacts`, in document order.
+    ///
+    /// The rows are the attribution channel and nothing else: the
+    /// records themselves carry arena keys, so a finding against one
+    /// needs this list to say which mate authored it. A declaration
+    /// that arrived from a sub-assembly has no row here — its mate
+    /// belongs to another document, whose bookkeeping does not cross
+    /// the seam even though its record does.
+    pub minted: Vec<crate::assembly::MintedDeclaration>,
+    /// One row per live mate the gather could NOT mint, in document
+    /// order ([`crate::MintRefusal`]).
+    ///
+    /// Recorded rather than refused: neither refusal changes what
+    /// material the document denotes, so the product stands and
+    /// [`crate::assemble`] is the door that turns the first row into
+    /// its typed refusal.
+    pub unminted: Vec<crate::assembly::MintRefusal>,
 }
 
 /// One gathered solid's origin: the root that contributed it, that
@@ -501,11 +519,26 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
     }
     T::gate_at_rest(&aggregate, tol).map_err(|errors| ProductError::ProductInvalid { errors })?;
+    // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
+    // product carries its own mates' declarations, so what a document
+    // MEANS includes what its mates say about the material — which is
+    // what lets the instantiation seam compose: a sub-assembly's
+    // declarations ride up on the contacts channel above, keyed by the
+    // graft, rather than being lost because the consuming document
+    // never ran the mate loop.
+    //
+    // Last, and after the gate: minting resolves references against
+    // the FINISHED name table, and the aggregate's own at-rest verdict
+    // is about geometry, so a product that is not a body at all
+    // refuses before any mate is read.
+    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
     Ok(Product {
         body: aggregate,
         names,
         contacts,
         solid_roots,
+        minted,
+        unminted,
     })
 }
 

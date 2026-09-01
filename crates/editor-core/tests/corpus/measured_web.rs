@@ -26,6 +26,7 @@
 //! move with it (the payload-expression channel), which is exactly the
 //! property the incremental probe is there to exercise.
 
+use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, Dimension, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
     MeasureRef, Node, ParamName, ProfileProgram,
@@ -53,6 +54,7 @@ pub fn document() -> CorpusDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: R0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: None,
         },
     });
