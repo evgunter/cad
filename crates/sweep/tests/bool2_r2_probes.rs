@@ -121,16 +121,34 @@ fn clear_quarter(q: Point3<f64>) -> f64 {
 /// Runs the oracle over one body and reports mismatches and
 /// escalations. `margin` is the band of points skipped as too close to
 /// the boundary for the oracle to be a fair judge.
+/// Returns `(judged, escalations, WRONG answers, escalation notes)`.
+///
+/// **The two failure kinds are kept apart, and only one of them is a
+/// disagreement.** A wrong verdict is the arm answering the oracle's
+/// question differently from the oracle: that is the claim this sweep
+/// exists to test, and it must be empty. An escalation is the arm
+/// DECLINING to answer, which at a coarse ε is correct behaviour — a
+/// ray can be near-tangent to the cone while the query point sits far
+/// from the boundary, because the discriminant's band is a property of
+/// the RAY, not of the point's clearance. Folding those into one bucket
+/// and asserting it empty makes the row assert "never escalates", which
+/// is not true of any margined arm and is not what the sweep measured:
+/// at ε = 1e-6 three of 294 points on the flat cone escalate on
+/// `bool_ray_cone_disc` at clearances of 0.14–0.22, with no wrong
+/// answer anywhere. The callers assert emptiness of the WRONG list and
+/// a bound on the escalation RATE, so a real degradation — the arm
+/// escalating everywhere — still goes red.
 fn oracle(
     name: &str,
     body: &Body<f64>,
     pts: &[Point3<f64>],
     truth: impl Fn(Point3<f64>) -> f64,
     margin: f64,
-) -> (usize, usize, Vec<String>) {
+) -> (usize, usize, Vec<String>, Vec<String>) {
     let mut tested = 0usize;
     let mut escalated = 0usize;
     let mut bad = Vec::new();
+    let mut notes = Vec::new();
     for &q in pts {
         let c = truth(q);
         if c.abs() < margin {
@@ -152,17 +170,17 @@ fn oracle(
             }
             Err(e) => {
                 escalated += 1;
-                // An escalation is not a wrong answer, but at a point
-                // this far from the boundary it is worth seeing.
+                // Reported, never counted as a disagreement — see the
+                // header. Worth seeing at a point this far out.
                 if escalated <= 5 {
-                    bad.push(format!(
+                    notes.push(format!(
                         "{name}: ESCALATED at {q:?} clearance {c:+.4}: {e:?}"
                     ));
                 }
             }
         }
     }
-    (tested, escalated, bad)
+    (tested, escalated, bad, notes)
 }
 
 /// **Claim 1, by execution.** The quadratic + nappe + trim, judged
@@ -172,6 +190,7 @@ fn oracle(
 fn r2_oracle_sweep_over_three_cone_bodies() {
     let pts = samples(600, (-1.6, -0.6, -1.6), (1.6, 1.8, 1.6));
     let mut all = Vec::new();
+    let mut all_notes: Vec<String> = Vec::new();
     let mut total = 0usize;
     let mut esc = 0usize;
     for (name, body, truth) in [
@@ -183,18 +202,27 @@ fn r2_oracle_sweep_over_three_cone_bodies() {
         ("frustum", frustum(), Box::new(clear_frustum)),
         ("quarter", quarter_cone(), Box::new(clear_quarter)),
     ] {
-        let (t, e, bad) = oracle(name, &body, &pts, truth, 0.02);
+        let (t, e, bad, notes) = oracle(name, &body, &pts, truth, 0.02);
         total += t;
         esc += e;
         all.extend(bad);
+        all_notes.extend(notes);
     }
     println!(
-        "r2 oracle: {total} points judged, {esc} escalations, {} mismatches",
+        "r2 oracle: {total} points judged, {esc} escalations, {} wrong answers",
         all.len()
     );
     for m in all.iter().take(25) {
         println!("  {m}");
     }
+    for m in all_notes.iter().take(10) {
+        println!("  {m}");
+    }
+    assert!(
+        esc * 20 <= total,
+        "{esc} of {total} points escalated — the arm is declining to answer at a \
+         rate that is no longer a near-tangent ray here and there"
+    );
     assert!(all.is_empty(), "{} oracle disagreements", all.len());
 }
 
@@ -274,18 +302,26 @@ fn r2_generator_parallel_schedule_member() {
         let wall = (1.0 - q.y / h - rho) / (1.0 + 1.0 / (h * h)).sqrt();
         wall.min(q.y)
     };
-    let (t, e, bad) = oracle("flat-cone", &body, &pts, truth, 0.02);
+    let (t, e, bad, notes) = oracle("flat-cone", &body, &pts, truth, 0.02);
     println!(
-        "r2 generator-parallel body: {t} judged, {e} escalations, {} mismatches",
+        "r2 generator-parallel body: {t} judged, {e} escalations, {} wrong answers",
         bad.len()
     );
-    for m in bad.iter().take(10) {
+    for m in bad.iter().chain(notes.iter()).take(10) {
         println!("  {m}");
     }
     assert!(
         bad.is_empty(),
         "{} disagreements on the flat cone",
         bad.len()
+    );
+    // Escalations are correct behaviour on a near-tangent ray and are
+    // ε-dependent: none at the default row, three of 294 at 1e-6. The
+    // RATE is what a degradation would move.
+    assert!(
+        e * 20 <= t,
+        "{e} of {t} points escalated on the flat cone — a rate, not a \
+         near-tangent ray here and there"
     );
 }
 
