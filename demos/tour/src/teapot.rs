@@ -215,10 +215,14 @@ const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// sphere in a VALLEY, and a concave chain adds material where a
 /// closed-rim carve only removes it — measured, not reasoned: a 45°
 /// skirt (`Δr = −4` over `Δy = +4`) authors and builds, and the fillet
-/// arm refuses its foot `UnsupportedChain { detail: "a concave chain
-/// adds material, which no closed-rim carve builds" }` while the
-/// flange's own rim and the knob's COMPOSE in the same breath. At
-/// `|dy/dr| = 3` the junction is convex and all three roll.
+/// arm refuses its foot `UnsupportedChain { edge, detail: "a concave
+/// chain adds material, which no closed-rim carve builds — not
+/// implemented" }` while the flange's own rim and the knob's COMPOSE in
+/// the same breath. (That variant keeps the dome's 5-12-13 junctions
+/// exact by putting `DOME_C` at `LID_BASE − 1/256`; a 45° skirt against
+/// THIS centre would refuse one door earlier, at the arc's own
+/// equidistance check.) At `|dy/dr| = 3` the junction is convex and all
+/// three roll.
 const R_FLANGE: f64 = 14.0 / 256.0;
 /// Where the conical flange ends and the dome's sphere begins.
 const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
@@ -229,7 +233,8 @@ const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
 /// rim and for the knob's foot evaluate to 0.0 in f64, so the arc door
 /// has nothing to round when it checks equidistance.
 const DOME_R: f64 = 13.0 / 256.0;
-/// The dome sphere's centre, BELOW the lid's underside.
+/// The dome sphere's centre, one unit ABOVE the lid's underside —
+/// the flange lifts the dome's foot, and the centre with it.
 const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
 /// The knob's radius — the 5-12-13 point of the dome circle.
 const R_KNOB: f64 = 5.0 / 256.0;
@@ -241,7 +246,8 @@ const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// the lid's profile ANNULAR, and therefore what makes its latitude
 /// rims closed edges. See the module docs' finding 3.
 const R_VENT: f64 = 1.0 / 256.0;
-/// The roll on the knob's top rim.
+/// The roll, asked once for all three of the lid's rims — the radius
+/// is per REQUEST, not per edge.
 const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------

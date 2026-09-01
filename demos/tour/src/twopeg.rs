@@ -506,11 +506,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // independently, so as two panels they arrive at two different
     // sizes and the reader cannot lay one over the other.
     //
-    // The MATED body stays at the origin because it is the one
-    // carrying declared contacts, and `transform_rigid` re-mints face
-    // keys: moving it would leave its `ContactRecords` naming faces
-    // that no longer exist. The apart pair is contact-free, so it is
-    // the half that travels.
+    // The MATED body stays at the origin because the scene's closed
+    // forms are stated in its coordinates. The apart pair is already a
+    // FRAMING rather than a part — Q is there by a rigid lift — so
+    // moving it again is the same kind of act, not a new claim.
+    //
+    // (`transform_rigid` would carry either: it leaves the topology
+    // "and every arena key untouched", so a contact-carrying body
+    // survives it. What it re-mints is each moved edge's WITNESS, #84.)
     let aside = Affine3::translation(Vec3::new(APART_GAP, 0.0, 0.0));
     let p_aside = pncad::topo::transform_rigid(&p, &aside, tol).expect("place P aside");
     let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside, tol).expect("place Q aside");

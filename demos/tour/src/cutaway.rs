@@ -70,16 +70,17 @@ pub(crate) fn build<S: Scalar>(
 }
 
 /// How far along +x the sectioned pair sits from the whole box. The
-/// enclosure is 3 long, so 5 leaves 2 of clear air at the shared
-/// camera.
+/// enclosure is 3 long and `build` has already pushed the below half
+/// 0.445 the other way along the section normal, so 5 leaves about
+/// 1.55 of clear air at the shared camera.
 pub(crate) const SECTION_GAP: f64 = 5.0;
 
 /// The two halves, placed beside the whole box for the shared cell.
 ///
-/// The halves are the ones that travel because they are contact-free:
-/// split output carries no declared contacts, while the box itself is
-/// a boolean result whose `ContactRecords` name face keys that
-/// `transform_rigid` would re-mint.
+/// The halves travel because they are already a FRAMING — `build` has
+/// pulled them apart along the section normal — so placing them beside
+/// the whole box is the same act again, where moving the box would put
+/// the part somewhere its own narration does not say it is.
 pub(crate) fn sectioned_beside(
     boxbody: &pncad::topo::Body<f64>,
     tol: Tol,

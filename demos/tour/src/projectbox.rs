@@ -102,8 +102,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
 /// onto the whole.
 pub fn stop(tol: Tol) -> Stop {
     let (acc, vol) = build::<f64>(tol);
-    let body_for_cutaway = acc.body.clone();
-    let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&body_for_cutaway, tol);
+    let (section_bodies, section_note) = crate::cutaway::sectioned_beside(&acc.body, tol);
     let note = format!(
         "15 sequential boolean nodes on ONE part (subtract -> 6 tunnel subtracts -> \
          4 boss unions -> 4 pocket subtracts), volume matching the dyadic oracle \
@@ -125,9 +124,22 @@ pub fn stop(tol: Tol) -> Stop {
               topo::split(tilted plane) -> 2 bodies -> 2 transform nodes",
         delta: 1e-2,
         note: Some(note),
+        // The SECTION's camera, not the box's. A merged cell has one
+        // camera, and the two subjects do not want the same one: the
+        // box alone was framed at elev 33 / azim -125, which puts the
+        // cut faces 2.5 degrees off EDGE-ON (foreshortening 0.044) and
+        // makes a machinist's section into a pair of slivers. The
+        // cutaway's own choice — "the section normal ~48 degrees off
+        // the view direction" (#91 revision note 6) — is the demanding
+        // constraint, so it wins: at elev 20 / azim 55 the section
+        // normal is 44.8 degrees off the view, foreshortening 0.705,
+        // and the below half's cut faces the camera with the cavity,
+        // vents and boss sections open to it. The whole box is a box
+        // from any azimuth; the section is only a section from this
+        // one.
         view: View {
-            elev: 33.0,
-            azim: -125.0,
+            elev: 20.0,
+            azim: 55.0,
             up: 'z',
         },
         bodies: core::iter::once(SceneBody::seamed(
