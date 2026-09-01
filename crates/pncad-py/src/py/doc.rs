@@ -186,8 +186,72 @@ pub(crate) struct Doc {
     ///
     /// The Rust `apply` returns this beside the new document; the
     /// Python wrapper owns the document and swaps it, so the record
-    /// is held here for the same span the document it describes is.
+    /// is held here for the same span the document it describes is —
+    /// an invariant [`Doc::accept`] holds by being the only place
+    /// either of the two is written.
     pub(crate) maintenance: Vec<d::ClusterMaintenance>,
+}
+
+/// The wrapper's own plumbing: the ONE place an accepted edit is taken
+/// up, and the two node-inserting doors that share it. None of it is a
+/// Python method.
+impl Doc {
+    /// **The swap point.** Every accepting door lands here, and it
+    /// replaces the held document and the maintenance record TOGETHER
+    /// — which is what makes `last_maintenance` a fact about the
+    /// document now held rather than about some earlier one. Returns
+    /// the edit's record so each door can read the id it minted.
+    ///
+    /// A door that swapped the document by hand would leave the
+    /// maintenance describing an edit two edits ago; that is the
+    /// staleness this function exists to make unspellable.
+    fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
+        self.inner = applied.doc;
+        self.maintenance = applied.maintenance;
+        applied.record
+    }
+
+    /// Apply an `InsertNode` edit against the held document, WITHOUT
+    /// taking it up: the caller decides how to surface a refusal and
+    /// passes an acceptance to [`Doc::accept`].
+    fn insert_node(
+        &self,
+        node: d::Node<d::ProfileProgram>,
+    ) -> Result<d::Applied<d::ProfileProgram>, d::EditError> {
+        d::apply(
+            &self.inner,
+            &d::DocEdit::InsertNode { node },
+            Tol::witness(),
+        )
+    }
+
+    /// The declare doors' shared body: build the kernel's `Declare`
+    /// node from findings the caller already inspected, insert it, and
+    /// take the acceptance up through the swap point.
+    ///
+    /// It reaches `insert_node` rather than `pncad::select::declare_all`
+    /// because that sugar returns the new document alone: its own
+    /// insert's maintenance is dropped inside it, so a caller holding a
+    /// maintenance mirror cannot keep it honest through that door. The
+    /// refusal vocabulary is unchanged — the same `DeclareError` arms,
+    /// raised through the same `declare_err`.
+    fn declare_findings(
+        &mut self,
+        py: Python<'_>,
+        findings: &[pncad::select::FlushFinding],
+    ) -> PyResult<NodeId> {
+        use pncad::select::DeclareError;
+        let raise = |err: DeclareError| declare_err(py, &err);
+        let node = pncad::select::declare_node(findings).map_err(raise)?;
+        let applied = self
+            .insert_node(node)
+            .map_err(|err| raise(DeclareError::Edit(err)))?;
+        let id = self
+            .accept(applied)
+            .minted
+            .ok_or_else(|| raise(DeclareError::NoMintedId))?;
+        Ok(NodeId(id))
+    }
 }
 
 #[pymethods]
@@ -264,9 +328,7 @@ impl Doc {
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
         let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
-        self.inner = applied.doc;
-        self.maintenance = applied.maintenance;
-        Ok(applied.record.minted.map(NodeId))
+        Ok(self.accept(applied).minted.map(NodeId))
     }
 
     /// The cluster-record maintenance the LAST accepted edit
@@ -367,13 +429,10 @@ impl Doc {
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
     fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
-        let tol = Tol::witness();
-        let edit = d::DocEdit::InsertNode {
-            node: node.inner.clone(),
-        };
-        let applied = d::apply(&self.inner, &edit, tol).map_err(|err| edit_err(py, &err))?;
-        self.inner = applied.doc;
-        applied.record.minted.map(NodeId).ok_or_else(|| {
+        let applied = self
+            .insert_node(node.inner.clone())
+            .map_err(|err| edit_err(py, &err))?;
+        self.accept(applied).minted.map(NodeId).ok_or_else(|| {
             typed_err(
                 py,
                 ErrorClass::Edit,
@@ -398,11 +457,7 @@ impl Doc {
         py: Python<'_>,
         finding: &super::flush::FlushFinding,
     ) -> PyResult<NodeId> {
-        let tol = Tol::witness();
-        let (doc, id) = pncad::select::declare(&self.inner, &finding.0, tol)
-            .map_err(|err| declare_err(py, &err))?;
-        self.inner = doc;
-        Ok(NodeId(id))
+        self.declare_findings(py, core::slice::from_ref(&finding.0))
     }
 
     /// Declare a SET of inspected findings in one `Declare` node —
@@ -414,12 +469,8 @@ impl Doc {
         py: Python<'_>,
         findings: Vec<super::flush::FlushFinding>,
     ) -> PyResult<NodeId> {
-        let tol = Tol::witness();
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel, tol)
-            .map_err(|err| declare_err(py, &err))?;
-        self.inner = doc;
-        Ok(NodeId(id))
+        self.declare_findings(py, &kernel)
     }
 
     /// How many nodes the document holds.

@@ -820,7 +820,9 @@ fn resolve_declarations(
                 let candidates = body
                     .vertices()
                     .map(|(vk, v)| (vk, body.get_point(v.point).copied()));
-                records.vv.push(vertex_rest_contact(candidates, at, eps_in)?);
+                records
+                    .vv
+                    .push(vertex_rest_contact(candidates, at, eps_in)?);
             }
         }
     }
@@ -866,6 +868,7 @@ fn vertex_rest_contact(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod declaration_tests {
     use super::{ImportContact, StepImportError, resolve_declarations, vertex_rest_contact};
     use geom_core::Point3;
@@ -890,7 +893,9 @@ mod declaration_tests {
         let keys: Vec<_> = body.vertices().map(|(vk, _)| vk).collect();
         let records = resolve_declarations(
             &body,
-            &[ImportContact::VertexRest { at: [1.0, 1.0, 1.0] }],
+            &[ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
             1e-9,
         )
         .expect("two coincident vertices resolve");

@@ -414,6 +414,50 @@ class TestBenchStand(BenchWorkspace):
             },
         )
 
+    def test_last_maintenance_describes_the_last_accepted_edit_at_every_door(self):
+        """`last_maintenance` says "the LAST accepted edit", and `Doc`
+        has four doors that accept one: `apply`, `insert`, `declare`
+        and `declare_all`. A door that swaps the document without the
+        record leaves the reading describing an EARLIER edit, which is
+        worse than no reading — it is a plausible one about the wrong
+        subject."""
+        doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
+        # `insert`: the stand's second mate joins post_b's cluster into
+        # post_a's, and that join is what the door just accepted.
+        joins = doc.last_maintenance
+        self.assertEqual([r.variant for r in joins], ["join"])
+        self.assertEqual((joins[0].survived, joins[0].absorbed), (post_a, post_b))
+
+        def slab(x, y, z):
+            """A box, inserted through the same `insert` door."""
+            profile = doc.insert(
+                Node.polygon(
+                    [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
+                    elevation=z[0],
+                )
+            )
+            return doc.insert(Node.extrude(profile, z[1] - z[0]))
+
+        # `insert` again, on an edit that moves no mate graph: the
+        # record is now EMPTY, not the join still standing from before.
+        lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
+        self.assertEqual(doc.last_maintenance, [])
+        # `apply`: deleting a mate splits the cluster it coupled.
+        doc.apply(DocEdit.delete_node(mate_2))
+        self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
+        # `declare` and `declare_all`, each from that split: a declared
+        # flush contact moves no mate graph, so each door's own reading
+        # is empty — the split belonged to the edit before it.
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        self.assertEqual(len(findings), 1)
+        doc.declare(findings[0])
+        self.assertEqual(doc.last_maintenance, [])
+        doc.apply(DocEdit.delete_node(mate_1))
+        self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
+        doc.declare_all(findings)
+        self.assertEqual(doc.last_maintenance, [])
+
     def test_only_the_gauge_carries_an_authored_frame(self):
         doc, (post_a, shelf_i, post_b), _ = self.stand()
         # Placement lives on the CLUSTER. Two of the three instances
