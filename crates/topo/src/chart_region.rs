@@ -3412,9 +3412,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms {
-    use super::{
-        ChartOverlap, ChartRegionError, FaceUv, certified_arms, overlap_of_uv, v_window,
-    };
+    use super::{ChartOverlap, ChartRegionError, FaceUv, certified_arms, overlap_of_uv, v_window};
     use crate::body::Body;
     use crate::entity::FaceKey;
     use crate::euler::FaceSurface;
@@ -3862,12 +3860,7 @@ mod r2_probe_cert8_interval {
             "interval inf=({:?},{:?}) sup=({:?},{:?}) area={:?}",
             i.inf_u, i.inf_v, i.sup_u, i.sup_v, i.area_inf
         );
-        let arms = certified_arms(
-            &s,
-            Interval::from_f64(0.0),
-            Interval::from_f64(1.0),
-            band(),
-        );
+        let arms = certified_arms(&s, Interval::from_f64(0.0), Interval::from_f64(1.0), band());
         println!("interval certified arms: {arms:?}");
     }
 
