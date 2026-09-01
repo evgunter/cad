@@ -335,7 +335,7 @@ pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
 /// [`PatchBoundError::DerivedKnots`] when the result is not a valid
 /// clamped vector.
 pub fn derived_knots(kv: &KnotVector) -> Result<KnotVector, PatchBoundError> {
-    let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+    let inner = kv.derivative_knot_slice().to_vec();
     KnotVector::clamped(inner, kv.degree() - 1).map_err(|_| PatchBoundError::DerivedKnots)
 }
 
@@ -459,25 +459,33 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 
 /// The three spatial channels of a control net, as ring points.
 ///
-/// (`offset_fit::channel` is the same extraction in the row-major
-/// slice shape `PatchSpans::decompose` consumes; the two shapes have
-/// different consumers and are bridged rather than unified — see that
-/// function for the argument.)
+/// **The SHAPE is shared** with `offset_fit::channel`: both build a
+/// [`Net`], and the flat/nested bridge the two used to need is gone —
+/// [`geom_core::spline::net::TensorNet`] is row-major and hands out
+/// both a flat slice (what `PatchSpans::decompose` consumes) and
+/// indexed windows (what [`window_hull`] reads).
 ///
-/// **The two no longer share their arithmetic, and the divergence is
-/// deliberate.** This one extracts `w·P`; `offset_fit::channel`
-/// extracts `w·(P − c)` against a whole-patch recentring origin,
-/// because its net feeds polynomial products formed once over the
-/// merged break structure, where the ring's rounding scales with the
-/// coordinate. This site recentres too, but LATER and per cell
-/// ([`window_tilde_hull`]), off the cell's own control window — the
-/// tighter centre, available here because a cell-local hull is what
-/// is being read. So a change to one is no longer automatically a
-/// change to both. What they still share is the ORDER
-/// (`weight · coordinate`), and a change to THAT is a change to both.
-/// Unifying the two centres and the shape they are computed in is the
-/// patch-hull consolidation's (issue 1006, CERT-10), which owns this
-/// seam.
+/// **The ARITHMETIC still diverges, and that is what is left.** This
+/// one extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
+/// against a WHOLE-PATCH recentring origin, because its net feeds
+/// polynomial products formed once over the merged break structure,
+/// where the ring's rounding scales with the coordinate. This site
+/// recentres too, but LATER and per cell ([`window_tilde_hull`]), off
+/// the cell's own control window — the tighter centre, available here
+/// because a cell-local hull is what is being read. So a change to one
+/// is not automatically a change to both. What they still share is the
+/// ORDER (`weight · coordinate`), and a change to THAT is a change to
+/// both.
+///
+/// **Unifying the two CENTRES is open, and it is not this seam's own
+/// to close.** The patch-hull consolidation (issue 1006) unified the
+/// storage and left the centres deliberately apart: they are different
+/// centres because they are read at different granularities, and
+/// making them one means deciding whether the composite lane can
+/// afford a per-cell centre or the cell lane must give up its tighter
+/// one — a measurement on `offset_fit`'s numbers, not a refactor. It
+/// is filed rather than assigned here, because a residue whose owner
+/// is the unit that chose to keep it has no owner at all.
 fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
     let (nu, nv) = n.control_counts();
     (0..3)

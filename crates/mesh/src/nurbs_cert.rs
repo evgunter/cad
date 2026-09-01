@@ -2716,6 +2716,55 @@ mod tests {
         })
     }
 
+    /// **The counterfactual is FAITHFUL**: re-expressing the retired
+    /// whole-net arm through the shared home
+    /// ([`whole_net_bound`]) reproduces the digits the deleted
+    /// `integral_face_bound` answered, exactly.
+    ///
+    /// Both reviewers checked this by hand, which is the reason it is a
+    /// row now: the fold-cost table and the tighter-or-equal claim are
+    /// both measured AGAINST this function, so a counterfactual that
+    /// drifted would silently restate the comparison the unit's whole
+    /// argument rests on. The literals are the pre-collapse
+    /// measurement, taken before the arm was deleted.
+    #[test]
+    fn cert10_the_whole_net_counterfactual_reproduces_the_pre_collapse_digits() {
+        for (name, s, want) in [
+            (
+                "wavy",
+                wavy(),
+                [
+                    10.394_094_997_048_835,
+                    9.245_962_289_850_134,
+                    13.743_674_653_694_748,
+                    5.275_689_895_607_064,
+                    4.335_017_346_749_23,
+                ],
+            ),
+            (
+                "staggered_channels",
+                staggered_channels(),
+                [
+                    48.219_564_494_093_156,
+                    1.084_596_414_278_405_7e-13,
+                    2.000_000_000_000_007,
+                    20.000_000_000_000_025,
+                    2.000_000_000_000_002_7,
+                ],
+            ),
+        ] {
+            let b = whole_net_bound(&s).expect("covered");
+            let got = [b.muu, b.muv, b.mvv, b.mu1, b.mv1];
+            for (k, (g, w)) in got.iter().zip(&want).enumerate() {
+                assert!(
+                    g == w,
+                    "{name}: counterfactual component {k} is {g:.17e}, the retired arm \
+                     answered {w:.17e}"
+                );
+            }
+        }
+    }
+
     /// The per-cell fold: the componentwise max over `patch_cells`'
     /// per-cell bounds.
     fn fold_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {

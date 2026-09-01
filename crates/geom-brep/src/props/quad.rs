@@ -96,6 +96,7 @@
 //! documented slack there, unchanged).
 
 use geom_core::ring_interval::RingInterval;
+use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
@@ -663,7 +664,7 @@ fn deriv_kv(kv: &KnotVector) -> Option<KnotVector> {
     if kv.degree() < 2 {
         return None;
     }
-    let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+    let inner = kv.derivative_knot_slice().to_vec();
     KnotVector::clamped(inner, kv.degree() - 1).ok()
 }
 
@@ -1126,7 +1127,7 @@ impl PatchGrid {
     /// vector while the degree allows, the per-span-constant remnant
     /// at degree 0.
     fn deriv_dir(kv: &KnotVector) -> Dir {
-        let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+        let inner = kv.derivative_knot_slice().to_vec();
         match deriv_kv(kv) {
             Some(k) => Dir::Kv(k),
             // Degree ≥ 2 with an unrepresentable derivative structure
@@ -1159,7 +1160,7 @@ impl PatchGrid {
             // per-span constant at degree 1.
             Dir::Raw { knots, degree } => {
                 let (knots, degree) = (knots.clone(), *degree);
-                let inner = knots[1..knots.len() - 1].to_vec();
+                let inner = derivative_knot_slice(&knots).to_vec();
                 let next = if degree >= 2 {
                     Dir::Raw {
                         knots: inner,
@@ -1206,7 +1207,7 @@ impl PatchGrid {
             }
             Dir::Raw { knots, degree } => {
                 let (knots, degree) = (knots.clone(), *degree);
-                let inner = knots[1..knots.len() - 1].to_vec();
+                let inner = derivative_knot_slice(&knots).to_vec();
                 let next = if degree >= 2 {
                     Dir::Raw {
                         knots: inner,
@@ -2506,9 +2507,13 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// range, with its own sliver guard. The two differ in what else they
 /// must carry (this one owes the coarse hull blocks their containment;
 /// that one does not) and unifying them is Track R's consolidation
-/// ground (C-m/D30, gated behind #723), not this lane's. Whoever takes
-/// it should also fold the `inner`-knot-slice expression, which is
-/// copied verbatim five times across three crates.
+/// ground (C-m/D30, gated behind #723), not this lane's.
+///
+/// (The `inner`-knot-slice expression this note used to hand along
+/// with it is folded: it is
+/// [`geom_core::spline::KnotVector::derivative_knot_slice`] and its
+/// raw-slice twin, and every site in `geom-brep` and `mesh` calls
+/// them.)
 fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     // MANDATORY cuts: the rectangle's own ends and every interior
     // knot. These carry the whole smoothness invariant — a knot that
