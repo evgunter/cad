@@ -87,6 +87,7 @@ const PEG_R: f64 = 0.5;
 /// its stations the same way. Both are the plain-body door's missing
 /// selector showing through (#1345); a document would say this with a
 /// `GeoSelect`.
+const SAME_CARRIER: f64 = 1e-12;
 const PEG_X: [f64; 2] = [2.0, 4.0];
 const PEG_Y: f64 = 2.0;
 /// How far each peg stands proud of its plate — and, equally, how deep

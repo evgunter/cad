@@ -3859,6 +3859,56 @@ mod verbs_gate_r1_probes {
         );
     }
 
+    /// TEMPORARY measurement probe (MATE-7a).
+    #[test]
+    fn mate7a_measure_the_stem_weld() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let by = |name: &str| {
+            &pieces
+                .iter()
+                .find(|p| p.name == name)
+                .expect("named lily piece")
+                .body
+        };
+        for name in ["lily_stem", "lily_arch"] {
+            let body = by(name);
+            println!("--- {name} ---");
+            for (k, f) in body.faces() {
+                println!(
+                    "  {k:?} sense={} surf={:?}",
+                    f.sense,
+                    body.get_surface(f.surface)
+                );
+            }
+        }
+        let (stem, arch) = (by("lily_stem"), by("lily_arch"));
+        for (name, body) in [("stem", stem), ("arch", arch)] {
+            println!("--- {name} edges ---");
+            for (k, e) in body.edges() {
+                println!("  {k:?} curve={:?}", body.get_curve_geom(e.curve).map(|c| match c {
+                    pncad::topo::CurveGeom::Certified(c) => format!("{:?} params {:?}", c.carrier(), c.params()),
+                    _ => "scaffolding".to_string(),
+                }));
+            }
+        }
+        let decls = crate::booleans::flush_declarations(stem, arch, tol);
+        println!("declared pairs: {:?}", decls.coincident_faces);
+        let glued = crate::booleans::try_union_declared(stem, arch, tol);
+        match glued {
+            Ok(pncad::topo::BooleanResult::Body(b)) => {
+                println!(
+                    "WALL 1 GLUES: kind {:?}, {} faces, volume {:?}",
+                    b.kind,
+                    b.body.faces().count(),
+                    pncad::topo::mass_properties(&b.body, tol).map(|m| m.volume)
+                );
+            }
+            Ok(pncad::topo::BooleanResult::Empty) => println!("WALL 1: EMPTY"),
+            Err(e) => println!("WALL 1 refuses: {e:?}"),
+        }
+    }
+
     /// The axis-aligned box of the named cone frusta of the lantern,
     /// and the carving ball's — the kernel's own two constructions,
     /// re-derived here so the residual looseness is measured by an

@@ -415,11 +415,23 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
     // is a certificate, overlap is a may). Operands untouched, no
     // reduction work before it.
+    //
+    // **No covered-pair rung here, and the asymmetry is the point.**
+    // The operand gate admits a declared pair because a declaration
+    // supplies the VERDICT a germ arm would have supplied. This roster
+    // is not about verdicts: it names the kinds that have a seam lane
+    // to revert through, and no declaration can supply one. A declared
+    // torus pair under ∖ or ∩ is therefore exactly as refused as an
+    // undeclared one, and says so at the same site.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;
-        if let Some(p) =
-            super::reduce::first_unsupported_pair(a, b, band, super::reduce::revert_arm_exists)?
-        {
+        if let Some(p) = super::reduce::first_unsupported_pair(
+            a,
+            b,
+            band,
+            super::reduce::revert_arm_exists,
+            |_, _, _| false,
+        )? {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
                 operand: p.operand,

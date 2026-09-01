@@ -1489,16 +1489,17 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, band)?;
+    // The suite's door takes no declarations: the traced sweep runs
+    // the undeclared posture, where the frontier doors are verbatim —
+    // and so, therefore, is the operand gate's covered-pair rung.
+    let declared = DeclaredPairs::default();
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
-    // The suite's door takes no declarations: the traced sweep runs
-    // the undeclared posture, where the frontier doors are verbatim.
-    let declared = DeclaredPairs::default();
     let mut ab = SweepTrace::default();
     let mut ba = SweepTrace::default();
     let ab_knobs = reduce::SweepKnobs {
@@ -1554,7 +1555,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
-    reduce::gate_operand_pairs(a_operand, b_operand, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -1951,13 +1952,19 @@ fn validate_declarations<T: Decide>(
 ) -> Result<(), BooleanError> {
     let bad = |operand, what| BooleanError::InvalidDeclaration { operand, what };
     // THE C8 boundary, stated once: a declared face must sit on a
-    // carrier the classification's certified ladder describes —
-    // plane, sphere or cylinder (`carrier_eq`'s inventory). Kinds
-    // outside it (cone, torus, NURBS) refuse typed at this door;
-    // undeclared touching refuses forever at the classification
-    // frontiers — the door only widens what a VERIFIED declaration
-    // can unlock. Per-class geometric admission (the `Tangent`
-    // witness lane) is `verify_declared_contacts`' half of the door.
+    // carrier the classification's certified ladder describes — the
+    // kinds `carrier_eq` carries a rung for. Kinds outside it (cone,
+    // NURBS, `Approx`) refuse typed at this door; undeclared touching
+    // refuses forever at the classification frontiers — the door only
+    // widens what a VERIFIED declaration can unlock. Per-class
+    // geometric admission (the `Tangent` witness lane) is
+    // `verify_declared_contacts`' half of the door.
+    //
+    // This inventory is the ONE place a kind becomes declarable, and
+    // that is what makes the operand gate's covered-pair admission
+    // kind-generic without being kind-blind: a face whose carrier has
+    // no rung here can never appear in a surviving declaration, so it
+    // can never be covered there either.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let face = body
             .get_face(f)
@@ -1966,12 +1973,13 @@ fn validate_declarations<T: Decide>(
             Some(
                 geom::Surface::Plane { .. }
                 | geom::Surface::Sphere { .. }
-                | geom::Surface::Cylinder { .. },
+                | geom::Surface::Cylinder { .. }
+                | geom::Surface::Torus { .. },
             ) => Ok(()),
             Some(_) => Err(bad(
                 operand,
                 "declared face's carrier is outside the certified inventory \
-                 (plane, sphere, cylinder)",
+                 (plane, sphere, cylinder, torus)",
             )),
             None => Err(bad(operand, "declared face lost its surface")),
         }

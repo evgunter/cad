@@ -238,6 +238,27 @@ pub(super) struct UnsupportedPair {
 /// gate cannot admit a pair the sweep would then prune, nor refuse
 /// one it would examine.
 ///
+/// **A COVERED pair is not an offending pair.** `covered` names the
+/// cross-operand pairs the caller's declarations speak for. The gate
+/// refuses a kind because no arm can say what the two loci do; a
+/// declaration is the author saying it, verified at the front door
+/// before this gate runs, and consumed by the declared descent instead
+/// of by a germ arm. So a pair the declarations cover is one the
+/// pipeline HAS a verdict for, and the kind roster has nothing left to
+/// object to there.
+///
+/// The rung is kind-generic and it is not kind-blind: what a
+/// declaration may name is bounded by the certified carrier inventory
+/// (`validate_declarations`' `inventory_face`, which is
+/// [`mod@super::carrier_eq`]'s rung list). A kind with no rung cannot
+/// survive into a declaration, so it can never be covered here — one
+/// list decides both, and widening this gate is exactly and only
+/// widening that ladder.
+///
+/// Coverage is per PAIR, never per face: an offending face still
+/// disqualifies the operation through any OTHER face of the far
+/// operand whose box it may meet and whose contact nobody declared.
+///
 /// **Only cross-operand pairs are examined**, and that is the whole
 /// inventory rather than an omission: the boolean pipeline crosses
 /// A's edges against B's faces and B's against A's, never a body
@@ -261,6 +282,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
     supported: impl Fn(&geom::Surface<T>) -> bool,
+    covered: impl Fn(Operand, FaceKey, FaceKey) -> bool,
 ) -> Result<Option<UnsupportedPair>, BooleanError> {
     let pad = super::boxes::sweep_pad(band);
     for (operand, body, other) in [(Operand::A, a, b), (Operand::B, b, a)] {
@@ -290,7 +312,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
         for (face, kind) in offenders {
             let boxed = super::boxes::face_box(body, face, pad)?;
             for &(other_face, other_kind, ref other_box) in &others {
-                if boxed.overlaps(other_box) {
+                if boxed.overlaps(other_box) && !covered(operand, face, other_face) {
                     return Ok(Some(UnsupportedPair {
                         operand,
                         face,
@@ -312,8 +334,10 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 ///
 /// - **Faces**: a kind with no wired arm ([`boolean_arm_exists`])
 ///   disqualifies the operation only through a PAIR it could enter
-///   ([`first_unsupported_pair`]). A torus wall whose box clears the
-///   other operand does not gate anything.
+///   ([`first_unsupported_pair`]) and that the caller's declarations
+///   do not cover. A torus wall whose box clears the other operand
+///   does not gate anything, and neither does one whose contact with
+///   the face it may meet the author has DECLARED.
 /// - **Edges**: body-scoped. `Line`/`Circle`/`Ellipse` pass (the
 ///   crossing lanes handle all three; the both-split point lane still
 ///   needs a `Line`, and says so where it refuses); a `Nurbs` operand
@@ -332,12 +356,15 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
+    declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<(), BooleanError> {
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         gate_operand_edges(body, operand)?;
     }
-    if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists)? {
+    if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists, |operand, f, other| {
+        declared.class_of(operand, f, operand.other(), other).is_some()
+    })? {
         return Err(BooleanError::CurvedPairUnsupported {
             op: None,
             operand: p.operand,
