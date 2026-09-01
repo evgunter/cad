@@ -32,11 +32,25 @@ fn report(tag: &str, s: &Surface<f64>) {
     let rho = (2.0 * d / (t + root)).sqrt().min(1.0);
     println!(
         "{tag}: inf=({:.6}, {:.6}) sup=({:.6}, {:.6}) [chart_stretch_sup=({:.6},{:.6})] area_inf={:.6} T={:.6} D={:.6} rho={:.6} arms=({:.6},{:.6})",
-        i.inf_u, i.inf_v, i.sup_u, i.sup_v, su, sv, i.area_inf, t, d, rho, i.inf_u * rho, i.inf_v * rho
+        i.inf_u,
+        i.inf_v,
+        i.sup_u,
+        i.sup_v,
+        su,
+        sv,
+        i.area_inf,
+        t,
+        d,
+        rho,
+        i.inf_u * rho,
+        i.inf_v * rho
     );
     // mean width of the unit square scaled by the arms
     let (au, av) = (i.inf_u * rho, i.inf_v * rho);
-    println!("{tag}: unit-square mean width 2A/P = {:.6}", 2.0 * au * av / (2.0 * (au + av)));
+    println!(
+        "{tag}: unit-square mean width 2A/P = {:.6}",
+        2.0 * au * av / (2.0 * (au + av))
+    );
 }
 
 #[test]
@@ -96,7 +110,11 @@ fn probe_rational_wall_digits() {
             let rational = w.iter().any(|x| (x - w[0]).abs() > 1e-15);
             let s = body.get_surface(face.surface).unwrap().clone();
             report(
-                if rational { "RATIONAL-WALL" } else { "poly-wall" },
+                if rational {
+                    "RATIONAL-WALL"
+                } else {
+                    "poly-wall"
+                },
                 &s,
             );
             let _ = key;
@@ -152,10 +170,22 @@ fn sample_check(tag: &str, s: &Surface<f64>) {
          arms=({au:.6},{av:.6}) worst |Jw|/|scaled w| = {worst_ratio:.6}",
         i.inf_u, i.sup_u, i.inf_v, i.sup_v, i.area_inf
     );
-    assert!(min_su >= i.inf_u - 1e-6, "{tag}: inf_u is NOT a lower bound");
-    assert!(min_sv >= i.inf_v - 1e-6, "{tag}: inf_v is NOT a lower bound");
-    assert!(max_su <= i.sup_u + 1e-6, "{tag}: sup_u is NOT an upper bound");
-    assert!(max_sv <= i.sup_v + 1e-6, "{tag}: sup_v is NOT an upper bound");
+    assert!(
+        min_su >= i.inf_u - 1e-6,
+        "{tag}: inf_u is NOT a lower bound"
+    );
+    assert!(
+        min_sv >= i.inf_v - 1e-6,
+        "{tag}: inf_v is NOT a lower bound"
+    );
+    assert!(
+        max_su <= i.sup_u + 1e-6,
+        "{tag}: sup_u is NOT an upper bound"
+    );
+    assert!(
+        max_sv <= i.sup_v + 1e-6,
+        "{tag}: sup_v is NOT an upper bound"
+    );
     assert!(
         min_area >= i.area_inf - 1e-6,
         "{tag}: area_inf is NOT a lower bound"
@@ -231,7 +261,10 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
 struct Lcg(u64);
 impl Lcg {
     fn next_f64(&mut self, lo: f64, hi: f64) -> f64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1);
         lo + (hi - lo) * (((self.0 >> 11) as f64) / ((1u64 << 53) as f64))
     }
 }
@@ -243,8 +276,8 @@ impl Lcg {
 #[test]
 fn probe_random_charts_never_break_the_certified_arms() {
     use geom::NurbsSurface;
-    use geom_core::spline::KnotVector;
     use geom_core::Point3;
+    use geom_core::spline::KnotVector;
     let mut r = Lcg(0x9E37_79B9_7F4A_7C15);
     let mut checked = 0usize;
     let mut worst_overall = f64::MAX;
@@ -284,7 +317,9 @@ fn probe_random_charts_never_break_the_certified_arms() {
             continue;
         }
         let (au, av) = (i.inf_u * rho, i.inf_v * rho);
-        let Surface::Nurbs(p) = &s else { unreachable!() };
+        let Surface::Nurbs(p) = &s else {
+            unreachable!()
+        };
         let h = 1e-6;
         let n = 25;
         checked += 1;
@@ -330,6 +365,11 @@ fn probe_random_charts_never_break_the_certified_arms() {
             }
         }
     }
-    println!("checked {checked} random charts; worst contraction ratio {worst_overall} at {worst_case}");
-    assert!(checked > 200, "the hunt must actually build charts, got {checked}");
+    println!(
+        "checked {checked} random charts; worst contraction ratio {worst_overall} at {worst_case}"
+    );
+    assert!(
+        checked > 200,
+        "the hunt must actually build charts, got {checked}"
+    );
 }

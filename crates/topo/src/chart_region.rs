@@ -3622,12 +3622,7 @@ mod r2_probe_cert8_interval {
             "interval inf=({:?},{:?}) sup=({:?},{:?}) area={:?}",
             i.inf_u, i.inf_v, i.sup_u, i.sup_v, i.area_inf
         );
-        let arms = certified_arms(
-            &s,
-            Interval::from_f64(0.0),
-            Interval::from_f64(1.0),
-            band(),
-        );
+        let arms = certified_arms(&s, Interval::from_f64(0.0), Interval::from_f64(1.0), band());
         println!("interval certified arms: {arms:?}");
     }
 
