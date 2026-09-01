@@ -28,16 +28,17 @@ mod common;
 
 use core::f64::consts::TAU;
 
-use common::{body_volume, insert, near};
+use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{
-    Datum, Dimension, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId,
-    SlotId,
+    Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
 use pncad::profile::SketchPlane;
 use viewer::revolvetool::RevolveTool;
 use viewer::seats::{Seat, SeatError, SeatEvent};
+use viewer::sketch::Notation;
 use viewer::session::{
     DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfileShape, Refusal,
     Selection, SessionOp,
@@ -82,14 +83,14 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
             loops: vec![
-                ProfileShape::Circle {
+                shape(&ProfileShape::Circle {
                     centre: [R, 0.0],
                     radius: RO,
-                },
-                ProfileShape::Circle {
+                }),
+                shape(&ProfileShape::Circle {
                     centre: [R, 0.0],
                     radius: RI,
-                },
+                }),
             ],
         },
     );
@@ -97,8 +98,8 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );
@@ -107,7 +108,7 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
         SessionOp::AddRevolve {
             profile,
             axis,
-            angle: TAU,
+            angle: ang(TAU),
         },
     );
     (session, revolve)
@@ -193,8 +194,8 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.005],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, 0.005]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -203,17 +204,17 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.04,
                 height: 0.02,
-            }],
+            })],
         },
     );
     let extrude = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,
-            distance: 0.01,
+            distance: len(0.01),
         },
     );
     let v = body_volume(&mut session, extrude, tol);
@@ -266,18 +267,18 @@ fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
             loops: vec![
-                ProfileShape::Rectangle {
+                shape(&ProfileShape::Rectangle {
                     width: 0.06,
                     height: 0.03,
-                },
-                ProfileShape::Circle {
+                }),
+                shape(&ProfileShape::Circle {
                     centre: [-0.015, 0.0],
                     radius: 0.005,
-                },
-                ProfileShape::Circle {
+                }),
+                shape(&ProfileShape::Circle {
                     centre: [0.015, 0.0],
                     radius: 0.005,
-                },
+                }),
             ],
         },
     );
@@ -285,7 +286,7 @@ fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
         &mut session,
         SessionOp::AddExtrude {
             profile,
-            distance: 0.01,
+            distance: len(0.01),
         },
     );
     let v = body_volume(&mut session, extrude, tol);
@@ -303,10 +304,10 @@ fn new_document_derives_its_id_and_clears_the_session() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.02,
                 height: 0.01,
-            }],
+            })],
         },
     );
     session.perform(SessionOp::Select(Selection::Node(profile)));
@@ -376,17 +377,17 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
-            }],
+            })],
         },
     );
     let extrude = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,
-            distance: 0.01,
+            distance: len(0.01),
         },
     );
     let begun = session.perform(SessionOp::BeginGesture {
@@ -400,23 +401,23 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         },
         SessionOp::Open(std::env::temp_dir().join("gauth1-never-read.pncad")),
         SessionOp::AddDatum {
-            datum: DatumSpec::Point { position: [0.0; 3] },
+            datum: DatumSpec::Point { position: len3([0.0; 3]) },
         },
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
-            }],
+            })],
         },
         SessionOp::AddExtrude {
             profile,
-            distance: 0.01,
+            distance: len(0.01),
         },
         SessionOp::AddRevolve {
             profile,
             axis: extrude,
-            angle: TAU,
+            angle: ang(TAU),
         },
     ] {
         let refused = session.perform(op);
@@ -439,8 +440,8 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.01],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, 0.01]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -448,8 +449,8 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -457,7 +458,7 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
-                position: [0.01, 0.02, 0.03],
+                position: len3([0.01, 0.02, 0.03]),
             },
         },
     );
@@ -489,14 +490,23 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
         }),
     );
 
-    // A non-finite component refuses at the literal door, typed.
+    // A non-finite component refuses at the literal door, typed — and
+    // that door is now BEFORE the op: an `Expr` cannot hold one, so
+    // the datum spec has no spelling for a NaN origin.
+    assert!(matches!(
+        Expr::literal(f64::NAN, Dimension::Length),
+        Err(DimensionError::NonFiniteLiteral)
+    ));
+
+    // The refusal the door itself still owns: an expression of the
+    // wrong dimension for the slot, refused by the edit door.
     let refused = session.perform(SessionOp::AddDatum {
         datum: DatumSpec::Point {
-            position: [f64::NAN, 0.0, 0.0],
+            position: scl3([0.0; 3]),
         },
     });
     assert!(
-        matches!(refused.refusal, Some(Refusal::Dimension(_))),
+        matches!(refused.refusal, Some(Refusal::Edit(_))),
         "{:?}",
         refused.refusal
     );
@@ -510,10 +520,10 @@ fn the_rectangle_template_is_the_centred_polygon() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.04,
                 height: 0.02,
-            }],
+            })],
         },
     );
     let want = Node::Profile(ProfileProgram {
@@ -560,10 +570,10 @@ fn profile_refusals_are_typed_at_the_door() {
     for radius in [0.0, -0.01] {
         let degenerate = session.perform(SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
-            }],
+            })],
         });
         assert!(
             matches!(degenerate.refusal, Some(Refusal::Edit(_))),
@@ -572,18 +582,22 @@ fn profile_refusals_are_typed_at_the_door() {
         );
     }
 
-    // A non-finite field refuses at the literal door.
-    let non_finite = session.perform(SessionOp::AddProfile {
-        plane: SketchPlane::xy(),
-        loops: vec![ProfileShape::Rectangle {
+    // A non-finite field refuses at the literal door — which is now
+    // BEFORE the op exists, not inside it. The op carries `Expr`s, and
+    // an `Expr` cannot hold a non-finite value, so a session that
+    // refused this would be refusing a state nothing can build: the
+    // lowering is where the number is judged, and the form puts its
+    // refusal on the status line.
+    let non_finite = viewer::sketch::loop_program(
+        &ProfileShape::Rectangle {
             width: f64::INFINITY,
             height: 0.01,
-        }],
-    });
+        },
+        Notation::CANONICAL,
+    );
     assert!(
-        matches!(non_finite.refusal, Some(Refusal::Dimension(_))),
-        "{:?}",
-        non_finite.refusal
+        matches!(non_finite, Err(DimensionError::NonFiniteLiteral)),
+        "{non_finite:?}"
     );
 
     assert_eq!(
@@ -603,8 +617,8 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );
@@ -613,9 +627,14 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         SessionOp::NewDocument {
             name: String::new(),
         },
+        // The datum door's own refusal is now a DIMENSION one, not a
+        // non-finite one: the op carries `Expr`s, so a non-finite
+        // component cannot be built into it, while a dimensionless
+        // expression in a Length slot can — and refuses at the edit
+        // door, one rule for authored and hand-written documents.
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
-                position: [f64::NAN, 0.0, 0.0],
+                position: scl3([0.0; 3]),
             },
         },
         SessionOp::AddProfile {
@@ -624,12 +643,12 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         },
         SessionOp::AddExtrude {
             profile: axis,
-            distance: 0.01,
+            distance: len(0.01),
         },
         SessionOp::AddRevolve {
             profile: axis,
             axis,
-            angle: TAU,
+            angle: ang(TAU),
         },
     ] {
         let outcome = session.perform(op);
@@ -647,18 +666,18 @@ fn extrude_and_revolve_require_their_node_kinds() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
-            }],
+            })],
         },
     );
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );
@@ -666,7 +685,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
         &mut session,
         SessionOp::AddExtrude {
             profile,
-            distance: 0.02,
+            distance: len(0.02),
         },
     );
 
@@ -675,7 +694,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
     for wrong in [extrude, RecipeNodeId(999)] {
         let refused = session.perform(SessionOp::AddExtrude {
             profile: wrong,
-            distance: 0.02,
+            distance: len(0.02),
         });
         assert!(
             matches!(
@@ -693,7 +712,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
     let refused = session.perform(SessionOp::AddRevolve {
         profile: axis,
         axis,
-        angle: TAU,
+        angle: ang(TAU),
     });
     assert!(
         matches!(
@@ -708,8 +727,8 @@ fn extrude_and_revolve_require_their_node_kinds() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0; 3],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -717,7 +736,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
         let refused = session.perform(SessionOp::AddRevolve {
             profile,
             axis: wrong,
-            angle: TAU,
+            angle: ang(TAU),
         });
         assert!(
             matches!(
@@ -736,7 +755,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
         SessionOp::AddRevolve {
             profile,
             axis,
-            angle: TAU,
+            angle: ang(TAU),
         },
     );
     assert!(matches!(
@@ -753,18 +772,18 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
-            }],
+            })],
         },
     );
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );
@@ -772,7 +791,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let mut tool = RevolveTool::new();
     assert!(
         matches!(
-            tool.op(TAU),
+            tool.op(ang(TAU)),
             Err(SeatError::Empty {
                 seat: Seat::RevolveProfile
             })
@@ -783,7 +802,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     assert_eq!(tool.profile(), Some(profile));
     assert!(
         matches!(
-            tool.op(TAU),
+            tool.op(ang(TAU)),
             Err(SeatError::Empty {
                 seat: Seat::RevolveAxis
             })
@@ -794,7 +813,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     assert_eq!(tool.axis(), Some(axis));
 
     // The tool's op commits exactly one insert through the session.
-    let op = tool.op(TAU).expect("both seats filled");
+    let op = tool.op(ang(TAU)).expect("both seats filled");
     let revolve = insert(&mut session, op);
     assert!(matches!(
         session.committed_doc().node(revolve),
@@ -828,14 +847,14 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );
     tool.pick(session.committed_doc(), axis);
     assert_eq!(tool.axis(), Some(axis), "the next pick refills the seat");
-    assert!(tool.op(TAU).is_ok());
+    assert!(tool.op(ang(TAU)).is_ok());
 }
 
 /// The seats are ROLES: a dropped profile leaves the axis IN the axis
@@ -850,18 +869,18 @@ fn a_dropped_profile_does_not_promote_the_axis() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
-            }],
+            })],
         },
     );
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );
@@ -887,7 +906,7 @@ fn a_dropped_profile_does_not_promote_the_axis() {
     assert_eq!(tool.axis(), Some(axis), "the axis STAYS in the axis seat");
     assert!(
         matches!(
-            tool.op(TAU),
+            tool.op(ang(TAU)),
             Err(SeatError::Empty {
                 seat: Seat::RevolveProfile
             })
@@ -899,16 +918,16 @@ fn a_dropped_profile_does_not_promote_the_axis() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RI,
-            }],
+            })],
         },
     );
     tool.pick(session.committed_doc(), profile);
     assert_eq!(tool.profile(), Some(profile));
     assert_eq!(tool.axis(), Some(axis));
-    assert!(tool.op(TAU).is_ok());
+    assert!(tool.op(ang(TAU)).is_ok());
 
     // clear() empties both seats — the chrome's start-over door.
     tool.clear();
@@ -929,18 +948,18 @@ fn reconcile_drops_both_picks_across_a_new_document() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
-            }],
+            })],
         },
     );
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 1.0, 0.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 1.0, 0.0]),
             },
         },
     );

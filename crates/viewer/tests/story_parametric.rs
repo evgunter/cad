@@ -31,7 +31,7 @@ mod common;
 
 use core::f64::consts::PI;
 
-use common::{body_volume, insert, near};
+use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{
     Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, ParamName, ProfileProgram, RecipeNodeId,
     SlotId, StepArg,
@@ -133,17 +133,23 @@ fn drum(
         session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.
                 centre: [0.0, 0.0],
                 radius: 0.01,
-            }],
+            })],
         },
     );
     let radius = radius_slot(session.committed_doc(), profile);
     drive(session, profile, radius, radius_expr);
-    let extrude = insert(session, SessionOp::AddExtrude { profile, distance });
+    let extrude = insert(
+        session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(distance),
+        },
+    );
     (profile, extrude)
 }
 
@@ -265,9 +271,9 @@ fn the_parametric_living_walk() {
             // 0.025 deliberately equals `height - embed` today, so the
             // part is coherent before the drive lands; a literal that
             // stayed driving would be caught by the stage-9/11 ripples.
-            translation: [0.0, 0.0, 0.025],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
+            translation: len3([0.0, 0.0, 0.025]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
     );
     drive(
@@ -330,9 +336,9 @@ fn the_parametric_living_walk() {
             // 0.08 deliberately equals `height * 3 - embed * 2` today
             // (coherent mid-build); a literal that stayed driving would
             // be caught by the stage-9/11 parameter ripples.
-            translation: [0.0, 0.0, 0.08],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
+            translation: len3([0.0, 0.0, 0.08]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
     );
     drive(

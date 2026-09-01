@@ -82,6 +82,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::profile::SketchPlane;
+use viewer::sketch::{Notation, ProfileShape};
 
 /// Apply one edit, answering the new document and any minted id.
 pub fn edited(
@@ -122,6 +123,32 @@ pub fn len(metres: f64) -> Expr {
 /// A dimensionless literal.
 pub fn scl(value: f64) -> Expr {
     Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
+
+/// An angle literal.
+pub fn ang(radians: f64) -> Expr {
+    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
+}
+
+/// Three length literals — a datum origin, a translation.
+pub fn len3(v: [f64; 3]) -> [Expr; 3] {
+    [len(v[0]), len(v[1]), len(v[2])]
+}
+
+/// Three dimensionless literals — a normal, a direction, an axis.
+pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
+    [scl(v[0]), scl(v[1]), scl(v[2])]
+}
+
+/// One form template lowered CANONICALLY — what a suite means when it
+/// authors a shape without a word about notation.
+///
+/// The suites that DO care which unit a literal remembers say so by
+/// naming the notation (`sketch::loop_program` with one of its own),
+/// which is the point of the units riding the lowering rather than
+/// the op.
+pub fn shape(template: &ProfileShape) -> LoopProgram {
+    viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
 /// The name of the parametric fixture's driving parameter.
