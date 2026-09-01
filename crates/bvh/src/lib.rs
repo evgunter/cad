@@ -58,8 +58,23 @@
 //!
 //! This crate reads coordinate brackets (`geom_core::Bounds`) as
 //! spatial-index driver code — ratified 2026-07-29, see geom-core
-//! `real.rs`, Bounds scope rule (the CI discipline grep allowlists
-//! exactly these seams).
+//! `real.rs`, Bounds scope rule.
+//!
+//! **No CI grep watches these reads, and that is worth knowing rather
+//! than assuming otherwise.** They are SOLE `T: Bounds` bounds
+//! (`Aabb::from_points`), which is the form the scope rule prescribes and
+//! the form `scripts/gates/bounds-allowlist.sh` deliberately does not
+//! fire on — a sole bracket bound is its planted must-not-fire case,
+//! because firing on it would red every certification file in the tree.
+//! So this crate appears nowhere in that gate's filters and cannot be
+//! added to them; a new sole-bound door here is invisible to CI, and the
+//! ratification above is what licenses these reads, not an instrument.
+//!
+//! What the gate does see here is the COMPOUND form: `crates/bvh/` is not
+//! on its file allowlist, so a `T: Decide + Bounds` written in this crate
+//! fires today. The 2026-07-29 amendment names this crate, but that
+//! ratification lives in the rule and not in the allowlist — writing a
+//! compound bound here means adding the file to the gate first.
 //!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!

@@ -653,10 +653,9 @@ fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
 /// (`Trv`) value is itself only `Trv`-trustworthy, and a tangent chosen
 /// by comparing `Trv` values likewise. In the clean (`Com`) case this is
 /// a no-op. Nothing in M0 branches on derivative decorations ([`Decide`]
-/// for duals classifies values only; `Bounds` for duals — implemented
-/// since the D1 ruling of 2026-08-19, where this sentence used to say it
-/// was not — is the **value channel's** bracket with the tangent
-/// discarded, so it does not read a derivative decoration either). The
+/// for duals classifies values only; `Bounds` for duals is the **value
+/// channel's** bracket with the tangent discarded, so it does not read a
+/// derivative decoration either). The
 /// conclusion is unchanged: this convention is about honest bookkeeping,
 /// not behavior.
 impl KinkJacobian for Interval {

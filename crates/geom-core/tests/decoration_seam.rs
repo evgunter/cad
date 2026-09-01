@@ -23,9 +23,14 @@
 //! at `f64` and at `RingInterval` is read off the value rather than off a
 //! decoration. `certified_door.rs` sweeps all four implementors against
 //! that one postcondition; these rows pin both halves here, and pin that
-//! the three C9-ring crossings follow the second door rather than the
-//! first — which is the actual defect S41 found: they read the bracket,
-//! so a `Trv` enclosure crossed into `RingInterval` as a healthy bound.
+//! **this crate's** C9-ring crossing — `spline::hull`'s, the only one a
+//! `geom-core` test can reach — follows the second door rather than the
+//! first, which is the actual defect S41 found: it read the bracket, so a
+//! `Trv` enclosure crossed into `RingInterval` as a healthy bound. The
+//! other two crossings are private items of crates that depend on this
+//! one, so each is pinned where it lives: `topo::props`'s
+//! `bracket_seam_tests` and `geom_brep::ssi::certify`'s
+//! `normal_crossing_tests`.
 //!
 //! The sweeps are **paired**: each walks an operand across the domain
 //! boundary and requires refusal *iff* the decoration degraded, with

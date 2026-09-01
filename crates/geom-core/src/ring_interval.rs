@@ -71,7 +71,8 @@
 //! even powers of zero-straddling quantities from acquiring a spurious
 //! negative lower bound — the bug class that cost M2 three separate
 //! occurrences, and that ci.yml's "interval-square powi(2) allowlist"
-//! step now gates tree-wide.
+//! step gates over every `crates/*/src` tree — which is its whole reach:
+//! the backend crate and the test trees are outside it.
 //!
 //! # Determinism (D9)
 //!
@@ -156,11 +157,10 @@ impl RingInterval {
     /// Reads a scalar's bracket into the ring through the **certified**
     /// door, poisoning a scalar that may not certify.
     ///
-    /// This is the C9 ring's one body for a lane scalar taken whole.
-    /// Every crossing S41 names reaches it: five call it directly, and
-    /// the rest go through `geom-core`'s own `spline::hull::bracket` and
-    /// `geom-brep`'s `ssi::enclose::ring`, which are one-line wrappers
-    /// over it. (A crossing that reads only *one* end of the bracket,
+    /// This is the C9 ring's one body for a lane scalar taken whole:
+    /// every crossing reaches it, whether it calls this door directly or
+    /// through a private wrapper that adds a name over this same body and
+    /// nothing else. (A crossing that reads only *one* end of the bracket,
     /// such as a symmetric pad built from `hi`, is a different operation
     /// and spells its own refusal.) It is a method rather than the
     /// three-line spelling at each call site
