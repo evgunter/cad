@@ -3303,3 +3303,7 @@ fn at_infinity_side<T: Decide>(
         Sign::Zero => Err(PointInSolidError::ZeroVolumeBody),
     }
 }
+
+#[cfg(test)]
+#[path = "r1_probes.rs"]
+mod r1_probes;
