@@ -19,6 +19,7 @@ mod fixture;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{
     BudgetKind, DriveConfig, MeasureAccounting, ReasonClass, RefusalReason, drive,
@@ -61,6 +62,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
         },
     });
@@ -86,6 +88,7 @@ fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(Distribution::Uniform {
                 lo: -half,
                 hi: half,
@@ -510,6 +513,7 @@ fn evidence_only_e2e_consumer_walk() {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.25,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::Uniform {
                     lo: -half_r,
                     hi: half_r,
@@ -521,6 +525,7 @@ fn evidence_only_e2e_consumer_walk() {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.5,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::Normal { sigma: half_d }),
             },
         });

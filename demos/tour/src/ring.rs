@@ -106,14 +106,14 @@ use pncad::authoring::{p2, validated};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, MM, Node,
-    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, WrittenAngle, WrittenLength, apply,
-    evaluate,
+    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, WrittenAngle, WrittenLength,
+    apply, evaluate,
 };
 // The prefix data lives with the unit TABLE, one hop away from the
 // prelude — the scene converts its own constants with the same factor
 // the table pairs with `mm`, so the two cannot drift.
-use pncad::quantity::MILLI;
 use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::quantity::MILLI;
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
@@ -227,8 +227,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.
-            angle: Expr::written_angle(WrittenAngle::in_unit(2.0, HALF_TURN))
-                .expect("a full turn"),
+            angle: Expr::written_angle(WrittenAngle::in_unit(2.0, HALF_TURN)).expect("a full turn"),
         },
     );
     (doc, revolved)
