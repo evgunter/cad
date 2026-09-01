@@ -254,7 +254,7 @@ fn the_session_probes_a_real_slots_range() {
     }
 
     // The reading comes back in the unit the field is written in.
-    let words = result.wording(props::written_unit(Dimension::Length, Some(MM.def())));
+    let words = result.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
     assert!(words.contains("mm"), "{words}");
 
     // A document change discards it: a range is a statement about one

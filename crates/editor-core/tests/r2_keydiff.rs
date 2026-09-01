@@ -13,6 +13,7 @@
 #[path = "fixture/mod.rs"]
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     BooleanOp, CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation,
     Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, apply, evaluate,
@@ -71,6 +72,7 @@ fn r2_measure_free_content_keys() {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
             },
         },

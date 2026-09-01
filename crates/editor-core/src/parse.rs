@@ -550,6 +550,13 @@ impl Parser<'_> {
             let dim = match unit.quantity() {
                 UnitQuantity::Length => Dimension::Length,
                 UnitQuantity::Angle => Dimension::Angle,
+                // Unreachable through this path: the dimensionless row's
+                // symbol is the EMPTY string, and a suffix here is a
+                // parsed IDENTIFIER, which is never empty. A bare number
+                // takes the no-suffix path below and is dimensionless
+                // there — which is the same answer, reached without a
+                // lookup.
+                UnitQuantity::Scalar => Dimension::Scalar,
             };
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
             // U8b): canonical value from the one multiply, display

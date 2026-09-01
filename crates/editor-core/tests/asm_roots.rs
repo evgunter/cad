@@ -546,7 +546,7 @@ fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
     // v15) — the repo's
     // convention is that a bump updates every pin it invalidates, so
     // the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 19);
+    assert_eq!(SCHEMA_VERSION, 20);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
     match load(V5, Tol::witness()) {
         Err(PersistError::SchemaTooOld {

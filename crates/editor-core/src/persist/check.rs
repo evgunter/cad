@@ -27,6 +27,12 @@
 //!   only: a `SetDocParam` in the log carries its distribution through
 //!   `apply` on replay, which is the same door and the same check
 //!   (the shape the alignment and placement notes below already take).
+//! - [`first_display_unit_fault`] — every document parameter's
+//!   authored display unit measures the dimension it was declared
+//!   with. A literal needs no twin walk (`Expr::literal_with_unit`
+//!   makes the pairing at construction and the load side re-runs it);
+//!   a `DocParam` does, because its payload is `pub` and its dimension
+//!   is data. Snapshot only, for the reason above.
 //! - [`first_program_fault`] — profile PROGRAM structure: per-slot
 //!   dimension agreement (V2's role table) and a REPLAY PROBE under
 //!   the document's params whose LATTICE violations refuse (the
@@ -164,10 +170,51 @@ pub(crate) fn validate_document(
     if let Some((name, fault)) = first_distribution_fault(snapshot) {
         return Err(super::PersistError::Distribution { name, fault });
     }
+    if let Some((name, unit, declared)) = first_display_unit_fault(snapshot) {
+        return Err(super::PersistError::DisplayUnit {
+            name,
+            unit,
+            declared,
+        });
+    }
     if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
     }
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
+}
+
+/// The first document parameter whose authored display unit does not
+/// MEASURE its declared dimension, as `(name, what the unit measures,
+/// what was declared)`, or `None`.
+///
+/// The SNAPSHOT only, for the reason `first_distribution_fault` walks
+/// it alone: a `SetDocParam` in the log carries its declaration through
+/// `apply` on replay, and a replayed document is a snapshot this same
+/// validator sees.
+///
+/// Expression literals need no twin walk — `Expr::literal_with_unit`
+/// checks the pairing at construction and the load side re-runs that
+/// same constructor, so a literal cannot reach a document mismatched.
+/// A `DocParam` has no such door to make total: its payload is `pub`
+/// and its dimension is data, which is exactly the asymmetry this walk
+/// covers.
+fn first_display_unit_fault(
+    snapshot: &ProfileDoc,
+) -> Option<(ParamName, crate::expr::Dimension, crate::expr::Dimension)> {
+    use crate::expr::Dimension;
+    snapshot.params.iter().find_map(|(name, p)| match p {
+        DocParam::Continuous {
+            dim, display_unit, ..
+        } => {
+            let measured = match display_unit.def().quantity() {
+                quantity::UnitQuantity::Length => Dimension::Length,
+                quantity::UnitQuantity::Angle => Dimension::Angle,
+                quantity::UnitQuantity::Scalar => Dimension::Scalar,
+            };
+            (measured != *dim).then(|| (name.clone(), measured, *dim))
+        }
+        DocParam::Count { .. } => None,
+    })
 }
 
 /// The first non-finite float in ε, the document params, the profile

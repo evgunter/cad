@@ -29,7 +29,7 @@ mod common;
 use std::path::Path;
 
 use common::asm;
-use common::{body_volume, insert, near};
+use common::{body_volume, insert, len, near, shape};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
@@ -93,14 +93,14 @@ fn author_box_part(
         session,
         SessionOp::AddProfile {
             plane: pncad::profile::SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle { width, height }],
+            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );
     let extrude = insert(
         session,
         SessionOp::AddExtrude {
             profile,
-            distance: depth,
+            distance: len(depth),
         },
     );
     assert!(
