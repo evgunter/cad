@@ -2864,3 +2864,13 @@ halves; gate point interval ASKED via trailer × eps 1e-6 DRAWN,
 both test shards green), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the
 spec, pre-draw). Sample number at merge. Row at merge.
+
+MATE-7a (PR #1477) ordinal FIXED AT DISPATCH (2026-09-01):
+**ordinal 1307** (S-MATE band 1300–1399). v6 dual: slot byte **41**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `530eb8f59`
+(run 33478558188 verified at dispatch: head SHA matches, conclusion
+success, 22 jobs — 21 success + 1 filter-skipped; gate point
+lane=both ASKED via trailer × eps 1e-6 DRAWN, all four test legs
+green), R2 isolated from R1, briefs symmetric, no relaxations
+granted. Implementer difficulty L (pre-logged at the spec,
+pre-draw). Sample number at merge. Row at merge.
