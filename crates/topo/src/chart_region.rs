@@ -4205,3 +4205,196 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_mate8_probes {
+    //! Blinded-review probes (lane R2, PR #1472): adversarial edge
+    //! cases for `decomposition_witness`'s completeness argument and
+    //! its budget guard. Probe-branch only; not part of the unit.
+    use super::*;
+
+    fn pt(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
+        vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
+    }
+
+    fn uv(outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>) -> FaceUv<f64> {
+        FaceUv { outer, rings }
+    }
+
+    /// Strict even-odd containment of `(x, y)` in `poly`, with a
+    /// straight-line boundary margin so "strictly inside" is honest.
+    fn strictly_in(poly: &[Point2<f64>], x: f64, y: f64, margin: f64) -> bool {
+        let mut inside = false;
+        for i in 0..poly.len() {
+            let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
+            // Distance to the segment must exceed the margin.
+            let (dx, dy) = (q.x - p.x, q.y - p.y);
+            let len2 = dx * dx + dy * dy;
+            let t = (((x - p.x) * dx + (y - p.y) * dy) / len2).clamp(0.0, 1.0);
+            let (cx, cy) = (p.x + t * dx, p.y + t * dy);
+            if ((x - cx).powi(2) + (y - cy).powi(2)).sqrt() <= margin {
+                return false;
+            }
+            if (p.y > y) != (q.y > y) && x < p.x + (y - p.y) * dx / dy {
+                inside = !inside;
+            }
+        }
+        inside
+    }
+
+    fn in_region(uv: &FaceUv<f64>, x: f64, y: f64) -> bool {
+        strictly_in(&uv.outer, x, y, 1e-9) && uv.rings.iter().all(|r| !strictly_in(r, x, y, -1.0))
+    }
+
+    /// P1 — every boundary edge of the overlap is VERTICAL or
+    /// horizontal (the axis-aligned seat): vertical segments produce no
+    /// midline crossings, and the argument says they need not.
+    #[test]
+    fn r2p1_axis_aligned_vertical_edges_find_a_witness() {
+        let a = uv(rect(0.0, 0.0, 4.0, 4.0), vec![]);
+        let b = uv(rect(1.0, -1.0, 3.0, 2.0), vec![]);
+        let mut hit = None;
+        let found = decomposition_witness(&a, &b, |x, y| {
+            let ok = in_region(&a, x, y) && in_region(&b, x, y);
+            if ok {
+                hit = Some((x, y));
+            }
+            ok
+        });
+        assert!(found, "axis-aligned overlap must yield a witness");
+        let (x, y) = hit.unwrap();
+        assert!(x > 1.0 && x < 3.0 && y > 0.0 && y < 2.0, "({x}, {y})");
+    }
+
+    /// P2 — a COLLINEAR SHARED SPAN between the two boundaries (the
+    /// TouchingBoundary trigger class itself): parallel pairs
+    /// contribute no meeting abscissae and must not be needed.
+    #[test]
+    fn r2p2_collinear_shared_span_finds_a_witness() {
+        let a = uv(rect(0.0, 0.0, 4.0, 2.0), vec![]);
+        let b = uv(rect(1.0, 0.0, 3.0, 3.0), vec![]);
+        assert!(decomposition_witness(&a, &b, |x, y| {
+            in_region(&a, x, y) && in_region(&b, x, y)
+        }));
+    }
+
+    /// P2b — bit-identical outers (every segment duplicated): the
+    /// duplicate midline crossings form zero-height cells, which must
+    /// be skipped, and the real cell must still be offered.
+    #[test]
+    fn r2p2b_identical_outers_find_a_witness() {
+        let a = uv(rect(0.0, 0.0, 2.0, 2.0), vec![]);
+        let b = uv(rect(0.0, 0.0, 2.0, 2.0), vec![]);
+        assert!(decomposition_witness(&a, &b, |x, y| {
+            in_region(&a, x, y) && in_region(&b, x, y)
+        }));
+    }
+
+    /// P3 — a RING swallowing the naive centre: holes must be in the
+    /// decomposition (the doc's own claim), else the two genuine cells
+    /// beside the hole are merged and neither centre offered.
+    #[test]
+    fn r2p3_ring_blocking_the_centre_finds_a_witness() {
+        let a = uv(rect(0.0, 0.0, 4.0, 4.0), vec![rect(1.4, 1.4, 2.6, 2.6)]);
+        let b = uv(rect(1.0, 1.0, 3.0, 3.0), vec![]);
+        let mut hit = None;
+        let found = decomposition_witness(&a, &b, |x, y| {
+            let ok = in_region(&a, x, y) && in_region(&b, x, y);
+            if ok {
+                hit = Some((x, y));
+            }
+            ok
+        });
+        assert!(found, "the region minus its hole still has interior");
+        let (x, y) = hit.unwrap();
+        assert!(
+            !(x > 1.4 && x < 2.6 && y > 1.4 && y < 2.6),
+            "witness ({x}, {y}) must not be in the hole"
+        );
+    }
+
+    /// P4 — repeated abscissae (three vertices sharing x = 2.0) and a
+    /// non-convex outer: dedup must not merge distinct events away.
+    #[test]
+    fn r2p4_repeated_abscissae_find_a_witness() {
+        let a = uv(
+            vec![
+                pt(0.0, 0.0),
+                pt(2.0, 0.0),
+                pt(2.0, 1.0),
+                pt(3.0, 2.0),
+                pt(2.0, 3.0),
+                pt(0.0, 3.0),
+            ],
+            vec![],
+        );
+        let b = uv(rect(1.0, 0.2, 1.8, 2.8), vec![]);
+        assert!(decomposition_witness(&a, &b, |x, y| {
+            in_region(&a, x, y) && in_region(&b, x, y)
+        }));
+    }
+
+    /// P5 — the SEGMENT budget: two 70-gon "discs" in fat, decidable
+    /// overlap carry 140 > 128 segments, and the schedule declines
+    /// WITHOUT PROBING AT ALL — a silent `false`, spelled by the caller
+    /// as the carried `TouchingBoundary`. This pins the honesty
+    /// boundary the PR's deviation 2 discloses: exhaustion never
+    /// mis-certifies, but nothing at the call site says "budget".
+    #[test]
+    fn r2p5_segment_budget_declines_a_fat_decidable_overlap_silently() {
+        let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
+            (0..n)
+                .map(|i| {
+                    let t = core::f64::consts::TAU * (i as f64) / (n as f64);
+                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                })
+                .collect()
+        };
+        let a = uv(ngon(0.0, 70), vec![]);
+        let b = uv(ngon(1.0, 70), vec![]);
+        let mut calls = 0usize;
+        let found = decomposition_witness(&a, &b, |x, y| {
+            calls += 1;
+            in_region(&a, x, y) && in_region(&b, x, y)
+        });
+        assert!(!found, "over-budget: the schedule declines");
+        assert_eq!(calls, 0, "and it declines before offering anything");
+        // The same pair one segment under the cap certifies fine —
+        // the decline above is the budget's, not the geometry's.
+        let a64 = uv(ngon(0.0, 64), vec![]);
+        let b64 = uv(ngon(1.0, 64), vec![]);
+        assert!(decomposition_witness(&a64, &b64, |x, y| {
+            in_region(&a64, x, y) && in_region(&b64, x, y)
+        }));
+    }
+
+    /// P6 — the CELL budget is a hard cap on probe calls (structural
+    /// companion to P5): an always-false probe on a busy pair is
+    /// called at most `WITNESS_BUDGET.cells` times.
+    #[test]
+    fn r2p6_cell_budget_caps_probe_calls() {
+        let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
+            (0..n)
+                .map(|i| {
+                    let t = core::f64::consts::TAU * (i as f64) / (n as f64);
+                    pt(cx + 2.0 * t.cos(), 2.0 * t.sin())
+                })
+                .collect()
+        };
+        let a = uv(ngon(0.0, 60), vec![]);
+        let b = uv(ngon(1.0, 60), vec![]);
+        let mut calls = 0usize;
+        let found = decomposition_witness(&a, &b, |_, _| {
+            calls += 1;
+            false
+        });
+        assert!(!found);
+        assert!(calls <= WITNESS_BUDGET.cells, "{calls} probes");
+        assert!(calls > 0, "the pair is busy enough to probe at all");
+    }
+}
