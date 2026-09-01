@@ -112,6 +112,21 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 
 ## Lane records (wave 3)
 
+**uv-j (PR 1503, merged).** D342: the dangling-point skip in
+`resolve_declarations` disposed as a typed refusal
+(`VertexWithoutPoint { vertex, anchor }`) — the D21 ladder's middle
+rung, argued from the call path (aggregate body pre-`gate3`, per-solid
+gate only under multi-instance, bare `&Body`) and verified leg by leg
+at review; witness mutation-verified (restoring the `continue` reds
+with the exact miscount). The "exact-arithmetic" doc overclaim and two
+"gate band" sibling spellings corrected. D344: one `accept` funnel for
+all four `Doc` doors, made structural at the fix pass (`insert_node`
+accepts internally; refusal precedes swap), four-door Python test
+mutation-verified. Review: no MAJOR, no MINOR. Handed on: `D367`
+(minted at uv-h's state-sync), the tag-count census note to #1479, the
+two-vocabulary corrupt-body datum to `D343`'s lane.
+
+
 **uv-h (PR 1502, merged).** C12's three residues: (a) the resolve-mention
 oracle read ten of `RoleSeg`'s forty variants — thirteen name-carrying
 variants invisible on the shipped tree — replaced by an exhaustive
