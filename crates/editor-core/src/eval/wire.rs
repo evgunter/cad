@@ -928,11 +928,11 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 ///    ambiguity (N5), so the tied set expressed in names is the name
 ///    itself, and the witness carries the multiplicity and the
 ///    minting site.
-/// 3. [`ladder::Landing::Absent`] → `Vanished`, with the honest
-///    single-run fallback diagnosis: no prior run is consultable
-///    mid-evaluation, so `NodeChanged` names the minting node as the
-///    disagreement SITE, not a claim that an edit happened, and
-///    `last_good` is `None` because nothing was banked.
+/// 3. [`ladder::Landing::Absent`] → `Vanished`, through
+///    [`crate::resolve::ResolveError::vanished_fallback`]: no prior
+///    run is consultable mid-evaluation, so there is no evidence to
+///    weigh and nothing to bank, which is exactly the payload that
+///    constructor names.
 ///
 /// The refusals come out BOXED, which is how both doors' error
 /// variants carry a `ResolveError` anyway.
@@ -944,23 +944,28 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// module's, and has one home.
 ///
 /// **What is shared with [`mod@crate::resolve`], and what is not.**
-/// Rungs 1 and 2 are that module's:
-/// [`crate::resolve::ResolveError::node_gone`] mints the
-/// deleted-vs-foreign split and
-/// [`crate::resolve::ResolveError::ambiguous`] mints
-/// the tie payload and its witness, so neither ladder restates the
-/// other's refusal and the two cannot drift about what a stranded or
-/// tie-marked name looks like. Rung 3 is NOT shared and is not the
-/// same refusal: that module's `Vanished` runs a diagnosis ladder over
-/// two evaluations, and mid-evaluation there is neither a prior run
-/// nor a whole-evaluation index to run it against, which is exactly
-/// why this rung's diagnosis is the single-run fallback above. What
-/// stays here is what is this module's subject: the rung ORDER, the
-/// [`ladder::Live`] token that enforces it, and a door's arity.
+/// Every PAYLOAD is that module's, minted by one constructor each —
+/// [`crate::resolve::ResolveError::node_gone`] for the
+/// deleted-vs-foreign split, [`crate::resolve::ResolveError::ambiguous`]
+/// for the tie and its witness,
+/// [`crate::resolve::ResolveError::vanished_fallback`] for the
+/// no-evidence vanish — so neither ladder restates the other's refusal
+/// and the two cannot drift about what a stranded, tie-marked or
+/// vanished name looks like.
+///
+/// What is NOT shared is how rung 3 is REACHED. That module arrives at
+/// the same fallback only after a diagnosis ladder over two
+/// evaluations comes up empty; here it is the immediate answer,
+/// because mid-evaluation there is neither a prior run nor a
+/// whole-evaluation index to run that ladder against. Same value, two
+/// different roads, and only the value is worth holding in one place.
+///
+/// What stays here is what is this module's subject: the rung ORDER,
+/// the [`ladder::Live`] token that enforces it, and a door's arity.
 mod ladder {
     use crate::names::{EntityRef, Entry, NameTable, StableName};
     use crate::program::ProfileProgram;
-    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError};
+    use crate::resolve::ResolveError;
 
     /// Where a name landed in ONE table (rungs 2 and 3, as data).
     pub(super) enum Landing {
@@ -999,15 +1004,11 @@ mod ladder {
 
     /// Rung 1: `NodeGone` with the deleted-vs-foreign split, taken
     /// from the one home that mints it ([`ResolveError::node_gone`]).
-    ///
-    /// No refinement is offered for the deleted case: mid-evaluation
-    /// there is no prior run to hold the node, which is the same fact
-    /// that makes rung 3's diagnosis a fallback here.
     pub(super) fn live<'n>(
         name: &'n StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
     ) -> Result<Live<'n>, Box<ResolveError>> {
-        match ResolveError::node_gone(name, doc, None) {
+        match ResolveError::node_gone(name, doc) {
             None => Ok(Live(name)),
             Some(gone) => Err(Box::new(gone)),
         }
@@ -1030,13 +1031,7 @@ mod ladder {
                 name.node,
                 width,
             ))),
-            Landing::Absent => Err(Box::new(ResolveError::Vanished {
-                name: name.clone(),
-                diagnosis: Diagnosis::RecipeEdit {
-                    edit: RecipeEditRef::NodeChanged { node: name.node },
-                },
-                last_good: None,
-            })),
+            Landing::Absent => Err(Box::new(ResolveError::vanished_fallback(name))),
         }
     }
 }

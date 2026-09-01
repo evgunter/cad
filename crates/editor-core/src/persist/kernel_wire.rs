@@ -53,15 +53,31 @@
 //!
 //! **Derive the inverse; never restate it.** A spelling is written
 //! down once, in the module's `tag`, and the read direction searches
-//! an `ALL` table by `tag` rather than repeating the pairs — so the
+//! the vocabulary by `tag` rather than repeating the pairs — so the
 //! two directions cannot disagree, and neither can a refusal message
-//! that quotes the same table. What no `ALL` can be checked for is
-//! completeness (safe Rust cannot tie an array literal to a variant
-//! list without a proc macro, and the workspace has none), so the
-//! write direction pays for it at run time: it verifies the round
-//! trip before writing and refuses rather than creating a file this
-//! build could not open. Both modules here do exactly this, and a
-//! third owes it too.
+//! that quotes the same table. Both modules here do this, and a third
+//! owes it too.
+//!
+//! **Take the vocabulary from where the type lives, when it is there
+//! to take.** `contact_class` searches `topo::ContactClass::ALL` — the
+//! kernel's own slice, sitting inside the impl block whose exhaustive
+//! matches force a new variant through it. A `[Rest, Tangent]` literal
+//! restated here would be the shape that slice exists to retire: the
+//! enum is `#[non_exhaustive]`, so this crate cannot enumerate it
+//! correctly even in principle, and the kernel's doc records the
+//! measurement that such a literal stays GREEN under a planted third
+//! variant. `boolean_op` keeps a local list because its enum is this
+//! crate's own and offers none — and there the completeness of the
+//! list genuinely is unchecked, since safe Rust cannot tie an array
+//! literal to a variant list without a proc macro and the workspace
+//! has none.
+//!
+//! **Check the round trip on the way out, either way.** Before
+//! writing, a module verifies its own `tag` reads back and refuses if
+//! it does not. Where the domain comes from the kernel that is
+//! belt-and-braces; where it is a local list it is the only guard the
+//! gap has. It costs a lookup, so it is not worth deciding per module:
+//! both do it.
 
 pub(crate) mod boolean_op;
 pub(crate) mod contact_class;

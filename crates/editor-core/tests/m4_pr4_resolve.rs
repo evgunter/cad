@@ -866,6 +866,11 @@ enum Partners {
 /// True iff `needle` occurs anywhere under `hay`, counting
 /// discriminator partners iff `partners` says so.
 ///
+/// STRICTLY under: `hay` itself is not an occurrence of `needle`, so
+/// `occurs(n, n, _)` is false unless a name contains itself, which no
+/// name does. The one caller subtracts the two answers, where the
+/// self-case cancels either way.
+///
 /// This is the test's OWN reading of the role vocabulary, spelled out
 /// rather than borrowed from `resolve`'s walker: an oracle that asks
 /// the code under test what the answer is pins nothing.

@@ -51,10 +51,8 @@
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
 //! `SideOf` entry. If that too finds nothing, the total fallback is
-//! `RecipeEdit { NodeChanged(minting node) }`, documented as "the
-//! recorded reference disagrees with the recipe as it stands; the
-//! cause is not in evidence" — a site, not a claim that an edit
-//! happened.
+//! [`Diagnosis::cause_not_in_evidence`], which carries that reading at
+//! the value rather than in prose here.
 
 mod hit;
 mod pick;
@@ -183,24 +181,19 @@ impl ResolveError {
     /// document DELETED, and one at or above it was never this
     /// document's at all.
     ///
-    /// `deleted` refines the deleted case for a caller holding
-    /// evidence the id comparison does not carry — a prior run that
-    /// still resolves the node. The foreign case takes no refinement
-    /// and can take none: an id at or above the mint counter was
-    /// never minted here, so no run of this document can say anything
-    /// else about it.
-    pub(crate) fn node_gone(
-        name: &StableName,
-        doc: &Doc<ProfileProgram>,
-        deleted: Option<RecipeEditRef>,
-    ) -> Option<Self> {
+    /// Neither case takes a refinement, and neither can: both are
+    /// decided by the document in hand, and a prior run of the SAME
+    /// document has nothing to add to either — ids are not reused, so
+    /// a node the prior run held and this one does not is deleted,
+    /// which is what the counter already says.
+    pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
         if doc.node(name.node).is_some() {
             return None;
         }
         Some(Self::NodeGone {
             name: name.clone(),
             edit: if name.node.0 < doc.next_id {
-                deleted.unwrap_or(RecipeEditRef::NodeDeleted { node: name.node })
+                RecipeEditRef::NodeDeleted { node: name.node }
             } else {
                 RecipeEditRef::ForeignNode { node: name.node }
             },
@@ -225,6 +218,24 @@ impl ResolveError {
             name: name.clone(),
             candidates: vec![at.clone()],
             tie: TieWitness { node, at, width },
+        }
+    }
+
+    /// Rung 3 for a door with no history: `name` is gone and nothing
+    /// can be said about why.
+    ///
+    /// `last_good` is `None` because there is nothing to look it up
+    /// in — a mid-evaluation door has no prior run — which is the same
+    /// absence that makes the diagnosis
+    /// [`Diagnosis::cause_not_in_evidence`]. The whole-evaluation
+    /// ladder does not use this: it reaches the same diagnosis only
+    /// after its own rungs come up empty, and it can still bank a
+    /// tombstone.
+    pub(crate) fn vanished_fallback(name: &StableName) -> Self {
+        Self::Vanished {
+            name: name.clone(),
+            diagnosis: Diagnosis::cause_not_in_evidence(name.node),
+            last_good: None,
         }
     }
 }
@@ -266,6 +277,28 @@ pub enum Diagnosis {
     /// branch selection refused (W3's payload verbatim; M6 constructs
     /// this arm).
     WitnessBifurcation(Box<WitnessBifurcation>),
+}
+
+impl Diagnosis {
+    /// The total fallback, honest about its limits: the recorded
+    /// reference disagrees with the recipe as it stands and the CAUSE
+    /// IS NOT IN EVIDENCE. `NodeChanged` names the minting node as the
+    /// SITE of the disagreement, never a claim that an edit happened.
+    ///
+    /// Reachable two ways, and the vocabulary is the same for both, so
+    /// the value has one home: with no evidence to weigh — a
+    /// mid-evaluation door, which has no prior run to diff — and with
+    /// evidence that came up empty, through the population-cancel
+    /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
+    /// realized sweep records no verdicts for pruned pairs, so an
+    /// interaction-boundary vanish can land here — ratified
+    /// 2026-07-29, NAMING-DESIGN N5 as amended; the shadow
+    /// re-execution recovery rung is banked there).
+    pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
+        Self::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node },
+        }
+    }
 }
 
 // Rendered as the WHY clause of [`ResolveError::Vanished`]'s message:
@@ -624,7 +657,6 @@ trait PriorCtx {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
     fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
-    fn removal_edit(&self, node: RecipeNodeId) -> Option<RecipeEditRef>;
 }
 
 struct NoPrior;
@@ -640,10 +672,6 @@ impl PriorCtx for NoPrior {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
-        None
-    }
-
-    fn removal_edit(&self, _node: RecipeNodeId) -> Option<RecipeEditRef> {
         None
     }
 }
@@ -728,13 +756,6 @@ impl<U: Decide> PriorCtx for RunCtx<'_, U> {
             patch: MeshPatchKey { node, entity },
         })
     }
-
-    fn removal_edit(&self, node: RecipeNodeId) -> Option<RecipeEditRef> {
-        self.doc
-            .node(node)
-            .is_some()
-            .then_some(RecipeEditRef::NodeDeleted { node })
-    }
 }
 
 fn resolve_impl<T: Decide, P: PriorCtx>(
@@ -742,9 +763,8 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     prior: P,
     name: &StableName,
 ) -> Resolution {
-    // 1. NodeGone: the minting node is not live, with the prior run
-    //    refining the deleted case when it holds the node.
-    if let Some(error) = ResolveError::node_gone(name, new.doc, prior.removal_edit(name.node)) {
+    // 1. NodeGone: the minting node is not live.
+    if let Some(error) = ResolveError::node_gone(name, new.doc) {
         return Resolution::Failed(ResolutionFailure {
             error,
             offers: Vec::new(),
@@ -834,22 +854,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // single-run resolve — the N2 discriminator verdicts
             // recorded IN the names themselves are still evidence.
             .or_else(|| qualifier_delta(new.eval, name))
-            .unwrap_or(Diagnosis::RecipeEdit {
-                // Total fallback, honest about its limits: the
-                // recorded reference disagrees with the recipe as it
-                // stands and the CAUSE IS NOT IN EVIDENCE (no verdict
-                // flip, no doc delta, no recorded qualifier delta —
-                // reachable through the population-cancel blind spot,
-                // `vdiff` module docs, and through SWEEP PRUNING: the
-                // realized sweep records no verdicts for pruned
-                // pairs, so interaction-boundary vanishes can land
-                // here — ratified 2026-07-29, NAMING-DESIGN N5 as
-                // amended; the shadow re-execution recovery rung is
-                // banked there). `NodeChanged` names the minting node
-                // as the site of the disagreement, not a claim that
-                // an edit happened.
-                edit: RecipeEditRef::NodeChanged { node: name.node },
-            })
+            // Every rung above came up empty: no verdict flip, no doc
+            // delta, no recorded qualifier delta.
+            .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
     Resolution::Failed(ResolutionFailure {
@@ -1010,12 +1017,17 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 ///
 /// - **Unmerge.** The constituents of `name`'s own top-level `Merged`
 ///   segment are the names the merge retired; when the merge stops
-///   happening they are live again, exactly as spelled. A constituent
-///   found DEEPER — inside `FromA(m)`, say — is not: what would be
-///   live there is `FromA(x)`, so descending would offer `x`, a name
-///   nothing carries. Reaching those needs the wrapper REBUILT around
-///   each constituent, not the constituent collected, and that is a
-///   rewrite rather than a scan.
+///   happening they are live again, exactly as spelled. A merge nested
+///   DEEPER — inside `FromA(m)`, where `m` is the merged row — is not
+///   dropped by this scan, it is RE-POINTED: an embedded operand name
+///   that does not itself resolve makes the whole resolution a
+///   `Cascade { through: m }`, which names `m` as the root cause, and
+///   resolving `m` runs this function with the `Merged` segment at ITS
+///   top level. So the deep case is answered where it is answerable,
+///   one name up, and answered with names that resolve — which is what
+///   a scan through `FromA(m)` could not do, since the offer it would
+///   collect is the bare constituent and the name that would be live
+///   is `FromA(x)`.
 /// - **Merge.** A retired constituent's merged row is offered from the
 ///   table that HOLDS it, so the row is found whole and at its own
 ///   depth. A candidate that merely embeds that row deeper (a seam

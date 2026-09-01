@@ -16,24 +16,29 @@
 //! # What is enforced, and what is not
 //!
 //! The spellings are written down exactly ONCE, in [`tag`]; [`untag`]
-//! searches [`ALL`] by `tag` and the refusal messages quote the same
-//! table, so the two directions cannot disagree about a spelling and a
-//! message cannot go stale.
+//! searches the vocabulary by `tag` and the refusal messages quote the
+//! same table, so the two directions cannot disagree about a spelling
+//! and a message cannot go stale.
 //!
-//! - **NOT the compiler**: that a class reaches [`tag`]. The kernel's
-//!   enum is `#[non_exhaustive]`, so this build cannot even name every
-//!   class — which is why `tag` refuses instead of guessing.
-//! - **NOT the compiler**: that a class reaches [`ALL`]. Safe Rust
-//!   cannot tie an array literal to a variant list without a proc
-//!   macro, and the workspace has none. The gap is the dangerous one:
-//!   a class spelled by `tag` but absent from `ALL` would serialize
-//!   fine and refuse on READ, so this build would write a file it
-//!   could not open.
+//! - **The kernel**: that the search domain holds every class. The
+//!   vocabulary here is [`ContactClass::ALL`], the enum's own slice —
+//!   not a literal restated downstream. `#[non_exhaustive]` means this
+//!   crate could not enumerate the variants correctly if it tried, and
+//!   the kernel's own doc records the measurement that a downstream
+//!   `[Rest, Tangent]` literal stays GREEN under a planted third
+//!   variant. Reading `ALL` is what puts this module behind the
+//!   exhaustive matches beside it, which is where the fence is.
+//! - **NOT the compiler**: that a class reaches [`tag`]. A kernel
+//!   newer than this writer can present a class this build has no
+//!   spelling for, which is why `tag` refuses instead of guessing.
 //! - **Therefore, at run time and fail-loud**: every write direction
 //!   checks the round trip through [`spelling`] and REFUSES if the
-//!   class is missing from `ALL`, naming the omission. The unreadable
-//!   file is never created. That refusal has no test row and can have
-//!   none — in a build whose read table is complete, nothing
+//!   class cannot be read back, naming the omission. The unreadable
+//!   file is never created. With the domain taken from the kernel this
+//!   is belt-and-braces rather than the only guard, and it stays: it
+//!   costs a lookup and it catches a `tag` that answers for a class
+//!   the search cannot then find. That refusal has no test row and can
+//!   have none — in a build whose read table is complete, nothing
 //!   constructs the state it guards — exactly as the sibling
 //!   `boolean_op` module's does; what the suite reaches is the admit
 //!   path, through the schema round trip.
@@ -43,12 +48,6 @@ use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serializer};
 use topo::ContactClass;
-
-/// Every class this build can read, listed once — the table [`untag`]
-/// searches and the refusals quote. A new class belongs here as well
-/// as in [`tag`]; [`spelling`] refuses loudly if it reaches only one
-/// of them.
-const ALL: [ContactClass; 2] = [ContactClass::Rest, ContactClass::Tangent];
 
 /// The wire spelling of a class, or `None` if this build has no name
 /// for it.
@@ -63,15 +62,24 @@ pub(crate) fn tag(class: ContactClass) -> Option<&'static str> {
     }
 }
 
-/// The inverse of [`tag`], DERIVED from it rather than restated.
+/// The inverse of [`tag`], DERIVED from it rather than restated, over
+/// the kernel's own enumeration of the vocabulary.
 pub(crate) fn untag(s: &str) -> Option<ContactClass> {
-    ALL.into_iter().find(|c| tag(*c) == Some(s))
+    ContactClass::ALL
+        .iter()
+        .copied()
+        .find(|c| tag(*c) == Some(s))
 }
 
-/// The vocabulary this build can read, for a refusal to quote.
+/// The spellings this build can read, for a refusal to quote.
+///
+/// A class the kernel names and this build cannot spell is absent
+/// here, which is the honest answer: the list is what a document may
+/// contain, not what the kernel has.
 fn known() -> String {
-    ALL.into_iter()
-        .filter_map(|c| tag(c).map(|t| format!("`{t}`")))
+    ContactClass::ALL
+        .iter()
+        .filter_map(|c| tag(*c).map(|t| format!("`{t}`")))
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -79,9 +87,9 @@ fn known() -> String {
 /// The spelling to write for `class`, or the reason there is none —
 /// the ONE write-side door, so no caller can skip the round trip.
 ///
-/// The check is what makes the `ALL`/`tag` gap fail loud: a class this
-/// build spells but cannot read back is refused at the write rather
-/// than committed to a file.
+/// The check is belt-and-braces over [`ContactClass::ALL`]: a class
+/// this build spells but cannot read back is refused at the write
+/// rather than committed to a file.
 fn spelling(class: ContactClass) -> Result<&'static str, String> {
     let Some(t) = tag(class) else {
         return Err(format!(
@@ -111,6 +119,17 @@ pub(crate) fn serialize<S: Serializer>(class: &ContactClass, ser: S) -> Result<S
     ser.serialize_str(t)
 }
 
+/// The read-side refusal, in one place: both entry points quote the
+/// same table and the same deferral, so neither can go stale while the
+/// other is corrected.
+fn unknown(spelling: &str) -> String {
+    format!(
+        "unknown contact class '{spelling}' — a document spells one of {}; {}",
+        known(),
+        topo::FIT_DEFERRAL
+    )
+}
+
 /// Reads a stable lowercase spelling back.
 ///
 /// # Errors
@@ -118,19 +137,13 @@ pub(crate) fn serialize<S: Serializer>(class: &ContactClass, ser: S) -> Result<S
 /// An unknown spelling refuses typed, naming the deferral.
 pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactClass, D::Error> {
     let spelling = String::deserialize(de)?;
-    untag(&spelling).ok_or_else(|| {
-        D::Error::custom(format!(
-            "unknown contact class '{spelling}' — a document spells one of {}; {}",
-            known(),
-            topo::FIT_DEFERRAL
-        ))
-    })
+    untag(&spelling).ok_or_else(|| D::Error::custom(unknown(&spelling)))
 }
 
 /// The declare payload's `((a, b), class)` list, spelling its classes
 /// with the same table as the single-class form above.
 pub(crate) mod pairs {
-    use super::{ContactClass, StableName, spelling, untag};
+    use super::{ContactClass, StableName, spelling, unknown, untag};
     use serde::de::Error as _;
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -155,14 +168,15 @@ pub(crate) mod pairs {
 
     /// # Errors
     ///
-    /// An unknown spelling refuses typed.
+    /// An unknown spelling refuses typed, quoting the same table and
+    /// the same deferral as the single-class form.
     pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
         let raw: Vec<((StableName, StableName), String)> = Vec::deserialize(de)?;
         raw.into_iter()
             .map(|(pair, t)| {
                 untag(&t)
                     .map(|class| (pair, class))
-                    .ok_or_else(|| D::Error::custom(format!("unknown contact class '{t}'")))
+                    .ok_or_else(|| D::Error::custom(unknown(&t)))
             })
             .collect()
     }
