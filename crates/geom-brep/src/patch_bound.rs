@@ -19,7 +19,10 @@
 //! # One reading
 //!
 //! Every cell reports **signed componentwise enclosures**
-//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]). An inf-side consumer
+//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) — of the patch this
+//! module actually assembled, which on the rational arm is the
+//! REFINED net, not the described one ([`PatchCell`], "What the
+//! enclosure encloses"). An inf-side consumer
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
 //! the information a magnitude throws away — and a sup-side consumer
@@ -173,23 +176,63 @@ impl core::fmt::Display for PatchBoundError {
 
 impl core::error::Error for PatchBoundError {}
 
-/// One knot-span cell's certified bounds on the patch's partials, in
-/// both readings (module docs), with the UV rectangle they hold on.
+/// One knot-span cell's certified bounds on the patch's partials, with
+/// the UV rectangle they hold on.
+///
+/// # What the enclosure encloses (the rational arm's caveat, stated)
+///
+/// The INTEGRAL arm assembles on the described control net, so its
+/// enclosures are enclosures of the described patch, full stop.
+///
+/// The RATIONAL arm first inserts [`RATIONAL_CERT_SPLITS`] knots per
+/// span. Knot insertion is evaluation-invariant **in ℝ**, but the
+/// refined control net is materialised in `f64` and therefore rounded:
+/// what these cells enclose is the refined-`f64` patch, which differs
+/// from the described one by insertion rounding. The gap is dust — at
+/// the scale of an ulp of the coordinate — and it is NOT bounded here.
+///
+/// **It is visible, and it matters at exactly one place: a component
+/// whose true value is structurally zero.** On a ruled (degree-1 in
+/// `v`) rational face the true `S_vv` is identically zero, and 6 of
+/// the quarter cylinder's 256 cells report a `z` enclosure of
+/// `[-4.1e-15, -3.4e-15]` — sound about the refined patch, and it
+/// EXCLUDES the described patch's zero. A consumer that reads these
+/// as "the described surface's partial lies in here" is right to
+/// within insertion dust and wrong beyond it, and a consumer testing a
+/// STRUCTURAL predicate (`contains(0)`, an exact sign) must not use
+/// them on the rational arm.
+///
+/// This is not new with the signed reading — the rational arm has
+/// always refined — but the retired magnitude reading could never
+/// exhibit it: `[0, m]` contains zero by construction, so the sup
+/// spelling hid the gap rather than being free of it. Making the
+/// signed reading the only one is what puts the caveat in the
+/// contract, which is where it belongs.
+///
+/// Closing the gap needs an enclosure of the insertion rounding
+/// itself, carried through the refinement — a real piece of work with
+/// its own cost, deliberately not done here.
 #[derive(Clone, Copy, Debug)]
 pub struct PatchCell {
     /// The cell's `u` extent, `[lo, hi]`.
     pub u: (f64, f64),
     /// The cell's `v` extent, `[lo, hi]`.
     pub v: (f64, f64),
-    /// Signed componentwise enclosure of `S_u` on the cell.
+    /// Signed componentwise enclosure of `S_u` on the cell — of the
+    /// assembled patch, refined-`f64` on the rational arm (see the
+    /// type's docs, "What the enclosure encloses").
     pub s_u: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_v` on the cell.
+    /// Signed componentwise enclosure of `S_v` on the cell (the
+    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
     pub s_v: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_uu` on the cell.
+    /// Signed componentwise enclosure of `S_uu` on the cell (the
+    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
     pub s_uu: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_uv` on the cell.
+    /// Signed componentwise enclosure of `S_uv` on the cell (the
+    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
     pub s_uv: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_vv` on the cell.
+    /// Signed componentwise enclosure of `S_vv` on the cell (the
+    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
     pub s_vv: [RingInterval; 3],
 }
 

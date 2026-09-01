@@ -618,7 +618,11 @@ fn cert10r1_the_coarsened_grid_still_meets_its_chord_tolerance() {
     let mag = FaceBound {
         muu: 3.942_263_838_556_179_7,
         muv: 1.266_375_820_315_083_4,
-        mvv: 4.250_461_439_678_581e-15,
+        // NOT a pinned digit: the true `S_vv` is identically zero on
+        // this ruled face and this is the rational arm's
+        // knot-insertion rounding. Order of magnitude only — the grid
+        // this sizes is identical for any `mvv` below ~1e-12.
+        mvv: 4.3e-15,
         mu1: 1.758_098_729_671_621_3,
         mv1: 1.064_513_033_689_903,
     };

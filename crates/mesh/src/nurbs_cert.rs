@@ -3092,17 +3092,29 @@ mod tests {
     /// delta_s decade.
     ///
     /// `#[ignore]`d: a measurement, not an assertion.
+    ///
+    /// **The `mvv` entries are NOT pinned digits.** On these ruled
+    /// (degree-1 in `v`) faces the true `S_vv` is identically zero,
+    /// and what the assembly reports is the rational arm's
+    /// knot-insertion rounding — see `PatchCell`'s field docs, "the
+    /// refined net is what is enclosed". Pinning that to sixteen
+    /// digits would pin a rounding artifact, so the entries below
+    /// carry the retired reading's ORDER of magnitude and their
+    /// provenance instead; nothing in this harness is sensitive to
+    /// them (a `mvv` of 1e-15 and one of 5e-15 size the same grid).
     #[test]
     #[ignore = "measurement harness: prints the rational-face grid re-sizing"]
     fn cert10_rational_grid_resizing() {
-        // Measured on this tree before the retirement, full precision.
+        // Measured on this tree before the retirement. The two first
+        // partials and `muu`/`muv` are digits; `mvv` is dust (above).
+        let dust = 4.3e-15;
         let retired = [
             (
                 "quarter_cylinder",
                 NurbsFaceBound {
                     muu: 3.942_263_838_556_179_7,
                     muv: 1.266_375_820_315_083_4,
-                    mvv: 4.250_461_439_678_581e-15,
+                    mvv: dust,
                     mu1: 1.758_098_729_671_621_3,
                     mv1: 1.064_513_033_689_903,
                 },
@@ -3113,7 +3125,7 @@ mod tests {
                 NurbsFaceBound {
                     muu: 3.757_781_184_602_715_4,
                     muv: 1.187_199_279_294_388_2,
-                    mvv: 4.202_650_729_863_987_4e-15,
+                    mvv: dust,
                     mu1: 1.736_856_620_662_045_7,
                     mv1: 1.060_465_116_279_076_4,
                 },
