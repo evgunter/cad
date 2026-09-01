@@ -367,6 +367,15 @@ mod tests {
     /// - `boolean/rest.rs` — `face_carrier`, the curved generalization
     ///   of the door; it binds the `±1` to a local before multiplying,
     ///   which is the form a textual `* ….sense_sign` sweep misses.
+    /// - `boolean/mod.rs` — the shared-rim routing's two face senses,
+    ///   handed to `boolean::rim_wedge` and through it to the same two
+    ///   `geom_brep` entry points check 4's material arm uses. It
+    ///   cannot take the door for that arm's reason and one more of
+    ///   its own: the question is a PAIR of material sides at a point
+    ///   on a shared rim, over kinds [`face_outward_normal_at`]
+    ///   answers `None` for (torus above all), and the operands are
+    ///   two different bodies, so there is no single body the door
+    ///   could be asked about.
     /// - `merge_faces.rs` — two sense-tuple reads in the coplanarity
     ///   gate and the survivor's plane hand-multiply.
     /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
@@ -433,6 +442,7 @@ mod tests {
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
         const PINNED: [(&str, usize); 9] = [
             ("boolean/join.rs", 1),
+            ("boolean/mod.rs", 1),
             ("boolean/rest.rs", 1),
             ("boolean/solid_contain.rs", 2),
             ("census.rs", 2),
