@@ -32,7 +32,7 @@ mod common;
 
 use common::insert;
 use pncad::document::{
-    Dimension, Doc, Expr, Node, NodeErrorKind, NodeResult, RecipeNodeId, SlotId,
+    Dimension, Doc, Expr, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -145,8 +145,8 @@ fn whole(node: RecipeNodeId) -> BlendTarget {
 /// Feed one edge pick to the open tool the way the application does —
 /// through the selection op stream, which is what makes single-select
 /// and tool accumulation one mechanism rather than two.
-fn pick(tools: &mut Tools, edge: &EdgeSelection) -> Vec<ToolNotice> {
-    tools.feed(&[SessionOp::Select(Selection::Edge(edge.clone()))])
+fn pick(tools: &mut Tools, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> Vec<ToolNotice> {
+    tools.feed(doc, &[SessionOp::Select(Selection::Edge(edge.clone()))])
 }
 
 /// A node's single body's volume, with the seam pumped.
@@ -183,7 +183,10 @@ fn picked_all(session: &DocSession, node: RecipeNodeId) -> Tools {
     // clicks arrived in.
     edges.reverse();
     for edge in &edges {
-        assert!(pick(&mut tools, edge).is_empty(), "every pick lands");
+        assert!(
+            pick(&mut tools, session.committed_doc(), edge).is_empty(),
+            "every pick lands"
+        );
     }
     tools
 }
@@ -412,7 +415,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         .into_iter()
         .next()
         .expect("the second box draws edges");
-    let notices = pick(&mut tools, &stray);
+    let notices = pick(&mut tools, session.committed_doc(), &stray);
     assert_eq!(notices.len(), 1, "the declined pick is reported once");
     let ToolNotice::Blend(BlendEvent::OtherTarget { held, picked }) = &notices[0] else {
         panic!("expected a cross-target refusal, got {notices:?}");
@@ -450,13 +453,13 @@ fn picking_a_held_edge_again_removes_it() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     for edge in &edges[..3] {
-        assert!(pick(&mut tools, edge).is_empty());
+        assert!(pick(&mut tools, session.committed_doc(), edge).is_empty());
     }
     assert_eq!(blend(&tools).count(), 3);
-    assert!(pick(&mut tools, &edges[1]).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &edges[1]).is_empty());
     assert_eq!(blend(&tools).count(), 2, "the second pick came back out");
     assert!(!blend(&tools).holds(&edges[1].name));
-    assert!(pick(&mut tools, &edges[1]).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &edges[1]).is_empty());
     assert_eq!(blend(&tools).count(), 3, "and goes back in");
     assert!(blend(&tools).holds(&edges[1].name));
 }
@@ -801,15 +804,15 @@ fn only_the_open_blend_tool_accumulates_edges() {
         .expect("the box draws edges");
 
     let mut tools = Tools::new();
-    assert!(pick(&mut tools, &edge).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &edge).is_empty());
     assert!(tools.blend().is_none(), "nothing open takes nothing");
 
     tools.open(ToolKind::Blend);
-    assert!(pick(&mut tools, &edge).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &edge).is_empty());
     assert_eq!(blend(&tools).count(), 1);
     // Opening another tool replaces the whole value, picks and all.
     tools.open(ToolKind::Boolean);
-    assert!(pick(&mut tools, &edge).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &edge).is_empty());
     tools.open(ToolKind::Blend);
     assert_eq!(blend(&tools).count(), 0, "a re-opened tool starts over");
 }
@@ -822,8 +825,8 @@ fn the_kind_choice_names_what_the_one_field_means() {
     assert_eq!(
         BlendKindChoice::ALL.map(|(kind, label)| (kind, label, kind.size_label())),
         [
-            (BlendKindChoice::Fillet, "fillet", "radius (m)"),
-            (BlendKindChoice::Chamfer, "chamfer", "setback (m)"),
+            (BlendKindChoice::Fillet, "fillet", "radius"),
+            (BlendKindChoice::Chamfer, "chamfer", "setback"),
         ]
     );
     assert_eq!(BlendKindChoice::default(), BlendKindChoice::Fillet);
@@ -913,7 +916,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
 
     let edges = drawn_edges(&session, target);
     for edge in &edges[..5] {
-        assert!(pick(&mut tools, edge).is_empty());
+        assert!(pick(&mut tools, session.committed_doc(), edge).is_empty());
     }
     let tool = blend(&tools);
     let named = tool.marks();
@@ -1108,11 +1111,11 @@ fn an_emptied_set_releases_its_target() {
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
-    assert!(pick(&mut tools, &one).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(first)));
     // Un-pick it: the tool is holding nothing, so it is latched to
     // nothing.
-    assert!(pick(&mut tools, &one).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
     assert_eq!(
@@ -1122,7 +1125,7 @@ fn an_emptied_set_releases_its_target() {
         BlendError::NoEdges
     );
     // And the next click starts wherever the user aims it.
-    assert!(pick(&mut tools, &other).is_empty());
+    assert!(pick(&mut tools, session.committed_doc(), &other).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(second)));
     assert_eq!(blend(&tools).count(), 1);
 
