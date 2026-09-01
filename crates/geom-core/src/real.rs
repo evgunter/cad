@@ -1685,11 +1685,14 @@ mod tests {
             prop_assert!((k - k.round()).abs() <= 1e-6, "k = {}", k);
         }
 
-        /// abs is even, non-negative, and value-preserving in magnitude.
+        /// abs is even, and exact at its argument: `abs(x)` is `x` with
+        /// the sign removed, which is non-negative by construction — so
+        /// non-negativity is the pinned value's own consequence and not a
+        /// separate property. Evenness is a claim about the *reflected*
+        /// argument, which a pin at `x` does not make, so it is asserted.
         #[test]
         fn abs_properties(x in -1.0e12..1.0e12f64) {
             prop_assert_eq!(Real::abs(-x), Real::abs(x));
-            prop_assert!(Real::abs(x) >= 0.0);
             prop_assert_eq!(Real::abs(x), if x < 0.0 { -x } else { x });
         }
     }
