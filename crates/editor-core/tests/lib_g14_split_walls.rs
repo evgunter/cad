@@ -468,7 +468,7 @@ fn node_level_prose_carries_the_emitter_payload() {
         kind: EntityKind::Edge,
         body: 1,
     });
-    assert!(s.contains("Edge") && s.contains('1'), "{s}");
+    assert!(s.contains("edge") && s.contains('1'), "{s}");
 
     let s = carried(NamingError::MissingUpstream {
         node: RecipeNodeId(7),
