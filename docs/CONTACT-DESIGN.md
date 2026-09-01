@@ -286,15 +286,37 @@ are load-bearing:
    and a table alike; this row does not. One tilt, two extents, two
    honest answers.
 
-Cross-instance CURVED declared pairs keep the escalation. There the
-divergence C2 names is real — two independently authored curved
-descriptions differ in `u_ref` and seam, no world embedding
-arbitrates that, and there is no isometry lemma to be had (a
-cylinder's chart map is not an isometry in azimuth unless the radii
-agree exactly, and the seam makes containment branch-dependent). The
-closure that fits them is a certified everywhere-within-ε overlap
-enclosure on the shared curved carrier, a different shape from
-either.
+**REVISION (issue 943's cylinder residue; MATE-5).** The rung-3
+sentence gains its second arm: a declared **CYLINDER** pair is
+answered by the **certified everywhere-within-ε overlap enclosure**
+on the carrier Door 1 verified. Here the divergence C2 names is real
+— the two descriptions differ in `u_ref`, seam, axis station and
+axis direction — so the arm does not pick a chart and pretend; it
+carries one description's trim images across the exact affine
+relation between the two charts (`u ↦ δ + σ·u + kτ`, `v ↦ c + σ·v`,
+an isometry of the metred chart with determinant +1), after its own
+carrier gates re-decide the two descriptions' agreement at the
+PAIR'S OWN EXTENT (`chart_region_cyl_radius` / `_tilt` / `_offset`,
+the tilt levered by the pair's axial reach), and pins the angular
+fold to ONE whole period per pair. The three honesty points above
+carry over in cylinder form: the frame-invariance lemma is written
+at `chart_region.rs`'s `cylinder_pair_overlap` and pinned by a
+both-ways row; the claim is certified-everywhere-within-ε, never
+exact; the extent lever is the pair's own. The fold is issue 1191's
+ground, consumed not repaired: where the floor's enclosure straddles
+a step the fold cannot be pinned and the arm declines typed
+(`PeriodFold`) — the widening runs toward decline, never toward a
+false certification. The arm's remaining declines on decidable
+geometry (an un-windowable wrap outside the full-wrap band fast
+path; a flush cylinder seat's touching boundary, the witness rung
+being plane-only) are disclosed at the arm in the issue-1435
+pattern.
+
+Cross-instance SPHERE, CONE and TORUS declared pairs keep the
+escalation, their residue restated per kind at the refusal site
+(`declared_pair_overlap`'s kind gate); the closure recorded for each
+is the same certified everywhere-within-ε enclosure shape, pending
+each kind's arm bounds (and, for the torus, the #968 lane).
 
 *Alternative — area-sampled patch certification*: rejected; sampling
 can miss a trim hole and certify a contact that is not there — the
