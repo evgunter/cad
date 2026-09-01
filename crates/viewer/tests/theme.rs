@@ -152,6 +152,34 @@ fn every_mark_is_visible_against_its_body() {
     }
 }
 
+/// **A theme's ground stays off its own swatches.**
+///
+/// The ground is what the viewport is filled with where no geometry
+/// is drawn, so every silhouette in the picture is a swatch meeting
+/// it. A ground that landed on one of the theme's own colours would
+/// erase exactly that outline — the shading-independent half of the
+/// legibility question the marks check answers, and the one a
+/// toolkit's default background used to decide behind the palette's
+/// back.
+///
+/// Measured under the vision types each theme's own claim covers:
+/// every one for a [`Safety::ColorblindSafe`] palette, normal vision
+/// for a palette that claims nothing. Same bar, same metric — a
+/// ground is not a different kind of colour.
+#[test]
+fn a_grounds_swatches_stay_off_it() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_against_ground(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: the ground is only {worst:.4} from {at}, under the {:.4} bar — a \
+             silhouette there is invisible",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
 /// Every theme that claims colourblind safety is actually checked.
 ///
 /// The registry and the claim are the only inputs, so a theme added
@@ -217,7 +245,7 @@ fn an_unclaimed_theme_is_not_held_to_the_bar() {
 mod cvd {
     use perceive_color::Color;
     use perceive_cvd::{CvdType, Severity, simulate};
-    use viewer::theme::{Theme, linear};
+    use viewer::theme::{Safety, Theme, linear};
 
     /// How far apart two swatches must stay, in OKLab.
     ///
@@ -307,6 +335,43 @@ mod cvd {
             out.push((label, scale(linear(mark.over(theme.body)))));
         }
         out
+    }
+
+    /// The vision types a theme's own claim covers: all of them for a
+    /// claimed palette, normal vision alone for one that claims
+    /// nothing. The mark check does not need this — it runs only over
+    /// claimed themes — but the ground check runs over the whole
+    /// registry, and holding an unclaimed palette to a dichromatic
+    /// bar would be measuring a promise it never made.
+    fn kinds_of(theme: &Theme) -> &'static [Option<CvdType>] {
+        match theme.safety {
+            Safety::ColorblindSafe => &KINDS,
+            Safety::Unchecked => &KINDS[..1],
+        }
+    }
+
+    /// The closest a theme's GROUND comes to any of its swatches,
+    /// across the shading range, with the swatch named.
+    pub(super) fn worst_against_ground(theme: &Theme) -> (f64, String) {
+        let [r, g, b] = linear(theme.ground);
+        let ground = Color::new(f64::from(r), f64::from(g), f64::from(b));
+        let ambient = f64::from(theme.ambient);
+        let shades = [ambient, ambient + (1.0 - ambient) * 0.5, 1.0];
+        let mut worst = (f64::INFINITY, String::new());
+        for shade in shades {
+            for (name, swatch) in swatches(theme, shade) {
+                for kind in kinds_of(theme) {
+                    let d = distance(seen(ground, *kind), seen(swatch, *kind));
+                    if d < worst.0 {
+                        worst = (
+                            d,
+                            format!("{name} under {} at shade {shade:.2}", name_of(*kind)),
+                        );
+                    }
+                }
+            }
+        }
+        worst
     }
 
     /// The closest any two of a theme's swatches come, over every

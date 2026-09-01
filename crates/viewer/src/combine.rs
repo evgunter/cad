@@ -62,8 +62,8 @@ impl BooleanTool {
     }
 
     /// Feed one node pick.
-    pub fn pick(&mut self, node: RecipeNodeId) {
-        self.seats.pick(node);
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
     }
 
     /// Empty both seats.
@@ -130,8 +130,8 @@ impl SplitTool {
     }
 
     /// Feed one node pick.
-    pub fn pick(&mut self, node: RecipeNodeId) {
-        self.seats.pick(node);
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
     }
 
     /// Empty both seats.
@@ -185,8 +185,8 @@ impl TransformTool {
 
     /// Feed one node pick — a second pick REPLACES the first, this tool
     /// having only the one seat.
-    pub fn pick(&mut self, node: RecipeNodeId) {
-        self.seats.pick(node);
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
     }
 
     /// Empty the seat.
@@ -264,8 +264,8 @@ impl PatternTool {
     }
 
     /// Feed one node pick.
-    pub fn pick(&mut self, node: RecipeNodeId) {
-        self.seats.pick(node);
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
     }
 
     /// Empty both seats.

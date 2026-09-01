@@ -57,8 +57,8 @@ impl RevolveTool {
 
     /// Feed one node pick — the selection vocabulary's node, consumed
     /// into tool state.
-    pub fn pick(&mut self, node: RecipeNodeId) {
-        self.seats.pick(node);
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
     }
 
     /// Empty both seats — the chrome's "start the picks over" door.

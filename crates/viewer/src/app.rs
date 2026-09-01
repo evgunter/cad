@@ -542,6 +542,14 @@ pub struct ViewerApp {
     /// drag the layout is theirs and nothing here sizes it again.
     split_dragged: bool,
     drafts: Drafts,
+    /// Whether the advisory-check findings window is open.
+    ///
+    /// Application chrome state, not a draft: nothing is being
+    /// composed, and closing the window abandons nothing. It survives
+    /// re-evaluation on purpose — a window opened to read a finding
+    /// should still be open when the edit made to answer it lands, so
+    /// the reader can see whether the finding went away.
+    checks_shown: bool,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
@@ -761,6 +769,7 @@ impl ViewerApp {
             budget_delta: None,
             tools: Tools::new(),
             part_chooser: None,
+            checks_shown: false,
             camera,
             input,
             theme,
@@ -1072,6 +1081,74 @@ impl ViewerApp {
     }
 }
 
+impl ViewerApp {
+    /// **The advisory-check findings, in a window a reader can keep
+    /// open.**
+    ///
+    /// The badge in the toolbar says how many there are; this says
+    /// what they are. Each finding renders through its OWN `Display`
+    /// — one composed sentence carrying its subject, its story and
+    /// its recourse (`editor_core::finding`) — so the window states
+    /// no vocabulary of its own, and beside it sits the one thing
+    /// chrome can add: a jump to the root the finding is about, which
+    /// is the feature a reader would otherwise have to find by
+    /// counting rows.
+    ///
+    /// The report's SKIPPED checks are shown too, for the reason the
+    /// report carries them: "checked and fine" and "not checked" are
+    /// different answers, and a window that showed only findings
+    /// would let the second read as the first.
+    ///
+    /// The window is drawn while it is open even when the findings
+    /// have gone — an edit answering a finding is exactly when
+    /// somebody is looking — so it says so rather than emptying
+    /// silently.
+    fn checks_window(&mut self, ctx: &egui::Context, ops: &mut Vec<SessionOp>) {
+        if !self.checks_shown {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("Checks")
+            .open(&mut open)
+            .default_width(420.0)
+            .show(ctx, |ui| match self.session.checks() {
+                None => {
+                    ui.label("nothing has been checked yet");
+                }
+                Some(report) => {
+                    if report.findings.is_empty() {
+                        ui.label("checks: no findings");
+                    }
+                    for finding in &report.findings {
+                        ui.horizontal_top(|ui| {
+                            if ui
+                                .button(format!("feature {}", finding.root.0))
+                                .on_hover_text("select the root this finding is about")
+                                .clicked()
+                            {
+                                ops.push(SessionOp::Select(Selection::Node(finding.root)));
+                            }
+                            ui.label(finding.to_string());
+                        });
+                    }
+                    if !report.skipped.is_empty() {
+                        ui.separator();
+                        ui.weak(format!(
+                            "not run (severity Off): {}",
+                            report
+                                .skipped
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ));
+                    }
+                }
+            });
+        self.checks_shown = open;
+    }
+}
+
 impl eframe::App for ViewerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.sync_scene();
@@ -1252,15 +1329,29 @@ impl eframe::App for ViewerApp {
                     && !report.findings.is_empty()
                 {
                     ui.separator();
-                    ui.colored_label(
-                        chrome(self.theme.unresolved),
-                        format!("checks: {} finding(s)", report.findings.len()),
-                    )
-                    .on_hover_ui(|ui| {
-                        for finding in &report.findings {
-                            ui.label(finding.to_string());
-                        }
-                    });
+                    // **A button, not a label.** The findings were
+                    // reachable only by hovering the badge, which is
+                    // a poor home for text a reader needs to keep
+                    // open while they act on it: a tooltip is gone
+                    // the moment the pointer moves toward the feature
+                    // it names. The badge opens the window instead,
+                    // and the window is where the sentences live.
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "checks: {} finding(s)",
+                                    report.findings.len()
+                                ))
+                                .color(chrome(self.theme.unresolved)),
+                            )
+                            .frame(false),
+                        )
+                        .on_hover_text("show what the checks found")
+                        .clicked()
+                    {
+                        self.checks_shown = !self.checks_shown;
+                    }
                 }
                 // The display budget's badge: shown while the δ on
                 // screen is the one the budget CHOSE when the document
@@ -1332,6 +1423,7 @@ impl eframe::App for ViewerApp {
             };
             self.tree.ui(&mut behavior, ui);
         });
+        self.checks_window(ui.ctx(), &mut ops);
         // Read AFTER the frame drew, and before anything writes a
         // share back: a divider dragged this frame has already set the
         // flag, so the auto-size below stands down on the same frame
@@ -1353,7 +1445,7 @@ impl eframe::App for ViewerApp {
         // copied into tool state). Which vocabulary each tool reads is
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
         // back as a notice shown exactly as a survival drop is.
-        let declined = self.tools.feed(&ops);
+        let declined = self.tools.feed(self.session.doc(), &ops);
         self.notices
             .extend(declined.iter().map(ToString::to_string));
 
@@ -1721,6 +1813,16 @@ impl ViewerBehavior<'_> {
             _ => None,
         };
 
+        // **The ground first, then the picture on it.** The pane
+        // allocates its rectangle and the paint callback fills only
+        // what the model covers, so without this the pixels around a
+        // part were whatever the window happened to be cleared to —
+        // the toolkit's, not the palette's, which is how a light
+        // theme ended up showing its parts on a black field. The
+        // palette states the colour ([`Theme::ground`]) and this is
+        // the one place it is drawn.
+        ui.painter()
+            .rect_filled(rect, 0.0, chrome(self.theme.ground));
         ui.painter().add(egui_wgpu::Callback::new_paint_callback(
             rect,
             ViewportCallback {
@@ -1729,6 +1831,8 @@ impl ViewerBehavior<'_> {
                 view_projection: to_f32(&matrix),
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
+                viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
+                pixels_per_point: pixels_per_point as f32,
                 highlight: highlight.unwrap_or_default(),
                 edges,
                 id_query,

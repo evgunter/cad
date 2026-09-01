@@ -396,6 +396,26 @@ pub enum NodeKindWanted {
     Body,
 }
 
+/// **Whether `held` is the wanted kind** — the one classification
+/// behind every creation seat's gate, `None` (an absent node) reading
+/// as "no", because a seat naming nothing and a seat naming the wrong
+/// thing both mean there is nothing of that kind there to consume.
+///
+/// A free function rather than a `DocSession` method because the
+/// question is asked in two places for two purposes: the commit door
+/// asks it to REFUSE ([`DocSession::require_kind`]), and a tool's
+/// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
+/// answer for both is what keeps a seat from steering a pick the door
+/// would then reject.
+pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
+    match wanted {
+        NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
+        NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
+        NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+    }
+}
+
 impl NodeKindWanted {
     /// The kind's name, for sentences.
     pub fn name(self) -> &'static str {
@@ -2802,14 +2822,7 @@ impl DocSession {
     /// wrong-kind refuse the same arm, because both mean "there is
     /// nothing of that kind there to consume".
     fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
-        let held = self.committed_doc().node(node);
-        let ok = match wanted {
-            NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
-            NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
-            NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
-            NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
-        };
-        if ok {
+        if admits(self.committed_doc().node(node), wanted) {
             Ok(())
         } else {
             Err(Refusal::WrongNodeKind { node, wanted })
