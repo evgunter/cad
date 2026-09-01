@@ -32,18 +32,34 @@
 //! The tensor bookkeeping is what is shared; the one-dimensional
 //! formula is what is not.
 //!
-//! # The short-step fill, stated because it is a soundness choice
+//! # A step that does not answer the direction's new extent is an ERROR
 //!
-//! A step that answers fewer coefficients than the direction's new
-//! extent leaves slots the net has no value for, and the two callers
-//! want opposite fills. Filling with [`RingInterval::poison`] refuses:
-//! every bound the net reaches fails every `<= eps` comparison, which
-//! is what a caller assembling a certificate from a net it believes
-//! complete wants. Filling with [`RingInterval::zero`] widens: sound
-//! wherever the missing slot is an EMPTY span, whose function has no
-//! value there and whose hull can only grow. So the fill is the
-//! caller's argument to make and this module takes it as a parameter
-//! rather than picking for both.
+//! [`TensorNet::diff_u`] and [`TensorNet::diff_v`] shrink one direction
+//! by exactly one, so a step handed a line of `n` coefficients owes
+//! `n - 1`. Anything else — short or long — is a structure error in the
+//! caller, and this module **poisons that whole line** rather than
+//! padding it or truncating it.
+//!
+//! Both spellings were tried and both are wrong. **Padding** a short
+//! answer with zeros turns one refusal into one poison plus `n - 2`
+//! finite zeros, which is a finite bound over a window nothing covered
+//! — the failure this module exists to make impossible, and the same
+//! shape [`super::hull::sup_norm_bound_span`] refuses one dimension
+//! down. **Truncating** a long answer hides a caller bug behind a
+//! plausible net. Poisoning the line is the only answer that reaches a
+//! consumer as a refusal.
+//!
+//! *Measured reachability, so this is a guard and not a story about
+//! one:* neither shipped caller can trip it.
+//! [`super::hull::derivative_coeffs`] answers `n - 1` for every line
+//! its knot vector admits, and short-answers only on a
+//! coefficient-count mismatch; `geom_brep::props::quad`'s `raw_deriv`
+//! answers `n - 1` whenever its degree is at least 1, which its own
+//! `Dir` construction guarantees, and it fills a DEGENERATE (empty)
+//! span itself with an explicit zero rather than by returning fewer
+//! coefficients. So this is a latent-bug guard on a path no caller
+//! reaches today, and it is written that way rather than as a fill
+//! policy the callers choose between.
 //!
 //! # Poison (fail-loud, D4 ¶2)
 //!
@@ -224,25 +240,27 @@ impl TensorNet {
 
     /// **Differences the net once along `u`**: the step is applied to
     /// each `u`-line (one per `v` index) and the results scattered back
-    /// into a `(nu − 1) × nv` net. `missing` fills a slot the step did
-    /// not answer (module docs — the fill is the caller's argument).
+    /// into a `(nu − 1) × nv` net.
+    ///
+    /// A step that answers anything but `nu − 1` coefficients poisons
+    /// that whole line (module docs — it is a caller structure error,
+    /// and neither padding nor truncating it can be sound).
     ///
     /// A net with fewer than two `u` indices has no `u` derivative and
     /// yields the empty net.
     #[must_use]
-    pub fn diff_u(
-        &self,
-        step: impl Fn(&[RingInterval]) -> Vec<RingInterval>,
-        missing: RingInterval,
-    ) -> Self {
+    pub fn diff_u(&self, step: impl Fn(&[RingInterval]) -> Vec<RingInterval>) -> Self {
         let nu1 = self.nu.saturating_sub(1);
         if nu1 == 0 || self.nv == 0 {
             return Self::from_flat(nu1, self.nv, Vec::new());
         }
-        let mut c = vec![missing; nu1 * self.nv];
+        let mut c = vec![RingInterval::poison(); nu1 * self.nv];
         for j in 0..self.nv {
             let d = step(&self.column(j));
-            for (i, q) in d.iter().take(nu1).enumerate() {
+            if d.len() != nu1 {
+                continue;
+            }
+            for (i, q) in d.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * self.nv + j) {
                     *slot = *q;
                 }
@@ -256,22 +274,22 @@ impl TensorNet {
     }
 
     /// **Differences the net once along `v`**: the step is applied to
-    /// each `v`-line (one per `u` index), yielding `nu × (nv − 1)`.
-    /// `missing` fills a slot the step did not answer.
+    /// each `v`-line (one per `u` index), yielding `nu × (nv − 1)`. A
+    /// step that answers anything but `nv − 1` coefficients poisons
+    /// that line ([`TensorNet::diff_u`]).
     #[must_use]
-    pub fn diff_v(
-        &self,
-        step: impl Fn(&[RingInterval]) -> Vec<RingInterval>,
-        missing: RingInterval,
-    ) -> Self {
+    pub fn diff_v(&self, step: impl Fn(&[RingInterval]) -> Vec<RingInterval>) -> Self {
         let nv1 = self.nv.saturating_sub(1);
         if nv1 == 0 || self.nu == 0 {
             return Self::from_flat(self.nu, nv1, Vec::new());
         }
-        let mut c = vec![missing; self.nu * nv1];
+        let mut c = vec![RingInterval::poison(); self.nu * nv1];
         for i in 0..self.nu {
             let d = step(self.row(i));
-            for (j, q) in d.iter().take(nv1).enumerate() {
+            if d.len() != nv1 {
+                continue;
+            }
+            for (j, q) in d.iter().enumerate() {
                 if let Some(slot) = c.get_mut(i * nv1 + j) {
                     *slot = *q;
                 }
@@ -285,19 +303,19 @@ impl TensorNet {
     }
 
     /// [`TensorNet::diff_u`] with the clamped-knot-vector step
-    /// ([`super::hull::derivative_coeffs`]) and a POISON fill: a line
-    /// this vector does not admit yields a poisoned derivative rather
-    /// than a widened one.
+    /// ([`super::hull::derivative_coeffs`]): a line this vector does
+    /// not admit yields a poisoned derivative rather than a widened
+    /// one, because that step short-answers and the line poisons.
     #[must_use]
     pub fn diff_u_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_u(|c| derivative_coeffs(kv, c), RingInterval::poison())
+        self.diff_u(|c| derivative_coeffs(kv, c))
     }
 
-    /// [`TensorNet::diff_v`] with the clamped-knot-vector step and a
-    /// poison fill ([`TensorNet::diff_u_knots`]).
+    /// [`TensorNet::diff_v`] with the clamped-knot-vector step
+    /// ([`TensorNet::diff_u_knots`]).
     #[must_use]
     pub fn diff_v_knots(&self, kv: &KnotVector) -> Self {
-        self.diff_v(|c| derivative_coeffs(kv, c), RingInterval::poison())
+        self.diff_v(|c| derivative_coeffs(kv, c))
     }
 }
 
@@ -357,19 +375,23 @@ mod tests {
         assert!(holds(dv.diff_u_knots(&kv).get(0, 0), 2.0));
     }
 
-    /// A step that answers nothing leaves the caller's fill in every
-    /// slot — the choice this module refuses to make for its callers.
+    /// A step that does not answer the direction's new extent poisons
+    /// the line — short OR long, because neither padding nor
+    /// truncating can be sound (module docs).
     #[test]
-    fn the_short_step_fill_is_the_callers() {
-        let n = TensorNet::from_rows(&[vec![pt(1.0)], vec![pt(2.0)]]);
+    fn a_step_of_the_wrong_length_poisons_its_line() {
+        let n = TensorNet::from_rows(&[vec![pt(1.0)], vec![pt(2.0)], vec![pt(3.0)]]);
+        // Owes 2 coefficients per u-line.
         let nothing = |_: &[RingInterval]| Vec::new();
-        assert!(
-            n.diff_u(nothing, RingInterval::poison())
-                .get(0, 0)
-                .is_poison()
-        );
-        let z = n.diff_u(nothing, RingInterval::zero()).get(0, 0);
-        assert!(!z.is_poison() && z.lo() == 0.0 && z.hi() == 0.0);
+        let short = |_: &[RingInterval]| vec![pt(9.0)];
+        let long = |_: &[RingInterval]| vec![pt(9.0), pt(9.0), pt(9.0)];
+        let right = |_: &[RingInterval]| vec![pt(9.0), pt(8.0)];
+        for bad in [n.diff_u(nothing), n.diff_u(short), n.diff_u(long)] {
+            assert_eq!((bad.nu(), bad.nv()), (2, 1));
+            assert!(bad.get(0, 0).is_poison() && bad.get(1, 0).is_poison());
+        }
+        let ok = n.diff_u(right);
+        assert!(!ok.get(0, 0).is_poison() && ok.get(0, 0).lo() == 9.0);
     }
 
     /// The window hull is the hull of exactly the window, and the

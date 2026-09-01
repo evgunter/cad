@@ -1175,11 +1175,13 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        // ZERO fills a slot the step did not answer, not poison: a
-        // `Raw`/`Const` direction answers nothing for a DEGENERATE
-        // (empty) span, where the function has no value and enlarging
-        // a hull can never make a containment claim false.
-        let ch = core::array::from_fn(|k| self.ch[k].diff_u(&take, RingInterval::zero()));
+        // A step that does not answer `nu - 1` coefficients poisons its
+        // line (`TensorNet::diff_u`). Unreachable from here and kept as
+        // a guard: `raw_deriv` answers `n - 1` for every degree >= 1,
+        // which `Dir`'s own construction guarantees, and it fills a
+        // DEGENERATE (empty) span with an explicit zero itself rather
+        // than by returning fewer coefficients.
+        let ch = core::array::from_fn(|k| self.ch[k].diff_u(&take));
         Some(Self {
             du: next_dir,
             dv: self.dv.clone(),
@@ -1220,8 +1222,8 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        // Zero fill, per [`PatchGrid::deriv_u`].
-        let ch = core::array::from_fn(|k| self.ch[k].diff_v(&take, RingInterval::zero()));
+        // Poison on a wrong-length step, per [`PatchGrid::deriv_u`].
+        let ch = core::array::from_fn(|k| self.ch[k].diff_v(&take));
         Some(Self {
             du: self.du.clone(),
             dv: next_dir,
