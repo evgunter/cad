@@ -22,11 +22,12 @@
 
 mod common;
 
+use common::{body_volume, insert, near};
+use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, Doc, DocEdit, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, Doc, Expr, LoopProgram, Node, NodeError, NodeErrorKind,
+    NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
-use pncad::document::{BooleanValue, SplitSide};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::profile::SketchPlane;
@@ -53,23 +54,6 @@ const OVERLAP: f64 = 0.005 * 0.01 * 0.006;
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("combine-start", tol), tol)
-}
-
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
 }
 
 /// A box of `size`, authored through the creation doors: one
@@ -113,20 +97,6 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     (session, a, b)
 }
 
-/// The evaluated volume of a node's single body, with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let body = match &eval.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(body) => body.clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
-        other => panic!("expected a body, got {other:?}"),
-    };
-    pncad::topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume
-}
-
 /// A split node's two sides, by volume, with the seam pumped — an
 /// empty side reading as zero.
 fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f64, f64) {
@@ -146,12 +116,6 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
         SplitSide::Empty => 0.0,
     };
     (volume_of(above), volume_of(below))
-}
-
-/// `left` and `right` agree to within a relative tolerance the planar
-/// boolean rows can hold.
-fn near(left: f64, right: f64) -> bool {
-    ((left - right) / right).abs() < 1e-9
 }
 
 /// A body's volume, with the closed form it must match.
