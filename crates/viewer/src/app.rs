@@ -44,10 +44,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Axis3, BooleanOp, Dimension, DocumentId, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{
+    Axis3, BooleanOp, Dimension, DimensionError, DocumentId, Expr, LoopProgram, ParamName,
+    RecipeNodeId, SlotId,
+};
 use pncad::geom_core::Tol;
 use pncad::profile::{ArcSide, ArcSweep};
-use pncad::quantity::UnitDef;
+use pncad::quantity::{self, AngleUnit, LengthUnit, UnitDef, WrittenAngle, WrittenLength};
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
@@ -253,9 +256,7 @@ struct Drafts {
     datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
     datum_direction: [f64; 3],
-    /// **The unit every creation form's LENGTH field is written
-    /// in**, `None` for the canonical fallback (`props::written_unit`
-    /// — metres).
+    /// **The unit every creation form's LENGTH field is written in.**
     ///
     /// ONE choice for all the forms, not one per form. The panel's
     /// pickers are per literal because a literal is a thing in a
@@ -266,11 +267,16 @@ struct Drafts {
     /// behind the fields stay canonical either way ([`unit_field`]),
     /// so moving the picker re-writes what is on screen and changes
     /// no value.
-    length_unit: Option<UnitDef>,
-    /// The same for every ANGLE field; `None` falls back to half
-    /// turns (`pi rad`), which is the notation this editor says
-    /// angles in.
-    angle_unit: Option<UnitDef>,
+    /// Not optional: an authored value always names the notation it
+    /// is written in (`quantity::written`'s module docs), and a form
+    /// that declined to name one would be handing the panel a value
+    /// whose spelling only a reader-side fallback could supply — which
+    /// is how the field and the picker beside it came to disagree
+    /// about what an unmarked angle meant.
+    length_unit: LengthUnit,
+    /// The same for every ANGLE field. Defaults to half turns
+    /// (`pi rad`), the notation this editor says angles in.
+    angle_unit: AngleUnit,
     /// The add-profile form's shape choice.
     profile_shape: ShapeKind,
     /// The path form's verbs, in authoring order.
@@ -355,8 +361,8 @@ impl Default for Drafts {
             datum_kind: DatumKind::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
-            length_unit: None,
-            angle_unit: None,
+            length_unit: quantity::M,
+            angle_unit: quantity::PI,
             profile_shape: ShapeKind::Circle,
             profile_path: vec![
                 PathStep::At([0.0, 0.0]),
@@ -423,6 +429,111 @@ impl Drafts {
             ShapeKind::Path => vec![ProfileShape::Path {
                 steps: self.profile_path.clone(),
             }],
+        }
+    }
+
+    /// **The notation these forms are authoring in** — the two pickers,
+    /// as the lowering wants them.
+    fn notation(&self) -> sketch::Notation {
+        sketch::Notation {
+            length: self.length_unit,
+            angle: self.angle_unit,
+        }
+    }
+
+    /// The loop PROGRAMS the add-profile form would author right now:
+    /// [`Drafts::profile_loops`] lowered in this form's notation, which
+    /// is what the op carries.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite field (the literal door's refusal).
+    fn profile_programs(&self) -> Result<Vec<LoopProgram>, DimensionError> {
+        self.profile_loops()
+            .iter()
+            .map(|shape| sketch::loop_program(shape, self.notation()))
+            .collect()
+    }
+
+    /// A `Length` literal from a draft field, remembering the form's
+    /// notation. The draft is already canonical — a picker re-writes
+    /// what is on screen and changes no value — so this attaches the
+    /// unit without applying it.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite draft (the literal door's refusal).
+    fn length(&self, metres: f64) -> Result<Expr, DimensionError> {
+        Expr::written_length(WrittenLength::canonical_in(metres, self.length_unit))
+    }
+
+    /// An `Angle` literal from a draft field — [`Drafts::length`]'s
+    /// twin.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite draft.
+    fn angle(&self, radians: f64) -> Result<Expr, DimensionError> {
+        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle_unit))
+    }
+
+    /// Three `Length` literals — a datum origin, a translation.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite component.
+    fn lengths(&self, v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+        Ok([self.length(v[0])?, self.length(v[1])?, self.length(v[2])?])
+    }
+}
+
+/// Three dimensionless literals — a normal, a direction, a rotation
+/// axis. Not a [`Drafts`] method and carrying no notation: `Scalar` has
+/// no row in the unit table, so there is nothing for one to remember.
+///
+/// # Errors
+///
+/// A non-finite component.
+fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
+    Ok([
+        Expr::literal(v[0], Dimension::Scalar)?,
+        Expr::literal(v[1], Dimension::Scalar)?,
+        Expr::literal(v[2], Dimension::Scalar)?,
+    ])
+}
+
+/// Why a creation form's commit did not produce an op.
+///
+/// Two faults reach one button: a seat a tool still needs, and a draft
+/// the literal door refuses. They are separate types because they are
+/// separate facts — one is about the picks, one about the numbers — and
+/// this carries them to the status line without flattening either into
+/// a string at the raising site.
+#[derive(Debug)]
+enum CommitFault {
+    /// A tool seat is still empty.
+    Seat(SeatError),
+    /// A draft field is not a value a literal may hold.
+    Dimension(DimensionError),
+}
+
+impl From<SeatError> for CommitFault {
+    fn from(error: SeatError) -> Self {
+        Self::Seat(error)
+    }
+}
+
+impl From<DimensionError> for CommitFault {
+    fn from(error: DimensionError) -> Self {
+        Self::Dimension(error)
+    }
+}
+
+impl std::fmt::Display for CommitFault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Seat(error) => error.fmt(f),
+            Self::Dimension(error) => error.fmt(f),
         }
     }
 }
@@ -2887,16 +2998,11 @@ impl ViewerBehavior<'_> {
                     DatumKind::Point => "position",
                     DatumKind::Plane | DatumKind::Axis => "origin",
                 },
-                self.drafts.length_unit,
+                self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.datum_origin,
             );
-            unit_picker(
-                ui,
-                "datum_origin",
-                Dimension::Length,
-                &mut self.drafts.length_unit,
-            );
+            length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
         });
         match kind {
             DatumKind::Plane => vec3_row(
@@ -2914,20 +3020,29 @@ impl ViewerBehavior<'_> {
             DatumKind::Point => {}
         }
         if ui.button("Add datum").clicked() {
-            let datum = match kind {
-                DatumKind::Plane => DatumSpec::Plane {
-                    origin: self.drafts.datum_origin,
-                    normal: self.drafts.datum_direction,
-                },
-                DatumKind::Axis => DatumSpec::Axis {
-                    origin: self.drafts.datum_origin,
-                    direction: self.drafts.datum_direction,
-                },
-                DatumKind::Point => DatumSpec::Point {
-                    position: self.drafts.datum_origin,
-                },
-            };
-            self.ops.push(SessionOp::AddDatum { datum });
+            // The origin is a Length triple in the form's notation; a
+            // normal or a direction is dimensionless and has none.
+            let datum = (|| -> Result<DatumSpec, DimensionError> {
+                let origin = self.drafts.lengths(self.drafts.datum_origin)?;
+                Ok(match kind {
+                    DatumKind::Plane => DatumSpec::Plane {
+                        origin,
+                        normal: scalars(self.drafts.datum_direction)?,
+                    },
+                    DatumKind::Axis => DatumSpec::Axis {
+                        origin,
+                        direction: scalars(self.drafts.datum_direction)?,
+                    },
+                    DatumKind::Point => DatumSpec::Point { position: origin },
+                })
+            })();
+            match datum {
+                Ok(datum) => self.ops.push(SessionOp::AddDatum { datum }),
+                // The add-datum form is not a seated TOOL, so it has
+                // no `ToolKind` to compose the prefix — the form's own
+                // name is the sentence's subject here.
+                Err(error) => *self.status = Some(format!("add datum: {error}")),
+            }
         }
     }
 
@@ -2961,7 +3076,7 @@ impl ViewerBehavior<'_> {
         let mut blocked: Option<&'static str> = None;
         match self.drafts.profile_shape {
             ShapeKind::Circle => {
-                let unit = self.drafts.length_unit;
+                let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
                     ui.label("centre");
                     unit_field(
@@ -2978,12 +3093,7 @@ impl ViewerBehavior<'_> {
                     );
                     ui.label("radius");
                     unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_radius);
-                    unit_picker(
-                        ui,
-                        "profile_circle",
-                        Dimension::Length,
-                        &mut self.drafts.length_unit,
-                    );
+                    length_picker(ui, "profile_circle", &mut self.drafts.length_unit);
                 });
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.drafts.profile_bored, "with bore");
@@ -3003,7 +3113,7 @@ impl ViewerBehavior<'_> {
                 }
             }
             ShapeKind::Rectangle => {
-                let unit = self.drafts.length_unit;
+                let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
                     ui.label("width");
                     unit_field(
@@ -3019,12 +3129,7 @@ impl ViewerBehavior<'_> {
                         FIELD_DRAG_SPEED,
                         &mut self.drafts.profile_extent[1],
                     );
-                    unit_picker(
-                        ui,
-                        "profile_rectangle",
-                        Dimension::Length,
-                        &mut self.drafts.length_unit,
-                    );
+                    length_picker(ui, "profile_rectangle", &mut self.drafts.length_unit);
                 });
             }
             ShapeKind::Path => self.path_steps_ui(ui),
@@ -3070,10 +3175,16 @@ impl ViewerBehavior<'_> {
             )
             .clicked()
         {
-            self.ops.push(SessionOp::AddProfile {
-                plane: sketch::form_plane(),
-                loops: self.drafts.profile_loops(),
-            });
+            // Lowered HERE rather than in the session: the notation is
+            // the form's, and a literal that forgot it between the two
+            // is exactly the gap this carries across.
+            match self.drafts.profile_programs() {
+                Ok(loops) => self.ops.push(SessionOp::AddProfile {
+                    plane: sketch::form_plane(),
+                    loops,
+                }),
+                Err(error) => *self.status = Some(format!("add profile: {error}")),
+            }
         }
     }
 
@@ -3095,22 +3206,12 @@ impl ViewerBehavior<'_> {
     /// legal verbs would be a second copy of the lattice, kept in
     /// step by hand.
     fn path_steps_ui(&mut self, ui: &mut egui::Ui) {
-        let length_unit = self.drafts.length_unit;
-        let angle_unit = self.drafts.angle_unit;
+        let length_unit = self.drafts.length_unit.def();
+        let angle_unit = self.drafts.angle_unit.def();
         ui.horizontal(|ui| {
             ui.weak("written in");
-            unit_picker(
-                ui,
-                "path_length",
-                Dimension::Length,
-                &mut self.drafts.length_unit,
-            );
-            unit_picker(
-                ui,
-                "path_angle",
-                Dimension::Angle,
-                &mut self.drafts.angle_unit,
-            );
+            length_picker(ui, "path_length", &mut self.drafts.length_unit);
+            angle_picker(ui, "path_angle", &mut self.drafts.angle_unit);
         });
         // The row edits are COLLECTED and applied after the loop: a
         // list cannot be reordered or shortened while it is being
@@ -3201,24 +3302,22 @@ impl ViewerBehavior<'_> {
             ui.label("distance");
             unit_field(
                 ui,
-                self.drafts.length_unit,
+                self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.extrude_distance,
             );
-            unit_picker(
-                ui,
-                "extrude_distance",
-                Dimension::Length,
-                &mut self.drafts.length_unit,
-            );
+            length_picker(ui, "extrude_distance", &mut self.drafts.length_unit);
         });
         match self.session.selection().node() {
             Some(node) => {
                 if ui.button(format!("Extrude feature {}", node.0)).clicked() {
-                    self.ops.push(SessionOp::AddExtrude {
-                        profile: node,
-                        distance: self.drafts.extrude_distance,
-                    });
+                    match self.drafts.length(self.drafts.extrude_distance) {
+                        Ok(distance) => self.ops.push(SessionOp::AddExtrude {
+                            profile: node,
+                            distance,
+                        }),
+                        Err(error) => *self.status = Some(format!("extrude: {error}")),
+                    }
                 }
             }
             None => {
@@ -3254,19 +3353,14 @@ impl ViewerBehavior<'_> {
             ui.label("angle");
             unit_field(
                 ui,
-                self.drafts.angle_unit,
+                self.drafts.angle_unit.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.revolve_angle,
             );
-            unit_picker(
-                ui,
-                "revolve_angle",
-                Dimension::Angle,
-                &mut self.drafts.angle_unit,
-            );
+            angle_picker(ui, "revolve_angle", &mut self.drafts.angle_unit);
         });
         self.tool_commit_row(ui, "Commit revolve", ToolKind::Revolve, |drafts| {
-            tool.op(drafts.revolve_angle)
+            Ok(tool.op(drafts.angle(drafts.revolve_angle)?)?)
         });
     }
 
@@ -3298,7 +3392,7 @@ impl ViewerBehavior<'_> {
             ui.weak("subtract removes the second pick from the first");
         }
         self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
-            tool.op(drafts.boolean_op)
+            Ok(tool.op(drafts.boolean_op)?)
         });
     }
 
@@ -3316,7 +3410,7 @@ impl ViewerBehavior<'_> {
             (Seat::SplitTarget, tool.target()),
             (Seat::SplitPlane, tool.plane()),
         ]));
-        self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| tool.op());
+        self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| Ok(tool.op()?));
     }
 
     /// The transform tool's panel: one body pick plus the placement
@@ -3334,16 +3428,11 @@ impl ViewerBehavior<'_> {
             unit_vec3_row(
                 ui,
                 "translation",
-                self.drafts.length_unit,
+                self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.transform_translation,
             );
-            unit_picker(
-                ui,
-                "transform_translation",
-                Dimension::Length,
-                &mut self.drafts.length_unit,
-            );
+            length_picker(ui, "transform_translation", &mut self.drafts.length_unit);
         });
         vec3_row(
             ui,
@@ -3355,23 +3444,18 @@ impl ViewerBehavior<'_> {
             ui.label("rotation angle");
             unit_field(
                 ui,
-                self.drafts.angle_unit,
+                self.drafts.angle_unit.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.transform_angle,
             );
-            unit_picker(
-                ui,
-                "transform_angle",
-                Dimension::Angle,
-                &mut self.drafts.angle_unit,
-            );
+            angle_picker(ui, "transform_angle", &mut self.drafts.angle_unit);
         });
         self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
-            tool.op(
-                drafts.transform_translation,
-                drafts.transform_axis,
-                drafts.transform_angle,
-            )
+            Ok(tool.op(
+                drafts.lengths(drafts.transform_translation)?,
+                scalars(drafts.transform_axis)?,
+                drafts.angle(drafts.transform_angle)?,
+            )?)
         });
     }
 
@@ -3419,16 +3503,11 @@ impl ViewerBehavior<'_> {
                     ui.label("spacing");
                     unit_field(
                         ui,
-                        self.drafts.length_unit,
+                        self.drafts.length_unit.def(),
                         FIELD_DRAG_SPEED,
                         &mut self.drafts.pattern_spacing,
                     );
-                    unit_picker(
-                        ui,
-                        "pattern_spacing",
-                        Dimension::Length,
-                        &mut self.drafts.length_unit,
-                    );
+                    length_picker(ui, "pattern_spacing", &mut self.drafts.length_unit);
                 });
             }
             PatternKindChoice::Circular => {
@@ -3436,16 +3515,11 @@ impl ViewerBehavior<'_> {
                     ui.label("step");
                     unit_field(
                         ui,
-                        self.drafts.angle_unit,
+                        self.drafts.angle_unit.def(),
                         ANGLE_DRAG_SPEED,
                         &mut self.drafts.pattern_step,
                     );
-                    unit_picker(
-                        ui,
-                        "pattern_step",
-                        Dimension::Angle,
-                        &mut self.drafts.angle_unit,
-                    );
+                    angle_picker(ui, "pattern_step", &mut self.drafts.angle_unit);
                 });
             }
         }
@@ -3454,14 +3528,15 @@ impl ViewerBehavior<'_> {
             "Commit pattern",
             ToolKind::Pattern,
             |drafts| match drafts.pattern_kind {
-                PatternKindChoice::Linear => tool.linear_op(
+                PatternKindChoice::Linear => Ok(tool.linear_op(
                     drafts.pattern_count,
-                    drafts.pattern_direction,
-                    drafts.pattern_spacing,
-                ),
-                PatternKindChoice::Circular => {
-                    tool.circular_op(drafts.pattern_count, drafts.pattern_step)
-                }
+                    scalars(drafts.pattern_direction)?,
+                    drafts.length(drafts.pattern_spacing)?,
+                )?),
+                PatternKindChoice::Circular => Ok(tool.circular_op(
+                    drafts.pattern_count,
+                    drafts.angle(drafts.pattern_step)?,
+                )?),
             },
         );
     }
@@ -3505,16 +3580,11 @@ impl ViewerBehavior<'_> {
             ui.label(self.drafts.blend_kind.size_label());
             unit_field(
                 ui,
-                self.drafts.length_unit,
+                self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.blend_size,
             );
-            unit_picker(
-                ui,
-                "blend_size",
-                Dimension::Length,
-                &mut self.drafts.length_unit,
-            );
+            length_picker(ui, "blend_size", &mut self.drafts.length_unit);
         });
         self.blend_commit_row(ui, count);
     }
@@ -3586,16 +3656,22 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button("Commit blend").clicked() {
-                let size = self.drafts.blend_size;
-                let op: Option<Result<SessionOp, BlendError>> =
-                    self.tools.blend().map(|tool| match self.drafts.blend_kind {
-                        BlendKindChoice::Fillet => tool.fillet_op(size),
-                        BlendKindChoice::Chamfer => tool.chamfer_op(size),
-                    });
-                match op {
-                    Some(Ok(op)) => self.ops.push(op),
-                    Some(Err(error)) => *self.status = Some(ToolKind::Blend.says(&error)),
-                    None => {}
+                match self.drafts.length(self.drafts.blend_size) {
+                    Ok(size) => {
+                        let op: Option<Result<SessionOp, BlendError>> =
+                            self.tools.blend().map(|tool| match self.drafts.blend_kind {
+                                BlendKindChoice::Fillet => tool.fillet_op(size.clone()),
+                                BlendKindChoice::Chamfer => tool.chamfer_op(size),
+                            });
+                        match op {
+                            Some(Ok(op)) => self.ops.push(op),
+                            Some(Err(error)) => {
+                                *self.status = Some(ToolKind::Blend.says(&error));
+                            }
+                            None => {}
+                        }
+                    }
+                    Err(error) => *self.status = Some(ToolKind::Blend.says(&error)),
                 }
             }
             if ui
@@ -3629,7 +3705,7 @@ impl ViewerBehavior<'_> {
         ui: &mut egui::Ui,
         label: &str,
         kind: ToolKind,
-        op: impl FnOnce(&Drafts) -> Result<SessionOp, SeatError>,
+        op: impl FnOnce(&Drafts) -> Result<SessionOp, CommitFault>,
     ) {
         let mut close = false;
         ui.horizontal(|ui| {
@@ -4307,26 +4383,21 @@ fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
 /// the half of this that is easy to leave out: a tick in metres
 /// applied to a field showing millimetres is the same gesture made a
 /// thousand times finer by a change of notation.
-fn unit_field(ui: &mut egui::Ui, unit: Option<UnitDef>, speed: f64, canonical: &mut f64) {
-    let mut written = props::in_written(*canonical, unit);
-    let response = ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, unit)));
+fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical: &mut f64) {
+    let mut written = props::in_written(*canonical, Some(unit));
+    let response =
+        ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, Some(unit))));
     // Written back only on a real edit: an untouched field would
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
-        *canonical = props::from_written(written, unit);
+        *canonical = props::from_written(written, Some(unit));
     }
 }
 
 /// The vector twin of [`unit_field`] — one label, three components,
 /// one unit.
-fn unit_vec3_row(
-    ui: &mut egui::Ui,
-    label: &str,
-    unit: Option<UnitDef>,
-    speed: f64,
-    value: &mut [f64; 3],
-) {
+fn unit_vec3_row(ui: &mut egui::Ui, label: &str, unit: UnitDef, speed: f64, value: &mut [f64; 3]) {
     ui.horizontal(|ui| {
         ui.label(label);
         for component in value {
@@ -4336,7 +4407,7 @@ fn unit_vec3_row(
 }
 
 /// Two Length fields, one point of the sketch frame.
-fn point_fields(ui: &mut egui::Ui, unit: Option<UnitDef>, point: &mut [f64; 2]) {
+fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut [f64; 2]) {
     for component in point {
         unit_field(ui, unit, FIELD_DRAG_SPEED, component);
     }
@@ -4349,7 +4420,7 @@ fn point_fields(ui: &mut egui::Ui, unit: Option<UnitDef>, point: &mut [f64; 2]) 
 /// leg ends — and `Start` is not a point somebody could type: it is
 /// the bound entry, and aiming at it is what closing IS in this
 /// algebra (`pncad::profile::path`, which has no `close()` alias).
-fn target_fields(ui: &mut egui::Ui, unit: Option<UnitDef>, target: &mut PathTarget) {
+fn target_fields(ui: &mut egui::Ui, unit: UnitDef, target: &mut PathTarget) {
     let closing = matches!(target, PathTarget::Start);
     let mut to_start = closing;
     ui.checkbox(&mut to_start, "to start");
@@ -4406,8 +4477,8 @@ fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSweep) {
 fn arc_fields(
     ui: &mut egui::Ui,
     salt: &str,
-    length_unit: Option<UnitDef>,
-    angle_unit: Option<UnitDef>,
+    length_unit: UnitDef,
+    angle_unit: UnitDef,
     spec: &mut ArcSpec,
 ) {
     let mut mode = ArcMode::of(spec);
@@ -4472,8 +4543,8 @@ fn arc_fields(
 fn path_step_fields(
     ui: &mut egui::Ui,
     salt: &str,
-    length_unit: Option<UnitDef>,
-    angle_unit: Option<UnitDef>,
+    length_unit: UnitDef,
+    angle_unit: UnitDef,
     step: &mut PathStep,
 ) {
     match step {
@@ -4517,10 +4588,10 @@ fn path_step_fields(
 /// **The creation forms' written-unit picker.**
 ///
 /// The panel's picker as a form control: the same options
-/// (`props::unit_options`, read off the closed unit table), the same
-/// fallback when nothing is chosen (`props::written_unit` — metres
-/// for a length, HALF-TURNS for an angle), and the same rule about
-/// what the label beside a field may say. **The unit is the picker's
+/// (`props::unit_options`, read off the closed unit table) and the
+/// same rule about what the label beside a field may say. There is no
+/// "nothing chosen" state to fall back from — a form is always
+/// authoring in some notation, and says which. **The unit is the picker's
 /// to say, not the field's**, which is why the form labels next to
 /// these are bare ("radius", not "radius (m)"): a label with the unit
 /// baked in is a second place for it to be stated, free to say metres
@@ -4538,14 +4609,42 @@ fn path_step_fields(
 /// frame is the one egui draws in response to it. Drawing it first
 /// would close the gap and put the unit above the number it is the
 /// unit of, which is the worse trade for a lag nobody can see.
-fn unit_picker(ui: &mut egui::Ui, salt: &str, dimension: Dimension, chosen: &mut Option<UnitDef>) {
+fn length_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut LengthUnit) {
+    if let Some(row) = pick_unit(ui, salt, Dimension::Length, chosen.def())
+        && let Some(unit) = row.as_length()
+    {
+        *chosen = unit;
+    }
+}
+
+/// [`length_picker`]'s angle twin. Two functions rather than one over
+/// a dimension, because a length picker that could write a `deg` into
+/// its draft is the mismatch the typed views exist to make
+/// unrepresentable — the pairing is checked by the compiler here, not
+/// by a branch.
+fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit) {
+    if let Some(row) = pick_unit(ui, salt, Dimension::Angle, chosen.def())
+        && let Some(unit) = row.as_angle()
+    {
+        *chosen = unit;
+    }
+}
+
+/// The combo itself: the rows `dimension` admits, with `shown`
+/// selected; `Some(row)` when this frame's click chose one.
+fn pick_unit(
+    ui: &mut egui::Ui,
+    salt: &str,
+    dimension: Dimension,
+    shown: UnitDef,
+) -> Option<UnitDef> {
     let options = props::unit_options(dimension);
     if options.is_empty() {
-        return;
+        return None;
     }
-    let shown = props::written_unit(dimension, *chosen);
+    let mut picked = None;
     egui::ComboBox::from_id_salt(("creation_unit", salt))
-        .selected_text(shown.as_ref().map_or("", UnitDef::symbol))
+        .selected_text(shown.symbol())
         // Wide enough for the longest symbol the table carries
         // (`pi rad`) plus the combo's arrow — the panel's width, for
         // the panel's reason.
@@ -4553,13 +4652,14 @@ fn unit_picker(ui: &mut egui::Ui, salt: &str, dimension: Dimension, chosen: &mut
         .show_ui(ui, |ui| {
             for option in options {
                 if ui
-                    .selectable_label(shown == Some(option), option.symbol())
+                    .selectable_label(shown == option, option.symbol())
                     .clicked()
                 {
-                    *chosen = Some(option);
+                    picked = Some(option);
                 }
             }
         });
+    picked
 }
 
 /// The delete button: a renderer for [`DocSession::delete_affordance`]
