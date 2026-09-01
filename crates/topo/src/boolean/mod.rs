@@ -1989,7 +1989,10 @@ fn verify_tangent_declaration<T: Decide>(
                     // so is strictly better than reporting the CLASS as
                     // unsupported: the geometry, not the kernel's
                     // coverage, is what refuses.
-                    Ok(routing @ (rim_wedge::RimRouting::Transverse | rim_wedge::RimRouting::Lamina)) => {
+                    Ok(
+                        routing @ (rim_wedge::RimRouting::Transverse
+                        | rim_wedge::RimRouting::Lamina),
+                    ) => {
                         return Err(BooleanError::ContactContradicted {
                             declaration,
                             steer: None,

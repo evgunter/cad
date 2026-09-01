@@ -111,7 +111,12 @@ fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(geom::Surface::Torus { .. })))
+        .filter(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Torus { .. })
+            )
+        })
         .map(|(k, _)| k)
         .collect()
 }
@@ -238,7 +243,10 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
     );
     let q = frame.far;
     assert!(
-        q.x > whole.0.0 && q.x < whole.0.1 && q.y > whole.1.0 && q.y < whole.1.1
+        q.x > whole.0.0
+            && q.x < whole.0.1
+            && q.y > whole.1.0
+            && q.y < whole.1.1
             && q.z > whole.2.0
             && q.z < whole.2.1,
         "the far cap centre lies inside the stem wall's whole-torus box"
@@ -276,7 +284,9 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
             let radial = Vec3::new(theta.cos(), 0.0, theta.sin());
             for ip in 0..180 {
                 let phi = core::f64::consts::TAU * f64::from(ip) / 180.0;
-                v.push(cs + (radial * phi.cos() + Vec3::new(0.0, 1.0, 0.0) * phi.sin()) * STEM_TUBE);
+                v.push(
+                    cs + (radial * phi.cos() + Vec3::new(0.0, 1.0, 0.0) * phi.sin()) * STEM_TUBE,
+                );
             }
         }
         v
@@ -293,7 +303,9 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
             let cs = frame.center + radial * ARCH_RING;
             for ip in 0..180 {
                 let phi = core::f64::consts::TAU * f64::from(ip) / 180.0;
-                v.push(cs + (radial * phi.cos() + Vec3::new(0.0, 1.0, 0.0) * phi.sin()) * ARCH_TUBE);
+                v.push(
+                    cs + (radial * phi.cos() + Vec3::new(0.0, 1.0, 0.0) * phi.sin()) * ARCH_TUBE,
+                );
             }
         }
         v

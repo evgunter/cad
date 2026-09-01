@@ -71,23 +71,6 @@ pub(crate) enum RimRouting {
     Transverse,
 }
 
-impl RimRouting {
-    /// The wedge verdict behind the routing, where there is one.
-    ///
-    /// `None` for [`RimRouting::Lamina`]: an osculating rim has no
-    /// wedge end at all — that is precisely what makes it a lamina —
-    /// so naming one would be inventing a verdict the samples refused
-    /// to give.
-    pub(crate) fn wedge(self) -> Option<MaterialWedge> {
-        match self {
-            Self::Seam => Some(MaterialWedge::Seam),
-            Self::Cusp(w) => Some(w),
-            Self::Transverse => Some(MaterialWedge::Transverse),
-            Self::Lamina => None,
-        }
-    }
-}
-
 /// The circle two faces' boundaries share — the rim the routing is
 /// taken along, carried with the seam reference the curve itself
 /// stores so no perpendicular has to be invented for it.
@@ -99,6 +82,26 @@ impl RimRouting {
 /// point set. Every candidate pair is examined and the FIRST match
 /// wins; a face pair riding two common circles at once is not a rim
 /// contact and is outside what this door claims to see.
+///
+/// **Why the comparison is written here rather than consumed from
+/// `carrier_eq`, stated so the next reader does not have to re-derive
+/// it.** The resemblance is real and it is now exact in POSTURE as well
+/// as in data: both compare a centre, an axis line and a radius; both
+/// meter the angular datum at a consumption extent rather than at unit
+/// arm; both treat an in-band datum as an escalation rather than as a
+/// separation. What differs is the subject. `carrier_eq` is a ladder
+/// over SURFACE carriers — its inventory is plane, sphere, cylinder,
+/// torus, its verdict is a material-side relation (`SameOriented` /
+/// `SameOpposite` / `Distinct`), and its rungs consult recipe sources
+/// and declared intent. A rim is a CURVE, it has no material side, and
+/// no declaration is being verified here: the question is only "are
+/// these two boundary edges the same circle". Consuming the ladder
+/// would mean giving it a curve-carrier variant with no orientation and
+/// no identity rungs — a fifth `CarrierDesc` arm that answers a
+/// different kind of question — which is a design move on the C4 table,
+/// not a de-duplication. Until someone wants that variant for its own
+/// sake, one small comparison stated plainly beats a ladder bent to
+/// cover two subjects.
 ///
 /// **The angular margin is metered at the candidate's own extent**, not
 /// at unit arm. A dimensionless sine says nothing until it is priced as
@@ -281,10 +284,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     let station = |i: u32| {
         let theta = T::from_f64(phase(i));
         let (s, c) = (theta.sin(), theta.cos());
-        (
-            center + (u * c + v * s) * radius,
-            (v * c - u * s) * radius,
-        )
+        (center + (u * c + v * s) * radius, (v * c - u * s) * radius)
     };
 
     // ---- The first-order screen (docs above): the precondition the
@@ -459,10 +459,7 @@ mod redfirst {
     fn rim_radius_epsilon_row_three_outcomes() {
         let b = band();
         let base = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06);
-        assert!(
-            rim_identity(&base, &base, b).unwrap(),
-            "exact: one rim"
-        );
+        assert!(rim_identity(&base, &base, b).unwrap(), "exact: one rim");
         let in_band = circle(
             [0.0, 0.0, 0.0],
             [0.0, 0.0, 1.0],
@@ -639,8 +636,15 @@ mod r2_probes {
     #[test]
     fn r2_the_same_crossing_cannot_flip_arm_with_the_stored_normal() {
         let up = classify_shared_rim(&sphere(), 1.0, &cut_plane(1.0), 1.0, cut_rim(), 1.6, band());
-        let down =
-            classify_shared_rim(&sphere(), 1.0, &cut_plane(-1.0), 1.0, cut_rim(), 1.6, band());
+        let down = classify_shared_rim(
+            &sphere(),
+            1.0,
+            &cut_plane(-1.0),
+            1.0,
+            cut_rim(),
+            1.6,
+            band(),
+        );
         println!("[r2] normal up routes to {up:?}; normal down routes to {down:?}");
         assert_eq!(
             up.expect("the routing answers"),

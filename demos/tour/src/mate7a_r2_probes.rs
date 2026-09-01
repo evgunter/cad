@@ -207,7 +207,13 @@ fn r2_which_pairs_survive_a_perfect_box() {
     let kind = |b: &Body<f64>, f: FaceKey| {
         b.get_face(f)
             .and_then(|x| b.get_surface(x.surface))
-            .map(|s| format!("{s:?}").split_whitespace().next().unwrap_or("?").to_string())
+            .map(|s| {
+                format!("{s:?}")
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("?")
+                    .to_string()
+            })
             .unwrap_or_default()
     };
     for (ka, _) in stem.faces() {

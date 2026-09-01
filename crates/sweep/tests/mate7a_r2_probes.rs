@@ -6,9 +6,7 @@
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::{TubeWindow, tube_along_arc};
-use topo::{
-    Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration,
-};
+use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
 
 const TUBE: f64 = 0.06;
 const RING: f64 = 5.0;
@@ -61,10 +59,18 @@ fn decls(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> BooleanDeclaratio
 /// and not the identification in front of it.
 ///
 /// Measured: the kissing pair with the outer torus's ring radius
-/// perturbed by 5e-9 — inside the witness band (`zero` 1e-9,
-/// `escalate` 1e-8). The rim is the same rim to within the band, and
-/// the routing went silent, handing back the bare class refusal as
+/// perturbed INTO the band. The rim is the same rim to within the band,
+/// and the routing went silent, handing back the bare class refusal as
 /// though the geometry had been examined and cleared.
+///
+/// **The perturbation is derived from the RUN's band, not written as a
+/// literal.** R2 measured it as `5e-9`, which sits between `zero` and
+/// `escalate` at the witness ε and nowhere else: at ε = 1e-6 the same
+/// number is far below `zero`, the two rims read as ONE, and the row
+/// asserted an escalation that correctly never came. A row that only
+/// means what it says at one ε is not an ε row — so the offset is
+/// `(zero + escalate) / 2`, which is in-band at every ε the matrix
+/// runs. Same fixture, same claim, stated so it survives the sweep.
 ///
 /// **INVERTED at the fix pass.** `shared_rim` now propagates the
 /// `Indeterminate` instead of discarding it, so the perturbed pair
@@ -76,9 +82,11 @@ fn decls(a: &Body<f64>, b: &Body<f64>, class: ContactClass) -> BooleanDeclaratio
 /// pass it.
 #[test]
 fn r2_an_in_band_rim_identification_escalates_rather_than_reading_as_no_rim() {
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's linear band");
+    let in_band_offset = (band.zero() + band.escalate()) * 0.5;
     let a = full_torus(RING);
     let exact = full_torus(RING + 2.0 * TUBE);
-    let perturbed = full_torus(RING + 2.0 * TUBE + 5e-9);
+    let perturbed = full_torus(RING + 2.0 * TUBE + in_band_offset);
 
     let d_exact = decls(&a, &exact, ContactClass::Tangent);
     let e_exact = topo::union_with(&a, &exact, &d_exact, Tol::witness()).expect_err("refuses");
@@ -123,7 +131,10 @@ fn r2_recount_the_routing_price_from_the_verdict_log() {
     for v in &log {
         *by.entry(v.predicate).or_default() += 1;
     }
-    println!("[r2] verdict log for the kissing rim ({err:?}): {} rows", log.len());
+    println!(
+        "[r2] verdict log for the kissing rim ({err:?}): {} rows",
+        log.len()
+    );
     for (p, n) in &by {
         println!("[r2]   {p}: {n}");
     }
