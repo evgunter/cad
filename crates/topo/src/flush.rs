@@ -255,12 +255,11 @@ pub fn find_flush_candidates<T: Decide>(
     let mut out = Vec::new();
     for &ka in &fa {
         for &kb in &fb {
-            let evidence = pair_finding(a, ka, b, kb, band).map_err(|source| {
-                FlushRefusal::PairInBand {
+            let evidence =
+                pair_finding(a, ka, b, kb, band).map_err(|source| FlushRefusal::PairInBand {
                     pair: (ka, kb),
                     source,
-                }
-            })?;
+                })?;
             if let Some(evidence) = evidence {
                 out.push(FlushFinding {
                     pair: (ka, kb),

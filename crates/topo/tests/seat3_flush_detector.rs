@@ -42,12 +42,14 @@ fn stacked() -> (Body<f64>, Body<f64>) {
 fn cap_at(body: &Body<f64>, at: f64) -> FaceKey {
     let hits: Vec<FaceKey> = query::all_faces(body)
         .into_iter()
-        .filter(|&f| match body.get_face(f).and_then(|f| body.get_surface(f.surface)) {
-            Some(topo::Surface::Plane { origin, normal, .. }) => {
-                normal.x.abs() < 0.5 && normal.y.abs() < 0.5 && (origin.z - at).abs() < 1e-12
-            }
-            _ => false,
-        })
+        .filter(
+            |&f| match body.get_face(f).and_then(|f| body.get_surface(f.surface)) {
+                Some(topo::Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() < 0.5 && normal.y.abs() < 0.5 && (origin.z - at).abs() < 1e-12
+                }
+                _ => false,
+            },
+        )
         .collect();
     let [f] = hits[..] else {
         panic!("expected exactly one z = {at} cap, got {hits:?}");
@@ -62,7 +64,8 @@ fn cap_at(body: &Body<f64>, at: f64) -> FaceKey {
 #[test]
 fn the_stacks_shared_cap_is_one_same_opposite_finding() {
     let (a, b) = stacked();
-    let found = find_flush_candidates(&a, &b, Tol::witness()).expect("the stack decides definitely");
+    let found =
+        find_flush_candidates(&a, &b, Tol::witness()).expect("the stack decides definitely");
     assert_eq!(
         found.len(),
         1,
@@ -169,7 +172,10 @@ fn declare_declares_exactly_one_finding() {
     assert_eq!(one.coincident_faces.len(), 1);
     assert_eq!(one.coincident_faces[0].a, found[0].pair.0);
     assert_eq!(one.coincident_faces[0].b, found[0].pair.1);
-    assert!(declare_all(&[]).is_empty(), "nothing found declares nothing");
+    assert!(
+        declare_all(&[]).is_empty(),
+        "nothing found declares nothing"
+    );
 }
 
 // ------------------------------------------------------------------

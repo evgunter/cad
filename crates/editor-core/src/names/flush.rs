@@ -265,7 +265,11 @@ fn pair_verdict<T: Decide>(
                     predicate: source.predicate.unwrap_or("flush_pair_relation"),
                     source,
                 })?;
-            if let Some(FlushEvidence { relation: rel, rung }) = verdict {
+            if let Some(FlushEvidence {
+                relation: rel,
+                rung,
+            }) = verdict
+            {
                 matched += 1;
                 all_shared_source &= rung == FlushRung::SharedSource;
                 match relation {

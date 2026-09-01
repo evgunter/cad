@@ -303,7 +303,7 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
 /// a missing producer and not a missing verification — the `Rest`
 /// ladder verifies a cylindrical cosurface pair today, and asked in
 /// its detector posture it already reports this very pair as
-/// would-verify-if-declared ([`seat3_measurements`] runs both). The
+/// would-verify-if-declared (`seat3_measurements` below runs both). The
 /// detector is planar because the door it enumerates over is
 /// `flush_pair_relation`; widening it to `carrier_pair_relation` is a
 /// door swap that also widens `crate::booleans::flush_declarations`,
@@ -591,7 +591,10 @@ mod seat3_measurements {
         let q = plate_with_holes::<f64>(tol);
         let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
             .expect("the plates' planar pairs decide definitely");
-        let mating = (plane_face(&p, PLATE.2, true), plane_face(&q, PLATE.2, false));
+        let mating = (
+            plane_face(&p, PLATE.2, true),
+            plane_face(&q, PLATE.2, false),
+        );
         assert!(
             found.iter().any(|f| f.pair == mating),
             "the mate's own plane must be a finding: {found:?}"
@@ -658,4 +661,3 @@ mod seat3_measurements {
         );
     }
 }
-
