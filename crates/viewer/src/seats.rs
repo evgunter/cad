@@ -50,10 +50,10 @@
 //!
 //! **What is shared is the classifier, not the table.** Which kind a
 //! seat wants is stated here AND at each door's own `require_kind`
-//! call, so the two can drift; `combine_ops::
-//! every_seats_wanted_kind_is_the_one_its_door_refuses_by` drives
-//! every seat's op with a node of the wrong kind and asserts the
-//! refusal names exactly [`Seat::wants`]. That row is what makes "a
+//! call, so the two can drift. What holds them together is a test:
+//! `every_seats_wanted_kind_is_the_one_its_door_refuses_by`
+//! (`tests/combine_ops.rs`) drives every seat's op with a node of the
+//! wrong kind and asserts the refusal names exactly [`Seat::wants`]. That row is what makes "a
 //! seat cannot steer a pick into a seat the door would reject" a
 //! fact rather than an intention.
 //!
@@ -107,9 +107,17 @@ pub enum Seat {
 
 impl Seat {
     /// Every seat, so a sweep over the vocabulary cannot silently
-    /// miss one. Paired with [`Seat::ordinal`], which is the
-    /// compiler-forced half of this list's completeness — the shape
-    /// `crate::tools::ToolKind::ALL` uses, for its reason.
+    /// miss one — the shape `crate::tools::ToolKind::ALL` uses, for
+    /// its reason.
+    ///
+    /// [`Seat::ordinal`] is the compiler-forced half of this list's
+    /// completeness and `combine_ops::
+    /// every_seats_wanted_kind_is_the_one_its_door_refuses_by` is the
+    /// other, checking that the ordinals this list covers are
+    /// distinct and leave no hole. The residual is `ToolKind`'s too:
+    /// a seat given an ordinal past the end of this list is not
+    /// reached by the sweep, so a variant added to `ordinal` and
+    /// forgotten HERE goes unchecked.
     pub const ALL: [Self; 9] = [
         Self::RevolveProfile,
         Self::RevolveAxis,

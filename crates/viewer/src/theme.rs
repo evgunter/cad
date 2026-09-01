@@ -266,9 +266,9 @@ const DARK_NEUTRAL: Theme = Theme {
     safety: Safety::Unchecked,
 };
 
-/// **The light palettes' ground**, shared by the two themes built on
-/// one: a cool near-white, high enough above every swatch either of
-/// them states that a silhouette reads against it.
+/// **The ground both light palettes are seen against**: a cool
+/// near-white, far enough above every swatch either of them states
+/// that a silhouette reads against it.
 const LIGHT_GROUND: Rgba8 = Rgba8::opaque(240, 244, 250);
 
 /// The same palette on a light ground.

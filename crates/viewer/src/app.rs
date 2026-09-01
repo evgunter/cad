@@ -574,8 +574,11 @@ impl PathVerb {
     ];
 
     /// This verb's label — a match rather than a search through
-    /// [`PathVerb::ALL`], so a verb missing from that list is a
-    /// compile error here instead of a `?` on somebody's screen.
+    /// [`PathVerb::ALL`], so a verb with no label is a compile error
+    /// rather than a `?` on somebody's screen. (Whether a verb
+    /// reaches the MENU is [`PathVerb::ALL`]'s to answer, and nothing
+    /// checks that: the type is private behind the `app` feature, so
+    /// no row can see it — issue #1385.)
     fn label(self) -> &'static str {
         match self {
             Self::At => "at",
@@ -758,8 +761,9 @@ impl ArcMode {
 }
 
 /// One drag tick of a LENGTH field, in metres — half a millimetre.
-/// The creation forms' and the property panel's alike: one gesture,
-/// one number, so they cannot drift apart a digit at a time.
+/// The creation forms' and the property panel's alike ([`drag_tick`]
+/// is where the panel picks it), so one gesture over a length cannot
+/// come to mean two different steps.
 const FIELD_DRAG_SPEED: f64 = 0.0005;
 
 /// One drag tick of an ANGLE field, in radians — a third of a degree,
@@ -784,6 +788,27 @@ const UNIT_DRAG_SPEED: f64 = 0.01;
 /// One drag tick of a COUNT field — instances are whole, so the field
 /// is dragged in tenths of one and lands on integers.
 const COUNT_DRAG_SPEED: f64 = 0.1;
+
+/// **The drag tick a slot of `dimension` is scrubbed at**, in
+/// CANONICAL units — the property panel's pick from the same three
+/// constants the creation forms choose between by hand.
+///
+/// A dimension branch and not one number, because the useful range of
+/// a slot is its dimension's: half a millimetre per pixel is a good
+/// length tick and a terrible angle one — at 0.0005 rad it takes
+/// twelve thousand pixels to drag a full turn, which is the same
+/// arithmetic [`ANGLE_DRAG_SPEED`] exists to answer for the forms.
+/// A `Count` never reaches here (its slots are structural, and the
+/// panel steps those in whole units), so it takes the count tick for
+/// completeness rather than for use.
+fn drag_tick(dimension: Dimension) -> f64 {
+    match dimension {
+        Dimension::Length => FIELD_DRAG_SPEED,
+        Dimension::Angle => ANGLE_DRAG_SPEED,
+        Dimension::Scalar => UNIT_DRAG_SPEED,
+        Dimension::Count => COUNT_DRAG_SPEED,
+    }
+}
 
 /// **The smallest pattern count the form offers.**
 ///
@@ -3065,8 +3090,8 @@ impl ViewerBehavior<'_> {
     ///
     /// **Nothing here judges the chain.** Which verbs are well-typed
     /// at which tip is the lattice's to say, and it says it through
-    /// the preview under the form (`profile_preview_ui`) — the same
-    /// ladder the commit door runs. A form that offered only the
+    /// the preview under the form (`add_profile_ui`, which draws it)
+    /// — the same ladder the commit door runs. A form that offered only the
     /// legal verbs would be a second copy of the lattice, kept in
     /// step by hand.
     fn path_steps_ui(&mut self, ui: &mut egui::Ui) {
@@ -3851,7 +3876,7 @@ impl ViewerBehavior<'_> {
         let speed = if row.structural {
             1.0
         } else {
-            props::in_written(FIELD_DRAG_SPEED, unit)
+            props::in_written(drag_tick(row.dimension), unit)
         };
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
@@ -4498,8 +4523,8 @@ fn path_step_fields(
 /// what the label beside a field may say. **The unit is the picker's
 /// to say, not the field's**, which is why the form labels next to
 /// these are bare ("radius", not "radius (m)"): a label with the unit
-/// baked in is a second place for it to be stated, and it was the
-/// place these forms used to state it wrongly.
+/// baked in is a second place for it to be stated, free to say metres
+/// beside a field written in millimetres.
 ///
 /// It differs from the panel's in one way, and deliberately: the
 /// panel's picker is an EDIT (`SessionOp::SetSlotUnit` — how a
@@ -4508,11 +4533,11 @@ fn path_step_fields(
 /// the form's own commit button.
 ///
 /// **It is drawn after the fields it governs**, so a unit picked now
-/// re-writes them on the NEXT frame — the pick is an input event, so
-/// that frame is the one egui draws in response to it. Reading the
-/// choice before the fields instead would put the picker above them,
-/// which is not where a unit belongs relative to the number it is
-/// the unit of.
+/// re-writes them on the NEXT frame: the fields were built before
+/// this widget ran, and the pick is an input event, so that next
+/// frame is the one egui draws in response to it. Drawing it first
+/// would close the gap and put the unit above the number it is the
+/// unit of, which is the worse trade for a lag nobody can see.
 fn unit_picker(ui: &mut egui::Ui, salt: &str, dimension: Dimension, chosen: &mut Option<UnitDef>) {
     let options = props::unit_options(dimension);
     if options.is_empty() {

@@ -61,11 +61,7 @@ impl BooleanTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick.
-    /// `doc` ROUTES the pick and does not judge it: the seats ask
-    /// what kind of node was picked so one only they can hold lands
-    /// where it can (`crate::seats`). The commit door owns the
-    /// verdict.
+    /// Feed one node pick; `doc` routes it, and does not judge it.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -133,11 +129,7 @@ impl SplitTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick.
-    /// `doc` ROUTES the pick and does not judge it: the seats ask
-    /// what kind of node was picked so one only they can hold lands
-    /// where it can (`crate::seats`). The commit door owns the
-    /// verdict.
+    /// Feed one node pick; `doc` routes it, and does not judge it.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -192,11 +184,7 @@ impl TransformTool {
     }
 
     /// Feed one node pick — a second pick REPLACES the first, this tool
-    /// having only the one seat.
-    /// `doc` ROUTES the pick and does not judge it: the seats ask
-    /// what kind of node was picked so one only they can hold lands
-    /// where it can (`crate::seats`). The commit door owns the
-    /// verdict.
+    /// having only the one seat. `doc` routes it, and does not judge it.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -275,11 +263,7 @@ impl PatternTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick.
-    /// `doc` ROUTES the pick and does not judge it: the seats ask
-    /// what kind of node was picked so one only they can hold lands
-    /// where it can (`crate::seats`). The commit door owns the
-    /// verdict.
+    /// Feed one node pick; `doc` routes it, and does not judge it.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }

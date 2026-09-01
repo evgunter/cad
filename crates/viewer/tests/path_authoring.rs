@@ -316,22 +316,41 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
     ];
     // **The census is the COMPILER's, not a number written here.**
     // `ordinal` is an exhaustive match, so a verb added to the
-    // vocabulary breaks it until somebody gives it one — and the set
-    // below then has a hole until the list above gains a case for it.
-    // A hand-written count would have gone on passing with the new
-    // verb untested.
+    // vocabulary does not compile until somebody gives it a number —
+    // and the ordinals covered here have to run from 0 with no hole,
+    // so a verb slotted into the middle of the list is caught the
+    // moment it has one. A hand-written count caught neither.
+    //
+    // The residual, stated because the row cannot close it: a verb
+    // given an ordinal PAST `CloseTo`'s extends a range this sweep
+    // does not know the end of, and would go untested. `ordinal`'s
+    // own docs carry the obligation that answers it — new verbs take
+    // a number before `CloseTo`'s, and `CloseTo` stays last.
     let covered: std::collections::BTreeSet<usize> = steps.iter().map(ordinal).collect();
-    let expected: std::collections::BTreeSet<usize> = (0..=ordinal(&PathStep::CloseTo)).collect();
-    let missing: Vec<usize> = expected.difference(&covered).copied().collect();
-    assert!(missing.is_empty(), "verbs with no case here: {missing:?}");
+    let contiguous: std::collections::BTreeSet<usize> = (0..covered.len()).collect();
+    assert_eq!(
+        covered, contiguous,
+        "the verbs covered here leave a hole: every ordinal from 0 needs a case",
+    );
+    assert_eq!(
+        covered.len(),
+        ordinal(&PathStep::CloseTo) + 1,
+        "the vocabulary is bigger than this row covers — see `ordinal`'s obligation",
+    );
 
     viewer::sketch::loop_program(&ProfileShape::Path { steps })
         .expect("every verb's fields are finite numbers of its own dimension");
 }
 
 /// Each verb's position in the vocabulary, as an exhaustive match —
-/// the census's oracle. `CloseTo` is deliberately last, because the
-/// row above reads the vocabulary's SIZE off it.
+/// the census's oracle.
+///
+/// **A verb added to `PathStep` takes a number BEFORE `CloseTo`'s,
+/// and `CloseTo` keeps the last one.** The row above reads the
+/// vocabulary's size off `CloseTo` — it has no other way to know it —
+/// so a verb numbered past it would be a verb the census never asks
+/// about. Renumbering the arms below is free; the obligation is only
+/// that `CloseTo` ends them.
 fn ordinal(step: &PathStep) -> usize {
     match step {
         PathStep::At(_) => 0,
