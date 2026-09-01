@@ -388,6 +388,9 @@ mod m8_4_intersection_iso;
 #[path = "m9_2_chart_region_loft.rs"]
 mod m9_2_chart_region_loft;
 
+#[path = "r2_probe_cert8.rs"]
+mod r2_probe_cert8;
+
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 

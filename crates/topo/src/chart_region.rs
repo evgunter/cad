@@ -3584,3 +3584,62 @@ mod inf_arms {
         assert_eq!(certified_arms(&c, -5.0, 5.0, band()).unwrap(), (3.0, 1.0));
     }
 }
+
+/// CERT-8 review probes (reviewer lane 8r2), interval lane. Not for merge.
+#[cfg(all(test, feature = "interval"))]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probe_cert8_interval {
+    use super::certified_arms;
+    use geom::{NurbsSurface, Surface};
+    use geom_core::k_stats::decide;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Interval, Margin, Point3, Real};
+    use std::sync::Arc;
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    fn flat_chart(su: f64, sv: f64) -> Surface<Interval> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let f = Interval::from_f64;
+        let control = vec![
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Point3::new(f(0.0), f(sv), f(0.0)),
+            Point3::new(f(su), f(0.0), f(0.0)),
+            Point3::new(f(su), f(sv), f(0.0)),
+        ];
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn probe_interval_inf_arms() {
+        let s = flat_chart(4.0, 1.0);
+        let i = geom_brep::chart_stretch_inf(&s);
+        println!(
+            "interval inf=({:?},{:?}) sup=({:?},{:?}) area={:?}",
+            i.inf_u, i.inf_v, i.sup_u, i.sup_v, i.area_inf
+        );
+        let arms = certified_arms(
+            &s,
+            Interval::from_f64(0.0),
+            Interval::from_f64(1.0),
+            band(),
+        );
+        println!("interval certified arms: {arms:?}");
+    }
+
+    /// The pole-joint gate on a SPLINE chart, which before this unit was
+    /// always exactly `T::one()` — never Zero, never escalating.
+    #[test]
+    fn probe_pole_joint_gate_on_spline_charts() {
+        for span in [1.0_f64, 1e-9, 5e-9, 1e-12] {
+            let s = flat_chart(span, span);
+            let (sup_u, _) = geom_brep::chart_stretch_sup(&s);
+            let verdict = decide("pcurve_loop_pole_joint", Margin::of(sup_u), band());
+            println!("span {span:e}: sup_u={sup_u:?} pole-joint -> {verdict:?}");
+        }
+    }
+}
