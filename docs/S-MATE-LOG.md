@@ -94,3 +94,24 @@ ruling's-letter narrowing flagged for Evan there). Remaining slate:
 MATE-3 (implementer finishing), MATE-4a (implementer running),
 MATE-4b design pass (orchestrator's, next), MATE-5 (after 4a lands,
 census.rs serialization), MATE-7 (last).
+
+**2026-09-01 — MATE-4a MERGED (PR #1432; issue 973 stays open for
+its part (b)).** The Q2(a) rung landed at exactly the ruled
+strength: `ef_bound_backed`'s interior arm reads the face rung, the
+overhang seat's hard `Unattributed` retires to the `Uncertified`
+frontier, and the (b) straddle stays byte-identical. Dual ordinal
+1303 (sample #83 at merge), both arms M-A-F with the code judged
+correct — the whole union was prose/docs plus probe adoption. The
+dual's real product is issue 1435: the residue is NOT the chart
+predicate's honest posture but an incompleteness in #1063's
+interior_witness rescue rung (its fixed D9 candidate schedule
+misses small overlaps of non-convex trims, so legal declared seats
+bifurcate per-fixture) — instrumented by one arm, demonstrated by
+the other's certifying spike-seat probe. That issue is a named
+foundation caveat for the MATE-4b design pass. Also recorded (R2's
+class observation, a future census hygiene pass): census.rs holds
+SKIP-licensing premises (`vf_deferred`, `planar_face_bridged`,
+`same_key_conformal`) that no refusal-premise sweep reaches — the
+unsound direction; nothing demonstrated wrong, recorded so a sweep
+with that genus has a home. Next: MATE-3's dual concludes, then the
+4b design pass draft (orchestrator's own).
