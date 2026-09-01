@@ -667,7 +667,10 @@ FAMILIES = {
 #:   which refuse the same CALL the writers do because the options
 #:   they validate are that call's keyword arguments.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
-#:   `Evaluation.step_string`'s `product_name=`; `AsciiOptions` and
+#:   `Evaluation.step_string`'s six keywords, one per field and each
+#:   defaulting to the Rust default — a correspondence the crate's own
+#:   `surface_census` holds to the struct, so this entry cannot go
+#:   back to naming a subset while the record grows; `AsciiOptions` and
 #:   `BinaryOptions` are `Mesh.to_stl_ascii`'s `solid_name=` and
 #:   `Mesh.to_stl_binary`'s `header=`, and their two VALIDATED
 #:   newtypes cross as the `str` those arguments take — `SolidName`

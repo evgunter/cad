@@ -5,7 +5,11 @@ Three things are asserted here, and they are the three halves of the
 
 1. The lattice WALKS — every verb of the current Rust vocabulary is
    reachable from the state that owns it, and the loop it lowers has
-   the vertices the algebra says it has.
+   the vertices the algebra says it has. That the set is COMPLETE is
+   not this file's claim and cannot be: a corpus walk stays green
+   whatever the kernel gains. The crate's `surface_census` is what
+   holds the claim, keyed on `Verb::ALL` and `ArcMode::ALL`; what
+   lives here is that each verb, once reachable, does what it says.
 2. The off-lattice states are ABSENT. This file is the Python analog
    of the Rust E0599 compile-fail probes: a double director,
    `.tangent()` on a plain point, a leading `.fillet`, a leg from a
@@ -97,6 +101,27 @@ class TestTheLatticeWalks(unittest.TestCase):
             .tangent_arc_to(Start)
         )
         self.assertEqual(loop.vertex_count, 3)
+
+    def test_the_cusp_verb_authors_the_reverse_tangent_joint(self):
+        # The lune between two internally tangent circles, cut on the
+        # y axis — the wedge-0/2π figure. `cusp()` is `tangent()`'s
+        # mirror: it departs along the NEGATED incoming ray, so the
+        # kiss is exact by construction and DECLARED, which is what
+        # the profile gate wants and what no authored value can
+        # supply.
+        lune = (
+            Open.at((0 * m, 4 * m))
+            .angle(-90 * deg)
+            .line(2 * m)
+            .turn(90 * deg)
+            .tangent_arc_to(ORIGIN)
+            .cusp()
+            .tangent_arc_to(Start)
+        )
+        self.assertEqual(lune.vertex_count, 3)
+        doc = Doc()
+        node = doc.insert(Node.profile(lune))
+        self.assertTrue(evaluate(doc).succeeded(node))
 
     def test_the_three_arc_binding_modes(self):
         # One leg verb, three spec MODES: the mode is the binding, and

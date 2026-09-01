@@ -6,13 +6,23 @@
 //! typestate's E0599. There are no `isinstance` ladders and no runtime
 //! state flags; the class IS the state.
 //!
-//! The Python layer re-implements NOTHING. Every verb clones its
+//! The Python layer re-implements no BODY. Every verb clones its
 //! `PartialPath` and calls the SAME generic Rust method, so geometry
 //! refusals fire at the call site as the same typed `PathError` the
 //! Rust surface returns (§2.4 of the unit spec). Cloning is the
 //! documented fork the algebra already permits (`PartialPath` derives
 //! `Clone` for motif exploration); it mints no new closure door,
 //! because every lowered result still passes the verify layer.
+//!
+//! What it DOES re-spell is the vocabulary: which verbs exist, which
+//! arc modes exist, and which modes each state admits are written out
+//! by hand here and again in `pncad.pyi`, because a `#[pymethods]`
+//! block is not generated from `transition_table!`. Neither copy is
+//! reached by any compile error the kernel can raise, so a verb or a
+//! mode the kernel gains is simply absent from Python. The crate's
+//! `surface_census` is what makes that absence loud: its rosters are
+//! matches on `Verb` and `ArcMode`, so a vocabulary that grows stops
+//! the census compiling until the growth is dispositioned here.
 //!
 //! One class per Rust type, with two deliberate identifications:
 //! `PathDirected` carries BOTH `Directed` flavors (`HasPos<Plain>` and
@@ -117,6 +127,42 @@ impl ArcSide {
             Self::Left => pf::ArcSide::Left,
             Self::Right => pf::ArcSide::Right,
         }
+    }
+}
+
+/// **Kernel-growth tripwires** for the two structural bits an arc
+/// spec carries.
+///
+/// `to_kernel` matches on the MIRROR — a closed local enum — so it
+/// says nothing about the kernel growing, and a sense or a side added
+/// there would leave Python silently short of it. These matches are
+/// over the KERNEL enums, with no wildcard arm, so the addition
+/// breaks this build instead. They are never called: the type-checked
+/// match is the whole product, which the leading underscore says.
+///
+/// The vocabularies one level up — the verbs and the arc modes — are
+/// too large for this shape, because their Python spelling is a
+/// method name rather than a variant; `surface_census` carries them,
+/// on the same principle.
+#[allow(
+    dead_code,
+    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
+)]
+const fn _binds_every_arc_sweep(kernel: pf::ArcSweep) -> ArcSweep {
+    match kernel {
+        pf::ArcSweep::Ccw => ArcSweep::Ccw,
+        pf::ArcSweep::Cw => ArcSweep::Cw,
+    }
+}
+
+#[allow(
+    dead_code,
+    reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
+)]
+const fn _binds_every_arc_side(kernel: pf::ArcSide) -> ArcSide {
+    match kernel {
+        pf::ArcSide::Left => ArcSide::Left,
+        pf::ArcSide::Right => ArcSide::Right,
     }
 }
 

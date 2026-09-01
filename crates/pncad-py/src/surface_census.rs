@@ -38,6 +38,11 @@
 //! naming a spelling the stub does not declare fails exactly as a
 //! missing spelling does.
 
+// Per the workspace convention recorded in the root Cargo.toml: test
+// code may allow the panic family, because panicking IS a test's
+// failure mechanism.
+#![allow(clippy::expect_used, clippy::panic)]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -197,10 +202,10 @@ impl Stub {
                 let name = leading_ident(trimmed);
                 if !name.is_empty() && name.len() == colon {
                     names.insert(qualify(name, &class));
-                    if indent == 0 {
-                        if let Some(eq) = trimmed.find('=') {
-                            aliases.insert(name.to_owned(), trimmed[eq + 1..].to_owned());
-                        }
+                    if indent == 0
+                        && let Some(eq) = trimmed.find('=')
+                    {
+                        aliases.insert(name.to_owned(), trimmed[eq + 1..].to_owned());
                     }
                 }
             } else if let Some(eq) = trimmed.find('=') {
@@ -292,7 +297,9 @@ impl Stub {
 
 fn stub() -> Stub {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("pncad.pyi");
-    Stub::read(&std::fs::read_to_string(&path).expect("this crate's stub sits beside its Cargo.toml"))
+    Stub::read(
+        &std::fs::read_to_string(&path).expect("this crate's stub sits beside its Cargo.toml"),
+    )
 }
 
 // ------------------------------------------------------------------
