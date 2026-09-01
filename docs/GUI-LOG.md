@@ -480,3 +480,92 @@ precedent (#1108); reviewed by Evan in conversation, who directed each
 merge — including the #1247 rework, which was his correction: the
 budget was a clamp until he said he had expected it to set a default.
 
+
+**Post-close maintenance (2026-09-01 — authored literals remember the
+form's unit; schema v20):** reported as "author in mm, the panel shows
+metres until you use its picker". True, and the cause was one struct
+field: the creation forms already had a unit picker and already used
+it (`unit_field` divides the draft by the picked factor for display),
+but `SessionOp::AddExtrude { distance: f64 }` carried only canonical
+metres, so `DocSession::add_extrude` minted `Expr::literal` and the
+notation died one field before it could be stored. Not GUI-only — the
+demos author with `Expr::literal` too, so the tour's 10 mm ring opened
+in the panel as `0.01 m`.
+
+Three rulings, all Evan's in the conversation that asked for it.
+
+1. **The creation ops carry `Expr`.** The first cut carried a
+   value-plus-notation carrier; Evan took the bigger version instead —
+   "sounds like we'll need it eventually" — which is one vocabulary
+   break rather than two, and is what an expression-driven creation
+   form will want. `AddExtrude`, `AddRevolve`, `AddFillet`,
+   `AddChamfer`, `AddTransform`, `AddPattern`'s rule and `AddDatum`'s
+   spec all carry `Expr` now; `AddProfile` carries `Vec<LoopProgram>`,
+   the document's OWN loop vocabulary, which was already Expr-bearing.
+   `ProfileShape`/`PathStep` stay f64 and stay the FORM's template
+   vocabulary — a template is a thing a person edits in a dialog, and
+   `sketch::loop_program` is where it becomes a document, now taking
+   the notation it is authored in (`sketch::Notation`).
+
+   Two consequences worth stating. The session stops minting literals
+   entirely, so a wrong-dimension expression refuses at the EDIT door
+   (`SlotDimensionMismatch`), one rule for authored and hand-written
+   programs. And a non-finite field can no longer reach an op at all —
+   an `Expr` cannot hold one — so the refusal moved from the session
+   to the literal door at the form, and the rows that pinned it were
+   re-pointed rather than deleted.
+
+2. **A dimensionless row, and the display unit stops being
+   optional.** The `Option` was defended on the grounds that `None`
+   and `Some(rad)` differ; Evan's answer was that an `Option` with an
+   unclear interpretation is worse than a special case, and he was
+   right for a reason better than the one offered: **two readers of
+   this repository already disagreed about what `None` meant.**
+   `expr::write_literal` resolved an unmarked angle to `rad`;
+   `props::written_unit` resolved the same stored literal to
+   `pi rad`. One value, two renderings, decided by which door reached
+   it. `quantity::UNITS` gains [`ONE`] — quantity `Scalar`, symbol the
+   EMPTY string, factor 1.0 — so a `Scalar` literal names its notation
+   (writing no suffix) instead of declining to name one, and
+   `Lit.display_unit` is a plain `UnitSym`. `Expr::literal(v, dim)`
+   keeps its signature and stores the canonical row, so no call site
+   moved. `props::written_unit` is gone; `props::rendering_unit`
+   replaces it with a NARROWER job — the unit to render a value nobody
+   wrote, i.e. a slot driven by an expression — and it chooses
+   canonical, so the panel and `unparse` now agree by construction.
+
+   The picker offers nothing for `Scalar`, which is the one place the
+   dimensionless row is special-cased, and it is a chrome rule rather
+   than a storage one — Evan's own framing: not displaying an option
+   when only one unit is possible beats an `Option` at every use site.
+
+3. **Document parameters join.** `DocParam::Continuous` carries a
+   display unit beside its dimension and its distribution, closing the
+   asymmetry the units ruling recorded rather than papered over: every
+   literal could remember its notation and no parameter could, so the
+   one value a recipe shares across features was the one that forgot
+   how it was written. The pairing (unit measures the declared
+   dimension) is a document invariant, checked in the shared save/load
+   validator (`PersistError::DisplayUnit`) because the payload is
+   `pub` and the dimension is data; the typed authoring doors
+   (`DocParam::written_length` / `written_angle`) cannot build a
+   mismatched one.
+
+**Schema v20** carries all of it, and its ledger entry states the
+break honestly: there is no degenerate carry this time — a v19
+document and its v20 regeneration differ on nearly every literal.
+Evan: "it's fine to have a break that means old documents don't load
+anymore". Every committed document was regenerated
+(`gallery_ring.v20.pncad`, `plate_param.v20.pncad`, the die and
+assembly corpora, `v20_golden.cad`); v19's golden stays on disk, as
+every version's does.
+
+**A rider bug, found on the way and fixed by the change rather than
+beside it:** the creation forms' `unit_field` read the draft's raw
+unit while the `unit_picker` beside it resolved through
+`props::written_unit`, so the revolve form's default full turn
+rendered `6.28318…` next to a picker reading `pi rad`. It was the same
+root cause — a `None` two readers interpreted differently — and it
+dissolved when the drafts became typed and non-optional
+(`length_unit: LengthUnit`, `angle_unit: AngleUnit`, defaulting to `m`
+and `pi rad`, which preserves exactly what the editor renders today).
