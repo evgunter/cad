@@ -163,6 +163,15 @@ pub(crate) fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
 /// survivor is already a valid fillet tangent to both authored
 /// carriers, so ranking them asserts nothing about geometric truth.
 ///
+/// The bound is **sole** `T: Bounds` and stays sole at a dual scalar,
+/// which carries a bracket. What it returns is an index — a locally
+/// constant choice among already-classified constructions — so reading
+/// the value channel to make it freezes nothing that varies smoothly
+/// with the input and drops no derivative, which is the axis that
+/// separates this read from one selecting an implicit function. At
+/// `Dual64` the ranked channel is the plain-`f64` run's bit for bit
+/// (D9), so the dual run picks the candidate the `f64` run picks.
+///
 /// `joints` is never empty at the call site (the caller refuses
 /// `NoCornerForFillet` first); an empty slice returns 0, matching
 /// [`nearest_candidate`]'s own total shape.

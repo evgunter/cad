@@ -367,6 +367,13 @@ fn derive<T: Decide>(
 /// owns the bracket reads, exactly as `fillet_corner` does: the leg
 /// diagnostics are `f64` enclosure lower bounds, for messages and never
 /// for re-deciding.
+///
+/// All three reads are payloads — two `f64` fields of the refusal and
+/// one choice between two message sites — so nothing read here re-enters
+/// the computation, and the sole `T: Bounds` is the whole obligation:
+/// this door decides nothing, which is why it does not carry the
+/// module's `Decide` half. At a dual scalar the three are the value
+/// channel's bit for bit (D9), and a degraded tangent cannot reach them.
 fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T> {
     match refusal {
         ArcTrimRefusal::Band(source) => PathError::Band(source),
