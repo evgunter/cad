@@ -165,13 +165,13 @@ logged pre-draw per the protocol.
   not conflated with #678's `nu == 2` pole floor. Retires that S29
   instance; if the unit finds the answer belongs to the sizing-policy
   conversation instead, it stops and reports rather than patching.
-- **MESH-6 — #897, the S65-residue costings (M; measurement-first).**
-  Cost the 2π-seam and cross-face-identification cases (S65's
-  measured price for the patch-local guard is stated non-transferable
-  by the issue); verify or refute `pole_columns`' own
-  MAX_ANGULAR_STEP argument as a floor for the seam case; route each
-  case to its D2 row in a written proposal. **Builds no mechanism**:
-  the output attaches to the S65 ruling request (Q1 below).
+- **MESH-6 — #897, the two uncovered S65 cases (S; discretionary
+  under the Q1 ruling).** Measure the cost of covering the full-2π
+  seam and cross-face identification; verify or refute
+  `pole_columns`' own MAX_ANGULAR_STEP argument as a floor for the
+  seam case; add the cases as debug-profile-only guards if cheap,
+  else record the verdict at the site and close #897. No shipped
+  guard either way (S65 ruled: stays compiled out).
 - **MESH-7 — #727 then #726, iso-rectangle door ownership (M/L;
   design first — Q3 below, then the C11 fold-in).** After the ruling:
   fold `mesh::curved`'s SHAPE question onto
@@ -210,13 +210,24 @@ program's leave — same orchestrator, seam recorded in both plans.
 
 ## Rulings sought (Evan)
 
-1. **Q1 — S65's route (deferred by design).** Not asked now: MESH-6
-   first supplies the two missing costings, then the three-way S65
-   decision (leave as debug-profile-only; unconditional patch-local
-   guard at the measured +18–35% pole-patch cost; per-case coverage
-   of seam/cross-face) goes to Evan **once, with all prices on the
-   table**. Recommendation reserved until the numbers exist.
-2. **Q2 — #868's warning channel shape.** Recommendation:
+1. **Q1 — RULED (Evan, in-chat, 2026-09-01)**: S65 stays compiled
+   out — no unconditional shipped guard; there is no record of the
+   backstop itself catching anything outside dev. Coverage for the
+   two uncovered cases (full-2π seam, cross-face identification) is
+   discretionary: MESH-6 reshapes from a ruling-feeder into a small
+   unit that measures their cost, adds them as debug-profile-only
+   guards if cheap, and otherwise records the verdict and closes
+   #897.
+2. **Q2 — #868's warning channel shape (OPEN; sharpened in-chat
+   2026-09-01).** Evan's question — are the detector conditions
+   kernel-bug indicators? — is answered no: all three fire on input
+   (a defective source file), and the mesh does not depend on the
+   detected quantity, so today (debug-assertions on in release) a
+   legal-but-dirty import panics over a diagnostic, and after the
+   debug-off transition the detectors vanish. The choice as
+   sharpened: (a) the mesh-local typed warning below, (b) delete
+   the three detectors, (c) leave as-is until the transition forces
+   it. Recommendation unchanged: (a).
    **mesh-local**, a typed `MeshWarning` (all three detectors measure
    the same thing — a gap against a lever arm, in meters, against ε,
    so the payload is a struct, not a string), returned beside the
@@ -229,7 +240,11 @@ program's leave — same orchestrator, seam recorded in both plans.
    alternative is a sidecar field on `Mesh`, which keeps signatures
    but muddies "the mesh is the output". Mesh-local now does not
    preclude hoisting the type later if a second crate demands it.
-3. **Q3 — #727's door ownership.** Recommendation: **no consumer
+3. **Q3 — RULED (Evan, in-chat, 2026-09-01): explicit doors.**
+   No consumer keeps a transitive floor — each door that needs the
+   iso-rectangle premise cites `props_rim_level` itself. MESH-7 is
+   unblocked and implements the mesh side on this ruling. The
+   original recommendation, kept as the ruling's record: **no consumer
    keeps a transitive floor** — each door that needs the
    iso-rectangle premise cites `props_rim_level` itself (the S58
    single-home predicate), so when the certified-quadrature lane
