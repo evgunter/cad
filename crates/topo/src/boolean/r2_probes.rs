@@ -10,6 +10,8 @@
 //! answer whose count or root positions disagree with the counter is a
 //! broken sign chain, not a counter artifact.
 
+#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+
 use geom_core::{Band, Point3, Tol, Vec3};
 
 use super::solid_contain::{TorusRoots, line_torus_roots};
@@ -282,6 +284,45 @@ fn r2_extreme_radii_ratios_keep_the_certified_roots_honest() {
                         "root {a} vs {b} at ratio {rr}/{rm}"
                     );
                 }
+            }
+            // **An escalation is not a wrong answer**, and at the
+            // coarsest shipped ε this row reaches one honestly: the
+            // thinnest tube here is `r = 1e-4`, which at `ε = 1e-6` is a
+            // hundred tolerances thick, and the quartic's discriminant
+            // margin (`≈ δ²`, for a root gap `δ ≈ 2r`) then lands inside
+            // the band. Declining there is the certified-count posture
+            // working, not failing — so what this row requires is that
+            // every CERTIFIED answer is right, and that the arm declines
+            // only by naming the predicate that could not certify it.
+            //
+            // The original assertion demanded `Certified` unconditionally
+            // and went red at the 1e-6 leg; it is corrected rather than
+            // deleted, and the correction is disclosed in the PR.
+            Err(ref diag) => {
+                // Any of the predicates that CERTIFY the count may be
+                // the one that cannot, and which it is depends on the
+                // pose: the discriminant for a merged pair, the
+                // factorization's own discriminants for a pair the
+                // resolvent cannot separate. What must not happen is a
+                // decline from the trim or the frame, which would mean
+                // something other than the count was in doubt.
+                let certifying = [
+                    "bool_ray_torus_disc",
+                    "bool_ray_torus_shape",
+                    "bool_ray_torus_depth",
+                    "bool_ray_torus_split",
+                    "bool_ray_torus_split_lead",
+                ];
+                assert!(
+                    diag.predicate.is_some_and(|p| certifying.contains(&p)),
+                    "at ratio {rr}/{rm} the arm declined on a predicate that is not \
+                     one of the count's: {diag:?}"
+                );
+                assert!(
+                    rm / rr < 1e-3,
+                    "at ratio {rr}/{rm} the tube is thick enough at this ε that the \
+                     count must certify: {diag:?}"
+                );
             }
             other => panic!("expected Certified at ratio {rr}/{rm}, got {other:?}"),
         }

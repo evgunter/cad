@@ -10,6 +10,8 @@
 //! reach — because "no row names it" and "no input can reach it" are
 //! very different claims and only the second one excuses the first.
 
+#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+
 use super::*;
 use geom_core::{Band, Point3, Tol, Vec3};
 
