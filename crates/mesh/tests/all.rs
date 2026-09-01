@@ -38,6 +38,9 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "cert10r1_assembly_accounting.rs"]
+mod cert10r1_assembly_accounting;
+
 #[path = "budget_meter.rs"]
 mod budget_meter;
 #[path = "errors.rs"]

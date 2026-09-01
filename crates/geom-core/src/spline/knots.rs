@@ -511,6 +511,24 @@ impl KnotVector {
         last.map(|i| (count, i))
     }
 
+    /// **The knot slice a once-differenced spline is built from**:
+    /// this vector's knots minus one at each end.
+    ///
+    /// Differentiating a degree-`p` B-spline drops the outer knot pair
+    /// and the degree by one (The NURBS Book Eq. 3.4), so every
+    /// consumer that materialises a derivative structure starts here —
+    /// whether it goes on to build a [`KnotVector`] (the clamped case)
+    /// or carries the raw slice because the result has an interior
+    /// multiplicity the clamped invariant refuses.
+    ///
+    /// A slice, not a vector: the raw-slice consumers difference level
+    /// after level without a clone, and the ones that need an owned
+    /// copy say `.to_vec()` at the site.
+    #[must_use]
+    pub fn derivative_knot_slice(&self) -> &[f64] {
+        derivative_knot_slice(self.knots())
+    }
+
     /// The distinct **interior** knot values with their multiplicities,
     /// ascending — the query [`KnotVector::multiplicity_of`] cannot
     /// serve, because that one needs the value before it can answer.
@@ -718,6 +736,18 @@ fn span_offset_in(knots: &[f64], degree: usize, t: f64) -> usize {
 /// substituting frame's to state.
 pub(crate) fn find_span_in(knots: &[f64], degree: usize, t: f64) -> usize {
     span_offset_in(knots, degree, t) + degree
+}
+
+/// [`KnotVector::derivative_knot_slice`] on a raw knot slice — the
+/// same "drop one knot at each end", for a consumer carrying knots no
+/// [`KnotVector`] can hold (a derivative whose interior multiplicity
+/// equals the parent degree is genuinely discontinuous, and the
+/// clamped invariant refuses it).
+///
+/// Fewer than two knots answers the empty slice rather than panicking.
+#[must_use]
+pub fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
+    knots.get(1..knots.len().saturating_sub(1)).unwrap_or(&[])
 }
 
 #[cfg(test)]
