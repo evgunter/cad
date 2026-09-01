@@ -6,9 +6,14 @@
 //! those ellipses are not two disjoint loci. The bisector planes'
 //! common line runs through the axes' meeting point `p` along
 //! `â₁ × â₂`, is perpendicular to both axes, and therefore meets BOTH
-//! walls at `p ± r·(â₁ × â₂)` — so the two ellipses CROSS there, at
-//! every pose and every angle between the axes. Four arcs, two
-//! valence-4 PINCH vertices, always.
+//! walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)` — so the two
+//! ellipses CROSS there, at every pose and every angle between the
+//! axes. Four arcs, two valence-4 PINCH vertices, always.
+//!
+//! The UNIT is not decoration: `‖â₁ × â₂‖ = sin θ`, so off the
+//! perpendicular pose the raw cross product lands well inside the
+//! walls and is not a pinch point at all. Every row below normalizes,
+//! and the door's own message says `n̂` for the same reason.
 //!
 //! Two consequences run through every row below.
 //!
@@ -137,7 +142,8 @@ fn wall(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64) {
 /// pinch points.** The row asserts three things together, because
 /// separately none of them says what happened: the refusal is the
 /// crossing layer's, the edge it names is a straight seam ruling, and
-/// that ruling touches the partner wall exactly at `p − r·(â₁ × â₂)` —
+/// that ruling touches the partner wall exactly at `p − r·n̂`,
+/// `n̂ = unit(â₁ × â₂)` —
 /// one of the two points where the section crosses itself.
 ///
 /// So the classic fixture is not a join question at all at this head.
@@ -190,7 +196,7 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
         .fold(f64::MAX, f64::min);
     assert!(
         d < 1e-15,
-        "the tangency sits at a pinch point p ± r·(â₁ × â₂); it is {d} away"
+        "the tangency sits at a pinch point p ± r·n̂, n̂ = unit(â₁ × â₂); it is {d} away"
     );
 }
 
@@ -233,7 +239,12 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
     // refusal is the unit's whole finding and a reader who only sees
     // the variant learns nothing.
     let text = format!("{err}");
-    for want in ["pinch", "p ± r·(a1 x a2)", "never inferred"] {
+    // The pinned formula is the UNIT one. `‖a1 x a2‖ = sin θ`, so the
+    // raw cross product names the pinch points only on the
+    // perpendicular pose — at 20° on a 0.9 m fixture it is 0.59 m off.
+    // A message that wrote the raw product would be a wrong recipe
+    // handed to the reader, so the string is pinned, not paraphrased.
+    for want in ["pinch", "p ± r·n̂ where n̂ = unit(a1 x a2)", "never inferred"] {
         assert!(text.contains(want), "the door must say {want:?}: {text}");
     }
     assert_eq!(

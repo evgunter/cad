@@ -834,6 +834,22 @@ pub(super) fn pair_section_frame<T: Decide>(
             // verbatim. A Zero gap means the axes meet, and that half
             // gets its own named door because its locus is not one
             // conic even when it is a conic pair.
+            //
+            // **The `/ cross.norm()` is a UNITS correction, and no test
+            // can red on it away from the band — said out loud so its
+            // absence from the suite reads as a measurement rather than
+            // a gap.** `‖a1×a2‖ = sin θ` for unit axes, so dividing is
+            // what makes the margin the true axis-to-axis LENGTH the
+            // band is denominated in; dropping it scales a definite
+            // margin by `sin θ` and can only change a verdict within a
+            // factor `sin θ` of the band itself. Reaching that needs an
+            // almost-parallel pair, which the gate above answers `Zero`
+            // first. Measured: with the division dropped, every row of
+            // `frame_dispatch_tests` and its interval twin still
+            // greens. What the rows DO pin is the direction — see
+            // `skew_axes_keep_the_general_rung_at_the_certified_scalar`,
+            // which reds the moment the gap is measured along an axis
+            // instead of along `a1×a2`.
             let w0 = *o2 - *o1;
             let cross = a1.cross(*a2);
             return match decide(
@@ -1772,21 +1788,32 @@ mod frame_dispatch_tests {
     /// handing it to a curved pair mints a chord along a locus that is
     /// not a line.
     ///
-    /// Both refusal variants are the trap being closed; which one a
-    /// pair gets is the row below. What this row asserts is the one
-    /// property the trap is about — no curved pair ever answers `None`.
+    /// Both refusal variants are the trap being closed, but they are
+    /// NOT interchangeable per row, and the matcher is split so that
+    /// the loosening is confined to where it is earned. Only a
+    /// CYLINDER PAIR can reach `IntersectingCylinderAxes` — the split
+    /// on coplanarity is the only producer of that variant — so those
+    /// rows admit either refusal here and the row below pins which one
+    /// each gets. Every other kind pair falls through to the
+    /// dispatch's final arm, where `NoArm` is the only reachable
+    /// answer, and a row that accepted the pinch variant there would
+    /// green through a mis-routed dispatch.
     #[test]
     fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
+        // `cylinder_pair` marks the rows whose kinds can reach the
+        // coplanarity split at all.
         let curved_pairs = [
             // Crossing axes: the locus is a space quartic (or, at equal
             // radii, the bisector ellipses) — never a line.
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder(Vec3::new(1.0, 0.0, 0.0)),
+                true,
             ),
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder(Vec3::new(0.0, 1.0, 1.0).normalize()),
+                true,
             ),
             // Skew axes, equal and unequal radii. The displacement is
             // along the common perpendicular `a1 x a2`: displacing
@@ -1794,22 +1821,36 @@ mod frame_dispatch_tests {
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 1.0),
+                true,
             ),
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
+                true,
             ),
-            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere()),
+            // Cylinder × sphere, both orders: no arm at all, and the
+            // pinch variant is unreachable — pinned exactly.
+            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere(), false),
+            (sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
-        for (a, b) in curved_pairs {
+        for (a, b, cylinder_pair) in curved_pairs {
             let got = pair_section_frame(&a, &b, band());
-            assert!(
-                matches!(
-                    got,
-                    Err(FrameError::NoArm | FrameError::IntersectingCylinderAxes)
-                ),
-                "a pair with no arm must refuse rather than default to the straight chord"
-            );
+            if cylinder_pair {
+                assert!(
+                    matches!(
+                        got,
+                        Err(FrameError::NoArm | FrameError::IntersectingCylinderAxes)
+                    ),
+                    "a cylinder pair with no arm must refuse rather than default to the \
+                     straight chord"
+                );
+            } else {
+                assert!(
+                    matches!(got, Err(FrameError::NoArm)),
+                    "a non-cylinder pair with no arm must refuse with NoArm exactly — \
+                     the pinch variant is not reachable for these kinds"
+                );
+            }
         }
     }
 
@@ -1868,7 +1909,10 @@ mod frame_dispatch_tests {
     /// equal-radius family, not of the perpendicular pose.** The two
     /// bisector planes' common line runs through the axes' meeting
     /// point along `â₁ × â₂` and is perpendicular to both axes, so it
-    /// meets both walls at `p ± r·(â₁ × â₂)` — and those two points
+    /// meets both walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)` — the
+    /// unit matters, since `‖â₁ × â₂‖ = sin θ` puts the raw product
+    /// strictly inside the walls at every pose but 90°, which is why
+    /// the row below normalizes — and those two points
     /// therefore lie on BOTH section ellipses, at every angle between
     /// the axes. This row reads them straight out of the section
     /// table, which is where the claim in
@@ -2021,5 +2065,164 @@ mod frame_dispatch_tests {
                 "{what}: a non-locus sphere pair is a desync, not a frame and not straight"
             );
         }
+    }
+}
+
+/// **The cylinder×cylinder coplanarity split at the CERTIFIED scalar**
+/// (feature `interval`) — the two-arm pin for this unit's new decide
+/// site, `bool_germ_frame_axes_coplanar`.
+///
+/// **Why it lives HERE and not in a body-level suite.** The predicate
+/// sits in a dispatch that a body-level fixture only reaches after the
+/// crossing layer has admitted the pair, and the skew fixture never
+/// gets there: skew walls have no declared cover, so the certified lane
+/// stops at a crossing-layer door with the germ pair never minted. A
+/// suite that drives bodies can therefore pin ONE arm at this scalar,
+/// which is not a two-arm pin at all — a mutation that broke the skew
+/// half would be invisible to it. Calling
+/// [`pair_section_frame`] directly is what makes both arms reachable at
+/// `Interval`, and it is the same function the join calls, on the same
+/// band.
+///
+/// Every coordinate here is DYADIC, so each surface's enclosure is a
+/// point interval and the margin's width is the arithmetic's alone: the
+/// axes are coordinate directions, the radii are 1 and 0.5, and the
+/// skew displacement is `0.375 = 3/8`. That is what lets both arms be
+/// EQUALITIES rather than "answers or escalates" — a widened enclosure
+/// here would be the arithmetic's doing and is exactly what this row is
+/// for.
+#[cfg(test)]
+#[cfg(feature = "interval")]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod frame_dispatch_interval_tests {
+    use geom_core::{Interval, Point3, Real, Tol, Vec3};
+
+    use super::{FrameError, pair_section_frame};
+
+    fn iv(x: f64) -> Interval {
+        Interval::from_f64(x)
+    }
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
+        Point3::new(iv(x), iv(y), iv(z))
+    }
+
+    fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
+        Vec3::new(iv(x), iv(y), iv(z))
+    }
+
+    /// A wall with every datum given explicitly — no `normalize`, no
+    /// `cross`, so nothing here widens before the dispatch runs. The
+    /// caller passes a `u_ref` already across the axis; this dispatch
+    /// never reads it, and handing it a dyadic one keeps that true at
+    /// the certified scalar as well.
+    fn wall(
+        origin: Point3<Interval>,
+        axis: Vec3<Interval>,
+        u_ref: Vec3<Interval>,
+        radius: f64,
+    ) -> geom::Surface<Interval> {
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius: iv(radius),
+            u_ref,
+        }
+    }
+
+    fn about_z(origin: Point3<Interval>, radius: f64) -> geom::Surface<Interval> {
+        wall(origin, v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0), radius)
+    }
+
+    fn about_x(origin: Point3<Interval>, radius: f64) -> geom::Surface<Interval> {
+        wall(origin, v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), radius)
+    }
+
+    /// **The MEETING arm.** Both axes run through the origin, so the
+    /// signed gap along `a₁ × a₂` is the exact zero of a point
+    /// interval and the split answers `Zero` — the pinch door. Read as
+    /// an equality, not "pinch or escalates": an escalation here would
+    /// say the enclosure decided the lane rather than the geometry.
+    ///
+    /// Run at equal AND unequal radii, because the margin reads no
+    /// radius and the certified lane must not start inferring one.
+    #[test]
+    fn meeting_axes_take_the_pinch_door_at_the_certified_scalar() {
+        for r in [1.0_f64, 0.5] {
+            let got = pair_section_frame(
+                &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                &about_x(p3(0.0, 0.0, 0.0), r),
+                band(),
+            );
+            assert!(
+                matches!(got, Err(FrameError::IntersectingCylinderAxes)),
+                "r = {r}: meeting axes take the pinch door at the certified scalar"
+            );
+        }
+    }
+
+    /// **The SKEW arm** — the half a body-level fixture cannot reach at
+    /// this scalar. Lift the partner along the common perpendicular
+    /// `a₁ × a₂ = ŷ` by the dyadic `0.375`: the gap is exactly `3/8`,
+    /// its enclosure is a point, and the split answers a DEFINITE sign,
+    /// which keeps the general rung's `NoArm`.
+    ///
+    /// `0.375` is not an arbitrary number. It is exactly representable,
+    /// it is far above every ε row this suite is sampled at, and it is
+    /// small enough that the two walls of radius 1 still overlap — a
+    /// separation that also cleared the walls would be pinning the
+    /// dispatch on a pair no reduction would ever hand it.
+    #[test]
+    fn skew_axes_keep_the_general_rung_at_the_certified_scalar() {
+        for r in [1.0_f64, 0.5] {
+            let got = pair_section_frame(
+                &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                &about_x(p3(0.0, 0.375, 0.0), r),
+                band(),
+            );
+            assert!(
+                matches!(got, Err(FrameError::NoArm)),
+                "r = {r}: skew axes keep the general rung at the certified scalar"
+            );
+        }
+        // The displacement direction is the ASSERTION, not a detail:
+        // sliding along either AXIS leaves the two lines meeting, so
+        // those poses must still answer the pinch door. A gap measured
+        // as any distance between the origins would flip these to
+        // `NoArm`.
+        for along in [p3(0.0, 0.0, 0.75), p3(0.75, 0.0, 0.0)] {
+            let got = pair_section_frame(
+                &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                &about_x(along, 1.0),
+                band(),
+            );
+            assert!(
+                matches!(got, Err(FrameError::IntersectingCylinderAxes)),
+                "{along:?}: a lift along an AXIS leaves the axes meeting"
+            );
+        }
+    }
+
+    /// The parallel gate ahead of the split answers `Ok(None)` at the
+    /// certified scalar too, so the two arms above are reached rather
+    /// than short-circuited — without this row a mutation that made the
+    /// parallel test always-`Zero` would green both of them vacuously.
+    #[test]
+    fn parallel_axes_stay_the_proven_straight_locus_at_the_certified_scalar() {
+        assert!(
+            matches!(
+                pair_section_frame(
+                    &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                    &about_z(p3(1.25, 0.0, 0.0), 0.5),
+                    band()
+                ),
+                Ok(None)
+            ),
+            "parallel cylinder axes meet in rulings at the certified scalar"
+        );
     }
 }

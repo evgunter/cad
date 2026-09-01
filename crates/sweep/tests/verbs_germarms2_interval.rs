@@ -1,27 +1,41 @@
-//! The cyl×cyl germ arm at the CERTIFIED scalar (feature `interval`) —
-//! the two-arm pattern for this unit's new decide sites.
+//! The cyl×cyl germ arm's BODY-LEVEL poses at the CERTIFIED scalar
+//! (feature `interval`).
 //!
-//! One predicate is new here, `bool_germ_frame_axes_coplanar`: the
-//! signed axis-to-axis gap along `a₁ × a₂`, a LENGTH, and the thing
-//! that separates a cylinder pair whose axes meet from a skew one. Both
-//! arms are pinned, because the two answers license opposite things —
-//! meeting axes take the pinch door, skew axes keep the general rung —
-//! and an enclosure too wide to call either would silently turn one
-//! into an escalation.
+//! **What this file pins, and what it does NOT.** Every row here drives
+//! whole BODIES through the public union door, so a row reaches a
+//! predicate only if the layers ahead of it admit the pose. The
+//! meeting-axes pose does reach the join and stops at the pinch door.
+//! The skew pose does not: skew walls carry no declared cover, so it
+//! stops at a CROSSING-layer door with the germ pair never minted, and
+//! this file's skew row asserts exactly that and nothing about the
+//! frame dispatch.
+//!
+//! So the new predicate's two-arm pin is NOT here. It is
+//! `topo::boolean::join`'s `frame_dispatch_interval_tests`, which calls
+//! `pair_section_frame` at `Interval` directly and reaches both arms —
+//! meeting axes to `Zero`/pinch, skew axes to a definite sign/`NoArm`.
+//! That is the certified-scalar statement about
+//! `bool_germ_frame_axes_coplanar`; what this file adds is that the
+//! BODY-level poses behave at `Interval` as they do at `f64`.
 //!
 //! The poses are the `f64` suite's, built through the same public
 //! doors, so the two lanes differ in the SCALAR and in nothing else.
-//! The coplanarity margin is exactly zero at every intersecting pose
-//! here — both operands are built centred on the origin, so the
-//! axis-to-axis displacement is the zero vector by construction rather
-//! than by cancellation — and the skew row's is the dyadic `0.375`
-//! along `â₁ × â₂`.
+//! At the intersecting poses the axis-to-axis displacement is near zero
+//! by construction — both operands are built centred on the origin, and
+//! the seam-clearing spins are rotations ABOUT those axes, so what
+//! reaches the margin is rotation crumbs rather than an exactly zero
+//! vector. What was measured is the VERDICT: the coplanarity split
+//! answers `Zero` at every ε row this suite is sampled at, down to the
+//! 1e-12 band. The skew row's displacement is the dyadic `0.375` along
+//! `â₁ × â₂`.
 //!
-//! The re-posed twins are held to a weaker statement here than in the
-//! `f64` suite, and [`same_door_or_escalated`] carries the measurement
-//! that says why: a general rotation makes the fixture's own enclosures
-//! wider than the narrowest tolerance row's zero band, so the certified
-//! lane refuses the FIXTURE rather than disagreeing about the geometry.
+//! The re-posed twins are held to the `f64` suite's own EQUALITY at
+//! every ε row but the narrowest, and to a narrowly-shaped escape only
+//! at `1e-12`, where a general rotation makes the fixture's enclosures
+//! wider than the zero band and the certified lane refuses the FIXTURE
+//! rather than disagreeing about the geometry.
+//! [`same_door_or_escalated`] carries the measurement and both
+//! narrowings.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -89,14 +103,19 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
 }
 
-/// **The re-posed twin's obligation at the CERTIFIED scalar**, and why
-/// it is not the `f64` suite's equality.
+/// **The re-posed twin's obligation at the CERTIFIED scalar**, which is
+/// the `f64` suite's EQUALITY at every ε row but the narrowest, and a
+/// narrowly-shaped escape only there.
 ///
 /// The re-pose is a general rotation, so the transformed operand's
 /// coordinates are irrational and its enclosures are intervals rather
-/// than points. On the narrowest tolerance row this suite is sampled at
-/// they are wider than the zero band itself — measured, at
-/// `eps = 1e-12`, on the pinch-door pose:
+/// than points. At `eps = 1e-9` (the compiled default) and `eps = 1e-6`
+/// those enclosures are far inside the zero band and the twin answers
+/// the direct pose's door key for key — measured, so it is asserted as
+/// an equality rather than assumed away. At `eps = 1e-12` the
+/// enclosures are wider than the band itself, and the certified lane
+/// refuses the FIXTURE before the geometry is ever in question —
+/// measured, on the pinch-door pose:
 ///
 /// ```text
 /// CrossingInsertion { operand: A, edge: EdgeKey(7v1), source: Certification {
@@ -106,20 +125,48 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 ///     predicate: Some("carrier_matches_mapped_source") } } } }
 /// ```
 ///
-/// That is the certified lane refusing because the FIXTURE is below its
-/// resolution, not a disagreement about the geometry — and refusing is
-/// what it is for. So the obligation here is: the re-posed twin answers
-/// the same door, **or** escalates. A different typed door, or a body,
-/// still fails — which is the part that would be a defect.
+/// **Both narrowings matter, and neither is cosmetic.**
 ///
-/// The full pose-for-pose equality lives in the `f64` suite, where the
-/// enclosures are not in the way and every row carries it.
+/// - The escape is gated on the BAND, read from the run's own
+///   tolerance, so at the two wider rows an escalation is a FAILURE.
+///   A blanket "or escalates" would have accepted an escalation where
+///   the measurement says the door is answered exactly.
+/// - The escape matches the escalation's SHAPE, not a substring of its
+///   rendering. It admits the certification escalation above — a
+///   crossing-insertion refusal whose predicate is
+///   `carrier_matches_mapped_source` — and it explicitly refuses an
+///   escalation of either germ-frame predicate, because those are the
+///   very predicates this unit's rows exist to pin: a substring test
+///   would have greened a `bool_germ_frame_axes_coplanar` escalation,
+///   i.e. the arm going indeterminate, as if it were noise.
 fn same_door_or_escalated(direct: &BooleanError, reposed: &BooleanError, what: &str) {
     let (d, r) = (format!("{direct:?}"), format!("{reposed:?}"));
+    if d == r {
+        return;
+    }
+    let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
     assert!(
-        d == r || r.contains("Escalated"),
-        "{what}: the re-posed twin must answer the same door or escalate as a sliver; \
-         direct {d}, re-posed {r}"
+        band.zero() <= 1e-12,
+        "{what}: at eps with zero band {:e} the re-posed twin must answer the direct \
+         pose's door key for key; direct {d}, re-posed {r}",
+        band.zero()
+    );
+    let BooleanError::CrossingInsertion { source, .. } = reposed else {
+        panic!("{what}: the only admitted escape is a crossing-insertion escalation; got {r}");
+    };
+    let topo::EulerOpError::Certification { error } = source else {
+        panic!("{what}: the only admitted escape is a certification refusal; got {r}");
+    };
+    let geom_brep::CertifyError::Escalated { cause, .. } = error else {
+        panic!("{what}: the only admitted escape is an ESCALATION; got {r}");
+    };
+    assert!(
+        !matches!(
+            cause.predicate,
+            Some("bool_germ_frame_axes_coplanar" | "bool_germ_frame_axes_parallel")
+        ),
+        "{what}: a germ-frame predicate going indeterminate is the defect this unit \
+         pins, never an accepted escape; direct {d}, re-posed {r}"
     );
 }
 
@@ -150,11 +197,17 @@ fn the_pinch_door_is_reached_at_the_certified_scalar() {
     );
 }
 
-/// **The skew arm.** Slide the same pair along the common
-/// perpendicular `â₁ × â₂` by the dyadic `0.375` — the one direction
-/// that separates the axes — and the coplanarity margin is definitely
-/// non-zero: the pair keeps the general rung, never reaches the join,
-/// and never wears the pinch door.
+/// **The skew pose at the BODY level**, which is a weaker statement
+/// than its name once suggested and is written as the weaker one.
+///
+/// Slide the pair along the common perpendicular `â₁ × â₂` by the
+/// dyadic `0.375` and the pose stops at a CROSSING-layer door: skew
+/// walls carry no declared cover, so the germ pair is never minted and
+/// `bool_germ_frame_axes_coplanar` is never reached from here. What
+/// this row asserts is therefore the LAYER — the pose stays off every
+/// join door, the pinch door included — and not the dispatch's skew
+/// arm, which is pinned at the certified scalar in
+/// `topo::boolean::join`'s `frame_dispatch_interval_tests` instead.
 #[test]
 fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
@@ -172,6 +225,14 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
                 | BooleanError::CurvedSectorSideUnsupported { .. }
         ),
         "a skew pair must stop at a crossing-layer door, never a join one: {err:?}"
+    );
+    // The re-posed twin, on the same obligation as every other row
+    // here: a rigid motion moves no contact, so a pose whose direct and
+    // re-posed copies disagree is a defect by construction.
+    same_door_or_escalated(
+        &err,
+        &union_err(&repose(&a), &repose(&skew)),
+        "the skew pose",
     );
 }
 

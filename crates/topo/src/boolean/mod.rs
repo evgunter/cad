@@ -919,7 +919,11 @@ pub enum BooleanError {
     ///   ellipses. They are not two disjoint loci: the bisector
     ///   planes' common line runs through the axes' meeting point `p`
     ///   along `â₁ × â₂`, is perpendicular to both axes, and therefore
-    ///   meets BOTH walls at `p ± r·(â₁ × â₂)`. So the two ellipses
+    ///   meets BOTH walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)`.
+    ///   The UNIT is load-bearing off 90°: `‖â₁ × â₂‖ = sin θ`, so the
+    ///   raw cross product understates the offset by that factor and
+    ///   only coincides with the pinch points on the perpendicular
+    ///   pose. So the two ellipses
     ///   CROSS at those two points, for every member of the family and
     ///   at every pose — four arcs meeting at two valence-4 PINCH
     ///   vertices. A pinch is not a conic frame, and a frame dispatch
@@ -1218,8 +1222,9 @@ impl core::fmt::Display for BooleanError {
                 "boolean join: the germ pair (face {a_face:?} of A, face {b_face:?} of B) \
                  is two cylinder walls whose axes definitely intersect, and that pair has \
                  no section frame to name. With equal radii the section is the two \
-                 bisector-plane ellipses, which CROSS at the two points p ± r·(a1 x a2) \
-                 where the walls are mutually tangent — four arcs at two valence-4 pinch \
+                 bisector-plane ellipses, which CROSS at the two points p ± r·n̂ where \
+                 n̂ = unit(a1 x a2) — the walls are mutually tangent there — four arcs at \
+                 two valence-4 pinch \
                  vertices, not one conic — and this dispatch is keyed on surface kinds \
                  alone, so it has no point with which to select a branch. With unequal \
                  radii the locus is a space quartic and has no conic frame at all. Which \
