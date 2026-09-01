@@ -167,7 +167,7 @@ fn every_mark_is_visible_against_its_body() {
 /// for a palette that claims nothing. Same bar, same metric — a
 /// ground is not a different kind of colour.
 #[test]
-fn a_grounds_swatches_stay_off_it() {
+fn a_themes_ground_stays_off_its_own_swatches() {
     for theme in Theme::ALL {
         let (worst, at) = cvd::worst_against_ground(theme);
         assert!(
@@ -346,7 +346,10 @@ mod cvd {
     fn kinds_of(theme: &Theme) -> &'static [Option<CvdType>] {
         match theme.safety {
             Safety::ColorblindSafe => &KINDS,
-            Safety::Unchecked => &KINDS[..1],
+            // Stated, not sliced out of `KINDS`: "normal vision" is
+            // `None`, and a slice would only be that for as long as
+            // `None` happened to stay first in that list.
+            Safety::Unchecked => &[None],
         }
     }
 

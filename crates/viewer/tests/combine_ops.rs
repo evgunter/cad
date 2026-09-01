@@ -980,6 +980,136 @@ fn every_tool_kind_is_listed_in_all() {
     assert!(seen.into_iter().all(|hit| hit), "every ordinal is listed");
 }
 
+/// **Every seat's wanted kind is the one its own door refuses by.**
+///
+/// The routing in `viewer::seats` and the gate in `viewer::session`
+/// share a CLASSIFIER (`session::admits`) but not a table: which kind
+/// a seat wants is stated at `Seat::wants` and again at each door's
+/// `require_kind` call. This row is what holds them together — for
+/// every seat, its op is driven with a node of the wrong kind and the
+/// refusal has to name exactly `seat.wants()`.
+///
+/// It catches drift in both directions. A `wants()` that disagreed
+/// with its door would either pick a "wrong" node the door happily
+/// accepts (no refusal, and the row fails) or draw a refusal naming a
+/// different kind (and the row fails). `Seat::ALL` is what makes it a
+/// sweep rather than a list somebody remembers to extend.
+#[test]
+fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
+    let tol = Tol::witness();
+    let (mut session, body, _) = two_boxes(tol);
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: SketchPlane::xy(),
+            loops: vec![ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.01,
+            }],
+        },
+    );
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: [0.0, 0.0, 0.005],
+                normal: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    let axis = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Axis {
+                origin: [0.0; 3],
+                direction: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    // A node the seat's own `wants()` says it cannot hold — and one
+    // that is a legal node of SOME kind, so what the door refuses is
+    // the kind and never the absence.
+    let right = |wanted: NodeKindWanted| match wanted {
+        NodeKindWanted::Body => body,
+        NodeKindWanted::Profile => profile,
+        NodeKindWanted::Plane => plane,
+        NodeKindWanted::Axis => axis,
+    };
+    let wrong = |wanted: NodeKindWanted| match wanted {
+        NodeKindWanted::Body => profile,
+        NodeKindWanted::Profile => body,
+        NodeKindWanted::Plane => axis,
+        NodeKindWanted::Axis => plane,
+    };
+
+    let mut seen = vec![false; Seat::ALL.len()];
+    for seat in Seat::ALL {
+        let at = seat.ordinal();
+        assert!(!seen[at], "{seat:?} shares an ordinal");
+        seen[at] = true;
+        // Every OTHER seat of the same op is filled correctly, so the
+        // refusal can only be about the seat under test.
+        let filled = |other: Seat| {
+            if other == seat {
+                wrong(other.wants())
+            } else {
+                right(other.wants())
+            }
+        };
+        let op = match seat {
+            Seat::RevolveProfile | Seat::RevolveAxis => SessionOp::AddRevolve {
+                profile: filled(Seat::RevolveProfile),
+                axis: filled(Seat::RevolveAxis),
+                angle: core::f64::consts::TAU,
+            },
+            Seat::OperandA | Seat::OperandB => SessionOp::AddBoolean {
+                op: BooleanOp::Union,
+                a: filled(Seat::OperandA),
+                b: filled(Seat::OperandB),
+            },
+            Seat::SplitTarget | Seat::SplitPlane => SessionOp::AddSplit {
+                target: filled(Seat::SplitTarget),
+                tool: filled(Seat::SplitPlane),
+            },
+            Seat::TransformBody => SessionOp::AddTransform {
+                input: filled(Seat::TransformBody),
+                translation: [0.0; 3],
+                rotation_axis: [0.0, 0.0, 1.0],
+                rotation_angle: 0.0,
+            },
+            // The CIRCULAR rule, because it is the only one with an
+            // axis seat to refuse about.
+            Seat::PatternBody | Seat::PatternAxis => SessionOp::AddPattern {
+                input: filled(Seat::PatternBody),
+                count: 3,
+                rule: PatternRuleSpec::Circular {
+                    axis: filled(Seat::PatternAxis),
+                    step: 1.0,
+                },
+            },
+        };
+        let out = session.perform(op);
+        match out.refusal {
+            Some(Refusal::WrongNodeKind { node, wanted }) => {
+                assert_eq!(
+                    wanted,
+                    seat.wants(),
+                    "the {} door refuses by {wanted:?}, but the seat says {:?}",
+                    seat.name(),
+                    seat.wants(),
+                );
+                assert_eq!(node, wrong(seat.wants()), "it names the node it refused");
+            }
+            other => panic!(
+                "the {} seat took a {:?} without refusing: {other:?}",
+                seat.name(),
+                seat.wants(),
+            ),
+        }
+    }
+    assert!(seen.into_iter().all(|hit| hit), "every seat is listed");
+}
+
 /// **A pick only one seat can hold goes to that seat.**
 ///
 /// A split's seats are a BODY and a PLANE. Under the plain
@@ -1086,10 +1216,11 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
 }
 
 /// **A one-seat tool has ONE seat.** Its role is named twice so the
-/// pick rule degenerates to "replace" — and until that degeneracy was
-/// stated, a second pick landed in a slot nothing reads, so the
-/// transform tool's own door ("a second pick replaces the first") was
-/// false and re-picking the body silently kept the old one.
+/// pick rule degenerates to "replace", and this is the row that holds
+/// it there: the rule underneath fills the first EMPTY slot, so
+/// without the arity arm a second pick lands in a slot nothing reads
+/// and the transform tool's own door ("a second pick replaces the
+/// first") stops being true.
 #[test]
 fn a_second_pick_replaces_a_one_seat_tools_body() {
     let tol = Tol::witness();

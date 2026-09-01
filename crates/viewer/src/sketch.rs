@@ -16,8 +16,8 @@
 //! Everything here is `f64` in canonical units (metres, radians), for
 //! the reason every creation spec in this crate is: the SESSION mints
 //! the expression slots, so a form hands it numbers and never an
-//! `Expr` it would have had to build a second way. The lowering
-//! ([`loop_program`]) is exhaustive on the step vocabulary, so a verb
+//! `Expr` it would have had to build a second way. The step lowering
+//! ([`program_step`]) is exhaustive on the verb vocabulary, so a verb
 //! the document layer gains cannot be silently unauthorable from the
 //! chrome.
 //!
@@ -136,8 +136,8 @@ pub enum ArcSpec {
 /// given tip is not this value's business and is not checked here —
 /// the lattice decides that at replay, and an ill-typed walk refuses
 /// typed at the edit door naming the state and the verb
-/// (`ProgramRefusal::Transition`). [`DocSession::profile_preview`] is
-/// how a form asks that question before committing.
+/// (`ProgramRefusal::Transition`). [`preview`] is how a form asks that
+/// question before committing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PathStep {
     /// `.at(p)` — bind the tip's position.
@@ -406,10 +406,10 @@ fn program_step(step: &PathStep) -> Result<ProgramStep, DimensionError> {
 /// two `SketchPlane::xy()` calls are two places for that to stop
 /// being true.
 ///
-/// It is a constant because placement on a picked face's frame is
-/// deferred — the interrogation vocabulary answers no "is this face
-/// planar" verdict for the door to gate on (issue #1374). A form that
-/// offered a plane it could not check would be offering a refusal.
+/// It is fixed because placement on a picked face's frame is deferred
+/// — the interrogation vocabulary answers no "is this face planar"
+/// verdict for the door to gate on (issue #1374). A form that offered
+/// a plane it could not check would be offering a refusal.
 pub fn form_plane() -> SketchPlane<f64> {
     SketchPlane::xy()
 }

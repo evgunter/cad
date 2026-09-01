@@ -267,18 +267,17 @@ const EDGE_FLAG_PROBE: u32 = 2;
 const EDGE_MARK_PREVIEW: u32 = 4;
 
 /// **Half the width of an edge mark, in POINTS** — so a mark is
-/// [`EDGE_MARK_HALF_WIDTH_POINTS`]`* 2` points thick wherever it is
-/// drawn, and the same thickness to the eye on a hidpi screen as on a
-/// 1× one (`vs_edge` is handed the physical half-width, scaled by the
-/// frame's device pixel ratio).
+/// three points thick wherever it is drawn, and the same thickness to
+/// the eye on a hidpi screen as on a 1× one (`vs_edge` is handed the
+/// physical half-width, scaled by the frame's device pixel ratio).
 ///
-/// Chosen, not measured: a mark has to be findable at a glance
-/// without becoming the thickest thing in the picture, and three
-/// points is roughly the weight of the chrome's own text. It is
-/// bounded on both sides by real effects — under about two points the
-/// dotting this expansion exists to fix starts to come back, and much
-/// above four the mark's own width hides the short edges it is
-/// marking.
+/// A judgement, and the range it sits in is narrow at both ends: a
+/// mark under about two points starts to show the dotting this
+/// expansion exists to remove, and much above four its own width
+/// hides the short edges it is marking. Three points is also roughly
+/// the weight of the chrome's own text, which is what makes a mark
+/// findable at a glance without becoming the loudest thing in the
+/// picture.
 const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
 
 /// One vertex of an expanded edge mark: the segment it belongs to,
@@ -344,17 +343,16 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// clip z here) — a pointer each way, deliberately not one shared
 /// constant.
 ///
-/// **Widened by an order of magnitude when the marks became quads.**
-/// A one-pixel line sits on the two facets its edge divides; a quad a
-/// few points wide reaches ONTO them, and on a concave edge the
-/// neighbouring facet is nearer the eye than the shared chord, so the
-/// outer half of the mark failed the depth test and the mark thinned
-/// on exactly the edges it was widened for. The nudge is still small
-/// enough that a mark cannot climb over unrelated geometry — the pass
-/// writes no depth, so the worst an over-large shrink could do is
-/// show a mark through a surface in front of it, and at 1e-5 relative
-/// that surface would have to be within a thousandth of a percent of
-/// the edge's own depth.
+/// **A quad, unlike a line, reaches ONTO the facets its edge
+/// divides** — which is what sets the magnitude. On a concave edge
+/// the neighbouring facet is nearer the eye than the shared chord, so
+/// without enough nudge the outer half of a mark fails the depth test
+/// and the mark thins on exactly the edges width was buying. The
+/// nudge is still small enough that a mark cannot climb over
+/// unrelated geometry: the pass writes no depth, so the worst an
+/// over-large shrink could do is show a mark through a surface in
+/// front of it, and at 1e-5 relative that surface would have to be
+/// within a thousandth of a percent of the edge's own depth.
 const EDGE_CLIP_Z_SHRINK: f32 = 1.0e-5;
 
 struct Geometry {

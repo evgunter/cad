@@ -314,18 +314,44 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
         PathStep::FarEndTo([0.02, 0.0]),
         PathStep::CloseTo,
     ];
-    // Every verb of the vocabulary is represented — the count is the
-    // enum's, so a verb added without a case here is a count nobody
-    // updated rather than a silent gap.
-    let mut verbs: Vec<core::mem::Discriminant<PathStep>> =
-        steps.iter().map(core::mem::discriminant).collect();
-    verbs.dedup();
-    verbs.sort_by_key(|d| format!("{d:?}"));
-    verbs.dedup();
-    assert_eq!(verbs.len(), 17, "one case per verb: {verbs:?}");
+    // **The census is the COMPILER's, not a number written here.**
+    // `ordinal` is an exhaustive match, so a verb added to the
+    // vocabulary breaks it until somebody gives it one — and the set
+    // below then has a hole until the list above gains a case for it.
+    // A hand-written count would have gone on passing with the new
+    // verb untested.
+    let covered: std::collections::BTreeSet<usize> = steps.iter().map(ordinal).collect();
+    let expected: std::collections::BTreeSet<usize> = (0..=ordinal(&PathStep::CloseTo)).collect();
+    let missing: Vec<usize> = expected.difference(&covered).copied().collect();
+    assert!(missing.is_empty(), "verbs with no case here: {missing:?}");
 
     viewer::sketch::loop_program(&ProfileShape::Path { steps })
         .expect("every verb's fields are finite numbers of its own dimension");
+}
+
+/// Each verb's position in the vocabulary, as an exhaustive match —
+/// the census's oracle. `CloseTo` is deliberately last, because the
+/// row above reads the vocabulary's SIZE off it.
+fn ordinal(step: &PathStep) -> usize {
+    match step {
+        PathStep::At(_) => 0,
+        PathStep::Angle(_) => 1,
+        PathStep::Toward { .. } => 2,
+        PathStep::Tangent => 3,
+        PathStep::Cusp => 4,
+        PathStep::Turn(_) => 5,
+        PathStep::Line(_) => 6,
+        PathStep::LineTo(_) => 7,
+        PathStep::ArcTo(_) => 8,
+        PathStep::TangentArcTo(_) => 9,
+        PathStep::ArcContinue(_) => 10,
+        PathStep::Fillet(_) => 11,
+        PathStep::FilletArc { .. } => 12,
+        PathStep::ArcFillet { .. } => 13,
+        PathStep::ArcFilletArc { .. } => 14,
+        PathStep::FarEndTo(_) => 15,
+        PathStep::CloseTo => 16,
+    }
 }
 
 /// A non-finite field refuses at the lowering, before anything is

@@ -57,6 +57,10 @@ impl RevolveTool {
 
     /// Feed one node pick — the selection vocabulary's node, consumed
     /// into tool state.
+    /// `doc` ROUTES the pick and does not judge it: the seats ask
+    /// what kind of node was picked so one only they can hold lands
+    /// where it can (`crate::seats`). The commit door owns the
+    /// verdict.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }

@@ -512,54 +512,90 @@ impl ShapeKind {
 /// place a default step per verb is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PathVerb {
+    /// Bind the tip's position.
     At,
+    /// Bind the tip's outgoing direction, absolutely.
     Angle,
+    /// Bind it by exact components.
     Toward,
+    /// Leave along the incoming tangent.
     Tangent,
+    /// Leave along its reverse.
     Cusp,
+    /// Leave at an angle from it.
     Turn,
+    /// A straight leg of a stated length.
     Line,
+    /// A straight leg to a target.
     LineTo,
+    /// A sharp arc leg.
     ArcTo,
+    /// An arc leg leaving along the bound direction.
     TangentArcTo,
+    /// A structural vertex on the incoming carrier.
     ArcContinue,
+    /// Round the corner: line in, line out.
     Fillet,
+    /// Round it with an arc on the arrival side.
     FilletArc,
+    /// Round it with an arc on the incoming side.
     ArcFillet,
+    /// Round it with an arc on both.
     ArcFilletArc,
+    /// The anchor a fillet's arrival side is aimed at.
     FarEndTo,
+    /// The seam fillet's close.
     CloseTo,
 }
 
 impl PathVerb {
-    /// Every verb with its label, in the algebra's own order — the
-    /// "add step" menu, and the row combo's options.
-    const ALL: [(Self, &'static str); 17] = [
-        (Self::At, "at"),
-        (Self::Angle, "angle"),
-        (Self::Toward, "toward"),
-        (Self::Tangent, "tangent"),
-        (Self::Cusp, "cusp"),
-        (Self::Turn, "turn"),
-        (Self::Line, "line"),
-        (Self::LineTo, "line_to"),
-        (Self::ArcTo, "arc_to"),
-        (Self::TangentArcTo, "tangent_arc_to"),
-        (Self::ArcContinue, "arc_continue"),
-        (Self::Fillet, "fillet"),
-        (Self::FilletArc, "fillet_arc"),
-        (Self::ArcFillet, "arc_fillet"),
-        (Self::ArcFilletArc, "arc_fillet_arc"),
-        (Self::FarEndTo, "to (far end)"),
-        (Self::CloseTo, "to Start (close)"),
+    /// Every verb, in the algebra's own order — the "add step" menu
+    /// and the row combo's options. Labels come from
+    /// [`PathVerb::label`], so this list carries the ORDER and
+    /// nothing a second copy of it could get wrong.
+    const ALL: [Self; 17] = [
+        Self::At,
+        Self::Angle,
+        Self::Toward,
+        Self::Tangent,
+        Self::Cusp,
+        Self::Turn,
+        Self::Line,
+        Self::LineTo,
+        Self::ArcTo,
+        Self::TangentArcTo,
+        Self::ArcContinue,
+        Self::Fillet,
+        Self::FilletArc,
+        Self::ArcFillet,
+        Self::ArcFilletArc,
+        Self::FarEndTo,
+        Self::CloseTo,
     ];
 
-    /// This verb's label.
+    /// This verb's label — a match rather than a search through
+    /// [`PathVerb::ALL`], so a verb missing from that list is a
+    /// compile error here instead of a `?` on somebody's screen.
     fn label(self) -> &'static str {
-        Self::ALL
-            .iter()
-            .find_map(|(verb, label)| (*verb == self).then_some(*label))
-            .unwrap_or("?")
+        match self {
+            Self::At => "at",
+            Self::Angle => "angle",
+            Self::Toward => "toward",
+            Self::Tangent => "tangent",
+            Self::Cusp => "cusp",
+            Self::Turn => "turn",
+            Self::Line => "line",
+            Self::LineTo => "line_to",
+            Self::ArcTo => "arc_to",
+            Self::TangentArcTo => "tangent_arc_to",
+            Self::ArcContinue => "arc_continue",
+            Self::Fillet => "fillet",
+            Self::FilletArc => "fillet_arc",
+            Self::ArcFillet => "arc_fillet",
+            Self::ArcFilletArc => "arc_fillet_arc",
+            Self::FarEndTo => "to (far end)",
+            Self::CloseTo => "to Start (close)",
+        }
     }
 
     /// Which verb a step names.
@@ -630,57 +666,100 @@ impl PathVerb {
     }
 }
 
-/// One arc-spec mode as the form offers it: a label, and the fresh
-/// spec picking it produces.
-type ArcMode = (&'static str, fn() -> ArcSpec);
+/// **Which of [`ArcSpec`]'s six modes the form is offering** — the
+/// tag [`PathVerb`] is, for the reason it is one: the picker needs to
+/// name a mode before there is a spec in it, and a spec needs to name
+/// its own mode. An index into a label table would couple the two by
+/// position, so a reordered table would silently relabel every mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArcMode {
+    /// The carrier's radius and the side its centre is on.
+    Radius,
+    /// The endpoint and an authored bulge.
+    Bulge,
+    /// A point the arc passes through, and the endpoint.
+    Via,
+    /// The carrier centre, the travel sense, and the endpoint.
+    Center,
+    /// The carrier and how far round it to go.
+    Sweep,
+    /// The carrier and the distance travelled along it.
+    ArcLen,
+}
 
-/// The arc-spec modes with their labels — the six ways [`ArcSpec`]
-/// says an arc, and the one place a fresh one per mode is written.
-const ARC_MODES: [ArcMode; 6] = [
-    ("radius", || ArcSpec::Radius {
-        r: 0.01,
-        side: ArcSide::Left,
-    }),
-    ("bulge", || ArcSpec::Bulge {
-        target: PathTarget::Point([0.01, 0.0]),
-        b: 0.5,
-    }),
-    ("via", || ArcSpec::Via {
-        q: [0.005, 0.005],
-        target: PathTarget::Point([0.01, 0.0]),
-    }),
-    ("centre", || ArcSpec::Center {
-        c: [0.0, 0.0],
-        winding: ArcSweep::Ccw,
-        target: PathTarget::Point([0.01, 0.0]),
-    }),
-    ("sweep", || ArcSpec::Sweep {
-        r: 0.01,
-        side: ArcSide::Left,
-        angle: core::f64::consts::FRAC_PI_2,
-    }),
-    ("arc length", || ArcSpec::ArcLen {
-        r: 0.01,
-        side: ArcSide::Left,
-        len: 0.01,
-    }),
-];
+impl ArcMode {
+    /// Every mode, in the vocabulary's own order — the picker's
+    /// options.
+    const ALL: [Self; 6] = [
+        Self::Radius,
+        Self::Bulge,
+        Self::Via,
+        Self::Center,
+        Self::Sweep,
+        Self::ArcLen,
+    ];
 
-/// Which mode an arc spec is in, as an index into [`ARC_MODES`].
-fn arc_mode(spec: &ArcSpec) -> usize {
-    match spec {
-        ArcSpec::Radius { .. } => 0,
-        ArcSpec::Bulge { .. } => 1,
-        ArcSpec::Via { .. } => 2,
-        ArcSpec::Center { .. } => 3,
-        ArcSpec::Sweep { .. } => 4,
-        ArcSpec::ArcLen { .. } => 5,
+    /// This mode's label.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Radius => "radius",
+            Self::Bulge => "bulge",
+            Self::Via => "via",
+            Self::Center => "centre",
+            Self::Sweep => "sweep",
+            Self::ArcLen => "arc length",
+        }
+    }
+
+    /// Which mode a spec is in.
+    fn of(spec: &ArcSpec) -> Self {
+        match spec {
+            ArcSpec::Radius { .. } => Self::Radius,
+            ArcSpec::Bulge { .. } => Self::Bulge,
+            ArcSpec::Via { .. } => Self::Via,
+            ArcSpec::Center { .. } => Self::Center,
+            ArcSpec::Sweep { .. } => Self::Sweep,
+            ArcSpec::ArcLen { .. } => Self::ArcLen,
+        }
+    }
+
+    /// A spec of this mode with the form's starting numbers —
+    /// millimetre-scale and never degenerate, for the reason
+    /// [`PathVerb::fresh`]'s are.
+    fn fresh(self) -> ArcSpec {
+        let target = PathTarget::Point([0.01, 0.0]);
+        match self {
+            Self::Radius => ArcSpec::Radius {
+                r: 0.01,
+                side: ArcSide::Left,
+            },
+            Self::Bulge => ArcSpec::Bulge { target, b: 0.5 },
+            Self::Via => ArcSpec::Via {
+                q: [0.005, 0.005],
+                target,
+            },
+            Self::Center => ArcSpec::Center {
+                c: [0.0, 0.0],
+                winding: ArcSweep::Ccw,
+                target,
+            },
+            Self::Sweep => ArcSpec::Sweep {
+                r: 0.01,
+                side: ArcSide::Left,
+                angle: core::f64::consts::FRAC_PI_2,
+            },
+            Self::ArcLen => ArcSpec::ArcLen {
+                r: 0.01,
+                side: ArcSide::Left,
+                len: 0.01,
+            },
+        }
     }
 }
 
-/// One drag tick of a creation-form LENGTH field, in metres — half a
-/// millimetre, matching the drag feel of the shipped panel value
-/// fields. One home so the forms cannot drift apart a digit at a time.
+/// One drag tick of a LENGTH field, in metres — half a millimetre.
+/// The creation forms' and the property panel's alike: one gesture,
+/// one number, so they cannot drift apart a digit at a time.
 const FIELD_DRAG_SPEED: f64 = 0.0005;
 
 /// One drag tick of an ANGLE field, in radians — a third of a degree,
@@ -2168,11 +2247,9 @@ impl ViewerBehavior<'_> {
         // **The ground first, then the picture on it.** The pane
         // allocates its rectangle and the paint callback fills only
         // what the model covers, so without this the pixels around a
-        // part were whatever the window happened to be cleared to —
-        // the toolkit's, not the palette's, which is how a light
-        // theme ended up showing its parts on a black field. The
-        // palette states the colour ([`Theme::ground`]) and this is
-        // the one place it is drawn.
+        // part are whatever the window happened to be cleared to —
+        // the toolkit's colour, not the palette's. The palette states
+        // it (`Theme::ground`) and this is the one place it is drawn.
         ui.painter()
             .rect_filled(rect, 0.0, chrome(self.theme.ground));
         ui.painter().add(egui_wgpu::Callback::new_paint_callback(
@@ -3047,8 +3124,8 @@ impl ViewerBehavior<'_> {
                     .selected_text(verb.label())
                     .width(120.0)
                     .show_ui(ui, |ui| {
-                        for (option, label) in PathVerb::ALL {
-                            ui.selectable_value(&mut verb, option, label);
+                        for option in PathVerb::ALL {
+                            ui.selectable_value(&mut verb, option, option.label());
                         }
                     });
                 if verb != before {
@@ -3068,8 +3145,8 @@ impl ViewerBehavior<'_> {
                 .selected_text(self.drafts.path_verb.label())
                 .width(120.0)
                 .show_ui(ui, |ui| {
-                    for (option, label) in PathVerb::ALL {
-                        ui.selectable_value(&mut self.drafts.path_verb, option, label);
+                    for option in PathVerb::ALL {
+                        ui.selectable_value(&mut self.drafts.path_verb, option, option.label());
                     }
                 });
             if ui.button("Add step").clicked() {
@@ -3765,15 +3842,16 @@ impl ViewerBehavior<'_> {
             },
             unit,
         );
-        // The drag speed is in WRITTEN units now, so it has to be
-        // scaled with them: 0.0005 was a half-micron step when the
-        // field held metres, and would be a half-micron step in
-        // millimetres too — i.e. a thousand times finer than the same
-        // gesture used to be — if the divide were not applied.
+        // The drag speed is in WRITTEN units, so it travels through
+        // the same conversion the value does ([`unit_field`] carries
+        // the rule) — and it is `FIELD_DRAG_SPEED`, the same tick the
+        // creation forms use, rather than a second number for the
+        // same gesture. A structural slot steps in whole units: what
+        // it holds is a count.
         let speed = if row.structural {
             1.0
         } else {
-            props::in_written(0.0005, unit)
+            props::in_written(FIELD_DRAG_SPEED, unit)
         };
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
@@ -4200,10 +4278,10 @@ fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
 /// draft that stored what was typed would silently become a different
 /// length when the picker moved.
 ///
-/// The drag speed travels through the same conversion. A metre field
-/// stepping half a millimetre per pixel would step half a MICRON per
-/// pixel once the field says millimetres, which is the same gesture
-/// made a thousand times finer by a change of notation.
+/// **The drag speed travels through the same conversion**, which is
+/// the half of this that is easy to leave out: a tick in metres
+/// applied to a field showing millimetres is the same gesture made a
+/// thousand times finer by a change of notation.
 fn unit_field(ui: &mut egui::Ui, unit: Option<UnitDef>, speed: f64, canonical: &mut f64) {
     let mut written = props::in_written(*canonical, unit);
     let response = ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, unit)));
@@ -4307,18 +4385,18 @@ fn arc_fields(
     angle_unit: Option<UnitDef>,
     spec: &mut ArcSpec,
 ) {
-    let mut mode = arc_mode(spec);
+    let mut mode = ArcMode::of(spec);
     let before = mode;
     egui::ComboBox::from_id_salt(("arc_mode", salt))
-        .selected_text(ARC_MODES[mode].0)
+        .selected_text(mode.label())
         .width(88.0)
         .show_ui(ui, |ui| {
-            for (index, (label, _)) in ARC_MODES.iter().enumerate() {
-                ui.selectable_value(&mut mode, index, *label);
+            for option in ArcMode::ALL {
+                ui.selectable_value(&mut mode, option, option.label());
             }
         });
     if mode != before {
-        *spec = ARC_MODES[mode].1();
+        *spec = mode.fresh();
     }
     match spec {
         ArcSpec::Radius { r, side } => {
@@ -4426,8 +4504,15 @@ fn path_step_fields(
 /// It differs from the panel's in one way, and deliberately: the
 /// panel's picker is an EDIT (`SessionOp::SetSlotUnit` — how a
 /// literal that exists is written), while this one only decides how
-/// the field in front of it reads. Nothing here reaches a document
-/// until the form's own commit button.
+/// the field beside it reads. Nothing here reaches a document until
+/// the form's own commit button.
+///
+/// **It is drawn after the fields it governs**, so a unit picked now
+/// re-writes them on the NEXT frame — the pick is an input event, so
+/// that frame is the one egui draws in response to it. Reading the
+/// choice before the fields instead would put the picker above them,
+/// which is not where a unit belongs relative to the number it is
+/// the unit of.
 fn unit_picker(ui: &mut egui::Ui, salt: &str, dimension: Dimension, chosen: &mut Option<UnitDef>) {
     let options = props::unit_options(dimension);
     if options.is_empty() {
