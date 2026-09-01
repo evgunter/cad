@@ -311,18 +311,44 @@ fn p1_wall1_named_pair_is_a_whole_torus_box_artifact_two_metres_from_contact() {
     );
 }
 
-/// P2 — the π-arm PRICE claim, re-measured through the verdict log.
-/// PR #1477: "34 metered rows for one rim pair — 27 classification
-/// (9 CERT_SAMPLES × material_wedge_side / tangent_second_order /
-/// material_cusp_side), 5 rim identification (rim_circle_center ×3,
-/// rim_circle_axis_parallel, rim_circle_radius), 2 conformal screen
-/// (carrier_torus_axis_parallel, carrier_torus_center)". This probe
-/// runs the PR's own G1 chain fixture and counts the definite verdicts
-/// per predicate. It also asserts NO OTHER new-numerics predicate
-/// fires (the "no new numerics" half of the claim: everything else in
-/// the log belongs to preexisting families).
+/// P2 — the π-arm PRICE claim, re-measured through the verdict log on
+/// the PR's own G1 chain fixture, counting definite verdicts per
+/// predicate.
+///
+/// **RE-MEASURED at the fix pass, and the number moved: 34 → 53.** This
+/// probe was written against the pre-fix routing, which reached the
+/// material arm with no first-order screen in front of it — the MAJOR
+/// defect. Importing the screen that arm is only defined behind costs
+/// one `classify_dihedral` per station, and that call meters two rows
+/// (`dihedral_arm`, `dihedral_wedge`), so nine stations add 18. The
+/// screen is what makes the answer TRUE; 18 rows is what truth costs
+/// here. No baseline is a target to preserve — the number moved and the
+/// question is whether the new behaviour is right, not how to get the
+/// old number back.
+///
+/// The whole current price:
+///
+/// - **18 first-order screen** — 9 × (`dihedral_arm`, `dihedral_wedge`);
+/// - **27 material arm** — 9 × (`material_wedge_side`,
+///   `tangent_second_order`, `material_cusp_side`);
+/// - **6 rim identification** — `rim_circle_radius` ×3,
+///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the fix
+///   pass put the two LENGTH data ahead of the angular one, so radius
+///   now leads and short-circuits more pairs);
+/// - **2 conformal screen** — `carrier_torus_axis_parallel`,
+///   `carrier_torus_center`.
+///
+/// **The counts are FIXTURE-SPECIFIC, and the split is the point.** The
+/// per-station blocks are structural — `CERT_SAMPLES` times the
+/// predicate set, true of any rim this door classifies — and are
+/// asserted against `CERT_SAMPLES` itself rather than against the
+/// literal 9, so they state the invariant instead of a coincidence. The
+/// rim-identification counts are not structural: they depend on how
+/// many boundary circles each face carries and on the order the scan
+/// meets them, so the same claim on the kissing fixture counts
+/// differently. That is why the PR body reports the price per fixture.
 #[test]
-fn p2_the_g1_chain_price_is_exactly_the_pr_bodys_34_rows() {
+fn p2_the_g1_chain_price_is_the_measured_53_rows() {
     // The PR's fixtures, verbatim from `mate7a_torus_rest.rs`.
     let seg_a = stem();
     let seg_b = {
@@ -360,16 +386,13 @@ fn p2_the_g1_chain_price_is_exactly_the_pr_bodys_34_rows() {
     }
     geom_core::k_stats::start_verdict_log();
     let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
-        .expect_err("the chain refuses RimArmUnbuilt");
+        .expect_err("the chain refuses at the routing");
     let log = geom_core::k_stats::take_verdict_log();
+    // The variant SPLIT after this probe was written (fix-pass MIN-6):
+    // the pi arm is built, so the seam case no longer borrows a name
+    // that calls its arm unbuilt. Same claim, current spelling.
     assert!(
-        matches!(
-            &err,
-            BooleanError::RimArmUnbuilt {
-                wedge: geom_brep::MaterialWedge::Seam,
-                ..
-            }
-        ),
+        matches!(&err, BooleanError::RimSeamNotDeclarable { .. }),
         "the chain's rim is the wedge-π seam: {err:?}"
     );
     let count = |name: &str| log.iter().filter(|v| v.predicate == name).count();
@@ -378,13 +401,19 @@ fn p2_the_g1_chain_price_is_exactly_the_pr_bodys_34_rows() {
         *histogram.entry(v.predicate).or_default() += 1;
     }
     println!("verdict histogram for the G1 chain fixture: {histogram:#?}");
+    let n = usize::try_from(geom_brep::CERT_SAMPLES).expect("the sample schedule fits usize");
     for (name, want) in [
-        ("material_wedge_side", 9),
-        ("tangent_second_order", 9),
-        ("material_cusp_side", 9),
-        ("rim_circle_center", 3),
+        // Structural: the per-station predicate set, once per station.
+        ("dihedral_arm", n),
+        ("dihedral_wedge", n),
+        ("material_wedge_side", n),
+        ("tangent_second_order", n),
+        ("material_cusp_side", n),
+        // Fixture-specific: how many boundary circles this face pair
+        // carries, and the order the scan meets them.
+        ("rim_circle_radius", 3),
+        ("rim_circle_center", 2),
         ("rim_circle_axis_parallel", 1),
-        ("rim_circle_radius", 1),
         ("carrier_torus_axis_parallel", 1),
         ("carrier_torus_center", 1),
     ] {
