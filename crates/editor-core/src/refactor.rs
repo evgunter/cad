@@ -282,18 +282,18 @@ impl core::fmt::Display for SplitError {
             ),
             Self::PartNameReachesRemainder { node, name } => write!(
                 f,
-                "split: cut node {}'s reference {name:?} derives from a node outside the cut — \
-                 the new document could not express it",
+                "split: cut node {}'s reference (the {name}) derives from a node outside the \
+                 cut — the new document could not express it",
                 node.0
             ),
             Self::NameStraddlesCut { name } => write!(
                 f,
-                "split: name {name:?} derives from both sides of the cut and can re-anchor to \
+                "split: the {name} derives from both sides of the cut and can re-anchor to \
                  neither document"
             ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
-                "split: body name {name:?} crosses the cut — a product's name table carries no \
+                "split: the {name} crosses the cut — a product's name table carries no \
                  root body rows, so the instance-qualified rewrite could never resolve"
             ),
             Self::Pin { error } => {
@@ -449,17 +449,17 @@ impl core::fmt::Display for InlineError {
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
                 f,
-                "inline: {name:?} names the instance's own output body, which no single spliced \
-                 node corresponds to"
+                "inline: the {name} names the instance's own output body, which no single \
+                 spliced node corresponds to"
             ),
             Self::ForeignInstanceName { name } => write!(
                 f,
-                "inline: {name:?} derives from the instance but is not an instance-qualified \
+                "inline: the {name} derives from the instance but is not an instance-qualified \
                  (`InPart`) name — it cannot re-anchor"
             ),
             Self::StrandedPartName { name } => write!(
                 f,
-                "inline: {name:?} derives from a node the referenced document no longer has — \
+                "inline: the {name} derives from a node the referenced document no longer has — \
                  repair the stranded reference before inlining"
             ),
             Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),

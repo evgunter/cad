@@ -15,24 +15,32 @@
 //!    with each other — back both bounds and retire the hard
 //!    `EdgeFaceOverlap`.
 //! 2. `r2_the_touching_boundary_residue_is_not_the_new_arms_doing` —
-//!    the `CensusUnsupported`/`TouchingBoundary` refusal is a property
+//!    the `CensusUnsupported`/`TouchingBoundary` refusal was a property
 //!    of the DECLARED PAIR's region relationship and of
-//!    `chart_region::interior_witness`'s fixed candidate schedule, not
-//!    of the new arm: a notched cap that never reaches the interior
-//!    arm at all lands the same refusal. (It is also already on main's
-//!    quoted error list for the PR's own seat.) Measured separately by
-//!    instrumenting `interior_witness`: on the PR's seat Door 1 is
-//!    `Definite`, the rung RUNS, and it declines because the schedule
-//!    (each outer trim's vertex centroid + ear midpoints) never lands
-//!    a point in the H-A-B overlap triangle — an overlap of ~7.5e-3 m2,
-//!    not an undecidable area.
+//!    `chart_region::interior_witness`'s candidate schedule, not of the
+//!    new arm: a notched cap that never reaches the interior arm at all
+//!    landed the same refusal, and now certifies alongside the seat for
+//!    the same reason. Measured at the frozen head by instrumenting
+//!    `interior_witness`: on the PR's seat Door 1 is `Definite`, the
+//!    rung RUNS, and it declined because the schedule of the day (each
+//!    outer trim's vertex centroid + ear midpoints) never landed a
+//!    point in the H-A-B overlap triangle — an overlap of ~7.5e-3 m2,
+//!    not an undecidable area. That schedule now searches the trims'
+//!    own arrangement and lands it.
 //! 3. `r2_the_new_rows_hold_at_the_default_band` — the seat's two
 //!    answers restated so the review's band sweep has a row: the
 //!    binary was run at `CAD_TOLERANCE_EPS` = unset (1e-9), 1e-12 and
 //!    1e-6 (the three gated rows) with the same answers at all three,
 //!    and at 1e-3 (outside the gate) where the answers survive but
 //!    four honest `CensusEscalated`s from `pm_census_ee_parallel`
-//!    (margin 8.94e-3 in band [1e-3, 1e-2]) join the list.
+//!    (margin 8.94e-3 in band [1e-3, 1e-2]) join the list. Re-measured
+//!    at all four after the schedule completion: the declared seat's
+//!    answer lost its one `CensusUnsupported` at every band, leaving an
+//!    empty list at the three gated ones and those four escalations
+//!    alone at 1e-3, and the bare seat's census is unmoved throughout.
+//!    The row below asserts the GATED answer, as it did before — it was
+//!    red at 1e-3 then too, for the same reason: 1e-3 is not a band the
+//!    matrix runs, and the escalations are honest there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -158,11 +166,16 @@ fn r2_an_unrelated_declared_pair_backs_the_ef_bound() {
 /// **Probe 2 — the `TouchingBoundary` residue is the declared pair's,
 /// not the new arm's.** The PR body reads the seat's surviving
 /// `CensusUnsupported` as the state the new arm parks this class in.
-/// Measured here: the same `CensusUnsupported` is raised for the
-/// notched cap below, which touches the shelf's `y = 0.30` edge at two
-/// vertices but never dives along it — so it has no edge-on-face
-/// overlap on that edge and never reaches the interior arm. The
-/// refusal is door 2's, on the declared pair's region relationship.
+/// Measured here: the notched cap below, which touches the shelf's
+/// `y = 0.30` edge at two vertices but never dives along it — so it has
+/// no edge-on-face overlap on that edge and never reaches the interior
+/// arm — moved in LOCKSTEP with the seat. At the frozen head both
+/// raised `CensusUnsupported`; both are now certified outright, by
+/// `interior_witness`'s completed schedule finding the sub-shelf
+/// triangle (~6e-3 m² here) that its fixed landmarks used to miss. The
+/// probe's claim is unchanged and is if anything better evidenced: a
+/// cap that never reaches the interior arm answers whatever the seat
+/// answers, so the residue was door 2's the whole time.
 #[test]
 fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
     // A cap that only TOUCHES the shelf's y = 0.30 edge at two vertices
@@ -197,19 +210,24 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
         "the notched cap has no hard finding: {found:?}"
     );
     assert!(
-        found
-            .iter()
-            .any(|e| matches!(e, ValidationError::CensusUnsupported { .. })),
-        "and it still lands the door-2 refusal, with no interior arm in \
-         sight: {found:?}"
+        found.is_empty(),
+        "and it answers door 2 exactly as the seat does, with no \
+         interior arm in sight: {found:?}"
     );
 }
 
 /// **Probe 3 — the seat's answers as a band-sweep row.** ε is a process
 /// global read from `CAD_TOLERANCE_EPS`, so a row cannot pick its own
-/// band; this one restates the seat's two answers and the review ran
-/// the binary at `CAD_TOLERANCE_EPS` = default (1e-9), 1e-12, 1e-6 and
-/// 1e-3, getting the same answers at all four.
+/// band; this one restates the seat's two answers and the binary was
+/// run at `CAD_TOLERANCE_EPS` = default (1e-9), 1e-12, 1e-6 and 1e-3,
+/// getting the same answers at all four — before the schedule
+/// completion and, re-measured, after it. The declared seat's answer is
+/// the one that moved, and it moved at every band together: the witness
+/// the completed schedule lands sits ~1.9e-2 m from the nearest trim
+/// boundary, three orders clear of the widest band swept. What this row
+/// asserts is the answer at the three GATED bands; at 1e-3 the four
+/// `pm_census_ee_parallel` escalations above are all that is left of
+/// the list, and this row was red there before this change as well.
 #[test]
 fn r2_the_new_rows_hold_at_the_default_band() {
     let (body, post_top, shelf_bottom, _, _, _) = overhang_seat_full();
@@ -219,13 +237,8 @@ fn r2_the_new_rows_hold_at_the_default_band() {
         "declared seat at the default band: {declared_seat:?}"
     );
     assert!(
-        matches!(
-            declared_seat.as_slice(),
-            [ValidationError::CensusUnsupported {
-                entity: topo::EntityId::Face(f),
-            }] if *f == post_top
-        ),
-        "same residue at the default band: {declared_seat:?}"
+        declared_seat.is_empty(),
+        "and the seat certifies at the default band: {declared_seat:?}"
     );
 
     let bare = undeclared(&errors(&body, &ContactRecords::default(), Tol::witness()));

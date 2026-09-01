@@ -99,6 +99,30 @@ pub enum MeshPickError {
     },
 }
 
+// The human-readable rendering: the one arm states the PROBLEM in the
+// type's own arena-key-free vocabulary — patch position, triangle
+// position, the out-of-range index — and calls the violation what it
+// is: a mesh that breaks its own invariant is corrupt input to report,
+// never geometry to guess at.
+impl core::fmt::Display for MeshPickError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PositionOutOfRange {
+                patch,
+                triangle,
+                index,
+            } => write!(
+                f,
+                "pick index: triangle {triangle} of patch {patch} references position {index}, \
+                 outside the mesh's position buffer — the mesh violates its own invariant, so \
+                 this is corrupt input, surfaced rather than skipped"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for MeshPickError {}
+
 /// The per-mesh picking acceleration state: a triangle [`Bvh`] plus
 /// the flat triangle table it indexes (module docs: consumer-held,
 /// epoch-invalidated).
@@ -216,6 +240,40 @@ pub enum NodePickError {
     /// The tessellated mesh failed indexing (corrupt back-references).
     Index(MeshPickError),
 }
+
+// The human-readable rendering (LIB-DOORS F6 shape): the two arms this
+// door owns state the PROBLEM in the pick-build vocabulary — which
+// node, and why its payload offers no body to index — and keep the
+// two payload distinctions the enum draws ("never draws" vs "draws
+// nothing today"). The wrapping arms FORWARD the payload's own
+// `Display` verbatim rather than paraphrasing a vocabulary another
+// door owns: `Standing` is the hit-test door's standing prose about
+// the same evaluation, and `Tessellate`/`Index` each carry their own
+// door's words, prefix included.
+impl core::fmt::Display for NodePickError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Standing(error) => write!(f, "{error}"),
+            Self::NotABody { node } => write!(
+                f,
+                "pick: node {}'s value is not body-denoting (a datum, profile, declaration, or \
+                 mate), so there is nothing to tessellate and index — offer a body-producing \
+                 node instead",
+                node.0
+            ),
+            Self::NoSuchBody { node, body } => write!(
+                f,
+                "pick: node {}'s value has no output body at index {} — the index is stale, or \
+                 that body is currently empty (an annihilated boolean, an empty split side)",
+                node.0, body
+            ),
+            Self::Tessellate(error) => write!(f, "{error}"),
+            Self::Index(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for NodePickError {}
 
 /// One node's `Ok` value, or the standing refusal that says why there
 /// is none.

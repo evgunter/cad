@@ -156,3 +156,26 @@ Handoffs recorded in the PR: the public full-wrap constructor, the
 cylinder interior_witness, the wall_sheet builder triplication.
 Slate: SIX of seven units merged; 4b design (PR #1440) and the
 MATE-7 tangency conversation are the Evan-paced tail.
+
+**2026-09-01 — MATE-8 MERGED (PR #1472; ordinal 1306, sample #89);
+issue 1435 CLOSED.** The 4b design's funded stage 0 landed:
+`interior_witness` runs a two-stage candidate schedule — stage 2
+the vertical-decomposition cell centres of both trims' boundaries,
+complete up to f64 rounding of the arrangement (declines-only
+degradation), the hint-vs-certificate split licensing f64, and a
+stated budget whose exhaustion now fails closed on non-finite
+input. The overhang seat certifies BOTH ways (the MATE-4a dual's
+bifurcation retired); the flush seat's fast path untouched. The
+dual: R1 MERGEABLE-AFTER-FIXES 1/4 + style, R2 MERGEABLE 0/2/2 —
+the deviation-4 record-correctness finding BILATERAL at split
+severity (the same calibration shape as MATE-5's pair; adjudicated
+MAJOR; no tally candidate). Issue 1478 filed at adjudication (the
+typed budget decline — census.rs's exhaustive matches are the real
+fence blocker, not the Display contract). Fix head gated
+`lane=both` × 1e-12; with the impl head's interval × 1e-6 the
+branch covered both compile modes across two tolerance rows.
+STAGE 1 of the 4b design (the crossing rung as the unified
+strength's first instance, the C3/C4 doctrine edit, the legacy-rung
+measured migrations) is now spec-able; block B3 slot 3 (FABLE) is
+the next implementer arm. MATE-7a's dual is in flight (ordinal
+1307, R1 FABLE + R2 OPUS on frozen 530eb8f59).
