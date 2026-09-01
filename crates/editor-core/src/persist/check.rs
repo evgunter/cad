@@ -566,12 +566,12 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "assertion node {} bounds {} measure (node {}) with {} \
-                 expression",
+                "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression",
                 node.0,
-                measured.with_article(),
+                measured.article(),
                 measure.0,
-                bound.with_article()
+                bound.article()
             ),
             Self::AssertionBound {
                 node,
@@ -580,10 +580,10 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "assertion node {} carries {} bound against node {}, which is not a \
+                "assertion node {} carries {} {bound} bound against node {}, which is not a \
                  measure",
                 node.0,
-                bound.with_article(),
+                bound.article(),
                 measure.0
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
@@ -809,9 +809,10 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "loop {loop_} step {step}'s {arg:?} argument needs {} \
-                 expression, got {found}",
-                expected.with_article()
+                "loop {loop_} step {step}'s {arg:?} argument needs {} {expected} \
+                 expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::SlotDimension {
                 slot,
@@ -819,8 +820,9 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "slot {slot:?} needs {} expression, got {found}",
-                expected.with_article()
+                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::Lattice {
                 loop_,

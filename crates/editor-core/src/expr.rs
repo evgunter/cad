@@ -55,6 +55,13 @@ pub enum Dimension {
 // assertion addressed to whoever debugs the kernel names the variant
 // (the identifier is the thing to grep), and the wire/key encodings
 // carry tags, not words.
+//
+// Two further spellings of this word list exist downstream and are
+// deliberate: `pncad-py`'s `errors::dimension_tag` (the FFI tag —
+// identical words, pinned equal to this rendering by that crate's
+// `dimension_tags_match_the_kernel_prose`) and its `py::value::
+// dimension_name` (capitalized, the Python `Measurement` repr). Each
+// says so at its own site.
 impl core::fmt::Display for Dimension {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
@@ -67,16 +74,18 @@ impl core::fmt::Display for Dimension {
 }
 
 impl Dimension {
-    /// The noun with the article that agrees with it ("a length", "an
-    /// angle"). A sentence cannot supply the article itself when the
-    /// value decides which one is correct, so it asks for both here
-    /// rather than writing "a angle".
-    pub(crate) fn with_article(self) -> &'static str {
+    /// The indefinite article agreeing with the `Display` noun, for
+    /// the sentence positions that need one. **The value decides it**
+    /// — a sentence that hard-codes "a" is wrong for every value whose
+    /// noun begins with a vowel, which is how "a angle" and "a edge"
+    /// both reached refusal prose. So the sentence writes `"{} {dim}"`
+    /// and the value supplies both halves. This is the crate's one
+    /// idiom for a rendered kind's article; `EntityKind::article` is
+    /// its twin, and covers a whole `StableName` phrase as well.
+    pub(crate) fn article(self) -> &'static str {
         match self {
-            Self::Length => "a length",
-            Self::Angle => "an angle",
-            Self::Count => "a count",
-            Self::Scalar => "a scalar",
+            Self::Length | Self::Count | Self::Scalar => "a",
+            Self::Angle => "an",
         }
     }
 }
@@ -182,14 +191,22 @@ impl core::fmt::Display for DimensionError {
                 "division needs a scalar divisor ({left} / {right} is refused in v1)"
             ),
             Self::TrigNeedsAngle { op, found } => {
-                write!(f, "`{op}` needs an angle operand, got {found}")
+                write!(
+                    f,
+                    "`{op}` needs an angle operand, got {} {found}",
+                    found.article()
+                )
             }
             Self::CountNeedsExplicitPromotion { op } => write!(
                 f,
                 "`{op}` on a count needs an explicit promotion (use count_to_scalar)"
             ),
             Self::NotCount { found } => {
-                write!(f, "a count operand is required, got {found}")
+                write!(
+                    f,
+                    "a count operand is required, got {} {found}",
+                    found.article()
+                )
             }
             Self::LiteralCountIsInteger => {
                 f.write_str("a count literal must be an integer (use Expr::count)")
@@ -1020,9 +1037,9 @@ impl core::fmt::Display for EvalError {
             ),
             Self::ContinuousExprInCountEval { found } => write!(
                 f,
-                "{} expression does not evaluate as a count — counts are exact \
+                "{} {found} expression does not evaluate as a count — counts are exact \
                  and never inferred from a continuous value",
-                found.with_article()
+                found.article()
             ),
             Self::CountOverflow => {
                 f.write_str("exact count arithmetic overflowed (a count never wraps)")

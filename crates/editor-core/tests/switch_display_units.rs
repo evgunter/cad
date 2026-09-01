@@ -185,7 +185,10 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
         // message says "angle". A refusal reading the first back out
         // is rendering through `Debug`.
         assert!(
-            !text.contains("Length") && !text.contains("Angle") && !text.contains("Scalar"),
+            !text.contains("Length")
+                && !text.contains("Angle")
+                && !text.contains("Scalar")
+                && !text.contains("Count"),
             "the wire tag reached the message where the prose word belongs, got {text}"
         );
     }

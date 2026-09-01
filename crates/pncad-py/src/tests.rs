@@ -29,6 +29,27 @@ fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Scalar), "scalar");
 }
 
+/// The FFI tag and the kernel's prose word are two spellings of one
+/// closed list. This crate owns the tag, so they are free to differ —
+/// but they do not, and a silent divergence between a refusal a user
+/// reads and the tag they branch on is worth a test rather than a
+/// convention.
+#[test]
+fn dimension_tags_match_the_kernel_prose() {
+    for dim in [
+        Dimension::Length,
+        Dimension::Angle,
+        Dimension::Count,
+        Dimension::Scalar,
+    ] {
+        assert_eq!(
+            dimension_tag(dim),
+            dim.to_string(),
+            "the FFI tag and the kernel's prose word have drifted apart"
+        );
+    }
+}
+
 #[test]
 fn canonical_units_match_the_gq5_ratification() {
     // GQ5 / §L4: canonical metres and radians underneath.

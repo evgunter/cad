@@ -912,12 +912,13 @@ impl core::fmt::Display for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "instance {}'s seam declaration from mate {} names a {} of the part \
+                "instance {}'s seam declaration from mate {} names {} {} of the part \
                  (minted by its node {}), which the pinned part's product does not \
                  name — the crossing does not re-verify against this version of the \
                  part",
                 instance.0,
                 mate.0,
+                name.kind.article(),
                 name.kind.noun(),
                 name.node.0
             ),
@@ -953,7 +954,7 @@ impl core::fmt::Display for NodeErrorKind {
                 found,
             } => write!(
                 f,
-                "input {} is a {found}; the operand needs a {expected}",
+                "input {} carries kind {found}; the operand needs kind {expected}",
                 input.0
             ),
             Self::EmptyOperand { input } => write!(
@@ -1005,6 +1006,9 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
             ),
+            // Forwards `StableName`'s `Display` rather than
+            // re-spelling the kind-plus-minting-node phrase; the pin
+            // builds its expectation from the impl.
             Self::DeclareBothOperands { name } => write!(
                 f,
                 "the declared {name} resolves in BOTH operands — the declaration cannot \
@@ -1030,8 +1034,9 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection name minted by node {} denotes a {}, not an edge",
+                "the {verb} selection name minted by node {} denotes {} {}, not an edge",
                 name.node.0,
+                found.article(),
                 found.noun()
             ),
             Self::BlendSelectionEmpty { verb } => write!(
@@ -1069,10 +1074,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureMalformed(fault) => write!(f, "{fault}"),
             Self::AssertionDimension { measured, bound } => write!(
                 f,
-                "the assertion's bound is {} and the measure it constrains is \
-                 {} — an assertion compares like with like or not at all",
-                bound.with_article(),
-                measured.with_article()
+                "the assertion's bound is {} {bound} and the measure it constrains is \
+                 {} {measured} — an assertion compares like with like or not at all",
+                bound.article(),
+                measured.article()
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))

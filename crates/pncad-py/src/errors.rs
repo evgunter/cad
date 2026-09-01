@@ -30,6 +30,14 @@ use pncad::document::Dimension;
 ///
 /// Total over the D6 closed set: adding a dimension stops this
 /// function compiling.
+///
+/// One of three spellings of this word list. The FFI tag is this
+/// crate's to own, but it happens to be word-for-word the kernel's
+/// prose rendering (`Dimension`'s `Display`) and
+/// `dimension_tags_match_the_kernel_prose` pins the two equal, so a
+/// drift is a test failure rather than a quiet divergence. The third
+/// is `py::value::dimension_name`, capitalized for the Python
+/// `Measurement` repr.
 pub const fn dimension_tag(dim: Dimension) -> &'static str {
     match dim {
         Dimension::Length => "length",

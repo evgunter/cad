@@ -744,8 +744,9 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "edit: slot {slot:?} needs {} expression, got {found}",
-                expected.with_article()
+                "edit: slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
                 f,
@@ -787,12 +788,12 @@ impl core::fmt::Display for EditError {
                 bound,
             } => write!(
                 f,
-                "edit: assertion node {} bounds {} measure (node {}) with {} \
-                 expression — an assertion compares like with like or not at all",
+                "edit: assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression — an assertion compares like with like or not at all",
                 node.0,
-                measured.with_article(),
+                measured.article(),
                 measure.0,
-                bound.with_article()
+                bound.article()
             ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,

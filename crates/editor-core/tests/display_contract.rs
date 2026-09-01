@@ -432,7 +432,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             expected: Dimension::Length,
             found: Dimension::Angle,
         },
-        &["needs a length expression", "got angle"],
+        &["needs a length expression", "got an angle"],
         &dumps,
     );
     assert_f6(
@@ -507,14 +507,14 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             op: "sin",
             found: Dimension::Count,
         },
-        &["needs an angle operand", "got count"],
+        &["needs an angle operand", "got a count"],
         &dumps,
     );
     assert_f6(
         &DimensionError::NotCount {
             found: Dimension::Scalar,
         },
-        &["a count operand is required", "got scalar"],
+        &["a count operand is required", "got a scalar"],
         &dumps,
     );
     assert_f6(
@@ -564,7 +564,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             expected: Dimension::Length,
             found: Dimension::Count,
         },
-        &["needs a length expression", "got count"],
+        &["needs a length expression", "got a count"],
         &["Length", "Count"],
     );
     assert_f6(
@@ -573,7 +573,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             expected: Dimension::Length,
             found: Dimension::Angle,
         },
-        &["needs a length expression", "got angle"],
+        &["needs a length expression", "got an angle"],
         &dumps,
     );
     assert_f6(
@@ -641,5 +641,48 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
     assert!(
         shown.contains(&format!("the declared {phrase} resolves")),
         "the declaration refusal re-spells the name instead of forwarding it: {shown:?}"
+    );
+}
+
+/// An entity kind carries the article that agrees with it, because the
+/// value decides which one is correct: three of the four kinds take
+/// "a" and `Edge` takes "an", so a sentence that hard-codes one is
+/// wrong for every edge-kind refusal it can reach — and each of these
+/// IS reachable with an edge (a mate reference may name any kind,
+/// which is what `NotAFace` reports).
+#[test]
+fn an_entity_kind_carries_the_article_that_agrees_with_it() {
+    let edge_name = StableName {
+        kind: EntityKind::Edge,
+        node: RecipeNodeId(7),
+        path: vec![RoleSeg::Cap(CapEnd::Top)],
+    };
+
+    let reference = AssemblyError::Reference {
+        mate: RecipeNodeId(2),
+        side: MateSide::A,
+        name: Box::new(edge_name.clone()),
+        why: RefusedRef::NotAFace {
+            kind: EntityKind::Edge,
+        },
+    };
+    let shown = reference.to_string();
+    assert!(
+        shown.contains(&format!("(an {edge_name})")) && shown.contains("it names an edge"),
+        "an edge-kind mate reference reads as \"a edge\": {shown:?}"
+    );
+
+    let face = AssemblyError::Reference {
+        mate: RecipeNodeId(2),
+        side: MateSide::A,
+        name: Box::new(face_name()),
+        why: RefusedRef::NotAFace {
+            kind: EntityKind::Vertex,
+        },
+    };
+    let shown = face.to_string();
+    assert!(
+        shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
+        "the consonant kinds must keep \"a\": {shown:?}"
     );
 }
