@@ -995,6 +995,57 @@ mod tests {
         assert!(d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan());
     }
 
+    /// A described NURBS fixture: the rational quadratic quarter circle
+    /// of radius 2 about the origin in the xy-plane (weights
+    /// `[1, √2/2, 1]`), so the payload is rational and non-trivial.
+    fn quarter_circle_nurbs() -> Curve3<f64> {
+        let knots =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+        ];
+        let weights = vec![1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0];
+        Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
+    }
+
+    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// the lifted curve's value channel is the source's evaluation bit
+    /// for bit, and its tangent channel is the source's closed-form
+    /// derivative to rounding.
+    #[test]
+    fn described_nurbs_lifts_as_its_payload_at_dual() {
+        let c = quarter_circle_nurbs();
+        let cd: Curve3<Dual64> = lift_to_dual(&c);
+        for t in [0.0, 0.3, 0.5, 0.75, 1.0] {
+            let p = cd.eval(Dual::variable(t));
+            let q = c.eval(t);
+            let d = c.deriv(t);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, d.x),
+                ("y", p.y, q.y, d.y),
+                ("z", p.z, q.z, d.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "t = {t}: lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-12 * (1.0 + tangent.abs()),
+                    "t = {t}: lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+        assert!(
+            matches!(&cd, Curve3::Nurbs(n) if !n.is_placeholder()),
+            "a described NURBS lifted to the placeholder"
+        );
+    }
+
     #[test]
     fn poison_parameter_poisons_the_point() {
         let c = xy_circle(2.0);
@@ -1158,6 +1209,36 @@ mod tests {
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
             let n: Curve3<Interval> = Curve3::nurbs_placeholder();
             assert!(n.eval(Interval::zero()).x.lo().is_nan());
+        }
+
+        /// The interval half of the payload-lift row: a described NURBS
+        /// lifts as its payload, and the lifted enclosure brackets the
+        /// source's f64 evaluation at every sampled parameter.
+        #[test]
+        fn described_nurbs_lifts_as_its_payload_at_interval() {
+            let c = super::quarter_circle_nurbs();
+            let ci = lift(&c);
+            for t in [0.0, 0.3, 0.5, 0.75, 1.0] {
+                let p = ci.eval(Interval::from_f64(t));
+                let q = c.eval(t);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "t = {t}: lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() < 1e-12,
+                        "t = {t}: {name} too wide"
+                    );
+                }
+            }
+            assert!(
+                matches!(&ci, Curve3::Nurbs(n) if !n.is_placeholder()),
+                "a described NURBS lifted to the placeholder"
+            );
         }
 
         /// `Dual<Interval>` instantiates cleanly and its derivative

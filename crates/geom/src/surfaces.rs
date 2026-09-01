@@ -1033,6 +1033,69 @@ mod tests {
     // Totality and poison
     // ------------------------------------------------------------------
 
+    /// A described NURBS fixture: a rational degree-(2, 1) sheet — a
+    /// quadratic arch extruded linearly in `v`, weights varying along
+    /// `u` — so the payload is rational and non-trivial in both
+    /// directions.
+    fn arch_sheet_nurbs() -> Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.5),
+            Point3::new(2.0, 0.0, 0.0),
+        ];
+        let wu = [1.0, 0.75, 1.25];
+        let mut control = Vec::with_capacity(6);
+        let mut weights = Vec::with_capacity(6);
+        for (b, w) in base.iter().zip(wu) {
+            control.push(*b);
+            control.push(Point3::new(b.x, b.y, b.z + 3.0));
+            weights.push(w);
+            weights.push(w);
+        }
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    }
+
+    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// the lifted surface's value channel is the source's evaluation bit
+    /// for bit, and its `u`-tangent channel is the source's closed-form
+    /// `∂u` to rounding.
+    #[test]
+    fn described_nurbs_lifts_as_its_payload_at_dual() {
+        let s = arch_sheet_nurbs();
+        let sd: Surface<Dual64> = lift_dual(&s);
+        for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
+            let p = sd.eval(Dual::variable(u), Dual::constant(v));
+            let q = s.eval(u, v);
+            let du = s.deriv_u(u, v);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, du.x),
+                ("y", p.y, q.y, du.y),
+                ("z", p.z, q.z, du.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "(u, v) = ({u}, {v}): lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-12 * (1.0 + tangent.abs()),
+                    "(u, v) = ({u}, {v}): lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+        assert!(
+            matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
+            "a described NURBS lifted to the placeholder"
+        );
+    }
+
     #[test]
     fn nurbs_placeholder_evaluates_to_poison() {
         let n: Surface<f64> = Surface::nurbs_placeholder();
@@ -1239,6 +1302,36 @@ mod tests {
                     );
                 }
             }
+        }
+
+        /// The interval half of the payload-lift row: a described NURBS
+        /// lifts as its payload, and the lifted enclosure brackets the
+        /// source's f64 evaluation at every sampled parameter pair.
+        #[test]
+        fn described_nurbs_lifts_as_its_payload_at_interval() {
+            let s = super::arch_sheet_nurbs();
+            let si = lift(&s);
+            for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
+                let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
+                let q = s.eval(u, v);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "(u, v) = ({u}, {v}): lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() < 1e-12,
+                        "(u, v) = ({u}, {v}): {name} too wide"
+                    );
+                }
+            }
+            assert!(
+                matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
+                "a described NURBS lifted to the placeholder"
+            );
         }
 
         /// NaI in → NaI out, and the Nurbs placeholder poisons at
