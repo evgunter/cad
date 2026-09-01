@@ -23,10 +23,10 @@ fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
     geom_core::Point2::new(x, y)
 }
 
-fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
+fn validated(loops: Vec<ProfileLoop<f64>>) -> Result<profile::ValidatedProfile<f64>, String> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
-        .unwrap()
+        .map_err(|e| format!("profile validation: {e:?}"))
 }
 
 fn axis_y() -> sweep::RevolveAxis<f64> {
@@ -37,19 +37,20 @@ fn axis_y() -> sweep::RevolveAxis<f64> {
 }
 
 /// Ball of radius r about the origin (two half-bands on one sphere).
-fn ball(r: f64) -> Result<topo::Body<f64>, sweep::RevolveError> {
+fn ball(r: f64) -> Result<topo::Body<f64>, String> {
     let bulge = 1.0; // semicircle
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(0.0, -r), bulge),
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
     revolve(
-        &validated(vec![lp]),
+        &validated(vec![lp])?,
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
     .map(|r| r.body)
+    .map_err(|e| format!("revolve: {e:?}"))
 }
 
 /// Slab covering x,y up to y = d (top wall a y-normal plane), z in

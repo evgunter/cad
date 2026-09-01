@@ -59,8 +59,10 @@
 //! the profile, the pcurve lane far beyond); the **plane split** and
 //! **boolean** doors (review rows `r2_split_door.rs` /
 //! `r2_bool_door.rs` / `r1_probe_bool_route.rs`: every sphere-face
-//! cut refuses `CurvedBooleanUnsupported` / `CurvedPierceUnsupported`
-//! at every probed height, and R1's eleven near-tangent plane×sphere
+//! cut refuses typed at every probed height — as
+//! `CurvedBooleanUnsupported` / `CurvedPierceUnsupported` at the
+//! default band, and at earlier profile/adoption escalations on the
+//! coarser bands; R1's eleven near-tangent plane×sphere
 //! configurations all refuse typed). Reasoned or measured shut by
 //! review: `transform_rigid` (an isometry moves junctions and poles
 //! together), `split_edge` (its interiority gate is metred against
