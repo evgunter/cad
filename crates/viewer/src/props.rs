@@ -272,11 +272,12 @@ pub struct SlotRow {
     /// The value the slot has under the document's parameters, or the
     /// typed reason it has none.
     pub value: Result<SlotValue, SlotFault>,
-    /// The display unit the slot's expression REMEMBERS, `None` when it
-    /// remembers none. This is the STORED fact, not the shown one — put
-    /// it through [`written_unit`] for the unit to display in, and hand
-    /// it back to [`slot_edit`] unchanged so that editing the number
-    /// does not rewrite how the number is written.
+    /// The display unit the slot's expression REMEMBERS — `None` only
+    /// where there is no literal to remember one, i.e. a slot driven by
+    /// an expression. This is the STORED fact, not the shown one: put
+    /// it through [`rendering_unit`] for the unit to display in, and
+    /// hand it back to [`slot_edit`] unchanged so that editing the
+    /// number does not rewrite how the number is written.
     pub unit: Option<UnitDef>,
     /// The slot expression's own SOURCE TEXT (`unparse`), `None` only
     /// where the node lists a slot it carries no expression for.
