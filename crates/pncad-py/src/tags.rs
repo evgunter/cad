@@ -6,9 +6,16 @@
 //! because prose is not a stable interface — and its human message is
 //! the kernel error's own `Display`, never a `Debug` dump.
 //!
-//! Neither [`EditError`] nor [`NodeErrorKind`] is re-exported with a
-//! field-level accessor set, so a tag plus the rendered message is the
-//! whole of what a scaffold can read today.
+//! A tag is not the whole payload. Most doors project every arm's
+//! fields as attributes beside it — `py/readback.rs` and
+//! `py/refactor.rs` are the worked examples: one exhaustive `match`,
+//! every attribute present on every arm and `None` where the arm does
+//! not carry it, so `getattr` never raises and a caller never has to
+//! branch on `variant` first. Seven doors still cross as tag plus
+//! message alone (`EditError`, `DeclareError`, `PersistError`,
+//! [`PathError`], [`FrameError`], the STL trio, and the STEP importer,
+//! which argues its case at its own site); #1479 owns that remainder
+//! and lists what each of them withholds.
 //!
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
@@ -18,9 +25,6 @@
 //! which forces a wildcard arm and takes the compile-time alarm away
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
-//!
-//! Full per-variant field projection (node ids, slots, operand roles)
-//! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
     AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
@@ -43,6 +47,12 @@ use pncad::workspace::WorkspaceError;
 /// `PathError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant —
 /// the [`persist_error_tag`] treatment, not the `Debug`-dump one.
+///
+/// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
+/// `PathError` carries no fieldless kind, so this map derives one from
+/// outside and `editor-core`'s edit door — which cannot reach even
+/// this far, the refusal degrading to `String` there — substring-matches
+/// prose for the same fact. #1480 is that type's half.
 pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err {
         PathError::JunctionTangent { .. } => "junction_tangent",
