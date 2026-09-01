@@ -36,6 +36,8 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
 use pncad::profile::SketchPlane;
+use pncad::quantity::{WrittenAngle, WrittenLength};
+use viewer::props;
 use viewer::revolvetool::RevolveTool;
 use viewer::seats::{Seat, SeatError, SeatEvent};
 use viewer::session::{
@@ -976,4 +978,136 @@ fn reconcile_drops_both_picks_across_a_new_document() {
     assert_eq!(events.len(), 2, "both picks dropped, loudly: {events:?}");
     assert_eq!(tool.profile(), None);
     assert_eq!(tool.axis(), None);
+}
+
+/// **The reported defect, end to end: a form authoring in millimetres
+/// produces a document that reads back in millimetres.**
+///
+/// Before this, every creation op carried a bare canonical `f64`, so
+/// the form's unit picker moved what was on SCREEN and nothing else:
+/// the session minted a unit-less literal and the panel rendered it in
+/// metres until the user reached for the panel's own picker. The op
+/// vocabulary is what closed it — an `Expr` carries the notation the
+/// form built it with — so this row drives the same door the chrome
+/// does and asserts on what the PANEL then says, not on the op.
+///
+/// It walks all three shapes the report covers: a scalar slot
+/// (`AddExtrude`), a vector one (`AddDatum`, whose origin the form
+/// writes from one picker), and a profile, whose template is lowered
+/// in the form's notation rather than in the session.
+#[test]
+fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let mm = Notation {
+        length: pncad::quantity::MM,
+        angle: pncad::quantity::DEG,
+    };
+
+    // The extrude form's one field, authored the way the chrome does:
+    // the draft is canonical, the picker says how it is written.
+    let extrude_distance = Expr::written_length(WrittenLength::canonical_in(0.01, mm.length))
+        .expect("10 mm is a length");
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: SketchPlane::xy(),
+            loops: vec![
+                viewer::sketch::loop_program(
+                    &ProfileShape::Circle {
+                        centre: [0.0, 0.0],
+                        radius: 0.005,
+                    },
+                    mm,
+                )
+                .expect("a 5 mm circle"),
+            ],
+        },
+    );
+    let extrude = insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: extrude_distance,
+        },
+    );
+
+    let row = props::slot_rows(session.committed_doc(), extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the extrude has a distance");
+    assert_eq!(
+        row.unit.map(|u| u.symbol()),
+        Some("mm"),
+        "the panel row remembers the form's unit, with no picker touched"
+    );
+    assert_eq!(
+        props::field_text(&row),
+        "10",
+        "and the field reads 10, not 0.01"
+    );
+    // The canonical value is untouched by any of it.
+    assert_eq!(
+        row.value.expect("a value").as_f64().to_bits(),
+        0.01_f64.to_bits()
+    );
+
+    // The profile's literals took the same notation through the
+    // template lowering — the form's job, not the session's.
+    let radius = props::slot_rows(session.committed_doc(), profile)
+        .into_iter()
+        .find(|row| matches!(row.value, Ok(ref v) if v.as_f64() == 0.005))
+        .expect("the circle's radius");
+    assert_eq!(radius.unit.map(|u| u.symbol()), Some("mm"));
+
+    // A vector slot: one picker, three components, all three written
+    // in it — the panel folds them into one row and one unit.
+    let datum = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Point {
+                position: [0.001, 0.002, 0.003].map(|metres| {
+                    Expr::written_length(WrittenLength::canonical_in(metres, mm.length))
+                        .expect("a finite length")
+                }),
+            },
+        },
+    );
+    for row in props::slot_rows(session.committed_doc(), datum) {
+        assert_eq!(
+            row.unit.map(|u| u.symbol()),
+            Some("mm"),
+            "every component of the vector, not just the first"
+        );
+    }
+
+    // And an ANGLE authored in degrees, the other half of the picker
+    // pair — a right angle reads as 90, not as 1.5707963267948966.
+    let axis = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Axis {
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let revolve = insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            axis,
+            angle: Expr::written_angle(WrittenAngle::canonical_in(
+                core::f64::consts::FRAC_PI_2,
+                mm.angle,
+            ))
+            .expect("a right angle"),
+        },
+    );
+    let row = props::slot_rows(session.committed_doc(), revolve)
+        .into_iter()
+        .find(|row| row.slot == SlotId::RevolveAngle)
+        .expect("the revolve has an angle");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("deg"));
+    assert_eq!(props::field_text(&row), "90");
 }
