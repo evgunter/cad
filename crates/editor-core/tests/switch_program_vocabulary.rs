@@ -135,12 +135,18 @@ fn mode_witness(mode: ArcMode) -> ProgramArcData {
 /// red when a table verb is unreachable from here. The per-variant
 /// spelling is for reading, not for enforcement.
 ///
-/// The MODE side is forced, and differently: the `ArcTo` block is
-/// generated from `ArcMode::ALL` through [`mode_witness`], so every
-/// mode rides the wire round-trip and the slot bijection below without
-/// anyone remembering to add it. The specs inside the fused steps stay
-/// hand-written, because what they cover is the spec₂ ROLE twins, not
-/// the mode set.
+/// The MODE side is forced, and differently: the `ArcTo` block and
+/// both single-spec fused blocks are generated from `ArcMode::ALL`
+/// through [`mode_witness`], so every mode rides the wire round-trip
+/// and the slot bijection below in both spec positions — the twins a
+/// mode addresses in the arrival position are not the ones it
+/// addresses as a fused incoming — without anyone remembering to add
+/// it.
+///
+/// The gap that remains, stated: `ArcFilletArc` is hand-written and
+/// walked at ONE mode pair, because it is the step whose two specs can
+/// address the same role twice (issue #829), so generating its pairs
+/// would author the aliasing case rather than test around it.
 fn chain_steps() -> Vec<ProgramStep> {
     let mut steps = vec![
         ProgramStep::At(pt(0.0, 0.0)),
@@ -164,21 +170,20 @@ fn chain_steps() -> Vec<ProgramStep> {
         ProgramStep::TangentArcTo(ProgramTarget::Start),
         ProgramStep::ArcContinue(pt(3.0, 1.0)),
         ProgramStep::Fillet(len(0.2)),
-        ProgramStep::FilletArc {
-            radius: len(0.3),
-            spec: ProgramArcData::Via {
-                q: pt(4.0, 1.0),
-                target: point(5.0, 1.0),
-            },
-        },
-        ProgramStep::ArcFillet {
-            spec: ProgramArcData::Center {
-                c: pt(6.0, 1.0),
-                winding: profile::ArcSweep::Ccw,
-                target: ProgramTarget::Start,
-            },
-            radius: len(0.4),
-        },
+    ]);
+    // Every mode in the ARRIVAL (spec₂) position, then every mode in
+    // the fused INCOMING position: the role twins each mode addresses
+    // differ between the two, so a mode walked in one is not walked in
+    // the other.
+    steps.extend(ArcMode::ALL.iter().map(|mode| ProgramStep::FilletArc {
+        radius: len(0.3),
+        spec: mode_witness(*mode),
+    }));
+    steps.extend(ArcMode::ALL.iter().map(|mode| ProgramStep::ArcFillet {
+        spec: mode_witness(*mode),
+        radius: len(0.4),
+    }));
+    steps.extend([
         ProgramStep::ArcFilletArc {
             spec: ProgramArcData::Sweep {
                 r: len(1.5),
@@ -305,9 +310,29 @@ fn every_arc_mode_is_a_document_program() {
         .expect("the corpus resolves at f64")
         .iter()
         .flat_map(|loop_| loop_.iter())
-        .filter_map(|step| match step {
-            profile::Step::ArcTo(spec) => Some(spec.mode()),
-            _ => None,
+        .flat_map(|step| match step {
+            profile::Step::ArcTo(spec)
+            | profile::Step::FilletArc { spec, .. }
+            | profile::Step::ArcFillet { spec, .. } => vec![spec.mode()],
+            profile::Step::ArcFilletArc { spec, spec2, .. } => vec![spec.mode(), spec2.mode()],
+            // Named rather than swept into a trailing arm: which verbs
+            // carry an arc spec is what this clause assumes, so a verb
+            // that gains one is adjudicated here.
+            profile::Step::At(_)
+            | profile::Step::Angle(_)
+            | profile::Step::Toward { .. }
+            | profile::Step::Tangent
+            | profile::Step::Cusp
+            | profile::Step::Turn(_)
+            | profile::Step::Line(_)
+            | profile::Step::LineTo(_)
+            | profile::Step::TangentArcTo(_)
+            | profile::Step::ArcContinue(_)
+            | profile::Step::Fillet { .. }
+            | profile::Step::FarEndTo(_)
+            | profile::Step::CloseTo
+            | profile::Step::Circle { .. }
+            | profile::Step::CircleSplit { .. } => vec![],
         })
         .collect();
     let missing: Vec<&ArcMode> = ArcMode::ALL

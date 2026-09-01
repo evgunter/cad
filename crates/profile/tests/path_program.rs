@@ -51,9 +51,10 @@ fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
 /// Every arc mode a program names, in step order — the two fused
 /// verbs' incoming and arrival specs counted separately.
 ///
-/// Blind spot, stated: the spec-carrying variants are named by hand,
-/// so a verb that GAINS an arc spec is invisible here until this list
-/// grows; the trailing arm is every step that carries no spec.
+/// Exhaustive on [`Step`], with the spec-free verbs named rather than
+/// swept into a trailing arm: which verbs carry an arc spec is the one
+/// thing this helper assumes, and a verb that GAINS one has to be
+/// adjudicated here rather than silently falling out of reach.
 fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
     let mut out = Vec::new();
     for step in program {
@@ -65,7 +66,21 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
                 out.push(spec.mode());
                 out.push(spec2.mode());
             }
-            _ => {}
+            Step::At(_)
+            | Step::Angle(_)
+            | Step::Toward { .. }
+            | Step::Tangent
+            | Step::Cusp
+            | Step::Turn(_)
+            | Step::Line(_)
+            | Step::LineTo(_)
+            | Step::TangentArcTo(_)
+            | Step::ArcContinue(_)
+            | Step::Fillet { .. }
+            | Step::FarEndTo(_)
+            | Step::CloseTo
+            | Step::Circle { .. }
+            | Step::CircleSplit { .. } => {}
         }
     }
     out
