@@ -51,7 +51,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, KProbe, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram,
+    ProfileProgram, UnitSym,
 };
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 use geom_core::{Sign, Tol};
@@ -70,6 +70,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(Distribution::Uniform {
                 lo: -half,
                 hi: half,

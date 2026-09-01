@@ -735,8 +735,9 @@ FAMILIES = {
 #:   pair to name. `PartialPath` is the Rust lattice's one type where
 #:   Python has one CLASS PER STATE (`PathOpen`, `PathPoint`,
 #:   `PathDirectedPoint`, …), which is §L4's typestate translation.
-#:   `LineTarget` and `TangentArcTarget` are absorbed into the verbs
-#:   that take them, and `bulge_from_center`/`bulge_from_via` into the
+#:   `LineTarget`, `ContinueTarget` and `TangentArcTarget` are absorbed
+#:   into the verbs that take them, and
+#:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `DocParam.length`/`angle`/`count`/`scalar` choose between;
 #:   `SlotId` is what `DocEdit.bind_count_param` names implicitly;
@@ -768,7 +769,9 @@ FAMILIES = {
 #: interior behind `FlushFinding` (`DeclaredContact`, `ContactVerdict`,
 #: `ContactRefusal`, `FlushEvidence`, `ContactRecords`,
 #: `BooleanDeclarations`), the fillet's coincidence band
-#: (`Band`, `BandError`, built from the run's epsilon), and
+#: (`Band`, `BandError`, built from the run's epsilon), the closing
+#: verbs' refusal-site tag (`CloseSite` — Python receives the KIND, not
+#: the payload behind it), and
 #: `ContentBits` — a TRAIT, and Python has no way to spell one.
 #:
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
@@ -909,6 +912,11 @@ NOT_BOUND = {
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
+    # `continue_to`'s target trait, absorbed into the verb exactly as
+    # `LineTarget` and `TangentArcTarget` are — and the verb itself is
+    # not bound in Python yet either (the Rust-side roster records
+    # that, `surface_census.rs`).
+    "ContinueTarget": SHAPE,
     "LoftError": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
@@ -927,6 +935,11 @@ NOT_BOUND = {
     "UnitSym": SHAPE,
     "PartialPath": SHAPE,
     "PathNoCornerReason": SHAPE,
+    # WHICH of a closing verb's two junction checks refused: a refusal
+    # PAYLOAD field. Python receives path refusals as tagged
+    # exceptions, and the tag is the kind — the payload data behind it
+    # never crosses, exactly as the fillet's coincidence band does not.
+    "CloseSite": INTERIOR,
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
