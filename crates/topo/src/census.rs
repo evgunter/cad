@@ -1193,6 +1193,7 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         | ChartRegionError::MissingCache { .. }
                         | ChartRegionError::ArmUnbounded { .. }
                         | ChartRegionError::SeamBranch
+                        | ChartRegionError::PeriodFold
                         | ChartRegionError::CarrierTilt
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
@@ -2298,6 +2299,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 | ChartRegionError::MissingCache { .. }
                 | ChartRegionError::ArmUnbounded { .. }
                 | ChartRegionError::SeamBranch
+                | ChartRegionError::PeriodFold
                 | ChartRegionError::CarrierTilt
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }

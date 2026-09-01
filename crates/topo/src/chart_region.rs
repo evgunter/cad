@@ -16,26 +16,45 @@
 //!   [`crate::GeomSource`] — the N6 retirement theorem gives
 //!   bit-identical descriptions, hence the identical chart.
 //!
-//! **Rung-3 (declared) pairs have exactly ONE further authority**: the
-//! shared WORLD CARRIER of a PLANAR pair ([`declared_pair_overlap`],
-//! ratified as U-R2 with its justification corrected 2026-08-27). That
-//! carrier is a CHOICE OF REPRESENTATIVE FRAME, not a frame-free
-//! object — a plane description carries `u_ref` too, and the arm reads
-//! both trims in face A's frame. What makes the choice honest is the
-//! **frame-invariance lemma** stated at [`world_carrier`], gated by
-//! the `chart_region_carrier_tilt` row ([`carrier_agreement`]) which
-//! meters the two descriptions' disagreement at the PAIR'S OWN EXTENT.
-//! The claim it earns is *certified everywhere within ε*, never
-//! *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not bit-zero.
+//! **Rung-3 (declared) pairs have exactly TWO further authorities**
+//! ([`declared_pair_overlap`]):
+//!
+//! - the shared WORLD CARRIER of a PLANAR pair (ratified as U-R2 with
+//!   its justification corrected 2026-08-27). That carrier is a CHOICE
+//!   OF REPRESENTATIVE FRAME, not a frame-free object — a plane
+//!   description carries `u_ref` too, and the arm reads both trims in
+//!   face A's frame. What makes the choice honest is the
+//!   **frame-invariance lemma** stated at [`world_carrier`], gated by
+//!   the `chart_region_carrier_tilt` row ([`carrier_agreement`]) which
+//!   meters the two descriptions' disagreement at the PAIR'S OWN
+//!   EXTENT;
+//! - the **certified everywhere-within-ε overlap enclosure of a
+//!   CYLINDER pair** ([`cylinder_pair_overlap`], issue 943's residue —
+//!   the sanctioned closing shape of CENSUS-REST-CLOSURE Q2). Here the
+//!   two charts genuinely diverge as charts (`u_ref`, seam, axis
+//!   station and direction), so the arm does not pretend they are one:
+//!   it CARRIES one description's trim images across the exact affine
+//!   relation between the charts — `(u, v) ↦ (δ + σ·u + kτ, c + σ·v)`
+//!   — after its own carrier gates certify that the two descriptions
+//!   agree within ε everywhere the pair's trims reach, and folds the
+//!   angular coordinate by ONE whole period pinned per pair (the
+//!   [`ChartRegionError::PeriodFold`] decline when the fold cannot be
+//!   pinned — issue 1191's territory, consumed not repaired).
+//!
+//! For both arms the claim earned is *certified everywhere within ε*,
+//! never *exact*: `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
+//! bit-zero.
 //!
 //! Every other declared pair keeps the typed escalation
 //! [`ChartRegionError::ChartDivergence`]. C2's caveat — two
 //! descriptions of one locus may differ as charts (`u_ref`, seam) — is
-//! REAL for the curved kinds, where no world embedding arbitrates the
-//! in-surface frame, so "exact in chart space" is unachievable there
-//! and the honest posture stays a typed escalation naming the
-//! divergence, not a margined pseudo-exact test in whichever chart we
-//! happened to pick.
+//! REAL for the remaining curved kinds, where a certified transfer
+//! between the charts has not been built, so the honest posture stays
+//! a typed escalation naming the divergence, not a margined
+//! pseudo-exact test in whichever chart we happened to pick. The
+//! residue, restated per kind at the refusal site
+//! ([`declared_pair_overlap`]'s kind gate), keeps the certified-ε
+//! enclosure recorded as each kind's sanctioned closing shape.
 //!
 //! # The planar trim inventory, defined structurally (C6)
 //!
@@ -168,6 +187,15 @@ pub enum ChartRegionError {
     /// a periodic chart — no common-branch region representation
     /// exists (module docs).
     SeamBranch,
+    /// The whole-period fold that carries one cylinder description's
+    /// chart window onto the other's could not be PINNED to a single
+    /// integer at this scalar: the fold is floor-based, and a
+    /// straddling enclosure honestly widens toward the whole period
+    /// (issue 1191's widening class, consumed not repaired here). The
+    /// widening is conservative BY DIRECTION — it declines toward
+    /// escalation, never toward certifying a false overlap; recourse
+    /// is the exact lane, or the S-CERT fold reformulation.
+    PeriodFold,
     /// A declared PLANAR pair's two carriers are definitely apart
     /// somewhere over the pair's OWN extent (`chart_region_carrier_tilt`):
     /// Door 1 certified the carriers at its pinned 1 m arm, and at this
@@ -237,6 +265,13 @@ impl core::fmt::Display for ChartRegionError {
                 "chart-region: the pair's loops do not fit one period-wide azimuth \
                  window — different periodic branches have no common region \
                  representation (branch normalization is a later rung)"
+            ),
+            Self::PeriodFold => write!(
+                f,
+                "chart-region: the cross-description angular fold could not be \
+                 pinned to one whole period at this scalar (a floor fold over a \
+                 straddling enclosure widens to the period — issue 1191's class); \
+                 the widening declines, it never certifies"
             ),
             Self::CarrierTilt => write!(
                 f,
@@ -505,22 +540,35 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 /// chart authority may be a VERIFIED DECLARATION (rung 3) certifies
 /// through, in the fixed order structural-identity-first.
 ///
-/// Two authorities answer the same question:
+/// Three authorities answer the same question, in fixed order:
 ///
 /// - [`same_chart`] — the descriptions are structurally ONE chart
 ///   (shared key / same `GeomSource`), so the trims are read in it
 ///   directly. Strictly stronger, so it is asked first.
-/// - the **shared world carrier**, PLANAR pairs only
+/// - the **shared world carrier**, PLANAR pairs
 ///   ([`world_carrier`]): a representative frame, legitimate exactly
 ///   to the extent of that function's frame-invariance lemma, and only
 ///   once [`carrier_agreement`] has certified that the two
 ///   descriptions agree over the PAIR'S OWN EXTENT.
+/// - the **certified-ε enclosure**, CYLINDER pairs
+///   ([`cylinder_pair_overlap`], issue 943's residue closed): one
+///   description's trim images carried across the exact affine chart
+///   relation onto the other's, gated by that arm's own carrier
+///   agreement at the pair's own extent.
 ///
-/// A pair with neither keeps [`same_chart`]'s typed divergence —
-/// including a declared CURVED cross-instance pair, whose `u_ref`/seam
-/// divergence is real and whose closure is a certified
-/// everywhere-within-ε overlap enclosure on the shared curved carrier
-/// (CONTACT-DESIGN C3), not this arm.
+/// A pair with none of the three keeps [`same_chart`]'s typed
+/// divergence, per kind:
+///
+/// - **sphere** — residue: the enclosure needs the fold on BOTH chart
+///   coordinates plus polar-cap branch handling, and the arm gate
+///   already refuses spheres ([`ChartRegionError::ArmUnbounded`]: no
+///   exact constant lever arms). Closing shape on record: the
+///   certified-ε enclosure with inf-arm bounds.
+/// - **cone** — residue: as the sphere (no exact constant arms; the
+///   apex compounds it); same recorded closing shape.
+/// - **torus** — residue: two periodic coordinates, plus the #968
+///   declared-Rest lane owns the torus descent; same recorded closing
+///   shape, sequenced with that lane.
 ///
 /// # `door_one` — why the verdict is an argument, not a re-derivation
 ///
@@ -529,7 +577,10 @@ pub fn chart_region_overlap<T: Decide + CertifiedBounds>(
 /// now says so: it cannot be reached without the verdict that verified
 /// the pair. It is READ in exactly one place — the interior-witness
 /// rung, which runs only on [`ContactVerdict::Definite`]
-/// ([`interior_witness`] states why).
+/// ([`interior_witness`] states why). The cylinder arm never reads it:
+/// it has no witness rung (a flush cylinder seat's collinear-boundary
+/// refusal stands, stated below), and every claim it makes is
+/// discharged by its own gates.
 ///
 /// [`ContactVerdict::Definite`]: crate::contact::ContactVerdict::Definite
 ///
@@ -559,6 +610,14 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
         }
         Err(divergence) => divergence,
     };
+    // The kind gate (fixed order: cylinder enclosure, then the planar
+    // world carrier, then the per-kind divergence — the doc lists the
+    // residue each refused kind keeps).
+    if matches!(face_surface(body_a, face_a)?, Surface::Cylinder { .. })
+        && matches!(face_surface(body_b, face_b)?, Surface::Cylinder { .. })
+    {
+        return cylinder_pair_overlap(body_a, face_a, body_b, face_b, band);
+    }
     let carrier = world_carrier(body_a, face_a, body_b, face_b, divergence)?;
     // The gate that makes the representative choice honest — and the
     // one that discharges `contfp`'s on-plane precondition below.
@@ -864,6 +923,434 @@ fn carrier_agreement<T: Decide + Bounds>(
             band,
             predicate: Some("chart_region_carrier_tilt"),
         })),
+        Err(diag) => Err(ChartRegionError::Escalated(diag)),
+    }
+}
+
+/// One cylinder description's frame, destructured.
+struct CylFrame<T: Decide> {
+    origin: geom_core::Point3<T>,
+    axis: geom_core::Vec3<T>,
+    radius: T,
+    u_ref: geom_core::Vec3<T>,
+}
+
+fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, ChartRegionError> {
+    match face_surface(body, face)? {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Ok(CylFrame {
+            origin: *origin,
+            axis: *axis,
+            radius: *radius,
+            u_ref: *u_ref,
+        }),
+        _ => Err(ChartRegionError::Corrupt),
+    }
+}
+
+/// **The certified-ε overlap enclosure of a declared CYLINDER pair**
+/// (issue 943's residue; the sanctioned closing shape of
+/// CENSUS-REST-CLOSURE Q2 + latitude note 2). Door 2's cylinder arm:
+/// trim overlap decided on the ONE carrier Door 1 verified, by
+/// carrying face B's chart images across the exact affine relation
+/// between the two descriptions' charts and running the module's own
+/// region machinery in face A's chart.
+///
+/// # The transfer, and why it is exact modulo the gates
+///
+/// Write A's chart map `φ_A(u, v) = o_a + radial_a(u)·r_a + â_a·v`
+/// and B's likewise. When the two descriptions describe ONE cylinder
+/// — which is precisely what the carrier gates below certify to
+/// within ε at the pair's own extent — the correspondence between the
+/// charts is
+///
+/// ```text
+/// u_A = δ + σ·u_B + k·τ        v_A = c + σ·v_B
+/// δ  = atan2(û_b·ŵ_a, û_b·û_a)   (ŵ_a = â_a × û_a)
+/// c  = (o_b − o_a)·â_a           σ = sign(â_a·â_b) ∈ {+1, −1}
+/// ```
+///
+/// derived from the chart convention alone (`radial(u)` winds by the
+/// right hand about `axis`, so an opposed axis winds the azimuth the
+/// other way AND runs `v` the other way — σ flips both). In METRED
+/// coordinates `(r·u, v)` the transfer is a plane isometry with
+/// determinant +1 (σ = −1 is a rotation by π, never a reflection:
+/// both charts' normals point radially outward, so both orient the
+/// surface identically). No approximation enters the FORMULA; what is
+/// approximate is the premise that the two descriptions agree, and
+/// that premise is not assumed — it is decided, at the pair's own
+/// extent, by the three gates below. The claim earned is therefore
+/// *certified everywhere within ε* (a small fixed multiple of the
+/// band, as everywhere in this module), never *exact*.
+///
+/// # The carrier gates (the cylinder `carrier_agreement`)
+///
+/// Door 1's ladder decided the same data at its pinned 1 m arm
+/// (`carrier_cyl_axis_parallel`·1 m, `carrier_cyl_axis_offset`,
+/// `carrier_cyl_radius`); as with the planar arm, that prices a peg
+/// and a table identically, so the enclosure re-decides them at the
+/// PAIR'S OWN EXTENT (fixed order, D9):
+///
+/// - `chart_region_cyl_radius` — `r_a − r_b`, metres at unit arm (a
+///   length is not re-levered; the extent would price it twice).
+/// - `chart_region_cyl_tilt` — `‖â_a × â_b‖` levered by `L`, the
+///   pair's AXIAL reach: the largest |axial coordinate| of any
+///   boundary vertex of either face about either description's own
+///   origin (a union-max over an order-symmetric multiset, so the
+///   margin is bit-identical under argument swap — the
+///   `chart_region_carrier_tilt` construction). The axial reach is
+///   the honest lever because the offset gate already bounds the two
+///   axes' separation at both origin stations, so a tilt opens the
+///   carriers only with axial distance from them — a metre of radius
+///   does not price a tilt, a metre of wall height does. `L` still
+///   over-states within that (the pivot may sit inside the reach),
+///   which widens toward decline — the conservative direction.
+/// - `chart_region_cyl_offset` — the larger of the two perpendicular
+///   origin-to-other-axis distances, metres at unit arm (symmetric by
+///   the same max-over-multiset construction).
+///
+/// All three `Zero` ⇒ every point of either carrier within the extent
+/// is within a small multiple of ε of the other (radius + offset +
+/// tilt·L bound the radial residual everywhere, not merely at
+/// vertices, because each term is globally bounded by its own gate) —
+/// which is what discharges the transfer's premise. A definite
+/// nonzero refuses [`ChartRegionError::CarrierTilt`]; in-band
+/// escalates named.
+///
+/// # The fold (issue 1191, consumed not repaired)
+///
+/// `δ` is a principal-value angle and each polygon rides its own
+/// pinned branch, so the transferred window may sit whole periods
+/// away from A's. ONE integer `k` — `⌊(mid_A − mid_B̃)/τ + ½⌋` — is
+/// pinned per pair and applied to every transferred vertex. That is a
+/// floor-based period fold, exactly issue 1191's territory: at the
+/// interval scalar a straddling argument honestly widens the floor's
+/// enclosure across a step, the integer cannot be pinned, and the arm
+/// declines [`ChartRegionError::PeriodFold`]. The widening runs
+/// toward decline only, never toward a false certification, which is
+/// why consuming the fold un-repaired is honest here.
+///
+/// # Decline posture (issue 1435's disclosure obligation)
+///
+/// This arm's schedule is: one global fold, no branch splitting, no
+/// witness rescue. It therefore DECLINES on decidable geometry in
+/// three named places, each typed:
+///
+/// - a pair whose folded windows cannot co-inhabit one period-wide
+///   window ([`ChartRegionError::SeamBranch`] via [`seam_gate`]) even
+///   when the quotient overlap is decidable — e.g. two full-period
+///   walls whose seams disagree by more than ε (the full-wrap BAND
+///   fast path below retires the rectangular sub-class; the rest
+///   stands as the stated residue, branch normalization being a later
+///   rung);
+/// - a flush cylinder seat sharing trim boundary
+///   ([`ChartRegionError::TouchingBoundary`]): the planar
+///   interior-witness rung does not run here (its point construction
+///   and `contfp` discharge are plane-only today);
+/// - the [`ChartRegionError::PeriodFold`] fold decline above.
+///
+/// The incompleteness is the schedule's, not the geometry's — the
+/// same shape issue 1435 records for the planar witness schedule —
+/// and it is disclosed here rather than sampled around.
+///
+/// # The full-wrap band fast path
+///
+/// The ordinary mated shaft-in-bore pair is two FULL-PERIOD wall
+/// rectangles whose seams need not agree. A full-period rectangle is
+/// azimuth-invariant as a region of the quotient cylinder, so the
+/// overlap question collapses to the axial interval intersection —
+/// decided exactly, no fold needed, BEFORE the fold can decline it:
+///
+/// - `chart_region_cyl_wrap` — a rectangle's azimuth span less τ,
+///   levered by the radius to metres; `Zero` = full wrap.
+/// - `chart_region_cyl_band` — the axial overlap of the two bands in
+///   metres: `Positive` proceeds to the area claim, `Negative` is the
+///   certified [`ChartOverlap::Empty`] (the stale-declaration arm),
+///   `Zero` is a rim-sharing touch ([`ChartRegionError::TouchingBoundary`]).
+/// - `chart_region_cyl_band_area` — the overlap band's mean width
+///   `over_lever(2·τ·r·h, 2(τ·r + h))` after the module's standard
+///   conservative ring deduction (ring measures are isometry
+///   invariants, so the transferred rings' measures are their minted
+///   ones). Positive certifies; anything else escalates.
+///
+/// Detection is structural (C6): exactly four exact-point vertices
+/// forming an axis-aligned rectangle in chart coordinates — anything
+/// else falls through to the general walk.
+///
+/// # Frame invariance (the lemma, cylinder form)
+///
+/// The metred transfer `ψ: (r·u, v) ↦ (r·u_A, v_A)` is — within the ε
+/// the gates certify — a plane isometry with det +1 (above), and
+/// everything computed downstream of the loop walk is a Euclidean
+/// invariant of the metred chart: `loop_measures`' shoelace and
+/// perimeter, `proper_crossings`' incidence, `polygon_relation`'s
+/// containment, the band arm's axial heights, and the final
+/// `over_lever(2A, P)` mean width. The metering matches because the
+/// azimuth arm is the radius and the radii agree within ε (the radius
+/// gate). Orientation needs no absorbing — det +1 — though
+/// `ScaledFace::build` normalizes to CCW regardless. Therefore
+/// [`ChartOverlap::PositiveArea`] and [`ChartOverlap::Empty`] are
+/// invariant under which description is carried onto which, which is
+/// the claim. ∎  As with the planar lemma, the REFUSAL boundary is
+/// not exactly invariant: the fold integer, the window fit and the
+/// ray schedule are branch- and frame-dependent near ties, and a
+/// margin within a few ulps of a band edge may classify differently —
+/// the module's standing posture. The both-ways row on the fixture
+/// corpus (`mate5_cyl_eps_rung.rs`) pins verdict-class agreement.
+///
+/// # Errors
+///
+/// [`ChartRegionError`] — the carrier-gate refusals and escalations,
+/// the fold decline, and everything the shared pipeline
+/// ([`overlap_of_uv`]) can refuse.
+fn cylinder_pair_overlap<T: Decide + Bounds>(
+    body_a: &Body<T>,
+    face_a: FaceKey,
+    body_b: &Body<T>,
+    face_b: FaceKey,
+    band: Band,
+) -> Result<ChartOverlap, ChartRegionError> {
+    let a = cyl_frame(body_a, face_a)?;
+    let b = cyl_frame(body_b, face_b)?;
+
+    // --- The carrier gates, at the pair's own extent (doc above).
+    //     The tilt's lever is the pair's AXIAL reach: the offset gate
+    //     bounds the axes' separation at both origin stations, so a
+    //     tilt grows the separation only with axial distance from
+    //     them — a metre of radius does not price a tilt, a metre of
+    //     wall height does. (Union-max over an order-symmetric
+    //     multiset, as the planar gate.)
+    let mut extent = T::zero();
+    for (body, face) in [(body_a, face_a), (body_b, face_b)] {
+        for p in face_boundary_points(body, face)? {
+            extent = extent
+                .max((p - a.origin).dot(a.axis).abs())
+                .max((p - b.origin).dot(b.axis).abs());
+        }
+    }
+    let gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {
+        match decide(name, margin, band) {
+            Ok(Sign::Zero) => Ok(()),
+            Ok(_) => Err(ChartRegionError::CarrierTilt),
+            Err(diag) => Err(ChartRegionError::Escalated(diag)),
+        }
+    };
+    gate("chart_region_cyl_radius", Margin::of(a.radius - b.radius))?;
+    gate(
+        "chart_region_cyl_tilt",
+        Margin::levered(a.axis.cross(b.axis).norm(), extent),
+    )?;
+    let d_ab = b.origin - a.origin;
+    let d_ba = a.origin - b.origin;
+    let perp_a = (d_ab - a.axis * d_ab.dot(a.axis)).norm();
+    let perp_b = (d_ba - b.axis * d_ba.dot(b.axis)).norm();
+    gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
+
+    // --- The transfer parameters (exact modulo the gates; doc). ---
+    let sigma = match decide(
+        "chart_region_cyl_axis_sense",
+        Margin::of(a.axis.dot(b.axis)),
+        band,
+    ) {
+        Ok(Sign::Positive) => T::one(),
+        Ok(Sign::Negative) => T::zero() - T::one(),
+        // A zero-band axis dot contradicts the tilt gate's Zero (the
+        // dot of near-parallel units is near ±1): poisoned input.
+        Ok(Sign::Zero) => {
+            return Err(ChartRegionError::Escalated(Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("chart_region_cyl_axis_sense"),
+            }));
+        }
+        Err(diag) => return Err(ChartRegionError::Escalated(diag)),
+    };
+    let w_a = a.axis.cross(a.u_ref);
+    let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
+    let c = (b.origin - a.origin).dot(a.axis);
+
+    // --- Extraction (each face read in its OWN minted chart). ---
+    let surface_a = face_surface(body_a, face_a)?.clone();
+    let surface_b = face_surface(body_b, face_b)?.clone();
+    let uv_a = extract_face_uv(body_a, face_a, &surface_a, ChartRead::Minted, band)?;
+    let uv_b_own = extract_face_uv(body_b, face_b, &surface_b, ChartRead::Minted, band)?;
+    let map = |p: &Point2<T>| Point2::new(delta + sigma * p.x, c + sigma * p.y);
+    let mut uv_b = FaceUv {
+        outer: uv_b_own.outer.iter().map(map).collect(),
+        rings: uv_b_own
+            .rings
+            .iter()
+            .map(|r| r.iter().map(map).collect())
+            .collect(),
+    };
+
+    // --- The full-wrap band fast path (doc above; asked BEFORE the
+    //     fold, which cannot serve two misaligned full-period walls).
+    if let (Some(band_a), Some(band_b)) = (
+        wrap_band(&uv_a.outer, a.radius, band)?,
+        wrap_band(&uv_b.outer, a.radius, band)?,
+    ) {
+        return band_overlap(&uv_a, &uv_b, band_a, band_b, a.radius, band);
+    }
+
+    // --- The fold: one whole period, pinned per pair (issue 1191 —
+    //     the floor-based fold; a straddling enclosure cannot pin the
+    //     integer and the arm declines typed rather than widening
+    //     into a false window).
+    let half = T::one() / (T::one() + T::one());
+    let k = ((window_mid(&uv_a) - window_mid(&uv_b)) / T::tau() + half).floor();
+    if !(k.lo() == k.hi() && k.lo().is_finite()) {
+        return Err(ChartRegionError::PeriodFold);
+    }
+    let shift = k * T::tau();
+    let fold = |p: &Point2<T>| Point2::new(p.x + shift, p.y);
+    uv_b = FaceUv {
+        outer: uv_b.outer.iter().map(fold).collect(),
+        rings: uv_b
+            .rings
+            .iter()
+            .map(|r| r.iter().map(fold).collect())
+            .collect(),
+    };
+
+    // --- The shared pipeline, in A's chart (arms (r_a, 1); the seam
+    //     gate is the window-fit decline the doc names).
+    overlap_of_uv(
+        body_a, face_a, body_b, face_b, &surface_a, &uv_a, &uv_b, band,
+    )
+}
+
+/// The azimuth midpoint of a face's chart window (all loops).
+fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
+    let mut lo: Option<T> = None;
+    let mut hi: Option<T> = None;
+    let mut visit = |poly: &Vec<Point2<T>>| {
+        for p in poly {
+            lo = Some(match lo {
+                None => p.x,
+                Some(m) => m.min(p.x),
+            });
+            hi = Some(match hi {
+                None => p.x,
+                Some(m) => m.max(p.x),
+            });
+        }
+    };
+    visit(&uv.outer);
+    uv.rings.iter().for_each(&mut visit);
+    let half = T::one() / (T::one() + T::one());
+    match (lo, hi) {
+        (Some(l), Some(h)) => (l + h) * half,
+        // An empty loop never survives extraction; poison propagates.
+        _ => T::from_f64(f64::NAN),
+    }
+}
+
+/// Reads one outer polygon as a FULL-PERIOD axis-aligned rectangle:
+/// `Some((v_lo, v_hi))` when the polygon is exactly four exact-point
+/// vertices forming an axis-aligned rectangle in chart coordinates
+/// (C6: structure read as structure) whose azimuth span is decidedly
+/// one period (`chart_region_cyl_wrap`, levered by the radius);
+/// `None` otherwise — the general walk's ground.
+///
+/// # Errors
+///
+/// [`ChartRegionError::Escalated`] when the span sits in the sliver
+/// band — a nearly-full wrap is neither a band nor a general window
+/// and must not be silently classified as either.
+fn wrap_band<T: Decide + Bounds>(
+    outer: &[Point2<T>],
+    radius: T,
+    band: Band,
+) -> Result<Option<(T, T)>, ChartRegionError> {
+    if outer.len() != 4 {
+        return Ok(None);
+    }
+    // Exact-point reads (the `bit_equal_cyclic` closure's shape).
+    let exact = |p: &Point2<T>| -> Option<(f64, f64)> {
+        let (xl, xh, yl, yh) = (p.x.lo(), p.x.hi(), p.y.lo(), p.y.hi());
+        (xl == xh && yl == yh && xl.is_finite() && yl.is_finite()).then_some((xl, yl))
+    };
+    let Some(pts) = outer.iter().map(exact).collect::<Option<Vec<_>>>() else {
+        return Ok(None);
+    };
+    // Axis-aligned: every edge changes exactly one coordinate.
+    for i in 0..4 {
+        let (p, q) = (pts[i], pts[(i + 1) % 4]);
+        let du = p.0 != q.0;
+        let dv = p.1 != q.1;
+        if du == dv {
+            return Ok(None);
+        }
+    }
+    let (mut ul, mut uh, mut vl, mut vh) = (pts[0].0, pts[0].0, pts[0].1, pts[0].1);
+    for p in &pts {
+        ul = ul.min(p.0);
+        uh = uh.max(p.0);
+        vl = vl.min(p.1);
+        vh = vh.max(p.1);
+    }
+    let span = T::from_f64(uh) - T::from_f64(ul);
+    match decide(
+        "chart_region_cyl_wrap",
+        Margin::levered(span - T::tau(), radius),
+        band,
+    ) {
+        Ok(Sign::Zero) => Ok(Some((T::from_f64(vl), T::from_f64(vh)))),
+        Ok(_) => Ok(None),
+        Err(diag) => Err(ChartRegionError::Escalated(diag)),
+    }
+}
+
+/// The band arm's decision (doc at [`cylinder_pair_overlap`]): axial
+/// interval overlap of two full-period bands, then the mean-width
+/// area claim with the module's standard conservative ring deduction.
+fn band_overlap<T: Decide + Bounds>(
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+    (a_lo, a_hi): (T, T),
+    (b_lo, b_hi): (T, T),
+    radius: T,
+    band: Band,
+) -> Result<ChartOverlap, ChartRegionError> {
+    let h = a_hi.min(b_hi) - a_lo.max(b_lo);
+    match decide("chart_region_cyl_band", Margin::of(h), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Negative) => return Ok(ChartOverlap::Empty),
+        Ok(Sign::Zero) => return Err(ChartRegionError::TouchingBoundary),
+        Err(diag) => return Err(ChartRegionError::Escalated(diag)),
+    }
+    // The overlap band, metred: width τ·r, height h (both faces are
+    // full-period bands, so the quotient overlap IS the band — exact;
+    // rings deduct conservatively as in `overlap_of_regions`, their
+    // measures being isometry invariants of the metred chart).
+    let circumference = T::tau() * radius;
+    let two = T::one() + T::one();
+    let mut net_2a = two * circumference * h;
+    let mut tot_p = two * (circumference + h);
+    for rings in [&uv_a.rings, &uv_b.rings] {
+        for poly in rings.iter() {
+            let scaled: Vec<Point2<T>> = poly
+                .iter()
+                .map(|p| Point2::new(p.x * radius, p.y))
+                .collect();
+            let (r2a, rp) = loop_measures(&scaled);
+            net_2a = net_2a - r2a.abs();
+            tot_p = tot_p + rp;
+        }
+    }
+    let area_margin = Margin::over_lever(net_2a, tot_p);
+    match decide("chart_region_cyl_band_area", area_margin, band) {
+        Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
+        Ok(_) => Err(ChartRegionError::Escalated(definite_diag(
+            band,
+            "chart_region_cyl_band_area",
+            area_margin,
+        ))),
         Err(diag) => Err(ChartRegionError::Escalated(diag)),
     }
 }

@@ -439,6 +439,23 @@ fn radius_disagreement_is_three_outcome_honest() {
 // The declines the enclosure states (issues 1191 / 1435 territory)
 // ---------------------------------------------------------------------
 
+/// INVARIANT (the fold serving a wrapping pair): a pair whose windows
+/// CAN co-inhabit one period-wide window after the whole-period fold
+/// certifies through it — B's window sits a near-period away in raw
+/// coordinates and genuinely overlaps A only THROUGH the seam.
+#[test]
+fn the_fold_windows_a_seam_wrapping_pair_and_certifies() {
+    // A holds [0.0, 3.0]; B holds [3.5, 6.5] of the same locus — the
+    // spans sum below τ, the fold shifts B̃ a full period down, and
+    // the genuine overlap [0, ~0.217] certifies.
+    let (a, fa) = sheet_a(0.0, 3.0, 0.0, 1.0);
+    let (b, fb) = sheet_b(3.5, 6.5, 0.2, 0.8);
+    assert_eq!(
+        declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()).unwrap(),
+        ChartOverlap::PositiveArea,
+    );
+}
+
 /// INVARIANT (the decline posture, stated): a pair whose folded
 /// windows cannot co-inhabit one period-wide branch window declines
 /// typed (`SeamBranch`) even though the quotient geometry is
@@ -446,15 +463,15 @@ fn radius_disagreement_is_three_outcome_honest() {
 /// incompleteness (the issue-1435 pattern: a decline on decidable
 /// geometry, said out loud rather than sampled around).
 #[test]
-fn a_wrapping_pair_the_fold_cannot_window_declines_typed() {
-    // A holds [0.0, 3.0]; B holds [3.5, 6.5] of the same locus — the
-    // union spans 6.5 > τ, but B's image wraps through the seam and
-    // genuinely overlaps A in [0, ~0.217].
-    let (a, fa) = sheet_a(0.0, 3.0, 0.0, 1.0);
-    let (b, fb) = sheet_b(3.5, 6.5, 0.2, 0.8);
+fn a_pair_no_single_window_serves_declines_typed() {
+    // Spans 3.5 + 3.2 > τ: the two arcs overlap at BOTH seam sides of
+    // the quotient ([3.3, 3.5] and [0, ~0.217]), so no single
+    // period-wide window holds both trims and the walk declines.
+    let (a, fa) = sheet_a(0.0, 3.5, 0.0, 1.0);
+    let (b, fb) = sheet_b(3.3, 6.5, 0.2, 0.8);
     match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::SeamBranch) => {}
-        other => panic!("the un-windowable wrap declines typed: {other:?}"),
+        other => panic!("the un-windowable pair declines typed: {other:?}"),
     }
 }
 

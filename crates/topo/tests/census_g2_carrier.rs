@@ -261,41 +261,60 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 // What stays refused
 // ---------------------------------------------------------------------
 
-/// INVARIANT (the spec's scope line): cross-instance CURVED declared
-/// pairs stay refused. Two independently authored curved descriptions
-/// of one locus differ in `u_ref` and seam, no world embedding
-/// arbitrates that, and there is no isometry lemma to be had — the arm
-/// is PLANAR by the same reasoning that licenses it.
+/// INVARIANT (re-blessed at MATE-5, the deliberate flip this row was
+/// pinned FOR — the asm_r2b `row3_b` precedent): the #1063 scope line
+/// "cross-instance CURVED declared pairs stay refused" narrowed when
+/// issue 943's cylinder residue closed. Per kind now:
+///
+/// - CYLINDER pairs engage the certified-ε enclosure arm
+///   (`mate5_cyl_eps_rung.rs` holds the certifying corpus); THIS
+///   fixture's faces carry no cylinder chart images at all, and the
+///   arm says exactly that — `MissingCache`, a typed refusal from
+///   INSIDE the arm, where #1063 refused `ChartDivergence` at the
+///   door.
+/// - SPHERE / CONE / TORUS pairs keep the door refusal unchanged,
+///   with each kind's residue restated at the refusal site
+///   (`declared_pair_overlap`'s kind gate).
 #[test]
 fn a_declared_curved_cross_instance_pair_is_still_refused() {
-    let a: common::Prism<f64> = common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 0.0, 1.0);
-    let b: common::Prism<f64> = common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 1.0, 2.0);
-    // Re-describe both interface faces as CYLINDERS of one radius: two
-    // independently authored curved descriptions, each in its own
-    // arena, with no shared key and no `GeomSource`.
-    let (mut a_body, mut b_body) = (a.body, b.body);
-    let cyl = || Surface::Cylinder {
+    let build = |surface: &Surface<f64>| {
+        let a: common::Prism<f64> =
+            common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 0.0, 1.0);
+        let b: common::Prism<f64> =
+            common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 1.0, 2.0);
+        // Re-describe both interface faces as the SAME curved surface:
+        // two independently authored curved descriptions, each in its
+        // own arena, with no shared key and no `GeomSource`.
+        let (mut a_body, mut b_body) = (a.body, b.body);
+        a_body
+            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .unwrap();
+        b_body
+            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .unwrap();
+        (a_body, a.top_face, b_body, b.bottom_face)
+    };
+    let cyl = Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 1.0),
         axis: geom_core::Vec3::unit_z(),
         radius: 1.0,
         u_ref: geom_core::Vec3::unit_x(),
     };
-    a_body
-        .set_face_surface(a.top_face, FaceSurface::New(cyl()))
-        .unwrap();
-    b_body
-        .set_face_surface(b.bottom_face, FaceSurface::New(cyl()))
-        .unwrap();
-    match declared_pair_overlap(
-        &a_body,
-        a.top_face,
-        &b_body,
-        b.bottom_face,
-        ContactVerdict::Definite,
-        band(),
-    ) {
+    let (a_body, fa, b_body, fb) = build(&cyl);
+    match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
+        Err(ChartRegionError::MissingCache { .. }) => {}
+        other => panic!("the cylinder arm engages and refuses the uncached trims: {other:?}"),
+    }
+    let sphere = Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        axis: geom_core::Vec3::unit_z(),
+        u_ref: geom_core::Vec3::unit_x(),
+    };
+    let (a_body, fa, b_body, fb) = build(&sphere);
+    match declared_pair_overlap(&a_body, fa, &b_body, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
-        other => panic!("a curved cross-instance declared pair stays refused: {other:?}"),
+        other => panic!("a sphere cross-instance declared pair stays refused: {other:?}"),
     }
 }
 
@@ -367,6 +386,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
                 ChartRegionError::MissingCache { .. } => "MissingCache",
                 ChartRegionError::ArmUnbounded { .. } => "ArmUnbounded",
                 ChartRegionError::SeamBranch => "SeamBranch",
+                ChartRegionError::PeriodFold => "PeriodFold",
                 ChartRegionError::CarrierTilt => "CarrierTilt",
                 ChartRegionError::TouchingBoundary => "TouchingBoundary",
                 ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
