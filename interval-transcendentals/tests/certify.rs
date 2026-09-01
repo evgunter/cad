@@ -120,6 +120,93 @@ const ARITHMETIC: fn() -> Ceiling = || Ceiling {
     max_steps_when_oracle_exact: 8,
 };
 
+/// The exponents `certify_powi` draws.
+const POWI_EXPS: [i32; 12] = [0, 1, 2, 3, 4, 5, 7, 12, -1, -2, -3, 31];
+
+/// What `x^n` is entitled to, **as a function of the exponent**.
+///
+/// **Why no constant is the right answer here.** `powi` is not a padded
+/// primitive: it is directed binary exponentiation over `mul_lo`/`mul_hi`
+/// (plus one interval division when `n < 0`), so its looseness is a
+/// COMPOSITION of `mul` pads and grows with the exponent. A constant
+/// fitted to the widest draw of a mixed-exponent sweep is ~360x too
+/// loose for the `n = 1` draws sharing that sweep, and every component
+/// step is already bounded by `certify_arith` and `pad_contract.rs`
+/// — what was missing was the composed bound, and it is derivable.
+///
+/// **The derivation, by induction over the ladder.** Write `u` for the
+/// relative deviation one padded multiplication may introduce: `mul_lo`
+/// / `mul_hi` take the round-to-nearest product and step it one
+/// representable place outward when it is inexact, so they land within
+/// **1.5 ulp** of the exact product, `u <= 1.5·2^-52 = 3·2^-53`. Let
+/// `e(k)` bound the relative deviation of our computed `x^k` from the
+/// true one. The ladder only ever forms `x^{a+b}` from `x^a` and `x^b`,
+/// so `e(a+b) <= e(a) + e(b) + u`; and **`e(1) <= u`, not `0`** — the
+/// first accumulator step is `1.0 · base`, whose product is exact, but
+/// `mul_exact`'s 2Prod witness is gated on the product MAGNITUDE
+/// (`2^-960`, where the residual itself can underflow), so in the
+/// subnormal window it declines and the step pads anyway. The induction
+/// then gives
+///
+/// ```text
+/// e(m) <= m·u
+/// ```
+///
+/// for every `m >= 1`, whatever the bit pattern of `m` (walked on the
+/// ladder for `m = 2, 3, 5, 7`: `2u, 3u, 5u, 7u`). In representable
+/// STEPS at the result — one step is at least `2^-53` relative — that is
+/// `3m` steps per endpoint, and a negative exponent's reciprocal
+/// preserves relative width and pads 1.5 ulp on each side, for `3` more.
+///
+/// The `e(1) = 0` reading is the one this row's first draft carried, and
+/// the instrument refuted it before the ceiling landed: at `n = 1` the
+/// subnormal window yields 2-step widths on an oracle-exact value and
+/// ratios to 3.0, which an entitlement of zero steps calls a defect.
+///
+/// **From steps to a width ratio** by `Tightness::report`'s rule: our
+/// width exceeds a correctly-rounded one by at most `2·pad` outward
+/// steps and a step across a binade boundary is worth two oracle ulps,
+/// so the ratio is bounded by `4·pad + 1` — `12·|n| + 1`, and
+/// `12·|n| + 13` with the reciprocal. The oracle-exact class is scored
+/// absolutely instead, at the same `2·pad` steps of width.
+///
+/// **Measured against it at effort 8** (1.8M draws, worst ratio per
+/// exponent against the entitlement): `n = 1` 3.0/13, `2` 2.0/25, `3`
+/// 6.0/37, `4` 8.0/49, `5` 13.0/61, `7` 20.0/85, `12` 39.0/145, `31`
+/// 120.0/373, `−1` 17.0/25, `−2` 6.0/37, `−3` 12.0/49. The measured
+/// worst tracks `≈ 4·|n|` where the derivation allows `12·|n|`, so the
+/// entitlement sits ~3x over the draws at every exponent — and it is
+/// the DERIVATION that is the ceiling here, not a fitted multiple of
+/// the measurement: a draw above it says the induction above is wrong.
+///
+/// **`n = 0` carries no ceiling and is not thereby unguarded.** `powi`
+/// returns `[1, 1]` without touching the ladder, so every draw lands in
+/// the oracle-exact bucket and a width ratio does not exist for it — a
+/// `Ceiling` over that accumulator would be a `max` over nothing, which
+/// is the vacuity `min_ratio_fraction` exists to refuse. The class is
+/// pinned exactly at the draw site instead, which is stronger than any
+/// ratio: the answer must be the point `[1, 1]` itself.
+fn powi_ceiling(n: i32) -> Option<Ceiling> {
+    if n == 0 {
+        return None;
+    }
+    let pad = 3.0 * f64::from(n.abs()) + if n < 0 { 3.0 } else { 0.0 };
+    Some(Ceiling {
+        max_ratio: 4.0 * pad + 1.0,
+        // Measured comparable-ratio yields over the three
+        // ceiling-carrying windows, at effort 8: 87% at `n = 1` (the
+        // rest oracle-exact) and 100% at every other positive exponent;
+        // 39–47% at the negative ones, where a subnormal-window operand
+        // reciprocates to an unbounded oracle enclosure about half the
+        // time. Two floors rather than one, each with better than 2x
+        // margin against its own class — a single floor set for the
+        // negative exponents would be vacuous for the positive ones.
+        min_ratio_fraction: if n < 0 { 0.15 } else { 0.25 },
+        #[allow(clippy::cast_possible_truncation)]
+        max_steps_when_oracle_exact: (2.0 * pad) as i128,
+    })
+}
+
 fn drive_unary(
     label: &str,
     ceiling: fn() -> Ceiling,
@@ -257,14 +344,19 @@ fn certify_powi() {
     // reciprocal's upper bound becomes ~1/MAX ~ 2^-1024 against a
     // sub-subnormal truth -> ratios up to ~2^50+2; sound, crude, and
     // unreachable at kernel magnitudes).
-    let mut tight = Tightness::default();
+    // One accumulator per exponent, because the entitlement is a
+    // function of the exponent (see `powi_ceiling`): a single
+    // accumulator can only carry the ceiling of its loosest member,
+    // which for `|n| <= 31` is 30x the entitlement of the `n = 1` draws
+    // sharing it.
+    let mut tight: [Tightness; POWI_EXPS.len()] = Default::default();
     let mut tight_huge = Tightness::default();
-    let exps: [i32; 12] = [0, 1, 2, 3, 4, 5, 7, 12, -1, -2, -3, 31];
     for i in 0..fuzz::scaled(CASES_BINARY) {
         let wi = i % 4;
         let w = WINDOWS[wi];
         let x = gen_interval(&mut rng, w.0, w.1);
-        let n = exps[(rng.next_u64() % exps.len() as u64) as usize];
+        let ei = (rng.next_u64() % POWI_EXPS.len() as u64) as usize;
+        let n = POWI_EXPS[ei];
         let mine = x.powi(n);
         let oracle = to_inari(&x).powi(n);
         assert_contains(
@@ -273,20 +365,31 @@ fn certify_powi() {
             &oracle,
             false,
         );
-        if wi == 3 { &mut tight_huge } else { &mut tight }.record(&mine, &oracle);
+        // The `n = 0` class, pinned as a value rather than as a ratio
+        // (`powi_ceiling`): the ladder is not entered and the answer is
+        // the point one, whatever the operand's magnitude.
+        if n == 0 && !mine.is_empty() {
+            assert_eq!(
+                (mine.lo(), mine.hi()),
+                (1.0, 1.0),
+                "powi case {i} x={x:?} n=0 returned {mine:?}, not the point one"
+            );
+        }
+        if wi == 3 {
+            tight_huge.record(&mine, &oracle);
+        } else {
+            tight[ei].record(&mine, &oracle);
+        }
     }
-    // No ceiling, and this one is a DEFERRAL rather than an
-    // unguardable: it is owed and not written. `powi`'s enclosure
-    // is a COMPOSITION of `mul` pads (binary exponentiation, plus a
-    // division for a negative exponent), so what it is entitled to is a
-    // function of the exponent, not a constant; an exponent-dependent
-    // ceiling is derivable and is not derived here. The measured worst
-    // moves with the seed (117 at effort 1, 122 at effort 2, |n| <= 31),
-    // which is exactly why a fitted constant would be the wrong answer.
-    // Each COMPONENT step is bounded by `certify_arith` and
-    // `pad_contract.rs` already, so this is a gap in the composed bound,
-    // not in the pads.
-    tight.report("powi", None);
+    for (ei, t) in tight.iter_mut().enumerate() {
+        let n = POWI_EXPS[ei];
+        t.report(&format!("powi[n={n}]"), powi_ceiling(n));
+    }
+    // The huge window keeps NO ceiling, and the reason is the documented
+    // negative-exponent overflow saturation above: `pow_mag_lo`
+    // saturating at MAX against a sub-subnormal truth is a sound answer
+    // whose ratio reaches ~2^50, which no entitlement derived from the
+    // pads can cover. It is unreachable at kernel magnitudes.
     tight_huge.report("powi[huge-window]", None);
 }
 
