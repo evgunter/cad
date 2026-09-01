@@ -105,21 +105,42 @@ use core::f64::consts::PI;
 use pncad::authoring::{p2, validated};
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, Node,
-    ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, MM, Node,
+    PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, WrittenAngle, WrittenLength,
+    apply, evaluate,
 };
+// The prefix data lives with the unit TABLE, one hop away from the
+// prelude — the scene converts its own constants with the same factor
+// the table pairs with `mm`, so the two cannot drift.
 use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::quantity::MILLI;
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
 
+// **This scene is authored in MILLIMETRES**, and its document says so.
+//
+// The `_MM` constants are what a person designing this ring would
+// write; the canonical metres beside them are derived through the unit
+// table's own factor, so the analytic oracle below (which works in m
+// and m³) and the recipe cannot drift apart. The document's literals
+// then REMEMBER `mm`, so the panel opens on `300`, `70`, `50` rather
+// than on `0.3`, `0.07`, `0.05`.
+//
+// `heatsink` and `checks` are the other half of this exhibit: they
+// author canonically, so the gallery carries a document written in a
+// chosen unit and a document written in the kernel's own.
+
 /// The ring's mean radius: axis to tube centre.
-const R: f64 = 0.30;
+const R_MM: f64 = 300.0;
+const R: f64 = R_MM * MILLI;
 /// The tube's outer radius.
-const RO: f64 = 0.07;
+const RO_MM: f64 = 70.0;
+const RO: f64 = RO_MM * MILLI;
 /// The tube's bore radius. `RO - RI` is the 20 mm wall.
-const RI: f64 = 0.05;
+const RI_MM: f64 = 50.0;
+const RI: f64 = RI_MM * MILLI;
 
 /// One concentric circle of the section, centred on the tube axis.
 fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
@@ -163,16 +184,20 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
 
 /// The ring's recipe and its revolve node.
 fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+    // Written in millimetres: the value crosses in canonical metres,
+    // and the literal keeps the notation it was authored in.
+    let mm = |v: f64| {
+        Expr::written_length(WrittenLength::in_unit(v, MM)).expect("a length in millimetres")
+    };
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
         let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
-    let circle = |r: f64| LoopProgram::Circle {
-        centre: [len(R), len(0.0)],
-        radius: len(r),
+    let circle = |r_mm: f64| LoopProgram::Circle {
+        centre: [mm(R_MM), mm(0.0)],
+        radius: mm(r_mm),
     };
     let profile = insert(
         &mut doc,
@@ -180,13 +205,13 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             plane: SketchPlane::xy(),
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
-            loops: vec![circle(RO), circle(RI)],
+            loops: vec![circle(RO_MM), circle(RI_MM)],
         }),
     );
     let axis = insert(
         &mut doc,
         Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
+            origin: [mm(0.0), mm(0.0), mm(0.0)],
             direction: [
                 Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
                 Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
@@ -199,7 +224,10 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Revolve {
             profile,
             axis,
-            angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("an angle"),
+            // A full turn, written as one: the half-turn row is a
+            // NOTATION carried as a unit, so the recipe says `2 pi rad`
+            // where it would otherwise say `6.283185307179586 rad`.
+            angle: Expr::written_angle(WrittenAngle::in_unit(2.0, HALF_TURN)).expect("a full turn"),
         },
     );
     (doc, revolved)

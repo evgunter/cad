@@ -32,14 +32,27 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI, TAU};
+// **This document is written in MILLIMETRES and DEGREES**, and it is
+// the MIXED half of the units exhibit: `ring` authors one unit
+// throughout, `heatsink` and `checks` author canonically, and this one
+// carries two units and a dimensionless axis in the same recipe.
+//
+// It also shows the OTHER authoring door. `ring` types its numbers in
+// the unit it means (`WrittenLength::in_unit(300.0, MM)`); every length
+// here is DERIVED from the die's geometry, already in canonical metres,
+// and only its notation is being chosen — which is `canonical_in`, and
+// is exactly the shape a GUI form has, where the draft is canonical
+// whatever the picker shows.
+
+use core::f64::consts::PI;
 
 use pncad::document::{BooleanOp, BooleanValue, save};
 use pncad::prelude::{
-    CancelToken, CurveKind, CurveKindSet, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
-    Evaluation, Expr, GeomPred, LoopProgram, NamePat, Node, Point3, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SketchPlane, SurfaceKind, SurfaceKindSet,
-    ValuePayload, Vec3, all_edges, apply, evaluate, select_where,
+    CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
+    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, Point3,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    SketchPlane, SurfaceKind, SurfaceKindSet, ValuePayload, Vec3, WrittenAngle, WrittenLength,
+    all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -60,11 +73,14 @@ const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
+/// A length, written in the millimetres this document is authored in.
 fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length")
+    Expr::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
 }
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("an angle")
+/// An angle the face table states IN DEGREES — a quarter turn is `90`,
+/// and the recipe says so.
+fn ang(degrees: f64) -> Expr {
+    Expr::written_angle(WrittenAngle::in_unit(degrees, DEG)).expect("an angle")
 }
 fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a scalar")
@@ -97,6 +113,8 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
 struct Placement {
     centre: [f64; 3],
     axis: [f64; 3],
+    /// The rotation carrying +Z onto the face's normal, in DEGREES —
+    /// the unit the face table states and the recipe records.
     angle: f64,
 }
 
@@ -111,14 +129,16 @@ fn placements() -> Vec<Placement> {
     let h = L / 2.0;
     // pip count, outward normal, the two in-plane axes the layout
     // offsets ride, then the axis and angle carrying +Z onto that
-    // normal.
+    // normal. The angle column is DEGREES — these are quarter and half
+    // turns, and a table of `90`s and `180`s is the table a reader can
+    // check against the die in their hand.
     let faces = [
         (1u32, Z, X, Y, Z, 0.0),
-        (6, NEG_Z, X, Y, X, PI),
-        (2, X, Y, Z, Y, FRAC_PI_2),
-        (5, NEG_X, Y, Z, Y, -FRAC_PI_2),
-        (3, Y, Z, X, X, -FRAC_PI_2),
-        (4, NEG_Y, Z, X, X, FRAC_PI_2),
+        (6, NEG_Z, X, Y, X, 180.0),
+        (2, X, Y, Z, Y, 90.0),
+        (5, NEG_X, Y, Z, Y, -90.0),
+        (3, Y, Z, X, X, -90.0),
+        (4, NEG_Y, Z, X, X, 90.0),
     ];
     let mut out = Vec::new();
     for (n, normal, ex, ey, axis, angle) in faces {
@@ -234,7 +254,8 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         Node::Revolve {
             profile: ball_p,
             axis,
-            angle: ang(TAU),
+            // A full turn, in the degrees this document is written in.
+            angle: ang(360.0),
         },
         tol,
     );

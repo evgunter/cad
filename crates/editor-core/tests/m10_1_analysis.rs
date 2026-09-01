@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::UnitSym;
 use editor_core::{
     AnalysisPolicy, AnalysisPolicyError, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
     DocParam, DocumentId, MeasureUnavailable, OffsetInterval, ParamName, ProfileDoc, analyzed_box,
@@ -38,6 +39,7 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
     DocParam::Continuous {
         dim: Dimension::Length,
         value,
+        display_unit: UnitSym::canonical_for(Dimension::Length),
         distribution: Some(distribution),
     }
 }

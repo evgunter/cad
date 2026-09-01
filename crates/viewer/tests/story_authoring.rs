@@ -40,7 +40,7 @@ mod common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{body_volume, insert, near};
+use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::ValuePayload;
@@ -136,10 +136,10 @@ fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
                 Vec3::unit_x(),
                 Vec3::unit_y(),
             ),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
-            }],
+            })],
         },
     )
 }
@@ -164,17 +164,17 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: PLINTH_SIDE,
                 height: PLINTH_SIDE,
-            }],
+            })],
         },
     );
     let plinth = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile: plinth_profile,
-            distance: PLINTH_H,
+            distance: len(PLINTH_H),
         },
     );
     let v_pad = body_volume(&mut session, plinth, tol);
@@ -196,7 +196,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddChamfer {
             target: plinth,
-            distance: CHAMFER,
+            distance: len(CHAMFER),
             selection: edges,
         },
     );
@@ -216,7 +216,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddExtrude {
             profile: base_profile,
-            distance: BASE_H,
+            distance: len(BASE_H),
         },
     );
     // The user double-picks the plinth into both operand seats. The
@@ -258,7 +258,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddExtrude {
             profile: shaft_profile,
-            distance: SHAFT_H,
+            distance: len(SHAFT_H),
         },
     );
     let u2 = insert(
@@ -289,17 +289,17 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
                 Vec3::unit_x(),
                 Vec3::unit_y(),
             ),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: DRUM_S,
                 height: DRUM_S,
-            }],
+            })],
         },
     );
     let drum = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile: drum_profile,
-            distance: DRUM_H,
+            distance: len(DRUM_H),
         },
     );
     let u3 = insert(
@@ -330,17 +330,17 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
                 Vec3::unit_x(),
                 Vec3::unit_y(),
             ),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: CUT_W,
                 height: CUT_T,
-            }],
+            })],
         },
     );
     let cutter = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile: cutter_profile,
-            distance: CUT_H,
+            distance: len(CUT_H),
         },
     );
     let cut1 = insert(
@@ -360,9 +360,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddTransform {
             input: cutter,
-            translation: [0.0, 0.0, CUT2_LIFT],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: FRAC_PI_2,
+            translation: len3([0.0, 0.0, CUT2_LIFT]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(FRAC_PI_2),
         },
     );
     let carved = insert(
@@ -393,8 +393,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -406,17 +406,17 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
                 Vec3::unit_x(),
                 Vec3::unit_y(),
             ),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.006,
                 height: 0.006,
-            }],
+            })],
         },
     );
     let block = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile: block_profile,
-            distance: 0.004,
+            distance: len(0.004),
         },
     );
     let pattern = insert(
@@ -426,7 +426,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
-                step: FRAC_PI_2,
+                step: ang(FRAC_PI_2),
             },
         },
     );

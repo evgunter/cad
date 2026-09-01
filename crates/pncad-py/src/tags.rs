@@ -396,6 +396,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
     match err {
         PersistError::NonFinite { .. } => "non_finite",
         PersistError::Distribution { .. } => "distribution",
+        PersistError::DisplayUnit { .. } => "display_unit",
         PersistError::ProfileProgram { .. } => "profile_program",
         PersistError::Serialize { .. } => "serialize",
         PersistError::Header { .. } => "header",

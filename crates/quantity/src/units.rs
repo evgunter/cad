@@ -44,14 +44,25 @@ pub const MILLI: f64 = 1e-3;
 pub const CENTI: f64 = 1e-2;
 
 /// What a unit measures — the continuous half of the dimension set
-/// (`Count` has no units: a count is a bare integer; `Scalar` is
-/// dimensionless by definition).
+/// (`Count` has no units at all: a count is a bare integer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnitQuantity {
     /// A length; factors carry into canonical meters.
     Length,
     /// A plane angle; factors carry into canonical radians.
     Angle,
+    /// A dimensionless real. **Exactly one row measures it** — [`ONE`],
+    /// whose symbol is the EMPTY string, because the way a
+    /// dimensionless number is written is with no suffix at all.
+    ///
+    /// It is a row rather than an absence so that every stored literal
+    /// can name the notation it was written in, leaving no "no
+    /// notation" state for two readers to interpret differently.
+    ///
+    /// A chooser has nothing to offer for it — one option is not a
+    /// choice — but that is a rule for whatever draws the chooser, not
+    /// one this table keeps.
+    Scalar,
 }
 
 /// One row of the unit table: a display/parse symbol, the quantity it
@@ -167,16 +178,25 @@ impl UnitDef {
     pub const fn as_length(self) -> Option<LengthUnit> {
         match self.quantity {
             UnitQuantity::Length => Some(LengthUnit::of_row(self.symbol)),
-            UnitQuantity::Angle => None,
+            UnitQuantity::Angle | UnitQuantity::Scalar => None,
         }
     }
 
-    /// This row as an [`AngleUnit`], or `None` when the row measures a
-    /// length — the mirror of [`UnitDef::as_length`].
+    /// This row as an [`AngleUnit`], or `None` when the row does not
+    /// measure an angle — the mirror of [`UnitDef::as_length`].
     pub const fn as_angle(self) -> Option<AngleUnit> {
         match self.quantity {
             UnitQuantity::Angle => Some(AngleUnit::of_row(self.symbol)),
-            UnitQuantity::Length => None,
+            UnitQuantity::Length | UnitQuantity::Scalar => None,
+        }
+    }
+
+    /// This row as a [`ScalarUnit`], or `None` when it measures
+    /// something — total on the one dimensionless row.
+    pub const fn as_scalar(self) -> Option<ScalarUnit> {
+        match self.quantity {
+            UnitQuantity::Scalar => Some(ScalarUnit::of_row(self.symbol)),
+            UnitQuantity::Length | UnitQuantity::Angle => None,
         }
     }
 }
@@ -184,7 +204,7 @@ impl UnitDef {
 /// The whole closed unit table, as data — the expression text parser's
 /// suffix vocabulary and the formatter's display vocabulary are both
 /// exactly this list, and a typed view is an index into it.
-pub const UNITS: [UnitDef; 7] = [
+pub const UNITS: [UnitDef; 8] = [
     // Millimeter: a `MILLI`-prefixed metre.
     UnitDef {
         symbol: "mm",
@@ -230,6 +250,12 @@ pub const UNITS: [UnitDef; 7] = [
         symbol: "pi rad",
         quantity: UnitQuantity::Angle,
         factor: core::f64::consts::PI,
+    },
+    // The dimensionless row: no suffix, factor exactly 1.0.
+    UnitDef {
+        symbol: "",
+        quantity: UnitQuantity::Scalar,
+        factor: 1.0,
     },
 ];
 
@@ -389,6 +415,25 @@ pub use view::LengthUnit;
 /// ```
 pub use view::AngleUnit;
 
+/// The dimensionless "unit" — a typed view of the one `Scalar` row,
+/// sealed by the mechanism on [`LengthUnit`].
+///
+/// It carries no arithmetic and no formatter, because there is nothing
+/// to convert: its factor is exactly 1.0 and its symbol is empty. What
+/// it exists for is to be NAMEABLE, so that a stored literal always has
+/// a notation and no reader has to invent one.
+///
+/// ```
+/// let one: quantity::ScalarUnit = quantity::ONE;
+/// assert_eq!(one.symbol(), "");
+/// assert_eq!(one.factor(), 1.0);
+/// let row = quantity::unit_by_symbol("").expect("the dimensionless row");
+/// assert_eq!(row.as_scalar(), Some(quantity::ONE));
+/// assert_eq!(row.as_length(), None);
+/// assert_eq!(row.as_angle(), None);
+/// ```
+pub use view::ScalarUnit;
+
 /// The typed views live behind a private module boundary, so the mints
 /// below are the only code ANYWHERE — inside this file included — that
 /// can build one. That is what makes "a `LengthUnit` is a `Length` row
@@ -405,6 +450,10 @@ mod view {
     /// See [`super::AngleUnit`].
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct AngleUnit(u8);
+
+    /// See [`super::ScalarUnit`].
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct ScalarUnit(u8);
 
     impl LengthUnit {
         /// The length view of the [`UNITS`] row named `symbol` — the
@@ -435,6 +484,34 @@ mod view {
         /// [`UnitDef::as_length`], and total, because the view IS an
         /// index. Public: it can only ever answer a row of [`UNITS`],
         /// which is what the seal is about.
+        pub const fn def(self) -> UnitDef {
+            UNITS[self.0 as usize]
+        }
+    }
+
+    impl ScalarUnit {
+        /// The dimensionless mirror of [`LengthUnit::of_row`].
+        pub(super) const fn of_row(symbol: &str) -> Self {
+            let i = row_index(symbol);
+            assert!(
+                matches!(UNITS[i as usize].quantity(), UnitQuantity::Scalar),
+                "a ScalarUnit can only view the Scalar row of UNITS"
+            );
+            Self(i)
+        }
+
+        /// The surface symbol — the EMPTY string, which is how a
+        /// dimensionless number is written.
+        pub const fn symbol(self) -> &'static str {
+            self.def().symbol()
+        }
+
+        /// Exactly 1.0: there is nothing to convert.
+        pub const fn factor(self) -> f64 {
+            self.def().factor()
+        }
+
+        /// The table row this view indexes — see [`LengthUnit::def`].
         pub const fn def(self) -> UnitDef {
             UNITS[self.0 as usize]
         }
@@ -490,6 +567,13 @@ pub const RAD: AngleUnit = AngleUnit::of_row("rad");
 /// a full turn. The notation-as-a-unit row, spelled `pi rad` (module
 /// docs).
 pub const PI: AngleUnit = AngleUnit::of_row("pi rad");
+
+/// The dimensionless "unit": the empty symbol, factor exactly 1.0.
+///
+/// It is how a `Scalar` literal names its notation, and the notation it
+/// names is "written with no suffix" — see [`UnitQuantity::Scalar`] for
+/// why the absence is a row rather than a `None`.
+pub const ONE: ScalarUnit = ScalarUnit::of_row("");
 
 /// The table row for a surface symbol, or `None` when the symbol is
 /// not one the table carries.
