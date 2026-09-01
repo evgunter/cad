@@ -97,15 +97,19 @@ fn wall_sheet(
                 u1,
             )
         } else {
-            let s = frame.at(u1, v)
-                - center
-                - frame.axis * ((frame.at(u1, v) - center).dot(frame.axis));
+            // The radial direction at u1, from the frame fields
+            // directly — the projection-based read cancels
+            // catastrophically for tilted/small frames and mints a
+            // non-structural chart image (the fix-pass port of the
+            // unit builder's own repair).
+            let w = frame.axis.cross(frame.u_ref);
+            let s = frame.u_ref * u1.cos() + w * u1.sin();
             (
                 Curve3::Circle {
                     center,
                     axis: -frame.axis,
                     radius: frame.radius,
-                    u_ref: s.normalize(),
+                    u_ref: s,
                 },
                 0.0,
                 u1 - u0,
@@ -174,6 +178,29 @@ fn wall_sheet(
     face
 }
 
+/// The builder, fallible at the MINT: a tilted frame's chart images
+/// mint as exact structure only by bit-lottery above ~10·ε of tilt
+/// (`r2_diag_mintable_tilts` maps it; the constants of the rows using
+/// this door won the lottery at the default ε row, where their
+/// demonstrations were measured). A row whose fixture cannot be
+/// MINTED at this ε states that and stands down (the
+/// `m5_pr7_split_meter` typed-fixture-refusal precedent) — the arm
+/// never saw the pair, so neither outcome would be evidence about it.
+fn try_wall_sheet(
+    body: &mut Body<f64>,
+    frame: CylFrame,
+    src_id: u64,
+    u0: f64,
+    u1: f64,
+    v0: f64,
+    v1: f64,
+) -> Option<FaceKey> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
+    }))
+    .ok()
+}
+
 fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
     match r {
         Ok(ChartOverlap::PositiveArea) => "PositiveArea".into(),
@@ -209,21 +236,31 @@ fn tilted_frame(theta: f64) -> CylFrame {
 
 #[test]
 fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
+    // ε-RELATIVE at the fix pass (θ = 5000·ε and every length a band
+    // multiple), so the demonstrated ratio holds at each ε row; the
+    // tilt gate now refuses BEFORE extraction, so the coarse-ε mint
+    // lottery cannot mask the row.
     let eps = Tol::witness().eps();
-    let theta = 5e-6_f64;
+    let theta = 5000.0 * eps;
     let fb = tilted_frame(theta);
     // Azimuth window [0.2, 1.4] (cos u > 0 throughout, so the tilt
     // pushes B's TRUE world z strictly DOWN); no seam crossing.
     let (u0, u1) = (0.2_f64, 1.4_f64);
-    let ha = 1e-4;
+    let ha = 1e5 * eps;
     let (mut body_a, mut body_b) = (Body::<f64>::new(), Body::<f64>::new());
-    let fa_key = wall_sheet(&mut body_a, frame_a(), 8001, u0, u1, 0.0, ha);
+    let Some(fa_key) = try_wall_sheet(&mut body_a, frame_a(), 8001, u0, u1, 0.0, ha) else {
+        println!("the fixture cannot be minted at this ε — standing down");
+        return;
+    };
 
     // B's chart-v window straddles 0, so the TRANSFER (identity here:
     // δ = 0, σ = +1, c = 0) reads it as overlapping A's [0, ha].
     let vb1 = 0.08 * theta.sin();
-    let vb0 = vb1 - 5e-5;
-    let fb_key = wall_sheet(&mut body_b, fb, 8002, u0, u1, vb0, vb1);
+    let vb0 = vb1 - 5e4 * eps;
+    let Some(fb_key) = try_wall_sheet(&mut body_b, fb, 8002, u0, u1, vb0, vb1) else {
+        println!("the tilted fixture cannot be minted at this ε — standing down");
+        return;
+    };
 
     // --- The TRUTH, from the two chart maps.
     let mut b_zmax = f64::NEG_INFINITY;
@@ -247,9 +284,7 @@ fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
         1.0 - theta.cos(),
         (1.0 - theta.cos()) / eps
     );
-    println!(
-        "transferred B band = [{vb0:e}, {vb1:e}] -> overlaps A's [0, {ha:e}]"
-    );
+    println!("transferred B band = [{vb0:e}, {vb1:e}] -> overlaps A's [0, {ha:e}]");
 
     let got = declared_pair_overlap(
         &body_a,
@@ -327,15 +362,24 @@ fn frame_b_at(d: f64) -> CylFrame {
 #[test]
 fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
     // World azimuth windows that straddle / hug A's seam at u = 0.
-    let cases: Vec<(&str, f64, (f64, f64), (f64, f64))> = vec![
-        ("seam-straddling, d = 3.0", 3.0, (-0.3, 0.3), (-0.15, 0.45)),
-        ("seam-hugging, d = 6.0", 6.0, (0.0, 0.6), (-0.2, 0.2)),
-        ("d = 6.2 (near τ)", 6.2, (-0.4, 0.4), (0.1, 0.9)),
-        ("d = -2.9", -2.9, (-0.5, 0.1), (-0.05, 0.5)),
-        ("d = 3.14159", 3.141_59, (-0.25, 0.25), (-0.25, 0.25)),
+    type Windows = ((f64, f64), (f64, f64));
+    let cases: Vec<(&str, f64, Windows)> = vec![
+        (
+            "seam-straddling, d = 3.0",
+            3.0,
+            ((-0.3, 0.3), (-0.15, 0.45)),
+        ),
+        ("seam-hugging, d = 6.0", 6.0, ((0.0, 0.6), (-0.2, 0.2))),
+        ("d = 6.2 (near τ)", 6.2, ((-0.4, 0.4), (0.1, 0.9))),
+        ("d = -2.9", -2.9, ((-0.5, 0.1), (-0.05, 0.5))),
+        (
+            "d = π (seam opposed)",
+            core::f64::consts::PI,
+            ((-0.25, 0.25), (-0.25, 0.25)),
+        ),
     ];
     let mut disagreements = vec![];
-    for (name, d, (t0, t1), (s0, s1)) in cases {
+    for (name, d, ((t0, t1), (s0, s1))) in cases {
         let fb = frame_b_at(d);
         let (a, fa) = sheet(frame_a(), 8101, t0, t1, 0.0, 1.0);
         // Same world region, expressed in B's chart:
@@ -392,7 +436,14 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
     );
     // A FLUSH seat (shared rim): TouchingBoundary is claimed.
     let (a2, fa2) = sheet(frame_a(), 8203, 0.2, 1.6, 0.0, 0.5);
-    let (b2, fb2) = sheet(frame_b_at(0.7), 8204, 0.7 - 1.3, 0.7 - 0.5, 0.25 - 1.0, -0.25);
+    let (b2, fb2) = sheet(
+        frame_b_at(0.7),
+        8204,
+        0.7 - 1.3,
+        0.7 - 0.5,
+        0.25 - 1.0,
+        -0.25,
+    );
     println!(
         "flush (rim-sharing) seat: {}",
         verdict_class(declared_pair_overlap(
@@ -435,7 +486,10 @@ fn probe5_door_one_verdict_is_ignored_at_every_variant() {
 fn probe6_what_the_units_own_tilt_row_actually_answers() {
     let tol = Tol::witness();
     let tilt = 40.0 * tol.k() * tol.eps();
-    for (label, ha) in [("short (unit's own A/B z 0..1e-3)", 1e-3), ("long (0..4)", 4.0)] {
+    for (label, ha) in [
+        ("short (unit's own A/B z 0..1e-3)", 1e-3),
+        ("long (0..4)", 4.0),
+    ] {
         let (a, fa) = sheet(frame_a(), 8402, 0.2, 1.6, 0.0, ha);
         let (b, fb) = sheet(tilted_frame(tilt), 8401, 0.2, 1.6, 0.0, ha);
         let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());

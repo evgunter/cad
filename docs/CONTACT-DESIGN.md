@@ -295,22 +295,27 @@ axis direction — so the arm does not pick a chart and pretend; it
 carries one description's trim images across the exact affine
 relation between the two charts (`u ↦ δ + σ·u + kτ`, `v ↦ c + σ·v`,
 an isometry of the metred chart with determinant +1), after its own
-carrier gates re-decide the two descriptions' agreement at the
-PAIR'S OWN EXTENT (`chart_region_cyl_radius` / `_tilt` / `_offset`,
-the tilt levered by the pair's axial reach), and pins the angular
-fold to ONE whole period per pair. The three honesty points above
-carry over in cylinder form: the frame-invariance lemma is written
-at `chart_region.rs`'s `cylinder_pair_overlap` and pinned by a
-both-ways row; the claim is certified-everywhere-within-ε, never
-exact; the extent lever is the pair's own. The fold is issue 1191's
-ground, consumed not repaired: where the floor's enclosure straddles
-a step the fold cannot be pinned and the arm declines typed
-(`PeriodFold`) — the widening runs toward decline, never toward a
-false certification. The arm's remaining declines on decidable
-geometry (an un-windowable wrap outside the full-wrap band fast
-path; a flush cylinder seat's touching boundary, the witness rung
-being plane-only) are disclosed at the arm in the issue-1435
-pattern.
+carrier gates DISCHARGE the two descriptions' agreement at the
+PAIR'S OWN EXTENT twice over — bounded from the descriptions
+(`chart_region_cyl_radius` / `_tilt` / `_offset`, the tilt levered
+by `√(reach² + r²)` so the transfer's first-order `r·θ` error is
+priced) and MEASURED at the trims (`chart_region_cyl_transfer`, the
+per-vertex world residual of the transfer itself) — and pins the
+angular fold to ONE whole period per pair. The three honesty points
+above carry over in cylinder form: the frame-invariance lemma is
+written at `chart_region.rs`'s `cylinder_pair_overlap` and pinned by
+a both-ways row; the claim is certified-everywhere-within-ε, never
+exact; the extent lever is the pair's own. The fold consumes
+CERT-4's repaired `periodic_branch` (issue 1191's widening class is
+closed); at the primitive's documented half-period-tie remainder the
+fold cannot be pinned and the arm declines typed (`PeriodFold`) —
+toward decline, never toward a false certification. The arm's
+remaining declines on decidable geometry (an un-windowable wrap
+outside the full-wrap band fast path — a fast path that is
+structurally f64-only, its exact-point detector never matching a
+transferred interval polygon; a flush cylinder seat's touching
+boundary, the witness rung being plane-only) are disclosed at the
+arm in the issue-1435 pattern.
 
 Cross-instance SPHERE, CONE and TORUS declared pairs keep the
 escalation, their residue restated per kind at the refusal site
@@ -359,28 +364,36 @@ lists; the declaration bridges ONLY the third:
 distinct — for spheres center & radius, for cylinders axis & radius,
 each margin at its named lever arm), opposed senses (exact bit, S10),
 overlap definitely positive **in the pair's chart** (else stale, C3)
-— that chart being the structural rungs' by construction, or, for a
+— that chart being the structural rungs' by construction; or, for a
 declared PLANAR pair, the shared world carrier of C3's revision, whose
 representative frame is certified by `chart_region_carrier_tilt` at
-the pair's own extent.
+the pair's own extent; or, for a declared CYLINDER pair, the
+representative chart of C3's cylinder revision, whose transfer is
+certified by the `chart_region_cyl_*` gates (the radius-pricing
+`√(reach² + r²)` tilt lever plus the measured per-vertex transfer
+residual) at the pair's own extent.
 Contradicted by: definitely-distinct carriers, aligned senses,
 definite separation anywhere on the claimed patch. Bridged: in-band
 carrier-data margins between independently-authored descriptions —
 the declaration is what makes them one carrier (ladder rung (b)'s
 "explicit recipe-level relation", now for every kind).
 
-**The two doors are not independent (#1063).** The world-carrier arm
-exists only because the declaration verified, so the area
-certification is handed Door 1's `ContactVerdict` rather than
-re-deriving or assuming it. It reads it in exactly one place: the
-interior-witness rung — the rung that answers a FLUSH seat, where the
-trims share a boundary and the region walk can build no intersection
-piece — runs only on `Definite`. That rung proves its point lies ON
-both carriers, and a `Bridged` verdict is precisely the statement that
-the carriers' coincidence rests on the declaration rather than on the
-geometry; a precondition may not be discharged by the claim under
-test. On `Bridged` the rung declines and the region walk's typed
-refusal stands.
+**The two doors are not independent (#1063; extended at MATE-5).**
+The declared-pair arms exist only because the declaration verified, so
+the area certification is handed Door 1's `ContactVerdict` rather
+than re-deriving or assuming it. It reads it in two places. The
+planar interior-witness rung — the rung that answers a FLUSH seat,
+where the trims share a boundary and the region walk can build no
+intersection piece — runs only on `Definite`: that rung proves its
+point lies ON both carriers, and a `Bridged` verdict is precisely the
+statement that the carriers' coincidence rests on the declaration
+rather than on the geometry; a precondition may not be discharged by
+the claim under test, so on `Bridged` the rung declines and the
+region walk's typed refusal stands. The cylinder enclosure's premise
+budget TIGHTENS on `Bridged`: a bridged carrier has already spent an
+in-band residue at Door 1's own rows, so the enclosure's gates decide
+against a band whose zero edge is halved — a conservative allocation
+that can only move outcomes from certification toward escalation.
 
 `Tangent`: definite = first-order tangency along the witnessed locus
 (normal opposition within the derived angle — for constructor-

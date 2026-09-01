@@ -93,15 +93,19 @@ fn wall_sheet(
                 u1,
             )
         } else {
-            let s = frame.at(u1, v)
-                - center
-                - frame.axis * ((frame.at(u1, v) - center).dot(frame.axis));
+            // The radial direction at u1, from the frame fields
+            // directly — the projection-based read cancels
+            // catastrophically for tilted/small frames and mints a
+            // non-structural chart image (the fix-pass port of the
+            // unit builder's own repair).
+            let w = frame.axis.cross(frame.u_ref);
+            let s = frame.u_ref * u1.cos() + w * u1.sin();
             (
                 Curve3::Circle {
                     center,
                     axis: -frame.axis,
                     radius: frame.radius,
-                    u_ref: s.normalize(),
+                    u_ref: s,
                 },
                 0.0,
                 u1 - u0,
@@ -191,6 +195,29 @@ fn tilted_frame(radius: f64, theta: f64) -> CylFrame {
     }
 }
 
+/// The builder, fallible at the MINT: a tilted frame's chart images
+/// mint as exact structure only by bit-lottery above ~10·ε of tilt
+/// (`r2_diag_mintable_tilts` maps it; the constants of the rows using
+/// this door won the lottery at the default ε row, where their
+/// demonstrations were measured). A row whose fixture cannot be
+/// MINTED at this ε states that and stands down (the
+/// `m5_pr7_split_meter` typed-fixture-refusal precedent) — the arm
+/// never saw the pair, so neither outcome would be evidence about it.
+fn try_wall_sheet(
+    body: &mut Body<f64>,
+    frame: CylFrame,
+    src_id: u64,
+    u0: f64,
+    u1: f64,
+    v0: f64,
+    v1: f64,
+) -> Option<FaceKey> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
+    }))
+    .ok()
+}
+
 fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
     match r {
         Ok(ChartOverlap::PositiveArea) => "PositiveArea".into(),
@@ -227,32 +254,40 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 /// direction this row was adopted in).
 #[test]
 fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
-    // θ = 3e-5 rad, r = 1 m: a tilt/radius pair the fixture builder's
-    // exact-structure minting tolerates (see `r2_diag_mintable_tilts`).
-    let theta = 3e-5_f64;
+    // ε-RELATIVE (fix pass): θ = 3e4·ε, w = 2000·ε — the same band
+    // multiples at every ε row (fixed-size hairlines are refused by
+    // the euler ops once ε reaches their scale). The tilt gate fires
+    // BEFORE extraction, so the mint's exact-structure lottery at
+    // coarse-ε tilts cannot mask this row's refusal.
+    let eps = Tol::witness().eps();
+    let theta = 3e4 * eps;
     let r = 1.0_f64;
-    let w = 2e-6_f64;
+    let w = 2000.0 * eps;
     let mut ba = Body::<f64>::new();
-    let fa = wall_sheet(&mut ba, frame_a(r), 9001, 0.2, 1.2, 0.0, w);
+    let Some(fa) = try_wall_sheet(&mut ba, frame_a(r), 9001, 0.2, 1.2, 0.0, w) else {
+        println!("the fixture cannot be minted at this ε — standing down");
+        return;
+    };
     let bframe = tilted_frame(r, theta);
     let mut bb = Body::<f64>::new();
-    let fb = wall_sheet(&mut bb, bframe, 9002, 0.3, 1.3, -0.3 * w, 0.7 * w);
+    let Some(fb) = try_wall_sheet(&mut bb, bframe, 9002, 0.3, 1.3, -0.3 * w, 0.7 * w) else {
+        println!("the tilted fixture cannot be minted at this ε — standing down");
+        return;
+    };
 
     // --- 3D disjointness, exact: max z over B's whole trim.
     // z(u_b, v_b) = v_b·cosθ − r·sinθ·cos(u_b); max at v_b = 0.7w,
     // u_b = 1.3 (cos smallest). A's trim has z ∈ [0, w] exactly.
     let max_z_b = 0.7 * w * theta.cos() - r * theta.sin() * (1.3_f64).cos();
     assert!(
-        max_z_b < -6e-6,
+        max_z_b < -6000.0 * eps,
         "B's trim tops out at z = {max_z_b:.3e} — the trims are 3D-disjoint \
-         by > 6e-6 m (A's trim is at z >= 0)"
+         by > 6000·ε (A's trim is at z >= 0)"
     );
     // Cross-check by dense sampling of both trims' 3D images.
     let mut min_d2 = f64::MAX;
     let samples_a: Vec<Point3<f64>> = (0..=60)
-        .flat_map(|i| {
-            (0..=6).map(move |j| (0.2 + (i as f64) / 60.0, (j as f64) * w / 6.0))
-        })
+        .flat_map(|i| (0..=6).map(move |j| (0.2 + (i as f64) / 60.0, (j as f64) * w / 6.0)))
         .map(|(u, v)| frame_a(r).at(u, v))
         .collect();
     for i in 0..=60 {
@@ -266,7 +301,7 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
         }
     }
     assert!(
-        min_d2.sqrt() > 6e-6,
+        min_d2.sqrt() > 6000.0 * eps,
         "sampled min distance {} confirms 3D disjointness",
         min_d2.sqrt()
     );
@@ -293,12 +328,15 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
 /// The fixed gate's `hyp` lever refuses it typed.
 #[test]
 fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
-    // θ = 8e-9 rad: at Door 1's pinned 1 m arm this is IN BAND
-    // ([ε, k·ε) = [1e-9, 1e-8)), i.e. exactly the residue `Bridged`
-    // bridges — this pair is census-reachable with a declaration.
-    let theta = 8e-9_f64;
+    // θ = 8·ε rad: at Door 1's pinned 1 m arm this is IN BAND
+    // ([ε, k·ε)), i.e. exactly the residue `Bridged` bridges — this
+    // pair is census-reachable with a declaration. ε-RELATIVE at the
+    // fix pass, so the band-relative story holds at every ε row; the
+    // tilt gate fires before extraction, so no mint-lottery masking.
+    let eps = Tol::witness().eps();
+    let theta = 8.0 * eps;
     let r = 100.0_f64;
-    let w = 1e-7_f64;
+    let w = 100.0 * eps;
     let mut ba = Body::<f64>::new();
     let fa = wall_sheet(&mut ba, frame_a(r), 9003, 0.2, 1.2, 0.0, w);
     let bframe = tilted_frame(r, theta);
@@ -308,8 +346,8 @@ fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
     // below it; A's trim at z ∈ [0, w].
     let max_z_b = 0.7 * w * theta.cos() - r * theta.sin() * (1.3_f64).cos();
     assert!(
-        max_z_b < -6e-8,
-        "B tops out at z = {max_z_b:.3e}: 3D-disjoint from A by > 6e-8 (60·eps)"
+        max_z_b < -60.0 * eps,
+        "B tops out at z = {max_z_b:.3e}: 3D-disjoint from A by > 60·ε"
     );
     // ADOPTED as a red-first acceptance row at the fix pass: on the
     // pre-fix head this census-reachable pair CERTIFIED PositiveArea.
@@ -402,12 +440,18 @@ fn r2_seam_hugging_pair_is_frame_invariant_both_ways() {
 /// bit-fragile under tilted frames — this maps the usable space).
 #[test]
 fn r2_diag_mintable_tilts() {
-    let w = 2e-6_f64;
+    // ε-RELATIVE at the fix pass: the fixtures' sizes and tilts are
+    // band multiples, so the map stays meaningful at every eps row
+    // (absolutely-sized hairlines are refused by the euler ops
+    // themselves once eps reaches their scale).
+    let eps = Tol::witness().eps();
+    let w = 2000.0 * eps;
     for r in [1.0_f64, 10.0, 100.0, 1000.0] {
-        for theta in [
-            0.0_f64, 1.5e-9, 2e-9, 2.5e-9, 3e-9, 4e-9, 5e-9, 6e-9, 7e-9, 8e-9, 9e-9, 9.5e-9,
-            3e-5,
+        for theta_e in [
+            0.0_f64, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.5, 30.0, 100.0, 300.0,
+            1e3, 3e3, 1e4, 3e4,
         ] {
+            let theta = theta_e * eps;
             let got = std::panic::catch_unwind(|| {
                 let mut bb = Body::<f64>::new();
                 let fb = wall_sheet(

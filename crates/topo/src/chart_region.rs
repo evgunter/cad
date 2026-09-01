@@ -1137,6 +1137,16 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// forming an axis-aligned rectangle in chart coordinates — anything
 /// else falls through to the general walk.
 ///
+/// **Lane asymmetry, disclosed**: the transferred polygon's
+/// coordinates carry `δ` (an `atan2` result) and the transfer's
+/// products, which are NOT point brackets at the interval scalar —
+/// so the exact-point read rejects `uv_b` there and the band fast
+/// path is structurally **f64-only** (pinned by
+/// `r1_mate5_interval_probe.rs`). At interval, full-period pairs take
+/// the general path and decline honestly at the fold or seam gate;
+/// the conservative direction — the asymmetry can suppress a
+/// certification, never mint one.
+///
 /// # Frame invariance (the lemma, cylinder form)
 ///
 /// The metred transfer `ψ: (r·u, v) ↦ (r·u_A, v_A)` is — within the ε
@@ -1301,10 +1311,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
         a.origin + (a.u_ref * cu + w_a * s) * a.radius + a.axis * q.y
     };
     let mut residual = T::zero();
-    for (body, face, uv) in [
-        (body_a, face_a, &uv_a),
-        (body_b, face_b, &uv_b),
-    ] {
+    for (body, face, uv) in [(body_a, face_a, &uv_a), (body_b, face_b, &uv_b)] {
         residual = residual.max(transfer_residual(body, face, uv, &phi_a)?);
     }
     norm_gate("chart_region_cyl_transfer", Margin::of(residual))?;
