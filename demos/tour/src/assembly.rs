@@ -1575,11 +1575,16 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         },
         Stop {
             name: "benchlayout",
-            caption: "the same parts, flat-packed".to_string(),
+            caption: "the same two part documents, flat-packed".to_string(),
             montage: true,
-            story: "the same two documents laid out for shipping — ONE post instance \
-                    patterned four ways plus the shelf, nothing touching: A5's disjoint \
-                    half, where the at-rest gate passes outright",
+            story: "the same two part documents laid out for shipping — ONE post \
+                    instance patterned FOUR ways plus the shelf, nothing touching: A5's \
+                    disjoint half, where the at-rest gate passes outright. Four, where \
+                    the bench assembles two, and neither count is arbitrary: the bench \
+                    is a bench (two posts, flush at the shelf's ends, inset in depth) \
+                    and the pattern's fourth instance is what makes `Instance(i)` a \
+                    selector worth demonstrating — the lookup below asks for the THIRD \
+                    post's cap by name",
             ops: "InstantiatePart (explicit rotated frame) -> LinearPattern(4) + \
                   InstantiatePart (explicit frame) -> A10 product gather -> assemble",
             delta: 4e-3,
