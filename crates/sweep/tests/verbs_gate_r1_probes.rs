@@ -12,7 +12,11 @@
 //! Row 3 documents what the full pipeline does when a torus-carrying
 //! operand is admitted (correctly, per the ruling) but the operation
 //! falls through to the containment fallback, whose `point_in_solid`
-//! walks EVERY face of the other body regardless of box overlap.
+//! walks EVERY face of the other body regardless of box overlap. It
+//! pinned a typed refusal by KIND there until issue 1011's torus half
+//! landed the arm; what it pins now is the completion that refusal was
+//! always standing in for, and the structural claim underneath both:
+//! the gate admits, and containment must then answer for every face.
 //!
 //! Rows 4–5 are behavioral box-soundness probes at TILTED axes — the
 //! pose the in-tree cylinder/cone locus and ceiling rows never take
@@ -118,7 +122,10 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
 /// profile, revolved fully about the y axis — every face a torus
 /// band, no sphere and no plane, which is what lets the no-crossings
 /// fallback (row 3) be reached without the sphere extent scan
-/// refusing first on a trimmed sphere group.
+/// refusing first on a trimmed sphere group. Its two faces are the
+/// containment door's CLOSED-GROUP torus class: they share both
+/// full-period parallels and each wraps the major azimuth through its
+/// own self-mated seam, so neither carries a chart window.
 fn donut() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
     let lp = ProfileLoop::new(vec![
@@ -152,29 +159,29 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 /// torus band's box clears the brick, the brick genuinely crosses
 /// only CYLINDER walls (wired germ), so the pair-scoped gate admits
 /// the union — and the spec's ruling says the torus's kind is then
-/// irrelevant. To the CUT it is; to CONTAINMENT it is not, and the
-/// boundary is now typed. The join's geometric role resolution
+/// irrelevant. To the CUT it always was; to CONTAINMENT it was not,
+/// because the join's geometric role resolution
 /// (`resolve_roles_geometric`, join.rs) probes `point_in_solid`
 /// against the whole PRISTINE other body, whose boundary pre-pass
-/// walks EVERY face — the out-of-reach caps and band included —
-/// because a ray from the query point crosses the whole boundary and
-/// box reach does not enter that question. So the admitted union
-/// still refuses, naming the KIND and saying the body is healthy:
-/// `KindUnsupported { kind: Torus }` for BOTH vases. The caps are
-/// served either way now — the sphere-capped one through the sphere
-/// chart's own rectangle, the cone-capped one through the ray×cone
-/// arm — so in both the band is what is left. What this row pins is
-/// that the refusal is a capability statement and never a corruption
-/// claim.
+/// walks EVERY face — the out-of-reach caps and band included — since
+/// a ray from the query point crosses the whole boundary and box reach
+/// does not enter that question.
 ///
-/// Both arms carry the aspirational branch: if the union ever
-/// completes, its volume must be the reviewer's own closed form.
+/// **So this row pinned a refusal, and it is now the completion it
+/// always said it should be.** The caps were the first blocker, then
+/// the band: the sphere-capped vase's caps answered once the sphere
+/// chart's own rectangle landed, the cone-capped vase's once the
+/// ray×cone arm did, and the band answers now that issue 1011's torus
+/// half has. Every face of both vases is served, so the admitted union
+/// completes — and what the row asserts is the analytic volume it must
+/// then carry, which is the reviewer's own closed form and was written
+/// here before any of the three arms existed.
 #[test]
-fn a_granted_crossing_union_with_a_torus_band_is_refused_by_kind_in_containment() {
+fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
     for sphere_caps in [true, false] {
         let a = vase_with_caps(sphere_caps);
         let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0));
-        match topo::union(&a, &b, Tol::witness()) {
+        let out = match topo::union(&a, &b, Tol::witness()) {
             Err(
                 BooleanError::CurvedPairUnsupported { .. }
                 | BooleanError::CurvedBooleanUnsupported { .. },
@@ -182,86 +189,41 @@ fn a_granted_crossing_union_with_a_torus_band_is_refused_by_kind_in_containment(
                 "sphere_caps = {sphere_caps}: the torus band and caps clear the \
                  brick — the pair-scoped gate must not refuse this union"
             ),
-            Err(BooleanError::Containment(e)) => {
-                let msg = e.to_string();
-                if sphere_caps {
-                    // The sphere caps used to be the blocker: they are
-                    // TRIMMED sphere faces, and the containment door had
-                    // no chart trim for that class. It has one, so the
-                    // caps answer and the refusal moves to the face that
-                    // still has no ray-crossing arm — the TORUS band.
-                    // The row's point is unchanged: a capability
-                    // statement, never a corruption claim.
-                    assert!(
-                        matches!(
-                            e,
-                            topo::PointInSolidError::KindUnsupported {
-                                kind: geom_brep::SurfaceKind::Torus,
-                                ..
-                            }
-                        ),
-                        "expected the torus containment kind refusal, got {e:?}"
-                    );
-                    assert!(
-                        msg.contains("HEALTHY") && !msg.contains("corrupt"),
-                        "the refusal must name a missing capability, not damage: {msg}"
-                    );
-                } else {
-                    // The same movement, one kind later: the plain
-                    // caps are CONE faces, and they were the blocker
-                    // until the containment door grew the ray×cone
-                    // arm. It has one, so the caps answer and the
-                    // refusal moves to the face that still has no
-                    // ray-crossing arm — the TORUS band, which is what
-                    // both branches now name. The row's point is
-                    // unchanged: a capability statement, never a
-                    // corruption claim.
-                    assert!(
-                        matches!(
-                            e,
-                            topo::PointInSolidError::KindUnsupported {
-                                kind: geom_brep::SurfaceKind::Torus,
-                                ..
-                            }
-                        ),
-                        "expected the typed containment kind refusal, got {e:?}"
-                    );
-                    assert!(
-                        msg.contains("HEALTHY") && !msg.contains("corrupt"),
-                        "the refusal must name a missing capability, not damage: {msg}"
-                    );
-                }
-            }
+            Err(BooleanError::Containment(e)) => panic!(
+                "sphere_caps = {sphere_caps}: the containment door still refuses \
+                 by kind — issue 1011 retired that refusal for every analytic \
+                 kind this body carries: {e}"
+            ),
             Err(other) => {
                 panic!("sphere_caps = {sphere_caps}: unexpected refusal shape: {other:?}")
             }
-            Ok(out) => {
-                // The aspirational branch: an honest completion must
-                // carry the analytic volume (reviewer's own integral).
-                let body = &out.body().expect("a non-empty union").body;
-                let (cx, r_arc, a_h) = bulge_arc();
-                let iq = 2.0
-                    * (a_h / 2.0 * (r_arc * r_arc - a_h * a_h).sqrt()
-                        + r_arc * r_arc / 2.0 * (a_h / r_arc).asin());
-                let top = PI
-                    * (cx * cx * 2.0 * a_h
-                        + 2.0 * cx * iq
-                        + (r_arc * r_arc * 2.0 * a_h - 2.0 * a_h * a_h * a_h / 3.0));
-                let caps_vol = if sphere_caps {
-                    2.0 * (2.0 / 3.0) * PI * 0.125
-                } else {
-                    2.0 * PI * 0.25 * 0.5 / 3.0
-                };
-                let vase_vol = caps_vol + 2.0 * PI * 0.25 * 0.5 + top;
-                let want = vase_vol + 2.0 * 2.0 * 0.38 - PI * 0.25 * 0.38;
-                let got = vol(body);
-                assert!(
-                    (got - want).abs() < 1e-6,
-                    "sphere_caps = {sphere_caps}: completed union volume {got} != \
-                     analytic {want}"
-                );
-            }
-        }
+            Ok(out) => out,
+        };
+        // The completion must carry the analytic volume (the reviewer's
+        // own integral, unchanged from when this was the aspirational
+        // branch).
+        let body = &out.body().expect("a non-empty union").body;
+        let (cx, r_arc, a_h) = bulge_arc();
+        let iq = 2.0
+            * (a_h / 2.0 * (r_arc * r_arc - a_h * a_h).sqrt()
+                + r_arc * r_arc / 2.0 * (a_h / r_arc).asin());
+        let top = PI
+            * (cx * cx * 2.0 * a_h
+                + 2.0 * cx * iq
+                + (r_arc * r_arc * 2.0 * a_h - 2.0 * a_h * a_h * a_h / 3.0));
+        let caps_vol = if sphere_caps {
+            2.0 * (2.0 / 3.0) * PI * 0.125
+        } else {
+            2.0 * PI * 0.25 * 0.5 / 3.0
+        };
+        let vase_vol = caps_vol + 2.0 * PI * 0.25 * 0.5 + top;
+        let want = vase_vol + 2.0 * 2.0 * 0.38 - PI * 0.25 * 0.38;
+        let got = vol(body);
+        assert!(
+            (got - want).abs() < 1e-6,
+            "sphere_caps = {sphere_caps}: completed union volume {got} != \
+             analytic {want}"
+        );
     }
 }
 
@@ -288,62 +250,65 @@ fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
     };
 }
 
-/// **Row 3 — what the ruling's own blind spot answers today.** A
-/// torus face whose box clears a DISJOINT other operand is admitted
-/// (correct per the spec's ruling: it can enter no crossing). But
-/// with no crossings at all the pipeline falls through to the
-/// containment fallback, and `point_in_solid` walks EVERY face of the
-/// classified-against body — box reach never enters it, because a ray
-/// crosses the whole boundary — so the admitted union refuses in
-/// `face_geo` naming the TORUS kind and the missing arm. The body is
-/// healthy and the refusal says so; that is the honest boundary the
-/// pair-scoped gate buys until the containment arm lands.
+/// **Row 3 — what the ruling's own blind spot answered, and what it
+/// answers now.** A torus face whose box clears a DISJOINT other
+/// operand is admitted (correct per the spec's ruling: it can enter no
+/// crossing). But with no crossings at all the pipeline falls through
+/// to the containment fallback, and `point_in_solid` walks EVERY face
+/// of the classified-against body — box reach never enters it, because
+/// a ray crosses the whole boundary. So the admitted union used to
+/// refuse in `face_geo`, naming the TORUS kind and the missing arm: a
+/// healthy body and an honest capability boundary, which is what this
+/// row pinned.
 ///
-/// This row pins that boundary; if a torus containment arm ever
-/// lands, the union should instead answer a two-solid assembly of
-/// volume vase + brick.
+/// **That boundary is gone.** Issue 1011's torus half landed the
+/// ray×torus arm, so the fallback answers and the union completes as
+/// the two-solid assembly this row always said it should — which is
+/// what the pin was FOR. What survives, and is what the row now
+/// asserts, is the structural claim underneath it: the pair-scoped
+/// gate admits the operation (nothing here is refused by kind at the
+/// gate), and the containment door then has to answer for every face
+/// of a body whose only curved faces are torus faces.
 #[test]
-fn a_disjoint_union_with_a_torus_face_is_admitted_then_refused_by_kind() {
+fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
     let a = donut();
     let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
-    match topo::union(&a, &b, Tol::witness()) {
+    let out = match topo::union(&a, &b, Tol::witness()) {
         Err(
             BooleanError::CurvedPairUnsupported { .. }
             | BooleanError::CurvedBooleanUnsupported { .. },
-        ) => {
-            panic!(
-                "the donut clears a body five units away — the pair-scoped \
-                 gate must not refuse this"
-            );
-        }
-        Err(BooleanError::Containment(e)) => {
-            assert!(
-                matches!(
-                    e,
-                    topo::PointInSolidError::KindUnsupported {
-                        kind: geom_brep::SurfaceKind::Torus,
-                        ..
-                    }
-                ),
-                "expected the typed containment kind refusal, got {e:?}"
-            );
-            let msg = e.to_string();
-            assert!(
-                msg.contains("HEALTHY") && !msg.contains("corrupt"),
-                "the refusal must name a missing capability, not damage: {msg}"
-            );
-        }
+        ) => panic!(
+            "the donut clears a body five units away — the pair-scoped \
+             gate must not refuse this"
+        ),
+        Err(BooleanError::Containment(e)) => panic!(
+            "the containment door still refuses a torus operand — this is the \
+             refusal issue 1011's torus half retires: {e}"
+        ),
         Err(other) => panic!("unexpected refusal shape for the fallback path: {other:?}"),
-        Ok(out) => {
-            // If this ever succeeds, it must be the honest assembly:
-            // report loudly so the pinned frontier is re-derived.
-            panic!(
-                "the disjoint torus union now COMPLETES ({:?}) — the fallback \
-                 grew a torus arm; re-derive this probe",
-                out.body().map(|b| b.kind)
-            );
-        }
-    }
+        Ok(out) => out,
+    };
+    let result = out.body().expect("a disjoint union is not empty");
+    assert_eq!(result.kind, topo::BooleanResultKind::Assembly);
+    assert_eq!(topo::validate_closed(&result.body), Ok(()));
+    // The honest assembly: both operands' volumes, summed.
+    //
+    // **This does not witness the four-root ray**, and the comment used
+    // to say it did. The assertion is on the assembled body's VOLUME,
+    // which the props lane computes from the boundary in closed form and
+    // never asks a containment door about; mutating the quartic's
+    // biquadratic factor sign leaves this row green. What it witnesses
+    // is that the containment door ANSWERED for every face of a
+    // torus-only operand — that is what the fallback needed and what
+    // this row's own frontier was about. The four-root ray has its own
+    // witness in `bool3_torus_doors::the_four_root_ray_through_the_
+    // hole_reads_the_nearest_wall`, which probes the hole directly.
+    let want = vol(&a) + vol(&b);
+    let got = vol(&result.body);
+    assert!(
+        (got - want).abs() < 1e-9,
+        "the assembly must carry both operands' volume: {got} != {want}"
+    );
 }
 
 /// A brick whose `x = x1` face is relabelled to `surface` — the

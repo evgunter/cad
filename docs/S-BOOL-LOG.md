@@ -105,3 +105,38 @@ closed_sphere_group scan wants one home before the torus copy
 lands; the three per-suite probe-offset spellings likewise. Slate
 next: BOOL-3 (the torus arm) or BOOL-5 (#542) per lane budget;
 issues 1434, 1401, 1402 filed en route this wave.
+
+## BOOL-3 merged (2026-09-01) — issue 1011 closed; the torus arm lands on a certified count
+
+PR 1464 at fix head `2ff0d5a9` (+ a docs-only main merge before
+state-sync). Gates: impl head interval-asked/1e-6 drawn, fix head
+interval-asked/1e-12 drawn — the leg where the cube and √ shell
+laws separate 10.2×, which the fix pass made moot by pinning the
+exponent at two fixed bands. point_in_solid answers torus-bearing
+solids: the monic quartic's root count read off exact sign algebra
+(never off the roots), the chart's two angular windows on the
+branch-pinned boundary walk (now with closure and bounding-box
+guards), Ferrari's cube root as a fixed 54-√ composition whose
+truncation gap is carried by a magnitude bound — the containment
+overclaim both reviewers caught, corrected at all three sites. The
+group scan's one home (surface_group.rs) discharges BOOL-2's
+recorded debt; the spindle receipt was narrowed to the revolve door
+after R2's sweep found the blend lane mints tori too, and the
+vanishing-rho hazard is closed by a typed refusal regardless.
+
+**The dual (ordinal 1102, sample at the row)**: R1 A-W-F 2/8/5, R2
+A-W-F with no correctness defect found by either arm — two
+independent root-count oracles (1310 and 3000+ rays) agree with the
+arm everywhere, and the sign mutant dies to 7 rows in both lanes.
+R2's fable arm was interrupted by the account limit and resumed
+same-arm, so the pair is 3(e)-EXCLUDED from the tally and the
+twelve; R1's would-be tally candidate (the √ε prose inside the
+cube-law suite's own guard obligation) is recorded uncoded. Issues
+1483/1484 filed; the 1076 sibling-sentence correction commented
+(first demonstrated instance at point_in_face, both lanes
+reproduced).
+
+Slate next: BOOL-8 (the line(len) structural continuation + the
+amended PATHS §4 text + the lily migration — the ratified Q1
+extension) dispatches next; BOOL-4/5/6/7/9/10 and the Q-track
+lanes queue behind per the shared lane budget.
