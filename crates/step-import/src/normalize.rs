@@ -729,21 +729,18 @@ fn seam_vertex_on_loop(
         // under evaluation.
         solid.vertices.insert(mid_v, q);
         for half in [first, second] {
-            let spec = &solid.edges[&half];
+            // ONE lookup serves both the reads and the load-bearing
+            // interval write (the comment above) — `edges` and
+            // `vertices` are disjoint fields, so the vertex reads
+            // borrow beside the spec. The half cannot miss: both were
+            // minted into `solid.edges` by `split_at_param` above.
+            let Some(spec) = solid.edges.get_mut(&half) else {
+                unreachable!("a split half minted by `split_at_param` is in `solid.edges`")
+            };
             let self_loop = spec.start == spec.end;
             let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
             let (t0, t1) =
                 crate::geometry::endpoint_params(half, &spec.carrier, ps, pe, self_loop)?;
-            // The interval write is load-bearing (the comment above);
-            // a lookup that could skip it would break the round-trip
-            // fixed point silently. `half` cannot miss: both halves
-            // were minted into `solid.edges` by `split_at_param`, and
-            // nothing between that insert and this write removes an
-            // edge — the same fact the read at the top of this loop
-            // body already indexes on.
-            let Some(spec) = solid.edges.get_mut(&half) else {
-                unreachable!("a split half minted by `split_at_param` is in `solid.edges`")
-            };
             spec.t0 = t0;
             spec.t1 = t1;
         }
@@ -1369,8 +1366,11 @@ mod tests {
 
     /// A cone face whose loop states its seam twice in the SAME
     /// direction is not the degenerate-apex shape — that walk does not
-    /// close over the seam — so detection declines and the shell is
-    /// left, untouched, for the kernel's own validity ladder.
+    /// close over the seam — so detection declines and leaves the
+    /// shell untouched. The import pipeline never presents this shape
+    /// (the shell's manifold precondition refuses a twice-forward
+    /// edge before normalize runs); the decline guards direct
+    /// constructors of a `SolidSpec`.
     #[test]
     fn apex_cone_declines_a_same_direction_doubled_seam() {
         let (apex_v, base_v) = (1, 2);

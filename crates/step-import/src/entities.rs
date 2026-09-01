@@ -1470,6 +1470,9 @@ impl<'a> Resolver<'a> {
         const PER_EDGE: usize = 16;
         let mut out = Vec::with_capacity(lp.uses.len() * PER_EDGE);
         for use_ in &lp.uses {
+            // The miss is impossible (`bound` inserts every use's
+            // edge), but its surfacing stays a typed refusal — the
+            // conservative choice for an internal invariant.
             let spec = edges.get(&use_.edge).ok_or(StepImportError::Topology {
                 id: use_.edge,
                 what: "internal: an edge use without a resolved edge",
@@ -1817,15 +1820,19 @@ impl<'a> Resolver<'a> {
         };
         let start = as_ref(id, start_ref, expected)?;
         let end = as_ref(id, end_ref, expected)?;
-        for v in [start, end] {
-            if let std::collections::btree_map::Entry::Vacant(slot) = vertices.entry(v) {
-                let p = self.vertex(id, v)?;
-                slot.insert(p);
-            }
-        }
+        // The entry that resolves a vertex also yields its point, so
+        // no second lookup re-answers a presence this arm just proved.
+        let mut resolve_point = |v: u64| -> Result<Point3<f64>, StepImportError> {
+            Ok(match vertices.entry(v) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    *slot.insert(self.vertex(id, v)?)
+                }
+                std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+            })
+        };
+        let p_start = resolve_point(start)?;
+        let p_end = resolve_point(end)?;
         let carrier = self.curve(id, as_ref(id, curve_ref, expected)?)?;
-        let p_start = vertices[&start];
-        let p_end = vertices[&end];
         let (t0, t1) = geometry::endpoint_params(id, &carrier, p_start, p_end, start == end)?;
         Ok(EdgeSpec {
             start,
@@ -1953,10 +1960,13 @@ fn bounds_census(bounds: &[BoundSpec], edges: &BTreeMap<u64, EdgeSpec>) -> FaceC
         for u in &bound.uses {
             edge_ids.insert(u.edge);
             // A use's edge always resolves: `bound` inserts the edge's
-            // spec into `edges` before it pushes the use, and nothing
-            // removes one. A census that skipped a use's endpoints
-            // would understate the identity it exists to certify, so
-            // the impossibility is asserted rather than tolerated.
+            // spec into `edges` before it pushes the use, and the
+            // resolver phase — which is where this census runs, at
+            // face resolution, before any normalize-phase surgery —
+            // never removes one. A census that skipped a use's
+            // endpoints would understate the identity it exists to
+            // certify, so the impossibility is asserted rather than
+            // tolerated.
             let Some(spec) = edges.get(&u.edge) else {
                 unreachable!("an EdgeUse's edge is inserted into `edges` before the use is built")
             };
