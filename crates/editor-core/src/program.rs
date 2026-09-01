@@ -138,6 +138,17 @@ pub enum ProgramStep {
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).
+///
+/// It is the arc-mode vocabulary's second spelling, and it has to be
+/// for the reason [`ProgramStep`] does. Nothing in this crate is
+/// exhaustive on `profile::ArcData` in a way that would force a mode
+/// to arrive here: `res_spec` matches THIS type and CONSTRUCTS the
+/// kernel one, so a mode the kernel gains can be discharged in the
+/// content-key hashers alone and leave this enum, the wire and the
+/// expression-slot roles quietly short. What forces arrival is the
+/// mode census in `tests/switch_program_vocabulary.rs`, keyed on
+/// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
+/// so a mode with no document spelling is a compile error there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -358,10 +369,15 @@ impl core::error::Error for ProgramRefusal {}
 // ------------------------------------------------------------------
 
 /// The argument roles a target contributes ([] for `Start`).
+///
+/// Exhaustive on the target vocabulary rather than a test for one
+/// form: a target form that carries expressions and enumerates no role
+/// is an expression no slot addresses, which the bijection census sees
+/// only where the corpus reaches it.
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::TargetX);
-        out.push(StepArg::TargetY);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
+        ProgramTarget::Start => {}
     }
 }
 
@@ -414,11 +430,11 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     }
 }
 
-/// The spec₂ twin of [`target_slots`].
+/// The spec₂ twin of [`target_slots`], exhaustive for the same reason.
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::Target2X);
-        out.push(StepArg::Target2Y);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
+        ProgramTarget::Start => {}
     }
 }
 
@@ -750,6 +766,15 @@ fn res_step<T: Decide>(
 
 /// Resolves an arc spec to its scalar-valued mirror (`second` selects
 /// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the hop the compiler cannot check in the direction that
+/// matters: it matches the document vocabulary and CONSTRUCTS the
+/// kernel one, so it stays well-typed while the kernel vocabulary
+/// grows past it. The mode census keyed on `profile::ArcMode::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what stands there, and it
+/// checks both directions of the same arm: that every kernel mode is
+/// reachable from a document spec, and that each one resolves to ITS
+/// OWN mode rather than being laundered into a neighbour's.
 fn res_spec<T: Decide>(
     spec: &ProgramArcData,
     env: &ParamEnv<T>,
