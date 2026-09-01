@@ -52,7 +52,12 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
 }
 
 /// Raise `PersistError` carrying the refusal's stable tag.
-fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
+///
+/// One door for the whole persistence vocabulary, the pin doors in
+/// `crate::py::store` included: they run the same validator and the
+/// same canonical serializer, so their refusals are the words
+/// `Doc.save` and `load` already speak.
+pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
     let tag = persist_error_tag(err);
     typed_err(
         py,

@@ -103,7 +103,7 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 | (held, UV-R8) | G4's landing | until the bounds-allowlist half lands with Track K's `D68` answer |
 | (held, UV-R5) | C13, C14 | until LIB's plans exist and Evan signs off |
 | **uv-d** | D121 | **PR 1475**: the mode set gets the `Step` treatment — `arc_modes!` (enum/ALL/projection), the editor-core census with a compile-time witness and the `res_spec` laundering clause, the profile replay census (catching `Via`/`ArcLen`, never replayed), fused coverage widened. Style review: no MAJOR; fix pass made the two `_ =>` classifications exhaustive on `Step` (the D360 shape its own sweep hunts, caught by the review) — head `5926855`, CI green across three drawn points — **MERGED with this state-sync** |
-| **uv-f** | D47, D37 | **PR 1481** implemented, CI green (drew interval/1e-6) — style review next, then its own state-sync |
+| **uv-f** | D47, D37 | **PR 1481**: D47 closed as the FUNNEL GUARD (`reads_as_prose` in `typed_err`) plus one real fix (`ExportError`'s `RecipeNodeId` dump) — the row's edit half had landed via LIB's `24dd07f` on 08-29, which UV-R3's re-derivation missed (correction recorded). D37 re-derived smaller: the deferral half gained its owner (#1479), the discriminant half filed as #1480 and taken by uv-e. Style review: MERGEABLE, one MINOR (the guard's false-positive channel misattributed — the real one was six unquoted `path.display()` echoes in `workspace.rs`, all fixed at the fix pass, head `ae18778`, CI green) — **MERGED with this state-sync** |
 | (queued, wave 2) | uv-e: D39 (+#1282, +#1480's `PathError` discriminant — same artifact) after PR 1475 merges frees `program.rs`; C16 (+`D75`/`D340` if one lane fits) after uv-f lands | dispatch next |
 | (blocked, kept visible) | C6 | each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format) — unchanged |
 | (not work) | D360 | a sweep rule, binding on any lane that sweeps `topo` refusal enums in this fence |
@@ -162,6 +162,13 @@ Remaining hand-rolled copies are queued in `D363`:
 merged), `product.rs:202` (M10's slate — waits for it).
 
 ## Incidents
+
+**UV-R3's D47 re-derivation was incomplete (correction, 2026-09-01).**
+The constitution's re-derivation checked the kernel `Display` impls and
+not the `pncad-py` violation sites themselves; those had already been
+fixed by LIB's `24dd07f` twelve days before the row was re-derived.
+Lane uv-f caught it. The lesson is UV-R2's own: re-derive the SITES a
+row names, not only the blockers its text foregrounds.
 
 **Fable usage limit, 2026-09-01 ~02:20 UTC.** The account's Fable 5h
 window filled mid-wave: the uv-a and uv-c fix-pass agents and the uv-b

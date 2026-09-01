@@ -552,6 +552,46 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     assert_eq!(once.segments(), points.len() - 1);
 }
 
+/// **A preview is drawn, and it is not a selection.**
+///
+/// The overlay carries a third list for segments that are not in the
+/// document at all — the wireframe of something a form is composing.
+/// It is never derived from a pick (so a selection puts nothing in
+/// it), and it counts toward what the overlay has to draw: an overlay
+/// carrying only a preview is NOT empty, which is what stops the
+/// renderer's "nothing to upload" arm from swallowing it.
+#[test]
+fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let (rim, _) = hole_rim(&index, extrude);
+    let selection = EdgeSelection {
+        name: index
+            .edge_name_of(rim)
+            .expect("a drawn edge has a name")
+            .clone(),
+        node: extrude,
+        body: 0,
+    };
+    let marked = pick::edge_overlay(
+        &index,
+        &DisplayView::none(),
+        &Selection::Edge(selection),
+        None,
+    );
+    assert!(
+        marked.preview.is_empty(),
+        "a selection is about the document; a preview is not",
+    );
+
+    let mut composing = pick::EdgeOverlay::default();
+    assert!(composing.is_empty());
+    composing.preview = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]];
+    assert!(!composing.is_empty(), "a preview alone is still a drawing");
+    assert_eq!(composing.segments(), 1);
+}
+
 #[test]
 fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
     let tol = Tol::witness();

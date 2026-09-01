@@ -1635,17 +1635,30 @@ pub struct EdgeOverlay {
     /// Whether the hovered edge belongs to a free-moved instance. See
     /// [`EdgeOverlay::selected_probed`].
     pub hovered_probed: bool,
+    /// **Segments that are not in the document at all**: the
+    /// wireframe of something a form is composing, in the same
+    /// line-list shape as the marks above.
+    ///
+    /// It rides here rather than in a pass of its own because it is
+    /// the same drawing — world-space segments over the solid, depth
+    /// tested, writing no depth — and a second pass would be a second
+    /// place for that to be got right. What separates it is the MARK:
+    /// a preview is drawn in the theme's probe tint, the mark that
+    /// means "this placement is not committed" (G3's honesty
+    /// requirement), so a wireframe can never be mistaken for a
+    /// selection of something that exists.
+    pub preview: Vec<[f32; 3]>,
 }
 
 impl EdgeOverlay {
     /// Whether there is nothing to draw.
     pub fn is_empty(&self) -> bool {
-        self.selected.is_empty() && self.hovered.is_empty()
+        self.selected.is_empty() && self.hovered.is_empty() && self.preview.is_empty()
     }
 
     /// How many line segments this overlay draws.
     pub fn segments(&self) -> usize {
-        (self.selected.len() + self.hovered.len()) / 2
+        (self.selected.len() + self.hovered.len() + self.preview.len()) / 2
     }
 }
 
@@ -1684,6 +1697,10 @@ pub fn edge_overlay(
         hovered: hovered_edge.map(mark).unwrap_or_default(),
         selected_probed: selected_edge.is_some_and(probed),
         hovered_probed: hovered_edge.is_some_and(probed),
+        // Nothing a SELECTION implies: a preview is about something
+        // that is not in the document, so it is added by whoever is
+        // composing it, not derived from what is picked.
+        preview: Vec::new(),
     }
 }
 
