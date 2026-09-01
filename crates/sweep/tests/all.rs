@@ -96,6 +96,8 @@ mod verbs_offc_consumer;
 mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
+#[path = "torax_axial.rs"]
+mod torax_axial;
 
 #[path = "bitdump.rs"]
 mod bitdump;
