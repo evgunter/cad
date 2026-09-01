@@ -142,6 +142,47 @@ logged pre-draw per the protocol.
   for anything reading the end-to-end value as a feature;
   straddle-driving rows for spines past π; VERBS coordination on
   Helix timing (sweep-ground seam).
+- **BOOL-7 — #134, the vdiff shadow-exec rung (M; assigned by
+  Evan 2026-09-01, M10 dormant).** When the vdiff engine hits an
+  empty pair population on a verdict vanish, shadow-execute exactly
+  the vanished pair's predicates from the prior evaluation's
+  context and diff those — bounded, diagnosis-time-only, recovering
+  the full `PredicateFlip` (option (a), ruled 2026-07-29; recording
+  pruned-pair pseudo-verdicts stays ruled out). Ground:
+  `editor-core/resolve/vdiff.rs` + immediate callers; M10 keep-outs
+  per the Q3 ruling.
+- **BOOL-8 — #433 half (i), the line-continuation junction (M;
+  under the Q1 ruling).** `junction_check`'s zero-turn-forward arm
+  distinguishes line-onto-line (carrier identity, legal undeclared —
+  validate's normative semantics) from curved undeclared tangency
+  (still refused); cusp and `SameCarrierJunction` untouched; the
+  `ArcContinueNeedsArcCarrier` doc's retired premise rewritten; lily
+  migrates onto the lattice through the public surface in the same
+  unit (the demo is the ruling's demonstration and the named-gap
+  close). PATHS §4 is design surface: the unit's PR carries the
+  amended junction semantics for Evan's eyes before merge.
+  `crates/profile` is SMELL track V fence ground — seam noted, the
+  cut assigned the issue here.
+- **BOOL-9 — #433 half (ii), the RawLoop demotion (L;
+  survey-first).** Enumerate every in-repo `RawLoop` writer; demote
+  the vertex table to the materialized/cache form (authoring through
+  the lattice only); migrate writers per the ruling (fixtures →
+  lattice or dev-only door, LoopBuilder precedent; step-import
+  marked as materialization); `validate` remains the data checker
+  for materialized loops. After BOOL-8 (lily needs the continuation
+  first).
+- **BOOL-10 — the arc_continue retirement (L; under the Q1
+  extension).** Remove the verb, its program step, eval arm,
+  profile lift, and refusal family (`ArcContinueNeedsArcCarrier`
+  et al.); re-spell the subdivision need as a declared-subdivision
+  arc form (the `circle_split` precedent — exact spec shape rides
+  the unit's PR for Evan's eyes, PATHS §2c design surface); wire
+  documents carrying the step migrate at read (schema bump,
+  coordinated on the away channel — schema is contended ground);
+  narrow the sealed verb-module signatures to bare state values so
+  chain-state-consuming verbs are unwritable (lever arm + identity
+  data confined to emission-layer types). After BOOL-8; BOOL-9's
+  raw-door survey runs beside it.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -159,15 +200,45 @@ this program's files — see Q3 below.
 
 ## Rulings sought (Evan)
 
-1. **Q1 — #433's disposition (OPEN; geometry clarified in-chat
-   2026-09-01).** The concrete disagreement: a loop whose two
-   consecutive straight segments lie on one carrier line (an
-   intermediate vertex splitting a straight run) is refused by the
-   constructive lattice as `SameCarrierJunction` ("carrier identity
-   is not tangency — extend the leg") and accepted by `validate` as
-   raw data. Stance (c) — intentional, stated at both sites — has
-   real texture: the constructive door refusing to MINT what the
-   data door must ACCEPT (imports exist) is coherent. Three stances are in
+1. **Q1 — RULED (Evan, in-chat, 2026-09-01), two halves.**
+   (i) The lattice's zero-turn-forward refusal is corrected for the
+   line-onto-line case: `junction_check` refuses every zero-turn
+   forward junction as `JunctionTangent` (the undeclared-tangency
+   doctrine over-applied), though collinear line/line is carrier
+   IDENTITY — legal undeclared, which is already `validate`'s
+   normative semantics (`tangent_joints`). A plain `line` leg after
+   a `line` leg IS the straight continuation (§2c: only the
+   directed point binds); the "no use case" premise recorded at
+   `ArcContinueNeedsArcCarrier` is retired — lily's loft vertex
+   budget is the use case, named since LIB-RETTAIL. Curved
+   zero-turn junctions, cusps, and declared-tangency-onto-identity
+   all keep refusing. This aligns the doors instead of arbitrating
+   them: BOOL-8. (ii) **`RawLoop` does not remain writable**: the
+   vertex table demotes to a CACHE — the materialized form
+   intensional recipes evaluate into, like the kernel's other
+   recipe→geometry seams — with authoring through the lattice only;
+   in-repo writers migrate (lily onto the lattice through the
+   public surface, retiring the tour's reach-around kernel
+   dependency; fixtures to the lattice or a dev-only door per the
+   LoopBuilder→test_support precedent; step-import as a
+   materialization door marked as such): BOOL-9, survey-first.
+   #433 closes when both land, with both sites' prose updated.
+   **Extended (Evan, in-chat, 2026-09-01, second round): the
+   straight continuation is spelled `line(len)` off a directed
+   point — no new verb (`line_continue` was drafted and dropped: a
+   line is the one carrier the binding bits fully determine, and
+   the inherited-bitwise tangent makes consecutive legs exactly
+   parallel). And `arc_continue` is REMOVED rather than kept as the
+   axiom's exception: it consults incoming-carrier data and
+   branches on what the previous leg was, both of which §2c calls
+   unrepresentable. Its recorded need (authored arc subdivision —
+   the half-disc equator) re-spells as declared subdivision on the
+   arc leg itself, the open-carrier analog of `circle_split`, with
+   vertices minted at the chain's emission layer where the axiom's
+   bookkeeping legitimately lives. The enforcement Evan believed
+   already existed becomes real: the sealed verb module's
+   signatures narrow to the bare state values only, so a verb
+   needing chain state is unwritable. BOOL-10.** Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
@@ -182,7 +253,15 @@ this program's files — see Q3 below.
    fold, a consumer audit for anything reading the end-to-end value
    as a feature, straddle-driving rows, and VERBS coordination on
    Helix timing (`loft.rs` is sweep ground — seam recorded).
-3. **Q3 — #134's charter fit.** Recommendation: **route it out** — it
+3. **Q3 — RULED (Evan, in-chat, 2026-09-01): S-BOOL takes it — M10
+   is dormant.** Scheduled as **BOOL-7** (slate): the vdiff
+   shadow-exec rung under Evan's standing option-(a) ruling
+   (2026-07-29), pure implementation. Keep-outs stay sharp:
+   `editor-core/resolve/vdiff.rs` and its immediate callers only;
+   M10's Dual arms in `product.rs` and the `AtRestPolicy` seam are
+   untouched, and the unit stops and reports if the work reaches
+   either. The original routing recommendation, kept as the
+   record: it
    is pre-ruled, unpressured, and lives in
    `editor-core/resolve/vdiff.rs`, which is nobody's ground here
    (M10's slate is the nearest live claimant and V's fence is the
