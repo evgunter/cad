@@ -52,10 +52,13 @@ tess-meter = { path = "../../tools/tess-meter" }
 # `pncad::profile` omits on purpose — and `ProfileLoop`'s fields are
 # sealed, so a consumer needing a vertex table the PATHS lattice has no
 # spelling for has exactly this route and no other. One scene needs it:
-# `lily.rs::section_loops`, the #433 named gap (exactly-collinear
-# junctions the lattice refuses and `Profile::validate` accepts). This
-# entry IS that gap, stated in the dependency graph where it cannot be
-# overlooked; it goes when the lattice grows the verb.
+# `lily.rs::section_loops`, the issue-433 named gap. Its interior half
+# is closed — a subdivided straight run is spelled `line(len)` off a
+# directed point — and the residual is the SEAM: this outline subdivides
+# EVERY side, so the run crossing the seam has no spelling in either
+# rotation (the comment at the site names both walls). This entry IS
+# that residual, stated in the dependency graph where it cannot be
+# overlooked.
 profile = { path = "../../crates/profile" }
 
 # The tour is the ONLY release build of the kernel in CI (the ten

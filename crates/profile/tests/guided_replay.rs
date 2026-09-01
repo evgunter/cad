@@ -180,7 +180,10 @@ fn every_entry_verb_installs_the_guide() {
     use profile::{Step, Verb};
     use std::f64::consts::FRAC_PI_2;
 
-    let tail_from_directed = |chain: profile::PartialPath<f64, _, _>| {
+    // The angle slot is pinned so `line` resolves: the verb has a second
+    // row (the straight continuation, off a directed point with NO bound
+    // angle), and an unannotated tip leaves both rows applicable.
+    let tail_from_directed = |chain: profile::PartialPath<f64, _, profile::path::HasAng>| {
         chain
             .line(3.0, Tol::witness())
             .expect("line")

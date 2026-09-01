@@ -520,14 +520,16 @@ pub enum PathNoCornerReason {
 /// lowered loop at [`crate::Profile::validate`], unchanged.
 #[derive(Clone, Debug)]
 pub enum PathError<T: Real> {
-    /// §4 item 1: the authored departure is within ε_input of the
+    /// §4 item 1: the AUTHORED departure is within ε_input of the
     /// incoming TANGENT direction — one refusal, one recourse, for any
-    /// sub-ε_input margin: if the tangency is intended, author it
-    /// structurally (`.tangent()`, or the tangent-arc / seam-fillet
-    /// close at the seam), which makes it exact by construction;
-    /// otherwise move the geometry (or lower the tolerance). The
-    /// margin rides along as data; the message never forks on
-    /// exactly-on vs in-band.
+    /// sub-ε_input margin: if the tangency is intended onto a new
+    /// carrier, author it structurally (`.tangent()`, or the
+    /// tangent-arc / seam-fillet close at the seam), which makes it
+    /// exact by construction; if a straight continuation of the same
+    /// line is intended, spell it `line(len)` off the directed point,
+    /// where no junction exists to classify; otherwise move the
+    /// geometry (or lower the tolerance). The margin rides along as
+    /// data; the message never forks on exactly-on vs in-band.
     JunctionTangent {
         /// The classified turn margin sin φ · arm, meters (scalar-typed
         /// payload — data, not a decision).
@@ -743,11 +745,13 @@ pub enum PathError<T: Real> {
     /// An [`arc_continue`](PartialPath::arc_continue) reached with no
     /// incoming ARC carrier: the declared-subdivision step splits the
     /// carrier the chain is already running on, so a straight incoming
-    /// leg (or a tip with no incoming leg data) has nothing to split —
-    /// a collinear "subdivision" of a line is spelled as two `line_to`
-    /// legs... which the same-carrier rule refuses, deliberately: the
-    /// recorded need is arc subdivision (the half-disc's equator
-    /// vertex); a line form would be new vocabulary with no use case.
+    /// leg (or a tip with no incoming leg data) has nothing to split.
+    /// The straight case is not missing vocabulary and never needed a
+    /// verb of its own: `line(len)` off the directed point IS the
+    /// straight continuation, because the binding bits determine a line
+    /// carrier completely — subdivide a straight run by chaining it.
+    /// (Nothing about a line has to be learned from the incoming leg,
+    /// which is exactly the asymmetry with an arc.)
     ArcContinueNeedsArcCarrier,
     /// An [`arc_continue`](PartialPath::arc_continue) target that does
     /// not lie on the incoming carrier (|target − centre| − r decided
@@ -1018,10 +1022,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin} m on a {arm} m arm) — if intended, author it \
-                 structurally: .tangent() at an interior junction (exact by construction), or \
-                 the tangent-arc / seam-fillet close at the seam; otherwise move the geometry \
-                 (or lower the tolerance)",
+                 (turn margin {margin} m on a {arm} m arm) — if intended as tangency onto a \
+                 new carrier, use .tangent(), which makes it exact by construction (or the \
+                 tangent-arc / seam-fillet close at the seam); if intended as a straight \
+                 continuation of the same line, spell it line(len) off the directed point — \
+                 no junction exists there; otherwise move the geometry (or lower the \
+                 tolerance)",
                 margin = num(margin),
                 arm = num(arm)
             ),
@@ -1048,7 +1054,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
                  {margin} m): carrier identity is not tangency — extend the leg \
-                 instead of minting a collinear/cocircular neighbor",
+                 instead of minting a collinear/cocircular neighbor, or, where the extra \
+                 vertex is the point, subdivide the carrier structurally: line(len) off \
+                 the directed point, which declares nothing",
                 margin = num(margin)
             ),
             Self::NoCornerForFillet { reason, radius } => {
@@ -2419,6 +2427,46 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         self.tip.ang = Some(theta);
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
+    }
+
+    /// The kernel behind the table's straight-continuation row
+    /// (recording is the row's, not the kernel's): the leg departs
+    /// along the directed point's OWN intrinsic tangent, inherited
+    /// BITWISE, so consecutive legs are exactly parallel even where a
+    /// derived vertex rounds. Binding bits only — the tangent is a
+    /// binding bit, and nothing else about the incoming leg is read —
+    /// so there is no junction to classify (no authored direction
+    /// exists) and nothing is declared: the minted vertex is a
+    /// structural subdivision of the one carrier the binding bits
+    /// already determine.
+    fn straight_continuation_kernel(
+        mut self,
+        len: T,
+        tol: Tol,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "straight continuation on a tip without a position",
+        })?;
+        let at = pos.at;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
+            site: "straight continuation on a tip without incoming data",
+        })?;
+        let band = linear_band(tol)?;
+        match decide("path_leg_length", Margin::of(len), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        // The departure IS the incoming ray, moved wholesale: the same
+        // `Dir` value, never re-derived through its angle, which is what
+        // makes the two legs exactly parallel rather than parallel to
+        // within a `sin_cos` round trip.
+        let ang = inc.ang;
+        let end = at + ang.unit * len;
+        let head = self.core.head()?;
+        self.core.push_line(end)?;
+        let arm = (end - head).norm_squared().sqrt();
+        Ok(in_state(self.core, leg_end_tip(end, ang, arm, None)))
     }
 
     /// The kernel behind the table's declared-subdivision row (recording

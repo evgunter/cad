@@ -871,29 +871,37 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP (LIB-RETTAIL, 2026-08-12) — the one place in the tour
-        // the presented surface cannot say what the demo means, recorded
-        // rather than worked around (main.rs's purpose block).
+        // NAMED GAP — the one place in the tour the presented surface
+        // cannot say what the demo means, recorded rather than worked
+        // around (main.rs's purpose block). Half of it is now closed and
+        // the half that remains is a different, sharper thing.
         //
-        // At `shoulder = 0` the shoulder IS the midpoint of two tips, so
-        // three consecutive vertices are EXACTLY collinear — deliberately,
-        // because a loft matches segment j to segment j and the 4-tip and
-        // 8-corner sections must be spelled on one vertex budget. The PATHS
-        // lattice refuses that junction at authoring
-        // (`JunctionTangent { margin: 0.0 }`), while `Profile::validate`
-        // ACCEPTS it: collinear line/line is carrier IDENTITY, legal
-        // undeclared (`ProfileLoop::tangent_joints`' normative semantics).
-        // So the two junction rules disagree on same-carrier continuation,
-        // and the lattice is the stricter one — a library finding, not a
-        // demo defect. Until the lattice gains a same-carrier continuation
-        // verb (vocabulary, out of this unit's fence), the PRESENTED
-        // surface has no spelling for this loop at all: `ProfileLoop`'s
-        // fields are sealed, so the only route left is the kernel's raw
-        // door, `profile::RawLoop`, which `pncad::profile` deliberately
-        // omits. That is why this crate carries a second kernel
-        // dependency — the tour reaches around its own façade here, and
-        // the gap is loud in the dependency graph instead of hidden in a
-        // struct literal.
+        // This outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and attachment
+        // sections must be spelled on one vertex budget. So one junction
+        // per side is a straight run subdivided, at both ends of the
+        // shoulder parameter: at `shoulder = 0` the shoulders are the
+        // midpoints of two tips (the kite), at `shoulder = 1` the tips are
+        // the midpoints of two rectangle corners. Only the eased sections
+        // in between turn at every vertex.
+        //
+        // CLOSED (issue 433, ruled 2026-09-01): those junctions are
+        // carrier IDENTITY, legal undeclared, and the lattice now spells
+        // them — `line(len)` off a directed point continues the run
+        // structurally, minting the subdivision vertex without declaring
+        // anything. That is the interior case.
+        //
+        // OPEN: a run that crosses the SEAM has no spelling. Every side
+        // here is subdivided, so whichever vertex the loop is cut at, the
+        // closing leg either departs a subdivision vertex
+        // (`TangentLineClose`) or lands on one (a mid-carrier seam, which
+        // PATHS §6 PQ4 refuses) — `LiftRefusal::SameCarrierClose` is the
+        // same wall's name one layer down. So this loop is still
+        // raw-authored: `ProfileLoop`'s fields are sealed, and the only
+        // route left is the kernel's raw door, `profile::RawLoop`, which
+        // `pncad::profile` deliberately omits. That is why this crate
+        // carries a second kernel dependency — the gap stays loud in the
+        // dependency graph instead of hidden in a struct literal.
         let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![RawLoop::new(vec![
             v(right),

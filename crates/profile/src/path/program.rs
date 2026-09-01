@@ -801,7 +801,9 @@ transition_table! {
             /// A declared straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier and
             /// refuses [`PathError::SameCarrierJunction`] — extend the
-            /// original leg instead.
+            /// original leg, or, where the extra vertex is the point, take the
+            /// straight-continuation row below: `line(len)` off the directed
+            /// point subdivides the carrier structurally and declares nothing.
             ///
             /// `len` must classify definitely positive
             /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
@@ -820,6 +822,42 @@ transition_table! {
             arms {
                 DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
                 DynTip::DirectedIncoming(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+            }
+        }
+        row {
+            /// **The straight continuation** (`directed point → directed
+            /// point`): off a DIRECTED POINT — no director bound — the leg
+            /// departs along the point's own intrinsic tangent, inherited
+            /// bitwise, so consecutive legs are exactly parallel. Binding bits
+            /// only: there is NO junction here (no authored direction exists to
+            /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
+            /// declared. The minted vertex is a structural subdivision of the
+            /// carrier the binding bits already determine — a straight run said
+            /// on more vertices than it has corners, which is the loft
+            /// vertex-budget shape.
+            ///
+            /// The row is carrier-blind, as the §2c axiom requires: it reads
+            /// the tangent and nothing about the leg that produced it. Off an
+            /// ARC-carrier point the same spelling therefore authors a line
+            /// tangent to that arc and declares nothing, which is a tangency
+            /// between DISTINCT carriers — legal to write here, refused at the
+            /// data gate ([`crate::ProfileError::UndeclaredTangency`]); declare
+            /// it with `.tangent()` instead.
+            ///
+            /// `len` is gated definitely positive exactly as the directed row's
+            /// is ([`PathError::NonpositiveLeg`]).
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn line [(
+                mut self,
+                len: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Line(len));
+                self.straight_continuation_kernel(len, tol)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
             }
         }

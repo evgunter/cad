@@ -806,7 +806,8 @@ typestate, and it retires:
 | `.angle(θ)` | Point → Directed; Open → Angle | angle binder (+ junction check on directed points) |
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
-| `line(len)` / `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
+| `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
+| `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
 | `fillet_arc(r, spec)` | Directed \| leg end → per spec | line incoming, ARC arrival (see arrival rows below) |
@@ -903,9 +904,11 @@ and the angle slot bound.
    TANGENT direction refuses — ONE refusal, one recourse, for any
    sub-ε_input margin (D4's two-tolerance principle): "this
    junction is tangent at any precision you could care about — if
-   intended, use `.tangent()`, which makes it exact by
-   construction; otherwise move the geometry (or lower the
-   tolerance)". The margin rides the payload as data; the message
+   intended as tangency onto a new carrier, use `.tangent()`, which
+   makes it exact by construction; if intended as a straight
+   continuation of the same line, spell it `line(len)` off the
+   directed point — no junction exists there; otherwise move the
+   geometry (or lower the tolerance)". The margin rides the payload as data; the message
    never forks on exactly-on vs in-band. Within ε_input of the
    REVERSE direction refuses as a cusp (reverse-tangent class).
    Declared cusps are legal kernel geometry (D1 tier 3's declared
@@ -927,26 +930,51 @@ and the angle slot bound.
    anchors); junction-owned points (fillet corners, trim points,
    NURBS P0/P1) are implied, never authored; the anchor fit check
    enforces the invariant where trims could threaten it.
-4. **Same-carrier junctions refuse** exactly as #101's
-   `same_carrier: true` (identity, not tangency); the post-fillet
-   continuation is exempt by construction — it extends the same
-   leg rather than minting a collinear neighbor.
+4. **Same-carrier junctions refuse when DECLARED** — `.tangent()`
+   onto the incoming carrier is identity, not tangency (#101's
+   rule). The structural continuations — `line(len)` off a directed
+   point, the post-fillet extension — are not junctions at all: the
+   departure is the point's own tangent by construction, so nothing
+   is checked and nothing is declared.
 
-**OPEN (#433) — the lattice and `validate` disagree about EXACT
-collinearity, and the disposition is Evan's.** A junction whose
-turn is exactly zero is, to invariant 1, tangent at any precision:
-the lattice refuses it and names `.tangent()` as the recourse.
-`validate` accepts the same three points as loop DATA, because a
-straight run subdivided at an interior vertex is well-formed
-geometry — it is what STEP import and raw authored loops routinely
-produce, and nothing there claims tangency. So the two rules are
-not measuring the same thing: one gates an AUTHORING act (what did
-you mean by this corner?), the other gates a DATA shape (is this
-loop well formed?). The three candidate dispositions are on the
-table — admit exact collinearity in the junction check, tighten
-`validate` to refuse it, or rule the divergence INTENTIONAL with
-the reason stated at both sites — and the unit that raised it
-proposes the third; until it is ruled, neither site changes.
+**RULED (#433 — Evan, in-chat, 2026-09-01, with a second-round
+extension): the lattice and `validate` AGREE.** A straight run
+subdivided at an interior vertex is well formed as DATA (`validate`,
+unchanged: it is what STEP import and raw authored loops routinely
+produce, and nothing there claims tangency) and it is expressible
+STRUCTURALLY in the algebra — `line(len)` off a directed point,
+chained, mints subdivision vertices on the one carrier the binding
+bits already determine (item 4 above; the §3 row). The two doors
+were never measuring different things about this shape; the
+authoring door was simply missing its spelling. An AUTHORED
+direction landing in the tangent band still refuses, recourse as in
+item 1: a target that happens to be collinear is a value
+coincidence, and the ladder never reads intent off a margin.
+
+Per the ruling's second-round extension, `arc_continue` is NOT kept
+as the §2c axiom's exception: it is scheduled for REMOVAL, its
+subdivision need re-spelling as declared subdivision on the arc leg
+itself — the open-carrier analog of `circle_split`, with vertices
+minted at the chain's emission layer where the axiom's bookkeeping
+legitimately lives. Companion: `RawLoop` is not an authoring door —
+the vertex table is the materialized form intensional recipes
+evaluate into. #433 closes when both land.
+
+**Residual, found implementing the ruling (not part of the ruled
+text):** the continuation spells INTERIOR subdivisions. A straight
+run that crosses the SEAM is still unauthorable, in either rotation:
+with the seam at a corner the closer departs the run's subdivision
+vertex (`TangentLineClose`), and with the seam at that subdivision
+vertex the seam's own junction is the straight one, which PQ4 (§6,
+no mid-carrier seam) refuses by construction. The lift layer has
+carried a name for the same wall since it was written
+(`LiftRefusal::SameCarrierClose`). A closed outline whose EVERY side
+is subdivided — the lily loft section, which is exactly this shape —
+therefore still has no algebra spelling; the demo says so at its own
+site. Whether that wants a structural closer (the seam analog of the
+continuation, checking that `Start` lies on the departing ray rather
+than inferring it from a value) is a question for the same
+conversation, not a thing this text decides.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
