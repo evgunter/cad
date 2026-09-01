@@ -7819,7 +7819,7 @@ re-scoped or re-argued by being moved.
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 *(re-derived from the track's own table, 2026-08-31; had read 18 against 16 rows)* |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census)* |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
-| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
+| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 6 *(re-derived 2026-09-01: `E-m`/#711 retired VERIFIED-CLOSED — #784 merged 2026-08-27; UV-R2)* |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 11 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
@@ -8024,12 +8024,12 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 **Fence:** `crates/step-import/`, `crates/step-export/`, `crates/stl/`,
 `crates/pncad-py/`, `crates/pncad/`. **Block:** `D340`–`D359` / `S410`–`S429`.
+**Claimed whole 2026-09-01; execution record `docs/SMELL-UV-LOG.md`.**
 
 | # | What | Was |
 |---|---|---|
-| **E-m / #711** | The recognizer's *"unreachable"* arm is reachable and the spec sentence has no document — **PR #784 is open and red on this ground**; the track inherits it | Track E |
-| **C13** | ε has no type of its own, so `StepOptions::uncertainty_m` and two bare `f64`s restate `Tolerance::init`'s finite-and-strictly-positive rule by hand (#741). **Wants a plan signed off before implementation** — cross-crate public API | Track C |
-| **C14** | The STEP writer hardcodes two Part 21 header fields the standard assigns to the user (#742). **Same signed-off-plan caveat** | Track C |
+| **C13** | ε has no type of its own, so `StepOptions::uncertainty_m` and two bare `f64`s restate `Tolerance::init`'s finite-and-strictly-positive rule by hand (#741). **Wants a plan signed off before implementation** — cross-crate public API. **HELD (UV-R5): LIB drafts the plan, then Evan signs off; implementation lands here after** | Track C |
+| **C14** | The STEP writer hardcodes two Part 21 header fields the standard assigns to the user (#742). **Same signed-off-plan caveat and the same UV-R5 hold** | Track C |
 | **C16** | The Python STEP door exposes one of `StepOptions`' six fields, silently (#730) | Track C |
 | **D94** | The discard idiom does not stop at `crates/topo`, and `D21`'s crate clause was a scope of work rather than a finding about the class. **The sharpest instance answers the same question two incompatible ways five lines apart** | Track E |
 | **D37** | `pncad-py`'s tag map re-derives a discriminant that belongs on the kernel error, and its field-projection deferral has no owner | Track E |
@@ -8042,22 +8042,25 @@ either alone. `D47`'s remaining blocker is Track V's `D362`.)*
 ## Track V — `editor-core` and `profile`
 
 **Fence:** `crates/editor-core/`, `crates/profile/`. **Block:** `D360`–`D379` /
-`S430`–`S449`.
+`S430`–`S449`. **Claimed whole 2026-09-01; execution record
+`docs/SMELL-UV-LOG.md`.** While **#1423 (MATE-3)** is open, its files are
+keep-out (UV-R4): `editor-core/{assembly.rs, program.rs, persist/wire.rs,
+eval/}`, `profile/{path.rs, path/program.rs}`.
 
 | # | What | Was |
 |---|---|---|
 | **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**; both of its old gates have fallen (#791, #801). The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
-| **D121** | The arc-mode vocabulary is the profile `Step` vocabulary one level down, with no `ALL` and no census (S195) — six spec structs restated three times, and `res_spec` CONSTRUCTS the kernel form so the compiler cannot see a mode that fails to arrive | Track G |
+| **D121** | The arc-mode vocabulary is the profile `Step` vocabulary one level down, with no `ALL` and no census (S195) — six spec structs restated three times, and `res_spec` CONSTRUCTS the kernel form so the compiler cannot see a mode that fails to arrive. **HELD (UV-R4): `res_spec` is `program.rs`'s and the vocabulary reaches `profile/path`, both inside #1423's edit set** | Track G |
 | **D75** | The PATHS verb vocabulary's sixth copy is the Python surface and it is the only silent one (S170). **The `pncad-py` stub edit is this row's, by exception to U's fence** | Track G |
 | **D81** | A typed payload rendered by `Debug` at a composing layer. **What is left is the `StableName`-as-`{name:?}` class** — 23 sites, `edit.rs` (14), `refactor.rs` (6) and `names/emit.rs` (3), each putting a `StableName` into user-facing refusal prose through `Debug`. **It is not the shape this row was written for**: a bypass renders through `Debug` a payload whose type has a `Display`, and `StableName` has none at all, so this half is blocked on `D362` rather than being a rendering slip. Re-derive the count before taking it | Track E |
-| **D39** | A typed refusal degrades to `String` at the edit door because two derive sets do not meet, and a test in the tree is already substring-matching prose to get the class back. **Both sides of it — `EditError` and `profile::PathError` — are inside this track** | Track E |
+| **D39** | A typed refusal degrades to `String` at the edit door because two derive sets do not meet, and a test in the tree is already substring-matching prose to get the class back. **Both sides of it — `EditError` and `profile::PathError` — are inside this track**. **HELD (UV-R4): `PathError` is `path.rs:522`'s, inside #1423's edit set; tracker sibling #1282 (its `Display` arms render scalars `{:?}`) rides the same hold and the same lane** | Track E |
 | **C12** | `editor-core`'s remaining classification residues from #731's style review — three things, including a test oracle that under-reports silently through a `_ => false` arm | Track C |
 | **S105** | The shared refusal ladder retired one duplication and minted a documented hand-synced one | unrowed |
-| **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which | unrowed |
+| **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which. **The kernel half is S-BOOL's** (UV-R6: the fix is `CensusUnsupported` carrying the pair, a `topo/census.rs` change, Track Q's fence); this track's residue is the `attribute`-side consumption once that variant exists, HELD on it and on #1423 (`assembly.rs`) | unrowed |
 | **C6** | W2f remainder / S4 — `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core. **Genuinely blocked**, each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format); kept as a row so the block is visible rather than forgotten | Track C |
 | **D360** | A classification spelled as a let-else, which #833's type-keyed sweep could not have found (`S193`) — `editor-core/src/eval/wire.rs`'s `refusal_menu`. The site itself is benign; **the row is the sweep rule** — a lane sweeping `topo::BooleanError`, or any `topo` refusal enum, sweeps by VARIANT NAME and expects let-else and `matches!` shapes | unrowed |
 | **D361** | **`S88`'s `profile` half** — the sole-`T: Bounds` doors the D1 census enumerated in this track's crates and did not take: `fillet_select.rs::nearest_joint` (`:169`; the finding's `:98` is a doc line, not a door) and `path/arc_fillet.rs:361`'s `map_refusal<T: Bounds>`, which the finding does not name. The rest of `arc_fillet.rs` is the ratified `Decide + Bounds` seam. Routed to Track G's `G4` before that track closed; the `G4` this partition carries is `ArcCarrierScalar` alone and does not cover it | Track G, unplaced |
-| **D362** | **Four `editor-core` types have no `Display`, and each one now has a named `crates/viewer/` site blocked on it**: `HitTestError` (`resolve/hit.rs`) and `NodePickError` (`resolve/pick.rs`), both of which `viewer/src/pick.rs` records at the site as its reason for keeping a `Debug` rendering; `InterrogateError` (`names/interrogate.rs`), carried as a payload by `viewer/src/matetool.rs`'s `Frame` arm; and `ResolveIndeterminate` (`resolve/mod.rs`), **which reaches a user-read egui label** — `viewer/src/app.rs`'s *"this face cannot be resolved right now: {cause:?}"*. `ParseError` is a fifth of the same class, already disclosed at `viewer/src/session.rs:335` and carried by issue **#1103**. `editor-core`'s `finding.rs` gives the crate's six sink types a `Display`; these four are outside that set, and they are what unblocks Track U's `D47` | unrowed |
+| **D362** | **Two `editor-core` types still have no `Display`, each with a named `crates/viewer/` site blocked on it** (re-derived 2026-09-01, UV-R3 — the row's other members have since landed: `HitTestError`'s impl is at `resolve/hit.rs:61`, `InterrogateError`'s at `names/interrogate.rs:129`, and the `ParseError`/#1103 member closed with LIB's unparse door): `NodePickError` (`resolve/pick.rs`), which `viewer/src/pick.rs` records at the site as its reason for keeping a `Debug` rendering; and `ResolveIndeterminate` (`resolve/mod.rs`), **which reaches a user-read egui label** — `viewer/src/app.rs`'s *"this face cannot be resolved right now: {cause:?}"*. `editor-core`'s `finding.rs` gives the crate's six sink types a `Display`; these two are outside that set, and they are what unblocks Track U's `D47` | unrowed |
 
 ## Track W — the test targets: guards, doctests, fixtures and stand-downs
 
