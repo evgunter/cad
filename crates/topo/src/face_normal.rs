@@ -440,7 +440,7 @@ mod tests {
     ///    in the document where a work order belongs.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
-        const PINNED: [(&str, usize); 9] = [
+        const PINNED: [(&str, usize); 10] = [
             ("boolean/join.rs", 1),
             ("boolean/mod.rs", 1),
             ("boolean/rest.rs", 1),
