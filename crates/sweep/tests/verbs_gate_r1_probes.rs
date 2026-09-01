@@ -291,8 +291,18 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
     let result = out.body().expect("a disjoint union is not empty");
     assert_eq!(result.kind, topo::BooleanResultKind::Assembly);
     assert_eq!(topo::validate_closed(&result.body), Ok(()));
-    // The honest assembly: both operands' material, and the hole of the
-    // donut still free space — which only a four-root ray can say.
+    // The honest assembly: both operands' volumes, summed.
+    //
+    // **This does not witness the four-root ray**, and the comment used
+    // to say it did. The assertion is on the assembled body's VOLUME,
+    // which the props lane computes from the boundary in closed form and
+    // never asks a containment door about; mutating the quartic's
+    // biquadratic factor sign leaves this row green. What it witnesses
+    // is that the containment door ANSWERED for every face of a
+    // torus-only operand — that is what the fallback needed and what
+    // this row's own frontier was about. The four-root ray has its own
+    // witness in `bool3_torus_doors::the_four_root_ray_through_the_
+    // hole_reads_the_nearest_wall`, which probes the hole directly.
     let want = vol(&a) + vol(&b);
     let got = vol(&result.body);
     assert!(

@@ -14,17 +14,25 @@
 //! so its enclosure is a point-ish interval rather than a product of
 //! eleven widening multiplications.
 //!
-//! **The cube root is the one construction with no precedent here**, so
-//! it is worth saying why the certified scalar follows it. Ferrari's
-//! resolvent needs a real cube root on the branch where the quartic has
-//! exactly two real roots — the common pierce — and the scalar trait has
-//! none. The arm builds it from `sqrt` alone, through
-//! `1/3 = Σ 4^{-k}`: a FIXED composition of 54 square roots, each
-//! monotone and each an enclosure, so the interval instantiation
-//! contains the true root by composition of containments. No iteration,
-//! no convergence argument, nothing that could return a tight interval
-//! that does not contain the answer — which is exactly what a Newton
-//! step seeded from a float would have done here.
+//! **The cube root is the one construction with no precedent here**, and
+//! it is also the one place the enclosure does not cover everything, so
+//! it is worth being exact. Ferrari's resolvent needs a real cube root
+//! on the branch where the quartic has exactly two real roots — the
+//! common pierce — and the scalar trait has none. The arm builds one
+//! from `sqrt` alone through `1/3 = Σ 4^{-k}`: a FIXED composition of 54
+//! square roots, each monotone, so the interval instantiation encloses
+//! **the truncated power `x^{(1−4^-27)/3}`** by composition of
+//! containments. It does NOT enclose `x^{1/3}` — the gap between them is
+//! a systematic bias no interval widens to cover, and it is bounded by
+//! magnitude instead: `1.8e-17·|ln x|`, under `1.5e-15` relative even at
+//! the extreme `x = 1e36` the length⁶ argument could reach. That is what
+//! the certified scalar is being asked to carry here, and the count this
+//! door answers on never touches the function at all — it is read off
+//! exact sign algebra on the coefficients before any root is built.
+//!
+//! What the lane does rule out is the alternative: a Newton step seeded
+//! from a float returns a TIGHT interval that need not contain the
+//! answer, and nothing downstream would notice.
 //!
 //! Probes are dyadic where the geometry allows, so the enclosures are
 //! points and every margin decides definitely.

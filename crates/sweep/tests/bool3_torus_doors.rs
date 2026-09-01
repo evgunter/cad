@@ -46,9 +46,10 @@
 //!   the tube's top circle — the tangency locus, where the plane
 //!   `h = r` touches the torus along a whole circle and the quartic's
 //!   roots merge;
-//! - **the tangency shell**, measured and guarded, because it is
-//!   `√ε`-wide and a caller reading "a tangent ray grazes" will assume a
-//!   measure-zero nuisance;
+//! - **the tangency shell**, measured and guarded, because it is a
+//!   CUBE-root shell in ε — wider than the linear one by three orders at
+//!   the default row — and a caller reading "a tangent ray grazes" will
+//!   assume a measure-zero nuisance;
 //! - **the consumer unlock**: a disjoint union whose no-crossings
 //!   fallback walks a containment door. Red on main as
 //!   `KindUnsupported { kind: Torus }`, green here;
@@ -63,7 +64,7 @@
 
 mod revolve_common;
 
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
@@ -184,8 +185,8 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         .body
 }
 
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(Tol::witness()).unwrap()
+fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
@@ -229,13 +230,17 @@ fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// | 1e-6 | 1e-1 (ceiling) | 3.62e-3 | 2.57e-2 | 27.6× |
 ///
 /// The shell falls by a factor of **9.905 per three decades of ε** —
-/// twice, to three digits — which is `1000^(1/3)`, not `√1000`. Against
-/// `(K·ε·ext²)^⅓` the ratio is 0.143, constant to three digits across
-/// all three rows. The exponent is therefore **measured, not derived**:
-/// what is claimed here is the law the numbers show, and the guard row
-/// below re-measures it at whatever ε the run drew — which is what
-/// catches an exponent that has moved, since a `√ε` law is off by ten at
-/// the 1e-12 row.
+/// twice — which is `1000^(1/3)`, not `√1000`. Against `(K·ε·ext²)^⅓`
+/// the ratio is 0.1439 / 0.1425 / 0.1412 across the three rows: constant
+/// to **two** digits, drifting slowly in the third. The exponent is
+/// therefore **measured, not derived** — what is claimed here is the law
+/// the numbers show, and the guard row below re-measures the constant at
+/// the drawn ε and the exponent at two FIXED bands, so that second check
+/// does not depend on the draw. Which matters: the two laws cross near
+/// ε = 1e-6 and differ by 1.005× there, so a run drawing that row — the
+/// row the gated head drew — could not have told them apart at all. At
+/// 1e-12 the separation is 10.2×, and that is where the first draft of
+/// this guard went red and the wrong exponent was found.
 ///
 /// So the default row is the tight one and the floor clears it by a
 /// factor of under three. It scales as `K^⅓` too, so raising
@@ -246,7 +251,11 @@ fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// ceiling at 1e-6), exactly as BOOL-2 records: `1e6·ε` lands inside
 /// `[1e-3, 0.1]` only for `ε ∈ (1e-9, 1e-7)` and no row draws one.
 fn away() -> f64 {
-    (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
+    // The expression itself lives in `revolve_common::probe_offset`,
+    // which carries the part of the argument every containment suite
+    // shares (the ε-scaling, the clamp and its saturation). What stays
+    // here is the SHELL this suite has to clear, which is this arm's own.
+    probe_offset()
 }
 
 /// The signed distance from `q` to the donut's tube: negative inside.
@@ -336,17 +345,21 @@ fn the_four_root_ray_through_the_hole_reads_the_nearest_wall() {
         pis(&body, Point3::new(DONUT_R - DONUT_MINOR - d, 0.0, 0.0)),
         SolidContainment::Out
     );
-    // And through the hole off the seam, so the answer is not the seam
-    // meridian's doing.
+    // Off the chart seam, so no answer here is the seam meridian's
+    // doing: the same inner-equator pair at 45°, where both the hole
+    // probe and the material probe sit at a generic azimuth.
     let s = core::f64::consts::FRAC_1_SQRT_2;
+    let at = |rho: f64| Point3::new(rho * s, 0.0, rho * s);
     assert_eq!(
-        pis(&body, Point3::new(0.0, 0.0, 0.0)),
-        SolidContainment::Out
+        pis(&body, at(DONUT_R - DONUT_MINOR - d)),
+        SolidContainment::Out,
+        "the hole, at a generic azimuth"
     );
     assert_eq!(
-        pis(&body, Point3::new((DONUT_R) * s, 0.0, (DONUT_R) * s)),
+        pis(&body, at(DONUT_R - DONUT_MINOR + d)),
         SolidContainment::In
     );
+    assert_eq!(pis(&body, at(DONUT_R)), SolidContainment::In);
 }
 
 /// **The MINOR window alone.** The spool's torus band wraps the major
@@ -560,6 +573,50 @@ fn an_uncertain_root_count_escalates_naming_its_predicate() {
     );
 }
 
+/// The tangency shell at a given band: the OUTERMOST offset above the
+/// tube's top circle at which the door declines to answer, walked
+/// multiplicatively inward from an offset it answers at.
+///
+/// **A wrong answer is not a shell**, and the walk says which is which
+/// rather than folding every non-`Out` into the measurement. Every probe
+/// here is outside the tube by construction, so:
+///
+/// * a refusal is the escalation this row is measuring;
+/// * `OnBoundary` is HONEST while the probe is inside the residual
+///   band — the boundary pre-pass compares an exact signed distance
+///   against `Zero`, and this walk runs down to offsets far below it —
+///   so it counts toward the shell, but only there. Claimed further out
+///   it is a defect;
+/// * `In` is a wrong answer at any offset and fails the row, because
+///   folding one into `shell` would let a defect WIDEN the measured
+///   shell instead of going red.
+fn tangency_shell(body: &Body<f64>, b: Band) -> f64 {
+    let mut shell = 0.0_f64;
+    let mut d = 0.1_f64;
+    while d > 1e-13 {
+        let q = Point3::new(0.0, DONUT_MINOR + d, DONUT_R);
+        match point_in_solid(body, q, b, Tol::witness()) {
+            Ok(SolidContainment::Out) => {}
+            Ok(SolidContainment::In) => panic!(
+                "the door answered In at {q:?}, which is {d:e} OUTSIDE the tube — a \
+                 wrong answer, not an escalation shell"
+            ),
+            Ok(SolidContainment::OnBoundary) => {
+                assert!(
+                    d <= b.escalate(),
+                    "the door called {q:?} ON the boundary at {d:e} clear of the tube, \
+                     outside its own residual band {:e} — a wrong answer, not a shell",
+                    b.escalate()
+                );
+                shell = shell.max(d);
+            }
+            Err(_) => shell = shell.max(d),
+        }
+        d /= 1.05;
+    }
+    shell
+}
+
 /// **The guard for [`away`]'s derivation** (Q6: a claim about ε
 /// behaviour is either mechanically checked or carries the written
 /// reason it cannot be). Three things, each a way the derivation could
@@ -567,9 +624,10 @@ fn an_uncertain_root_count_escalates_naming_its_predicate() {
 ///
 /// 1. the fixture is still the size the ceiling is stated against, read
 ///    off the body's own vertices;
-/// 2. the measured tangency shell still obeys `√(K·ε·ext)` — if the
-///    quartic's metering changes, the shell moves and [`away`]'s numbers
-///    become fiction;
+/// 2. the measured tangency shell still obeys the CUBE law
+///    `0.143·(K·ε·ext²)^⅓` — if the quartic's metering changes, the
+///    shell moves and [`away`]'s numbers become fiction. Its EXPONENT is
+///    pinned separately, at two fixed bands, for the reason under (2b);
 /// 3. the floor still CLEARS that shell, asserted at 2× against a
 ///    measured 2.7× at the default row — which is the tightest of the
 ///    three and leaves the least headroom of any margin in this suite.
@@ -587,37 +645,39 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
             "the unit-sized-body invariant [`away`]'s ceiling rests on is broken by {p:?}"
         );
     }
-    // (2) the shell, measured: walk in toward the tangency circle and
-    // keep the OUTERMOST offset the door declines to answer at.
-    let mut shell = 0.0_f64;
-    let mut d = 0.1_f64;
-    while d > 1e-13 {
-        let q = Point3::new(0.0, DONUT_MINOR + d, DONUT_R);
-        if !matches!(
-            point_in_solid(&body, q, band(), Tol::witness()),
-            Ok(SolidContainment::Out)
-        ) {
-            shell = shell.max(d);
-        }
-        d /= 1.05;
-    }
-    println!(
-        "MEASURED eps={:e} shell={:e}",
-        Tol::witness().get().eps,
-        shell
-    );
+    // (2) the shell, measured at the band the run drew.
+    let shell = tangency_shell(&body, band());
+    // The measured law (see [`away`]): `C·(K·ε·ext²)^⅓` with C ≈ 0.143.
     let k = Tol::witness().get().eps * 10.0; // the ambiguity band's own K·ε
-    // The measured law (see [`away`]): `C·(K·ε·ext²)^⅓` with C ≈ 0.143,
-    // constant to three digits across all three shipped ε rows. This one
-    // assertion checks the EXPONENT as well as the constant, because it
-    // runs at whatever ε the run drew: a `√ε` law would be off by ten at
-    // the 1e-12 row, which is how the exponent was found in the first
-    // place.
     let law = (k * FIXTURE_EXTENT.powi(2)).cbrt() * 0.143;
     assert!(
         shell > law / 2.0 && shell < law * 2.0,
         "the tangency shell {shell:e} no longer tracks the measured law {law:e} — the \
          quartic's discriminant metering moved, and [`away`]'s table with it"
+    );
+    // (2b) **the EXPONENT, pinned independently of the drawn ε.**
+    //
+    // The window in (2) is a factor of two, and that is not always
+    // enough to tell the cube law from the `√(K·ε·ext)` one this arm
+    // does NOT obey: the two laws happen to cross near ε = 1e-6, where
+    // they differ by 1.005× and the window cannot separate them at all
+    // (they separate by 3.2× at 1e-9 and 10.2× at 1e-12). A run that
+    // draws 1e-6 — which is the row the gated head actually drew — would
+    // therefore check the constant and nothing about the exponent.
+    //
+    // So the exponent is measured here at TWO FIXED bands rather than at
+    // the drawn one. Three decades of ε apart, the cube law predicts a
+    // shell ratio of 10, the rejected square-root law 31.6, a linear law
+    // 1000. The assertion excludes both alternatives by an order and
+    // does it on every run, whichever ε was drawn.
+    let coarse = tangency_shell(&body, Band::new(1e-9, 1e-8).unwrap());
+    let fine = tangency_shell(&body, Band::new(1e-12, 1e-11).unwrap());
+    let ratio = coarse / fine;
+    assert!(
+        (7.0..15.0).contains(&ratio),
+        "the tangency shell's ε-exponent moved: three decades of ε change it by \
+         {ratio:.2}×, where the measured CUBE law predicts 10 (a √ε law would give \
+         31.6, a linear one 1000). [`away`]'s table is derived from that exponent"
     );
     // (3) the clearance.
     assert!(
@@ -731,10 +791,30 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 /// tori and premises `R > r` where it needs it (the residual's
 /// `ρ ≥ R − r > 0`).
 ///
-/// The row is the receipt for that disposition rather than a claim
-/// about it: a profile whose arc centre falls on the far side of the
-/// axis-parallel line through the arc — a spindle — does not produce a
-/// body.
+/// This row is the receipt for the REVOLVE door and only that one: a
+/// profile whose arc centre falls on the far side of the axis-parallel
+/// line through the arc — a spindle — does not produce a body.
+///
+/// # What this receipt does NOT cover
+///
+/// There are three doors, not two, and the count in `validate.rs` was
+/// wrong until this unit corrected it. Besides revolve:
+///
+/// * **`step-import`** reads `TOROIDAL_SURFACE`'s two radii verbatim, so
+///   it can carry a spindle in from a file;
+/// * **the BLEND lane**, reachable through the public `fillet_edges`,
+///   mints `Surface::Torus` from a spine radius `s` and a blend radius
+///   `r`. Its own arms document predicate 3 (`SpineIrregular`) as the
+///   refusal for `0 < s ≤ r`, which is the spindle and horn case — but
+///   that is the blend lane's claim about itself and this suite has not
+///   measured it, and the surgery arms mint tori too.
+///
+/// Neither is measured here, and neither should be read as covered by
+/// the row below. What IS closed regardless of the door is the concrete
+/// hazard: a spindle reaching the minor-window trim would divide by a
+/// vanishing radial, so `point_on_torus_in_face` decides
+/// `bool_torus_frame_radius` and takes a typed refusal instead of a
+/// poison frame. On a ring torus that predicate never fires.
 #[test]
 fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     // A shallow bulge on the same chord: sagitta 0.15, arc radius

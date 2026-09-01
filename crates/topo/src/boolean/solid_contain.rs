@@ -364,12 +364,15 @@ impl core::fmt::Display for PointInSolidError {
                      the rest of the body (its union covers the torus), or a face whose \
                      major and minor windows the boundary walk pins — each window either \
                      definitely narrower than a period or exactly one, which on this \
-                     chart means the face genuinely wraps that coordinate. This one is \
-                     neither: it carries a ring, an unwalkable boundary, a boundary edge \
-                     with no closed-form image on the torus chart (an oblique circle — \
-                     the Villarceau class), or a window the walk unwound PAST a period, \
-                     which describes no face. Recourse: bound the torus face with \
-                     parallels and meridians, or let its group cover the chart"
+                     chart means the face genuinely wraps that coordinate, and the \
+                     boundary itself checked to BE that rectangle rather than merely to \
+                     fit inside it. This one is neither: it carries a ring, an \
+                     unwalkable boundary, a boundary edge with no closed-form image on \
+                     the torus chart (an oblique circle — the Villarceau class), a walk \
+                     that does not close, a boundary with more variation than a \
+                     rectangle has (an L-shaped face), or a window the walk unwound PAST \
+                     a period, which describes no face. Recourse: bound the torus face \
+                     with parallels and meridians, or let its group cover the chart"
                 )
             }
         }
@@ -593,9 +596,10 @@ pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> O
         .map(|g| g.representative)
 }
 
-/// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Cone, Sphere}
-/// refuse as [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 —
-/// torus walls have no ray-crossing arm), and a TRIMMED sphere face
+/// Resolves [`FaceGeo`]; kinds outside
+/// {Plane, Cylinder, Cone, Sphere, Torus} refuse as
+/// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 — the spline
+/// kinds have no ray-crossing arm), and a TRIMMED sphere face
 /// the sphere chart cannot express as
 /// [`PointInSolidError::PartialSphereFace`]. Only a surface key that
 /// does not RESOLVE is corruption.
@@ -1155,6 +1159,45 @@ pub(super) fn torus_chart_trim<T: Decide>(
 /// edges share a chart point and this chart has no singular junction at
 /// which they could fail to.
 ///
+/// # The window is a BOX, and the boundary is checked to be one
+///
+/// A hull of chart images is a BOUNDING BOX, and fitting inside a box is
+/// not being one: an L-shaped face — six iso edges, a notch cut out of a
+/// rectangle — has exactly the same hull as the rectangle it sits in,
+/// and every other guard here would pass it. It would then be served a
+/// window covering the notch it does not occupy, and the door would
+/// answer `In` for points outside the solid.
+///
+/// So the walk carries two more checks, both cheap because the walk
+/// already has what they need. Every boundary edge's chart image is an
+/// axis-aligned segment (the affine guard below), so the boundary is a
+/// rectilinear chart polygon, and:
+///
+/// * `bool_torus_chart_closure` — the last exit is the first entry, on
+///   the branch the walk pinned. A nonzero difference means the chain
+///   lost a branch and the window belongs to a different face;
+/// * `bool_torus_chart_box` — the total variation in each channel is
+///   `2·(hi − lo)` exactly when the polygon IS its bounding box. The
+///   L-shape has strictly more.
+///
+/// **This is a class, and the other two chart trims do not carry it.**
+/// [`sphere_chart_trim`] and [`cone_chart_trim`] build their windows the
+/// same way — a fold over boundary images — and neither checks that the
+/// boundary is the rectangle it reports. Their premise is stated
+/// (ISO-BOUNDED, and for the sphere a checked edge-class membership) but
+/// the box itself is not checked there. Whether an L-shaped face of
+/// either kind is mintable is unproven in both cases; it is unproven
+/// here too, and checked anyway because the check was three lines.
+///
+/// **The null-scaffolding skip is unchecked**, and stated so rather than
+/// premised silently: an edge with no certified curve geometry is
+/// stepped over on the grounds that it is a zero-length coincident copy,
+/// and nothing here verifies that its endpoints coincide. A
+/// NON-degenerate edge reaching that arm would be skipped, and both the
+/// closure and box checks above would then see a gap — so it fails
+/// loudly into `PartialTorusFace` rather than silently into a wrong
+/// window, which is why it is recorded rather than guarded.
+///
 /// [`crate::chord_join`]'s `run_azimuth_window` is the same construction
 /// for the split/join lane. It is not shared with this one, and the
 /// reason is not tidiness: that walk answers ONE channel (the azimuth)
@@ -1179,12 +1222,12 @@ fn torus_chart_windows<T: Decide>(
         return Ok(None);
     }
     let surf = body.get_surface(f.surface).cloned().ok_or_else(corrupt)?;
-    let lever = match surf {
+    let (lever, minor_radius) = match surf {
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => major_radius + minor_radius,
+        } => (major_radius + minor_radius, minor_radius),
         _ => return Err(corrupt()),
     };
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).ok_or_else(corrupt)?.boundary else {
@@ -1193,6 +1236,11 @@ fn torus_chart_windows<T: Decide>(
     let tau = T::tau();
     let mut acc: Option<((T, T), (T, T))> = None;
     let mut prev_exit: Option<(T, T)> = None;
+    // The boundary's total variation in each channel, and where the walk
+    // started — the two things the box check below needs (see the
+    // header's "the window is a box" paragraph).
+    let mut variation = (T::zero(), T::zero());
+    let mut first_entry: Option<(T, T)> = None;
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
         let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
         let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
@@ -1259,7 +1307,57 @@ fn torus_chart_windows<T: Decide>(
                 (v.0.min(entry.1).min(exit.1), v.1.max(entry.1).max(exit.1)),
             ),
         });
+        variation = (
+            variation.0 + (exit.0 - entry.0).abs(),
+            variation.1 + (exit.1 - entry.1).abs(),
+        );
+        if first_entry.is_none() {
+            first_entry = Some(entry);
+        }
         prev_exit = Some(exit);
+    }
+    let (Some(window), Some(start), Some(end)) = (acc, first_entry, prev_exit) else {
+        return Ok(acc);
+    };
+    // **The walk must close.** A cycle's last exit is its first entry, in
+    // both channels and on the branch the walk pinned — so a nonzero
+    // difference means the chain lost a branch somewhere, and every
+    // window read off it would be a different face's. Decided, not
+    // assumed: the two channels' own levers, as everywhere else here.
+    for (delta, lev) in [(end.0 - start.0, lever), (end.1 - start.1, minor_radius)] {
+        if decide(
+            "bool_torus_chart_closure",
+            Margin::levered(delta, lev),
+            band,
+        )
+        .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+            != Sign::Zero
+        {
+            return Ok(None);
+        }
+    }
+    // **The window is a BOX, and this is what checks the face is one.**
+    // Every boundary edge's chart image is an axis-aligned segment (the
+    // affine guard above), so the boundary is a rectilinear chart
+    // polygon — and a rectilinear polygon traversed once has total
+    // variation `2·(hi − lo)` in each channel exactly when it IS the
+    // bounding box. An L-shaped face has strictly more, and without this
+    // it would pass every other guard here and be served a window
+    // covering the notch it does not occupy.
+    for (var, span, lev) in [
+        (variation.0, window.0.1 - window.0.0, lever),
+        (variation.1, window.1.1 - window.1.0, minor_radius),
+    ] {
+        if decide(
+            "bool_torus_chart_box",
+            Margin::levered(var - (span + span), lev),
+            band,
+        )
+        .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+            != Sign::Zero
+        {
+            return Ok(None);
+        }
     }
     Ok(acc)
 }
@@ -1319,6 +1417,25 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
         }
     }
     if let Some(mv) = v_win {
+        // **The meridian frame needs `ρ > 0`, and it is CHECKED here
+        // rather than premised.** On a ring torus `ρ ≥ R − r > 0`
+        // everywhere on the surface, so this never fires — but the ring
+        // convention is enforced at REST by tier-3 check 1, and this
+        // door does not run the validator. Three doors mint a torus
+        // (revolve, step-import, the blend lane), and a spindle arriving
+        // from any of them would divide by a vanishing radial here and
+        // hand the trim a poison direction. It takes the typed refusal
+        // instead.
+        match decide("bool_torus_frame_radius", Margin::of(rho), band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Zero | Sign::Negative => {
+                return Err(escalate(geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::Invalid,
+                    band,
+                    predicate: Some("bool_torus_frame_radius"),
+                }));
+            }
+        }
         let r_hat = radial / rho;
         // The meridian frame: `r̂` is the minor angle's own seam (`v = 0`
         // on the outer equator) and `â` its quarter-turn, so the frame
@@ -1355,8 +1472,17 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// the guard that the window is narrower than a period, the
 /// `r̂·m̂ ≥ cos(w/2)` comparison, the lever metering, and ledger row
 /// F8's deferred narrow-window fix — is one construction, so a change
-/// to any of it is a change to every site below. Two of them SHARE one
+/// to any of it is a change to every site below. FOUR of them SHARE one
 /// body and cannot drift; three RESTATE it and must be edited by hand.
+///
+/// **Nothing enforces this list.** It is a by-hand inventory, and it has
+/// now been wrong twice for the same reason: a unit adds a shared caller
+/// and updates the list of sites without updating the COUNT above it
+/// (the cone half added one, this one added two). The count is the part
+/// a reader checks the list against, so it is the part that has to be
+/// right; if a third unit finds it stale, the fix is a mechanical
+/// check — a test asserting the number of `chart_azimuth_margin` call
+/// sites — not a third correction.
 ///
 /// Shared, through [`chart_azimuth_margin`]:
 /// - this arm (a cylinder wall's azimuth trim, ray lane);
@@ -2455,19 +2581,43 @@ pub(super) enum TorusRoots<T> {
     },
 }
 
-/// The real cube root, built from `sqrt` alone.
+/// A real cube root, built from `sqrt` alone — and a TRUNCATED one, with
+/// the truncation covered by a magnitude argument rather than by
+/// containment.
 ///
 /// The scalar trait has no `cbrt`, and this arm needs one for exactly
-/// one branch (below). Rather than reach for a library the `Interval`
-/// scalar cannot follow, take the identity `1/3 = Σ_{k≥1} 4^{-k}`:
-/// `x^{1/3} = Π_{k≥1} x^{4^{-k}}`, and each factor is two more square
-/// roots of the last one. Truncating at `n` terms computes
-/// `x^{(1−4^{-n})/3}`; at `n = 27` the exponent is short of a third by
-/// `2e-17`, below the rounding of every scalar in the tree, and the
-/// whole construction is a fixed composition of `sqrt` — monotone,
-/// total, and enclosure-preserving, so the interval instantiation
-/// contains the true root by composition of containments rather than by
-/// an argument about an iteration's convergence.
+/// one branch (below). Rather than reach for an iteration the `Interval`
+/// scalar cannot follow — a Newton step seeded from a float returns a
+/// tight interval that need not contain the answer — take the identity
+/// `1/3 = Σ_{k≥1} 4^{-k}`: `x^{1/3} = Π_{k≥1} x^{4^{-k}}`, and each
+/// factor is two more square roots of the last one.
+///
+/// # What the enclosure covers, and what it does not
+///
+/// Truncating at `n` terms computes `x^{(1−4^{-n})/3}`. The
+/// construction is a FIXED composition of `sqrt` — monotone, total —
+/// so the interval instantiation encloses **that** power by composition
+/// of containments. It does not enclose `x^{1/3}`: the gap between the
+/// two is a systematic BIAS, identical on every run, and no interval
+/// arithmetic will widen to cover it.
+///
+/// So the gap is bounded by magnitude instead. At `n = 27` the exponent
+/// is short of a third by `4^{-27}/3 ≈ 1.8e-17`, and the relative gap is
+/// `|x^{-4^{-27}/3} − 1| ≈ 1.8e-17·|ln x|`. The resolvent's argument is
+/// a length⁶, so `|ln x| ≤ 83` even at the extreme `x = 1e36` a
+/// kilometre-scale torus could reach — a relative gap under `1.5e-15`,
+/// which `boolean::r1_probes::r1_cbrt_truncation_is_a_bias_not_a_
+/// containment` measures directly. Against the ε-scale margins every
+/// decision here is metered at, that is fifteen orders of headroom at
+/// the coarsest shipped row and six at the finest.
+///
+/// **And the certified COUNT never touches this function.** The count is
+/// read off `Δ`, `p` and `D` — exact sign algebra on the coefficients —
+/// before any root is constructed, so the truncation can perturb a root
+/// VALUE and can never move the count the arm answers on. What a
+/// perturbed root value can do is shift a hit by that relative gap,
+/// which the trim and incidence predicates then decide with their own
+/// margins.
 fn cbrt<T: geom_core::Real>(x: T) -> T {
     let mut u = x.abs();
     let mut acc = T::one();
@@ -2533,9 +2683,15 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// **The degenerate-quartic ladder, stated where it lives.** A reader
 /// arriving from the cone arm will look for the vanishing leading
 /// coefficient that arm makes a posture of, and there is none to find:
-/// `d` is a unit direction, so the quartic is MONIC identically and its
-/// degree cannot drop. What the ray's symmetry alignments degrade is the
-/// ROOT STRUCTURE, and each rung of that ladder is typed here:
+/// `d` is a unit direction, so the leading coefficient is `|d|⁴` and the
+/// degree cannot drop. At `f64` that is exactly 1; at the `Interval`
+/// scalar it is an enclosure of 1, a few ulps wide, since `normalize`
+/// cannot round to a unit vector exactly — **bounded away from zero
+/// either way**, which is all this posture needs, and the arm never
+/// divides by it (the depression and both closed forms are written for
+/// the monic form and take `1` as a literal). What the ray's symmetry
+/// alignments degrade is the ROOT STRUCTURE, and each rung of that
+/// ladder is typed here:
 ///
 /// 1. **`bool_ray_torus_disc` Zero** — the quartic has a repeated real
 ///    root. Both alignments that a reader expects to break the degree
@@ -2551,6 +2707,15 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    Reached by every axis-parallel ray (`n = 0` there) and by every
 ///    midplane ray (`e = 0`) — the four-root ray through the hole is in
 ///    this arm.
+///    **This arm has a band, and it costs root accuracy rather than a
+///    count.** It is taken whenever `|q̂| ≤ K·ε·ext²`, i.e. for a `q̂`
+///    that is small rather than zero, and it then solves the quartic
+///    with `q̂` SET to zero — the nearby quartic, not the posed one. The
+///    root error that buys is first order in the dropped term,
+///    `≈ q̂/ext²  ≤ K·ε` in metres, so it is bounded by the same band
+///    every downstream trim and incidence margin is metered at. The
+///    count is unaffected: it was certified from `Δ` before this branch
+///    was chosen.
 /// 3. **`bool_ray_torus_split_lead` non-Positive** — the resolvent's
 ///    largest real root is not positive, which contradicts its own
 ///    constant term `−q̂² < 0` on the branch that computed it. A
@@ -2562,7 +2727,9 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    in number with the count CERTIFIED by rung 1. That is not a
 ///    conditioning problem but a broken premise, so it escalates typed
 ///    rather than retrying: no other ray of the schedule would fare
-///    better.
+///    better. **No input has reached it**, in this lane or in either
+///    review lane's oracle; the note at the site says why it stays
+///    anyway.
 ///
 /// # The certified count, and what it costs
 ///
@@ -2587,13 +2754,19 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// BODY — the tube's top and bottom circles, whose tangent plane is
 /// perpendicular to the axis — it is a CUBE-root shell in ε, **measured
 /// at ≈3.7e-4 metres on a unit-sized torus at the default ε** and
-/// falling by a factor of 9.9 per three decades of ε. That exponent is
-/// measured rather than derived: the plane `h = r` touches the torus
-/// along a whole CIRCLE rather than at a point, so two root pairs merge
-/// together there and the discriminant's zero is of higher order than
-/// the cone apex's single merging pair (which gives that arm its `√ε`).
+/// falling by a factor of 9.9 per three decades of ε.
+///
+/// **That exponent is MEASURED, and the mechanism is not settled.** The
+/// obvious story — the plane `h = r` touches the torus along a whole
+/// circle, so the ray meets two double roots instead of one — predicts a
+/// SQUARE root, not a cube one: a discriminant with two simple double
+/// roots still vanishes quadratically in the offset. So the binding
+/// configuration must be a higher-order coalescence than that, and this
+/// comment does not claim to have identified it. What is claimed is the
+/// number: three decades of ε move the shell by 9.9×, twice, and
 /// `bool3_torus_doors::the_clamp_floor_clears_the_torus_tangency_shell`
-/// re-measures the law on every run, at whatever ε the run drew.
+/// re-measures it on every run — pinning the exponent at two FIXED bands
+/// so the check does not depend on which ε the run drew.
 ///
 /// # Errors
 ///
@@ -2736,14 +2909,22 @@ pub(super) fn line_torus_roots<T: Decide>(
         }
         let root = inner.max(T::zero()).sqrt();
         for y in [(T::zero() - a - root) / two, (T::zero() - a + root) / two] {
-            if found == 4 {
-                return Err(invalid("bool_ray_torus_count"));
-            }
             // Undo the depression: `t = y − b`.
             ts[found] = y - b;
             found += 1;
         }
     }
+    // **Rung 5, and it has never fired.** Two factors contribute two
+    // roots each, so `found` is 0, 2 or 4 by construction and the array
+    // cannot overflow; what this compares is the CONSTRUCTED count
+    // against the CERTIFIED one, and neither review lane's oracle
+    // reached a disagreement (1310 rays geometrically counted, 3000+
+    // independently bisected). It stays because it is what makes
+    // "answered only on a certified count" falsifiable at run time
+    // rather than a claim about the algebra: the sign ladder and the
+    // factorization are two different computations on the same
+    // coefficients, and this is the one place they are made to agree.
+    // Its cost is one comparison.
     if found != count {
         return Err(invalid("bool_ray_torus_count"));
     }
@@ -3307,3 +3488,7 @@ fn at_infinity_side<T: Decide>(
 #[cfg(test)]
 #[path = "r1_probes.rs"]
 mod r1_probes;
+
+#[cfg(test)]
+#[path = "torus_predicate_rows.rs"]
+mod torus_predicate_rows;

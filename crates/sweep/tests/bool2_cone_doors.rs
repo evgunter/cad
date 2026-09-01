@@ -185,7 +185,11 @@ const CONE_SLANT: f64 = core::f64::consts::SQRT_2;
 /// cone at all — it is out the other side, and the row would be
 /// asserting about geometry it did not mean.
 fn away() -> f64 {
-    (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
+    // The expression itself lives in `revolve_common::probe_offset`,
+    // which carries the part of the argument every containment suite
+    // shares (the ε-scaling, the clamp and its saturation). What stays
+    // here is the SHELL this suite has to clear, which is this arm's own.
+    probe_offset()
 }
 
 /// The measured radius of the apex escalation shell on the unit cone:

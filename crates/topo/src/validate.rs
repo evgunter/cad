@@ -387,9 +387,24 @@ pub enum ValidationError {
     /// `mesh::walk::Chart::poles` is empty for a torus because a ring
     /// torus has none).
     ///
-    /// This is the net BOTH doors that can mint a torus pass through:
-    /// `sweep::revolve` refuses the configuration at construction, and
-    /// `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim.
+    /// This is the net every door that can mint a torus passes through,
+    /// and there are THREE of them rather than the two this comment used
+    /// to name:
+    ///
+    /// * `sweep::revolve` refuses the configuration at construction;
+    /// * `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim,
+    ///   so it can carry one in;
+    /// * the BLEND lane (`sweep::blend`, reachable through the public
+    ///   `fillet_edges`) mints `Surface::Torus` from a spine radius `s`
+    ///   and the blend radius `r`. Its own arms document predicate 3
+    ///   (`SpineIrregular`) as the refusal for `0 < s ≤ r` — the spindle
+    ///   and horn configurations — but that is the blend lane's claim
+    ///   about itself, not something measured here, and the surgery
+    ///   arms mint tori too.
+    ///
+    /// Which is why this check is at REST and not at any one mint: it is
+    /// the net under all three, whatever each of them believes about
+    /// itself.
     DegenerateTorus {
         /// The face whose torus is a horn or spindle.
         face: FaceKey,
