@@ -162,24 +162,33 @@
 //!    `body.edges()` reading `get_surface(..)` through two
 //!    back-pointers. NOT a probe: it is a gap in reach, not a
 //!    refusal.
-//! 9. **A valid body the tessellator refuses, at ordinary
-//!    proportions** (wall 7). `mesh::planar`'s own module docs bank
-//!    exactly one uncovered case: when a planar face's boundary
-//!    points carry off-plane noise, the chart frame's FAR point has
-//!    an *engineered* exact-zero v-coordinate whose float residue is
-//!    ~ν², which for small ν is nonzero but below spade's coordinate
-//!    floor (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²), and the face refuses
-//!    `Triangulation`. That paragraph calls the case "synthetic today
-//!    (no corpus body hits it)". **This bottle hits it.** The bulb's
-//!    annular top rim — a slit annulus, 0.05 m wide, at plain
-//!    coordinates — refuses at EVERY δ with its far point projected to
-//!    (0.4978884624952483, 3.94e-47). Whether it refuses is a
-//!    roundoff lottery over parameters that have nothing to do with
-//!    the cap: sweeping the flare angle and the rim radius, the
-//!    refusal appears at (30°, 0.85 m) and (34°, 1.00 m) and not at
-//!    their neighbours. The bottle ships at a rim radius of 0.80 m,
-//!    which triangulates; wall 7 builds the SAME bottle at 0.85 m and
-//!    pins the refusal, so this stops being synthetic.
+//! 9. **A valid body the tessellator refused, at ordinary
+//!    proportions — CLOSED, and wall 7 retired with it.**
+//!    `mesh::planar`'s module docs used to bank exactly one uncovered
+//!    case: when a planar face's boundary points carry off-plane
+//!    noise, the chart frame's FAR point has an *engineered*
+//!    exact-zero v-coordinate whose float residue is ~ν², which for
+//!    small ν is nonzero but below spade's coordinate floor
+//!    (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²), and the face refused
+//!    `Triangulation`. That paragraph called the case "synthetic
+//!    today (no corpus body hits it)"; **this bottle hit it**, which
+//!    is what took the case off the bank. The bulb's annular top rim
+//!    — a slit annulus, 0.05 m wide, at plain coordinates — refused
+//!    at EVERY δ, its far point projecting to
+//!    (0.4978884624952486, -2.19e-48), so no δ the caller could pick
+//!    was an escape. Whether it refused was a roundoff lottery over
+//!    parameters with nothing to do with the cap: sweeping the flare
+//!    angle against the rim radius, the refusal appeared at
+//!    (30°, 0.85 m) and (34°, 1.00 m) — and, re-swept on the tree that
+//!    fixed it, at (24°, 0.85 m) and (26°, 0.75 m) as well, so the
+//!    lottery was denser than the first sweep recorded. `mesh::planar`
+//!    now WRITES that coordinate as the zero its own construction
+//!    produced rather than reading the residue back off the dot
+//!    product — not value snapping but its opposite, a refusal to
+//!    invent a nonzero the frame never had; the module's prose carries
+//!    that argument against its own no-snapping doctrine. Wall 7 no
+//!    longer pins a refusal: it re-runs all four of those lattice
+//!    points and requires them to mesh.
 //! 10. **The lattice cannot say "tangent straight leg to THIS point",
 //!     and the drift is measurable.** After a declared-tangent joint
 //!     off an arc, the only straight continuation the PATHS lattice
@@ -268,7 +277,7 @@ const SWEEP_IN: f64 = 0.5 * PI;
 /// and embedded into whatever scalar the scene runs at.
 struct Meridian {
     /// Spine radius of the neck→flare blend (a parameter, not a
-    /// constant, because wall 7 needs a SECOND bottle).
+    /// constant, because wall 7 builds bottles at other proportions).
     rf: f64,
     /// Outer and inner offsets of the tube radius.
     ro: f64,
@@ -309,8 +318,8 @@ fn meridian() -> Meridian {
 }
 
 /// The meridian at any proportions. Only wall 7 asks for proportions
-/// other than the bottle's own — and the only thing it changes is the
-/// rim radius.
+/// other than the bottle's own: it re-runs the flare-angle × rim-radius
+/// lattice points that used to decide whether the cap meshed.
 fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
     let half = WALL / 2.0;
     let (sa, ca) = alpha.sin_cos();
@@ -1009,28 +1018,52 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          torus — one gate, three probes, retiring together",
     );
 
-    // Wall 7: a valid body the tessellator refuses. The ONLY change
-    // from the bottle this scene ships is the rim's radius, 0.80 m →
-    // 0.85 m; the face that refuses is the bulb's annular top rim,
-    // whose own geometry does not depend on the rim radius at all.
+    // Wall 7 is RETIRED, per its own instruction: `mesh::planar`'s
+    // banked sub-floor case is CLOSED. It pinned a valid body the
+    // tessellator refused — the bulb's annular top rim, at a bottom
+    // rim of 0.85 m rather than the 0.80 m this scene ships, the face
+    // refusing on a parameter its own geometry does not depend on.
+    // The chart frame's far point had an engineered exact-zero
+    // v-coordinate whose float residue landed below spade's
+    // coordinate floor; the projection now writes that coordinate as
+    // the zero it is, and the rim meshes.
+    //
+    // Kept LIVE rather than turned into a comment, for the reason
+    // walls are live at all (`crate::walls`): a closure is a claim
+    // about the kernel, and a claim the tour stops attempting is a
+    // claim nobody re-checks. The lattice points swept when the
+    // refusal was characterised are the ones re-run here — the two
+    // this scene's findings entry named, plus two more the same sweep
+    // turned up — so a regression reappears where it was first seen
+    // rather than somewhere a fresh probe happened to look.
+    //
     // f64: `mesh::tessellate` is the one door in this scene that is
     // not generic over the scalar — meshing is a rendering-side
     // operation and takes the run's own numbers.
-    let wider = bulb::<f64>(
-        band::<f64>(&meridian_at(ALPHA, RF, 0.85, RLOOP), tol),
-        Revolution::Full,
-        tol,
-    );
-    crate::walls::wall(
-        "bottle",
-        7,
-        "tessellate the same bottle with a 5 cm wider bottom rim",
-        pncad::mesh::tessellate(&wider, 1e-2, tol),
-        |e| matches!(e, pncad::mesh::TessellateError::Triangulation { .. }),
-        "check whether `mesh::planar`'s banked sub-floor case was CLOSED (the far \
-         point's engineered exact-zero v-coordinate) — and if it was, say so in \
-         findings entry 9 instead of deleting it",
-    );
+    for (alpha_deg, rim) in [
+        (24.0_f64, 0.85_f64),
+        (26.0, 0.75),
+        (30.0, 0.85),
+        (34.0, 1.00),
+    ] {
+        let body = bulb::<f64>(
+            band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
+            Revolution::Full,
+            tol,
+        );
+        let m = pncad::mesh::tessellate(&body, 1e-2, tol).unwrap_or_else(|e| {
+            panic!(
+                "the bottle at (flare {alpha_deg}°, rim {rim} m) refuses {e:?} — \
+                 `mesh::planar`'s sub-floor case was closed and findings entry 9 \
+                 says so; re-derive BOTH before trusting either"
+            )
+        });
+        println!(
+            "   wall 7 RETIRED — the bottle at (flare {alpha_deg}°, rim {rim} m) \
+             tessellates: {} triangles",
+            pncad::mesh::validate::triangle_count(&m)
+        );
+    }
 
     let _ = into;
 }
@@ -1088,5 +1121,43 @@ mod verbs_gate_r1_probes {
             ),
             "wall 4 must name the bulb's tube wall against the neck's: {trimmed:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod r1_mesh2_review_probes {
+    //! R1 review probes for MESH-2 (PR #1421, issue 555): the
+    //! flare-angle × rim-radius lottery cells, exercised through the
+    //! public `mesh::tessellate` door on the real Klein bulb. The
+    //! probe PRINTS each cell's outcome rather than asserting, so the
+    //! identical file runs on the merge base (where the four cells
+    //! should refuse) and on the head (where they should mesh).
+
+    use super::*;
+
+    #[test]
+    fn r1_lottery_cells_outcomes() {
+        let tol = Tol::witness();
+        for (alpha_deg, rim) in [
+            (24.0_f64, 0.85_f64), // PR re-sweep cell
+            (26.0, 0.75),         // PR re-sweep cell
+            (30.0, 0.85),         // issue 555 cell
+            (34.0, 1.00),         // issue 555 cell
+            (30.0, 0.80),         // the shipped bottle: control, always meshed
+            (28.0, 0.85),         // an "ok" neighbour in both sweeps
+        ] {
+            let body = bulb::<f64>(
+                band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
+                Revolution::Full,
+                tol,
+            );
+            match pncad::mesh::tessellate(&body, 1e-2, tol) {
+                Ok(m) => println!(
+                    "R1PROBE cell ({alpha_deg}, {rim}): MESHED {} triangles",
+                    pncad::mesh::validate::triangle_count(&m)
+                ),
+                Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
+            }
+        }
     }
 }

@@ -392,10 +392,15 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     let (doc, ids, mate, store) = stacked("asm-r2b-row2", 1.0);
     let ev = run(&doc, &opts(store));
 
-    // The gather itself mints nothing: minting is the assembly door's
-    // act, not the product's.
+    // The GATHER mints (A3: evaluation carries each mate's declaration
+    // into the evaluated body's contact record set), so the record is
+    // already in the product the assembly door is handed.
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
-    assert_eq!(product.contacts.patches.len(), 0);
+    assert_eq!(product.contacts.patches.len(), 1);
+    assert_eq!(
+        product.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![mate]
+    );
 
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
