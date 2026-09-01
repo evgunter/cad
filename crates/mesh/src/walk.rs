@@ -777,10 +777,15 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
 /// measures straightness and watertightness, not whether two sides
 /// were correctly distinguished.
 ///
-/// **Reachable today: no**, by two upstream gates. `topo::boolean`
-/// refuses a tilted plane × sphere section typed (`SectionInvariant`;
-/// an axis-aligned slab cut succeeds and re-charts, a 0.7 rad rotated
-/// one refuses — executed). `import_step`'s tier-3
+/// **Reachable today: no**, by two upstream gates. `topo`'s boolean
+/// doors refuse plane × sphere cuts typed, wider than any tilt
+/// distinction: `splitting::split` refuses every sphere-face cut
+/// `CurvedBooleanUnsupported` and `boolean_op_with` refuses
+/// `CurvedPierceUnsupported`, measured across cut heights in the
+/// issue-896 review rows (an earlier form of this sentence cited a
+/// `SectionInvariant` refusal with an axis-aligned cut succeeding —
+/// that witness does not reproduce on today's tree, and the refusal
+/// is now broader than it claimed). `import_step`'s tier-3
 /// `props::curved::sphere_boundary` admits a circle only as a coaxial
 /// rim or a great circle centred at the sphere centre — read, not
 /// executed, and so the one door not directly witnessed. Recorded
@@ -1084,13 +1089,17 @@ pub(crate) fn loop_polygon(
         coincident_declared()
     );
     let poles = chart.poles();
-    let pole_v = |id: u32| -> Option<f64> {
+    // ONE home for the pole-membership find: the classification
+    // (`pole_v`) and the row-5 guard below both consume this index,
+    // so they cannot disagree about which pole a junction is
+    // identified with — the equivalence is structural, not prose.
+    // The eps read is terminal; issue 881's named-operations port
+    // (MESH-4) inherits it.
+    let pole_index = |id: u32| -> Option<usize> {
         let p = positions[id as usize];
-        poles
-            .iter()
-            .find(|(pp, _)| (p - *pp).norm() <= eps)
-            .map(|&(_, pv)| pv)
+        poles.iter().position(|&(pp, _)| (p - pp).norm() <= eps)
     };
+    let pole_v = |id: u32| -> Option<f64> { pole_index(id).map(|ix| poles[ix].1) };
     // D2 addendum row 5, beside the declared-vertex guard above, and
     // the case that guard's SCOPE paragraph names as out of its reach
     // (issue 896): a chart pole is an UNDECLARED analytic point
@@ -1112,67 +1121,62 @@ pub(crate) fn loop_polygon(
     // junction is REALLY the pole is precisely the intent question
     // the project refuses to ask. What this leaves uncaught is a
     // misidentification in the identified direction; what it
-    // catches is every junction the classification passes over —
-    // a rim junction on a pole (a zero-radius row stated as an
-    // ordinary one), and a junction within eps of a second pole
-    // beyond the one it is identified with (a degenerate chart).
+    // catches is every junction × pole pair the classification
+    // passes over — a rim junction on a pole (a zero-radius row
+    // stated as an ordinary one), and a junction within eps of a
+    // SECOND pole beyond the one it is identified with (a
+    // degenerate chart).
     //
     // JUNCTIONS ONLY, for the same load-bearing reason as the guard
     // above: chord interior points on a pole-incident edge approach
     // the pole legitimately as delta shrinks, so comparing them
     // would fire on correct input.
     //
-    // The `within` re-derivation mirrors `pole_v`'s find (same
-    // order, same band), so the two cannot disagree about which
-    // pole a junction is identified with. The eps read is terminal
-    // and gates nothing — a `debug_assert` condition; its only
-    // effect is to panic. Issue 881's named-operations port
-    // (MESH-4) inherits this read.
-    //
-    // REACHABILITY (the issue-896 fixture question, measured): no
-    // minting door in this build can put the state in front of
-    // `tessellate`. A junction within eps of a chart pole lies on a
-    // rim of radius at most that distance, so some boundary feature
-    // measures at most 2π·eps — and under the ratified K = 10 band
-    // (any K > 2π), import's span certification cannot clear it
-    // (`step-import/tests/poleguard.rs`, refused at all three suite
-    // ε legs), while revolve's `axis_vertex_radius` bar pins or
-    // escalates every such rim and its pcurve lane refuses far
-    // beyond it (`mesh/tests/issue896_pole_guard.rs`). What would
-    // open a route: a certification band with K < 2π, an adoption
-    // lane that skips span certification, or a consumer assembling
-    // a Body through the Euler doors directly — which no
-    // certification fronts, and which is why this guard exists and
-    // runs in release builds. The firing itself is demonstrated at
-    // the mechanism: `tests::
-    // a_rim_junction_inside_the_pole_band_trips_the_guard`.
-    let near_unidentified_pole = || -> Option<(u32, Point3<f64>, f64, f64)> {
-        for t in &travs {
+    // REACHABILITY (the issue-896 fixture question): measured shut
+    // at every minting door probed, with the route argument's single
+    // home in `step-import/tests/poleguard.rs` (tier_gate points
+    // there too) — the sketch: EITHER firing branch forces a
+    // sub-band boundary feature (a rim junction inside the band
+    // forces a rim of radius <= eps; the second-pole branch forces a
+    // sphere of radius <= eps, its poles being 2r apart), so some
+    // edge measures at most 2π·eps, which the ratified K = 10 span
+    // certification cannot clear; below K = 2π the span argument
+    // voids and the import door is MEASURED to shift to the adoption
+    // transversality bar, not to open. Construction doors:
+    // `mesh/tests/issue896_pole_guard.rs` (revolve, profile) and the
+    // adopted review rows (plane split and boolean, both refusing
+    // sphere-face cuts typed at every probed rho). Doors named
+    // unmeasured, and what would open a route — a consumer
+    // assembling a Body through the Euler doors directly, which no
+    // certification fronts — live in the route argument's home; the
+    // Euler residue is why this guard exists and runs in release
+    // builds. The firing itself is demonstrated at the mechanism:
+    // `tests::a_rim_junction_inside_the_pole_band_trips_the_guard`.
+    #[cfg(debug_assertions)]
+    {
+        let mut offending: Option<(u32, Point3<f64>, f64, f64)> = None;
+        'guard: for t in &travs {
             let jid = t.ids[0];
             let p = positions[jid as usize];
-            let within: Vec<bool> = poles
-                .iter()
-                .map(|&(pp, _)| (p - pp).norm() <= eps)
-                .collect();
             let identified = matches!(t.kind, TravKind::Meridian { .. })
-                .then(|| within.iter().position(|w| *w))
+                .then(|| pole_index(jid))
                 .flatten();
             for (ix, &(pp, pv)) in poles.iter().enumerate() {
-                if within[ix] && identified != Some(ix) {
-                    return Some((jid, pp, pv, (p - pp).norm()));
+                let gap = (p - pp).norm();
+                if gap <= eps && identified != Some(ix) {
+                    offending = Some((jid, pp, pv, gap));
+                    break 'guard;
                 }
             }
         }
-        None
-    };
-    debug_assert!(
-        near_unidentified_pole().is_none(),
-        "face {face:?} loop {lk:?}: a junction the walk does not identify with a chart \
-         pole lies within eps {eps} of one (junction id, pole point, pole v, gap in \
-         metres) {:?}. Intent is never read from a numerical coincidence, so this is a \
-         kernel bug and not a near-pole vertex to admit.",
-        near_unidentified_pole()
-    );
+        debug_assert!(
+            offending.is_none(),
+            "face {face:?} loop {lk:?}: a junction lies within eps {eps} of a chart pole \
+             it is not being identified with (junction id, pole point, pole v, gap in \
+             metres) {offending:?}. Intent is never read from a numerical coincidence, \
+             so this is a kernel bug and not a near-pole vertex to admit."
+        );
+    }
     // Pole-to-pole bands: precompute every column from the loop's 3-D
     // area vector (module docs).
     let band_u: Option<Vec<f64>> = if no_rim {
@@ -2009,7 +2013,7 @@ mod tests {
     /// Positions and chords are minted exactly as `tessellate` mints
     /// them, so the walk sees the shape a real call would hand it.
     #[test]
-    #[should_panic(expected = "does not identify with a chart pole")]
+    #[should_panic(expected = "of a chart pole it is not being identified with")]
     fn a_rim_junction_inside_the_pole_band_trips_the_guard() {
         use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
         use std::collections::HashMap;

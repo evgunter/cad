@@ -1,8 +1,14 @@
-//! R2 review probe for MESH-3: independent byte-stability instrument.
-//! Prints an FNV-1a hash over every position's `to_bits`, every
-//! triangle index and every boundary polyline, for a body tour at
-//! three deltas. Not part of the PR.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+//! R2 review probe for MESH-3, adopted: independent byte-stability
+//! instrument. Prints an FNV-1a hash over every position's `to_bits`,
+//! every triangle index and every boundary polyline, for a body tour
+//! at three deltas — run it at two revisions under one ambient ε and
+//! diff the lines.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
 
 mod common;
 use common::*;
@@ -79,5 +85,10 @@ fn r2_byte_stability_report() {
             ));
         }
     }
-    panic!("R2 HASHES\n{}", lines.join("\n"));
+    assert_eq!(
+        lines.len(),
+        bodies.len() * 3,
+        "every body hashed at every delta"
+    );
+    println!("R2 HASHES\n{}", lines.join("\n"));
 }

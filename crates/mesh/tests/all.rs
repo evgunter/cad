@@ -205,16 +205,17 @@ fn every_suite_file_is_aggregated() {
 ///   reads: `gap_is_noise`'s `gap * lever < eps` (one predicate, four
 ///   call sites — the domain guard above plus three `debug_assert`
 ///   detectors that gate nothing), `iso_side_starts`' `radial > eps`,
-///   `pole_v`'s `norm() <= eps`, `loop_polygon`'s
-///   `coincident_declared` closure, whose `d <= eps` asks whether two
-///   DECLARED vertices of one loop are the same point, and its
-///   `near_unidentified_pole` closure, whose `norm() <= eps` asks
-///   whether a junction the classification passes over sits on a
-///   chart pole (issue 896's guard).
+///   `pole_index`'s `norm() <= eps` (the pole-membership find — the
+///   ONE home both `pole_v` and the issue-896 guard consume),
+///   `loop_polygon`'s `coincident_declared` closure, whose `d <= eps`
+///   asks whether two DECLARED vertices of one loop are the same
+///   point, and the issue-896 guard's own `gap <= eps`, asking
+///   whether a junction × pole pair the classification passes over
+///   coincides.
 ///   4 + 5 + 5 = 14.
 ///
 ///   It was **12** until `coincident_declared` landed and **13**
-///   until `near_unidentified_pole` did. Both reads **gate nothing
+///   until the issue-896 guard did. Both new reads **gate nothing
 ///   and move no coordinate**: each is the condition of a
 ///   `debug_assert` (D2 addendum row 5), so its only effect is to
 ///   panic. Each CAPTURES `eps` rather than taking it as a

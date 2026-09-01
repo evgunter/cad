@@ -1,7 +1,15 @@
-//! R2 review probe: the BOOLEAN door (`topo::boolean_op_with`), whose
-//! (Plane, Sphere) germ arm is wired since M5 S13 and which MESH-3's
-//! no-route verdict does not enumerate.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+//! R2 review probe, adopted and converted to a pin: the BOOLEAN door
+//! (`topo::boolean_op_with`, the (Plane, Sphere) germ arm wired since
+//! M5 S13). Measured: every near-pole slab intersect refuses
+//! `CurvedPierceUnsupported` at every probed height, so this door
+//! cannot mint issue 896's guard state either. Part of the door
+//! enumeration whose single home is `step-import/tests/poleguard.rs`.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
 
 mod common;
 use common::*;
@@ -40,7 +48,14 @@ fn r2_bool_door_near_pole() {
             Tol::witness(),
         );
         match r {
-            Err(e) => lines.push(format!("rho={rho:.3e}: boolean refused {e:?}")),
+            Err(e) => {
+                let shape = format!("{e:?}");
+                assert!(
+                    shape.contains("CurvedPierceUnsupported"),
+                    "rho={rho:.3e}: the boolean door refuses sphere piercings typed; got {shape}"
+                );
+                lines.push(format!("rho={rho:.3e}: boolean refused {shape}"));
+            }
             Ok(br) => {
                 let Some(bb) = br.body() else {
                     lines.push(format!("rho={rho:.3e}: boolean EMPTY"));
@@ -73,5 +88,12 @@ fn r2_bool_door_near_pole() {
             }
         }
     }
-    panic!("R2 BOOL DOOR\n{}", lines.join("\n"));
+    for l in lines.iter().filter(|l| l.starts_with("rho=")) {
+        assert!(
+            l.contains("boolean refused"),
+            "the boolean door admitted a body — the issue-896 route question must be \
+             re-asked: {l}"
+        );
+    }
+    println!("R2 BOOL DOOR\n{}", lines.join("\n"));
 }

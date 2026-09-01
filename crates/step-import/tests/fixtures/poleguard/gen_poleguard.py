@@ -22,13 +22,15 @@ spherical frustum.  Four faces:
 The two top-rim vertices C (u=0) and D (u=pi) sit at chord distance
 2R sin(t/2) ~= R*t = 9e-7 mm = 0.9e-9 m from the pole -- INSIDE the
 default eps = 1e-9 m band -- while their mutual separation is
-2R sin t ~= 1.8e-9 m, OUTSIDE it.  So at default eps the walk's
-declared-vs-declared guard (#895) is quiet and the classification
-identifies the MERIDIAN junction with the pole while the RIM
-junction passes over it: the state issue 896's guard exists to make
-loud.  At eps = 1e-6 m the separation itself is inside the band; at
-eps = 1e-12 m nothing is near anything and the solid must simply
-mesh.  The step-import row `poleguard.rs` states all three bands.
+2R sin t ~= 1.8e-9 m, OUTSIDE it.  The walk never sees any of this:
+the import door refuses both twins at every suite band (measured --
+span escalation at 1e-9, zero-span at 1e-6, and at 1e-12, where the
+spans certify, the near-tangent rim/sphere contact refuses at
+adoption).  The step-import row `poleguard.rs` holds the route
+argument; `tier_gate.rs` pins the three bands cell by cell.
+poleband_eps12.step is the same band form with t = 9e-11 rad
+(vertex 0.9e-12 m from the pole), so the 1e-12 band also gets a
+fixture whose near-pole feature is INSIDE it.
 """
 import math
 import sys
@@ -213,7 +215,7 @@ DATA;
     return head + "\n".join(s.lines) + "\nENDSEC;\nEND-ISO-10303-21;\n"
 
 
-def build_full():
+def build_full(t_off, label):
     """The FULL frustum, seam-authored: two vertices, three edges (two
     full circles and one seam meridian), three faces.  No straight
     nano edge: the half frustum's 1.8e-9 m top diameter LINE certifies
@@ -222,10 +224,11 @@ def build_full():
     refusing the whole solid at default eps -- a circle's span is
     ANGULAR, so the full-circle authoring is the route that can reach
     the mesh walk at all."""
+    t_full = math.pi / 2.0 - t_off
     h = R * math.sin(B)
     rc = R * math.cos(B)
-    zt = R * math.sin(T)
-    rho = R * math.cos(T)
+    zt = R * math.sin(t_full)
+    rho = R * math.cos(t_full)
     pos = {
         "A": (rc, 0.0, h),         # base rim at u=0
         "C": (rho, 0.0, zt),       # top rim at u=0
@@ -329,11 +332,14 @@ ENDSEC;
 DATA;
 """
     nv, ne, nf = len(V), len(E), len(faces)
-    print("poleband         V=%d E=%d F=%d  V-E+F=%d" % (nv, ne, nf, nv - ne + nf))
+    print("%-16s V=%d E=%d F=%d  V-E+F=%d" % (label, nv, ne, nf, nv - ne + nf))
+    d_pole = 2.0 * R * math.sin(t_off / 2.0)
+    print("  vertex-to-pole chord = %.6e mm = %.6e m" % (d_pole, d_pole * 1e-3))
     return head + "\n".join(s.lines) + "\nENDSEC;\nEND-ISO-10303-21;\n"
 
 
 d = sys.argv[1]
 open("%s/polefrustum.step" % d, "w").write(build())
-open("%s/poleband.step" % d, "w").write(build_full())
+open("%s/poleband.step" % d, "w").write(build_full(T_OFF, "poleband"))
+open("%s/poleband_eps12.step" % d, "w").write(build_full(9.0e-11, "poleband_eps12"))
 print("ok")
