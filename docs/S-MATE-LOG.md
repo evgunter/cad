@@ -131,3 +131,28 @@ union mutation matrix runs 12/12 kills. Filed en route: issue 1439
 `contact_tangent_opposed` as the pairing's twin). Handoffs routed
 on issue 941 at merge. MATE-5's soundness fix pass is the one
 remaining implementation lane; 4b design (PR #1440) awaits Evan.
+
+**2026-09-01 — MATE-5 MERGED (PR #1443; issue 943 CLOSED at this
+merge).** Cross-instance declared cylinder Rest certifies through
+Door 2's certified-ε enclosure — and the unit earned its dual: both
+review arms independently demonstrated the original gate certifying
+FALSE overlaps (the radius-levered transfer error the axial-reach
+lever missed; 18–6600·ε separations certified, one census-reachable
+through Door 1's own Bridged band). Verdict split (R1 NOT-MERGEABLE
+/ R2 M-A-F) on a bilateral executed MAJOR — the recurring
+calibration shape, no tally candidate. The fix REDESIGNED the gate
+to measure its claim: the per-vertex transfer residual in world
+metres plus the radius-priced hyp = √(reach²+r_max²) lever, with
+door_one consumed (Bridged halves the zero edge — pinned by its own
+tightening row); all four false-positive probes adopted red-first
+and green; PeriodFold constructed at Interval by consuming CERT-4's
+repaired fold (issue 1191 closed by S-CERT — the three citation
+sites restated); lane=both gated the fix head. Ordinal 1305,
+sample #87 at merge. Issue 943's remaining kinds (sphere/cone/
+torus) are restated per kind at the refusal sites with the
+sanctioned closing shape recorded — incremental applications of the
+landed pattern, the torus one meeting MATE-7's carrier work.
+Handoffs recorded in the PR: the public full-wrap constructor, the
+cylinder interior_witness, the wall_sheet builder triplication.
+Slate: SIX of seven units merged; 4b design (PR #1440) and the
+MATE-7 tangency conversation are the Evan-paced tail.
