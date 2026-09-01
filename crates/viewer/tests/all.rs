@@ -102,6 +102,12 @@ mod review_m10_1_r1;
 mod scene_build;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "story_assembly.rs"]
+mod story_assembly;
+#[path = "story_authoring.rs"]
+mod story_authoring;
+#[path = "story_parametric.rs"]
+mod story_parametric;
 #[path = "theme.rs"]
 mod theme;
 #[path = "tree_badges.rs"]

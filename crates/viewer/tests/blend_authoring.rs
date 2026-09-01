@@ -30,8 +30,9 @@
 
 mod common;
 
+use common::insert;
 use pncad::document::{
-    Dimension, Doc, DocEdit, Expr, Node, NodeErrorKind, NodeResult, RecipeNodeId, SlotId,
+    Dimension, Doc, Expr, Node, NodeErrorKind, NodeResult, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -59,23 +60,6 @@ const BOX_EDGES: usize = 12;
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("blend-start", tol), tol)
-}
-
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
 }
 
 /// A cube of `side`, authored through the creation doors.
