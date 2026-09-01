@@ -49,7 +49,6 @@ mod fixture;
 
 use std::io::Write;
 
-use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, KProbe, drive};
 use editor_core::{
@@ -74,7 +73,6 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             dim: Dimension::Length,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             value: nominal,
-            display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(Distribution::Uniform {
                 lo: -half,
                 hi: half,
