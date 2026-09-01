@@ -165,6 +165,11 @@ pub enum StepImportError {
     /// two. The resolution refuses instead: a corrupt body is
     /// announced, never silently miscounted.
     VertexWithoutPoint {
+        /// The offending vertex — the only name the assembled body has
+        /// for it, and the half of this diagnosis that can be acted
+        /// on. Rendered like the arena keys `TierInvalid` already
+        /// forwards from the kernel's own validator.
+        vertex: topo::VertexKey,
         /// The anchor position being resolved when the dangling point
         /// key was found.
         anchor: [f64; 3],
@@ -361,11 +366,12 @@ impl fmt::Display for StepImportError {
                  exactly two) — fix the anchor or remove the declaration; unresolved \
                  intent never silently drops"
             ),
-            Self::VertexWithoutPoint { anchor } => write!(
+            Self::VertexWithoutPoint { vertex, anchor } => write!(
                 f,
-                "step import: resolving the declared contact anchored at {anchor:?} found a \
-                 vertex of the assembled body whose point key does not resolve — the body is \
-                 corrupt, and skipping the vertex would miscount the anchor's coincidences"
+                "step import: resolving the declared contact anchored at {anchor:?} found \
+                 vertex {vertex:?} of the assembled body, whose point key does not resolve — \
+                 the body is corrupt, and skipping the vertex would miscount the anchor's \
+                 coincidences"
             ),
             Self::MalformedReal { id, token } => write!(
                 f,

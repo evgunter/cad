@@ -1311,7 +1311,13 @@ class Doc:
         """The cluster-record maintenance the LAST accepted edit
         performed. Empty after an edit that moved no mate graph, and
         on a document that has applied none; a REFUSED edit leaves it
-        untouched, as it leaves the document untouched."""
+        untouched, as it leaves the document untouched.
+
+        The reading begins at the load boundary: a Doc from
+        `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
+        empty even where the replayed history's last edit performed
+        maintenance, so "the last accepted edit" means the last one
+        accepted through this object."""
 
     @property
     def roots(self) -> list[NodeId]:

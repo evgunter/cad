@@ -851,7 +851,10 @@ fn vertex_rest_contact(
     let mut hits = Vec::new();
     for (vk, position) in candidates {
         let Some(p) = position else {
-            return Err(StepImportError::VertexWithoutPoint { anchor: at });
+            return Err(StepImportError::VertexWithoutPoint {
+                vertex: vk,
+                anchor: at,
+            });
         };
         let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
         if d2 <= eps_in.powi(2) {
@@ -928,8 +931,18 @@ mod declaration_tests {
         let keys: Vec<_> = body.vertices().map(|(vk, _)| vk).collect();
         let planted = [(keys[0], None), (keys[1], Some(at))];
         match vertex_rest_contact(planted.into_iter(), [1.0, 1.0, 1.0], 1e-9) {
-            Err(StepImportError::VertexWithoutPoint { anchor }) => {
+            Err(err @ StepImportError::VertexWithoutPoint { vertex, anchor }) => {
                 assert_eq!(anchor, [1.0, 1.0, 1.0], "the refusal names the anchor");
+                assert_eq!(vertex, keys[0], "and the vertex that dangles");
+                // The rendering carries both, so a caller reading only
+                // the message can still act on it.
+                let message = err.to_string();
+                assert!(message.contains("[1.0, 1.0, 1.0]"), "{message}");
+                assert!(
+                    message.contains(&format!("vertex {:?}", keys[0])),
+                    "{message}"
+                );
+                assert!(message.contains("point key does not resolve"), "{message}");
             }
             Err(StepImportError::DeclarationUnresolved { found, .. }) => panic!(
                 "the dangling key was passed over: the census read {found} coincidences at an \
