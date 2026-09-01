@@ -49,15 +49,15 @@
 //!   already-committed value is the persistence layer's
 //!   `ToleranceConflict` refusal, which commits nothing.
 //!
-//! # ε provenance (S22, ruled 2026-08-19)
+//! # ε provenance (ruled 2026-08-19)
 //!
 //! ε is a **declared run parameter**, not an implementation detail: the
 //! model is a pure function of (parameter vector, ε). The `OnceLock` is
 //! what makes "one ε per process" structural rather than documentary,
-//! and it is kept for that reason — see `docs/SMELL-SCAN-2026-08.md`
-//! S22. (That ruling's other half, *"do not thread ε"*, was reversed on
-//! 2026-08-21 once the parameter could be a witness rather than a value;
-//! the lock it defended is untouched by that reversal.)
+//! and it is kept for that reason. (That ruling's other half, *"do not
+//! thread ε"*, was reversed on 2026-08-21 once the parameter could be a
+//! witness rather than a value; the lock it defended is untouched by
+//! that reversal.)
 //!
 //! What the lock lacked was a way to say *where the committed value
 //! came from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could

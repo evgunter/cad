@@ -62,7 +62,8 @@ pub use appearance::{
     Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+    Assembly, AssemblyError, AtRestFinding, Attribution, MintRefusal, MintedDeclaration,
+    RefusedRef, assemble,
 };
 pub use checks::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
@@ -85,8 +86,8 @@ pub use eval::{
     NodeValue, PartFault, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 pub use expr::{
-    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
-    unparse,
+    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
+    eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{

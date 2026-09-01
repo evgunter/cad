@@ -871,29 +871,46 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP (LIB-RETTAIL, 2026-08-12) — the one place in the tour
-        // the presented surface cannot say what the demo means, recorded
-        // rather than worked around (main.rs's purpose block).
+        // NAMED GAP — the one place in the tour the presented surface
+        // cannot say what the demo means, recorded rather than worked
+        // around (main.rs's purpose block). Half of it is now closed and
+        // the half that remains is a different, sharper thing.
         //
-        // At `shoulder = 0` the shoulder IS the midpoint of two tips, so
-        // three consecutive vertices are EXACTLY collinear — deliberately,
-        // because a loft matches segment j to segment j and the 4-tip and
-        // 8-corner sections must be spelled on one vertex budget. The PATHS
-        // lattice refuses that junction at authoring
-        // (`JunctionTangent { margin: 0.0 }`), while `Profile::validate`
-        // ACCEPTS it: collinear line/line is carrier IDENTITY, legal
-        // undeclared (`ProfileLoop::tangent_joints`' normative semantics).
-        // So the two junction rules disagree on same-carrier continuation,
-        // and the lattice is the stricter one — a library finding, not a
-        // demo defect. Until the lattice gains a same-carrier continuation
-        // verb (vocabulary, out of this unit's fence), the PRESENTED
-        // surface has no spelling for this loop at all: `ProfileLoop`'s
-        // fields are sealed, so the only route left is the kernel's raw
-        // door, `profile::RawLoop`, which `pncad::profile` deliberately
-        // omits. That is why this crate carries a second kernel
-        // dependency — the tour reaches around its own façade here, and
-        // the gap is loud in the dependency graph instead of hidden in a
-        // struct literal.
+        // This outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and attachment
+        // sections must be spelled on one vertex budget. So one junction
+        // per side is a straight run subdivided, at both ends of the
+        // shoulder parameter: at `shoulder = 0` each shoulder is the
+        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
+        // lies ON the rectangle edge its two neighbouring corners span —
+        // collinear with them, though only the ridge and keel tips are
+        // that edge's midpoint (the margins sit at y = 0 on an edge
+        // spanning [-keel, ridge], and no section here has keel = ridge).
+        // Only the eased sections in between turn at every vertex.
+        //
+        // CLOSED (issue 433, ruled 2026-09-01): those junctions are
+        // carrier IDENTITY, legal undeclared, and the lattice now spells
+        // them — `line(len)` off a directed point continues the run
+        // structurally, minting the subdivision vertex without declaring
+        // anything. That is the interior case.
+        //
+        // OPEN: a run that crosses the SEAM has no spelling. Every side
+        // here is subdivided, so whichever vertex the loop is cut at, the
+        // closing leg either departs a subdivision vertex
+        // (`TangentLineClose`) or lands on one (a mid-carrier seam, which
+        // PATHS §6 PQ4 refuses) — `LiftRefusal::SameCarrierClose` is the
+        // same wall's name one layer down. What forces it is the strict
+        // corner/subdivision ALTERNATION that one subdivision per side
+        // produces; an outline free to distribute the same vertex budget
+        // unevenly has spellings that close, and this one is not free
+        // (the loft pins which vertex sits where). The declared
+        // structural closer that ends it is ruled and scheduled
+        // (BOOL-11). Until then this loop is still
+        // raw-authored: `ProfileLoop`'s fields are sealed, and the only
+        // route left is the kernel's raw door, `profile::RawLoop`, which
+        // `pncad::profile` deliberately omits. That is why this crate
+        // carries a second kernel dependency — the gap stays loud in the
+        // dependency graph instead of hidden in a struct literal.
         let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![RawLoop::new(vec![
             v(right),
@@ -2147,13 +2164,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         6,
         "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        pncad::sweep::blend::fillet_edges(
-            lant,
-            &rim,
-            S::from_f64(0.02),
-            pncad::geom_core::Band::linear(tol).expect("band"),
-            tol,
-        ),
+        pncad::sweep::blend::fillet_edges(lant, &rim, S::from_f64(0.02), tol),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
         |e| matches!(&e.error, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
@@ -3843,7 +3854,48 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 1 must name the tangent tube walls against a planar disc: {glued:?}"
+            "wall 1 must name the stem's tube wall against a planar disc of the arch: \
+             {glued:?}"
+        );
+        // **What this pair actually is, measured.** The gate names the
+        // stem's tube wall against the arch's FAR cap — the disc at the
+        // top of the arch, metres from anything the stem occupies. The
+        // two exact loci never come near each other; what overlaps is
+        // the stem wall's BOX, which for a torus is the whole tube
+        // about the ring centre and reads nothing from the face's
+        // boundary, so a 22° arc of a 5 m ring is boxed as the entire
+        // 10 m ring.
+        //
+        // So wall 1 is not a germ-class wall and never was: no arm is
+        // missing for a pair that does not meet. It is the box
+        // artifact the cone arm already had fixed (its slab became the
+        // frustum its window cuts) and the torus arm has not.
+        //
+        // The weld's own contact — the stem's end disc against the
+        // arch's start disc — is plane×plane, declared and verified;
+        // the tube walls take no part in it, because the arch's tube
+        // is thinner than the stem's and the two walls share nothing
+        // but the plane they both end on.
+        let arch_far_cap = arch
+            .faces()
+            .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+                Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
+                _ => None,
+            })
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
+            .expect("the arch carries a cap plane clear of the weld");
+        // Unconditional on both halves. Under an `if let` this row
+        // SELF-DISABLES the moment the refusal's shape changes — which
+        // is exactly when the claim it makes needs re-reading, so the
+        // one arrangement that must not be used is the one that goes
+        // quiet then.
+        let BooleanError::CurvedPairUnsupported { other_face, .. } = &glued else {
+            panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
+        };
+        assert_eq!(
+            *other_face, arch_far_cap.0,
+            "the pair the gate names is the stem's wall against the arch's FAR cap — \
+             a box overlap, not a contact"
         );
 
         let welded = pncad::topo::union(lant, arch, tol)

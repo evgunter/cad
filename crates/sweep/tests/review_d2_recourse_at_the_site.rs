@@ -18,7 +18,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Band;
 use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{
@@ -52,11 +51,6 @@ const ALL: [(&str, &str); 12] = [
     ("ring", FILLET3_RING_RECOURSE),
     ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
 ];
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn edges_of(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -93,7 +87,7 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
     let body = cube(L, Tol::witness());
     let edges = edges_of(&body);
-    let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
+    let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
@@ -116,7 +110,7 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
     let edges = edges_of(&body);
     let mut req = edges.clone();
     req.push(edges[0]);
-    let err = fillet_edges(&body, &req, R, band(), Tol::witness()).expect_err("a repeated edge");
+    let err = fillet_edges(&body, &req, R, Tol::witness()).expect_err("a repeated edge");
     assert!(
         matches!(err.error, BlendError::RepeatedEdge { edge } if edge == edges[0]),
         "expected the repeated-edge refusal naming the key, got {err:?}"
@@ -135,7 +129,7 @@ fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
     topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
         .expect("a disjoint graft");
     let edges = edges_of(&body);
-    let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
+    let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(
         matches!(err.error, BlendError::UnsupportedBody { solids, .. } if solids == 2),

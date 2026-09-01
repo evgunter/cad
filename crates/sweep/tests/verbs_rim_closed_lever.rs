@@ -141,7 +141,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     };
     let full = neck_flare(Revolution::Full);
     let rim = find_rim(&full, true, 1.0, is_pair);
-    let out = fillet_edges(&full, &[rim], 0.05, band(), tol());
+    let out = fillet_edges(&full, &[rim], 0.05, tol());
     assert!(
         out.is_ok(),
         "closed rim: the cylinder×cone band is built once the dihedral has decided, \
@@ -150,7 +150,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 
     let part = neck_flare(Revolution::Partial(1.0));
     let arc = find_rim(&part, false, 1.0, is_pair);
-    let open = fillet_edges(&part, &[arc], 0.05, band(), tol()).map_err(|r| r.error);
+    let open = fillet_edges(&part, &[arc], 0.05, tol()).map_err(|r| r.error);
     assert!(
         !matches!(open, Err(BlendError::TangentialEdge { .. })),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
@@ -201,7 +201,7 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         (p1 - p0).norm() > 1.9,
         "the seam meridian's endpoints span ~the ball's diameter"
     );
-    match fillet_edges(&ball, &[seam], 0.05, band(), tol()).map_err(|r| r.error) {
+    match fillet_edges(&ball, &[seam], 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
         }

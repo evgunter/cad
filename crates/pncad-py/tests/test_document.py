@@ -469,6 +469,72 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "not_a_body")
         self.assertEqual(caught.exception.kind, "profile")
 
+    def test_the_export_refusal_names_the_node_as_a_bare_id(self):
+        """A node reaches prose as its number, not as a Rust wrapper.
+
+        The one part of an export refusal a caller can act on is which
+        node it is about. `RecipeNodeId`'s `Debug` spelling puts a Rust
+        type name in front of that number — a token with no meaning on
+        this side of the boundary.
+        """
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        profile_node = doc.order()[0]
+        ev = evaluate(doc)
+        with self.assertRaises(pncad.ExportError) as caught:
+            ev.step_string(profile_node)
+        message = str(caught.exception)
+        self.assertNotIn("RecipeNodeId", message)
+        self.assertRegex(message, r"node \d+ ")
+
+    def test_every_step_option_reaches_the_written_file(self):
+        """The whole `StepOptions` record is the door's keywords.
+
+        Each keyword is read back out of the Part 21 text it writes,
+        so this says the argument REACHED the writer — the census in
+        `pncad-py`'s Rust tests says the keyword exists, which is a
+        weaker claim and the one that stops the surface going silent
+        again.
+        """
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        step = evaluate(doc).step_string(
+            box,
+            product_name="options-box",
+            timestamp="2026-09-01T12:00:00",
+            author="Ada",
+            organization="Analytical Engines",
+            originating_system="pncad-test",
+            uncertainty=1e-9 * m,
+        )
+        for written in (
+            "'options-box.step'",
+            "'2026-09-01T12:00:00'",
+            "'Ada'",
+            "'Analytical Engines'",
+            "'pncad-test'",
+        ):
+            self.assertIn(written, step)
+        # The uncertainty is the schema's own length measure, so it
+        # lands in the geometric context rather than the header.
+        self.assertIn("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.0E-9)", step)
+
+    def test_the_defaults_are_the_rust_defaults(self):
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        ev = evaluate(doc)
+        self.assertEqual(ev.step_string(box), ev.step_string(box, product_name="part"))
+
+    def test_a_non_positive_uncertainty_is_the_writers_refusal(self):
+        """Python pre-checks nothing: the rule is the writer's, and
+        its refusal arrives as the export door's typed error."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        ev = evaluate(doc)
+        with self.assertRaises(pncad.ExportError) as caught:
+            ev.step_string(box, uncertainty=0 * m)
+        self.assertEqual(caught.exception.variant, "step_refused")
+
     def test_export_of_a_failed_node_is_a_typed_refusal(self):
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)

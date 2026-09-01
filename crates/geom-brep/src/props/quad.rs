@@ -1989,10 +1989,9 @@ pub fn boundary_chord_perimeter_lo(
 ///
 /// # THE CALIBRATION RECORD — the one home for these figures
 ///
-/// Every other site that discusses this calibration (the two
-/// acceptance rows in `sweep/tests/`, the chart probe in
-/// `geom-brep/tests/`, and S26/S230 in `docs/SMELL-SCAN-2026-08.md`)
-/// points HERE rather than restating a digit. CERT-5 moved these
+/// Every other site that discusses this calibration — the two
+/// acceptance rows in `sweep/tests/` and the chart probe in
+/// `geom-brep/tests/` — points HERE rather than restating a digit. CERT-5 moved these
 /// numbers once and the restatements went stale; the fix pass's
 /// re-measurement moved them again.
 ///

@@ -9,10 +9,9 @@
 //! Nothing else in the tree asserts the ledger is complete.
 //!
 //! These rows live here, beside the other per-version suites, rather
-//! than as unit tests in `persist/mod.rs` — that file is scheduled for
-//! comment trimming (S38 / L2 of `docs/SMELL-SCAN-2026-08.md`), and a
-//! guard housed inside its own subject reads as more of the prose being
-//! trimmed.
+//! than as unit tests in `persist/mod.rs` — that file is a standing
+//! candidate for comment trimming, and a guard housed inside its own
+//! subject reads as more of the prose being trimmed.
 //!
 //! **What no row here checks:** whether `SCHEMA_VERSION` holds the
 //! RIGHT number. Two units can still claim the same one — their entries

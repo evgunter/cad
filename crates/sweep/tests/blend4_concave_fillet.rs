@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
@@ -37,11 +37,6 @@ fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
 }
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
-}
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
 /// An axis-aligned box, authored the way a user would: a rectangle
@@ -310,7 +305,7 @@ fn filleted_cavity_volume() -> f64 {
 #[test]
 fn the_filleted_cavity() {
     let body = vented_cavity();
-    let out = fillet_edges(&body, &cavity_edges(&body), R, band(), Tol::witness())
+    let out = fillet_edges(&body, &cavity_edges(&body), R, Tol::witness())
         .expect("the cavity's twelve concave edges fillet");
     let out_body = out.body;
 
@@ -416,8 +411,8 @@ fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64
 #[test]
 fn every_minted_fillet_face_faces_its_own_void() {
     let body = vented_cavity();
-    let out = fillet_edges(&body, &cavity_edges(&body), R, band(), Tol::witness())
-        .expect("the cavity fillets");
+    let out =
+        fillet_edges(&body, &cavity_edges(&body), R, Tol::witness()).expect("the cavity fillets");
     let centre = p(2.0, 2.0, 2.0);
     for face in out.blend_faces.iter().chain(out.corner_faces.iter()) {
         for (at, n) in outward_at_boundary(&out.body, *face) {
@@ -432,7 +427,7 @@ fn every_minted_fillet_face_faces_its_own_void() {
 
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let cut = fillet_edges(&cube_body, &cube_edges, R, band(), Tol::witness())
+    let cut = fillet_edges(&cube_body, &cube_edges, R, Tol::witness())
         .expect("a cube's twelve edges fillet");
     let cube_centre = p(1.0, 1.0, 1.0);
     for face in cut.blend_faces.iter().chain(cut.corner_faces.iter()) {
@@ -497,8 +492,8 @@ fn the_corner_recourse_is_followable_on_both_sides() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
-    let refused = fillet_edges(&bracket, &reflex, 0.1, band(), Tol::witness())
-        .expect_err("a mixed corner refuses");
+    let refused =
+        fillet_edges(&bracket, &reflex, 0.1, Tol::witness()).expect_err("a mixed corner refuses");
     let text = refused.error.to_string();
     assert!(
         matches!(
@@ -517,9 +512,9 @@ fn the_corner_recourse_is_followable_on_both_sides() {
     // Both clauses of the sentence, executed at the refused size.
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    fillet_edges(&cube_body, &cube_edges, 0.1, band(), Tol::witness())
+    fillet_edges(&cube_body, &cube_edges, 0.1, Tol::witness())
         .expect("the all-convex clause carves");
     let cavity = vented_cavity();
-    fillet_edges(&cavity, &cavity_edges(&cavity), 0.1, band(), Tol::witness())
+    fillet_edges(&cavity, &cavity_edges(&cavity), 0.1, Tol::witness())
         .expect("the all-concave clause carves");
 }

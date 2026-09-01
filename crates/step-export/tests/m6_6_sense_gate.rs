@@ -230,14 +230,24 @@ fn donut_torus_flips_refuse() {
     }
 }
 
-/// The RESIDUAL, pinned as residual (gap 1 of the unit): a rimless
-/// sphere band's boundary encodes no material side (`Unencoded`), so a
-/// half-flipped ball is invisible to the gate BY DESIGN — its volume
-/// meters exactly 0 and the Zero-exempt posture (ratified: escalation
-/// never flips valid → invalid) keeps it green. Closing it would need
-/// a shell-level orientation-agreement check, bigger than this unit.
+/// The rimless-ball residual, RE-CUT: caught, and by the edge rather
+/// than by the face.
+///
+/// The recorded posture was that a rimless sphere band's boundary
+/// encodes no material side (`Unencoded`), so a half-flipped ball was
+/// invisible to this gate BY DESIGN — its volume meters exactly 0 and
+/// the Zero-exempt posture (escalation never flips valid → invalid)
+/// kept it green — and that closing it would need a shell-level
+/// orientation-agreement check.
+///
+/// It did not: tier 3's material-wedge arm sees it at the two bands'
+/// SHARED EDGES. Both bands lie on one sphere, so flipping one makes
+/// their material sides oppose there while their jets osculate
+/// exactly — a lamina, the zero-volume defect this body always was.
+/// The face-level exemption is untouched; the pair-level question is
+/// simply a different one.
 #[test]
-fn ball_half_flip_stays_exempt_residual() {
+fn ball_half_flip_is_caught_at_the_shared_edge() {
     let body = ball();
     assert!(
         validate_geometric(&body, Tol::witness()).is_ok(),
@@ -248,9 +258,12 @@ fn ball_half_flip_stays_exempt_residual() {
     let flipped = body
         .flipped_face_sense_for_tests(bands[0].0)
         .expect("live face key");
+    let errs = validate_geometric(&flipped, Tol::witness())
+        .expect_err("a half-flipped ball is a lamina at the bands' shared edges");
     assert!(
-        validate_geometric(&flipped, Tol::witness()).is_ok(),
-        "the half-flipped rimless ball is the documented residual: V = 0, Zero-exempt"
+        errs.iter()
+            .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+        "the material-wedge arm is what catches it: {errs:?}"
     );
 }
 
@@ -323,19 +336,33 @@ fn planar_control_unchanged() {
     );
 }
 
-/// The conic-trim RESIDUAL, pinned as residual (adversarial review M2;
-/// the review's executed counterexample): `cut_cylinder`'s wall is
-/// trimmed by a tilted-section ELLIPSE, so its flux is quadrature-owned
+/// The conic-trim residual, RE-CUT: the single-face flip is caught now,
+/// and only the whole-body inversion survives.
+///
+/// The recorded posture was that `cut_cylinder`'s wall is trimmed by a
+/// tilted-section ELLIPSE, so its flux is quadrature-owned
 /// (winding-derived, bit-free) and its boundary parse refuses typed —
-/// the curved arm EXEMPTS it by the inherited posture, and the import
-/// rider finds no circle-rim pair to read. A flipped wall AND the
-/// whole-body inversion therefore certify GREEN with positive volume:
-/// the one corpus body on which the headline defect class survives.
-/// This row flips to a refusal when the ellipse-rim material-side
-/// encoding lands (follow-up unit); until then, green here is the
-/// honest recorded posture, not an accident.
+/// the curved sense arm EXEMPTS it by the inherited posture, and the
+/// import rider finds no circle-rim pair to read — so a flipped wall
+/// AND the whole-body inversion both certified green: the one corpus
+/// body on which the headline defect class survived. That row was
+/// written to flip "when the ellipse-rim material-side encoding lands".
+///
+/// **What lands instead is tier 3's material-wedge arm**, and it
+/// catches the same defect one dimension down: the two trimmed walls
+/// share a cylinder, so flipping ONE of them makes their material
+/// sides oppose along the two edges they share while their jets
+/// osculate exactly — a lamina, which no declaration can cure
+/// (`ValidationError::LaminaWedge`). Neither exemption above moved: the
+/// curved sense arm still exempts the conic-trimmed wall and the flux
+/// is still quadrature-owned. A different check reaches it.
+///
+/// The whole-body inversion stays green and stays the residual: it
+/// flips every face at once, so no PAIR's material sides disagree and
+/// the wedge arm has nothing to say — the quadrature volume being
+/// winding-derived is what leaves it standing.
 #[test]
-fn cut_cylinder_conic_trim_residual_stays_green() {
+fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue() {
     let body = cut_cylinder();
     assert!(
         validate_geometric(&body, Tol::witness()).is_ok(),
@@ -345,9 +372,12 @@ fn cut_cylinder_conic_trim_residual_stays_green() {
     assert!(!walls.is_empty(), "cut_cylinder: trimmed wall present");
     for &(k, _) in &walls {
         let flipped = body.flipped_face_sense_for_tests(k).expect("live face key");
+        let errs = validate_geometric(&flipped, Tol::witness())
+            .expect_err("a lone conic-trimmed wall flip is a lamina at its shared edges");
         assert!(
-            validate_geometric(&flipped, Tol::witness()).is_ok(),
-            "conic-trimmed wall flip is the documented residual: both layers exempt"
+            errs.iter()
+                .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+            "the material-wedge arm is what catches it: {errs:?}"
         );
     }
     let inverted = flip_all(&body);

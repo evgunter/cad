@@ -250,11 +250,9 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
 #[test]
 fn a_zero_radius_fillet_reads_a_headroom_refusal_with_unfollowable_advice() {
     let t = Tol::witness();
-    let tol = t.get();
-    let band = Band::new(tol.eps, tol.k * tol.eps).unwrap();
     let body = cube(1.0, t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let err = fillet_edges(&body, &edges, 0.0, band, t).expect_err("a zero radius does not build");
+    let err = fillet_edges(&body, &edges, 0.0, t).expect_err("a zero radius does not build");
     assert!(
         matches!(err.error, BlendError::RadiusHeadroom { radius, .. } if radius == 0.0),
         "today the zero radius reaches predicate 1, not a door check: {err:?}"

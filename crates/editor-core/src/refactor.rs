@@ -282,18 +282,18 @@ impl core::fmt::Display for SplitError {
             ),
             Self::PartNameReachesRemainder { node, name } => write!(
                 f,
-                "split: cut node {}'s reference {name:?} derives from a node outside the cut — \
-                 the new document could not express it",
+                "split: cut node {}'s reference (the {name}) derives from a node outside the \
+                 cut — the new document could not express it",
                 node.0
             ),
             Self::NameStraddlesCut { name } => write!(
                 f,
-                "split: name {name:?} derives from both sides of the cut and can re-anchor to \
+                "split: the {name} derives from both sides of the cut and can re-anchor to \
                  neither document"
             ),
             Self::BodyNameCrossesCut { name } => write!(
                 f,
-                "split: body name {name:?} crosses the cut — a product's name table carries no \
+                "split: the {name} crosses the cut — a product's name table carries no \
                  root body rows, so the instance-qualified rewrite could never resolve"
             ),
             Self::Pin { error } => {
@@ -449,17 +449,17 @@ impl core::fmt::Display for InlineError {
             ),
             Self::InstanceBodyNameReferenced { name } => write!(
                 f,
-                "inline: {name:?} names the instance's own output body, which no single spliced \
-                 node corresponds to"
+                "inline: the {name} names the instance's own output body, which no single \
+                 spliced node corresponds to"
             ),
             Self::ForeignInstanceName { name } => write!(
                 f,
-                "inline: {name:?} derives from the instance but is not an instance-qualified \
+                "inline: the {name} derives from the instance but is not an instance-qualified \
                  (`InPart`) name — it cannot re-anchor"
             ),
             Self::StrandedPartName { name } => write!(
                 f,
-                "inline: {name:?} derives from a node the referenced document no longer has — \
+                "inline: the {name} derives from a node the referenced document no longer has — \
                  repair the stranded reference before inlining"
             ),
             Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),
@@ -1151,11 +1151,16 @@ pub fn split(
     // order, which is what makes the record D9-deterministic.
     //
     // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
-    // A4 says "every mate EDGE crossing the cut", and an A12 reading
-    // edge exists only when BOTH heads are live instances. A mate with
-    // a DANGLING head — a reference to non-instance geometry, or to a
-    // node not in the document — is therefore not an edge and
-    // contributes NO crossing, however its names fall across the cut.
+    // A4 says "every mate EDGE crossing the cut". An A12 reading edge
+    // exists when both heads resolve to live MEMBERS — a live
+    // instance, or a pattern-placed instance (A11's member
+    // vocabulary) — but this collector still gates on plain
+    // `InstantiatePart` heads only: a mate whose edge end is a
+    // pattern-placed head contributes no crossing record, and so loses
+    // the pin-move re-verification the record buys (issue 1405 —
+    // split/refactor ground). A mate with a DANGLING head — one
+    // resolving to no member at all — is not an edge and contributes
+    // NO crossing, however its names fall across the cut.
     // The ruling's reason is the one that matters here: such a mate
     // never solved, so a record minted from it would be
     // trusted-at-rest state, which AQ8's ratification condition

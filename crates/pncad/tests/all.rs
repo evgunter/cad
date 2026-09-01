@@ -1308,7 +1308,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v19.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v20.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1356,7 +1356,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v19.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v20.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1379,7 +1379,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v19.pncad")),
+        sans_epsilon(include_str!("plate_param.v20.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -2756,6 +2756,14 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
+///
+///   **`MintRefusal` is not part of that carry**, and the split is
+///   the point: it is the GATHER's row for a mate whose declaration
+///   could not be minted, reached through `Product`, which is itself
+///   interior. What a façade consumer asks is what the A5 gate
+///   ANSWERED, and they get that whole — `AssemblyError::Reference`
+///   and `AssemblyError::NoAtRestRecord` are exactly these two
+///   refusals, raised by the door that is carried.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
@@ -2799,7 +2807,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the certified scalar — so a façade row for it would be a
 ///   conditional door, which this surface does not have and should
 ///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2841,6 +2849,7 @@ const NOT_CARRIED: [&str; 101] = [
     "MetaValue",
     "MetaVersionError",
     "MigrationStep",
+    "MintRefusal",
     "NamingError",
     "NamingKey",
     "NodeChange",

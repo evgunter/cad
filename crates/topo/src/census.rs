@@ -69,6 +69,9 @@
 //! vertex event from a declared FACE pair holding the entities it
 //! relates on the pair's two sides. Those rungs are named in the
 //! bullets rather than left out of the derivation that licenses them.
+//! There are three rungs and not one per bullet: a bound whose event
+//! is a vertex on an edge's interior reads `ve_face_backed` whichever
+//! overlap it bounds, edge-edge or edge-on-face.
 //!
 //! **All three rungs are structural-incidence and region-unconfined,
 //! by one deliberate decision.** A rung asks whether a declared face
@@ -101,19 +104,30 @@
 //!   one line), so the interior overlap is exactly the convex closure
 //!   of the bounded events on both carriers — no interior record can
 //!   carry more information than the bounds on the planar corpus.
-//! - An **edge-on-face overlap** is certified iff at each bound the
-//!   edge holds a vertex there and that vertex is either
-//!   v-on-f-declared on this face, v-v-declared with a coincident
-//!   vertex of the face's boundary, backed by a declared face pair
-//!   naming this face and one holding the vertex (`vf_face_backed`),
-//!   or itself a vertex of the face's boundary (structural). Same
-//!   argument, with its remaining looseness stated: a bound at which
-//!   the edge holds NO vertex is a vertex-on-edge or edge-edge-cross
-//!   configuration the sweeps report in their own lane, so this lane
-//!   declines to reconstruct it rather than inferring one. Where that
-//!   subordinate event is itself face-backed, the decline is a
-//!   LOUDNESS the pair keeps — reported, never blessed — and closing
-//!   it needs the same rung read at this bound, not a new one.
+//! - An **edge-on-face overlap** is certified iff each of its two
+//!   bounds is backed. Where the edge holds a vertex at the bound,
+//!   that vertex must be v-on-f-declared on this face, v-v-declared
+//!   with a coincident vertex of the face's boundary, backed by a
+//!   declared face pair naming this face and one holding the vertex
+//!   (`vf_face_backed`), or itself a vertex of the face's boundary
+//!   (structural). Where it holds none — the bound falls where a
+//!   boundary vertex of the face rests on the edge — the bound is a
+//!   vertex-on-edge event and is backed by exactly that lane's rung: a
+//!   declared face pair holding that vertex on one boundary and naming
+//!   a face the edge bounds (`ve_face_backed`). Same argument as the
+//!   edge-edge bullet's, one dimension up: a bound of the overlap is a
+//!   point where some entity of the pair ends, and which side's entity
+//!   that is is a fact about the configuration, not about what a
+//!   declaration can hold.
+//!   The remaining looseness, stated as the REACH gap it is: where the
+//!   face's boundary crosses the edge away from any vertex, that
+//!   crossing is never a bound at all — the overlap lane cuts the
+//!   edge's span only at the face's boundary VERTICES, so one cell
+//!   spans the crossing and is judged from its single midpoint probe.
+//!   The configuration itself is reported by the edge-edge lane, whose
+//!   crossing class is the categorically-undeclarable one (issue 973
+//!   schedules that question; part (a), this bound rung, is what is
+//!   settled).
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -144,7 +158,10 @@
 //!   — exactly as `vv_face_backed` holds a coincident vertex pair.
 //!   A seat whose two faces share a boundary induces this event by
 //!   construction, and the declaration that says the faces rest says
-//!   it once for everything the seat induces.
+//!   it once for everything the seat induces — including where the
+//!   event is a BOUND of a continuous overlap rather than a finding of
+//!   its own: the D3 bullets read this same rung at such a bound, in
+//!   both the edge-edge and the edge-on-face lane.
 //! - **Otherwise an undeclarable defect**: with no face pair holding
 //!   it, there is no record that can name the configuration, and the
 //!   census reports [`CensusContact::VertexOnEdge`] as
@@ -683,33 +700,28 @@ fn edge_vertex_at<T: Decide>(
     }
 }
 
-/// D3 backing for one bound of an edge-on-face overlap (module docs):
-/// the edge's vertex there must be v-on-f-declared on `f`, v-v-declared
-/// with a coincident boundary vertex of `f`, or itself on `f`'s
-/// boundary (structural).
-fn ef_bound_backed<T: Decide>(
-    e: &EdgeGeo<T>,
+/// Some boundary vertex of `f` sitting AT the point `q` satisfies
+/// `backs` — the census's own coincidence test, short-circuiting on the
+/// first vertex that backs (escalations pushed as they are decided).
+///
+/// AGREEMENT REQUIRED with [`ef_overlap_lane`]'s cut test: that lane
+/// admits a cut when the vertex's perpendicular offset from the edge's
+/// LINE is zero (`pm_census_ef_cut_gap`, a cross-product norm); this
+/// asks whether the vertex is at the bound POINT (`pm_census_bound_
+/// vertex`, a distance norm). At a cut's own span the two quantities
+/// are the same number — the parallel component is zero there — so they
+/// are one fact in two spellings, agreeing exactly when both read the
+/// same band, which they do. They are not shared as one call because
+/// this helper also serves a bound with no cut behind it, where `q` is
+/// the edge's own endpoint and no line test has been made.
+fn any_boundary_vertex_at<T: Decide>(
     f: &FaceGeo<T>,
-    s: T,
     geo: &Geo<T>,
-    declared: &Declared,
+    q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
+    mut backs: impl FnMut(VertexKey) -> bool,
 ) -> bool {
-    let Some(ve) = edge_vertex_at(e, s, band, errors) else {
-        // The bound is a vertex-on-edge event, which has a backing
-        // path of its own — so this lane declining is a LOUDNESS the
-        // overlap keeps, not a proof the configuration is undeclared
-        // (D3's bullet states the same looseness; #973 schedules it).
-        return false;
-    };
-    if declared.vf.contains(&(ve, f.key))
-        || f.boundary.contains(&ve)
-        || declared.vf_face_backed(geo, ve, f.key)
-    {
-        return true;
-    }
-    let q = e.p0 + e.dir * s;
     for &w in &f.boundary {
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
@@ -720,12 +732,60 @@ fn ef_bound_backed<T: Decide>(
             band,
             errors,
         ) == Some(true)
-            && declared.vv.contains(&(ve, w))
+            && backs(w)
         {
             return true;
         }
     }
     false
+}
+
+/// D3 backing for one bound of an edge-on-face overlap (module docs),
+/// at the two granularities a bound can have.
+///
+/// Where the EDGE holds a vertex at the bound, the event is that vertex
+/// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
+/// boundary vertex of `f`, face-backed onto `f`, or the vertex is
+/// itself on `f`'s boundary (structural).
+///
+/// Where it does not, a boundary vertex of `f` rests at the bound: the
+/// event is a vertex-on-edge, and it takes that lane's rung
+/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
+/// incidence step further out, exactly as [`ee_bound_backed`]'s
+/// asymmetric arm reads it for a collinear overlap. A bound is a bound
+/// of the overlap because some entity ends there; which side's entity
+/// that is, is a fact about the configuration, not about what a
+/// declaration can hold.
+///
+/// [`edge_vertex_at`] answers `None` for TWO reasons — an interior
+/// position, and an escalated span decide — and this arm is selected by
+/// the `None`, so an escalated bound can reach the rung and be backed
+/// where it was refused before. That is louder, not weaker: the
+/// escalation is already pushed as [`ValidationError::CensusEscalated`],
+/// which refuses the body on its own, and it is the arm's caveat rather
+/// than the module docs' because it is a property of this call site.
+fn ef_bound_backed<T: Decide>(
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    s: T,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> bool {
+    let q = e.p0 + e.dir * s;
+    let Some(ve) = edge_vertex_at(e, s, band, errors) else {
+        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
+            declared.ve_face_backed(geo, w, e)
+        });
+    };
+    if declared.vf.contains(&(ve, f.key))
+        || f.boundary.contains(&ve)
+        || declared.vf_face_backed(geo, ve, f.key)
+    {
+        return true;
+    }
+    any_boundary_vertex_at(f, geo, q, band, errors, |w| declared.vv.contains(&(ve, w)))
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
@@ -1133,6 +1193,7 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         | ChartRegionError::MissingCache { .. }
                         | ChartRegionError::ArmUnbounded { .. }
                         | ChartRegionError::SeamBranch
+                        | ChartRegionError::PeriodFold
                         | ChartRegionError::CarrierTilt
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
@@ -1489,8 +1550,8 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 ///    with a curved side (F5: curved × planar included, since a
 ///    revolved cap embedded in a plate's slab leaves no
 ///    vertex/line/planar evidence), PLUS planar × planar where either
-///    side has a curved boundary (§S49: an arc rim is not in the
-///    snapshot, so a cylinder's cap leaves nothing either). Distinct-key value-equal carriers in conformal rest
+///    side has a curved boundary (an arc rim is not in the snapshot,
+///    so a cylinder's cap leaves nothing either). Distinct-key value-equal carriers in conformal rest
 ///    (the cradle witness), value-equal walls at gap zero
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
@@ -1527,7 +1588,7 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// metre coordinate differences); anything weaker refuses.
 ///
 /// A planar × planar pair is skipped only when BOTH faces are bounded
-/// entirely by line edges (§S49). That — not the kind of solid the
+/// entirely by line edges. That — not the kind of solid the
 /// faces sit on — is what the skip's premise is about: [`snapshot`]
 /// admits line edges and drops every curved one, so a wholly
 /// line-bounded planar face has its whole boundary, every vertex AND
@@ -1580,7 +1641,8 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// The unsound direction is a deferral keyed on *whether* records
 /// exist: a truthful declaration then switches the containment
 /// examination off, and an instance embedded in another's material
-/// validates clean — which it did, until §H14. The vocabulary that
+/// validates clean — which it did until the deferral was removed. The
+/// vocabulary that
 /// WOULD license a skip here is C6's recorded gate-skips, which are a
 /// statement about placement and do not exist yet; when they do, the
 /// deferral they license is keyed on the gate-skip, not on contact.
@@ -1607,8 +1669,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // closure does not decide what that means, because its two callers
     // want opposite things from it; each answers emptiness itself, and
     // both say so at the call site. What is never allowed is the third
-    // reading, "empty means nothing to look at": §H14's residue 2 is the
-    // same `continue` in `splitting/rules.rs` under exactly that reading.
+    // reading, "empty means nothing to look at" — a `continue` on an
+    // empty set, under exactly that reading, is the same defect one
+    // deferral over, and `splitting/rules.rs` carried one.
     let face_points = |f: FK| -> Vec<Point3<T>> {
         let mut out = Vec::new();
         let Some(face) = body.get_face(f) else {
@@ -1682,7 +1745,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
 
     // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
     // planar, and the planar × planar pairs the exact sweeps cannot
-    // see (§S49: a pair is theirs only when BOTH faces are wholly
+    // see (a pair is theirs only when BOTH faces are wholly
     // line-bounded, which is what puts a whole boundary in the
     // snapshot — the module docs carry the argument).
     struct Reach<T: Real> {
@@ -1815,8 +1878,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // derived from the kind, so `same_key` already implies
             // `a.planar == b.planar`. It is written so the deferral
             // cannot quietly start covering pairs the conformal arm
-            // never walks — which is what it did until §S49 narrowed
-            // the skip above and made a planar pair reach this line.
+            // never walks — which is what it did until the skip above
+            // was narrowed and a planar pair began reaching this line.
             //
             // **Opposed senses is not a tautology, and it is the half
             // that makes the deferral true.** The bar this arm's docs
@@ -2238,6 +2301,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 | ChartRegionError::MissingCache { .. }
                 | ChartRegionError::ArmUnbounded { .. }
                 | ChartRegionError::SeamBranch
+                | ChartRegionError::PeriodFold
                 | ChartRegionError::CarrierTilt
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }
@@ -2475,8 +2539,8 @@ mod tests {
             .collect()
     }
 
-    /// **§H14 — what the containment arm actually says about these
-    /// scaffolds, and that it is not about where they are.**
+    /// **What the containment arm actually says about these scaffolds,
+    /// and that it is not about where they are.**
     ///
     /// Each `cyl_sheet` keeps its `mvfs` NURBS placeholder on the seed
     /// face. A placeholder net is poison, so the solid has no claimable
@@ -2685,6 +2749,208 @@ mod tests {
                 }
             )),
             "{arm_only:?}"
+        );
+    }
+
+    // ============ MATE-5: the cross-description cylinder rows ==========
+    //
+    // Issue 943's residue at the CENSUS door: the same wall-sheet
+    // fixtures, but the second sheet authored in a DIVERGENT
+    // description of the same cylinder locus (origin a quarter up the
+    // axis, axis direction opposed, seam rotated 0.7 rad, its own
+    // `GeomSource`) — the cross-instance class's fingerprint, which
+    // used to dead-end `ChartDivergence` → `CensusUnsupported{Face}`
+    // → `Declined` → `Uncertified` and now flows through the
+    // certified-ε enclosure arm.
+
+    /// A wall sheet over the DIVERGENT description of the unit
+    /// cylinder: `θ_world = 0.7 − u_B`, `z_world = 0.25 − v_B`. Takes
+    /// the WORLD window and converts.
+    fn cyl_sheet_b(
+        body: &mut Body<f64>,
+        th0: f64,
+        th1: f64,
+        z0: f64,
+        z1: f64,
+        sense: bool,
+    ) -> FaceKey {
+        use geom::Curve3;
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        let d = 0.7_f64;
+        let origin = Point3::new(0.0, 0.0, 0.25);
+        let axis = -Vec3::unit_z();
+        let u_ref = Vec3::new(d.cos(), d.sin(), 0.0);
+        let (u0, u1, v0, v1) = (d - th1, d - th0, 0.25 - z1, 0.25 - z0);
+        let at = |u: f64, v: f64| -> Point3<f64> {
+            let w = axis.cross(u_ref);
+            origin + (u_ref * u.cos() + w * u.sin()) * 1.0 + axis * v
+        };
+        let (p00, p10, p11, p01) = (at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1));
+        let seed = body.mvfs(p00).unwrap();
+        let cyl = body.add_surface(Surface::Cylinder {
+            origin,
+            axis,
+            radius: 1.0,
+            u_ref,
+        });
+        body.set_surface_source(cyl, crate::GeomSource::minted(7102, 0))
+            .unwrap();
+        let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
+            let center = origin + axis * v;
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis,
+                u_ref,
+            });
+            let (carrier, t0, t1) = if ccw {
+                (
+                    Curve3::Circle {
+                        center,
+                        axis,
+                        radius: 1.0,
+                        u_ref,
+                    },
+                    u0,
+                    u1,
+                )
+            } else {
+                let s = at(u1, v) - center - axis * ((at(u1, v) - center).dot(axis));
+                (
+                    Curve3::Circle {
+                        center,
+                        axis: -axis,
+                        radius: 1.0,
+                        u_ref: s.normalize(),
+                    },
+                    0.0,
+                    u1 - u0,
+                )
+            };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: plane,
+                    witness: at((u0 + u1) * 0.5, v),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let bottom = rim(body, v0, true);
+        let e_b = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p10,
+                bottom,
+                Tol::witness(),
+            )
+            .unwrap();
+        let e_r = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_b.he_minus,
+                    he2: e_b.he_minus,
+                },
+                p11,
+                Tol::witness(),
+            )
+            .unwrap();
+        let top = rim(body, v1, false);
+        let e_t = body
+            .mev(
+                MevSite::Fan {
+                    he1: e_r.he_minus,
+                    he2: e_r.he_minus,
+                },
+                p01,
+                top,
+                Tol::witness(),
+            )
+            .unwrap();
+        let he = body
+            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: e_b.he_plus,
+                },
+                EdgeCurveSpec::line_between(p01, p00),
+                FaceSurface::Shared(cyl),
+                Tol::witness(),
+            )
+            .unwrap()
+            .face;
+        body.set_face_sense(face, sense).unwrap();
+        face
+    }
+
+    /// One arena, two wall sheets on DIVERGENT descriptions of one
+    /// cylinder, opposed senses, distinct sources — the seat, at the
+    /// census's own door.
+    fn cross_description_pair(
+        th0: f64,
+        th1: f64,
+        z0: f64,
+        z1: f64,
+    ) -> (Body<f64>, FaceKey, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let (w1, cyl_a) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
+            .unwrap();
+        let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, w1, w2)
+    }
+
+    /// MATE-5's census half of the red-first row: the declared
+    /// cross-description cylinder seat CERTIFIES through the patch
+    /// certifier — Door 1 verifies the carrier through the record's
+    /// own declaration, Door 2 answers through the certified-ε
+    /// enclosure. Before this arm, the same records dead-ended
+    /// `CensusUnsupported{Face}` (the chain the predicate-level
+    /// red-first suite quotes).
+    #[test]
+    fn a_cross_description_cylinder_patch_record_certifies() {
+        let (body, w1, w2) = cross_description_pair(0.5, 1.3, 0.3, 0.7);
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        let findings = face_findings(&errors);
+        assert!(
+            findings.is_empty(),
+            "the declared cross-description cylinder seat certifies: \
+             {findings:?} (all: {errors:?})"
+        );
+    }
+
+    /// MATE-5's Refuted-arm acceptance row (the #1063 consequence
+    /// wiring, now live for cylinders): a cylinder declaration the
+    /// geometry refutes — the trims' axial bands definitely disjoint
+    /// on the shared carrier — is `StaleContactDeclaration`, which the
+    /// assembly attribution maps to `Refuted` naming its mate
+    /// (`editor-core`'s already-landed arm consumes this variant).
+    #[test]
+    fn a_refuted_cross_description_cylinder_record_is_stale_typed() {
+        let (body, w1, w2) = cross_description_pair(0.5, 1.3, 2.0, 2.5);
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: w1,
+            face_b: w2,
+        });
+        let errors = census_and_certify(&body, &records, band());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+            "a refuted cylinder declaration is stale typed: {errors:?}"
         );
     }
 }

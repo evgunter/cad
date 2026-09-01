@@ -488,8 +488,9 @@ pub(crate) fn tessellate_trimmed(
         // NURBS ONLY, and that is a coverage gap rather than a
         // subtlety: `cert::cert_cylinder` certifies every cylinder
         // triangle in BOTH lanes and no build samples one against it.
-        // Recorded as S236 (`docs/SMELL-SCAN-2026-08.md`) because
-        // closing it changes what a `FaceMeasure` means.
+        // Left open rather than closed here because closing it changes
+        // what a `FaceMeasure` means, which reaches the consumers of
+        // `budget` in `tools/`.
         let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
             crate::budget::deviation_samples()
         } else {
@@ -739,6 +740,12 @@ fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
 /// positions are bit-identical to the pre-TESS-SPAN grid. Already
 /// generated in (v, u) row-major order; sorted anyway so both lanes
 /// hand the retry loop the same invariant.
+///
+/// At `nu == 1` (or `nv == 1`) a range below is empty and the other
+/// axis' computed count is dropped — a member of the sibling class
+/// `curved::grid_counts`' doc records (issue 685 decided only the
+/// cone's `nu == 1` case; here the candidates are heuristic seeds and
+/// the per-triangle certificate is the stated guarantee).
 fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec<(f64, f64)> {
     let mut cand = Vec::new();
     for j in 1..nv {

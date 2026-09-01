@@ -483,8 +483,6 @@ Named v1 losses, honest and banked by A1: cross-edge cancellation
 (UNDER tree edges whose composition would determine) refuses to
 rung (c); loop CERTIFICATION beyond the C2 verification tables
 (e.g. in-band closures) escalates per C4 rather than resolving.
-The member-vocabulary rider is ratified ahead of its
-implementation, which is banked (#945).
 
 ## A13 — Update granularity (discharges AQ2)
 

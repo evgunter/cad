@@ -160,6 +160,21 @@ pub struct Theme {
     /// it is polarity-bound: a part unlit to 0.25 reads as solid
     /// against a dark surround and as a hole against a pale one.
     pub ambient: f32,
+    /// **The viewport's own ground** — what fills the pane where no
+    /// geometry is drawn.
+    ///
+    /// A palette field rather than something the chrome infers,
+    /// because it is the surface every swatch in this value is
+    /// finally seen against — and because a viewport that states no
+    /// ground does not get none: it gets whatever the window was
+    /// cleared to, decided by the toolkit and free to disagree with
+    /// this palette's own [`Polarity`].
+    ///
+    /// Held to the same bar the marks are (`tests/theme.rs`): a
+    /// ground that lands on one of a theme's own swatches is a
+    /// silhouette nobody can see, which is the shading-independent
+    /// half of the same legibility question.
+    pub ground: Rgba8,
     /// The patch the user committed to.
     pub selected: Mark,
     /// The patch under the cursor.
@@ -229,6 +244,8 @@ const DARK_NEUTRAL: Theme = Theme {
     // as colour.
     body: Rgba8::opaque(206, 209, 214),
     ambient: 0.25,
+    // A near-black with a trace of blue in it.
+    ground: Rgba8::opaque(24, 26, 30),
     selected: Mark {
         tint: Rgba8::opaque(255, 206, 111),
         strength: 0.55,
@@ -249,6 +266,11 @@ const DARK_NEUTRAL: Theme = Theme {
     safety: Safety::Unchecked,
 };
 
+/// **The ground both light palettes are seen against**: a cool
+/// near-white, far enough above every swatch either of them states
+/// that a silhouette reads against it.
+const LIGHT_GROUND: Rgba8 = Rgba8::opaque(240, 244, 250);
+
 /// The same palette on a light ground.
 ///
 /// The marks are unchanged — they are mixed over the body, not over
@@ -261,6 +283,11 @@ const LIGHT_NEUTRAL: Theme = Theme {
     polarity: Polarity::Light,
     body: Rgba8::opaque(206, 209, 214),
     ambient: 0.45,
+    // Near-white rather than the mid grey a light chrome suggests:
+    // the body is itself a pale grey, so a ground anywhere near it
+    // puts a lit facet on top of its own background. Above the body
+    // is the only side with room.
+    ground: LIGHT_GROUND,
     selected: Mark {
         tint: Rgba8::opaque(255, 206, 111),
         strength: 0.55,
@@ -291,7 +318,7 @@ const LIGHT_NEUTRAL: Theme = Theme {
 ///
 /// # What the claim cost
 ///
-/// Four of this palette's choices are consequences of the claim
+/// Five of this palette's choices are consequences of the claim
 /// rather than taste, and each gives something up:
 ///
 /// 1. **The marks separate on LIGHTNESS first.** Lightness is the one
@@ -323,18 +350,31 @@ const LIGHT_NEUTRAL: Theme = Theme {
 ///    first. Raising the floor is what buys the shadowed half of the
 ///    part back — measurably, and monotonically.
 ///
+/// 5. **The ground is LIGHT, and so is the chrome with it.** The
+///    ladder puts two of its four marks BELOW the body — a deep blue
+///    hover and a near-black probe — so those two are what a dark
+///    ground takes away. The bar decides it rather than taste: no
+///    dark ground clears it at all (an off-black lands 0.0118 from
+///    the shaded probe), while a near-white one clears it twice
+///    over. A palette whose marks run downward needs a ground above
+///    all of them.
+///
 /// The `unresolved` colour is NOT part of the claim: it tints no
 /// geometry, and every badge that uses it carries its own words
 /// ("deleted", "at rest: …"), so colour is redundant there rather
 /// than load-bearing.
 const COLORBLIND_SAFE: Theme = Theme {
     name: "colorblind-safe",
-    polarity: Polarity::Dark,
+    polarity: Polarity::Light,
     // Darker than the neutral themes' near-white, and that is what
     // makes the ladder fit: a mid body leaves range both above and
     // below it for four marks to occupy.
     body: Rgba8::opaque(120, 119, 117),
     ambient: 0.42,
+    // The light themes' ground: the ladder's top rung is a light
+    // amber, and that is the nearest swatch to it — everything else
+    // in this palette is far below.
+    ground: LIGHT_GROUND,
     // The top rung — a light amber.
     selected: Mark {
         tint: Rgba8::opaque(255, 221, 110),
@@ -361,7 +401,10 @@ const COLORBLIND_SAFE: Theme = Theme {
         tint: Rgba8::opaque(214, 224, 238),
         strength: 0.38,
     },
-    unresolved: Rgba8::opaque(232, 122, 74),
+    // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
+    // chrome is pale, and a light red on a pale panel is the one
+    // chrome colour that stops being readable.
+    unresolved: Rgba8::opaque(166, 54, 12),
     safety: Safety::ColorblindSafe,
 };
 
