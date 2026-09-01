@@ -421,7 +421,7 @@ class TestBenchStand(BenchWorkspace):
         record leaves the reading describing an EARLIER edit, which is
         worse than no reading — it is a plausible one about the wrong
         subject."""
-        doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
+        doc, (post_a, _shelf_i, post_b), (mate_1, mate_2) = self.stand()
         # `insert`: the stand's second mate joins post_b's cluster into
         # post_a's, and that join is what the door just accepted.
         joins = doc.last_maintenance
