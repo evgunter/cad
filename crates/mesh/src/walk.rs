@@ -111,6 +111,7 @@ use geom_brep::EdgeDescription;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
 
+use crate::sizing::Eps;
 use crate::types::TessellateError;
 
 /// A curved surface's chart data for inversion (everything but the
@@ -531,10 +532,13 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// one (see [`closing_column`]'s trace: 21 pm reads as 3.6e-9 rad on a
 /// 0.117-inch hole). At `lever == 0` the coordinate carries no length
 /// at all, so every gap is noise — the correct limit, reached without a
-/// special case or a division. The comparison is a bare `<`, so a NaN
-/// gap or lever is never noise: a poisoned coordinate stays a refusal
-/// (`curved`) or an assertion failure (`closing_column`) rather than
-/// being admitted.
+/// special case or a division. The comparison is
+/// [`Eps::dominates`](crate::sizing::Eps::dominates) — a strict `<`,
+/// band excluded — so a NaN gap or lever is never noise: a poisoned
+/// coordinate stays a refusal (`curved`) or an assertion failure
+/// (`closing_column`) rather than being admitted. The strictness is
+/// also what makes a ZERO band admit nothing, which is the exact form
+/// `curved`'s band fixtures compare this predicate against.
 ///
 /// The lever arms are [`Chart::radial`] (u — the point's own distance
 /// from the axis, so a cone and a sphere get a varying one) and
@@ -564,13 +568,14 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// narrow enough to be worth stating rather than leaving to the
 /// absence: it does not read THIS PREDICATE — which traversals share a
 /// side is decided by kind and by a pole test, not by a gap-against-a-
-/// lever band — but it does read **ε**, directly, and its read DECIDES
-/// which `f64` the entries of a side carry. A reader taking the four
-/// consumers above for the crate's ε ledger would be short by three:
-/// this list is `gap_is_noise`'s callers and nothing wider.
-/// [`crate::sizing::SizingTols`] says what an ε read may DO; the inventory of
-/// where they are is computed by `mesh/tests/all.rs`'s
-/// `the_eps_inventory_is_pinned`.
+/// lever band — but it does read **ε**, through
+/// [`Eps::separates`](crate::sizing::Eps::separates), and its read
+/// DECIDES which `f64` the entries of a side carry. A reader taking
+/// the four consumers above for the crate's ε ledger would be short by
+/// three: this list is `gap_is_noise`'s callers and nothing wider.
+/// [`crate::sizing::Eps`] carries the four operations every ε read in
+/// this crate is spelled with; the inventory of where they are is
+/// computed by `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`.
 ///
 /// It is deliberately NOT named for the closure any more: it was
 /// `closure_is_snappable` while a snap read it, and three of its four
@@ -603,8 +608,8 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///   and building one is **issue #868** — the scheduled work that
 ///   would retire this deviation. Until it lands the deviation stands
 ///   as written, at the cost the two bullets above state.
-pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
-    gap * lever < eps
+pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
+    eps.dominates(gap * lever)
 }
 
 /// The column of a rim-anchored loop's FINAL meridian: the closing
@@ -698,7 +703,7 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
 /// A typed warning channel would dominate both; there is none, and
 /// building one is **issue #868** — which is why the trade is where it
 /// is, and what would retire it.
-fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: f64) -> f64 {
+fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: Eps) -> f64 {
     let carrier = unwrap_near(u_raw, anchor);
     let gap = (carrier - anchor).abs();
     debug_assert!(
@@ -861,7 +866,7 @@ fn iso_side_starts(
     travs: &[Trav],
     chart: &Chart,
     positions: &[Point3<f64>],
-    eps: f64,
+    eps: Eps,
 ) -> Vec<bool> {
     let m = travs.len();
     if m < 2 {
@@ -878,7 +883,7 @@ fn iso_side_starts(
                     | (TravKind::Meridian { .. }, TravKind::Meridian { .. })
             );
             let junction = positions[travs[k].ids[0] as usize];
-            !(same_kind && chart.radial(junction) > eps)
+            !(same_kind && eps.separates(chart.radial(junction)))
         })
         .collect()
 }
@@ -1007,7 +1012,7 @@ pub(crate) fn loop_polygon(
     positions: &[Point3<f64>],
     face: FaceKey,
     lk: LoopKey,
-    eps: f64,
+    eps: Eps,
 ) -> Result<Vec<UvPoint>, TessellateError> {
     let mut travs = traversals(body, chart, chords, face, lk)?;
     let m = travs.len();
@@ -1072,7 +1077,7 @@ pub(crate) fn loop_polygon(
                     continue;
                 }
                 let d = (positions[ja as usize] - positions[jb as usize]).norm();
-                if d <= eps {
+                if eps.coincident(d) {
                     return Some((ja, jb, d));
                 }
             }
@@ -1091,11 +1096,11 @@ pub(crate) fn loop_polygon(
     // (`pole_v`) and the row-5 guard below both consume this index,
     // so they cannot disagree about which pole a junction is
     // identified with — the equivalence is structural, not prose.
-    // The eps read is terminal; issue 881's named-operations port
-    // (MESH-4) inherits it.
+    // The band edge is INCLUSIVE (`Eps::coincident`): a junction
+    // exactly ε from a pole is identified with it.
     let pole_index = |id: u32| -> Option<usize> {
         let p = positions[id as usize];
-        poles.iter().position(|&(pp, _)| (p - pp).norm() <= eps)
+        poles.iter().position(|&(pp, _)| eps.coincident((p - pp).norm()))
     };
     let pole_v = |id: u32| -> Option<f64> { pole_index(id).map(|ix| poles[ix].1) };
     // D2 addendum row 5, beside the declared-vertex guard above, and
@@ -1161,7 +1166,7 @@ pub(crate) fn loop_polygon(
                 .flatten();
             for (ix, &(pp, pv)) in poles.iter().enumerate() {
                 let gap = (p - pp).norm();
-                if gap <= eps && identified != Some(ix) {
+                if eps.coincident(gap) && identified != Some(ix) {
                     offending = Some((jid, pp, pv, gap));
                     break 'guard;
                 }
@@ -1528,7 +1533,7 @@ mod tests {
     /// only fails to at an absurd one.
     #[test]
     fn the_closure_bar_is_spatial_not_angular() {
-        let eps = 3.38e-5;
+        let eps = Eps::exactly(3.38e-5);
         let gap = 3.56e-9;
         assert!(
             gap_is_noise(gap, 0.05, eps),
@@ -1544,7 +1549,7 @@ mod tests {
     /// the property a bare radian constant did not have.
     #[test]
     fn the_closure_bar_tightens_as_the_lever_arm_grows() {
-        let eps = 1e-5;
+        let eps = Eps::exactly(1e-5);
         let gap = 1e-6;
         assert!(gap_is_noise(gap, 1.0, eps), "1e-6 m < eps");
         assert!(
@@ -1557,7 +1562,7 @@ mod tests {
     /// noise. Must be a plain comparison, not a NaN or a division.
     #[test]
     fn on_the_axis_every_gap_is_noise() {
-        assert!(gap_is_noise(core::f64::consts::PI, 0.0, 1e-9));
+        assert!(gap_is_noise(core::f64::consts::PI, 0.0, Eps::exactly(1e-9)));
     }
 
     /// **THE REGRESSION ROW for the closing column** (S22). It must
@@ -1598,7 +1603,7 @@ mod tests {
                     // eps/radius chosen so the detector stays quiet: the
                     // widest skew here is ~9.1e-13 rad, 9.1e-13 m of arc.
                     // The row that makes it fire is the next one.
-                    let column = closing_column(raw, anchor, 1.0, 1e-9);
+                    let column = closing_column(raw, anchor, 1.0, Eps::exactly(1e-9));
                     assert_eq!(
                         column, anchor,
                         "the closing column must be the anchor bitwise \
@@ -1653,7 +1658,7 @@ mod tests {
         // its 2.97 mm hole — read at a 100 km lever arm, where the same
         // angle is 3.56e-4 m of arc, five orders over eps.
         let anchor = 0.7_f64;
-        let _ = closing_column(anchor + 3.56e-9, anchor, 1e5, 1e-9);
+        let _ = closing_column(anchor + 3.56e-9, anchor, 1e5, Eps::exactly(1e-9));
     }
 
     // ---- iso-side runs (#653) -----------------------------------
@@ -1700,7 +1705,7 @@ mod tests {
             meridian(&[2, 2]),
         ];
         assert_eq!(
-            iso_side_starts(&travs, &c, &p, 1e-9),
+            iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)),
             vec![true, true, true, true]
         );
     }
@@ -1714,7 +1719,7 @@ mod tests {
         let p = unit_sphere_positions();
         let travs = vec![rim(&[2, 3]), meridian(&[3, 4]), meridian(&[4, 2])];
         assert_eq!(
-            iso_side_starts(&travs, &c, &p, 1e-9),
+            iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)),
             vec![true, true, false]
         );
     }
@@ -1735,13 +1740,13 @@ mod tests {
         let p = unit_sphere_positions();
         // A pole-to-pole band: two meridians, both junctions a pole.
         let travs = vec![meridian(&[1, 2, 0]), meridian(&[0, 3, 1])];
-        assert_eq!(iso_side_starts(&travs, &c, &p, 1e-9), vec![true, true]);
+        assert_eq!(iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)), vec![true, true]);
         // ... and the same two meridians with a vertex dropped on the
         // FIRST one are one side across that vertex and two sides
         // across each pole.
         let split = vec![meridian(&[1, 2]), meridian(&[2, 0]), meridian(&[0, 3, 1])];
         assert_eq!(
-            iso_side_starts(&split, &c, &p, 1e-9),
+            iso_side_starts(&split, &c, &p, Eps::exactly(1e-9)),
             vec![true, false, true]
         );
     }
@@ -1754,7 +1759,7 @@ mod tests {
         let p = unit_sphere_positions();
         let travs = vec![rim(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
         assert_eq!(
-            iso_side_starts(&travs, &c, &p, 1e-9),
+            iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)),
             vec![true, false, true]
         );
     }
@@ -1777,7 +1782,7 @@ mod tests {
         // A rim row carried by two edges, with the cycle starting in
         // the middle of it: traversal 0 continues traversal 2.
         let travs = vec![rim(&[2, 3]), meridian(&[3, 4]), rim(&[4, 2])];
-        let starts = iso_side_starts(&travs, &c, &p, 1e-9);
+        let starts = iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9));
         assert_eq!(starts, vec![false, true, true], "fixture precondition");
         assert_eq!(
             walk_anchor(&travs, &starts),
@@ -1788,12 +1793,12 @@ mod tests {
         // Unsplit shape: every rim opens its row, so this is the
         // `position(Rim)` it replaces, index for index.
         let plain = vec![meridian(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
-        let plain_starts = iso_side_starts(&plain, &c, &p, 1e-9);
+        let plain_starts = iso_side_starts(&plain, &c, &p, Eps::exactly(1e-9));
         assert_eq!(walk_anchor(&plain, &plain_starts), Some(1));
         // Rimless: anchor on any side that opens.
         let band = vec![meridian(&[1, 2]), meridian(&[2, 0]), meridian(&[0, 3, 1])];
         let sphere = z_chart(ChartKind::Sphere { r: 1.0 });
-        let band_starts = iso_side_starts(&band, &sphere, &p, 1e-9);
+        let band_starts = iso_side_starts(&band, &sphere, &p, Eps::exactly(1e-9));
         assert_eq!(walk_anchor(&band, &band_starts), Some(0));
     }
 
@@ -1830,7 +1835,7 @@ mod tests {
         // ids[0] of traversal 0 is 2, shared with the last traversal.
         let travs = vec![meridian(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
         assert_eq!(
-            iso_side_starts(&travs, &c, &p, 1e-9),
+            iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)),
             vec![false, true, true]
         );
     }
@@ -2057,7 +2062,7 @@ mod tests {
             .expect("the revolve mints a sphere wall");
         let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
-            let _ = loop_polygon(&body, &chart, &chords.ids, &positions, fk, lk, 0.15);
+            let _ = loop_polygon(&body, &chart, &chords.ids, &positions, fk, lk, Eps::exactly(0.15));
         }
         unreachable!("a loop of this face holds the in-band junction, so the guard fires");
     }

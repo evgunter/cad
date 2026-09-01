@@ -76,6 +76,139 @@
 //! refinement budgets.
 
 use crate::types::TessellateError;
+use geom_core::Tol;
+
+/// **The kernel ε, carried as a band with four named operations —
+/// this crate's whole ε vocabulary.**
+///
+/// The band is a length in metres. Nothing outside this module can
+/// read it back as an `f64`: the field is private, there is no
+/// accessor, and [`Display`](core::fmt::Display) renders it for a
+/// message and nothing else. So a `mesh` read of ε is one of the four
+/// methods below or it does not compile, and the crate's ε inventory
+/// IS those methods — which is what `mesh/tests/all.rs`'s
+/// `the_eps_inventory_is_pinned` now counts.
+///
+/// # The four operations, and their band edges
+///
+/// Written as edges rather than as prose, because the edge is the only
+/// thing that distinguishes three of them:
+///
+/// | operation | true when | edge |
+/// |---|---|---|
+/// | [`separates`](Eps::separates)`(x)` | `x > band` | band EXCLUDED |
+/// | [`coincident`](Eps::coincident)`(x)` | `x <= band` | band INCLUDED |
+/// | [`dominates`](Eps::dominates)`(x)` | `x < band` | band EXCLUDED |
+/// | [`pad`](Eps::pad)`(b)` | — | `b + band`, widening UP |
+///
+/// **`separates` and `coincident` are exact negations on ordered
+/// input, and neither is written as the other's `!`.** On a NaN both
+/// are FALSE — a poisoned length is neither separated nor coincident —
+/// and that asymmetry is the reason: `!coincident(NaN)` is `true`,
+/// which would admit a poisoned length as separated at
+/// [`crate::walk::iso_side_starts`], where today it does not. Each
+/// method is the bare comparison its caller used to spell, so the
+/// NaN behaviour is carried through unchanged rather than re-derived.
+///
+/// `dominates` differs from `coincident` ONLY at the edge, and the
+/// difference is load-bearing at exactly one place: [`crate::walk`]'s
+/// band predicate is a strict `<` so that a zero band admits nothing,
+/// which is what makes `gap_is_noise(gap, lever, 0)` the exact form
+/// its own fixtures compare against.
+///
+/// # The seam, and where this type goes when #741 lands
+///
+/// The band is minted once, at the [`Tol`] seam ([`Eps::at`]) — the
+/// only place in this crate that reads `Tol::eps()`. Issue 741 is
+/// ε's CONFIGURATION surface and may give `geom-core` an ε type of
+/// its own; the operations named here are a `mesh`-local fact about
+/// `mesh`'s terminal reads, so they are minted here rather than grown
+/// on contended cross-crate ground. **If #741's surface later carries
+/// these same four operations, this newtype collapses onto it**: the
+/// callers keep their spellings, `Eps` becomes a re-export or is
+/// deleted, and the seam that has to move is [`Eps::at`] alone.
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
+pub(crate) struct Eps(f64);
+
+impl Eps {
+    /// The run's committed ε, as a band. The crate's ONE read of
+    /// `Tol::eps()`, so a second raw read shows up as a moved count in
+    /// `the_eps_inventory_is_pinned` rather than as nothing at all.
+    pub(crate) fn at(tol: Tol) -> Self {
+        Self(tol.eps())
+    }
+
+    /// A chosen band, for a row that fixes ε rather than taking the
+    /// run's. Test-only on purpose: in shipped code [`Eps::at`] is the
+    /// only constructor, so ε cannot enter `mesh` except through the
+    /// witness.
+    #[cfg(test)]
+    pub(crate) fn exactly(band: f64) -> Self {
+        Self(band)
+    }
+
+    /// Is `length` OUTSIDE the band — far enough apart to be two
+    /// things rather than one? Band excluded; false on a NaN length.
+    ///
+    /// The caller's decision is a CLASSIFICATION, not a state
+    /// disposition: [`crate::walk::iso_side_starts`] picks which of
+    /// two analytically-equal columns an iso side's entries carry, so
+    /// no D2-addendum row applies to it (rows 1–5 dispose of a state
+    /// that should not exist; this one chooses between two correct
+    /// spellings of a coordinate). D2 addendum **row 0** is what this
+    /// type answers, for every read on it.
+    pub(crate) fn separates(self, length: f64) -> bool {
+        length > self.0
+    }
+
+    /// Is `length` INSIDE the band — near enough that the two points
+    /// it measures are read as one? Band included; false on a NaN
+    /// length.
+    ///
+    /// Its callers' decisions live on **D2 addendum row 5** (kernel
+    /// bug, detectable only by re-derivation) — [`crate::walk`]'s
+    /// declared-vertex guard and its pole guard are both
+    /// `debug_assert`s over every pair — except the pole-membership
+    /// find, which is a classification like [`separates`](Eps::separates)
+    /// and carries no row: it substitutes a pole's exact `v` and seeds
+    /// a fan, and whether an in-band junction REALLY is the pole is
+    /// the intent question this project does not ask.
+    pub(crate) fn coincident(self, length: f64) -> bool {
+        length <= self.0
+    }
+
+    /// Does the band DOMINATE `scaled` — is a quantity already
+    /// converted to metres small enough to be float noise? Band
+    /// excluded, so a zero band dominates nothing; false on a NaN.
+    ///
+    /// Its callers split across two D2-addendum rows, which
+    /// [`crate::walk::gap_is_noise`] states in full: **row 1** for
+    /// [`crate::curved`]'s swept-rectangle domain guard, which refuses
+    /// a face typed, and **row 5** for the three detectors, which is
+    /// named there as a deviation from rows 1/3 with its own ledger.
+    pub(crate) fn dominates(self, scaled: f64) -> bool {
+        scaled < self.0
+    }
+
+    /// `bound` widened by one band, UPWARD — the conservative
+    /// direction for a bound that will divide.
+    ///
+    /// No D2-addendum row: the caller ([`crate::trimmed`]'s deviation
+    /// probe) disposes of no state. It publishes a measurement, and
+    /// this widening is why f64 evaluation rounding on a wall
+    /// certifying at ~5e-17 does not read as a violation.
+    pub(crate) fn pad(self, bound: f64) -> f64 {
+        bound + self.0
+    }
+}
+
+impl core::fmt::Display for Eps {
+    /// The band's own metres, for an assertion message. The only way
+    /// the value leaves this type, and it leaves as text.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// The call's tolerance bundle: δ (the promise), δ_s = δ/2 (sizing),
 /// and the run's kernel ε — fetched once by [`fn@crate::tessellate`] and
@@ -83,9 +216,10 @@ use crate::types::TessellateError;
 ///
 /// # What ε may and may not do here
 ///
-/// **No sizing function takes it as an argument**: `eps` appears
-/// nowhere in this module but on the field below, and no step or grid
-/// rule in the crate has it in its signature. **A count can still
+/// **No sizing function takes it as an argument**: in this module ε
+/// appears only on the field below and inside [`Eps::at`], the seam
+/// that mints the band, and no step or grid rule in the crate has it
+/// in its signature. **A count can still
 /// move**, which is why that sentence is about arguments —
 /// `curved::pole_columns(nu, has_pole)` returns 3 where it would
 /// return 2, and `has_pole` is a bit an ε comparison in
@@ -116,21 +250,22 @@ use crate::types::TessellateError;
 /// moves; a reported number does.
 ///
 /// **Where the reads are is not written down here** — it is pinned by
-/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts ε
-/// identifiers per file and reds when one lands. A list here could
-/// not, and one here was short by a read for two milestones. That walk
-/// is textual and cannot see a read spelled another way; the mechanism
-/// that would (ε as a type whose operations are named, D2 addendum
-/// row 0) is **issue #881**.
+/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`, which counts
+/// the named operations per file and reds when one lands. A list here
+/// could not, and one here was short by a read for two milestones.
+/// **What KIND each read is, the type now carries**: every ε read in
+/// this crate is one of [`Eps`]'s four operations, so a fifth read
+/// picks a name or adds a method rather than spelling its own band
+/// arithmetic — the D2-addendum row-0 answer to the class.
 pub(crate) struct SizingTols {
     /// The chordal tolerance δ.
     pub delta: f64,
     /// The sizing target δ_s = δ/2.
     pub delta_s: f64,
-    /// The kernel ε. No sizing rule takes it; see above for what its
-    /// reads may do, and `the_eps_inventory_is_pinned` for where they
-    /// are.
-    pub eps: f64,
+    /// The kernel ε, as a band. No sizing rule takes it; see above for
+    /// what its reads may do, [`Eps`] for the four they are spelled
+    /// with, and `the_eps_inventory_is_pinned` for where they are.
+    pub eps: Eps,
 }
 
 /// The sizing target δ_s for a call's chordal tolerance δ.
@@ -264,6 +399,54 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **[`Eps`]'s band edges, pinned at the type rather than at each
+    /// caller.** Three of the four operations differ ONLY here, so the
+    /// edge is the whole of what distinguishes them and the one thing
+    /// a caller picking a name is choosing between. Red if any
+    /// operation's strictness flips — which is a moved mesh byte
+    /// wherever a coordinate sits exactly on the band.
+    #[test]
+    fn the_band_edges_are_where_the_operations_differ() {
+        let e = Eps::exactly(1e-9);
+        // AT the edge: coincident includes it, the other two exclude.
+        assert!(e.coincident(1e-9), "`coincident` includes the band");
+        assert!(!e.separates(1e-9), "`separates` excludes the band");
+        assert!(!e.dominates(1e-9), "`dominates` excludes the band");
+        // Inside and outside, where all three agree with their names.
+        assert!(e.coincident(0.5e-9) && e.dominates(0.5e-9) && !e.separates(0.5e-9));
+        assert!(e.separates(2e-9) && !e.coincident(2e-9) && !e.dominates(2e-9));
+        // A ZERO band admits nothing: `dominates` is strict, which is
+        // the exact form `curved`'s band fixtures compare against.
+        assert!(!Eps::exactly(0.0).dominates(0.0));
+    }
+
+    /// **`separates` and `coincident` are negations on ordered input
+    /// and NOT on a NaN** — the reason neither is written as the
+    /// other's `!`. Both are false on a poisoned length, so a NaN
+    /// stays neither near nor far; `!coincident` would report it as
+    /// separated, which is a decision this crate does not make.
+    #[test]
+    fn a_poisoned_length_is_neither_near_nor_far() {
+        let e = Eps::exactly(1e-9);
+        for x in [0.0, 1e-12, 1e-9, 1e-6, f64::INFINITY] {
+            assert_ne!(e.separates(x), e.coincident(x), "ordered input at {x}");
+        }
+        assert!(!e.separates(f64::NAN) && !e.coincident(f64::NAN));
+        assert!(!e.dominates(f64::NAN));
+    }
+
+    /// **`pad` widens UP, by exactly one band.** The direction is the
+    /// claim: [`crate::trimmed`]'s probe divides by the result, so a
+    /// downward pad would inflate the ratio it publishes instead of
+    /// keeping evaluation rounding out of it.
+    #[test]
+    fn pad_widens_upward_by_one_band() {
+        let e = Eps::exactly(1e-9);
+        assert_eq!(e.pad(1.0), 1.0 + 1e-9);
+        assert!(e.pad(0.0) > 0.0, "a zero bound pads to the band itself");
+        assert_eq!(Eps::exactly(0.0).pad(4.0), 4.0, "a zero band pads nothing");
+    }
 
     /// [`torus_grid_step`]'s doc claim, which no meshing oracle
     /// reaches: above `delta_s = (3*pi^2/16)*(R+2r)` the torus step
