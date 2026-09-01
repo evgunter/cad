@@ -20,8 +20,8 @@ use crate::contact::{ContactClass, DeclaredContact};
 use crate::euler::FaceSurface;
 use crate::fixtures::test_curve;
 use crate::validate::{
-    MaterialArmOutcome, ValidationError, material_arm_outcome, validate, validate_geometric,
-    validate_geometric_declared,
+    MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
+    validate_geometric, validate_geometric_declared,
 };
 use crate::{Body, MefSite, MevSite};
 use geom_brep::MaterialWedge;
@@ -885,6 +885,78 @@ fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+
+/// **What each material outcome EMITS** — the fold's other half.
+///
+/// `material_arm_outcome` decides what the edge is; this table decides
+/// what the validator says about it, and the two are separate functions
+/// because both have states no fixture can reach. Pinning the fold
+/// alone would leave the escalation PUSH unpinned: a mutation dropping
+/// `Split` on the floor would keep every row green while restoring
+/// exactly the silence item 6 removed.
+///
+/// The declaration is consulted on ONE row and only one: the wedge
+/// ends. A lamina ignores it (nothing to declare), a split ignores it
+/// (nothing was established), and the seam never needed it.
+#[test]
+fn material_arm_error_table() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let edge = crate::fixtures::prism(3, Tol::witness())
+        .body
+        .edges()
+        .next()
+        .expect("the fixture has edges")
+        .0;
+    let err = |outcome, declared| material_arm_error(outcome, edge, declared, band);
+
+    // No outcome at all: exempt by kind, or already escalated.
+    assert!(err(None, false).is_none());
+    assert!(err(None, true).is_none());
+    // The seam and a transverse wedge are legal, declared or not.
+    for wedge in [MaterialWedge::Seam, MaterialWedge::Transverse] {
+        for declared in [false, true] {
+            assert!(
+                err(Some(MaterialArmOutcome::Wedge(wedge)), declared).is_none(),
+                "{wedge:?} is legal on its own terms"
+            );
+        }
+    }
+    // The two ends: refused undeclared, legal declared — the whole
+    // content of the declared arm.
+    for wedge in [MaterialWedge::Cusp, MaterialWedge::Slit] {
+        match err(Some(MaterialArmOutcome::Wedge(wedge)), false) {
+            Some(ValidationError::UndeclaredCusp { wedge: w, .. }) => assert_eq!(w, wedge),
+            other => panic!("undeclared {wedge:?} must refuse, got {other:?}"),
+        }
+        assert!(
+            err(Some(MaterialArmOutcome::Wedge(wedge)), true).is_none(),
+            "a declared {wedge:?} is legal"
+        );
+    }
+    // The lamina refuses whatever the declarations say.
+    for declared in [false, true] {
+        assert!(
+            matches!(
+                err(Some(MaterialArmOutcome::Lamina), declared),
+                Some(ValidationError::LaminaWedge { .. })
+            ),
+            "no declaration cures a lamina"
+        );
+    }
+    // Both splits escalate, carrying the predicate that split — and a
+    // declaration does not silence them either.
+    for predicate in ["material_wedge_side", "material_cusp_side"] {
+        for declared in [false, true] {
+            match err(Some(MaterialArmOutcome::Split { predicate }), declared) {
+                Some(ValidationError::SliverDihedral { cause, .. }) => {
+                    assert_eq!(cause.predicate, Some(predicate));
+                }
+                other => panic!("a split must escalate, got {other:?}"),
             }
         }
     }
