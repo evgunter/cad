@@ -20,7 +20,15 @@ fn band() -> Band {
 
 /// The torus's own implicit function along the ray — the geometry, not
 /// the quartic. `F(t) = (|w|² + R² − r²)² − 4R²ρ²`.
-fn f_geom(q: Point3<f64>, d: Vec3<f64>, c: Point3<f64>, a: Vec3<f64>, rr: f64, r: f64, t: f64) -> f64 {
+fn f_geom(
+    q: Point3<f64>,
+    d: Vec3<f64>,
+    c: Point3<f64>,
+    a: Vec3<f64>,
+    rr: f64,
+    r: f64,
+    t: f64,
+) -> f64 {
     let w = (q - c) + d * t;
     let h = w.dot(a);
     let rho2 = w.norm_squared() - h * h;
@@ -133,12 +141,21 @@ fn r1_certified_counts_agree_with_a_geometric_oracle() {
     let mut misses = 0usize;
     let mut bad: Vec<String> = Vec::new();
 
-    for (rr, r) in [(1.0f64, 0.3f64), (1.0, 0.9), (1.0, 0.02), (5.0, 0.1), (0.2, 0.19)] {
+    for (rr, r) in [
+        (1.0f64, 0.3f64),
+        (1.0, 0.9),
+        (1.0, 0.02),
+        (5.0, 0.1),
+        (0.2, 0.19),
+    ] {
         // a lattice of origins and directions, plus the named adversarial poses
         let mut poses: Vec<(Point3<f64>, Vec3<f64>)> = Vec::new();
         // through the centre, in the midplane -> four roots
         poses.push((Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)));
-        poses.push((Point3::new(0.0, 0.0, 0.0), Vec3::new(0.3, 0.0, 0.954).normalize()));
+        poses.push((
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.3, 0.0, 0.954).normalize(),
+        ));
         // axis-parallel
         for x in [0.0, 0.5, rr - r, rr, rr + r, rr + r + 0.4] {
             poses.push((Point3::new(x, -9.0, 0.0), Vec3::new(0.0, 1.0, 0.0)));
@@ -227,7 +244,11 @@ fn r1_certified_counts_agree_with_a_geometric_oracle() {
     for line in bad.iter().take(25) {
         println!("  {line}");
     }
-    assert!(bad.is_empty(), "{} disagreements with the oracle", bad.len());
+    assert!(
+        bad.is_empty(),
+        "{} disagreements with the oracle",
+        bad.len()
+    );
 }
 
 /// The four-root ray through the hole, asserted at the ROOT level

@@ -57,7 +57,10 @@ fn clearance(q: Point3<f64>) -> f64 {
 #[test]
 fn r1_oracle_sweep_prints_its_own_numbers() {
     let body = donut();
-    for (ni, nj, nk, label) in [(17, 13, 11, "shipped lattice"), (35, 27, 23, "dense lattice")] {
+    for (ni, nj, nk, label) in [
+        (17, 13, 11, "shipped lattice"),
+        (35, 27, 23, "dense lattice"),
+    ] {
         let mut wrong = Vec::new();
         let mut escalated = 0usize;
         let mut total = 0usize;
@@ -221,7 +224,10 @@ fn r1_the_hole_is_free_space_asked_of_the_door_itself() {
         "R1 hole: point_in_solid(centre) = {:?}",
         point_in_solid(&body, hole, band(), Tol::witness())
     );
-    assert_eq!(point_in_solid(&body, hole, band(), Tol::witness()).unwrap(), SolidContainment::Out);
+    assert_eq!(
+        point_in_solid(&body, hole, band(), Tol::witness()).unwrap(),
+        SolidContainment::Out
+    );
     // and just inside the near wall, where a quadratic fold would answer In
     let near = Point3::new(0.0, 0.0, R - MINOR + 1e-2);
     println!(
