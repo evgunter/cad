@@ -352,8 +352,14 @@ fn program_structure_doors_refuse_typed_at_load() {
     // (a) Wrong-dimension role: retype the circle's centre-x literal
     // as an Angle. The Expr door accepts an Angle literal per se; the
     // shared validator's DIMENSION WALK refuses it in the CenterX role.
+    // The UNIT moves with the dim: since v20 a literal names its
+    // notation, so leaving `"m"` beside an `Angle` dim would be caught
+    // one door earlier as a display-unit mismatch, and this row is
+    // about the SLOT's role dimension, not the literal's own coherence.
     v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
         serde_json::Value::String("Angle".into());
+    v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
+        serde_json::Value::String("rad".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
     match load(&mangled, Tol::witness()) {
         Err(PersistError::ProfileProgram {

@@ -40,7 +40,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::profile::SketchPlane;
 use viewer::bounds::BoundsProbe;
-use viewer::props::{self, SlotDriver, SlotValue, in_written, written_unit};
+use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
 use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
@@ -301,11 +301,15 @@ fn the_parametric_living_walk() {
     // and leaves the canonical value bit-identical.
     let (_lamp_profile, lamp) = drum(&mut session, "base_r * taper * taper", LAMP_H);
     let before_unit = row_of(session.committed_doc(), lamp, SlotId::Distance);
-    assert_eq!(before_unit.unit, None, "authored with no remembered unit");
+    assert_eq!(
+        before_unit.unit.map(|u| u.symbol()),
+        Some("m"),
+        "authored canonically, which is to say IN METRES — said, not left to a reader"
+    );
     let outcome = session.perform(SessionOp::SetSlotUnit {
         node: lamp,
         slot: SlotId::Distance,
-        unit: Some(MM.def()),
+        unit: MM.def(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "a unit change is one edit");
@@ -324,7 +328,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         in_written(
             after_unit.value.expect("a value").as_f64(),
-            written_unit(after_unit.dimension, after_unit.unit),
+            rendering_unit(after_unit.dimension, after_unit.unit).expect("a length row"),
         ),
         12.0,
         "shown as twelve millimetres"

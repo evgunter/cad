@@ -86,8 +86,8 @@ pub use eval::{
     NodeValue, PartFault, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 pub use expr::{
-    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
-    unparse,
+    Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
+    eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{

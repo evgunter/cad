@@ -379,6 +379,34 @@ impl UnitSym {
     /// case, and it keeps its typed refusal (D2 addendum row 1). What
     /// went away is the CONSTRUCTION site of that variant, which could
     /// only fire for a `UnitDef` no caller can build.
+    /// The unit a value of `dim` is written in when nothing else was
+    /// authored: metres, radians, or the dimensionless row.
+    ///
+    /// This is where "canonical" stops being a reader's guess and
+    /// becomes a stored fact.
+    ///
+    /// **Total, including `Count`** — deliberately, though a count has
+    /// no notation and the table no row for one. [`Expr::literal`]
+    /// refuses `Count` before ever reaching here, so no LITERAL takes
+    /// that arm; what can is [`crate::DocParam::continuous`], whose
+    /// `dim` is a caller's argument and whose `Count` spelling is a
+    /// corrupt parameter the edit door refuses typed
+    /// (`EditError::ContinuousParamCannotBeCount`). Panicking here
+    /// would replace that typed refusal with a crash on the way to it,
+    /// which is the wrong trade: the answer is the dimensionless row,
+    /// nothing ever renders it (a count is an integer), and the
+    /// refusal still happens where it always did.
+    pub fn canonical_for(dim: Dimension) -> Self {
+        let row = match dim {
+            Dimension::Length => quantity::M.def(),
+            Dimension::Angle => quantity::RAD.def(),
+            Dimension::Scalar | Dimension::Count => quantity::ONE.def(),
+        };
+        Self::from_def(&row)
+    }
+
+    /// The code for a table row — the public mint, total since the
+    /// #650 seal (every `UnitDef` a caller can hold IS a table row).
     pub fn from_def(u: &quantity::UnitDef) -> Self {
         let Some(i) = quantity::UNITS
             .iter()
@@ -409,13 +437,22 @@ impl UnitSym {
 /// keys, and naming keys are all display-unit-blind by construction),
 /// excluded from [`Expr::literal_bits`], and ignored by evaluation;
 /// the value stays canonical meters/radians regardless.
+///
+/// **The unit is not optional.** Every literal names the notation it
+/// was written in, dimensionless ones included ([`quantity::ONE`], the
+/// empty symbol). It used to be an `Option`, and the absence had no
+/// single meaning: this module's own formatter resolved an unmarked
+/// angle to `rad` while the property panel resolved the same literal to
+/// `pi rad`. A stored value that two readers render differently is not
+/// presentation metadata, it is a hole; closing it is what the
+/// dimensionless row exists for.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Lit {
     /// The exact canonical-units value (bit-exact per D7).
     pub(crate) value: f64,
-    /// The display unit the literal was authored in, if any (a code
-    /// into quantity's closed table; `None` renders canonically).
-    pub(crate) display_unit: Option<UnitSym>,
+    /// The display unit the literal was authored in (a code into
+    /// quantity's closed table).
+    pub(crate) display_unit: UnitSym,
 }
 
 // PR #291 MAJOR-2, as a compile-time row rather than a remembered
@@ -448,9 +485,9 @@ const _: () = assert!(
 );
 
 impl Lit {
-    /// The stored unit's table row, if any.
-    pub(crate) fn unit_def(&self) -> Option<quantity::UnitDef> {
-        self.display_unit.map(UnitSym::def)
+    /// The stored unit's table row.
+    pub(crate) fn unit_def(&self) -> quantity::UnitDef {
+        self.display_unit.def()
     }
 }
 
@@ -581,7 +618,7 @@ impl Expr {
             dim,
             kind: ExprKind::Literal(Lit {
                 value,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(dim),
             }),
         })
     }
@@ -605,6 +642,7 @@ impl Expr {
         let unit_dim = match unit.quantity() {
             quantity::UnitQuantity::Length => Dimension::Length,
             quantity::UnitQuantity::Angle => Dimension::Angle,
+            quantity::UnitQuantity::Scalar => Dimension::Scalar,
         };
         if unit_dim != dim {
             return Err(DimensionError::DisplayUnitMismatch {
@@ -618,7 +656,7 @@ impl Expr {
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {
-            lit.display_unit = Some(sym);
+            lit.display_unit = sym;
         }
         Ok(e)
     }
@@ -668,12 +706,12 @@ impl Expr {
         )
     }
 
-    /// The display unit of a LITERAL expression, if one is stored
-    /// (`None` for every other kind and for canonically-authored
-    /// literals). The formatter's read side (§4g).
+    /// The display unit of a LITERAL expression — `None` for every
+    /// other kind, because only a literal is WRITTEN. A literal always
+    /// has one ([`Lit`]). The formatter's read side (§4g).
     pub fn display_unit(&self) -> Option<quantity::UnitDef> {
         match &self.kind {
-            ExprKind::Literal(lit) => lit.unit_def(),
+            ExprKind::Literal(lit) => Some(lit.unit_def()),
             _ => None,
         }
     }
@@ -1415,28 +1453,27 @@ fn write_expr(expr: &Expr, out: &mut String) {
 }
 
 /// One continuous literal, in the unit it remembers.
-///
-/// `Scalar` is the arm with no unit table behind it, and it is also
-/// the arm that must not render bare digits: `2` is a `Count` in this
-/// grammar and `2.0` is a `Scalar`. `{:?}` is the shortest form that
-/// reads back to the same bits and always carries a `.` or an `e`, so
-/// it settles the round trip and the dimension together.
 fn write_literal(lit: &Lit, dim: Dimension) -> String {
     let remembered = lit.unit_def();
     let formatted = match dim {
+        // The stored unit and the dimension agree by construction
+        // (`Expr::literal_with_unit` checks the pairing, `literal`
+        // supplies the canonical row), so the typed view is there.
         Dimension::Length => {
-            let unit = remembered
-                .and_then(quantity::UnitDef::as_length)
-                .unwrap_or(quantity::M);
+            let unit = remembered.as_length().unwrap_or(quantity::M);
             quantity::fmt_length(lit.value, unit)
         }
         Dimension::Angle => {
-            let unit = remembered
-                .and_then(quantity::UnitDef::as_angle)
-                .unwrap_or(quantity::RAD);
+            let unit = remembered.as_angle().unwrap_or(quantity::RAD);
             quantity::fmt_angle(lit.value, unit)
         }
-        // No unit vocabulary: a dimensionless real is its own text.
+        // The dimensionless row's symbol is empty, so there is no
+        // suffix to append and no formatter to route through: a
+        // dimensionless real is its own text. It must not render bare
+        // DIGITS, though — `2` is a `Count` in this grammar and `2.0`
+        // is a `Scalar`. `{:?}` is the shortest form that reads back to
+        // the same bits and always carries a `.` or an `e`, so it
+        // settles the round trip and the dimension together.
         Dimension::Scalar => return format!("{:?}", lit.value),
         // Unconstructable (D2 addendum row 4): `Expr::literal` refuses
         // `Count`, and `ExprKind::Literal` is minted nowhere else.

@@ -15,6 +15,7 @@
 #[path = "fixture/mod.rs"]
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
     DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
@@ -69,7 +70,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.2,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
             },
         },
@@ -677,7 +678,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
             },
         },
@@ -737,7 +738,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
             },
         },

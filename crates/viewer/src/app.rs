@@ -3927,7 +3927,12 @@ impl ViewerBehavior<'_> {
     /// with NO unit suffix on the text: the picker beside the field
     /// names the unit, and saying it twice adjacently says it once.
     fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        let unit = props::written_unit(row.dimension, row.unit);
+        let unit = props::rendering_unit(row.dimension, row.unit);
+        // `Count` is the one row with no unit at all (an instance count
+        // is a number, not a quantity), and its factor would be 1.0
+        // anyway — so the absence is an identity here, not a fallback.
+        let written = |v: f64| unit.map_or(v, |u| props::in_written(v, u));
+        let canonical = |v: f64| unit.map_or(v, |u| props::from_written(v, u));
         // A slot that did not evaluate still has SOURCE to edit — it
         // is the slot most likely to need it — so the field is drawn
         // for it too, over the one number it does not have. The fault
@@ -3935,13 +3940,10 @@ impl ViewerBehavior<'_> {
         if let Err(ref error) = row.value {
             ui.weak(format!("{error}"));
         }
-        let mut number = props::in_written(
-            match row.value {
-                Ok(value) => value.as_f64(),
-                Err(_) => 0.0,
-            },
-            unit,
-        );
+        let mut number = written(match row.value {
+            Ok(value) => value.as_f64(),
+            Err(_) => 0.0,
+        });
         // The drag speed is in WRITTEN units, so it travels through
         // the same conversion the value does ([`unit_field`] carries
         // the rule) — and it is `FIELD_DRAG_SPEED`, the same tick the
@@ -3951,7 +3953,7 @@ impl ViewerBehavior<'_> {
         let speed = if row.structural {
             1.0
         } else {
-            props::in_written(drag_tick(row.dimension), unit)
+            written(drag_tick(row.dimension))
         };
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
@@ -3990,7 +3992,7 @@ impl ViewerBehavior<'_> {
         let widget = ui.add(widget);
         drag_gesture_ops(
             &widget,
-            props::from_written(number, unit),
+            canonical(number),
             SessionOp::BeginGesture {
                 node,
                 slot: row.slot,
@@ -4007,7 +4009,7 @@ impl ViewerBehavior<'_> {
         // its affordance even when the number happens to match.
         match typed.into_inner() {
             Some(props::FieldEdit::Number(written)) => {
-                let value = SlotValue::of(row.dimension, props::from_written(written, unit));
+                let value = SlotValue::of(row.dimension, canonical(written));
                 if row.driver.is_driven() || row.value != Ok(value) {
                     self.ops.push(SessionOp::SetSlot {
                         node,
@@ -4056,7 +4058,7 @@ impl ViewerBehavior<'_> {
         }
         let written: Vec<Option<UnitDef>> = rows
             .iter()
-            .map(|row| props::written_unit(row.dimension, row.unit))
+            .map(|row| props::rendering_unit(row.dimension, row.unit))
             .collect();
         let common = written
             .iter()
@@ -4080,7 +4082,7 @@ impl ViewerBehavior<'_> {
                             self.ops.push(SessionOp::SetSlotUnit {
                                 node,
                                 slot: row.slot,
-                                unit: Some(option),
+                                unit: option,
                             });
                         }
                     }
@@ -4124,7 +4126,7 @@ impl ViewerBehavior<'_> {
             ui.weak(format!(
                 "{}: {}",
                 row.slot.label(),
-                result.wording(props::written_unit(row.dimension, row.unit))
+                result.wording(props::rendering_unit(row.dimension, row.unit))
             ));
         }
     }
@@ -4167,7 +4169,7 @@ impl ViewerBehavior<'_> {
                 // A document parameter stores no display unit
                 // (`props`' module docs name the asymmetry), so its
                 // range reads in the canonical one.
-                ui.weak(result.wording(props::written_unit(dimension, None)));
+                ui.weak(result.wording(props::rendering_unit(dimension, None)));
             }
             if ui
                 .small_button("range?")
@@ -4383,14 +4385,13 @@ fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
 /// applied to a field showing millimetres is the same gesture made a
 /// thousand times finer by a change of notation.
 fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical: &mut f64) {
-    let mut written = props::in_written(*canonical, Some(unit));
-    let response =
-        ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, Some(unit))));
+    let mut written = props::in_written(*canonical, unit);
+    let response = ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, unit)));
     // Written back only on a real edit: an untouched field would
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
-        *canonical = props::from_written(written, Some(unit));
+        *canonical = props::from_written(written, unit);
     }
 }
 

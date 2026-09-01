@@ -568,55 +568,66 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
 /// SCHEMA_VERSION`) that every entry above describes; it read 18.
 ///
-/// Version 20 is **the authored display unit on a document
-/// PARAMETER** (the creation-forms notation change):
-/// [`crate::DocParam::Continuous`] gained an optional display unit
-/// beside its dimension and its distribution, so a parameter authored
-/// in millimetres reads back in millimetres. Presentation metadata by
-/// the same rules a literal's is under — excluded from
-/// [`crate::DocParam::bit_eq`], read by no evaluation, in no key.
+/// Version 20 is **every literal names the notation it was written
+/// in** — one break with two halves, taken together because they are
+/// one decision.
 ///
-/// It closes the asymmetry the GUI units ruling recorded rather than
-/// papered over: every LITERAL in a document could remember its
-/// notation and no PARAMETER could, so the one value a recipe shares
-/// across features was the one value that forgot how it was written.
+/// The first half is the DOCUMENT PARAMETER:
+/// [`crate::DocParam::Continuous`] gained a display unit beside its
+/// dimension and its distribution, so a parameter authored in
+/// millimetres reads back in millimetres. That closes the asymmetry the
+/// GUI units ruling recorded rather than papered over — every LITERAL
+/// in a document could remember its notation and no PARAMETER could, so
+/// the one value a recipe shares across features was the one value that
+/// forgot how it was written.
 ///
-/// The claim reasoning, in v15's shape because this is v15's shape —
-/// an optional field on the same struct, with the same
-/// `skip_serializing_if`. The DEGENERATE CARRY: a document whose
-/// parameters were all authored canonically writes the v19 bytes
-/// exactly. The FORMAT CLAIM is the populated key: a v19 reader handed
-/// a param carrying `"display_unit"` meets a field its
-/// `deny_unknown_fields` document types have no name for and dies
-/// inside serde rather than at the version door — the direction the
-/// gate exists to fail cleanly. Forward-additive (a v19 file declares
-/// no display units), and the migration table stays empty: a v19 file
-/// refuses TYPED with the regenerate recourse.
+/// The second half is that the unit stopped being OPTIONAL, on the
+/// literal ([`crate::expr::Expr`]'s `Lit`) and on the parameter alike.
+/// The absence had no single meaning, and two readers of this very
+/// repository disagreed about it: `unparse` rendered an unmarked angle
+/// in `rad`, and the property panel rendered the same stored literal in
+/// `pi rad`. A value that reads two ways depending on who reads it is
+/// not presentation metadata, it is a hole. What closes it is a
+/// dimensionless row in `quantity::UNITS` ([`quantity::ONE`], symbol
+/// the EMPTY string, factor 1.0), so that a `Scalar` literal can name
+/// its notation — writing no suffix — instead of declining to name one.
+/// `Count` needs no row: a count is an integer
+/// (`ExprKind::CountLiteral`), never a `Lit`.
 ///
-/// **The unit is on the wire as its SYMBOL**, never as the one-byte
-/// code the type holds in memory (`crate::expr::UnitSym`'s rustdoc —
-/// the index carries no compatibility contract, and this carrier does
-/// not give it one). So a table REORDER still moves no byte of any
-/// file, exactly as for `WireExpr::Literal`.
+/// So `WireExpr::Literal`'s `unit` is now a plain `String` rather than
+/// a skipped `Option`, and **every literal in every document carries
+/// one**. There is no degenerate carry this time: a v19 document and
+/// its v20 regeneration differ on nearly every literal, which is the
+/// honest shape of the break rather than a bump hiding behind an
+/// absent key. `DocParam::Continuous`'s new field is written the same
+/// way and for the same reason.
 ///
-/// Two refusals guard the new key, at the two layers that can see the
-/// two different faults. An OFF-TABLE symbol dies in `UnitSym`'s
-/// `Deserialize`, at the token. A symbol that IS a table row but does
-/// not measure the parameter's declared dimension — `mm` on an `Angle`
-/// param — is a document invariant, and refuses typed
-/// ([`PersistError::DisplayUnit`]) in the shared save/load validator,
-/// so it cannot be saved either.
+/// The unit is on the wire as its SYMBOL, never as the one-byte code
+/// the type holds in memory (`crate::expr::UnitSym`'s rustdoc — the
+/// index carries no compatibility contract, and this does not give it
+/// one). A table REORDER still moves no byte of any file.
 ///
-/// [`crate::DocParam::Count`] gained nothing, deliberately and for
-/// v15's reason restated in units: a count has no dimension and the
-/// unit table has no row for one, so there is no notation to
-/// remember — unrepresentable rather than refused.
+/// Two refusals guard the key, at the two layers that see the two
+/// faults. An OFF-TABLE symbol dies where the symbol is read — in
+/// `WireExpr`'s rebuild for a literal, in `UnitSym`'s `Deserialize` for
+/// a parameter. A symbol that IS a table row but does not measure the
+/// dimension it sits beside — `mm` on an `Angle` — is a document
+/// invariant: a literal's is checked by the constructor the load door
+/// re-runs, and a parameter's by the shared save/load validator
+/// ([`PersistError::DisplayUnit`]), so it cannot be saved either.
 ///
-/// [`crate::DocEdit::SetDocParamValue`] needed no companion arm this
-/// time, and that is v15's lesson already banked: the value door
-/// carries a [`crate::DocParamValue`] and rebuilds nothing, so it
-/// keeps the whole declaration — the new unit included — without
-/// naming it.
+/// Forward-additive as ever (a v19 file has no units to carry), and the
+/// migration table stays empty: a v19 file refuses TYPED with the
+/// regenerate recourse. A migration COULD be written — the mapping is
+/// total, since an absent unit meant the canonical row on the text
+/// side — but the standing rule stops it: no migration machinery
+/// exists (LQ7a), the kernel is unreleased, and every file in this
+/// lineage replays from its own recipe.
+///
+/// [`crate::DocEdit::SetDocParamValue`] needed no companion arm, and
+/// that is v15's lesson already banked: the value door carries a
+/// [`crate::DocParamValue`] and rebuilds nothing, so it keeps the whole
+/// declaration — the new unit included — without naming it.
 ///
 /// Taken by the same by-eye read of main's constant at the re-merge
 /// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep

@@ -27,6 +27,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, Datum, Dimension, DocEdit, DocParam, DocumentId, EditError, EntityKind, Expr,
     MeasureExpr, MeasureNodeFault, MeasurePrimitive, MeasureRef, Node, ParamName, PersistError,
@@ -138,7 +139,7 @@ fn every_form() -> ProfileDoc {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.001,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
             },
         },

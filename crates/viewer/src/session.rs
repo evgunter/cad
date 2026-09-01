@@ -972,9 +972,12 @@ pub enum SessionOp {
     /// A separate door from [`SessionOp::SetSlot`] because the value
     /// and its notation are independent facts about a literal (D7 keeps
     /// the display unit out of expression identity entirely), and an
-    /// operation that moved both could not move either alone. `None`
-    /// means "remember no unit": the value renders canonically, which
-    /// is what a literal authored without a suffix already does.
+    /// operation that moved both could not move either alone.
+    ///
+    /// There is no "remember no unit" spelling, because there is no
+    /// such state: every literal names its notation, and the canonical
+    /// one is named by naming it (`m`, `rad`, or the dimensionless
+    /// row).
     ///
     /// It is a document edit and enters the history like any other:
     /// the unit is stored in the document and persists, so changing it
@@ -984,8 +987,8 @@ pub enum SessionOp {
         node: RecipeNodeId,
         /// The slot.
         slot: SlotId,
-        /// The unit to write it in, or `None` for canonical.
-        unit: Option<UnitDef>,
+        /// The unit to write it in.
+        unit: UnitDef,
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_expr` door. This is the affordance's editing
@@ -2261,12 +2264,12 @@ impl DocSession {
                     });
                 };
                 let value = value.as_f64();
-                let unit = props::written_unit(dimension, remembered);
-                Ok((
-                    value,
-                    props::from_written(1.0, unit),
-                    dimension == Dimension::Count,
-                ))
+                // One of whatever unit the field is written in. A slot
+                // driven by an EXPRESSION remembers none — there is no
+                // authored notation for a computed value — and takes
+                // one canonical unit.
+                let step = remembered.map_or(1.0, |unit| props::from_written(1.0, unit));
+                Ok((value, step, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
                 let Some(param) = self.committed_doc().params().get(name) else {
@@ -2321,12 +2324,7 @@ impl DocSession {
     /// and this op writes no number. What a driven slot refuses is the
     /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
     /// an expression has no authored notation to change.
-    fn set_slot_unit(
-        &mut self,
-        node: RecipeNodeId,
-        slot: SlotId,
-        unit: Option<UnitDef>,
-    ) -> OpOutcome {
+    fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }

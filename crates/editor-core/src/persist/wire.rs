@@ -38,12 +38,12 @@ pub(crate) enum WireExpr {
         value: f64,
         /// The literal's dimension.
         dim: Dimension,
-        /// The display-unit symbol (quantity's closed table), absent
-        /// for canonically-authored literals. Optional ON THE WIRE
-        /// (`deny_unknown_fields` kept — absence is legal, an unknown
-        /// FIELD still refuses); an unknown SYMBOL refuses at rebuild.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        unit: Option<String>,
+        /// The display-unit symbol (quantity's closed table). Always
+        /// written, because every literal names the notation it was
+        /// authored in — the dimensionless row's symbol is the empty
+        /// string, which is what a `Scalar` literal carries. An unknown
+        /// symbol refuses typed at rebuild.
+        unit: String,
     },
     /// An exact integer Count literal.
     Count(i64),
@@ -87,7 +87,7 @@ impl From<&Expr> for WireExpr {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
                 dim: e.dim(),
-                unit: lit.unit_def().map(|u| u.symbol().to_string()),
+                unit: lit.unit_def().symbol().to_string(),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
             ExprKind::Param(name) => WireExpr::Param {
@@ -116,18 +116,15 @@ impl WireExpr {
     pub(crate) fn rebuild(&self) -> Result<Expr, crate::expr::DimensionError> {
         let b = |x: &WireExpr| x.rebuild();
         match self {
-            WireExpr::Literal { value, dim, unit } => match unit {
-                None => Expr::literal(*value, *dim),
-                // Strict door: the symbol must be in quantity's closed
-                // table and its quantity must match the dimension —
-                // both re-checked by the same constructor authoring
-                // uses (never a field-by-field trust).
-                Some(symbol) => match quantity::unit_by_symbol(symbol) {
-                    None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
-                        symbol: symbol.clone(),
-                    }),
-                    Some(u) => Expr::literal_with_unit(*value, *dim, u),
-                },
+            // Strict door: the symbol must be in quantity's closed
+            // table and its quantity must match the dimension — both
+            // re-checked by the same constructor authoring uses (never
+            // a field-by-field trust).
+            WireExpr::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
+                None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
+                    symbol: unit.clone(),
+                }),
+                Some(u) => Expr::literal_with_unit(*value, *dim, u),
             },
             WireExpr::Count(v) => Ok(Expr::count(*v)),
             WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),

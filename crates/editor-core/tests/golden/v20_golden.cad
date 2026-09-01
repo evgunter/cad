@@ -39,13 +39,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -56,13 +58,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 2.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -76,13 +80,15 @@ id: 7ddec231df0049f879136a2f7624647d
                           {
                             "Literal": {
                               "value": 2.0,
-                              "dim": "Length"
+                              "dim": "Length",
+                              "unit": "m"
                             }
                           },
                           {
                             "Literal": {
                               "value": 1.0,
-                              "dim": "Length"
+                              "dim": "Length",
+                              "unit": "m"
                             }
                           }
                         ]
@@ -90,7 +96,8 @@ id: 7ddec231df0049f879136a2f7624647d
                       "b": {
                         "Literal": {
                           "value": 0.25,
-                          "dim": "Scalar"
+                          "dim": "Scalar",
+                          "unit": ""
                         }
                       }
                     }
@@ -102,13 +109,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -167,13 +176,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -184,13 +195,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 3.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -202,13 +215,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 3.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -220,13 +235,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 1.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -239,13 +256,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.5,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -256,7 +275,8 @@ id: 7ddec231df0049f879136a2f7624647d
                   "Line": {
                     "Literal": {
                       "value": 1.5,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   }
                 },
@@ -266,13 +286,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 3.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -320,13 +342,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -337,13 +361,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 3.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -355,13 +381,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 3.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -372,13 +400,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     "dx": {
                       "Literal": {
                         "value": -1.0,
-                        "dim": "Scalar"
+                        "dim": "Scalar",
+                        "unit": ""
                       }
                     },
                     "dy": {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Scalar"
+                        "dim": "Scalar",
+                        "unit": ""
                       }
                     }
                   }
@@ -387,7 +417,8 @@ id: 7ddec231df0049f879136a2f7624647d
                   "Fillet": {
                     "Literal": {
                       "value": 0.5,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   }
                 },
@@ -396,13 +427,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     "dx": {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Scalar"
+                        "dim": "Scalar",
+                        "unit": ""
                       }
                     },
                     "dy": {
                       "Literal": {
                         "value": 1.0,
-                        "dim": "Scalar"
+                        "dim": "Scalar",
+                        "unit": ""
                       }
                     }
                   }
@@ -412,13 +445,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     {
                       "Literal": {
                         "value": 1.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 3.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -429,13 +464,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 3.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -483,13 +520,15 @@ id: 7ddec231df0049f879136a2f7624647d
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     },
                     {
                       "Literal": {
                         "value": 0.0,
-                        "dim": "Length"
+                        "dim": "Length",
+                        "unit": "m"
                       }
                     }
                   ]
@@ -500,13 +539,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -518,13 +559,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -536,13 +579,15 @@ id: 7ddec231df0049f879136a2f7624647d
                       {
                         "Literal": {
                           "value": 0.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       },
                       {
                         "Literal": {
                           "value": 1.0,
-                          "dim": "Length"
+                          "dim": "Length",
+                          "unit": "m"
                         }
                       }
                     ]
@@ -562,7 +607,8 @@ id: 7ddec231df0049f879136a2f7624647d
           "distance": {
             "Literal": {
               "value": 0.5,
-              "dim": "Length"
+              "dim": "Length",
+              "unit": "m"
             }
           }
         }
@@ -573,7 +619,8 @@ id: 7ddec231df0049f879136a2f7624647d
           "distance": {
             "Literal": {
               "value": 0.1,
-              "dim": "Length"
+              "dim": "Length",
+              "unit": "m"
             }
           },
           "selection": [
@@ -764,7 +811,8 @@ id: 7ddec231df0049f879136a2f7624647d
                 "Value": {
                   "Literal": {
                     "value": 0.25,
-                    "dim": "Length"
+                    "dim": "Length",
+                    "unit": "m"
                   }
                 }
               }
@@ -790,7 +838,8 @@ id: 7ddec231df0049f879136a2f7624647d
           "bound": {
             "Literal": {
               "value": 0.1,
-              "dim": "Length"
+              "dim": "Length",
+              "unit": "m"
             }
           },
           "dir": "AtLeast"
@@ -819,13 +868,15 @@ id: 7ddec231df0049f879136a2f7624647d
       "clearance": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.001
+          "value": 0.001,
+          "display_unit": "m"
         }
       },
       "depth": {
         "Continuous": {
           "dim": "Length",
           "value": 0.75,
+          "display_unit": "m",
           "distribution": {
             "TruncatedNormal": {
               "sigma": 0.002,

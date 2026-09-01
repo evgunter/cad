@@ -19,6 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::UnitSym;
 use editor_core::{
     Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocParam, DocumentId,
     EditError, ParamName, PersistError, ProfileDoc, REGENERATE_RECOURSE, SCHEMA_VERSION, apply,
@@ -101,7 +102,7 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
     DocParam::Continuous {
         dim: Dimension::Length,
         value,
-        display_unit: None,
+        display_unit: UnitSym::canonical_for(Dimension::Length),
         distribution: Some(distribution),
     }
 }
@@ -342,7 +343,7 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     let broken = DocParam::Continuous {
         dim: Dimension::Count,
         value: 1.0,
-        display_unit: None,
+        display_unit: UnitSym::canonical_for(Dimension::Count),
         distribution: Some(Distribution::Normal { sigma: -1.0 }),
     };
     assert_eq!(

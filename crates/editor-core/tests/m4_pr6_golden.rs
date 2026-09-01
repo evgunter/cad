@@ -22,6 +22,7 @@
 
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
     LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
@@ -70,7 +71,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::TruncatedNormal {
                     sigma: 0.002,
                     lo: -0.005,

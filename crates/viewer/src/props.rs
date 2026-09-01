@@ -85,8 +85,8 @@ use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,
     ProfileProgram, RecipeNodeId, SlotId, VectorSlot, eval, eval_count, unparse,
 };
-use pncad::prelude::{M, PI};
-use pncad::quantity::{UNITS, UnitDef, UnitQuantity};
+use pncad::prelude::{M, RAD};
+use pncad::quantity::{self, UNITS, UnitDef, UnitQuantity};
 
 /// What is in a slot right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -129,37 +129,6 @@ impl SlotValue {
     }
 }
 
-/// The unit a value of `dimension` is WRITTEN in, given the unit its
-/// literal remembers (`None` when it remembers none, and for every
-/// value that is not a stored literal).
-///
-/// The fallback is never "no unit": the reader gets a suffix saying
-/// what they are looking at instead of a bare number they have to know
-/// is metres or radians.
-///
-/// **A LENGTH falls back to `m`, an ANGLE to `pi rad`, and the two
-/// fallbacks rest on different grounds.** `m`'s factor is exactly 1.0,
-/// so writing a canonical length in it is the f64 identity. `pi rad`'s
-/// is π: writing a canonical angle in it is a real DIVIDE, and an
-/// angle that was not authored in half-turns presents as a fraction of
-/// π — `0.7 rad` reads as `0.22281692032865351 pi rad`. That is the
-/// chosen default, not an oversight: half-turns are how angles are
-/// said in this editor, and an unauthored angle says so too.
-///
-/// `Scalar` and `Count` have no units at all — a direction component
-/// and an instance count are numbers, not quantities — and answer
-/// `None`.
-pub fn written_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Option<UnitDef> {
-    if let Some(unit) = remembered {
-        return Some(unit);
-    }
-    match dimension {
-        Dimension::Length => Some(M.def()),
-        Dimension::Angle => Some(PI.def()),
-        Dimension::Scalar | Dimension::Count => None,
-    }
-}
-
 /// Every unit a value of `dimension` may be written in — the picker's
 /// options, read off the closed table so a unit added to `quantity`
 /// appears here the day it lands.
@@ -175,18 +144,56 @@ pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
         .collect()
 }
 
+/// **The unit a panel row is RENDERED in**: the notation the row's
+/// literal remembers, or — for a row driven by an expression — the
+/// canonical one.
+///
+/// The `None` case is not a literal's; a literal always names its unit
+/// (`Expr::display_unit` answers `None` only for the kinds that are not
+/// literals). It is a COMPUTED value's, and a computed value was never
+/// written by anyone, so some reader has to choose. This function is
+/// the one place that choice is made, which is the whole point of it
+/// existing: its predecessor made the choice for literals too, and
+/// disagreed with the text formatter about unmarked angles — the same
+/// stored value read `0.7 rad` through `unparse` and
+/// `0.22281692032865351 pi rad` through the panel.
+///
+/// The choice is CANONICAL, so the two now agree by construction rather
+/// than by two files being edited together.
+///
+/// `Count` has no units at all — an instance count is a number, not a
+/// quantity — and answers `None`.
+pub fn rendering_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Option<UnitDef> {
+    if let Some(unit) = remembered {
+        return Some(unit);
+    }
+    match dimension {
+        Dimension::Length => Some(M.def()),
+        Dimension::Angle => Some(RAD.def()),
+        Dimension::Scalar => Some(quantity::ONE.def()),
+        Dimension::Count => None,
+    }
+}
+
 /// A canonical value as it is WRITTEN in `unit` — one divide, the
 /// inverse of the text door's one multiply.
-pub fn in_written(canonical: f64, unit: Option<UnitDef>) -> f64 {
-    unit.map_or(canonical, |u| canonical / u.factor())
+///
+/// There is no fallback arm and no `Option`: every literal names the
+/// notation it was written in, so this is always given the unit it is
+/// meant to divide by. The function this replaced had one, and its
+/// fallback for an unmarked ANGLE (`pi rad`) disagreed with the text
+/// formatter's (`rad`) — the same stored value rendered two ways
+/// depending on which reader reached it.
+pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
+    canonical / unit.factor()
 }
 
 /// A written value back to canonical — `n * factor`, which is exactly
 /// the literal semantics `parse_expr` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
 /// expression field land on the same bits.
-pub fn from_written(written: f64, unit: Option<UnitDef>) -> f64 {
-    unit.map_or(written, |u| written * u.factor())
+pub fn from_written(written: f64, unit: UnitDef) -> f64 {
+    written * unit.factor()
 }
 
 /// What decides a slot's value.
@@ -366,10 +373,19 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
 /// the same case — the source is what there is to fix.
 pub fn field_text(row: &SlotRow) -> String {
     match (&row.driver, &row.value) {
-        (SlotDriver::Literal, Ok(value)) => {
-            let written = in_written(value.as_f64(), written_unit(row.dimension, row.unit));
-            render_number(written)
-        }
+        (SlotDriver::Literal, Ok(value)) => match row.unit {
+            Some(unit) => render_number(in_written(value.as_f64(), unit)),
+            // D2 addendum row 4: this arm IS the literal case, and
+            // every literal names the unit it was written in
+            // (`Expr::display_unit` answers `None` only for the kinds
+            // that are not literals). A fallback here would be a second
+            // authority on how a stored value reads — which is the hole
+            // the dimensionless row closed.
+            None => unreachable!(
+                "slot {:?} is driven by a literal, yet its expression remembers no unit",
+                row.slot
+            ),
+        },
         _ => row.source.clone().unwrap_or_default(),
     }
 }
@@ -701,7 +717,7 @@ pub fn slot_unit_edit(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
-    unit: Option<UnitDef>,
+    unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
     let expr = doc
         .node(node)
@@ -714,11 +730,8 @@ pub fn slot_unit_edit(
     let value = expr
         .literal_value()
         .ok_or(SlotUnitFault::NotALiteral { node, slot })?;
-    let expr = match unit {
-        None => Expr::literal(value, slot.dimension()),
-        Some(unit) => Expr::literal_with_unit(value, slot.dimension(), unit),
-    }
-    .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
+    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
     Ok(DocEdit::SetParam { node, slot, expr })
 }
 

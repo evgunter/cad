@@ -43,15 +43,15 @@ pub enum DocParam {
         dim: Dimension,
         /// The value, exact `f64`.
         value: f64,
-        /// The display unit this parameter was AUTHORED in, if any —
-        /// the same presentation metadata a literal carries
+        /// The display unit this parameter was AUTHORED in — the same
+        /// presentation metadata a literal carries
         /// (`Expr::display_unit`), for the same reason: a parameter
         /// authored in millimetres should read back in millimetres.
         ///
-        /// `None` means no authored notation, which is NOT the same as
-        /// the canonical unit: a reader renders it in whatever it
-        /// renders unmarked values in, and for angles that differs
-        /// from `Some(rad)`.
+        /// Not optional, for [`crate::expr::Lit`]'s reason: a
+        /// dimensionless parameter names the dimensionless row rather
+        /// than declining to name one, so no reader has to invent a
+        /// notation and no two readers can invent different ones.
         ///
         /// It rides with the DECLARATION, beside `dim` and
         /// `distribution`, and not with the value — which is exactly
@@ -68,8 +68,7 @@ pub enum DocParam {
         /// authoring doors ([`DocParam::written_length`],
         /// [`DocParam::written_angle`]) cannot produce a mismatched
         /// one at all.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        display_unit: Option<crate::expr::UnitSym>,
+        display_unit: crate::expr::UnitSym,
         /// Optional uncertainty about this parameter (ERROR-DESIGN
         /// E1/E2), as offsets from `value` in the parameter's own
         /// `dim`. Document metadata read ONLY by
@@ -154,7 +153,7 @@ impl DocParam {
         Self::Continuous {
             dim: Dimension::Length,
             value: written.meters(),
-            display_unit: Some(crate::expr::UnitSym::from_def(&written.unit().def())),
+            display_unit: crate::expr::UnitSym::from_def(&written.unit().def()),
             distribution: None,
         }
     }
@@ -166,7 +165,7 @@ impl DocParam {
         Self::Continuous {
             dim: Dimension::Angle,
             value: written.radians_value(),
-            display_unit: Some(crate::expr::UnitSym::from_def(&written.unit().def())),
+            display_unit: crate::expr::UnitSym::from_def(&written.unit().def()),
             distribution: None,
         }
     }
@@ -177,7 +176,7 @@ impl DocParam {
         Self::Continuous {
             dim,
             value,
-            display_unit: None,
+            display_unit: crate::expr::UnitSym::canonical_for(dim),
             distribution: None,
         }
     }
@@ -190,7 +189,7 @@ impl DocParam {
         Self::Continuous {
             dim,
             value,
-            display_unit: None,
+            display_unit: crate::expr::UnitSym::canonical_for(dim),
             distribution: Some(distribution),
         }
     }

@@ -140,13 +140,15 @@ id: 7a53a4434ebf2614ffca22600a784fca
       "height": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.5
+          "value": 0.5,
+          "display_unit": "m"
         }
       },
       "section": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.12
+          "value": 0.12,
+          "display_unit": "m"
         }
       }
     },

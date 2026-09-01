@@ -204,17 +204,16 @@ fn first_display_unit_fault(
     use crate::expr::Dimension;
     snapshot.params.iter().find_map(|(name, p)| match p {
         DocParam::Continuous {
-            dim,
-            display_unit: Some(unit),
-            ..
+            dim, display_unit, ..
         } => {
-            let measured = match unit.def().quantity() {
+            let measured = match display_unit.def().quantity() {
                 quantity::UnitQuantity::Length => Dimension::Length,
                 quantity::UnitQuantity::Angle => Dimension::Angle,
+                quantity::UnitQuantity::Scalar => Dimension::Scalar,
             };
             (measured != *dim).then(|| (name.clone(), measured, *dim))
         }
-        DocParam::Continuous { .. } | DocParam::Count { .. } => None,
+        DocParam::Count { .. } => None,
     })
 }
 

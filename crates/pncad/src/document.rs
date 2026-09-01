@@ -98,7 +98,13 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // spelling and it silently DELETES an annotation, because
 // `SetDocParam` is create-or-replace; a façade that curated only the
 // deleting door would be handing every caller that trap.
-pub use editor_core::{DocParam, DocParamValue, ParamName};
+// `UnitSym` is the display-unit CODE a `DocParam::Continuous` carries
+// beside its dimension — the notation the parameter was authored in.
+// It rides here for `Distribution`'s reason: the field is `pub`, so a
+// façade that could not spell its TYPE could not build the struct at
+// all, and `UnitSym::canonical_for` is how a caller authoring in
+// metres says so.
+pub use editor_core::{DocParam, DocParamValue, ParamName, UnitSym};
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence

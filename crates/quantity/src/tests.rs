@@ -6,14 +6,17 @@
 use proptest::prelude::*;
 
 use crate::{
-    Angle, CENTI, CM, DEG, FmtQuantityError, IN, Length, M, MILLI, MM, PI, RAD, UNITS, UnitDef,
-    UnitQuantity, WrittenAngle, WrittenLength, fmt_angle, fmt_length, unit_by_symbol,
+    Angle, CENTI, CM, DEG, FmtQuantityError, IN, Length, M, MILLI, MM, ONE, PI, RAD, UNITS,
+    UnitDef, UnitQuantity, WrittenAngle, WrittenLength, fmt_angle, fmt_length, unit_by_symbol,
 };
 
 #[test]
 fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     let symbols: Vec<&str> = UNITS.iter().map(|u| u.symbol()).collect();
-    assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad", "pi rad"]);
+    // The dimensionless row is LAST and its symbol is the empty string
+    // — the notation of a number written with no suffix. Last so that
+    // the rows a user can pick are a prefix of the table.
+    assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad", "pi rad", ""]);
     assert_eq!(MM.factor(), MILLI);
     assert_eq!(MILLI, 1e-3);
     assert_eq!(CM.factor(), CENTI);
@@ -122,11 +125,13 @@ fn parse_back(text: &str, expect_symbol_or_canonical: [&str; 2]) -> f64 {
 proptest! {
     #[test]
     // "Sampled" is honest (NOTE-2 of the PR #267 review): the DOMAIN
-    // is all finite f64 × all six units; a run samples proptest's
-    // configured case count from it.
+    // is all finite f64 × all seven FORMATTABLE units; a run samples
+    // proptest's configured case count from it. The dimensionless row
+    // is excluded because it has no formatter and no suffix — its
+    // "text" is the bare number, which `expr`'s writer produces.
     fn fmt_round_trip_bit_exact_sampled_over_finite_values_and_units(
         value in proptest::num::f64::ANY.prop_filter("finite", |v| v.is_finite()),
-        unit_idx in 0usize..6,
+        unit_idx in 0usize..7,
     ) {
         let u = UNITS[unit_idx];
         let (text, canonical) = match u.quantity() {
@@ -139,6 +144,10 @@ proptest! {
                 fmt_angle(value, u.as_angle().expect("an Angle row has an angle view"))
                     .unwrap(),
                 "rad",
+            ),
+            UnitQuantity::Scalar => unreachable!(
+                "the dimensionless row is index {} and this generator stops before it",
+                UNITS.len() - 1
             ),
         };
         let back = parse_back(&text, [u.symbol(), canonical]);
@@ -261,6 +270,17 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
     let mut angles = 0_u32;
     for row in UNITS {
         match row.quantity() {
+            UnitQuantity::Scalar => {
+                let view = row.as_scalar().expect("the Scalar row has a scalar view");
+                assert_eq!(
+                    row.as_length(),
+                    None,
+                    "the dimensionless row is not a length"
+                );
+                assert_eq!(row.as_angle(), None, "nor an angle");
+                assert_eq!(view.symbol(), "", "its notation is the ABSENCE of a suffix");
+                assert_eq!(view.factor(), 1.0, "and there is nothing to convert");
+            }
             UnitQuantity::Length => {
                 let view = row.as_length().expect("a Length row has a length view");
                 assert_eq!(row.as_angle(), None, "{} is not an angle", row.symbol());
@@ -341,7 +361,7 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
     // not have fails to compile, and one naming a row it does have is
     // already in the loop. This row catches the remaining case — a row
     // added to the table with no constant exported for it.
-    let constants: [&str; 7] = [
+    let constants: [&str; 8] = [
         MM.symbol(),
         CM.symbol(),
         M.symbol(),
@@ -349,6 +369,7 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
         DEG.symbol(),
         RAD.symbol(),
         PI.symbol(),
+        ONE.symbol(),
     ];
     let mut tabled: Vec<&str> = UNITS.iter().map(UnitDef::symbol).collect();
     let mut named = constants.to_vec();
@@ -469,6 +490,10 @@ fn the_already_canonical_door_attaches_notation_without_applying_it() {
 fn each_carrier_admits_exactly_its_own_half_of_the_table() {
     for row in UNITS {
         match row.quantity() {
+            // The dimensionless row has no carrier: there is only one
+            // way to write a dimensionless number, so there is nothing
+            // for an authored value to remember beyond its dimension.
+            UnitQuantity::Scalar => assert_eq!(row.symbol(), ""),
             UnitQuantity::Length => {
                 let unit = row.as_length().expect("a Length row has the length view");
                 let written = WrittenLength::in_unit(3.0, unit);

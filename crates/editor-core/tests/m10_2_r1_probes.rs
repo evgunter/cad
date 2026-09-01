@@ -15,6 +15,7 @@
 #[path = "fixture/mod.rs"]
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
     DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
@@ -112,7 +113,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
             },
         },
@@ -987,18 +988,36 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
 
     // (a) The bound's dimension: Length → Angle. The bound literal is
     // distinctive, so locate its dim line relative to it.
-    let target = "\"value\": 0.777,\n              \"dim\": \"Length\"";
+    //
+    // The UNIT moves with the dim, and must: since v20 every literal
+    // names the notation it was written in, so a literal whose dim said
+    // `Angle` while its unit said `m` is corrupt in a NEARER way, and
+    // the wire rebuild refuses it as a display-unit mismatch before the
+    // snapshot walk this row is about ever runs. Moving both keeps the
+    // literal well-formed and leaves exactly one thing wrong with the
+    // document — the bound's dimension against its measure — which is
+    // what this row is here to pin.
+    let target =
+        "\"value\": 0.777,\n              \"dim\": \"Length\",\n              \"unit\": \"m\"";
     let (target, replacement) = if text.contains(target) {
-        (target.to_string(), target.replace("Length", "Angle"))
+        (
+            target.to_string(),
+            target
+                .replace("Length", "Angle")
+                .replace("\"m\"", "\"rad\""),
+        )
     } else {
         // Fall back to a whitespace-insensitive locate: find the literal,
-        // then the next "Length" after it.
+        // then the next "Length" and the unit after it.
         let at = text
             .find("0.777")
             .expect("the bound literal is in the file");
-        let dim_at = text[at..].find("\"Length\"").expect("its dim follows") + at;
-        let t = &text[at..dim_at + 8];
-        (t.to_string(), t.replace("Length", "Angle"))
+        let unit_at = text[at..].find("\"m\"").expect("its unit follows") + at;
+        let t = &text[at..unit_at + 3];
+        (
+            t.to_string(),
+            t.replace("Length", "Angle").replace("\"m\"", "\"rad\""),
+        )
     };
     assert_eq!(text.matches(&target).count(), 1);
     let corrupt = text.replace(&target, &replacement);
@@ -1081,7 +1100,7 @@ fn r1_own_document_web_and_flip() {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
             },
         },

@@ -38,20 +38,23 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
                   {
                     "Literal": {
                       "value": 0.3,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   },
                   {
                     "Literal": {
                       "value": 0.0,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   }
                 ],
                 "radius": {
                   "Literal": {
                     "value": 0.07,
-                    "dim": "Length"
+                    "dim": "Length",
+                    "unit": "m"
                   }
                 }
               }
@@ -62,20 +65,23 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
                   {
                     "Literal": {
                       "value": 0.3,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   },
                   {
                     "Literal": {
                       "value": 0.0,
-                      "dim": "Length"
+                      "dim": "Length",
+                      "unit": "m"
                     }
                   }
                 ],
                 "radius": {
                   "Literal": {
                     "value": 0.05,
-                    "dim": "Length"
+                    "dim": "Length",
+                    "unit": "m"
                   }
                 }
               }
@@ -90,19 +96,22 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
               {
                 "Literal": {
                   "value": 0.0,
-                  "dim": "Length"
+                  "dim": "Length",
+                  "unit": "m"
                 }
               },
               {
                 "Literal": {
                   "value": 0.0,
-                  "dim": "Length"
+                  "dim": "Length",
+                  "unit": "m"
                 }
               },
               {
                 "Literal": {
                   "value": 0.0,
-                  "dim": "Length"
+                  "dim": "Length",
+                  "unit": "m"
                 }
               }
             ],
@@ -110,19 +119,22 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
               {
                 "Literal": {
                   "value": 0.0,
-                  "dim": "Scalar"
+                  "dim": "Scalar",
+                  "unit": ""
                 }
               },
               {
                 "Literal": {
                   "value": 1.0,
-                  "dim": "Scalar"
+                  "dim": "Scalar",
+                  "unit": ""
                 }
               },
               {
                 "Literal": {
                   "value": 0.0,
-                  "dim": "Scalar"
+                  "dim": "Scalar",
+                  "unit": ""
                 }
               }
             ]
@@ -136,7 +148,8 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           "angle": {
             "Literal": {
               "value": 6.283185307179586,
-              "dim": "Angle"
+              "dim": "Angle",
+              "unit": "rad"
             }
           }
         }
