@@ -197,30 +197,50 @@ fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
 /// arm's probes have the same two jobs against the same two kinds of
 /// shell and a second spelling would only be a second thing to keep in
 /// step. What differs is the shell it has to clear, and that is derived
-/// and measured here rather than inherited:
+/// and measured here rather than inherited.
 ///
 /// # The torus's own shells
 ///
 /// - the **residual** shell, where the boundary pre-pass's exact signed
 ///   distance to the tube compares against `Zero`: linear in ε, about
-///   `K·ε`. **Measured 9.7e-9 at the default row**, at the equators and
-///   at a generic 45° surface point alike;
+///   `K·ε`. **Measured 9.7e-9 at the default row**, at both equators and
+///   at a generic 45° surface point alike. Every probe in this suite but
+///   one sits against this shell and clears it by five orders;
 /// - the **tangency** shell, where the quartic's discriminant escalates.
-///   For a monic quartic `Δ = Π(t_i − t_j)²`, so two roots a distance
-///   `δ` apart put the margin (metered over `ext¹¹`) at about `δ²/ext`
-///   and the shell at `√(K·ε·ext)` — the same square-root law the cone
-///   arm's apex shell obeys, for the same reason. It is NOT everywhere:
-///   the quartic degenerates on a locus of (point, direction) pairs, and
-///   what makes it a shell around part of the BODY is the tube's top and
-///   bottom circles, where the tangent plane is perpendicular to the
-///   axis and every near-horizontal ray is near-tangent.
-///   **Measured 2.2e-4 at the default row**, some four orders wider than
-///   the residual shell, against `√(K·ε·1.3) = 1.1e-4`.
+///   It is NOT everywhere: the quartic degenerates on a locus of
+///   (point, direction) pairs, and what makes part of it a shell around
+///   the BODY is the tube's top and bottom circles, where the tangent
+///   plane is perpendicular to the axis.
 ///
-/// So the binding constraint is the tangency shell, and at the default
-/// row the floor clears it by a factor of about four — not by orders.
-/// The guard row below re-measures it on every run rather than trusting
-/// this paragraph, and asserts the clearance at 2×.
+/// # The tangency shell is a CUBE root, and that exponent is measured
+///
+/// The cone arm's apex shell is `√(K·ε·v_ext)` because the discriminant
+/// there has a simple zero in the root gap: one pair of roots merges.
+/// The obvious guess here is the same law, and **it is wrong** — the
+/// plane `h = r` touches the torus along a whole CIRCLE rather than at a
+/// point, so two root pairs merge together and the discriminant's zero
+/// on that locus is of higher order. Measured, walking a probe in toward
+/// the top circle until the door stops answering:
+///
+/// | ε | `away()` | tangency shell | `(K·ε·ext²)^⅓` | clearance |
+/// |---|---|---|---|---|
+/// | 1e-12 | 1e-3 (floor) | 3.69e-5 | 2.57e-4 | 27.1× |
+/// | 1e-9 (default) | 1e-3 (floor) | 3.66e-4 | 2.57e-3 | **2.7×** |
+/// | 1e-6 | 1e-1 (ceiling) | 3.62e-3 | 2.57e-2 | 27.6× |
+///
+/// The shell falls by a factor of **9.905 per three decades of ε** —
+/// twice, to three digits — which is `1000^(1/3)`, not `√1000`. Against
+/// `(K·ε·ext²)^⅓` the ratio is 0.143, constant to three digits across
+/// all three rows. The exponent is therefore **measured, not derived**:
+/// what is claimed here is the law the numbers show, and the guard row
+/// below re-measures it at whatever ε the run drew — which is what
+/// catches an exponent that has moved, since a `√ε` law is off by ten at
+/// the 1e-12 row.
+///
+/// So the default row is the tight one and the floor clears it by a
+/// factor of under three. It scales as `K^⅓` too, so raising
+/// `CAD_AMBIGUITY_K` three decades puts the shell past this floor; the
+/// guard row goes red saying so, and the fix is to raise the FLOOR.
 ///
 /// The clamp saturates at every shipped ε row (floor at 1e-9 and 1e-12,
 /// ceiling at 1e-6), exactly as BOOL-2 records: `1e6·ε` lands inside
@@ -551,8 +571,10 @@ fn an_uncertain_root_count_escalates_naming_its_predicate() {
 ///    quartic's metering changes, the shell moves and [`away`]'s numbers
 ///    become fiction;
 /// 3. the floor still CLEARS that shell, asserted at 2× against a
-///    measured ≈4× at the default row. This is the assertion that goes
-///    red when `CAD_AMBIGUITY_K` is raised: the shell grows like `√K`.
+///    measured 2.7× at the default row — which is the tightest of the
+///    three and leaves the least headroom of any margin in this suite.
+///    This is the assertion that goes red when `CAD_AMBIGUITY_K` is
+///    raised: the shell grows like `K^⅓`.
 ///    The fix is then to raise the floor — never to widen the band, and
 ///    never to move a probe off the geometry it means.
 #[test]
@@ -579,11 +601,22 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
         }
         d /= 1.05;
     }
+    println!(
+        "MEASURED eps={:e} shell={:e}",
+        Tol::witness().get().eps,
+        shell
+    );
     let k = Tol::witness().get().eps * 10.0; // the ambiguity band's own K·ε
-    let law = (k * FIXTURE_EXTENT).sqrt();
+    // The measured law (see [`away`]): `C·(K·ε·ext²)^⅓` with C ≈ 0.143,
+    // constant to three digits across all three shipped ε rows. This one
+    // assertion checks the EXPONENT as well as the constant, because it
+    // runs at whatever ε the run drew: a `√ε` law would be off by ten at
+    // the 1e-12 row, which is how the exponent was found in the first
+    // place.
+    let law = (k * FIXTURE_EXTENT.powi(2)).cbrt() * 0.143;
     assert!(
-        shell > law / 8.0 && shell < law * 8.0,
-        "the tangency shell {shell:e} no longer tracks √(K·ε·ext) = {law:e} — the \
+        shell > law / 2.0 && shell < law * 2.0,
+        "the tangency shell {shell:e} no longer tracks the measured law {law:e} — the \
          quartic's discriminant metering moved, and [`away`]'s table with it"
     );
     // (3) the clearance.
@@ -591,7 +624,7 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
         away() > shell * 2.0,
         "the probe offset {} no longer clears the tangency shell {shell:e} by 2× — \
          raise the FLOOR in `away`, never widen the band or move the probe off the \
-         geometry it means (the shell grows as √K and √ε)",
+         geometry it means (the shell grows as the CUBE root of K and of ε)",
         away()
     );
 }

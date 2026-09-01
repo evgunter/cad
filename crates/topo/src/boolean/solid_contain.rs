@@ -2579,13 +2579,21 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// the D4-honest length: for a monic quartic `Δ = Π_{i<j}(t_i − t_j)²`,
 /// so two roots a distance `δ` apart with the rest spread over the
 /// body's own scale put `Δ ≈ δ²·ext¹⁰` and the margin at `δ²/ext`.
-/// **The escalation shell is therefore `√(K·ε·ext)` wide, not `K·ε`** —
-/// the same square-root law the cone arm's apex shell obeys, for the
-/// same reason (a merging pair of roots is a quadratic zero of the
-/// discriminant), and the same law the suite's guard row re-measures.
-/// Near a ray's tangency to the tube this door refuses over a band four
-/// orders wider than the linear one, and that is the honest price of
-/// answering only on a certified count.
+///
+/// **So this door refuses over a BAND around a tangency, and the band is
+/// wide.** A caller reading "a tangent ray grazes" will assume a
+/// measure-zero nuisance; it is not, for the same reason the cone arm's
+/// apex refusal is not. Where the escalation surrounds a feature of the
+/// BODY — the tube's top and bottom circles, whose tangent plane is
+/// perpendicular to the axis — it is a CUBE-root shell in ε, **measured
+/// at ≈3.7e-4 metres on a unit-sized torus at the default ε** and
+/// falling by a factor of 9.9 per three decades of ε. That exponent is
+/// measured rather than derived: the plane `h = r` touches the torus
+/// along a whole CIRCLE rather than at a point, so two root pairs merge
+/// together there and the discriminant's zero is of higher order than
+/// the cone apex's single merging pair (which gives that arm its `√ε`).
+/// `bool3_torus_doors::the_clamp_floor_clears_the_torus_tangency_shell`
+/// re-measures the law on every run, at whatever ε the run drew.
 ///
 /// # Errors
 ///

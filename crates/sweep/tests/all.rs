@@ -52,6 +52,8 @@ mod bool2_r1_probes;
 mod bool2_r2_probes;
 #[path = "bool3_torus_doors.rs"]
 mod bool3_torus_doors;
+#[path = "bool3_torus_doors_interval.rs"]
+mod bool3_torus_doors_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
