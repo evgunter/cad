@@ -206,6 +206,23 @@ Because the marks are *mixed over* the body colour rather than
 replacing it, what any such check must measure is the composited
 colour, never the raw tint.
 
+**A palette also states its GROUND** — what fills the viewport where
+no geometry is drawn (`Theme::ground`; added 2026-09-01 at Evan's
+report that a light theme showed its parts on a black field). It has
+to be the palette's rather than the toolkit's for the reason every
+other colour here is: the pane is a custom pass that paints only what
+the model covers, so a ground left unstated is a ground the window's
+clear colour decides behind the palette's back — and it is the surface
+every swatch is finally seen against, so it is held to the same
+separation bar the marks are.
+
+That bar is what moved `colorblind-safe` onto a LIGHT ground. Its mark
+ladder puts two of four marks below the body — a deep blue hover and a
+near-black probe — and on a dark ground those two are the swatches
+that disappear; measured, no dark ground clears the bar at all, while
+a near-white one clears it twice over. A palette whose marks run
+downward needs a ground above all of them.
+
 **Preferences are remembered in a file people can open**, at
 `$XDG_CONFIG_HOME/pncad/viewer.toml` — hand-editable TOML, chosen over
 eframe's `persistence` blob for exactly that reason. The document is a
