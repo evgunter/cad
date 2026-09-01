@@ -5033,8 +5033,9 @@ mod inf_arms {
 /// why the interval lane exists: there every step rounds outward and
 /// the returned bracket's `lo()` is a genuine certified floor. These
 /// rows check exactly that.
-#[cfg(all(test, feature = "interval"))]
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[cfg(feature = "interval")]
 mod inf_arms_interval {
     use super::certified_arms;
     use geom::{NurbsSurface, Surface};

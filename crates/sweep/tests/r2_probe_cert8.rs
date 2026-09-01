@@ -313,7 +313,11 @@ fn probe_random_charts_never_break_the_certified_arms() {
         let d = (i.area_inf / (i.inf_u * i.inf_v)).powi(2);
         let root = (t * t - 4.0 * d).max(0.0).sqrt();
         let rho = (2.0 * d / (t + root)).sqrt().min(1.0);
-        if !(rho > 1e-12) {
+        // NaN must fall into this arm: a chart whose assembly went
+        // poison is not a counterexample, it is a skip. Spelled
+        // positively so the NaN case is visible rather than hiding
+        // behind a negated partial comparison.
+        if rho <= 1e-12 || rho.is_nan() {
             continue;
         }
         let (au, av) = (i.inf_u * rho, i.inf_v * rho);

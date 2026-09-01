@@ -147,12 +147,12 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
         .expect("the bulged prism builds")
         .body;
     for (_, face) in body.faces() {
-        if let Some(s @ Surface::Nurbs(p)) = body.get_surface(face.surface) {
-            if !p.is_placeholder() {
-                let inf = geom_brep::chart_stretch_inf(s);
-                if (inf.inf_u - 1.0488).abs() < 0.01 {
-                    probe("iso-arc-wall", s);
-                }
+        if let Some(s @ Surface::Nurbs(p)) = body.get_surface(face.surface)
+            && !p.is_placeholder()
+        {
+            let inf = geom_brep::chart_stretch_inf(s);
+            if (inf.inf_u - 1.0488).abs() < 0.01 {
+                probe("iso-arc-wall", s);
             }
         }
     }
