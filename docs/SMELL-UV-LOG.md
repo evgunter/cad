@@ -110,6 +110,48 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 | (blocked, kept visible) | C6 | each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format) — unchanged |
 | (not work) | D360 | a sweep rule, binding on any lane that sweeps `topo` refusal enums in this fence |
 
+## Resting state (2026-09-01, end of the constituting session)
+
+**Waves 1–3 complete: seventeen §D rows retired across eleven merged
+unit/docs PRs** (1448, 1452, 1453, 1454, 1475, 1481, 1490, 1493, 1497,
+1498, 1502, 1503) — E-m/#711, D94, D361, D362, D81, D121, D47, D37,
+D39, C16, D75, D340, D363, C12, S105, D342, D344. Every unit carried a
+style review with executed receipts; adversarial correctness attention
+rode the reviews where a wrong answer was reachable. Issues closed en
+route: #730, #1282 (its profile half; the issue stays open on its
+stated remainder), #1480. Issues filed: #1491, #1495, #1504 (plus the
+#1492 refinement). The commissioned scan of the five unscanned crates
+is adjudicated (S410–S415; S410/S413 landed same-day).
+
+**Successor pickup order, by expected value:**
+
+1. **D343** — the Class-B lane over the two STEP crates; everything it
+   needs exists (the adjudication rule, the guard idiom, the two-
+   vocabulary corrupt-body datum uv-j recorded).
+2. **D366** — the kind-mirror pair (`NodeErrorKind` + the 48-arm tag
+   map), deciding the `transition_table!`-style single-declaration
+   question uniformly for both mirrors (PR 1490's review holds the
+   argument); #1491 is the `topo` sibling to coordinate with S-BOOL.
+3. **D364, D365, D341, D367** — each small, each with its idiom already
+   landed (PR 1475's census, PR 1503's accept-funnel).
+4. Unrowed findings S414/S415, and #1495's options-struct lane.
+
+**Holds, and what wakes each:** C13/C14 wake when LIB drafts the
+#741/#742 plans and Evan signs off (UV-R5). G4 wakes when Track K's
+allowlist answer exists — the collapse is proven mechanical and PR
+1453's body carries the whole recipe (UV-R8). S190's residue wakes on
+S-BOOL's pair-carrying `CensusUnsupported` (#855, UV-R6).
+`product.rs:202` wakes on M10's leave (D363's remainder, carried in
+PR 1454/1498's bodies). C6 unchanged. D360 stays a standing sweep rule.
+
+**Operational notes for a successor:** diff open PRs against main as of
+NOW (the constitution's stale-main lesson); state-sync rides the unit
+branch last and merges without a fresh run only when docs-only on a
+green head; the Fable usage window filled once mid-session — lanes
+survived because everything was pushed continuously; hosted CI's
+sampler drew two or three distinct matrix points across most branches'
+heads, worth recording per PR but never a matrix claim.
+
 ## Lane records (wave 3)
 
 **uv-j (PR 1503, merged).** D342: the dangling-point skip in
