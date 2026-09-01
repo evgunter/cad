@@ -35,10 +35,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_brep::SurfaceKind;
 use geom_core::{Band, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, FaceContainment, FaceKey};
 
 fn band() -> Band {
@@ -116,14 +118,11 @@ fn rimmed_ball(u_r: f64, turn: Revolution<f64>) -> Body<f64> {
 }
 
 fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, fd)| {
-            matches!(
-                body.get_surface(fd.surface),
-                Some(geom::Surface::Sphere { .. })
-            )
+    query::all_faces(body)
+        .into_iter()
+        .filter(|&f| {
+            query::face_surface_matches(body, f, SurfaceKindSet::just(SurfaceKind::Sphere))
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
