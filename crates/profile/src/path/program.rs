@@ -801,7 +801,9 @@ transition_table! {
             /// A declared straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier and
             /// refuses [`PathError::SameCarrierJunction`] — extend the
-            /// original leg instead.
+            /// original leg, or, where the extra vertex is the point, take the
+            /// straight-continuation row below: `line(len)` off the directed
+            /// point subdivides the carrier structurally and declares nothing.
             ///
             /// `len` must classify definitely positive
             /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
@@ -820,6 +822,45 @@ transition_table! {
             arms {
                 DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
                 DynTip::DirectedIncoming(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+            }
+        }
+        row {
+            /// **The straight continuation** (`directed point → directed
+            /// point`): off a DIRECTED POINT — no director bound — the leg
+            /// departs along the point's own intrinsic tangent — the RAY
+            /// inherited bitwise, so consecutive legs run on ONE ray rather
+            /// than on two a round trip through the angle put a bit apart.
+            /// (The ray is what is exact; the vertices it lands are ordinary
+            /// sums and round like ordinary sums.) Binding bits
+            /// only: there is NO junction here (no authored direction exists to
+            /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
+            /// declared. The minted vertex is a structural subdivision of the
+            /// carrier the binding bits already determine — a straight run said
+            /// on more vertices than it has corners, which is the loft
+            /// vertex-budget shape.
+            ///
+            /// The row is carrier-blind, as the §2c axiom requires: it reads
+            /// the tangent and nothing about the leg that produced it. Off an
+            /// ARC-carrier point the same spelling therefore authors a line
+            /// tangent to that arc and declares nothing, which is a tangency
+            /// between DISTINCT carriers — legal to write here, refused at the
+            /// data gate ([`crate::ProfileError::UndeclaredTangency`]); declare
+            /// it with `.tangent()` instead.
+            ///
+            /// `len` is gated definitely positive exactly as the directed row's
+            /// is ([`PathError::NonpositiveLeg`]).
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn line [(
+                mut self,
+                len: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Line(len));
+                self.straight_continuation_kernel(len, tol)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
             }
         }
@@ -1695,6 +1736,16 @@ impl<T: Real> ReplayError<T> {
     }
 }
 
+// The one home of the (state, verb) rendering rule, which
+// `editor-core`'s `ProgramFault::Lattice` repeats for the fault this
+// refusal raises there. The pair is a COORDINATE in the transition
+// table — the row a reader looks up next — so both halves render
+// through `Debug`: the variant spelling is the lookup key and a prose
+// paraphrase would not find it, which is the identifiers-as-location
+// case. Each is introduced by the noun it is ("verb", "tip") so the
+// identifier reads as a value in the sentence and not as a dump that
+// leaked into one. Scalars and typed payloads elsewhere in this
+// module render as words; these do not.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
@@ -1703,14 +1754,15 @@ impl<T: Real> core::fmt::Display for ReplayError<T> {
                 verb: Some(verb),
             } => write!(
                 f,
-                "step {}: {verb:?} is not a legal continuation of a {state:?} tip \
-                 (lattice violation — no authoring surface can produce this program)",
+                "step {}: the {verb:?} verb is not a legal continuation of tip state \
+                 {state:?} (lattice violation — no authoring surface can produce this \
+                 program)",
                 self.step
             ),
             ReplayErrorKind::Transition { state, verb: None } => write!(
                 f,
-                "step {}: the program ends at a {state:?} tip without closing the loop \
-                 (lattice violation — a chain must end at Start)",
+                "step {}: the program ends at tip state {state:?} without closing the \
+                 loop (lattice violation — a chain must end at Start)",
                 self.step
             ),
             ReplayErrorKind::Path(source) => {

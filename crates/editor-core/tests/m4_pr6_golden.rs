@@ -4,7 +4,7 @@
 //! fixpoint is BLIND to format drift: rename a field and save/load
 //! stay self-consistent while every existing v1 file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v19_golden.cad`): the fixture document must save to
+//! (`tests/golden/v20_golden.cad`): the fixture document must save to
 //! exactly those bytes, and the bytes must load. Any change to either
 //! is a format change and demands a ratified schema bump + migration
 //! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
@@ -22,6 +22,7 @@
 
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
     LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
@@ -31,8 +32,8 @@ use editor_core::{
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v19_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v19_golden.cad";
+const GOLDEN: &str = include_str!("golden/v20_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v20_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -70,6 +71,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::TruncatedNormal {
                     sigma: 0.002,
                     lo: -0.005,

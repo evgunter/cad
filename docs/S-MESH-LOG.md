@@ -160,3 +160,30 @@ adoption transversality bar — the site now says so.
 Slate next: MESH-5 (#685) dispatches on lane-budget room; MESH-8
 inherits the corrected halfcap witness. Issue 881 carries the two
 new measurements as MESH-4 substrate.
+
+## MESH-5 merged (2026-09-01) — issue 685 closed by measurement; one strip is right
+
+PR 1507 at fix head `c79609f7`. Gates: impl head drew interval/1e-12,
+fix head default/default — both compile lanes spanned. The nu==1
+sizing intent is DECIDED, not patched: the two-build δ-sweep showed
+the honoured schedule multiplies the cone patch 5–9× at
+bitwise-identical deviation (the binding deviation is the rim
+chord's azimuthal sagitta — boundary geometry no interior row can
+touch), and the post-fix site cites the structural proof (cert_cone's
+worst-triangle bound is row-invariant). grid_counts' cone arm
+returns (1,1) at a single column and no longer computes the
+schedule it discarded. The S29 instance retires at the site.
+
+**The dual (ordinal 1203, sample at the row)**: R2 APPROVE, R1
+A-W-F, both arms uninterrupted — the pair COUNTS. The load-bearing
+find was bilateral at split severity (no tally candidate): the
+removed ResolutionOverflow edge IS publicly reachable (extreme-aspect
+frusta / a needle cone through revolve), so the refusal→served
+change is now stated, characterized by the true binding parameter
+(the aspect, not half-angle), and pinned red-first by an adopted
+probe. The sibling class (one-element grid axes dropping the other
+axis' schedule — sphere/torus nu==1, the nv==1 mirror,
+uniform_candidates) is scheduled as issue 1513.
+
+Slate next: MESH-4 (#881 named-ε ops) or MESH-6/7 per lane budget;
+MESH-8 holds its corrected halfcap witness from MESH-3.

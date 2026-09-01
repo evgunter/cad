@@ -105,3 +105,75 @@ closed_sphere_group scan wants one home before the torus copy
 lands; the three per-suite probe-offset spellings likewise. Slate
 next: BOOL-3 (the torus arm) or BOOL-5 (#542) per lane budget;
 issues 1434, 1401, 1402 filed en route this wave.
+
+## BOOL-3 merged (2026-09-01) — issue 1011 closed; the torus arm lands on a certified count
+
+PR 1464 at fix head `2ff0d5a9` (+ a docs-only main merge before
+state-sync). Gates: impl head interval-asked/1e-6 drawn, fix head
+interval-asked/1e-12 drawn — the leg where the cube and √ shell
+laws separate 10.2×, which the fix pass made moot by pinning the
+exponent at two fixed bands. point_in_solid answers torus-bearing
+solids: the monic quartic's root count read off exact sign algebra
+(never off the roots), the chart's two angular windows on the
+branch-pinned boundary walk (now with closure and bounding-box
+guards), Ferrari's cube root as a fixed 54-√ composition whose
+truncation gap is carried by a magnitude bound — the containment
+overclaim both reviewers caught, corrected at all three sites. The
+group scan's one home (surface_group.rs) discharges BOOL-2's
+recorded debt; the spindle receipt was narrowed to the revolve door
+after R2's sweep found the blend lane mints tori too, and the
+vanishing-rho hazard is closed by a typed refusal regardless.
+
+**The dual (ordinal 1102, sample at the row)**: R1 A-W-F 2/8/5, R2
+A-W-F with no correctness defect found by either arm — two
+independent root-count oracles (1310 and 3000+ rays) agree with the
+arm everywhere, and the sign mutant dies to 7 rows in both lanes.
+R2's fable arm was interrupted by the account limit and resumed
+same-arm, so the pair is 3(e)-EXCLUDED from the tally and the
+twelve; R1's would-be tally candidate (the √ε prose inside the
+cube-law suite's own guard obligation) is recorded uncoded. Issues
+1483/1484 filed; the 1076 sibling-sentence correction commented
+(first demonstrated instance at point_in_face, both lanes
+reproduced).
+
+Slate next: BOOL-8 (the line(len) structural continuation + the
+amended PATHS §4 text + the lily migration — the ratified Q1
+extension) dispatches next; BOOL-4/5/6/7/9/10 and the Q-track
+lanes queue behind per the shared lane budget.
+
+## BOOL-8 merged (2026-09-01) — the straight continuation lands; the seam wall becomes a ruling
+
+PR 1508 at fix head `4934c4fa` after Evan's §4 sign-off (the
+amendment reviewed in-chat; the merge condition — the Residual
+paragraph re-recorded as ruled — verified against the ratified
+plan text). Gates: both heads interval-asked with default ε drawn;
+three-ε + interval battery local at both. line(len) off a directed
+point is the structural straight continuation: one transition
+table row, the direction inherited bitwise (mutant-pinned), no
+junction, nothing declared; validate and the lattice now agree on
+the shape issue 433 found them disagreeing about; every
+keep-refusing case pinned.
+
+**The unit's real product beyond the code is a ruling.** Lily's
+migration — the spec's deliverable 4 — hit a measured wall: a
+straight run crossing the SEAM is unauthorable in either rotation,
+forced by the strict corner/subdivision alternation that
+one-subdivision-per-side produces. The implementer pinned the wall
+as rows instead of papering over it; both reviewers confirmed the
+impossibility independently (a 64-spelling exhaustive search with
+a positive control; the sharpening that uneven distribution
+authors 2/16 — the wall is the alternation, and the loft pins
+lily's vertices). Evan ruled mid-cycle (third round on Q1,
+ratified PR 1512): the declared point-target continuation — any
+authored point, checked on the departing ray, never inferred —
+with the Start-closer as the special case. Scheduled as BOOL-11,
+before the resequenced BOOL-9; the f64 meaning of "on the ray" is
+that unit's design question, returning to Evan with its §4 text.
+
+**The dual (ordinal 1103, sample at the row)**: twin A-W-F, no
+MAJOR either arm, zero silent deviations counted by both — the
+disclosure discipline (the deviation reported as a measured wall,
+not a shortfall) is the cycle's model. One dispatch correction
+recorded orchestrator-side. Issue 433 stays open for the raw-door
+half. Slate next: BOOL-11 (spec first; §4/verb-table hold for Evan
+again), then BOOL-9; BOOL-4/5/6/7/10 and the Q-track queue behind.

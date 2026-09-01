@@ -36,8 +36,9 @@
 //! **"One door" is true of these consumers, not of the workspace.**
 //! Other outward normals are still built by hand-multiplying a chart
 //! normal by [`Face::sense_sign`](crate::entity::Face::sense_sign),
-//! and this module is where they belong when smell-scan D6 is
-//! executed. **Where they are is computed, not recited**: the guard
+//! and this module is where they belong when they are consolidated —
+//! work that is owed and not scheduled here. **Where they are is
+//! computed, not recited**: the guard
 //! test below walks `topo/src`, counts every occurrence of that method
 //! in code, and fails on one its dispositioned table does not carry.
 //! The count is of the whole tree this crate can see; the rest of the
@@ -335,8 +336,8 @@ mod tests {
             assert!(
                 !(text.contains("Surface::Plane {") && text.contains("from_chart")),
                 "{} mints an OutwardNormal from a plane's chart normal — the planar \
-                 sense flip has been re-forked out of face_normal.rs (smell scan S5 / \
-                 S10). Call `face_outward_normal` instead.",
+                 sense flip has been re-forked out of face_normal.rs, which must hold \
+                 the only one. Call `face_outward_normal` instead.",
                 path.display()
             );
         }
@@ -347,8 +348,8 @@ mod tests {
         );
     }
 
-    /// **The hand-multiply inventory** — smell-scan D6's `grep
-    /// sense_sign` written as a gate rather than as a sentence. Every
+    /// **The hand-multiply inventory**, written as a gate rather than
+    /// as a sentence, because a sentence was what drifted. Every
     /// **occurrence** of [`Face::sense_sign`](crate::entity::Face::sense_sign)
     /// in the CODE of `topo/src` (comments and literal bodies removed
     /// by [`crate::fixtures::code_only`]) is counted per file and
@@ -430,14 +431,13 @@ mod tests {
     ///    consumer, and a legitimate one).
     /// 3. An identifier a macro assembles, which no textual walk sees.
     /// 4. **Every crate but this one.** The walk is `topo/src` because
-    ///    that is the tree this crate can see, and the workspace half
-    ///    is D6's. **It is deliberately not enumerated here**: a roster
-    ///    of other crates is exactly the artifact this row replaced,
-    ///    and reciting one beside a computed inventory would mint the
-    ///    same defect one level out. The out-of-crate readers are
-    ///    inventoried once, in `docs/SMELL-SCAN-2026-08.md` at S67,
-    ///    beside D6's work order — a list that is recited and says so,
-    ///    in the document where a work order belongs.
+    ///    that is the tree this crate can see. **It is deliberately
+    ///    not enumerated here**: a roster of other crates is exactly
+    ///    the artifact this row replaced, and reciting one beside a
+    ///    computed inventory would mint the same defect one level out.
+    ///    The out-of-crate readers are recited once, in
+    ///    [`crate::boolean::reduce`]'s `face_plane`, which says that it
+    ///    recites them.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
         const PINNED: [(&str, usize); 10] = [

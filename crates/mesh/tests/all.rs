@@ -57,6 +57,8 @@ mod issue303_signed_volume_recentring;
 mod issue1362_band_placement;
 #[path = "issue555_subfloor_cap.rs"]
 mod issue555_subfloor_cap;
+#[path = "issue685_nu1_sizing.rs"]
+mod issue685_nu1_sizing;
 #[path = "issue896_pole_guard.rs"]
 mod issue896_pole_guard;
 #[path = "m5_pr11_trimmed.rs"]
@@ -171,9 +173,9 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What the tokens are, per file
 ///
-/// Roles, not line numbers: lines move, and this crate's own S65
-/// record cites by name for that reason. A **hand-off** passes `eps`
-/// on; a **terminal read** compares or adds it.
+/// Roles, not line numbers: lines move, so every citation in this
+/// crate's ε inventory names a target instead. A **hand-off** passes
+/// `eps` on; a **terminal read** compares or adds it.
 ///
 /// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
 ///   else: `Tol::witness().get().eps` (two tokens on one line) and the

@@ -298,6 +298,10 @@ impl Workspace {
     /// reference names a VERSION, and the recourse is to record the
     /// acceptance of the new one.
     ///
+    /// The load's replay runs below the `Doc` wrapper, so the returned
+    /// document reports no `last_maintenance` even where the replayed
+    /// history's last edit performed some — that reading starts here.
+    ///
     /// Raises `WorkspaceError`, typed.
     fn resolve(&self, py: Python<'_>, reference: &DocRef) -> PyResult<super::doc::Doc> {
         let tol = Tol::witness();

@@ -161,8 +161,8 @@ fn boundary_pre_pass_edges() {
 /// walk's side axis `n̂ × d` merely negates every vertex ordinate,
 /// which leaves the straddle test, the graze and the crossing advance
 /// unchanged. That is what licenses `chord_join`'s ring re-homing to
-/// pass the raw CHART normal (S67 / smell-scan D6) — a reversed-sense
-/// planar face cannot re-home a ring differently from its twin.
+/// pass the raw CHART normal — a reversed-sense planar face cannot
+/// re-home a ring differently from its twin.
 ///
 /// Pinned over the three definite outcomes, the graze retry, an
 /// oblique carrier and the typed `RayExhausted` refusal — a sign that

@@ -2012,8 +2012,8 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 ///    with a curved side (F5: curved × planar included, since a
 ///    revolved cap embedded in a plate's slab leaves no
 ///    vertex/line/planar evidence), PLUS planar × planar where either
-///    side has a curved boundary (§S49: an arc rim is not in the
-///    snapshot, so a cylinder's cap leaves nothing either). Distinct-key value-equal carriers in conformal rest
+///    side has a curved boundary (an arc rim is not in the snapshot,
+///    so a cylinder's cap leaves nothing either). Distinct-key value-equal carriers in conformal rest
 ///    (the cradle witness), value-equal walls at gap zero
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
@@ -2050,7 +2050,7 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// metre coordinate differences); anything weaker refuses.
 ///
 /// A planar × planar pair is skipped only when BOTH faces are bounded
-/// entirely by line edges (§S49). That — not the kind of solid the
+/// entirely by line edges. That — not the kind of solid the
 /// faces sit on — is what the skip's premise is about: [`snapshot`]
 /// admits line edges and drops every curved one, so a wholly
 /// line-bounded planar face has its whole boundary, every vertex AND
@@ -2103,7 +2103,8 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// The unsound direction is a deferral keyed on *whether* records
 /// exist: a truthful declaration then switches the containment
 /// examination off, and an instance embedded in another's material
-/// validates clean — which it did, until §H14. The vocabulary that
+/// validates clean — which it did until the deferral was removed. The
+/// vocabulary that
 /// WOULD license a skip here is C6's recorded gate-skips, which are a
 /// statement about placement and do not exist yet; when they do, the
 /// deferral they license is keyed on the gate-skip, not on contact.
@@ -2130,8 +2131,9 @@ fn sweep_cross_solid_backstop<T: Decide>(
     // closure does not decide what that means, because its two callers
     // want opposite things from it; each answers emptiness itself, and
     // both say so at the call site. What is never allowed is the third
-    // reading, "empty means nothing to look at": §H14's residue 2 is the
-    // same `continue` in `splitting/rules.rs` under exactly that reading.
+    // reading, "empty means nothing to look at" — a `continue` on an
+    // empty set, under exactly that reading, is the same defect one
+    // deferral over, and `splitting/rules.rs` carried one.
     let face_points = |f: FK| -> Vec<Point3<T>> {
         let mut out = Vec::new();
         let Some(face) = body.get_face(f) else {
@@ -2205,7 +2207,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
 
     // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
     // planar, and the planar × planar pairs the exact sweeps cannot
-    // see (§S49: a pair is theirs only when BOTH faces are wholly
+    // see (a pair is theirs only when BOTH faces are wholly
     // line-bounded, which is what puts a whole boundary in the
     // snapshot — the module docs carry the argument).
     struct Reach<T: Real> {
@@ -2338,8 +2340,8 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // derived from the kind, so `same_key` already implies
             // `a.planar == b.planar`. It is written so the deferral
             // cannot quietly start covering pairs the conformal arm
-            // never walks — which is what it did until §S49 narrowed
-            // the skip above and made a planar pair reach this line.
+            // never walks — which is what it did until the skip above
+            // was narrowed and a planar pair began reaching this line.
             //
             // **Opposed senses is not a tautology, and it is the half
             // that makes the deferral true.** The bar this arm's docs
@@ -2999,8 +3001,8 @@ mod tests {
             .collect()
     }
 
-    /// **§H14 — what the containment arm actually says about these
-    /// scaffolds, and that it is not about where they are.**
+    /// **What the containment arm actually says about these scaffolds,
+    /// and that it is not about where they are.**
     ///
     /// Each `cyl_sheet` keeps its `mvfs` NURBS placeholder on the seed
     /// face. A placeholder net is poison, so the solid has no claimable

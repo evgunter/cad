@@ -58,6 +58,14 @@
 //! the inch do not — the census's lengths-take-prefixes rule, mirrored
 //! from step-import's `si_unit_kind` (prefixed angles refuse there).
 //!
+//! Units erase at the accessor doors because the kernel wants them
+//! gone. One consumer wants them KEPT: a document that records what a
+//! person typed, so it can be read back the way it was written.
+//! [`WrittenLength`] and [`WrittenAngle`] are that record — the
+//! canonical value beside the notation it was authored in — and they
+//! are authoring data, with no arithmetic of their own (`written`'s
+//! module docs carry the whole narrative).
+//!
 //! Finiteness: the newtypes are plain value wrappers and do not refuse
 //! non-finite floats themselves; the fail-loud doors are where values
 //! enter recipe data or the kernel (`Expr::literal`'s ruled door 1),
@@ -65,12 +73,14 @@
 
 mod fmt;
 mod units;
+mod written;
 
 pub use fmt::{FmtQuantityError, fmt_angle, fmt_length};
 pub use units::{
-    AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, PI, RAD, UNITS, UnitDef, UnitQuantity,
-    unit_by_symbol,
+    AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, ONE, PI, RAD, ScalarUnit, UNITS,
+    UnitDef, UnitQuantity, unit_by_symbol,
 };
+pub use written::{WrittenAngle, WrittenLength};
 
 use core::ops::{Add, Div, Mul, Neg, Sub};
 

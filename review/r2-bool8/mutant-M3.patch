@@ -1,0 +1,9 @@
+R2 MUTANT M3 (applied to the frozen head, run once, reverted): the
+continuation kernel declares the joint it mints.
+
+--- a/crates/profile/src/path.rs
++++ b/crates/profile/src/path.rs
+@@
+         let head = self.core.head()?;
++        self.core.declare_last(); // R2 MUTANT M3: the continuation declares
+         self.core.push_line(end)?;

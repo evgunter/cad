@@ -49,7 +49,7 @@
 //!    box whose oracle width is already large moves no ratio and is not
 //!    a fixture here. The box rows below narrow that gap for the
 //!    monotone operations; the residue — non-monotone shapes on wide
-//!    boxes — is open, and is recorded as **S134**.
+//!    boxes — is open, and nothing here covers it.
 
 mod common;
 
@@ -410,8 +410,8 @@ fn arithmetic_and_sqrt_pad_at_most_one_step() {
 /// function of the exponent, not a constant — and each component step is
 /// already bounded by the row above. That is a reason for not writing a
 /// CONSTANT here, not a reason for writing nothing: an
-/// exponent-dependent bound is derivable, is not derived, and is
-/// scheduled as smell-scan **S134** / §D row **D78**. What IS a fixed
+/// exponent-dependent bound is derivable and is not derived — owed
+/// work rather than a contract. What IS a fixed
 /// contract here is the one `powi` carries for soundness: an even power of a zero-straddling
 /// interval has lower bound exactly `0.0`, no pad, so a downstream
 /// `sqrt` never sees a spurious negative.

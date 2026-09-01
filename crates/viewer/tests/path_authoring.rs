@@ -19,7 +19,7 @@
 
 mod common;
 
-use common::insert;
+use common::{insert, len, shape};
 use pncad::document::{Doc, ValuePayload};
 use pncad::geom_core::Tol;
 use pncad::profile::{ArcSide, ArcSweep, SketchPlane, TipState, Verb};
@@ -76,14 +76,14 @@ fn a_line_chain_previews_and_authors_the_same_square() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![square(side)],
+            loops: vec![shape(&square(side))],
         },
     );
     let extrude = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,
-            distance: 0.01,
+            distance: len(0.01),
         },
     );
     session.pump();
@@ -106,7 +106,7 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
     let tol = Tol::witness();
     let radius = 0.01;
     // A half turn: b = tan(θ/4) = tan(π/4) = 1 over the diameter.
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![
             PathStep::At([-radius, 0.0]),
             PathStep::ArcTo(ArcSpec::Bulge {
@@ -116,7 +116,13 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
             PathStep::LineTo(PathTarget::Start),
         ],
     };
-    let drawn = preview(SketchPlane::xy(), &[shape], tol, CHORD).expect("the half disc closes");
+    let drawn = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect("the half disc closes");
     let points = &drawn.loops[0];
     assert!(
         points.len() > 8,
@@ -161,11 +167,16 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
 #[test]
 fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let tol = Tol::witness();
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![PathStep::At([0.0, 0.0]), PathStep::Tangent],
     };
-    let refusal = preview(SketchPlane::xy(), core::slice::from_ref(&shape), tol, CHORD)
-        .expect_err("a tangent off a plain point is ill-typed");
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a tangent off a plain point is ill-typed");
     assert!(
         matches!(
             refusal,
@@ -182,7 +193,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let mut session = session(tol);
     let out = session.perform(SessionOp::AddProfile {
         plane: SketchPlane::xy(),
-        loops: vec![shape],
+        loops: vec![shape(&template)],
     });
     assert!(
         matches!(out.refusal, Some(Refusal::Edit(_))),
@@ -201,14 +212,19 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
 #[test]
 fn an_unclosed_chain_names_the_state_it_ended_in() {
     let tol = Tol::witness();
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![
             PathStep::At([0.0, 0.0]),
             PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
         ],
     };
-    let refusal =
-        preview(SketchPlane::xy(), &[shape], tol, CHORD).expect_err("the chain never closes");
+    let refusal = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("the chain never closes");
     assert!(
         matches!(refusal, PreviewError::Transition { verb: None, .. }),
         "{refusal}",
@@ -243,7 +259,7 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let mut session = session(tol);
     let out = session.perform(SessionOp::AddProfile {
         plane: SketchPlane::xy(),
-        loops: overlapping,
+        loops: overlapping.iter().map(shape).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");
 }
@@ -338,8 +354,7 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
         "the vocabulary is bigger than this row covers — see `ordinal`'s obligation",
     );
 
-    viewer::sketch::loop_program(&ProfileShape::Path { steps })
-        .expect("every verb's fields are finite numbers of its own dimension");
+    shape(&ProfileShape::Path { steps });
 }
 
 /// Each verb's position in the vocabulary, as an exhaustive match —
@@ -378,10 +393,15 @@ fn ordinal(step: &PathStep) -> usize {
 /// this layer judges.
 #[test]
 fn a_non_finite_field_refuses_at_the_lowering() {
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![PathStep::At([f64::NAN, 0.0])],
     };
-    let refusal = preview(SketchPlane::xy(), &[shape], Tol::witness(), CHORD)
-        .expect_err("NaN is not a coordinate");
+    let refusal = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        Tol::witness(),
+        CHORD,
+    )
+    .expect_err("NaN is not a coordinate");
     assert!(matches!(refusal, PreviewError::Dimension(_)), "{refusal}",);
 }

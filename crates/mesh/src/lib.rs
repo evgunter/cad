@@ -155,7 +155,7 @@
 //! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
 //! `curved`'s module header states what runs where, and why the
 //! `debug_assert` — not a typed refusal — is the settled mechanism for
-//! that state (`SMELL-SCAN-2026-08.md` S65, ruled row 5 in #884).
+//! that state (a D2 addendum row-5 state, ruled in #884).
 //!
 //! `Surface::normal` is never sampled anywhere (winding
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole

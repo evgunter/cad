@@ -27,6 +27,12 @@
 //!   only: a `SetDocParam` in the log carries its distribution through
 //!   `apply` on replay, which is the same door and the same check
 //!   (the shape the alignment and placement notes below already take).
+//! - [`first_display_unit_fault`] — every document parameter's
+//!   authored display unit measures the dimension it was declared
+//!   with. A literal needs no twin walk (`Expr::literal_with_unit`
+//!   makes the pairing at construction and the load side re-runs it);
+//!   a `DocParam` does, because its payload is `pub` and its dimension
+//!   is data. Snapshot only, for the reason above.
 //! - [`first_program_fault`] — profile PROGRAM structure: per-slot
 //!   dimension agreement (V2's role table) and a REPLAY PROBE under
 //!   the document's params whose LATTICE violations refuse (the
@@ -164,10 +170,51 @@ pub(crate) fn validate_document(
     if let Some((name, fault)) = first_distribution_fault(snapshot) {
         return Err(super::PersistError::Distribution { name, fault });
     }
+    if let Some((name, unit, declared)) = first_display_unit_fault(snapshot) {
+        return Err(super::PersistError::DisplayUnit {
+            name,
+            unit,
+            declared,
+        });
+    }
     if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
     }
     validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
+}
+
+/// The first document parameter whose authored display unit does not
+/// MEASURE its declared dimension, as `(name, what the unit measures,
+/// what was declared)`, or `None`.
+///
+/// The SNAPSHOT only, for the reason `first_distribution_fault` walks
+/// it alone: a `SetDocParam` in the log carries its declaration through
+/// `apply` on replay, and a replayed document is a snapshot this same
+/// validator sees.
+///
+/// Expression literals need no twin walk — `Expr::literal_with_unit`
+/// checks the pairing at construction and the load side re-runs that
+/// same constructor, so a literal cannot reach a document mismatched.
+/// A `DocParam` has no such door to make total: its payload is `pub`
+/// and its dimension is data, which is exactly the asymmetry this walk
+/// covers.
+fn first_display_unit_fault(
+    snapshot: &ProfileDoc,
+) -> Option<(ParamName, crate::expr::Dimension, crate::expr::Dimension)> {
+    use crate::expr::Dimension;
+    snapshot.params.iter().find_map(|(name, p)| match p {
+        DocParam::Continuous {
+            dim, display_unit, ..
+        } => {
+            let measured = match display_unit.def().quantity() {
+                quantity::UnitQuantity::Length => Dimension::Length,
+                quantity::UnitQuantity::Angle => Dimension::Angle,
+                quantity::UnitQuantity::Scalar => Dimension::Scalar,
+            };
+            (measured != *dim).then(|| (name.clone(), measured, *dim))
+        }
+        DocParam::Count { .. } => None,
+    })
 }
 
 /// The first non-finite float in ε, the document params, the profile
@@ -524,7 +571,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::CountContinuous { name } => write!(
                 f,
-                "continuous parameter {:?} is declared with the Count dimension",
+                "continuous parameter {:?} is declared with the count dimension",
                 name.0
             ),
             Self::EpsilonInvalid { value } => write!(
@@ -566,9 +613,12 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "assertion node {} bounds a {measured:?} measure (node {}) with a {bound:?} \
-                 expression",
-                node.0, measure.0
+                "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression",
+                node.0,
+                measured.article(),
+                measure.0,
+                bound.article()
             ),
             Self::AssertionBound {
                 node,
@@ -577,9 +627,11 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "assertion node {} carries a {bound:?} bound against node {}, which is not a \
+                "assertion node {} carries {} {bound} bound against node {}, which is not a \
                  measure",
-                node.0, measure.0
+                node.0,
+                bound.article(),
+                measure.0
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
@@ -786,8 +838,11 @@ pub enum ProgramFault {
 // lattice arm states the walk failure in the same words
 // [`crate::ProgramRefusal::Transition`] does — that refusal is what
 // the probe raised — and then names the tip state and the verb that
-// could not follow it; the vocabulary tokens are the location, and
-// the typed variant remains the machine contract.
+// could not follow it, keeping their `Debug` spellings for the reason
+// `profile`'s `ReplayError` rendering states: the pair is the
+// transition table's coordinate. The dimensions beside them are
+// quantity kinds, so they render as words (`Dimension`'s `Display`).
+// The typed variant remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -801,8 +856,10 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "loop {loop_} step {step}'s {arg:?} argument needs a {expected:?} \
-                 expression, got {found:?}"
+                "loop {loop_} step {step}'s {arg:?} argument needs {} {expected} \
+                 expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::SlotDimension {
                 slot,
@@ -810,7 +867,9 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "slot {slot:?} needs a {expected:?} expression, got {found:?}"
+                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::Lattice {
                 loop_,
@@ -823,7 +882,7 @@ impl core::fmt::Display for ProgramFault {
                     "loop {loop_} step {step} is not a legal chain-lattice walk: "
                 )?;
                 match verb {
-                    Some(verb) => write!(f, "a {verb:?} verb at tip state {state:?}"),
+                    Some(verb) => write!(f, "the {verb:?} verb at tip state {state:?}"),
                     None => write!(f, "the chain is unclosed at tip state {state:?}"),
                 }
             }

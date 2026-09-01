@@ -70,6 +70,12 @@ use crate::scalar::Scalar;
 /// (250·10⁻³ lands on the same dyadic 0.25 the tour used to hand-write
 /// — pinned in editor-core's u8a_parse suite), so this is a SAID
 /// change: exports stay byte-identical.
+/// **Authored CANONICALLY, deliberately**: this scene and `checks` are
+/// the default half of the units exhibit, against `ring` (millimetres
+/// and half-turns) and `diefillet` (millimetres and degrees). Nothing
+/// here names a unit, so every literal stores the canonical row for
+/// its dimension and the panel opens on `m` because the document SAYS
+/// `m` — not because a reader had to pick a fallback.
 fn pe(src: &str) -> Expr {
     parse_expr(src, &BTreeMap::new()).expect("tour expression")
 }

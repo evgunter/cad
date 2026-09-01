@@ -53,8 +53,7 @@
 //! reciprocated by hosting the [`JoinLane::BoolPlanar`] arm and
 //! [`bool_planar_chord_spec`], which only the boolean reaches. The
 //! three-way [`JoinLane`] threaded through [`chord_spec`] was the
-//! visible cost of a shared core with no home of its own (smell scan
-//! S5).
+//! visible cost of a shared core with no home of its own.
 //!
 //! This module is that home — a **top-level sibling** of `boolean/` and
 //! `splitting/`, like [`crate::sector_shape`] and
@@ -611,9 +610,9 @@ enum SectionCase<T: Real> {
 
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, in
 /// the frame the arc-side rule reads — **one implementation for both
-/// chord lanes** (smell scan S5's residue: this classification was
-/// written twice in this file, once per lane, differing only in the
-/// wording of its refusals and in what it did with the tangent arm).
+/// chord lanes** — this classification was written twice in this file,
+/// once per lane, differing only in the wording of its refusals and in
+/// what it did with the tangent arm.
 ///
 /// **Pair-general, not plane-first.** The two arms wired today are
 /// plane×cylinder and plane×sphere, and either order is accepted: the
@@ -2632,8 +2631,8 @@ mod tests {
                 assert!(
                     path == &home || here == 0,
                     "{} names the arc-side rung {rung} — the rule has been re-forked \
-                     out of chord_join.rs (smell scan S5). Call `select_arc` / \
-                     `section_case` instead.",
+                     out of chord_join.rs, which must hold the only one. Call \
+                     `select_arc` / `section_case` instead.",
                     path.display()
                 );
             }

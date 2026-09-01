@@ -18,10 +18,7 @@
 //! id-reuse hazard it does not cover (issue #1384) are all
 //! [`crate::seats`]'s, and are not restated here.
 
-use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, Node, PatternKind, ProfileProgram,
-    RecipeNodeId,
-};
+use pncad::document::{BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::{PatternRuleSpec, SessionOp};
@@ -199,17 +196,16 @@ impl TransformTool {
         self.seats.reconcile(doc)
     }
 
-    /// **The one committed edit**: the rigid placement, in metres and
-    /// radians.
+    /// **The one committed edit**: the rigid placement.
     ///
     /// # Errors
     ///
     /// [`SeatError::Empty`] until a body is picked.
     pub fn op(
         &self,
-        translation: [f64; 3],
-        rotation_axis: [f64; 3],
-        rotation_angle: f64,
+        translation: [Expr; 3],
+        rotation_axis: [Expr; 3],
+        rotation_angle: Expr,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddTransform {
             input: self.seats.require(0)?,
@@ -289,8 +285,8 @@ impl PatternTool {
     pub fn linear_op(
         &self,
         count: i64,
-        direction: [f64; 3],
-        spacing: f64,
+        direction: [Expr; 3],
+        spacing: Expr,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddPattern {
             input: self.seats.require(0)?,
@@ -305,7 +301,7 @@ impl PatternTool {
     ///
     /// [`SeatError::Empty`] with no body picked, or with no axis
     /// picked — which this door is the only one to need.
-    pub fn circular_op(&self, count: i64, step: f64) -> Result<SessionOp, SeatError> {
+    pub fn circular_op(&self, count: i64, step: Expr) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddPattern {
             input: self.seats.require(0)?,
             count,
@@ -317,8 +313,8 @@ impl PatternTool {
     }
 }
 
-/// Lower one pattern spec to its node, minting the literal slots and
-/// the STRUCTURAL count.
+/// Lower one pattern spec to its node, placing the authored
+/// expressions and minting the STRUCTURAL count.
 ///
 /// The count is [`Expr::count`] — an exact integer — and not a
 /// continuous literal, because `SlotId::Count` is Count-dimensioned and
@@ -328,63 +324,47 @@ impl PatternTool {
 /// rounded somewhere, and every place that rounds it is a place the
 /// number can differ from what the user typed.
 ///
-/// # Errors
-///
-/// A non-finite continuous component (the literal door's refusal).
+/// Total: the continuous slots arrive as `Expr`s that were checked at
+/// their own construction, and whether each one's DIMENSION suits the
+/// slot it lands in is the edit door's question
+/// (`EditError::SlotDimensionMismatch`), asked of authored and
+/// hand-written documents alike.
 pub fn pattern_node(
     input: RecipeNodeId,
     count: i64,
     rule: PatternRuleSpec,
-) -> Result<Node<ProfileProgram>, DimensionError> {
+) -> Node<ProfileProgram> {
     let kind = match rule {
-        PatternRuleSpec::Linear { direction, spacing } => PatternKind::Linear {
-            direction: scalars(direction)?,
-            spacing: Expr::literal(spacing, Dimension::Length)?,
-        },
-        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular {
-            axis,
-            step: Expr::literal(step, Dimension::Angle)?,
-        },
+        PatternRuleSpec::Linear { direction, spacing } => {
+            PatternKind::Linear { direction, spacing }
+        }
+        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular { axis, step },
     };
-    Ok(Node::Pattern {
+    Node::Pattern {
         input,
         count: Expr::count(count),
         kind,
-    })
+    }
 }
 
-/// Lower one rigid placement to its node, minting the literal slots —
-/// translation Length, rotation axis Scalar, rotation angle Angle (the
-/// [`Node::Transform`] slot dimensions).
+/// Lower one rigid placement to its node, placing the authored
+/// expressions in the [`Node::Transform`] slots (translation Length,
+/// rotation axis Scalar, rotation angle Angle).
 ///
-/// # Errors
-///
-/// A non-finite component (the literal door's refusal).
+/// Total, for the reason [`pattern_node`] is: slot dimensions are the
+/// edit door's question.
 pub fn transform_node(
     input: RecipeNodeId,
-    translation: [f64; 3],
-    rotation_axis: [f64; 3],
-    rotation_angle: f64,
-) -> Result<Node<ProfileProgram>, DimensionError> {
-    Ok(Node::Transform {
+    translation: [Expr; 3],
+    rotation_axis: [Expr; 3],
+    rotation_angle: Expr,
+) -> Node<ProfileProgram> {
+    Node::Transform {
         input,
-        translation: [
-            Expr::literal(translation[0], Dimension::Length)?,
-            Expr::literal(translation[1], Dimension::Length)?,
-            Expr::literal(translation[2], Dimension::Length)?,
-        ],
-        rotation_axis: scalars(rotation_axis)?,
-        rotation_angle: Expr::literal(rotation_angle, Dimension::Angle)?,
-    })
-}
-
-/// Three dimensionless literals — a direction or a rotation axis.
-fn scalars(v: [f64; 3]) -> Result<[Expr; 3], DimensionError> {
-    Ok([
-        Expr::literal(v[0], Dimension::Scalar)?,
-        Expr::literal(v[1], Dimension::Scalar)?,
-        Expr::literal(v[2], Dimension::Scalar)?,
-    ])
+        translation,
+        rotation_axis,
+        rotation_angle,
+    }
 }
 
 /// **Whether a node's value is a single body** — the question every

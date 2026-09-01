@@ -21,6 +21,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Authored CANONICALLY, deliberately: this scene and `heatsink` are
+// the default half of the units exhibit, against `ring` (millimetres
+// and half-turns) and `diefillet` (millimetres and degrees).
+
 use std::collections::BTreeMap;
 
 use pncad::document::{

@@ -394,6 +394,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
     match err {
         PersistError::NonFinite { .. } => "non_finite",
         PersistError::Distribution { .. } => "distribution",
+        PersistError::DisplayUnit { .. } => "display_unit",
         PersistError::ProfileProgram { .. } => "profile_program",
         PersistError::Serialize { .. } => "serialize",
         PersistError::Header { .. } => "header",
@@ -448,11 +449,15 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 ///
 /// `StepImportError` implements `Display`, so the human message is the
 /// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Twenty-one arms, and unlike
-/// [`workspace_error_tag`]'s door **every one of them is reachable**
-/// through `import_step` — a caller distinguishing a malformed file
-/// from an unsupported entity from a tier refusal has no other way to
-/// do it, because the id and line live in prose.
+/// branchable discriminant. Twenty-two arms. Twenty-one are reachable
+/// through `import_step` on some input, unlike
+/// [`workspace_error_tag`]'s door — a caller distinguishing a
+/// malformed file from an unsupported entity from a tier refusal has
+/// no other way to do it, because the id and line live in prose. The
+/// twenty-second, `vertex_without_point`, announces a corrupt-body
+/// state whose reachability the declaration resolver cannot prove
+/// either way; it exists so that resolver refuses rather than
+/// miscounts.
 ///
 /// The nested arms keep their own tag rather than carrying the inner
 /// refusal's through: what the caller branches on is which STAGE of
@@ -470,6 +475,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
         StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
+        StepImportError::VertexWithoutPoint { .. } => "vertex_without_point",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",

@@ -40,6 +40,7 @@ use pncad::profile::{
     ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayErrorKind, SketchPlane, TipState,
     Verb, replay,
 };
+use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
 /// **Where a path targets** — the document vocabulary's
 /// [`ProgramTarget`] as plain numbers.
@@ -227,15 +228,15 @@ pub enum PathStep {
 /// program would.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProfileShape {
-    /// A circle ([`LoopProgram::circle`]).
+    /// A circle (`LoopProgram::Circle`).
     Circle {
         /// The centre, in sketch coordinates (metres).
         centre: [f64; 2],
         /// The radius, metres.
         radius: f64,
     },
-    /// An axis-aligned rectangle centred on the sketch origin
-    /// ([`LoopProgram::polygon`], corners at `(±w/2, ±h/2)`).
+    /// An axis-aligned rectangle centred on the sketch origin: a
+    /// `LoopProgram::Chain` with corners at `(±w/2, ±h/2)`.
     Rectangle {
         /// The width (x extent), metres.
         width: f64,
@@ -252,59 +253,119 @@ pub enum ProfileShape {
     },
 }
 
-/// Lower one template shape to its loop program, through the
-/// program's own literal constructors.
+/// **The notation a form is authoring in** — one length unit and one
+/// angle unit, carried into every literal a lowering mints.
+///
+/// It exists because the units are a fact about the PERSON at the
+/// keyboard rather than about any one field (`app`'s drafts say so),
+/// and threading two units through a dozen recursive lowering
+/// functions as loose arguments is how one of them ends up
+/// canonical by accident.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Notation {
+    /// Every `Length` literal is written in this.
+    pub length: LengthUnit,
+    /// Every `Angle` literal is written in this.
+    pub angle: AngleUnit,
+}
+
+impl Notation {
+    /// The canonical spellings — metres and radians, said out loud.
+    /// The forms' own default is `app`'s, not this.
+    pub const CANONICAL: Self = Self {
+        length: quantity::M,
+        angle: quantity::RAD,
+    };
+
+    /// A `Length` literal from an already-canonical value, remembering
+    /// this notation — the form's shape (`WrittenLength::canonical_in`:
+    /// a draft field holds metres whatever the picker shows).
+    fn length(self, metres: f64) -> Result<Expr, DimensionError> {
+        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
+    }
+
+    /// An `Angle` literal from already-canonical radians.
+    fn angle(self, radians: f64) -> Result<Expr, DimensionError> {
+        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle))
+    }
+
+    /// A dimensionless literal — a bulge, a director component. No
+    /// notation to CHOOSE, rather than none to remember: there is one
+    /// way to write a dimensionless number, and `Expr::literal` stores
+    /// that row itself.
+    fn scalar(self, v: f64) -> Result<Expr, DimensionError> {
+        Expr::literal(v, Dimension::Scalar)
+    }
+
+    /// A literal point.
+    fn point(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
+        Ok([self.length(p[0])?, self.length(p[1])?])
+    }
+}
+
+/// Lower one template shape to its loop program, minting every literal
+/// in `notation`.
+///
+/// **The `LoopProgram` variants are built here rather than through
+/// `LoopProgram::circle` / `polygon`**, which is the one thing in this
+/// function a reader will want to fold back: those constructors take
+/// `f64` and mint CANONICAL literals, so routing through them would
+/// drop the notation this function exists to carry. They stay the right
+/// door for a caller with nothing to remember.
 ///
 /// # Errors
 ///
-/// A non-finite field (the constructors' refusal). Degeneracy — a
+/// A non-finite field (the literal door's refusal). Degeneracy — a
 /// zero radius, a zero width — is NOT judged here: the edit door's
 /// authoring-time check replays the program and refuses it typed,
 /// which is one rule for authored and hand-written programs alike.
-pub fn loop_program(shape: &ProfileShape) -> Result<LoopProgram, DimensionError> {
+pub fn loop_program(
+    shape: &ProfileShape,
+    notation: Notation,
+) -> Result<LoopProgram, DimensionError> {
     match shape {
-        ProfileShape::Circle { centre, radius } => {
-            LoopProgram::circle(centre[0], centre[1], *radius)
-        }
+        ProfileShape::Circle { centre, radius } => Ok(LoopProgram::Circle {
+            centre: notation.point(*centre)?,
+            radius: notation.length(*radius)?,
+        }),
         ProfileShape::Rectangle { width, height } => {
             let (hw, hh) = (width / 2.0, height / 2.0);
             // Counter-clockwise from the lower-left corner — the same
             // winding every literal outer loop in this workspace uses.
-            LoopProgram::polygon([(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)])
+            //
+            // The halving is the FORM's arithmetic, in f64, exactly as
+            // it always was: a template rectangle is authored by its
+            // extents and recorded as its corners. A corner expressed
+            // as `width/2` would be a different recipe, and it wants
+            // the width to be a named thing first — which is the
+            // expression-driven form this op vocabulary now admits but
+            // no chrome yet offers.
+            let corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)];
+            let mut steps = Vec::with_capacity(corners.len() + 1);
+            for (i, (x, y)) in corners.into_iter().enumerate() {
+                let p = notation.point([x, y])?;
+                steps.push(if i == 0 {
+                    ProgramStep::At(p)
+                } else {
+                    ProgramStep::LineTo(ProgramTarget::Point(p))
+                });
+            }
+            steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+            Ok(LoopProgram::Chain(steps))
         }
         ProfileShape::Path { steps } => Ok(LoopProgram::Chain(
             steps
                 .iter()
-                .map(program_step)
+                .map(|step| program_step(step, notation))
                 .collect::<Result<Vec<_>, _>>()?,
         )),
     }
 }
 
-/// A Length literal, metres — the profile forms' one length door.
-fn length(v: f64) -> Result<Expr, DimensionError> {
-    Expr::literal(v, Dimension::Length)
-}
-
-/// An Angle literal, radians.
-fn angle(v: f64) -> Result<Expr, DimensionError> {
-    Expr::literal(v, Dimension::Angle)
-}
-
-/// A dimensionless literal — a bulge, a director component.
-fn scalar(v: f64) -> Result<Expr, DimensionError> {
-    Expr::literal(v, Dimension::Scalar)
-}
-
-/// A literal point.
-fn point(p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
-    Ok([length(p[0])?, length(p[1])?])
-}
-
 /// Lower one authored target.
-fn program_target(target: PathTarget) -> Result<ProgramTarget, DimensionError> {
+fn program_target(target: PathTarget, n: Notation) -> Result<ProgramTarget, DimensionError> {
     Ok(match target {
-        PathTarget::Point(p) => ProgramTarget::Point(point(p)?),
+        PathTarget::Point(p) => ProgramTarget::Point(n.point(p)?),
         PathTarget::Start => ProgramTarget::Start,
     })
 }
@@ -313,34 +374,34 @@ fn program_target(target: PathTarget) -> Result<ProgramTarget, DimensionError> {
 /// vocabulary's ([`SlotId::dimension`]'s table: radii and coordinates
 /// Length, the swept angle Angle, the bulge Scalar), so a form cannot
 /// author a radius that is secretly an angle.
-fn program_arc(spec: ArcSpec) -> Result<ProgramArcData, DimensionError> {
+fn program_arc(spec: ArcSpec, n: Notation) -> Result<ProgramArcData, DimensionError> {
     Ok(match spec {
         ArcSpec::Radius { r, side } => ProgramArcData::Radius {
-            r: length(r)?,
+            r: n.length(r)?,
             side,
         },
         ArcSpec::Bulge { target, b } => ProgramArcData::Bulge {
-            target: program_target(target)?,
-            b: scalar(b)?,
+            target: program_target(target, n)?,
+            b: n.scalar(b)?,
         },
         ArcSpec::Via { q, target } => ProgramArcData::Via {
-            q: point(q)?,
-            target: program_target(target)?,
+            q: n.point(q)?,
+            target: program_target(target, n)?,
         },
         ArcSpec::Center { c, winding, target } => ProgramArcData::Center {
-            c: point(c)?,
+            c: n.point(c)?,
             winding,
-            target: program_target(target)?,
+            target: program_target(target, n)?,
         },
         ArcSpec::Sweep { r, side, angle: a } => ProgramArcData::Sweep {
-            r: length(r)?,
+            r: n.length(r)?,
             side,
-            angle: angle(a)?,
+            angle: n.angle(a)?,
         },
         ArcSpec::ArcLen { r, side, len } => ProgramArcData::ArcLen {
-            r: length(r)?,
+            r: n.length(r)?,
             side,
-            len: length(len)?,
+            len: n.length(len)?,
         },
     })
 }
@@ -356,41 +417,41 @@ fn program_arc(spec: ArcSpec) -> Result<ProgramArcData, DimensionError> {
 ///
 /// A non-finite field — the literal constructors' one refusal.
 /// Nothing about the WALK is judged here (see [`PathStep`]).
-fn program_step(step: &PathStep) -> Result<ProgramStep, DimensionError> {
+fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionError> {
     Ok(match *step {
-        PathStep::At(p) => ProgramStep::At(point(p)?),
-        PathStep::Angle(a) => ProgramStep::Angle(angle(a)?),
+        PathStep::At(p) => ProgramStep::At(n.point(p)?),
+        PathStep::Angle(a) => ProgramStep::Angle(n.angle(a)?),
         PathStep::Toward { dx, dy } => ProgramStep::Toward {
-            dx: scalar(dx)?,
-            dy: scalar(dy)?,
+            dx: n.scalar(dx)?,
+            dy: n.scalar(dy)?,
         },
         PathStep::Tangent => ProgramStep::Tangent,
         PathStep::Cusp => ProgramStep::Cusp,
-        PathStep::Turn(d) => ProgramStep::Turn(angle(d)?),
-        PathStep::Line(len) => ProgramStep::Line(length(len)?),
-        PathStep::LineTo(target) => ProgramStep::LineTo(program_target(target)?),
-        PathStep::ArcTo(spec) => ProgramStep::ArcTo(program_arc(spec)?),
-        PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target)?),
-        PathStep::ArcContinue(p) => ProgramStep::ArcContinue(point(p)?),
-        PathStep::Fillet(r) => ProgramStep::Fillet(length(r)?),
+        PathStep::Turn(d) => ProgramStep::Turn(n.angle(d)?),
+        PathStep::Line(len) => ProgramStep::Line(n.length(len)?),
+        PathStep::LineTo(target) => ProgramStep::LineTo(program_target(target, n)?),
+        PathStep::ArcTo(spec) => ProgramStep::ArcTo(program_arc(spec, n)?),
+        PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target, n)?),
+        PathStep::ArcContinue(p) => ProgramStep::ArcContinue(n.point(p)?),
+        PathStep::Fillet(r) => ProgramStep::Fillet(n.length(r)?),
         PathStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
-            radius: length(radius)?,
-            spec: program_arc(spec)?,
+            radius: n.length(radius)?,
+            spec: program_arc(spec, n)?,
         },
         PathStep::ArcFillet { spec, radius } => ProgramStep::ArcFillet {
-            spec: program_arc(spec)?,
-            radius: length(radius)?,
+            spec: program_arc(spec, n)?,
+            radius: n.length(radius)?,
         },
         PathStep::ArcFilletArc {
             spec,
             radius,
             spec2,
         } => ProgramStep::ArcFilletArc {
-            spec: program_arc(spec)?,
-            radius: length(radius)?,
-            spec2: program_arc(spec2)?,
+            spec: program_arc(spec, n)?,
+            radius: n.length(radius)?,
+            spec2: program_arc(spec2, n)?,
         },
-        PathStep::FarEndTo(p) => ProgramStep::FarEndTo(point(p)?),
+        PathStep::FarEndTo(p) => ProgramStep::FarEndTo(n.point(p)?),
         PathStep::CloseTo => ProgramStep::CloseTo,
     })
 }
@@ -543,7 +604,10 @@ pub fn preview(
 ) -> Result<ProfilePreview, PreviewError> {
     let mut programs = Vec::with_capacity(shapes.len());
     for shape in shapes {
-        programs.push(loop_program(shape).map_err(PreviewError::Dimension)?);
+        // CANONICAL, and it makes no difference which: a display unit
+        // is presentation metadata that no evaluation reads, and this
+        // program is built to be replayed and drawn, never committed.
+        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Dimension)?);
     }
     let program = ProfileProgram {
         plane,

@@ -20,15 +20,18 @@
 //!   intrinsic data).
 //! - **Angle** = `PartialPath<T, NoPos, HasAng>` — a fillet arrival
 //!   bound angle-first (or the entry after `Open.angle(θ)`).
-//! - **Directed** = `PartialPath<T, HasPos<F>, HasAng>` — the only
-//!   state legs and [`fillet`](PartialPath::fillet) consume.
+//! - **Directed** = `PartialPath<T, HasPos<F>, HasAng>` — the state
+//!   [`fillet`](PartialPath::fillet) and every DIRECTED leg consume.
+//!   One leg form does not need it: `line(len)` also runs off a
+//!   DIRECTED POINT, departing along that point's own tangent (the
+//!   straight continuation — no authored direction, no junction).
 //!
 //! The OUTGOING angle is a binding slot, set at most once per side
 //! (a second director on a Directed tip is ill-typed); the INCOMING
 //! direction is never a slot — it is intrinsic data on a leg end,
 //! consultable by [`tangent`](PartialPath::tangent) /
-//! [`turn`](PartialPath::turn) and the junction check, settable by
-//! nothing.
+//! [`turn`](PartialPath::turn), the junction check and the straight
+//! continuation, settable by nothing.
 //!
 //! # Closure
 //!
@@ -69,8 +72,10 @@
 //!
 //! # Refusals
 //!
-//! Compile-time, from the lattice: double director; legs/`fillet` from
-//! non-Directed tips; `.tangent()` on a plain point; leading
+//! Compile-time, from the lattice: double director; `fillet` and the
+//! DIRECTED legs from non-Directed tips (`line(len)` is the exception
+//! that proves the slot: it also has a directed-POINT row, the
+//! straight continuation); `.tangent()` on a plain point; leading
 //! `.fillet`/`.tangent()`; use after close (closing verbs consume the
 //! path and return the loop). Typed runtime errors, from geometry —
 //! the lattice guarantees the authoring, never the geometry: see
@@ -520,14 +525,16 @@ pub enum PathNoCornerReason {
 /// lowered loop at [`crate::Profile::validate`], unchanged.
 #[derive(Clone, Debug)]
 pub enum PathError<T: Real> {
-    /// §4 item 1: the authored departure is within ε_input of the
+    /// §4 item 1: the AUTHORED departure is within ε_input of the
     /// incoming TANGENT direction — one refusal, one recourse, for any
-    /// sub-ε_input margin: if the tangency is intended, author it
-    /// structurally (`.tangent()`, or the tangent-arc / seam-fillet
-    /// close at the seam), which makes it exact by construction;
-    /// otherwise move the geometry (or lower the tolerance). The
-    /// margin rides along as data; the message never forks on
-    /// exactly-on vs in-band.
+    /// sub-ε_input margin: if the tangency is intended onto a new
+    /// carrier, author it structurally (`.tangent()`, or the
+    /// tangent-arc / seam-fillet close at the seam), which makes it
+    /// exact by construction; if a straight continuation of the same
+    /// line is intended, spell it `line(len)` off the directed point,
+    /// where no junction exists to classify; otherwise move the
+    /// geometry (or lower the tolerance). The margin rides along as
+    /// data; the message never forks on exactly-on vs in-band.
     JunctionTangent {
         /// The classified turn margin sin φ · arm, meters (scalar-typed
         /// payload — data, not a decision).
@@ -555,11 +562,22 @@ pub enum PathError<T: Real> {
     /// closure): direction inherited AND through `Start` — refused
     /// ALWAYS, exact collinearity included (a ray hitting an
     /// independently-authored point is a value coincidence, and the
-    /// ratified ladder never infers from values). The two structural
-    /// spellings: close with the tangent ARC instead
+    /// ratified ladder never infers from values). Two structural
+    /// spellings exist TODAY, and both need a carrier the closer can
+    /// turn onto: close with the tangent ARC instead
     /// (`.tangent().tangent_arc_to(Start)`), or rotate the loop's
     /// authoring origin so the straight run is authored forward as
     /// side 1 and the arc becomes the closer.
+    ///
+    /// NEITHER reaches an outline whose every side is a subdivided
+    /// STRAIGHT run: rotation cannot help when the seam junction and
+    /// the junction the closer departs are adjacent and alternate in
+    /// kind, and there is no arc to close onto. That class is the
+    /// declared structural CLOSER's — the straight continuation
+    /// landing on a named target, `Start` being the special case,
+    /// checked against the departing ray rather than inferred from it
+    /// (ruled 2026-09-01; not yet built here). Until it lands, an
+    /// all-sides-subdivided outline is authored as loop DATA.
     TangentLineClose {
         /// The offending collinearity/turn margin, meters.
         margin: T,
@@ -743,11 +761,13 @@ pub enum PathError<T: Real> {
     /// An [`arc_continue`](PartialPath::arc_continue) reached with no
     /// incoming ARC carrier: the declared-subdivision step splits the
     /// carrier the chain is already running on, so a straight incoming
-    /// leg (or a tip with no incoming leg data) has nothing to split —
-    /// a collinear "subdivision" of a line is spelled as two `line_to`
-    /// legs... which the same-carrier rule refuses, deliberately: the
-    /// recorded need is arc subdivision (the half-disc's equator
-    /// vertex); a line form would be new vocabulary with no use case.
+    /// leg (or a tip with no incoming leg data) has nothing to split.
+    /// The straight case is not missing vocabulary and never needed a
+    /// verb of its own: `line(len)` off the directed point IS the
+    /// straight continuation, because the binding bits determine a line
+    /// carrier completely — subdivide a straight run by chaining it.
+    /// (Nothing about a line has to be learned from the incoming leg,
+    /// which is exactly the asymmetry with an arc.)
     ArcContinueNeedsArcCarrier,
     /// An [`arc_continue`](PartialPath::arc_continue) target that does
     /// not lie on the incoming carrier (|target − centre| − r decided
@@ -1018,10 +1038,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin} m on a {arm} m arm) — if intended, author it \
-                 structurally: .tangent() at an interior junction (exact by construction), or \
-                 the tangent-arc / seam-fillet close at the seam; otherwise move the geometry \
-                 (or lower the tolerance)",
+                 (turn margin {margin} m on a {arm} m arm) — if intended as tangency onto a \
+                 new carrier, use .tangent(), which makes it exact by construction (or the \
+                 tangent-arc / seam-fillet close at the seam); if intended as a straight \
+                 continuation of the same line, spell it line(len) off the directed point — \
+                 no junction exists there; otherwise move the geometry (or lower the \
+                 tolerance)",
                 margin = num(margin),
                 arm = num(arm)
             ),
@@ -1041,14 +1063,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  (margin {margin} m) — and refuses always, exact collinearity included: \
                  close with the tangent ARC instead (.tangent().tangent_arc_to(Start)), or \
                  rotate the loop's authoring origin so the straight run is authored forward as \
-                 side 1 and the arc becomes the closer",
+                 side 1 and the arc becomes the closer — but if EVERY side is a subdivided \
+                 straight run neither applies (no arc to close onto, and rotation only moves \
+                 the wall), and the loop is authored as data until the declared structural \
+                 closer ships",
                 margin = num(margin)
             ),
             Self::SameCarrierJunction { margin } => write!(
                 f,
                 "this junction joins two pieces of the SAME carrier (identity margin \
                  {margin} m): carrier identity is not tangency — extend the leg \
-                 instead of minting a collinear/cocircular neighbor",
+                 instead of minting a collinear/cocircular neighbor, or, where the extra \
+                 vertex is the point, subdivide the carrier structurally: line(len) off \
+                 the directed point, which declares nothing",
                 margin = num(margin)
             ),
             Self::NoCornerForFillet { reason, radius } => {
@@ -1758,6 +1785,27 @@ fn refuse_identical_carriers<T: Decide>(
     }
 }
 
+/// The straight leg's EMISSION, shared by the two `line(len)` rows —
+/// the directed one (a bound departure) and the straight continuation
+/// (the directed point's own tangent). Both mint the same thing and
+/// must keep minting the same thing: a line vertex at `at + û·len`, a
+/// tip whose carrier is None (a line leg leaves no arc carrier behind)
+/// and whose lever arm is the emitted segment's own length, measured
+/// head-to-end so a side squeezed between two trims measures from the
+/// trim point rather than from an authored anchor.
+fn emit_straight_leg<T: Real>(
+    core: &mut Core<T>,
+    at: Point2<T>,
+    ang: Dir<T>,
+    len: T,
+) -> Result<Tip<T>, PathError<T>> {
+    let end = at + ang.unit * len;
+    let head = core.head()?;
+    core.push_line(end)?;
+    let arm = (end - head).norm_squared().sqrt();
+    Ok(leg_end_tip(end, ang, arm, None))
+}
+
 /// Maps the shared fillet closed form's refusals into the algebra's
 /// vocabulary: a Negative leg fit here IS the anchor-fit refusal (the
 /// helper is fed the two sides' anchoring extents); an escalation
@@ -2421,6 +2469,47 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         Ok(in_state(self.core, self.tip))
     }
 
+    /// The kernel behind the table's straight-continuation row
+    /// (recording is the row's, not the kernel's): the leg departs
+    /// along the directed point's OWN intrinsic tangent, the RAY
+    /// inherited BITWISE — consecutive legs run on one ray, not on two
+    /// that a round trip through the angle put a bit apart. (The ray is
+    /// what is exact; the vertices it lands are ordinary sums and round
+    /// like ordinary sums.) Binding bits only — the tangent is a
+    /// binding bit, and nothing else about the incoming leg is read —
+    /// so there is no junction to classify (no authored direction
+    /// exists) and nothing is declared: the minted vertex is a
+    /// structural subdivision of the one carrier the binding bits
+    /// already determine.
+    fn straight_continuation_kernel(
+        mut self,
+        len: T,
+        tol: Tol,
+    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
+            site: "straight continuation on a tip without a position",
+        })?;
+        let at = pos.at;
+        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
+            site: "straight continuation on a tip without incoming data",
+        })?;
+        let band = linear_band(tol)?;
+        match decide("path_leg_length", Margin::of(len), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+        // The departure IS the incoming ray, moved wholesale: the same
+        // `Dir` value, never re-derived through its angle. What that
+        // buys is exact in the DIRECTION — the two legs run on one ray,
+        // not on two rays a `sin_cos` round trip apart. It is not a
+        // claim about the emitted coordinates: `at + û·len` rounds like
+        // any other sum, so two legs of equal length lay down identical
+        // displacements only while those sums are exact.
+        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
+        Ok(in_state(self.core, tip))
+    }
+
     /// The kernel behind the table's declared-subdivision row (recording
     /// is the row's, not the kernel's).
     fn arc_continue_kernel(
@@ -2512,11 +2601,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         {
             return Err(PathError::SameCarrierJunction { margin: T::zero() });
         }
-        let end = at + ang.unit * len;
-        let head = self.core.head()?;
-        self.core.push_line(end)?;
-        let arm = (end - head).norm_squared().sqrt();
-        Ok(in_state(self.core, leg_end_tip(end, ang, arm, None)))
+        let tip = emit_straight_leg(&mut self.core, at, ang, len)?;
+        Ok(in_state(self.core, tip))
     }
 
     /// The kernel behind the table's corner-fillet row (recording is the
