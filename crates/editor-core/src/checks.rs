@@ -740,7 +740,7 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
             return Ok(());
         }
     };
-    let declared = declared_pairs(doc, ev, &gathered);
+    let declared = declared_pairs(&gathered);
     for (j, later) in gathered.solid_roots.iter().enumerate() {
         for earlier in &gathered.solid_roots[..j] {
             if (earlier.node, earlier.output) == (later.node, later.output) {
@@ -779,31 +779,21 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
 /// cannot resolve contributes nothing — the strict direction: an
 /// unresolvable declaration suppresses no finding, so a broken record
 /// can only make this check louder, never quieter.
-fn declared_pairs<P, T: Decide>(
-    doc: &Doc<P>,
-    ev: &Evaluation<T>,
+fn declared_pairs<T: Decide>(
     gathered: &product::Product<T>,
 ) -> std::collections::BTreeSet<(topo::SolidKey, topo::SolidKey)> {
-    // The gather carries only the records that rode UP from its source
-    // bodies. A mate's declaration is minted by the assembly door,
-    // after the gather, so asking `gathered.contacts` alone would miss
-    // exactly the documents that got this right and report a
-    // correctly-mated assembly as a finding. Mint into a copy, through
-    // the same door `assemble` uses — one implementation of what a
-    // mate declares, never a second opinion here.
+    // The gather's own record set is the whole answer: it holds the
+    // records that rode UP from the source bodies AND this document's
+    // mate-minted declarations, because minting is the gather's act.
+    // Re-minting here would be a second opinion about what a mate
+    // declares, and a duplicate record besides.
     //
-    // A mint that refuses is DISCARDED rather than propagated, and the
-    // honest reading of that is narrower than "suppresses nothing":
-    // `mint` walks `doc.order()` pushing records as it goes and returns
-    // on the FIRST mate it cannot mint, so mates before that one are
-    // already in `contacts` and do suppress. What the discard buys is
-    // that a document with one bad mate still gets a report about its
-    // other pairs rather than the resident going silent; it does not
-    // buy "a broken declaration can only make this check louder". The
-    // unresolvable-ENTITY direction IS strict, and that is `note`'s
-    // doing below, not this line's.
-    let mut contacts = gathered.contacts.clone();
-    let _ = crate::assembly::mint(doc, ev, &gathered.names, &mut contacts);
+    // A mate the gather could not mint declares nothing and so
+    // suppresses nothing — `gathered.unminted` is not consulted, and
+    // the honest reading is that a broken declaration makes this
+    // resident LOUDER about the pair it named, never quieter. The
+    // unresolvable-ENTITY direction is `note`'s doing below.
+    let contacts = &gathered.contacts;
     let owner = topo::SolidOwners::of(&gathered.body);
     let mut out = std::collections::BTreeSet::new();
     let mut note = |a: Option<topo::SolidKey>, b: Option<topo::SolidKey>| {

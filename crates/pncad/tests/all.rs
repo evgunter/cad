@@ -2756,6 +2756,14 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
+///
+///   **`MintRefusal` is not part of that carry**, and the split is
+///   the point: it is the GATHER's row for a mate whose declaration
+///   could not be minted, reached through `Product`, which is itself
+///   interior. What a façade consumer asks is what the A5 gate
+///   ANSWERED, and they get that whole — `AssemblyError::Reference`
+///   and `AssemblyError::NoAtRestRecord` are exactly these two
+///   refusals, raised by the door that is carried.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
@@ -2799,7 +2807,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the certified scalar — so a façade row for it would be a
 ///   conditional door, which this surface does not have and should
 ///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2841,6 +2849,7 @@ const NOT_CARRIED: [&str; 101] = [
     "MetaValue",
     "MetaVersionError",
     "MigrationStep",
+    "MintRefusal",
     "NamingError",
     "NamingKey",
     "NodeChange",
