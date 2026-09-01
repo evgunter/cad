@@ -221,9 +221,8 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     // `sizing::Eps`: the reason is `common::eps`'s doc, and it is that
     // `tests/` cannot see a `pub(crate)` type. The comparison below
     // (`worst_cert > eps`) is an `Eps::separates` in every sense but
-    // the spelling. Minted here rather than through that door because
-    // this row wants the value in its own message.
-    let eps = geom_core::Tol::witness().get().eps;
+    // the spelling.
+    let eps = common::eps();
     for m in &measures {
         assert!(m.dev_samples > 0, "resampling ran: {m:?}");
         // The falsification, in the one form that carries it:

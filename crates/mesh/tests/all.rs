@@ -279,6 +279,15 @@ fn every_suite_file_is_aggregated() {
 ///    column does not see the accessor's own body — `fn raw(self) ->
 ///    f64` in `sizing.rs` spells no `eps` — which is why the READ
 ///    column, not the carrier column, is this row's load-bearing half.
+///    **The residue is UFCS**: `Eps::coincident(band, x)`, with the
+///    band held under a name that is not `eps`, is a real read that
+///    neither column sees — the read column matches `.coincident(`
+///    with a leading dot, and the carrier column matches the
+///    identifier `eps`. Nothing in the crate is written that way and
+///    nothing checks that it stays so; it is recorded here because a
+///    bypass hunt should start from the known gap rather than from
+///    scratch. Widening the read column to the bare method name would
+///    fire on this row's own prose, which is the trade not taken.
 /// 2. **Which KIND of read it is — no longer the reader's alone.** The
 ///    operation column says whether a read separates, identifies,
 ///    dominates or pads, because the caller had to pick one to

@@ -540,6 +540,14 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// also what makes a ZERO band admit nothing, which is the exact form
 /// `curved`'s band fixtures compare this predicate against.
 ///
+/// **The two sentences above meet at one corner, and it resolves in
+/// favour of the band**: at `lever == 0` AND `eps == 0` the product is
+/// `0` and `0 < 0` is false, so the gap is NOT noise — the zero band
+/// wins, and "every gap is noise at zero lever" is a statement about a
+/// POSITIVE band, which every run has. The corner is reachable only in
+/// `curved`'s exact-form fixtures, which pass a zero band deliberately
+/// and assert exactly this refusal.
+///
 /// The lever arms are [`Chart::radial`] (u — the point's own distance
 /// from the axis, so a cone and a sphere get a varying one) and
 /// [`Chart::v_lever`] (v — constant per kind).

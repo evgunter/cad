@@ -25,9 +25,20 @@ use topo::Body;
 /// the type, and publishing it to serve test suites would grow the
 /// crate's API surface for readers who are not consumers of it. What
 /// the suites do with the band is also not the kind of read the type
-/// is about: an acceptance slack (`delta + eps()`) and fixture
-/// placement at a chosen multiple of it (`0.9 * eps`, `5.0 * eps`) —
-/// sizing a probe, not deciding a mesh.
+/// is about: an acceptance slack (`delta + eps()`), fixture placement
+/// at a chosen multiple of it (`0.9 * eps`, `5.0 * eps`), a bar on a
+/// reported certificate, and one message that prints it — sizing or
+/// narrating a probe, not deciding a mesh.
+///
+/// **"The door" is a claim about this tree and it is checkable: every
+/// suite that reads ε calls this function, with one stated
+/// exception.** `r1_probe_bool_route` mints its own inline because it
+/// carries no `mod common;` and reaches ε only to print the ambient
+/// value — pulling the whole helper module into that suite to save
+/// one line would cost more than it buys. Every other reader — the
+/// three acceptance-slack rows, `budget_meter`, `m7_nurbs_trimmed`,
+/// `issue896_pole_guard`, `r2_bool_door`, `r2_split_door` and
+/// `fitted_refusals`' message — comes through here.
 pub fn eps() -> f64 {
     Tol::witness().get().eps
 }
