@@ -15,7 +15,7 @@
 
 mod common;
 
-use common::{asm};
+use common::asm;
 use pncad::document::{
     Alignment, AxisSense, Frame, MateFrame, MatePrimitive, RecipeNodeId, product,
 };

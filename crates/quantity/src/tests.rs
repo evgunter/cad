@@ -422,7 +422,10 @@ fn an_authored_quantity_keeps_the_unit_the_multiply_would_have_erased() {
 /// optimisation, not a difference, and these compare equal.
 #[test]
 fn the_plain_spelling_is_the_canonical_unit_said_out_loud() {
-    assert_eq!(WrittenLength::metres(0.025), WrittenLength::in_unit(0.025, M));
+    assert_eq!(
+        WrittenLength::metres(0.025),
+        WrittenLength::in_unit(0.025, M)
+    );
     assert_eq!(WrittenLength::metres(0.025).unit(), M);
     assert_eq!(WrittenAngle::radians(1.5), WrittenAngle::in_unit(1.5, RAD));
     assert_eq!(WrittenAngle::radians(1.5).unit(), RAD);
@@ -447,8 +450,14 @@ fn the_already_canonical_door_attaches_notation_without_applying_it() {
     assert_eq!(form.unit(), MM, "the notation still rides");
     assert_eq!(WrittenLength::in_unit(0.025, MM).meters(), 2.5e-5);
 
-    assert_eq!(WrittenLength::canonical_in(0.025, M), WrittenLength::metres(0.025));
-    assert_eq!(WrittenAngle::canonical_in(1.5, RAD), WrittenAngle::radians(1.5));
+    assert_eq!(
+        WrittenLength::canonical_in(0.025, M),
+        WrittenLength::metres(0.025)
+    );
+    assert_eq!(
+        WrittenAngle::canonical_in(1.5, RAD),
+        WrittenAngle::radians(1.5)
+    );
     assert_eq!(WrittenAngle::canonical_in(1.5, DEG).radians_value(), 1.5);
 }
 

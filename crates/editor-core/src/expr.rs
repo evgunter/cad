@@ -661,7 +661,11 @@ impl Expr {
     ///
     /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
     pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
-        Self::literal_with_unit(written.radians_value(), Dimension::Angle, written.unit().def())
+        Self::literal_with_unit(
+            written.radians_value(),
+            Dimension::Angle,
+            written.unit().def(),
+        )
     }
 
     /// The display unit of a LITERAL expression, if one is stored

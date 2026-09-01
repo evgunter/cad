@@ -36,11 +36,11 @@ use pncad::document::{
     ProgramStep, ProgramTarget, SlotId,
 };
 use pncad::geom_core::Tol;
-use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 use pncad::profile::{
     ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayErrorKind, SketchPlane, TipState,
     Verb, replay,
 };
+use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
 /// **Where a path targets** — the document vocabulary's
 /// [`ProgramTarget`] as plain numbers.
@@ -368,7 +368,10 @@ fn program_target(target: PathTarget, n: Notation) -> Result<ProgramTarget, Dime
 /// author a radius that is secretly an angle.
 fn program_arc(spec: ArcSpec, n: Notation) -> Result<ProgramArcData, DimensionError> {
     Ok(match spec {
-        ArcSpec::Radius { r, side } => ProgramArcData::Radius { r: n.length(r)?, side },
+        ArcSpec::Radius { r, side } => ProgramArcData::Radius {
+            r: n.length(r)?,
+            side,
+        },
         ArcSpec::Bulge { target, b } => ProgramArcData::Bulge {
             target: program_target(target, n)?,
             b: n.scalar(b)?,
@@ -596,9 +599,7 @@ pub fn preview(
         // CANONICAL, and it makes no difference which: a display unit
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
-        programs.push(
-            loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Dimension)?,
-        );
+        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Dimension)?);
     }
     let program = ProfileProgram {
         plane,

@@ -3533,10 +3533,9 @@ impl ViewerBehavior<'_> {
                     scalars(drafts.pattern_direction)?,
                     drafts.length(drafts.pattern_spacing)?,
                 )?),
-                PatternKindChoice::Circular => Ok(tool.circular_op(
-                    drafts.pattern_count,
-                    drafts.angle(drafts.pattern_step)?,
-                )?),
+                PatternKindChoice::Circular => {
+                    Ok(tool.circular_op(drafts.pattern_count, drafts.angle(drafts.pattern_step)?)?)
+                }
             },
         );
     }

@@ -37,9 +37,8 @@ use pncad::document::{
     Alignment, BooleanOp, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension,
     DimensionError, Doc, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
     Expr, Frame, LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError,
-    ProfileProgram,
-    RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate, parse_expr, product,
-    run_checks,
+    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate,
+    parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
@@ -2638,12 +2637,7 @@ impl DocSession {
 
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
-    fn add_revolve(
-        &mut self,
-        profile: RecipeNodeId,
-        axis: RecipeNodeId,
-        angle: Expr,
-    ) -> OpOutcome {
+    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }

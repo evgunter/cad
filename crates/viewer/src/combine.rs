@@ -18,10 +18,7 @@
 //! id-reuse hazard it does not cover (issue #1384) are all
 //! [`crate::seats`]'s, and are not restated here.
 
-use pncad::document::{
-    BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram,
-    RecipeNodeId,
-};
+use pncad::document::{BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::{PatternRuleSpec, SessionOp};
@@ -338,7 +335,9 @@ pub fn pattern_node(
     rule: PatternRuleSpec,
 ) -> Node<ProfileProgram> {
     let kind = match rule {
-        PatternRuleSpec::Linear { direction, spacing } => PatternKind::Linear { direction, spacing },
+        PatternRuleSpec::Linear { direction, spacing } => {
+            PatternKind::Linear { direction, spacing }
+        }
         PatternRuleSpec::Circular { axis, step } => PatternKind::Circular { axis, step },
     };
     Node::Pattern {

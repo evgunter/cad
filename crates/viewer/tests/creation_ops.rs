@@ -38,11 +38,11 @@ use pncad::prelude::{EntityKind, StableName, ValuePayload};
 use pncad::profile::SketchPlane;
 use viewer::revolvetool::RevolveTool;
 use viewer::seats::{Seat, SeatError, SeatEvent};
-use viewer::sketch::Notation;
 use viewer::session::{
     DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfileShape, Refusal,
     Selection, SessionOp,
 };
+use viewer::sketch::Notation;
 
 /// The ring demo's constants (`demos/tour/src/ring.rs`): mean radius,
 /// tube outer radius, bore radius.
@@ -401,7 +401,9 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         },
         SessionOp::Open(std::env::temp_dir().join("gauth1-never-read.pncad")),
         SessionOp::AddDatum {
-            datum: DatumSpec::Point { position: len3([0.0; 3]) },
+            datum: DatumSpec::Point {
+                position: len3([0.0; 3]),
+            },
         },
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),

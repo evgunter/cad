@@ -39,7 +39,7 @@ mod common;
 
 use std::f64::consts::FRAC_PI_2;
 
-use common::{asm};
+use common::asm;
 use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, class_admission, parse_expr,

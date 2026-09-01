@@ -116,7 +116,13 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
             PathStep::LineTo(PathTarget::Start),
         ],
     };
-    let drawn = preview(SketchPlane::xy(), &[template.clone()], tol, CHORD).expect("the half disc closes");
+    let drawn = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect("the half disc closes");
     let points = &drawn.loops[0];
     assert!(
         points.len() > 8,
@@ -164,8 +170,13 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let template = ProfileShape::Path {
         steps: vec![PathStep::At([0.0, 0.0]), PathStep::Tangent],
     };
-    let refusal = preview(SketchPlane::xy(), core::slice::from_ref(&template), tol, CHORD)
-        .expect_err("a tangent off a plain point is ill-typed");
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a tangent off a plain point is ill-typed");
     assert!(
         matches!(
             refusal,
@@ -207,8 +218,13 @@ fn an_unclosed_chain_names_the_state_it_ended_in() {
             PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
         ],
     };
-    let refusal =
-        preview(SketchPlane::xy(), &[template.clone()], tol, CHORD).expect_err("the chain never closes");
+    let refusal = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("the chain never closes");
     assert!(
         matches!(refusal, PreviewError::Transition { verb: None, .. }),
         "{refusal}",
@@ -380,7 +396,12 @@ fn a_non_finite_field_refuses_at_the_lowering() {
     let template = ProfileShape::Path {
         steps: vec![PathStep::At([f64::NAN, 0.0])],
     };
-    let refusal = preview(SketchPlane::xy(), &[template.clone()], Tol::witness(), CHORD)
-        .expect_err("NaN is not a coordinate");
+    let refusal = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        Tol::witness(),
+        CHORD,
+    )
+    .expect_err("NaN is not a coordinate");
     assert!(matches!(refusal, PreviewError::Dimension(_)), "{refusal}",);
 }

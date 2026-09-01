@@ -19,7 +19,7 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use common::{asm};
+use common::asm;
 use pncad::document::{
     Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
     RecipeNodeId, SlotId,
