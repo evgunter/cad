@@ -43,6 +43,44 @@ pub enum Dimension {
     Scalar,
 }
 
+// The one home of the dimension-in-prose rule for the crate. A
+// dimension is a quantity KIND, not an address: it names what a value
+// measures, so refusal prose renders it as the common noun a person
+// would say ("slot needs a length expression, got an angle") and never
+// as the variant identifier. That holds wherever a dimension reaches a
+// user — `EditError`, `DimensionError`, `EvalError`, the persist
+// checker's faults, the select refusals — and it holds for a dimension
+// NAMED in a sentence as much as for one interpolated, so the words are
+// lowercase on both sides. Two channels are outside it: a panic or
+// assertion addressed to whoever debugs the kernel names the variant
+// (the identifier is the thing to grep), and the wire/key encodings
+// carry tags, not words.
+impl core::fmt::Display for Dimension {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Length => "length",
+            Self::Angle => "angle",
+            Self::Count => "count",
+            Self::Scalar => "scalar",
+        })
+    }
+}
+
+impl Dimension {
+    /// The noun with the article that agrees with it ("a length", "an
+    /// angle"). A sentence cannot supply the article itself when the
+    /// value decides which one is correct, so it asks for both here
+    /// rather than writing "a angle".
+    pub(crate) fn with_article(self) -> &'static str {
+        match self {
+            Self::Length => "a length",
+            Self::Angle => "an angle",
+            Self::Count => "a count",
+            Self::Scalar => "a scalar",
+        }
+    }
+}
+
 /// Typed refusal from the construction-time dimension checker (spec D4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimensionError {
@@ -133,25 +171,25 @@ impl core::fmt::Display for DimensionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Mismatch { op, left, right } => {
-                write!(f, "cannot apply `{op}` to {left:?} and {right:?}")
+                write!(f, "cannot apply `{op}` to {left} and {right}")
             }
             Self::MulNeedsScalar { left, right } => write!(
                 f,
-                "multiplication needs a Scalar operand ({left:?} x {right:?} would change dimension)"
+                "multiplication needs a scalar operand ({left} x {right} would change dimension)"
             ),
             Self::DivNeedsScalarDivisor { left, right } => write!(
                 f,
-                "division needs a Scalar divisor ({left:?} / {right:?} is refused in v1)"
+                "division needs a scalar divisor ({left} / {right} is refused in v1)"
             ),
             Self::TrigNeedsAngle { op, found } => {
-                write!(f, "`{op}` needs an Angle operand, got {found:?}")
+                write!(f, "`{op}` needs an angle operand, got {found}")
             }
             Self::CountNeedsExplicitPromotion { op } => write!(
                 f,
-                "`{op}` on a Count needs an explicit promotion (use count_to_scalar)"
+                "`{op}` on a count needs an explicit promotion (use count_to_scalar)"
             ),
             Self::NotCount { found } => {
-                write!(f, "a Count operand is required, got {found:?}")
+                write!(f, "a count operand is required, got {found}")
             }
             Self::LiteralCountIsInteger => {
                 f.write_str("a count literal must be an integer (use Expr::count)")
@@ -159,7 +197,7 @@ impl core::fmt::Display for DimensionError {
             Self::NonFiniteLiteral => f.write_str("a literal value must be finite"),
             Self::DisplayUnitMismatch { unit, literal } => write!(
                 f,
-                "the display unit measures {unit:?} but the literal is {literal:?}"
+                "the display unit measures {unit} but the literal is {literal}"
             ),
             Self::UnknownDisplayUnit { symbol } => {
                 write!(f, "unknown display unit {symbol:?}")
@@ -973,20 +1011,21 @@ impl core::fmt::Display for EvalError {
                 found,
             } => write!(
                 f,
-                "parameter {:?} is referenced as {expected:?} but bound as {found:?}",
+                "parameter {:?} is referenced as {expected} but bound as {found}",
                 name.0
             ),
             Self::CountExprInContinuousEval => f.write_str(
-                "a Count expression does not evaluate continuously — promote it \
+                "a count expression does not evaluate continuously — promote it \
                  explicitly through count_to_scalar",
             ),
             Self::ContinuousExprInCountEval { found } => write!(
                 f,
-                "a {found:?} expression does not evaluate as a Count — counts are exact \
-                 and never inferred from a continuous value"
+                "{} expression does not evaluate as a count — counts are exact \
+                 and never inferred from a continuous value",
+                found.with_article()
             ),
             Self::CountOverflow => {
-                f.write_str("exact Count arithmetic overflowed (a count never wraps)")
+                f.write_str("exact count arithmetic overflowed (a count never wraps)")
             }
             Self::CountToScalarOutOfRange(count) => write!(
                 f,

@@ -499,7 +499,7 @@ impl core::fmt::Display for SelectRefusal {
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
-                 dimension {dim:?}"
+                 dimension {dim}"
             ),
             Self::PairInBand {
                 pair,

@@ -701,9 +701,9 @@ pub enum EditError {
 // applies — each arm states the PROBLEM (and where it is), not the
 // enum's guts; textual identifiers (slot ids, parameter names,
 // metadata keys) render via `Debug` because they ARE the location,
-// while stable names and kinds render through their own prose
-// spellings (`StableName`'s `Display`, the `noun` renderings), never
-// `Debug`. A name is parenthesized apposition when the sentence's
+// while stable names, kinds and dimensions render through their own
+// prose spellings (`StableName`'s `Display`, the `noun` renderings,
+// `Dimension`'s `Display`), never `Debug`. A name is parenthesized apposition when the sentence's
 // subject is a role word ("the rebind target ({name})") and inline
 // when the name itself is the subject ("the {name} does not
 // resolve"); new arms copy whichever their sentence shape calls for.
@@ -744,7 +744,8 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "edit: slot {slot:?} needs a {expected:?} expression, got {found:?}"
+                "edit: slot {slot:?} needs {} expression, got {found}",
+                expected.with_article()
             ),
             Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
                 f,
@@ -766,8 +767,8 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: document parameter {:?} is declared {declared:?} but node {}'s \
-                 measurement payload references it as {referenced:?}",
+                "edit: document parameter {:?} is declared {declared} but node {}'s \
+                 measurement payload references it as {referenced}",
                 name.0, node.0
             ),
             Self::MeasureMalformed { node, fault } => {
@@ -786,9 +787,12 @@ impl core::fmt::Display for EditError {
                 bound,
             } => write!(
                 f,
-                "edit: assertion node {} bounds a {measured:?} measure (node {}) with a \
-                 {bound:?} expression — an assertion compares like with like or not at all",
-                node.0, measure.0
+                "edit: assertion node {} bounds {} measure (node {}) with {} \
+                 expression — an assertion compares like with like or not at all",
+                node.0,
+                measured.with_article(),
+                measure.0,
+                bound.with_article()
             ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
@@ -803,12 +807,12 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared:?} but node {} (slot {slot:?}) references it as {referenced:?}",
+                "edit: parameter {:?} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
                 name.0, node.0
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
+                "edit: parameter {:?}: a continuous parameter cannot be a count — use a count parameter",
                 name.0
             ),
             Self::DocParamNotDeclared { name } => write!(
@@ -823,7 +827,7 @@ impl core::fmt::Display for EditError {
                 offered,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared:?} but the value edit offered a \
+                "edit: parameter {:?} is declared {declared} but the value edit offered a \
                  {offered} — changing a parameter's kind is a redeclaration",
                 name.0
             ),

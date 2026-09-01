@@ -413,12 +413,10 @@ impl core::fmt::Display for AssemblyError {
                 why,
             } => write!(
                 f,
-                "assembly: mate {}'s {} reference (a {} name minted by node {}) does \
-                 not name a face of the product: {why}",
+                "assembly: mate {}'s {} reference (a {name}) does not name a face of \
+                 the product: {why}",
                 mate.0,
                 side.name(),
-                name.kind.noun(),
-                name.node.0
             ),
             Self::NoAtRestRecord { mate, class, why } => write!(
                 f,

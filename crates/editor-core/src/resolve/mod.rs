@@ -214,7 +214,7 @@ impl core::fmt::Display for Diagnosis {
                 to,
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from:?} to {to:?} on the name's \
+                "predicate {predicate} flipped from {from} to {to} on the name's \
                  derivation path"
             ),
             Self::StructuralParam { node, param } => write!(

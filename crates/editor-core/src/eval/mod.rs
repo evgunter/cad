@@ -1007,10 +1007,8 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::DeclareBothOperands { name } => write!(
                 f,
-                "the declared {} name minted by node {} resolves in BOTH operands — the \
-                 declaration cannot pick a side",
-                name.kind.noun(),
-                name.node.0
+                "the declared {name} resolves in BOTH operands — the declaration cannot \
+                 pick a side"
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -1071,8 +1069,10 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureMalformed(fault) => write!(f, "{fault}"),
             Self::AssertionDimension { measured, bound } => write!(
                 f,
-                "the assertion's bound is {bound:?} and the measure it constrains is \
-                 {measured:?} — an assertion compares like with like or not at all"
+                "the assertion's bound is {} and the measure it constrains is \
+                 {} — an assertion compares like with like or not at all",
+                bound.with_article(),
+                measured.with_article()
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
