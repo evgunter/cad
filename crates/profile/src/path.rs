@@ -1147,9 +1147,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  misses by {across} m across the ray, {along} m along it. The verb DECLARES the \
                  leg to continue the run onto that point, so the point must lie on the ray to \
                  within the input tolerance — this is authored data disagreeing with itself, \
-                 not a tangency judgement. Move the target onto the ray (or lower the \
-                 tolerance); if a TURN was meant here, author the direction \
-                 (.turn(δ)/.angle(θ)) and use line_to",
+                 not a tangency judgement. Move the target onto the ray (the other \
+                 direction — a LARGER input tolerance — would admit this miss, which is \
+                 the opposite of the tangency refusals' recourse: there closeness is what \
+                 refuses, here distance is); if a TURN was meant here, author the \
+                 direction (.turn(δ)/.angle(θ)) and use line_to",
                 across = num(across),
                 along = num(along)
             ),
@@ -1385,7 +1387,45 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  seam is authored at the back by the verb that targets Start \
                  (PATHS-DESIGN §2's entry rule)"
             ),
-            Self::Escalated { source } => write!(f, "path junction classification: {source}"),
+            // The prefix is computed from the predicate, not hard-coded.
+            // Three of the four keys that reach this arm are NOT junction
+            // classifications — `path_leg_length` meters an authored
+            // extent and `path_continuation_target_offset` meters a
+            // declared target's lateral miss — and calling those "junction
+            // classification" told the reader the opposite of what the
+            // margin means. R1 and R2 both found this; the leg-length case
+            // was already wrong before this unit.
+            //
+            // The two non-junction keys also compose their OWN recourse
+            // from `source.payload()` (D4 (iv)): the shared
+            // `COINCIDENCE_RECOURSE` tail on the bare `Indeterminate`
+            // Display says "declare the coincidence", which is meaningless
+            // at these sites — for the continuation the declaration IS the
+            // verb, and for a leg length there is no coincidence to
+            // declare, only a number to change.
+            Self::Escalated { source } => match source.predicate {
+                Some("path_continuation_target_offset") => write!(
+                    f,
+                    "the declared straight continuation's target is neither on the \
+                     departing ray nor definitely off it: {payload}. The verb DECLARES the \
+                     leg, so there is no coincidence to declare here — the declaration is \
+                     the verb. Move the target onto the ray, or widen the input tolerance \
+                     (K·ε) so this miss is admissible",
+                    payload = source.payload()
+                ),
+                Some("path_leg_length") => write!(
+                    f,
+                    "an authored leg extent could not be told from zero: {payload}. \
+                     Author a longer leg, or widen the input tolerance (K·ε)",
+                    payload = source.payload()
+                ),
+                // The junction keys (`path_junction_turn`,
+                // `path_junction_side`) keep the full `Indeterminate`
+                // Display, shared recourse and all: at a junction
+                // "declare the coincidence" is exactly the right advice,
+                // and `.tangent()` is what declaring it means.
+                _ => write!(f, "path junction classification: {source}"),
+            },
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
             Self::Structure(r) => write!(f, "guided elaboration: {r}"),
             Self::UnderdeterminedLeg { site } => write!(
@@ -1751,8 +1791,16 @@ impl<T: Real> Core<T> {
 // predicate funnel; margins in meters).
 // ------------------------------------------------------------------
 
-/// The run's linear classification band (ε_input, K·ε_input), read
-/// through the caller's [`Tol`] witness.
+/// The run's linear classification band **(ε, K·ε = ε_input)**, read
+/// through the caller's [`Tol`] witness — the zero edge at the
+/// precision tolerance, the escalate edge at the input tolerance.
+///
+/// The label matters and was previously wrong ("(ε_input, K·ε_input)",
+/// which under this repo's role naming reads as (K·ε, K²·ε) — a band
+/// this function has never built). D4's two-tolerance principle gives
+/// ε_input its meaning as a ROLE: ε_input IS K·ε, the escalating edge,
+/// not a third dial. So the two edges are ε and ε_input, and naming
+/// them that way is what lets a reader check the body against the doc.
 fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
     Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)
 }
@@ -1901,6 +1949,24 @@ fn emit_straight_leg<T: Real>(
 /// the carrier the declaration names; the accepted lateral miss is the
 /// whole of the difference between the two, and it is bounded by the
 /// check that let the target through.
+///
+/// **That bound is PER LEG, and this is where to read it.** The tip
+/// leaves on the declared ray while the vertex sits up to one accepted
+/// miss off it, so a RUN of declared continuations can accumulate: n
+/// legs each accepting a same-side miss below ε put the run's end up to
+/// n·ε off the ray it started on, and every per-leg check is green,
+/// correctly. R1's review measured it — forty legs at 0.5·ε reach 20·ε,
+/// two full ε_input.
+///
+/// This is a recorded LIMIT, not a hole, because the run-level
+/// certifier exists and is loud: the data gate sees the accumulated bow
+/// that no per-leg check can and ESCALATES on `chord_side` rather than
+/// accepting it. Escalation, not silence and not a guess.
+/// `the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins
+/// that verdict; PATHS-DESIGN §4 records it beside the band decisions.
+/// Tightening the per-leg band would not change the shape of this — any
+/// per-step tolerance composes — so the answer is the gate, which is
+/// already the design's answer for run-level facts.
 fn emit_straight_leg_at<T: Real>(
     core: &mut Core<T>,
     end: Point2<T>,
@@ -2663,6 +2729,24 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// same fact `line(len)` gates on its authored length: a target
     /// behind the departure, or on top of it, is a leg of non-positive
     /// length ([`PathError::NonpositiveLeg`]), not a target that misses.
+    /// **Sibling measurement, cross-declared** (R1 S1): this and
+    /// [`tangent_arc_geom`](Self::tangent_arc_geom) compute the SAME
+    /// four lines — `d = target − at`, `along = û·d`, `across = û⊥·d`,
+    /// then a banded decision — under two different predicate keys, and
+    /// neither used to admit the other existed.
+    ///
+    /// They are kept separate deliberately rather than shared, because
+    /// the keys are the point: this site classifies `across` as a
+    /// declared target's MISS (`path_continuation_target_offset`, an
+    /// authored-data disagreement), while the tangent-arc site
+    /// classifies the same number as a degenerate-arc condition. The
+    /// funnel key is what tells a margin telemetry reader which question
+    /// was being answered, so collapsing them would lose the
+    /// distinction that makes the funnel worth having. What was missing
+    /// was the cross-reference, not the sharing.
+    ///
+    /// `arc_continue_kernel` is the third member of the family; it
+    /// retires with BOOL-10.
     fn on_ray_extent(
         at: Point2<T>,
         ang: Dir<T>,
@@ -2728,13 +2812,31 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         })?;
         let (at, ang) =
             self.continuation_ray("continue_to(Start) on a tip without incoming data")?;
-        if self.core.pending.is_some() {
-            return Err(PathError::ArcLegOnOpenFillet {
-                site: "a declared straight continuation departs the tip's own tangent, and an \
-                       OPEN fillet has not bound one yet — resolve the fillet with a directed \
-                       leg first",
-            });
-        }
+        // NO open-fillet guard here, and that is a decision rather than
+        // an omission — the three straight-continuation kernels
+        // (`straight_continuation_kernel`, `continue_to_point_kernel`
+        // and this one) now agree, where an earlier draft of this one
+        // guarded and the other two did not.
+        //
+        // The guarded state is UNREACHABLE from the typed surface.
+        // `core.pending` is set in exactly one place, `fillet_kernel`,
+        // which returns `PartialPath<T, NoPos, NoAng>` with a tip whose
+        // `pos` and `ang` are both `None`. Every route from there into
+        // this kernel's departing state, `HasPos<WithIncoming>`, passes
+        // through a verb that RESOLVES the fillet first — `director`
+        // and `line_to`'s kernel call `resolve_fillet` on the
+        // `pending.is_some()` branch, and `resolve_fillet` goes through
+        // `take_pending`, which `take()`s it — and `WithIncoming`
+        // itself is only minted by a leg emission, which needs a bound
+        // direction. So a tip in this state with a pending fillet does
+        // not exist, and a guard against it is dead code asserting the
+        // type system's own invariant back to it.
+        //
+        // The dropped guard also refused with `ArcLegOnOpenFillet`,
+        // whose three live sites are all ARC arrivals and whose message
+        // is written about authoring an arc with the fillet that trims
+        // it. Borrowing it for a straight continuation named the wrong
+        // fact even in the branch that could never run.
         Self::on_ray_extent(at, ang, start_pos, tol)?;
         let start_ang = *self.core.start_ang.get_or_insert(ang);
         // NO vertex is minted here. `Start` is the entry vertex, which
@@ -2746,6 +2848,26 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // an emitted tip.
         let head = self.core.head()?;
         let arm = (start_pos - head).norm_squared().sqrt();
+        // The seam is classified with the DECLARED ray (`ang`), while
+        // the segment actually emitted runs head → start_pos. Those two
+        // directions differ by the accepted lateral miss over the arm,
+        // at most `across/arm` — one band unit by construction, because
+        // `on_ray_extent` above refused anything larger.
+        //
+        // The bounded consequence, stated so it is not rediscovered: a
+        // seam within one band unit of the boundary can be pushed from a
+        // definite verdict into ESCALATION by this difference. It cannot
+        // flip accept ↔ refuse, because crossing from one definite
+        // verdict to the other would take more than the band's whole
+        // width. Escalation is the honest outcome for a junction that
+        // close to the edge, so the direction of the error is the safe
+        // one.
+        //
+        // `line_to(Start)` classifies from the REALIZED direction
+        // instead, having computed it from the two points; that is the
+        // one place the two closers' seam checks differ, and it follows
+        // from the same thing everything else here follows from — this
+        // verb declares its ray, `line_to` derives one. (R1 NOTE-3.)
         junction_check(
             &Incoming {
                 ang,
@@ -2895,6 +3017,12 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// (declared) departure: a collinear target degenerates the arc
     /// onto a straight incoming carrier (same line), a cocircular
     /// carrier is the incoming circle itself.
+    ///
+    /// **Sibling measurement, cross-declared** (R1 S1): the
+    /// `d`/`along`/`across`/decide opening here is the same four lines
+    /// [`on_ray_extent`](Self::on_ray_extent) computes, under a
+    /// different predicate key. See that function for why the two are
+    /// kept apart rather than shared.
     fn tangent_arc_geom(
         &self,
         p: Point2<T>,

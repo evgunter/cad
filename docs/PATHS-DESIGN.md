@@ -979,8 +979,14 @@ seam) refuses by construction. What forced the choice is the strict
 corner/subdivision ALTERNATION that one subdivision per side produces:
 the seam junction and the junction the closer departs are then always
 adjacent and always of different kinds, so no rotation puts a corner at
-both. The lift layer has carried a name for this wall since it was
-written (`LiftRefusal::SameCarrierClose`).
+both. The lift layer has carried a name for this wall since it was written:
+`LiftRefusal::DeclaredJointBeforeClosingLine` (`crates/profile/src/lift.rs`),
+whose message says a run's "leaving segment closes the loop straight;
+`.tangent().line(len)` cannot close" — the straight wall exactly. (An
+earlier draft cited `SameCarrierClose` here. That variant is about ARC
+runs — `arc_continue` has no closing form — so it names a different
+wall; the identical mis-citation was dropped from the lily demo's
+comment in the same unit, and this is its retained sibling.)
 
 The ruling: the straight continuation gains a DECLARED POINT-TARGET
 form — the leg declared to land on a NAMED point, with the kernel
@@ -1080,6 +1086,44 @@ said PQ4 stands unchanged, and it stands. Until it is asked and
 answered, an outline whose corner set moves between its own sections is
 authored as loop DATA, and the lily demo says so at its own site.
 
+**The band's guarantee is PER LEG, and the run-level certifier is the
+data gate** (recorded after review; a limit, not a hole). Each
+`continue_to` checks THIS leg's target against THIS leg's declared ray.
+That is the honest scope of the on-ray band, and it composes as any
+per-step tolerance composes: forty legs each accepting a same-side miss
+of 0.5·ε put the run's end 20·ε — two full ε_input — off the ray it
+started on, with every per-leg check green and correctly so. The drift
+does not escape quietly: the data gate sees the accumulated bow that no
+per-leg check can, and ESCALATES on `chord_side` rather than accepting
+it. Loud, not silent, and not a guess. Tightening the per-leg band
+would not change the shape of this, so the answer is the gate — which
+is already this design's answer for run-level facts.
+`the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins the
+gate's verdict.
+
+**The ε_input story of the new arms** (D4 consequence (iv): for every
+arm added to a decision, name which ε_input story it belongs to, or say
+why it belongs to none). The definite arm,
+`ContinuationTargetOffRay`, belongs to the AUTHORED-DATA story: the
+target and the ray are definitely different places, and the recourse is
+to move the target onto the ray — or, if the miss is genuinely
+acceptable, to WIDEN the input tolerance. That is the opposite
+direction from the tangency refusals, where closeness is what refuses
+and lowering the tolerance is the recourse, and the message says so
+rather than inheriting the wrong half of the template.
+
+The in-band arm belongs to NO existing story, and this is the "or say
+why" branch. The shared sub-ε_input recourse is "declare the
+coincidence, move the geometry, or lower the tolerance" — and at this
+site the first lever is meaningless, because the DECLARATION IS THE
+VERB: there is nothing left to declare that `continue_to` has not
+already said. So the escalation at `path_continuation_target_offset`
+composes its own message from the margin payload, with its own two
+levers (move the target, or widen ε_input), instead of the shared tail.
+The same correction was owed to `path_leg_length`, which had been
+reporting an authored extent under the prefix "path junction
+classification" — it is not a junction, and neither is this.
+
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
 record.
@@ -1136,6 +1180,20 @@ was considered and declined — the relaxation touches the
 same-carrier discipline (one authored side = one carrier), which
 germ matching and the merge ladders lean on. Revisit only with a
 concrete authoring need, as a revision to this section.
+
+> **A concrete authoring need is now on the table (§4, BOOL-11, open —
+> Evan-gated).** The declared closer made a seam at a CORNER sufficient,
+> which is what closed the departure half of the seam wall; it did not
+> reach the lily leaf family, because that family's two sections put
+> their corners at disjoint stations (tips vs shoulders) while a loft
+> pins one rotation for all sections, so one section always seams at a
+> subdivision vertex. §4 asks whether a DECLARED subdivision vertex — the
+> loop cut where the author said the carrier continues — is an admissible
+> seam, given that BOOL-8 already made a side legal with two authored
+> vertices on one carrier, which is the "one authored side = one carrier"
+> premise this entry rests on. The question is filed there, not answered;
+> this pointer exists so a reader of the register finds it, per this
+> entry's own "as a revision to this section".
 
 ## 7. Explicitly out of scope
 

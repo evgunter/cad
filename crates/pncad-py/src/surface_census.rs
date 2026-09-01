@@ -389,7 +389,8 @@ fn verb_spelling(verb: Verb) -> Spelling {
         // to be discovered — which is what this arm is for.
         Verb::ContinueTo => Spelling::NotBound {
             would_be: &["PathDirectedPoint.continue_to"],
-            reason: "the Rust authoring algebra gained the verb; the Python surface is bound                      by its own units and has not caught up",
+            reason: "the Rust authoring algebra gained the verb; the Python surface is bound \
+                     by its own units and has not caught up",
         },
         Verb::ArcTo => Bound(&[
             "PathPoint.arc_to",

@@ -458,3 +458,75 @@ fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
         other => panic!("a mid-carrier seam must refuse as the SEAM: {other:?}"),
     }
 }
+
+/// **The band's guarantee is PER LEG, and the run-level certifier is
+/// the data gate.** (R1 MIN-3, adopted.)
+///
+/// Each `continue_to` checks THIS leg's target against THIS leg's
+/// declared ray. That is the honest scope of the on-ray band, and it
+/// composes the way any per-step tolerance composes: forty legs each
+/// accepting a same-side miss of `0.5·ε` put the run's end `20·ε` — two
+/// full ε_input — off the ray the run started on, with every per-leg
+/// check green and correctly so.
+///
+/// This row exists to state that the drift does NOT escape quietly. The
+/// data gate is the run-level certifier, it sees the accumulated bow the
+/// per-leg checks cannot, and it ESCALATES on `chord_side` rather than
+/// accepting: the loud outcome, not silence. So the composition story is
+/// "the per-leg bound is per leg, and the gate catches the sum" — which
+/// is a recorded limit, not a hole.
+///
+/// R1's `r1_in_band_misses_accumulate_along_a_declared_run` builds the
+/// same chain and prints the measurement; this row PINS the gate's
+/// verdict, which is the part that must not regress silently.
+#[test]
+fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
+    let t = Tol::witness();
+    let eps = t.eps();
+    // An accepted miss (well inside the zero edge), same side every leg.
+    let bias = 0.5 * eps;
+    let n = 40usize;
+    let mut chain = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap();
+    for i in 0..n {
+        let step = i as f64 + 1.0;
+        chain = chain
+            .continue_to(p2(1.0 + step, step * bias), t)
+            .unwrap_or_else(|e| panic!("leg {i} must pass its OWN per-leg check: {e:?}"));
+    }
+    let closed = chain
+        .line_to(p2(1.0 + n as f64, 50.0), t)
+        .unwrap()
+        .line_to(p2(0.0, 50.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    let loop_ = pinned(closed);
+
+    // The drift is real and is larger than any single leg's bound: it is
+    // the SUM of n accepted misses, so it passes ε_input (= K·ε).
+    let drift = loop_.vertices()[n + 1].pos().y;
+    assert!(
+        drift > t.k() * eps,
+        "the accumulated drift {drift:e} should exceed one full input tolerance \
+         ({:e}), which is the whole point of this row",
+        t.k() * eps
+    );
+
+    // And the run-level certifier catches it LOUDLY. Escalation, not a
+    // silent accept and not a definite refusal: the bow puts `chord_side`
+    // inside the ambiguity band, which is exactly the honest verdict.
+    let err = Profile::new(SketchPlane::xy(), vec![loop_])
+        .validate(t)
+        .expect_err("the data gate must not silently accept a run bowed past its tolerance");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("escalated") && msg.contains("chord_side"),
+        "the gate should escalate on chord_side rather than refusing definitely or \
+         accepting: {msg}"
+    );
+}

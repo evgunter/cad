@@ -74,6 +74,8 @@ mod path_program;
 mod path_property;
 #[path = "r1_bool11_review_probes.rs"]
 mod r1_bool11_review_probes;
+#[path = "r2_bool11_review_probes.rs"]
+mod r2_bool11_review_probes;
 #[path = "rejections.rs"]
 mod rejections;
 #[path = "review_m2_pr2.rs"]
