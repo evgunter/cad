@@ -106,6 +106,18 @@ pub enum AttrKind {
     Visibility,
 }
 
+impl AttrKind {
+    /// The kind as a prose noun — the one spelling every user-facing
+    /// message uses, so a rendered kind never leans on `Debug`.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Color => "color",
+            Self::Label => "label",
+            Self::Visibility => "visibility",
+        }
+    }
+}
+
 /// One appearance attribute value (closed enum, one variant per
 /// [`AttrKind`]; module docs on extension).
 #[derive(
