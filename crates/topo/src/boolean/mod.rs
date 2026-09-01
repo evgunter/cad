@@ -75,6 +75,7 @@ pub mod plane_eq;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 mod rest;
+mod rim_wedge;
 pub(crate) mod sectors;
 pub mod solid_contain;
 pub mod tables;
@@ -735,6 +736,28 @@ pub enum BooleanError {
         /// The class that was declared.
         class: ContactClass,
     },
+    /// **A shared-rim contact routed to an arm that is DEFINED but not
+    /// BUILT** (`docs/MATE-7-TANGENCY-DESIGN.md`, RATIFIED).
+    ///
+    /// The ruling routes a rim by the material wedge its two faces
+    /// subtend: π is the smooth seam, which is structural and needs no
+    /// declaration at all; 0 and 2π are the declared-cusp family,
+    /// whose verification consumes a certified witness along the rim
+    /// that the witness lane does not yet mint. Either way the
+    /// declaration in hand is not the one the routing wants, and the
+    /// refusal says which arm the geometry actually earned rather than
+    /// reporting the class as merely unsupported.
+    ///
+    /// This is the A11-rider shape: the design is settled, one arm is
+    /// built, and the other refuses by pointing at the ruling that
+    /// defines it.
+    RimArmUnbuilt {
+        /// The declaration whose face pair carries the rim.
+        declaration: crate::contact::DeclaredContact,
+        /// The wedge the rim's material subtends — the routing's own
+        /// verdict, taken on the geometry rather than assumed.
+        wedge: geom_brep::MaterialWedge,
+    },
     /// A [`BooleanDeclarations`] payload references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
     /// non-planar declared face) — a caller bug, refused before any
@@ -1304,6 +1327,29 @@ impl core::fmt::Display for BooleanError {
                  refused at the door rather than ignored inside",
                 class.name()
             ),
+            Self::RimArmUnbuilt {
+                declaration,
+                wedge,
+            } => write!(
+                f,
+                "boolean op: faces {:?}/{:?} share a rim circle whose material wedge is {} — \
+                 the ratified routing (docs/MATE-7-TANGENCY-DESIGN.md) sends {}, and this \
+                 declaration of class {} is not what that arm consumes",
+                declaration.a,
+                declaration.b,
+                wedge.name(),
+                match wedge {
+                    geom_brep::MaterialWedge::Seam =>
+                        "a wedge-π rim to the smooth-seam zip, which is structural and takes \
+                         no declaration",
+                    geom_brep::MaterialWedge::Cusp | geom_brep::MaterialWedge::Slit =>
+                        "a wedge-0/2π rim to the declared-Tangent cusp family, whose certified \
+                         rim witness is DEFINED BUT UNBUILT",
+                    geom_brep::MaterialWedge::Transverse =>
+                        "a transverse rim to the ordinary crossing lanes",
+                },
+                declaration.class.name()
+            ),
             Self::InvalidDeclaration { operand, what } => write!(
                 f,
                 "boolean op: invalid declaration payload on operand {operand:?}: {what}"
@@ -1859,6 +1905,41 @@ fn verify_tangent_declaration<T: Decide>(
             });
         }
         Err(rest::TangentLocusError::Unsupported { .. }) => {
+            // **The ratified routing, before the class refusal.** A
+            // pair the witness lane cannot serve may still be a
+            // configuration the design has already ruled on: two faces
+            // meeting along ONE circle. Where they do, the material
+            // wedge decides which arm the rim earns and the refusal
+            // names it, so an author reading it learns what the
+            // geometry IS rather than only that a witness is missing.
+            // Where there is no shared rim — or the samples cannot
+            // settle one — the bare class refusal stands, verbatim.
+            if let Some(rim) = rim_wedge::shared_rim(a, fa, b, fb, band) {
+                let (sa, sb) = (surface_of(a, fa, Operand::A)?, surface_of(b, fb, Operand::B)?);
+                let senses = |body: &Body<T>, f: FaceKey| {
+                    body.get_face(f).map_or_else(T::one, |face| face.sense_sign::<T>())
+                };
+                // The rim's own diameter is the extent the angular
+                // margins are metered at: it is the reach over which
+                // this contact's verdict is consumed.
+                let extent = rim.radius + rim.radius;
+                if let Ok(routing) = rim_wedge::classify_shared_rim(
+                    &sa,
+                    senses(a, fa),
+                    &sb,
+                    senses(b, fb),
+                    rim,
+                    extent,
+                    band,
+                ) {
+                    if let Some(wedge) = routing.wedge() {
+                        return Err(BooleanError::RimArmUnbuilt {
+                            declaration,
+                            wedge,
+                        });
+                    }
+                }
+            }
             return Err(BooleanError::UnsupportedDeclarationClass {
                 class: ContactClass::Tangent,
             });

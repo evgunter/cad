@@ -415,8 +415,8 @@ mod m9_3_wall_door;
 
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
-#[path = "mate7a_scratch.rs"]
-mod mate7a_scratch;
+#[path = "mate7a_torus_rest.rs"]
+mod mate7a_torus_rest;
 #[path = "mate2_cyl_rest.rs"]
 mod mate2_cyl_rest;
 #[path = "mate2_r1_probes.rs"]
