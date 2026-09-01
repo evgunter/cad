@@ -101,8 +101,21 @@ mod m9_2b_r2_probes;
 mod m9_c1_r1_probes;
 #[path = "m9_c1_rest_face_rung.rs"]
 mod m9_c1_rest_face_rung;
+#[path = "mate4a_ef_bound_rung.rs"]
+mod mate4a_ef_bound_rung;
+#[path = "mate5_cyl_eps_rung.rs"]
+mod mate5_cyl_eps_rung;
+
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "r1_mate4a_probes.rs"]
+mod r1_mate4a_probes;
+#[path = "r1_mate5_interval_probe.rs"]
+mod r1_mate5_interval_probe;
+#[path = "r1_mate5_probe.rs"]
+mod r1_mate5_probe;
+#[path = "r2_probes.rs"]
+mod r2_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -139,6 +152,8 @@ mod review_m6_2_probes;
 mod review_m9_1_probes;
 #[path = "review_m9_1_r2_probes.rs"]
 mod review_m9_1_r2_probes;
+#[path = "review_mate4a_r2_probes.rs"]
+mod review_mate4a_r2_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]

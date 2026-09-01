@@ -310,7 +310,9 @@ pub fn run(out: Option<String>, tol: Tol) {
             heatsink::probe_solids(tol)
                 .into_iter()
                 .enumerate()
-                .map(|(i, bb)| seamed(&format!("heatsink_{}", [5, 7, 9][i]), bb))
+                .map(|(i, (body, contacts))| {
+                    (format!("heatsink_{}", [5, 7, 9][i]), body, Some(contacts))
+                })
                 .collect()
         },
         tol,

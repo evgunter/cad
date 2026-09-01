@@ -144,7 +144,13 @@ fn half_area_enclosures_bracket_the_closed_form() {
         // the widest enclosure it can return is at the initial count
         // with no refinement round taken: 1.47e-4·exact, over both
         // halves and all three ε legs, and CI's ε = 1e-6 leg already
-        // sits there. The ceiling clears that maximum by 2.0x.
+        // sits there. The ceiling clears that maximum by 2.0x
+        // (re-derived: the binding ratio is 1.470023e-4 at the
+        // ε = 1e-6 `above` half, so 2.041x). This is the CYLINDER arm,
+        // whose area rides `harmonic_edge_integral` rather than the
+        // patch lanes' cell rule — which is why every figure here is
+        // bit-identical to the one this row was first written against,
+        // while the loft row's moved when that cell rule changed.
         assert!(
             m.area_pad < 3e-4 * exact,
             "{label}: area pad {} vs exact area {exact}",

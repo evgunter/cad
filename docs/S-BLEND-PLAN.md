@@ -1,6 +1,8 @@
 # S-BLEND — fillet/chamfer completion (plan)
 
-**STATUS: OPEN.** Graduated from the ratified 2026-08-29 work-stream
+**STATUS: CLOSED (exit walk ratified 2026-08-31 — see
+`docs/S-BLEND-EXIT-WALK.md`, the program's done-state of
+record).** Graduated from the ratified 2026-08-29 work-stream
 survey (`docs/WORK-STREAMS-2026-08.md`, merged #1200 after Evan's
 read, carrying VERBS' cession and both handoff records from that
 PR's thread). Every design decision this plan leans on is ratified

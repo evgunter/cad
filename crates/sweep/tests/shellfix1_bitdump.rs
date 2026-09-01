@@ -189,24 +189,24 @@ fn shellfix1_bitdump_corpus() {
     let body = boxy(w, d, h);
     write_dump(
         "sealed_box",
-        &topo::shell(&body, t, 1e-6, band(), Tol::witness()).unwrap(),
+        &topo::shell(&body, t, 1e-6, Tol::witness()).unwrap(),
     );
     let top = plane_face_at_z(&body, h);
     let bottom = plane_face_at_z(&body, 0.0);
     write_dump(
         "box_cup",
-        &topo::shell_open(&body, t, &[top], 1e-6, band(), Tol::witness()).unwrap(),
+        &topo::shell_open(&body, t, &[top], 1e-6, Tol::witness()).unwrap(),
     );
     write_dump(
         "box_tube",
-        &topo::shell_open(&body, t, &[top, bottom], 1e-6, band(), Tol::witness()).unwrap(),
+        &topo::shell_open(&body, t, &[top, bottom], 1e-6, Tol::witness()).unwrap(),
     );
     write_dump(
         "sealed_vessel",
-        &topo::shell(&vessel(1.0, 2.0), 0.2, 1e-6, band(), Tol::witness()).unwrap(),
+        &topo::shell(&vessel(1.0, 2.0), 0.2, 1e-6, Tol::witness()).unwrap(),
     );
     write_dump(
         "sealed_tube",
-        &topo::shell(&tube(0.6, 1.0, 2.0), 0.1, 1e-6, band(), Tol::witness()).unwrap(),
+        &topo::shell(&tube(0.6, 1.0, 2.0), 0.1, 1e-6, Tol::witness()).unwrap(),
     );
 }

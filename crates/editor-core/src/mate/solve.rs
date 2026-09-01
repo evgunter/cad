@@ -35,7 +35,9 @@ use geom_core::predicate::Band;
 use super::coset::{Coset, FoldStop, Subgroup};
 use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
-use crate::node::{Node, RecipeNodeId};
+use crate::eval::SteppedOperands;
+use crate::names::RoleSeg;
+use crate::node::{Datum, Node, PatternKind, RecipeNodeId};
 use crate::placement::Frame;
 
 /// What a mate did in the solve (A11 rule 4).
@@ -118,29 +120,172 @@ impl SolvedPoses {
 
 // ---- A12: reading edges, recomputed ----
 
-/// The instantiate node a mate reference's HEAD names, or the typed
+/// **The member a mate reference's head names** (A11's member
+/// vocabulary): a live `InstantiatePart`, or a pattern-placed instance
+/// — the `Pattern` node with its `Instance(i)` qualifier.
+///
+/// A member is more than its cluster-graph vertex: mates to SIBLING
+/// copies of one pattern relate the same pair of instances through
+/// different static offsets, so the copy is part of the member's
+/// identity — it is what makes a second sibling mate close a LOOP
+/// (non-tree, declaring) instead of folding into the first mate's
+/// pair.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Member {
+    /// The cluster-graph vertex this member stands on: the head
+    /// instance itself, or — for a pattern-placed member — the
+    /// pattern's INPUT instance, whose pose the pattern's copies are
+    /// all derived from. This is the edge end A9/A11's partitions see,
+    /// and why a mate to `Instance(i)` joins the other member into the
+    /// pattern's cluster.
+    pub instance: RecipeNodeId,
+    /// Which pattern copy this member is — `(pattern node, structural
+    /// index)` — `None` for a plain instance head.
+    pub copy: Option<(RecipeNodeId, u32)>,
+}
+
+/// The member a mate reference's HEAD names, or the typed
 /// dangling-head refusal (N5).
+///
+/// Structural only — no expression is evaluated here, so the cluster
+/// partition never depends on a slot value. A head outside the member
+/// vocabulary (a non-instance node; a pattern whose name carries no
+/// `Instance(i)` qualifier; a pattern whose input is not itself a live
+/// instance — a patterned boolean, a nested pattern) resolves to no
+/// member and refuses.
 fn head_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
     name: &crate::names::StableName,
-) -> Result<RecipeNodeId, MateFault> {
+) -> Result<Member, MateFault> {
     let head = name.node;
-    if matches!(doc.node(head), Some(Node::InstantiatePart { .. })) {
-        Ok(head)
-    } else {
-        Err(MateFault::DanglingHead { mate, side, head })
+    match doc.node(head) {
+        Some(Node::InstantiatePart { .. }) => Ok(Member {
+            instance: head,
+            copy: None,
+        }),
+        Some(Node::Pattern { input, .. }) => match name.path.first() {
+            Some(RoleSeg::Instance { i, .. })
+                if matches!(doc.node(*input), Some(Node::InstantiatePart { .. })) =>
+            {
+                Ok(Member {
+                    instance: *input,
+                    copy: Some((head, *i)),
+                })
+            }
+            _ => Err(MateFault::DanglingHead { mate, side, head }),
+        },
+        _ => Err(MateFault::DanglingHead { mate, side, head }),
     }
 }
 
-/// **A12's reading edges**, recomputed from the recipe: `(mate, head)`
-/// for every live mate reference whose head is a live instance.
+/// **The pattern-derived offset** of a pattern-placed member: the
+/// rigid map the pattern's evaluation composes onto its input's
+/// placement for structural index `i` — THE evaluation's own stepped
+/// rule ([`crate::eval::stepped_rule_map`], the single home of that
+/// math), fed the pattern's authored slots evaluated at the document's
+/// own parameter bindings (document coordinates, LEFT-composed).
+/// `None` is the identity: a plain member, or copy 0, whose map is the
+/// identity by the rule's own construction — kept as absence so the
+/// no-pattern solve composes nothing and stays bit-for-bit what it
+/// was.
 ///
-/// Never stored — the DAG stays the single structure, and a dangling
-/// head simply contributes no edge until `Rebind` repairs it (N5).
-/// Deterministic order: document order of the mate, then `a` before
-/// `b`.
+/// The offset is STATIC: nothing here depends on any solved pose,
+/// which is how a mate to `Instance(i)` can never create per-instance
+/// freedom — the copy rides its master wherever the solve puts it.
+///
+/// # Errors
+///
+/// A head whose derived pose does not exist resolves to no member of
+/// the vocabulary and refuses [`MateFault::DanglingHead`] — an index
+/// at or beyond the count, a rule whose slots do not evaluate, a
+/// degenerate direction, an explicit-rule pattern (whose count
+/// spelling the pattern node itself refuses). The pattern node's own
+/// evaluation names the underlying cause in its own voice; this door's
+/// job is only to refuse rather than guess a pose. An in-band
+/// direction-norm decision escalates [`MateFault::Indeterminate`], as
+/// every decided predicate here does.
+fn derived_offset<P>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    member: Member,
+    band: Band,
+) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
+    let Some((pattern, i)) = member.copy else {
+        return Ok(None);
+    };
+    let dangling = || {
+        Box::new(MateFault::DanglingHead {
+            mate,
+            side,
+            head: pattern,
+        })
+    };
+    let Some(Node::Pattern { count, kind, .. }) = doc.node(pattern) else {
+        return Err(dangling());
+    };
+    let env = doc.param_env::<f64>();
+    let n = crate::expr::eval_count(count, &env).map_err(|_| dangling())?;
+    if i64::from(i) >= n {
+        return Err(dangling());
+    }
+    if i == 0 {
+        return Ok(None);
+    }
+    let scalar = |e: &crate::expr::Expr| crate::expr::eval(e, &env).map_err(|_| dangling());
+    let triple = |es: &[crate::expr::Expr; 3]| -> Result<Vec3<f64>, Box<MateFault>> {
+        Ok(Vec3::new(scalar(&es[0])?, scalar(&es[1])?, scalar(&es[2])?))
+    };
+    // The evaluation's own direction normalization (the shared
+    // `eval_direction_norm` door), decided — never a raw comparison,
+    // never a silent zero direction.
+    let unit = |v: Vec3<f64>| -> Result<Vec3<f64>, Box<MateFault>> {
+        crate::eval::unit_direction(v, "pattern direction", band).map_err(|e| match e {
+            crate::eval::NodeErrorKind::Escalated { source, .. } => {
+                Box::new(MateFault::Indeterminate {
+                    mate,
+                    diag: Box::new(source),
+                })
+            }
+            _ => dangling(),
+        })
+    };
+    let ops = match kind {
+        PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
+            direction: unit(triple(direction)?)?,
+            spacing: scalar(spacing)?,
+        },
+        PatternKind::Circular { axis, step } => {
+            let Some(Node::Datum(Datum::Axis { origin, direction })) = doc.node(*axis) else {
+                return Err(dangling());
+            };
+            SteppedOperands::Circular {
+                origin: Point3::origin() + triple(origin)?,
+                dir: unit(triple(direction)?)?,
+                step: scalar(step)?,
+            }
+        }
+        // The list-rule pattern's count has two spellings, which the
+        // pattern node itself refuses; no copy of it has a derived
+        // pose to stand a member on.
+        PatternKind::Explicit(_) => return Err(dangling()),
+    };
+    Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
+}
+
+/// **A12's reading edges**, recomputed from the recipe:
+/// `(mate, instance)` for every mate reference whose head resolves to
+/// a member of the A11 vocabulary. The edge lands on the MEMBER's
+/// instance — the head instance itself, or the pattern's INPUT
+/// instance for a pattern-placed head — which is the vertex the
+/// A9/A11 partitions see.
+///
+/// Never stored — the DAG stays the single structure, and a head that
+/// resolves to no member simply contributes no edge until `Rebind`
+/// repairs it (N5). Deterministic order: document order of the mate,
+/// then `a` before `b`.
 pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
     let mut out = Vec::new();
     for &id in doc.order() {
@@ -148,8 +293,8 @@ pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
             continue;
         };
         for (side, name) in [(MateSide::A, a), (MateSide::B, b)] {
-            if let Ok(head) = head_of(doc, id, side, name) {
-                out.push((id, head));
+            if let Ok(member) = head_of(doc, id, side, name) {
+                out.push((id, member.instance));
             }
         }
     }
@@ -251,10 +396,16 @@ pub fn clusters<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
                 head_of(doc, id, MateSide::A, a),
                 head_of(doc, id, MateSide::B, b),
             )
-            && ha != hb
+            && ha.instance != hb.instance
         {
-            adjacency.entry(ha).or_default().insert(hb);
-            adjacency.entry(hb).or_default().insert(ha);
+            adjacency
+                .entry(ha.instance)
+                .or_default()
+                .insert(hb.instance);
+            adjacency
+                .entry(hb.instance)
+                .or_default()
+                .insert(ha.instance);
         }
     }
     components(&instances, &adjacency)
@@ -426,9 +577,16 @@ fn invert(c: Coset) -> Coset {
     }
 }
 
-/// **The per-pair fold** (A11 rule 1): every mate on the ordered pair
-/// `(parent, child)`, intersected. The result's representative maps the
-/// child's part coordinates into the parent's.
+/// **The per-pair fold** (A11 rule 1): every mate on the ordered
+/// MEMBER pair `(parent, child)`, intersected. The result's
+/// representative maps the child MEMBER's part coordinates into the
+/// parent MEMBER's — for a pattern-placed member, the coordinates its
+/// mate frames are authored in (the master's, which the copy shares
+/// key-for-key). The pair's derived offsets are NOT in this coset:
+/// they are the pair's static left factor
+/// ([`pair_left_factor`]), composed outside the fold, which is what
+/// keeps the coset algebra itself unchanged (the rider's rule-1
+/// clause).
 ///
 /// # Errors
 ///
@@ -437,8 +595,8 @@ fn invert(c: Coset) -> Coset {
 /// which names both mates, the predicate, and the measured clash.
 pub fn fold_pair<P>(
     doc: &Doc<P>,
-    parent: RecipeNodeId,
-    child: RecipeNodeId,
+    parent: Member,
+    child: Member,
     mates: &[RecipeNodeId],
     band: Band,
     tol: Tol,
@@ -464,7 +622,10 @@ pub fn fold_pair<P>(
         let ha = head_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
         let hb = head_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
         if ha == hb {
-            return Err(Box::new(MateFault::SelfMate { mate, instance: ha }));
+            return Err(Box::new(MateFault::SelfMate {
+                mate,
+                instance: ha.instance,
+            }));
         }
         arm = arm.max(alignment.lever_arm());
         let mut coset = mate_coset(mate, alignment, band, tol)?;
@@ -500,6 +661,57 @@ pub fn fold_pair<P>(
     Ok(held)
 }
 
+/// **The pair's static left factor**: what conjugating the members'
+/// pattern-derived offsets through the cluster's recorded frame
+/// contributes to the child's gauge-relative pose,
+///
+/// ```text
+/// rel_child = (F⁻¹ ∘ O_child⁻¹ ∘ O_parent ∘ F) ∘ rel_parent ∘ rep
+/// ```
+///
+/// where `F` is the cluster's recorded frame (the offsets are document
+/// -coordinate maps the evaluation composes OUTSIDE the placement, so
+/// relative poses must un-wind `F` around them), and `O` is each
+/// member's derived offset. `None` when both members are plain — the
+/// factor is then the identity BY CONSTRUCTION, not numerically, so a
+/// document without pattern members composes nothing and its solve
+/// stays bit-for-bit what it was.
+///
+/// The faults a member's offset can raise are attributed through
+/// `mate` — the pair's first mate, whose sides name these members.
+fn pair_left_factor<P>(
+    doc: &Doc<P>,
+    gauge: RecipeNodeId,
+    parent: Member,
+    child: Member,
+    mate: RecipeNodeId,
+    band: Band,
+) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
+    // The authored sides for attribution: whichever of the pair the
+    // parent member is, the other is the child.
+    let (parent_side, child_side) = match doc.node(mate) {
+        Some(Node::Mate { a, .. }) if head_of(doc, mate, MateSide::A, a) == Ok(parent) => {
+            (MateSide::A, MateSide::B)
+        }
+        _ => (MateSide::B, MateSide::A),
+    };
+    let op = derived_offset(doc, mate, parent_side, parent, band)?;
+    let oc = derived_offset(doc, mate, child_side, child, band)?;
+    let middle = match (oc, op) {
+        (None, None) => return Ok(None),
+        (Some(oc), Some(op)) => oc.inverse() * op,
+        (Some(oc), None) => oc.inverse(),
+        (None, Some(op)) => op,
+    };
+    let f = doc
+        .placements()
+        .get(&gauge)
+        .copied()
+        .unwrap_or_default()
+        .affine::<f64>();
+    Ok(Some(f.inverse() * middle * f))
+}
+
 /// **The document's solve** (D-4 + D-5): every cluster's spanning tree
 /// from its gauge, every tree pair folded and required DETERMINED,
 /// every other mate recorded DECLARING, and every instance's pose
@@ -527,9 +739,15 @@ pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
             return out;
         }
     };
-    // Mates by the unordered instance pair they relate, document order
-    // within a pair.
-    let mut by_pair: BTreeMap<(RecipeNodeId, RecipeNodeId), Vec<RecipeNodeId>> = BTreeMap::new();
+    // Mates by the unordered MEMBER pair they relate, document order
+    // within a pair. The member — not just its instance — is the key:
+    // mates to sibling copies of one pattern are DIFFERENT pairs, so
+    // the second of them is a non-tree edge (declaring) rather than a
+    // fold-mate of the first, which is the rider's loop clause. A
+    // self-mate is one MEMBER named on both sides; two distinct copies
+    // of one pattern are a pair like any other (their edge just joins
+    // no clusters, both ends standing on the same instance).
+    let mut by_pair: BTreeMap<(Member, Member), Vec<RecipeNodeId>> = BTreeMap::new();
     let mut broken: Vec<(RecipeNodeId, MateFault)> = Vec::new();
     for &id in doc.order() {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
@@ -543,11 +761,11 @@ pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
             (Ok(ha), Ok(hb)) if ha != hb => {
                 by_pair.entry(unordered(ha, hb)).or_default().push(id);
             }
-            (Ok(ha), Ok(hb)) => broken.push((
+            (Ok(ha), Ok(_)) => broken.push((
                 id,
                 MateFault::SelfMate {
                     mate: id,
-                    instance: ha.min(hb),
+                    instance: ha.instance,
                 },
             )),
             (Err(fault), _) | (_, Err(fault)) => broken.push((id, fault)),
@@ -582,7 +800,7 @@ pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
                         .or_insert_with(|| (*fault).clone());
                 }
                 for (pair, mates) in &by_pair {
-                    if cluster.contains(&pair.0) {
+                    if cluster.contains(&pair.0.instance) {
                         for &mate in mates {
                             out.roles.insert(mate, MateRole::Refused);
                             out.faults.entry(mate).or_insert_with(|| (*fault).clone());
@@ -601,33 +819,53 @@ struct ClusterSolve {
     roles: BTreeMap<RecipeNodeId, MateRole>,
 }
 
-fn unordered(x: RecipeNodeId, y: RecipeNodeId) -> (RecipeNodeId, RecipeNodeId) {
+fn unordered<T: Ord>(x: T, y: T) -> (T, T) {
     if x <= y { (x, y) } else { (y, x) }
 }
 
 /// One cluster: the deterministic spanning tree from the gauge, each
 /// tree pair folded and required DETERMINED (A11 rule 4), the poses
 /// composed outward (rule 5).
+///
+/// The tree spans INSTANCES, but its edges are member pairs: between
+/// two instances the tree takes the first member pair in key order and
+/// every other pair between them — a sibling copy's mate, say — is a
+/// non-tree edge and stays DECLARING. A pair standing on one instance
+/// twice (two copies of the same pattern mated to each other) can
+/// never be a tree edge at all — the pattern already determined both
+/// ends — so it stays declaring the same way.
 fn solve_cluster<P>(
     doc: &Doc<P>,
     cluster: &[RecipeNodeId],
     gauge: RecipeNodeId,
-    by_pair: &BTreeMap<(RecipeNodeId, RecipeNodeId), Vec<RecipeNodeId>>,
+    by_pair: &BTreeMap<(Member, Member), Vec<RecipeNodeId>>,
     band: Band,
     tol: Tol,
 ) -> Result<ClusterSolve, Box<MateFault>> {
     let position: BTreeMap<RecipeNodeId, usize> =
         cluster.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut neighbours: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
+    // The tree edge between two instances: the FIRST member pair
+    // relating them, in pair-key order (deterministic). Every other
+    // pair between the same two is a non-tree edge and stays
+    // declaring.
+    let mut edge_of: BTreeMap<(RecipeNodeId, RecipeNodeId), (Member, Member)> = BTreeMap::new();
     for (&(x, y), _) in by_pair
         .iter()
-        .filter(|((x, _), _)| position.contains_key(x))
+        .filter(|((x, _), _)| position.contains_key(&x.instance))
     {
-        neighbours.entry(x).or_default().push(y);
-        neighbours.entry(y).or_default().push(x);
+        if x.instance == y.instance {
+            continue;
+        }
+        neighbours.entry(x.instance).or_default().push(y.instance);
+        neighbours.entry(y.instance).or_default().push(x.instance);
+        edge_of
+            .entry(unordered(x.instance, y.instance))
+            .or_insert((x, y));
     }
     for list in neighbours.values_mut() {
         list.sort_by_key(|id| position.get(id).copied().unwrap_or(usize::MAX));
+        list.dedup();
     }
     let mut relative: BTreeMap<RecipeNodeId, Frame> = BTreeMap::new();
     relative.insert(gauge, Frame::IDENTITY);
@@ -638,7 +876,7 @@ fn solve_cluster<P>(
     // and which one won would depend on document order.
     let mut roles: BTreeMap<RecipeNodeId, MateRole> = BTreeMap::new();
     for (pair, mates) in by_pair {
-        if position.contains_key(&pair.0) {
+        if position.contains_key(&pair.0.instance) {
             for &mate in mates {
                 roles.insert(mate, MateRole::Declaring);
             }
@@ -651,8 +889,10 @@ fn solve_cluster<P>(
             if !visited.insert(child) {
                 continue;
             }
-            let mates = &by_pair[&unordered(parent, child)];
-            let coset = fold_pair(doc, parent, child, mates, band, tol)?;
+            let (x, y) = edge_of[&unordered(parent, child)];
+            let (pm, cm) = if x.instance == parent { (x, y) } else { (y, x) };
+            let mates = &by_pair[&(x, y)];
+            let coset = fold_pair(doc, pm, cm, mates, band, tol)?;
             if !coset.subgroup.is_determined() {
                 // A11 rule 4: a tree edge that does not determine
                 // refuses, naming the residual and its parameters.
@@ -663,7 +903,10 @@ fn solve_cluster<P>(
                     residual: coset.subgroup,
                 }));
             }
-            let pose = poses[&parent] * coset.representative;
+            let mut pose = poses[&parent] * coset.representative;
+            if let Some(left) = pair_left_factor(doc, gauge, pm, cm, mates[0], band)? {
+                pose = left * pose;
+            }
             poses.insert(child, pose);
             relative.insert(child, Frame::from_affine(pose));
             for &mate in mates {

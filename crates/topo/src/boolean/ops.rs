@@ -1483,18 +1483,20 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                 continue;
             }
             seen.push(fd.surface);
-            // The group-arm discipline (PR 9c): the extent `center ± r`
-            // is the whole group's, so it is only honest for a CLOSED
-            // group — a trimmed sphere face refuses typed.
-            let Some(representative) = closed_sphere_group(x, face) else {
-                return Err(BooleanError::FallbackExtentUnsupported {
-                    operand: x_is,
-                    face,
-                    what: "a trimmed sphere face group — the extent certificate needs the \
-                           closed-group discipline, and no per-face chart-trim extent \
-                           exists",
-                });
-            };
+            // **Closedness is asked where it is USED, not on arrival.**
+            // The certificate this scan spends is `center ± r`, and for
+            // a TRIMMED group that box over-claims — which is the sound
+            // direction for every SEPARATION test below, because a
+            // trimmed face is a subset of the sphere and a box that
+            // proves the whole sphere clear proves the subset clear.
+            // What genuinely needs the closed group is the plane arm's
+            // ESCAPE conclusion: it reasons about the whole section
+            // circle of the sphere CARRIER, and it hands the result to
+            // a re-chart that rotates the group about its own centre —
+            // neither statement survives trimming. So the refusal lives
+            // at that conclusion, and a trimmed group whose extent
+            // clears everything gets its answer like any other.
+            let group = closed_sphere_group(x, face);
             let ball_box = bvh::Aabb {
                 min_x: center.x.lo() - radius.hi(),
                 min_y: center.y.lo() - radius.hi(),
@@ -1618,6 +1620,25 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                     // elsewhere).
                                     FaceContainment::Out => {}
                                     FaceContainment::In => {
+                                        // The escape is the one
+                                        // conclusion the closed group
+                                        // is load-bearing for: the
+                                        // whole-circle membership just
+                                        // decided is the CARRIER's, and
+                                        // the re-chart it feeds rotates
+                                        // the group about its centre.
+                                        if group.is_none() {
+                                            return Err(BooleanError::FallbackExtentUnsupported {
+                                                operand: x_is,
+                                                face,
+                                                what: "a TRIMMED sphere face group escapes \
+                                                           through a plane face — the whole \
+                                                           section circle is the carrier's, not \
+                                                           the trimmed face's, and the re-chart \
+                                                           that would follow rotates a closed \
+                                                           group about its own centre",
+                                            });
+                                        }
                                         escape_normals.push(normal);
                                     }
                                     // Boxes cleared yet the witness is
@@ -1688,9 +1709,13 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             face,
                                             what: "two sphere boundaries meet (neither \
                                                    separated nor strictly nested) — the \
-                                                   sphere×sphere germ arm (a closed-form \
-                                                   Circle) has no join lane in this \
-                                                   build",
+                                                   sphere×sphere section is the exact \
+                                                   closed-form Circle and the germ frame \
+                                                   names it, but the JOIN has no arm for a \
+                                                   curved×curved germ pair: its arc-side \
+                                                   rule needs a chart the pair does not \
+                                                   have, and a crossing found here would \
+                                                   pierce a curved face first",
                                         });
                                     }
                                 }
@@ -1740,7 +1765,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                     }
                 }
             }
-            if let Some((&align, rest)) = escape_normals.split_first() {
+            // An escape was recorded, so the group is closed (the arm
+            // above refuses otherwise) and has a representative.
+            if let (Some((&align, rest)), Some(representative)) =
+                (escape_normals.split_first(), group)
+            {
                 // ONE alignment per group (M5 S13 fix pass, review
                 // MAJOR): the re-chart makes every section polar only
                 // when ALL of this group's escape planes share a

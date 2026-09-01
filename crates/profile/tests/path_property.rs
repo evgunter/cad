@@ -295,20 +295,45 @@ fn turn_zero_refuses_toward_tangent() {
     ));
 }
 
+/// The reverse class still refuses when it is AUTHORED rather than
+/// declared — a value within ε of the reverse is a coincidence, and
+/// the ladder never reads intent off a margin — but the refusal now
+/// names the door: `.cusp()`, which reverses the incoming ray exactly
+/// and emits the declaration the kernel's wedge arm asks for.
 #[test]
-fn turn_pi_refuses_as_cusp_naming_the_absent_declaration_door() {
+fn turn_pi_refuses_as_cusp_naming_the_declaration_door() {
     let leg = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0), Tol::witness())
         .unwrap();
     let err = leg.turn(std::f64::consts::PI, Tol::witness()).unwrap_err();
     assert!(matches!(err, PathError::JunctionCusp { .. }));
-    // The refusal must say that no declaration door for cusps exists,
-    // so the caller does not go looking for one — pinned here, not
-    // just carried in prose.
+    // The message names the verb, and no longer says the door is
+    // absent: a caller who means the cusp has somewhere to go.
+    let text = err.to_string();
     assert!(
-        err.to_string().contains("no declaration door for cusps"),
-        "cusp refusal must say the declaration door does not exist: {err}"
+        text.contains(".cusp()"),
+        "cusp refusal must name the verb: {text}"
+    );
+    assert!(
+        !text.contains("no declaration door"),
+        "the door exists now: {text}"
+    );
+    // Declaring it is a different spelling, not a looser tolerance:
+    // the same junction authored through the verb is exact.
+    let declared = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(p2(1.0, 1.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        declared.loop_.tangent_joints(),
+        &[1],
+        "the cusp joint is DECLARED, like a tangent one"
     );
 }
 

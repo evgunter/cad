@@ -82,6 +82,7 @@ fn chain_steps() -> Vec<ProgramStep> {
             dy: sca(0.5),
         },
         ProgramStep::Tangent,
+        ProgramStep::Cusp,
         ProgramStep::Turn(ang(0.1)),
         ProgramStep::Line(len(1.0)),
         ProgramStep::LineTo(point(1.0, 0.0)),

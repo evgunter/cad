@@ -184,7 +184,13 @@ raw `cargo` invocations yourself.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
-**The ways CI silently does not run.** A PR that is CONFLICTING against
+**The ways CI silently does not run.** An exhausted Actions SPENDING
+LIMIT kills every job seconds after creation — no steps, no logs,
+`failure` — which reads as runner loss; the tell is unrelated PRs'
+runs dying in the same minutes. No push, empty commit, or re-run
+helps until Evan raises the limit: hold, then re-run the dead head's
+failed jobs once (they died pre-step, so the re-run is legitimate).
+A PR that is CONFLICTING against
 main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
@@ -209,7 +215,12 @@ workflow source is not.**
 **Merging is destructive to checks — four rules, each guarding a silent
 or permanent failure rather than a red build.** Before merging, filter
 the check runs (`gh api .../check-runs`): reject any `conclusion` that
-is not `success`, **and separately confirm none is still in flight** —
+is not `success` — except a red INHERITED from main (reproduced on
+main's own tree, not the PR's): that red does not block the merge
+(Evan, in-chat, 2026-08-31), but it must be annotated on the PR with
+its issue, and the LANE THAT CAUSED IT owes the fix — record the debt
+on the issue and summon that lane; never absorb it in passing.
+**Separately confirm none is still in flight** —
 a check still running when you merge dies at checkout and can never be
 re-run, so its failure reads as a defect forever. Confirm a *skip* is
 habitual by checking earlier green runs of the same branch. Resolving a

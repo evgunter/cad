@@ -160,10 +160,12 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 /// because a ray from the query point crosses the whole boundary and
 /// box reach does not enter that question. So the admitted union
 /// still refuses, naming the KIND and saying the body is healthy:
-/// `PartialSphereFace` for the sphere-capped vase,
-/// `KindUnsupported { kind: Cone }` for the cone-capped one. What
-/// this row pins is that the refusal is a capability statement and
-/// never a corruption claim.
+/// `KindUnsupported { kind: Torus }` for BOTH vases. The caps are
+/// served either way now — the sphere-capped one through the sphere
+/// chart's own rectangle, the cone-capped one through the ray×cone
+/// arm — so in both the band is what is left. What this row pins is
+/// that the refusal is a capability statement and never a corruption
+/// claim.
 ///
 /// Both arms carry the aspirational branch: if the union ever
 /// completes, its volume must be the reviewer's own closed form.
@@ -183,16 +185,42 @@ fn a_granted_crossing_union_with_a_torus_band_is_refused_by_kind_in_containment(
             Err(BooleanError::Containment(e)) => {
                 let msg = e.to_string();
                 if sphere_caps {
-                    assert!(
-                        msg.contains("trimmed"),
-                        "expected the partial-sphere containment refusal: {msg}"
-                    );
-                } else {
+                    // The sphere caps used to be the blocker: they are
+                    // TRIMMED sphere faces, and the containment door had
+                    // no chart trim for that class. It has one, so the
+                    // caps answer and the refusal moves to the face that
+                    // still has no ray-crossing arm — the TORUS band.
+                    // The row's point is unchanged: a capability
+                    // statement, never a corruption claim.
                     assert!(
                         matches!(
                             e,
                             topo::PointInSolidError::KindUnsupported {
-                                kind: geom_brep::SurfaceKind::Cone,
+                                kind: geom_brep::SurfaceKind::Torus,
+                                ..
+                            }
+                        ),
+                        "expected the torus containment kind refusal, got {e:?}"
+                    );
+                    assert!(
+                        msg.contains("HEALTHY") && !msg.contains("corrupt"),
+                        "the refusal must name a missing capability, not damage: {msg}"
+                    );
+                } else {
+                    // The same movement, one kind later: the plain
+                    // caps are CONE faces, and they were the blocker
+                    // until the containment door grew the ray×cone
+                    // arm. It has one, so the caps answer and the
+                    // refusal moves to the face that still has no
+                    // ray-crossing arm — the TORUS band, which is what
+                    // both branches now name. The row's point is
+                    // unchanged: a capability statement, never a
+                    // corruption claim.
+                    assert!(
+                        matches!(
+                            e,
+                            topo::PointInSolidError::KindUnsupported {
+                                kind: geom_brep::SurfaceKind::Torus,
                                 ..
                             }
                         ),

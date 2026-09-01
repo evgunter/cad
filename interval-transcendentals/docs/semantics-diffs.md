@@ -20,15 +20,14 @@ intervals, FMA-witnessed exact squares/products, exact sums (TwoSum
 witness), FMA-witnessed exact quotients, `sqrt` of witnessed perfect
 squares.
 
-The exact-quotient witness was added during the M5 PR 1 adoption, when
-padding *every* division unconditionally proved to be a divergence with
-kernel-visible consequences rather than a mere tightness gap: `v / |v|`
-for an axis-aligned `v` stopped being exactly unit, which widened every
-coordinate taken against such a frame and made the kernel's exact-order
-band (topo's null-edge sort — a design that rests on axis-aligned splits
-over dyadic geometry classifying EXACTLY) escalate where it used to
-decide. The witness is `mul_exact`'s, mirrored: `fma(q, b, -a) == 0`
-above the 2Prod validity floor proves `q·b = a`, hence `a/b = q` exactly.
+The exact-quotient witness is not optional tightness. Padding *every*
+division makes `v / |v|` for an axis-aligned `v` no longer exactly unit,
+which widens every coordinate taken against such a frame and makes the
+kernel's exact-order band (topo's null-edge sort, which rests on
+axis-aligned splits over dyadic geometry classifying EXACTLY) escalate
+where it should decide. The witness is `mul_exact`'s, mirrored:
+`fma(q, b, -a) == 0` above the 2Prod validity floor proves `q·b = a`,
+hence `a/b = q` exactly.
 
 ## D2 — Decoration on atan2's upper closed half-plane ray boxes
 
@@ -96,13 +95,10 @@ can never exceed either input, so no poison is laundered; what it
 does is let clean values stay clean through hull-shaped code paths
 (the `copysign`-style tangent hull in
 `crates/geom-core/src/interval.rs` is that path) instead of poisoning
-them structurally. This over-asserts
-relative to strict 1788 decoration semantics (which would say `Trv`), it
-is the single such place, and consumers wanting 1788-strict behavior can call
-`intersection`-style code or drop the decoration themselves. Flagged
-by adversarial review (it was undocumented — a process violation of
-this file's "complete list" claim, now corrected); behavior kept,
-divergence documented, and pinned by a unit test.
+them structurally. This over-asserts relative to strict 1788 decoration
+semantics (which would say `Trv`), it is the single such place, and
+consumers wanting 1788-strict behavior can call `intersection`-style
+code or drop the decoration themselves. Pinned by a unit test.
 
 ## D8 — `floor` decoration uses restriction-continuity (like D2)
 

@@ -7,8 +7,15 @@
 //! nets, weights, the MEASURED interpolation claim, the not-ruled
 //! claim), which no render can show.
 //!
-//! # The scenes and the corpus (montage-v2 curation)
+//! # The scenes and the corpus (montage-v3 curation)
 //!
+//! - `lofts` — ONE cell carrying BOTH lofts, side by side, since the
+//!   montage-v3 curation (Evan, 2026-08-30). Two adjacent cells were
+//!   not showing a minimal pair: `compose_montage.py` trims and scales
+//!   every cell independently, so the panels arrived at two different
+//!   scales and the silhouette comparison was distorted by the
+//!   composer. One frame gives them one camera AND one scale. The two
+//!   bodies keep their own names, exports and narration lines.
 //! - `loft_prism` — the same BODY as the corpus fixture
 //!   `step-export/tests/common/mod.rs::loft_prism()` (recipe-layer
 //!   twin: `editor-core/tests/corpus/loft_prism.rs`; acceptance + the
@@ -25,7 +32,9 @@
 //!   re-places the same
 //!   sections at z = 0/0.15/2 — same sections, same total height,
 //!   ONLY the middle placement moves — driving the bulge to
-//!   half-width 1.646 at 32.6% of height: silhouette-obvious.
+//!   half-width 1.646 at 32.6% of height: silhouette-obvious. Rendered
+//!   `LOFT_PAIR_GAP` along +x of its twin (a rigid placement, applied
+//!   after every assertion; volume is translation-invariant).
 //! - `s_duct` — standalone since montage-v2 (Evan, #218 follow-up:
 //!   the S SOLID is two glued partial revolves, shape for shape, so
 //!   as a cell it demonstrated the one-op path, not an unreachable
@@ -183,7 +192,8 @@ pub fn narration(tol: Tol) {
 
     println!(
         "   the loft/sweep BODIES are scenes now (frontier fully retired): \
-         loft_prism, nonuniform_loft, s_duct — see the stops below"
+         lofts (loft_prism + nonuniform_loft in one cell), s_duct — \
+         see the stops below"
     );
 }
 
@@ -252,6 +262,13 @@ const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-
 /// corners flare by ±d, d = 0.375 (also `common/mod.rs::PRISM_TRAPEZOID`).
 const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 
+/// How far along +x the non-uniform loft renders from its twin. The
+/// prism reaches half-width 1.375 (its trapezoid) and the non-uniform
+/// skin overshoots to 1.646, so 4 m leaves 4 − 1.375 − 1.646 ≈ 0.98 m
+/// of clear air between the two silhouettes at the shared camera —
+/// separated without either shrinking to make room.
+const LOFT_PAIR_GAP: f64 = 4.0;
+
 /// The S-duct's arc radius (scene-local; the corpus elbow's is
 /// `sweep::test_support`'s `ELBOW_R` = 3 — see the S-path note below).
 const S_R: f64 = 2.0;
@@ -264,8 +281,22 @@ const ELBOW_H: f64 = 0.25;
 /// Section placements: pure translations up the world z-axis (also
 /// `common/mod.rs::lofted_at_z`).
 fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
+    lofted_at_x_z(0.0, zs)
+}
+
+/// The same stack of placements, the whole loft shifted `dx` along +x —
+/// how the pair cell puts the two lofts side by side while
+/// `transform_rigid` refuses a NURBS-walled body (#1346).
+///
+/// A COMMON offset on every placement is a rigid motion of the finished
+/// solid: it moves the body and changes no section, no spacing and no
+/// parameterization (`skin_parameters` reads chord lengths between
+/// control rows, which a common translation leaves alone — pinned by
+/// the `loft_parameters` assertion in [`stops`], which still gets the
+/// same `t`).
+fn lofted_at_x_z(dx: f64, zs: &[f64]) -> Vec<Affine3<f64>> {
     zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| Affine3::translation(Vec3::new(dx, 0.0, *z)))
         .collect()
 }
 
@@ -377,7 +408,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // dramatically (numbers in the stop's note). The corpus fixture
     // keeps 0/1/3 — this scene now LEADS the corpus, the s_duct/lily
     // precedent.
-    let nonuniform_places = lofted_at_z(&[0.0, 0.15, 2.0]);
+    let nonuniform_places = lofted_at_x_z(LOFT_PAIR_GAP, &[0.0, 0.15, 2.0]);
     // The middle section's v-parameter, ASKED (LIB-U5 deliverable 1)
     // rather than re-derived: the note below narrates
     // t = 3√29/(3√29 + √5701) and every number downstream of it, so
@@ -393,6 +424,37 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         pncad::sweep::loft_body::<f64>(&prism_sections(tol), &nonuniform_places, 2, tol)
             .expect("the non-uniform loft builds")
             .body;
+    // ONE CELL, BOTH BODIES (montage-v3 curation, Evan 2026-08-30).
+    // Two adjacent cells were not showing the pair the pair claims to
+    // be: `compose_montage.py` trims and scales EVERY cell
+    // independently, so the two panels arrived at two different scales
+    // and the silhouette comparison — the whole content of a minimal
+    // pair — was distorted by the composer. Side by side in ONE frame
+    // they share a camera AND a scale, which is what "only the middle
+    // placement moved" needs a reader to be able to see.
+    //
+    // GAP RECORDED, NOT WORKED AROUND (`memories/demo-purpose.md`):
+    // the natural spelling here is the `twopeg_apart` / teapot-lid one
+    // — build the body, then place it with `transform_rigid` — and it
+    // REFUSES on this body: `TransformError::NurbsPlaceholder`, from an
+    // arm that matches the `Surface::Nurbs` VARIANT while its own text
+    // describes only the placeholder ("unimplemented geometry evaluates
+    // to poison"). These walls are described degree-1×2 and 2×2 nets
+    // that evaluate, tessellate, integrate and export; nothing about
+    // them is poison, and `NurbsSurface::is_placeholder()` is public on
+    // both halves. So NO loft, sweep or skinned body in this kernel can
+    // be moved — filed as #1346, which is strictly less work than the
+    // Approx arm beside it (#1020): a rigid map of a described net is
+    // the control-point map, weights and knots unchanged, no
+    // certificate to re-derive.
+    //
+    // Until it lands, the pair is placed by AUTHORING the second loft's
+    // three placements at the offset rather than by moving the built
+    // body. That is a rigid motion of the whole loft — every section
+    // shifted by the same vector — so it changes the body's position
+    // and nothing else, and the derivations below still hold of the
+    // body that renders. What it does NOT do is exercise the door a
+    // user would reach for, which is the finding.
 
     // The S path (#218 review; DEMOTED to standalone at montage-v2):
     // two opposed quarter arcs of radius R in the world x = 0 plane,
@@ -449,74 +511,69 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     let mut stops = vec![
         Stop {
-            name: "loft_prism",
-            caption: "loft_prism (3 sections, non-affine middle)".to_string(),
+            name: "lofts",
+            caption: "the loft pair (same sections, only the middle spacing moves)".to_string(),
             montage: true,
-            story: "R5 shape (iii): three polyline quad sections — squares at z = 0 and \
-                    z = 2, a trapezoid at z = 1 — skinned at v-degree 2. The middle \
-                    section is NOT an affine image of the squares (affine maps preserve \
-                    parallelism; the trapezoid has a non-parallel pair), so the four \
-                    walls are genuinely curved NURBS patches, not ruled strips",
-            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/1/2, v_degree 2)",
+            story: "R5 shape (iii) and its TRUE minimal pair, in one frame. Three \
+                    polyline quad sections — squares at the ends, a trapezoid between \
+                    — skinned at v-degree 2. The middle section is NOT an affine image \
+                    of the squares (affine maps preserve parallelism; the trapezoid has \
+                    a non-parallel pair), so the four walls are genuinely curved NURBS \
+                    patches, not ruled strips. LEFT: placements z = 0/1/2. RIGHT: the \
+                    SAME sections, the SAME 2 m height, and ONLY the middle placement \
+                    moved, to z = 0/0.15/2 — the degree-2 skin interpolates through the \
+                    crowded spacing and OVERSHOOTS, bulging to half-width 1.646, wider \
+                    than any authored section (the trapezoid stops at 1.375), peaking \
+                    at 32.6% of the height with a long taper above",
+            ops: "sweep::loft_body(square, trapezoid, square, v_degree 2) twice — \
+                  @ z = 0/1/2, and @ z = 0/0.15/2 with every placement carrying the \
+                  pair's +x offset (transform_rigid REFUSES a NURBS-walled body, #1346)",
             delta: 6e-3,
-            note: Some(
-                "the corpus fixture's body, section for section (step-export/tests/common/\
-                 mod.rs::loft_prism, editor-core/tests/corpus/loft_prism.rs, \
-                 sweep/tests/m6_loft_body.rs — and the volume below is checked against it); \
-                 volume is DERIVED, not measured: the degree-2 skin through sections at \
-                 (0, 1/2, 1) is the quadratic Lagrange interpolant, corner paths \
-                 S + lambda(v)*D with lambda = 4v(1-v), z = 2v exactly, each slice a \
-                 trapezoid of area 4 + 2*d*lambda (d = 0.375) -> \
-                 V = 8 + 8d/3 = 9 m^3 exactly; the walls RENDER here through the \
-                 trimmed-face NURBS tessellation lane (the M6-3 frontier's second half)"
-                    .to_string(),
-            ),
-            view: loft_view(),
-            bodies: vec![SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism)],
-        },
-        Stop {
-            name: "nonuniform_loft",
-            caption: "nonuniform_loft (same sections, spacing skewed)".to_string(),
-            montage: true,
-            story: "loft_prism's OWN three sections, same 2 m height, and ONLY the \
-                    middle placement moved: z = 0, 0.15, 2 instead of 0, 1, 2 — the \
-                    true minimal pair. The degree-2 skin interpolates through the \
-                    crowded spacing and OVERSHOOTS: the wall bulges to half-width \
-                    1.646 — wider than any authored section (the trapezoid stops at \
-                    1.375) — peaking at 32.6% of the height, with a long taper above. \
-                    Same skin-fit lane whose synthesized weight channel used to land \
-                    an ulp off 1.0 on non-uniform spacings and refuse at assembly \
-                    (#207)",
-            ops: "sweep::loft_body(square, trapezoid, square @ z = 0/0.15/2, v_degree 2)",
-            delta: 6e-3,
-            note: Some(
-                "the scene LEADS the corpus since montage-v2 (the s_duct/lily \
-                 precedent) — the corpus fixture keeps z = 0/1/3 \
+            note: Some(format!(
+                "[loft_prism] the corpus fixture's body, section for section \
+                 (step-export/tests/common/mod.rs::loft_prism, \
+                 editor-core/tests/corpus/loft_prism.rs, sweep/tests/m6_loft_body.rs — \
+                 and the volume below is checked against it); volume is DERIVED, not \
+                 measured: the degree-2 skin through sections at (0, 1/2, 1) is the \
+                 quadratic Lagrange interpolant, corner paths S + lambda(v)*D with \
+                 lambda = 4v(1-v), z = 2v exactly, each slice a trapezoid of area \
+                 4 + 2*d*lambda (d = 0.375) -> V = 8 + 8d/3 = 9 m^3 exactly; the walls \
+                 RENDER through the trimmed-face NURBS tessellation lane (the M6-3 \
+                 frontier's second half).\n   \
+                 [nonuniform_loft] the scene LEADS the corpus since montage-v2 (the \
+                 s_duct/lily precedent) — the corpus fixture keeps z = 0/1/3 \
                  (step-export/tests/common/mod.rs::nonuniform_loft, #210/#207), whose \
                  bulge (peak 48.8% of height, half-width 1.415) is visually the \
                  prism's silhouette rescaled; MEASURED before this re-spacing. \
                  Derivation at 0/0.15/2: skin_parameters averages cumulative CHORD \
                  lengths over the first strip's control rows (the flared bottom \
                  corners), so t = 3*sqrt(29)/(3*sqrt(29) + sqrt(5701)) = \
-                 0.17625368909901809 — which the scene now ASKS the kernel for \
-                 (sweep::loft_parameters) and pins this derivation against, \
-                 rather than re-deriving it in prose; the corner flare is the quadratic Lagrange \
-                 bump lambda(v) = v(1-v)/(t(1-t)), slice area 4 + 2d*lambda \
+                 {NONUNIFORM_T} — which the scene ASKS the kernel for \
+                 (sweep::loft_parameters) and pins this derivation against, rather \
+                 than re-deriving it in prose; the corner flare is the quadratic \
+                 Lagrange bump lambda(v) = v(1-v)/(t(1-t)), slice area 4 + 2d*lambda \
                  (d = 0.375), z(v) the quadratic through (0,0),(t,0.15),(1,2), and \
                  int v(1-v) z'(v) dv = H/6 for ANY quadratic z, so \
                  V = 4H + dH/(3t(1-t)) = 8 + 0.25/(t(1-t)) = 9.721901523222 m^3 \
                  (quadrature agrees at pad ~1e-13). Peak half-width \
                  1 + d/(4t(1-t)) = 1.6457 at z(1/2) = 0.6513 = 32.6% of height. A \
                  naive z-proportional parameterization (t = 0.075) would say \
-                 11.604 m^3 — 19% off: the chord-length choice is load-bearing"
-                    .to_string(),
-            ),
+                 11.604 m^3 — 19% off: the chord-length choice is load-bearing. \
+                 Same skin-fit lane whose synthesized weight channel used to land an \
+                 ulp off 1.0 on non-uniform spacings and refuse at assembly (#207); \
+                 authored {LOFT_PAIR_GAP} m along +x of its twin (a COMMON offset on \
+                 all three placements — a rigid motion of the whole loft, leaving \
+                 every number above invariant). It is authored rather than \
+                 transformed because `transform_rigid` REFUSES a NURBS-walled body: \
+                 the arm matches the `Surface::Nurbs` variant while its reason \
+                 describes only the placeholder, so no loft, sweep or skinned body \
+                 in this kernel can be moved — #1346"
+            )),
             view: loft_view(),
-            bodies: vec![SceneBody::plain(
-                "nonuniform_loft",
-                [0.45, 0.62, 0.78],
-                nonuniform,
-            )],
+            bodies: vec![
+                SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism),
+                SceneBody::plain("nonuniform_loft", [0.45, 0.62, 0.78], nonuniform),
+            ],
         },
         Stop {
             name: "s_duct",

@@ -39,7 +39,7 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
@@ -49,10 +49,6 @@ use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validat
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -199,7 +195,7 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
             );
         }
         let rim = rim_at(&body, 0.0);
-        let out = fillet_edges(&body, &[rim], r, band(), tol())
+        let out = fillet_edges(&body, &[rim], r, tol())
             .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("tier 3 at r = {r}, got {e:?}"));
@@ -232,9 +228,9 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         (4, 8, 4),
         "the zone is four revolution walls"
     );
-    let first = fillet_edges(&body, &[rim_at(&body, -0.5)], r, band(), tol())
+    let first = fillet_edges(&body, &[rim_at(&body, -0.5)], r, tol())
         .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
-    let second = fillet_edges(&first.body, &[rim_at(&first.body, 1.0)], r, band(), tol())
+    let second = fillet_edges(&first.body, &[rim_at(&first.body, 1.0)], r, tol())
         .unwrap_or_else(|e| panic!("the top rim fillets on the filleted body, got {e:?}"));
     validate_geometric(&second.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(
@@ -282,7 +278,7 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let r = 0.08;
     let body = zone(0.6, Revolution::Full);
     let rims = [rim_at(&body, -0.5), rim_at(&body, 1.0)];
-    let one = fillet_edges(&body, &rims, r, band(), tol())
+    let one = fillet_edges(&body, &rims, r, tol())
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
@@ -290,9 +286,9 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     assert_eq!(props.volume_pad, 0.0);
 
     let seq = |first: f64, second: f64| {
-        let a = fillet_edges(&body, &[rim_at(&body, first)], r, band(), tol())
+        let a = fillet_edges(&body, &[rim_at(&body, first)], r, tol())
             .expect("the first sequential call");
-        let b = fillet_edges(&a.body, &[rim_at(&a.body, second)], r, band(), tol())
+        let b = fillet_edges(&a.body, &[rim_at(&a.body, second)], r, tol())
             .expect("the second sequential call");
         mass_properties(&b.body, tol())
             .expect("mass properties")
@@ -345,7 +341,7 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
         })
         .collect();
     assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
-    let out = fillet_edges(&body, &arcs, 0.1, band(), tol())
+    let out = fillet_edges(&body, &arcs, 0.1, tol())
         .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted hemisphere must be tier-3 valid, got {e:?}"));
@@ -367,14 +363,14 @@ fn near_limit_radii_refuse_typed() {
     // typed refusal.
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
-    match fillet_edges(&body, &[rim], 0.45, band(), tol()).map_err(|r| r.error) {
+    match fillet_edges(&body, &[rim], 0.45, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
     // margin escalates (or refuses through an earlier predicate) —
     // loudly either way.
-    match fillet_edges(&body, &[rim], 0.51, band(), tol()).map_err(|r| r.error) {
+    match fillet_edges(&body, &[rim], 0.51, tol()).map_err(|r| r.error) {
         Err(
             BlendError::Escalated { .. }
             | BlendError::SpineIrregular { .. }
@@ -386,12 +382,12 @@ fn near_limit_radii_refuse_typed() {
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
     let narrow = zone(1.7, Revolution::Full);
     let bottom = rim_at(&narrow, -0.5);
-    match fillet_edges(&narrow, &[bottom], 0.35, band(), tol()).map_err(|r| r.error) {
+    match fillet_edges(&narrow, &[bottom], 0.35, tol()).map_err(|r| r.error) {
         Err(BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("a trim circle at the bore must refuse clearance, got {other:?}"),
     }
     // And well inside the same gap it builds and validates.
-    let out = fillet_edges(&narrow, &[bottom], 0.15, band(), tol())
+    let out = fillet_edges(&narrow, &[bottom], 0.15, tol())
         .unwrap_or_else(|e| panic!("r = 0.15 clears the bore, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
 }
@@ -425,7 +421,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
             ps(&a, &b) || ps(&b, &a)
         })
         .expect("an open plane–sphere arc");
-    match fillet_edges(&body, &[open_arc], 0.08, band(), tol()).map_err(|r| r.error) {
+    match fillet_edges(&body, &[open_arc], 0.08, tol()).map_err(|r| r.error) {
         Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
@@ -439,7 +435,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
 fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
-    let mut out = fillet_edges(&body, &[rim], 0.1, band(), tol()).unwrap();
+    let mut out = fillet_edges(&body, &[rim], 0.1, tol()).unwrap();
     validate_geometric(&out.body, tol()).expect("tier-3 valid before the plant");
     let band_face = out.band_faces[0];
     let surface = out

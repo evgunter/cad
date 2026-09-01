@@ -68,9 +68,9 @@
 //! # Scope (OQ6, decided at #85)
 //!
 //! In: closed smooth chains, and open chains terminating in a UNIFORM
-//! trihedron — three convex edges, whose corner patch is a sphere
-//! octant or a flat one; or three CONCAVE edges, which only the flat
-//! patch carves (the ball's concave corner is #644).
+//! trihedron — three convex or three concave edges, whose corner
+//! patch is a sphere octant (resting inside the material or in the
+//! void with its ball) or the chamfer's flat one.
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
@@ -107,12 +107,13 @@ pub use naming::{BlendNaming, RimSide};
 /// rides on the [`BatteryVerdict`] so no assembly step has to be told
 /// twice.
 ///
-/// The two differ in exactly three places, each named on the arm that
-/// takes it: the analytic arm a link resolves to
-/// ([`battery::run_battery_for`]), which of C8's predicates are facts
-/// about the request at all (the rolling ball's radius-vs-curvature
-/// headroom and spine regularity are ball facts, and a chamfer meters
-/// neither), and the corner geometry the surgery grafts
+/// Where the two differ is named on each arm that takes the bit
+/// rather than counted here (a count in this doc has already gone
+/// stale once): the analytic arm a link resolves to and which of
+/// C8's predicates are facts about the request at all
+/// ([`battery::run_battery_for`]), the corner geometry the surgery
+/// grafts and its face-sense fold, the closed-chain arm (the
+/// fillet's alone), and the carve's contact-carrier kind
 /// ([`surgery`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlendKind {
@@ -207,8 +208,8 @@ pub enum BlendSite {
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
     /// corner patch fills the junction. What ships of this policy is
-    /// the UNIFORM trihedron: the sphere octant on the convex side,
-    /// and the chamfer's flat patch on either.
+    /// the UNIFORM trihedron: the sphere octant and the chamfer's
+    /// flat patch, each on either material side.
     ///
     /// It is the policy MOST out-of-scope corners name, but not all of
     /// them, and the exceptions are the interesting ones
@@ -240,11 +241,11 @@ impl fmt::Display for RunOutPolicy {
 /// taxonomy, each pinned by a fixture that reaches it.
 ///
 /// **This vocabulary has no name for the uniform CONCAVE trihedron**,
-/// which the chamfer now carves and the fillet still refuses. Minting
-/// one is a corner-taxonomy decision OQ6 reserves for Evan, opened as
-/// evgunter/cad issue 1355; until it lands, the fillet's refusal there
-/// carries [`Self::MixedConvexity`] with `convex: 0`, as it always
-/// has.
+/// which both verbs now carve — so no refusal needs one, and no site
+/// mints [`Self::MixedConvexity`] with `convex: 0` any more. Whether
+/// the CARVED configuration deserves its own tag remains the
+/// corner-taxonomy question OQ6 reserves for Evan (evgunter/cad issue
+/// 1355, opened when only the chamfer carved it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {
     /// Three edges, all definitely convex, support normals definitely
@@ -260,24 +261,20 @@ pub enum CornerConfig {
         /// derivation, which agree on a manifold body.
         valence: usize,
     },
-    /// **A trivalent corner the running band's convexity clause does
-    /// not admit**, `convex` saying how it was read.
+    /// **A trivalent corner whose three edges' convexity signs
+    /// disagree**, `convex` saying how it was read.
     ///
-    /// At `1` or `2` the tag is literal and holds for every band
-    /// there is: the signs do not agree, so the blend would have to
-    /// change sides mid-corner. At `0` the signs DO agree and the
-    /// name is a poor fit — that is the uniform concave trihedron,
-    /// which a ruled strip carves and a rolling ball does not, so
-    /// only the ball's refusal reaches it. Naming it properly needs a
-    /// tag this vocabulary does not have, which is a corner-taxonomy
-    /// decision OQ6 reserves for Evan (evgunter/cad issue 1355);
-    /// until then the honest thing is that the payload says `0` and
-    /// this doc says what `0` means.
-    ///
-    /// `3` never appears: that is [`Self::ThreeConvexEdges`].
+    /// Only `1` and `2` are minted, and at both the tag is literal
+    /// and holds for every band there is: the signs do not agree, so
+    /// the blend would have to change sides mid-corner. `0` and `3`
+    /// never appear — those are the UNIFORM trihedra, which both
+    /// verbs carve (`3` is [`Self::ThreeConvexEdges`]; the all-concave
+    /// corner has no tag because no refusal names it, evgunter/cad
+    /// issue 1355 being where a carved-configuration tag would be
+    /// ratified).
     MixedConvexity {
-        /// How many of the three edges classified convex — `0`, `1`
-        /// or `2`.
+        /// How many of the three edges classified convex — `1` or
+        /// `2`.
         convex: usize,
     },
     /// Three edges of one convexity, but the support normals are
@@ -407,17 +404,14 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// names the corner configurations that DO carve, and then the run-out
 /// front door that does not exist yet.
 ///
-/// The convex clause is true of either verb: both build the
-/// fully-requested convex trivalent corner (octant or flat patch). The
-/// concave clause is CONDITIONED by verb, for the same reason the
-/// assembly recourse's closed-chain clause is: the flat corner patch
-/// carries no convexity parameter and carves that corner, while the
-/// rolling ball's octant is derived on the convex side alone, so
-/// telling a fillet caller to keep the corner and drop the convexity
-/// would name a door that cannot serve them.
+/// Both clauses are true of either verb: the fully-requested UNIFORM
+/// trivalent corner carves on both material sides (the rolling ball's
+/// octant rests inside the material or in the void with its ball; the
+/// flat patch never had a side), so the sentence names the uniform
+/// configuration and conditions on nothing.
 pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a trivalent vertex whose three edges are all \
-     convex — or, for a CHAMFER over plane\u{2013}plane supports, all concave, which its flat \
-     corner patch carves; general run-outs are not implemented";
+     convex or all concave (over plane\u{2013}plane supports); mixed-convexity corners \
+     and general run-outs are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
@@ -456,22 +450,23 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through, the
-/// rolling ball's material-adding band, and rims that are not whole
+/// closed rim's material-adding band, and rims that are not whole
 /// circular plane\u{2013}sphere rings.
 ///
-/// TWO of its clauses are conditioned by verb, because each names a
-/// door one verb has and the other does not: the closed chain is the
-/// fillet's alone (a chamfer has no closed-chain band, so telling a
-/// chamfer caller to request a plane\u{2013}sphere rim would name a
-/// door that cannot serve them), and the CONCAVE open chain is the
-/// chamfer's alone (its ruled strip and flat corner patch carry no
-/// convexity parameter, while the rolling ball's band and octant are
-/// derived on the convex side).
+/// ONE clause is conditioned by verb, because it names a door one
+/// verb has and the other does not: the closed chain is the fillet's
+/// alone (a chamfer has no closed-chain band, so telling a chamfer
+/// caller to request a plane\u{2013}sphere rim would name a door that
+/// cannot serve them). The OPEN-chain clause conditions on neither
+/// verb nor side: both bands and both corner patches fold the chain's
+/// convexity verdict. What stays one-sided is the CLOSED rim — a
+/// concave closed band adds material, which no closed-rim carve
+/// builds (evgunter/cad issue 1244).
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
-     fully-requested trivalent corners — convex for either verb, concave for a CHAMFER \
-     alone; for a fillet, closed chains that are circular plane\u{2013}sphere rims also \
-     carve (a chamfer has no closed-chain band); junction carry-through, run-outs and \
-     the rolling ball's concave band are not implemented";
+     fully-requested trivalent corners, on either material side; for a fillet, closed \
+     chains that are circular plane\u{2013}sphere rims also carve (a chamfer has no \
+     closed-chain band); junction carry-through, run-outs and the closed rim's \
+     concave band are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -719,7 +714,8 @@ pub enum BlendError {
     /// Two families, and the second is not a shape of the chain in
     /// isolation: (a) the chain's own form — multi-link open chains
     /// (junction carry-through), support pairs no arm covers, concave
-    /// chains, one-edge chains; and (b) how the chain sits on its
+    /// CLOSED chains (the material-adding band), one-edge chains; and
+    /// (b) how the chain sits on its
     /// supports — a rim that is not a whole ring of its plane, a
     /// sphere support carrying rings of its own or more than its own
     /// arc, a rim vertex that does not drop exactly one meridian, a
@@ -907,15 +903,12 @@ impl fmt::Display for BlendError {
                 // That is a claim about the MECHANISM, and it is the
                 // only one available here: whether the two halves
                 // actually cohere is each tag's own burden, not this
-                // match's. `MixedConvexity { convex: 0 }` is where
-                // they currently do not — it renders as "only a
-                // run-out policy would handle" and then names the
-                // flat corner patch, which carves that corner, since
-                // no edge of three being convex IS the uniform
-                // concave trihedron. The tag is a poor fit for that
-                // configuration and naming it properly is
-                // evgunter/cad issue 1355; the composed sentence
-                // straightens out when it lands.
+                // match's. The one tag whose halves did NOT cohere —
+                // `MixedConvexity { convex: 0 }`, the poor-fit name
+                // for the uniform concave trihedron — is no longer
+                // minted anywhere: both verbs carve that corner, so
+                // only the genuinely mixed counts reach this arm and
+                // the composed sentence holds at every minting site.
                 let recourse = corner.recourse();
                 match corner.policy() {
                     Some(policy) => write!(

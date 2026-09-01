@@ -347,13 +347,51 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     // ONE rim edge: the two fused tangent edges survive as the single
     // wall–wall ruling.
     assert_eq!(rim_edges.len(), 1, "the rim seam is one fused ruling");
-    if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
-        panic!("the tube-chain rim body must be tier-3 valid: {errs:?}");
+    // The rim is a wedge-2π edge — the ruling's "kissing union, a slit
+    // interior to material" — so under D1's declared second-order arm
+    // it is legal exactly where the tangency is DECLARED, and refuses
+    // undeclared at every ε.
+    //
+    // The declaration exists: this op was GIVEN the wall × wall
+    // `Tangent` mate above. What it does not do is emit it into the
+    // result's own records, which is the M9-3 emission arm (the
+    // implementation door's item 4) — so the claim is re-stated here on
+    // the RESULT's faces, read off the rim edge itself rather than
+    // re-found by surface kind.
+    let rim = rim_edges[0];
+    let face_of = |he| {
+        body.get_half_edge(he)
+            .and_then(|h| body.get_loop(h.parent_loop))
+            .map(|l| l.face)
+            .expect("the rim's half-edges are live")
+    };
+    let rim_edge = body.get_edge(rim).expect("the rim edge is live");
+    let rim_declared = [topo::DeclaredContact {
+        a: face_of(rim_edge.he_plus),
+        b: face_of(rim_edge.he_minus),
+        class: ContactClass::Tangent,
+    }];
+    match topo::validate_geometric(&body, Tol::witness()) {
+        Err(errs)
+            if errs.iter().all(|e| {
+                matches!(
+                    e,
+                    topo::ValidationError::UndeclaredCusp {
+                        edge,
+                        wedge: geom_brep::MaterialWedge::Slit,
+                    } if *edge == rim
+                )
+            }) => {}
+        other => panic!("the undeclared rim must refuse as the slit it is: {other:?}"),
+    }
+    if let Err(errs) = topo::validate_geometric_declared(&body, &rim_declared, Tol::witness()) {
+        panic!("the DECLARED tube-chain rim body must be tier-3 valid: {errs:?}");
     }
     // The tier-3 contact mark agrees: the rim EDGE ITSELF is the
     // must-carry's own regime (jet-determinate tangency), satisfied
     // by the mint — tied to the rim, not a body-wide census.
-    let marks = topo::contact_marks(&body, Tol::witness()).expect("marks derive at rest");
+    let marks = topo::contact_marks_declared(&body, &rim_declared, Tol::witness())
+        .expect("marks derive at rest");
     for &k in &rim_edges {
         assert_eq!(
             marks.get(k).copied(),
@@ -394,7 +432,18 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     let chi =
         body.vertices().count() as i64 - body.edges().count() as i64 + body.faces().count() as i64;
     assert_eq!(chi, 2, "Euler–Poincaré of a genus-0 single shell");
-    if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
+    // 3′ reads the same claim in ITS currency: a C3 curve record on the
+    // rim's face pair, witnessed by the rim edge. The op emits no such
+    // record today (the emission arm above), so the test supplies the
+    // one the op was given; when that arm lands this record arrives
+    // from `bb.contacts` itself.
+    let mut contacts = bb.contacts.clone();
+    contacts.curves.push(topo::boolean::CurveContact {
+        face_a: rim_declared[0].a,
+        face_b: rim_declared[0].b,
+        witness: rim,
+    });
+    if let Err(errs) = topo::validate_pseudomanifold(&body, &contacts, Tol::witness()) {
         panic!("the tube chain must be pseudomanifold-clean: {errs:?}");
     }
 }

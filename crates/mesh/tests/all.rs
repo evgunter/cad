@@ -52,6 +52,11 @@ mod genus;
 mod issue111_az_needle;
 #[path = "issue303_signed_volume_recentring.rs"]
 mod issue303_signed_volume_recentring;
+
+#[path = "issue1362_band_placement.rs"]
+mod issue1362_band_placement;
+#[path = "issue555_subfloor_cap.rs"]
+mod issue555_subfloor_cap;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -68,10 +73,16 @@ mod prisms;
 mod probe_review;
 #[path = "profile_overrides.rs"]
 mod profile_overrides;
+#[path = "r1_probes_issue1362.rs"]
+mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]
 mod r1_probes_issue303;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
+#[path = "r2_mesh1_probes.rs"]
+mod r2_mesh1_probes;
+#[path = "r2_mesh2_probes.rs"]
+mod r2_mesh2_probes;
 #[path = "review_m2_pr6_cert_oracle.rs"]
 mod review_m2_pr6_cert_oracle;
 #[path = "review_m2_pr6_checkmesh_audit.rs"]

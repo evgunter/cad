@@ -372,8 +372,21 @@ mod tests {
     /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
     ///   Not a normal multiply, and the only read whose consumer is a
     ///   curved carrier.
-    /// - `validate.rs` — check 6's outward normal, where the sense bit
-    ///   is read as a claim to be falsified rather than honored.
+    /// - `validate.rs` — three, all in tier 3. Check 6's outward
+    ///   normal, where the sense bit is read as a claim to be
+    ///   falsified rather than honored; and check 4's material arm,
+    ///   which hands the plus and minus faces' `±1` to
+    ///   `geom_brep::classify_material_pairing` and
+    ///   `geom_brep::material_kappa_rel`. The arm cannot take the
+    ///   door: its question is the PAIR of material sides at a point
+    ///   on a shared carrier, over every kind with an implicit form
+    ///   (cone and torus tangencies included, which
+    ///   [`face_outward_normal_at`] answers `None` for), and the
+    ///   normals it needs are the gradients the wedge classifier
+    ///   already computes — routing them back out and in would fold
+    ///   the sign in one crate and the gradient in another. The `±1`
+    ///   is threaded as a scalar, which is what
+    ///   `contact_verify`'s tangency arm does with the same lemma.
     /// - `face_normal.rs` — **zero**: the door takes the sense BIT
     ///   through [`OutwardNormal::from_chart`], never the `±1`. That
     ///   is why the walk below reads the method name out of `concat!`
@@ -417,7 +430,7 @@ mod tests {
             ("face_normal.rs", 0),
             ("merge_faces.rs", 3),
             ("props.rs", 1),
-            ("validate.rs", 1),
+            ("validate.rs", 3),
         ];
         let needle = concat!("sense", "_sign");
         let root = crate::source_walk::src_root();

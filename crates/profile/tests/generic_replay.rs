@@ -93,6 +93,7 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
             dy: T::from_f64(dy),
         },
         Step::Tangent => Step::Tangent,
+        Step::Cusp => Step::Cusp,
         Step::Turn(delta) => Step::Turn(T::from_f64(delta)),
         Step::Line(len) => Step::Line(T::from_f64(len)),
         Step::LineTo(t) => Step::LineTo(tgt(t)),

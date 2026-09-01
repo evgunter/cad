@@ -432,7 +432,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
     for chain in &verdict.chains {
         match chain.closure {
-            ChainClosure::Open { .. } => opens.push(AdmittedOpen::admit(chain, kind)?),
+            ChainClosure::Open { .. } => opens.push(AdmittedOpen::admit(chain)?),
             // The band replacement is the rolling ball's torus over a
             // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
             // all — its one arm is plane–plane, whose closed chains
@@ -658,19 +658,19 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
 ///   foot on each is the ball centre projected onto it, and that point
 ///   lies on both of that support's trimlines because the centre is on
 ///   both incident spines ([`super::build::octant_chart`] picks the
-///   octant's chart).
+///   octant's chart). The corner's convexity is ONE decision made in
+///   three places that must agree — the ball's side, the feet's sign
+///   (`centre + n·r` at a convex rest, `centre − n·r` at a concave
+///   one, each the tangency point of ITS ball), and the chart's aim —
+///   so all three fold the same verdict, read once below.
 /// - **Chamfer**: there is no ball, so each foot is derived from the
 ///   trimlines directly — the two incident strips' trimlines on that
 ///   support, crossed in closed form ([`line_meet`]) — and the patch
 ///   is the plane through the three feet ([`chamfer_corner_patch`]).
-///
-/// **Convexity does not appear in the chamfer's arm.** The feet come
-/// from trimlines whose in-plane direction is read off the traversal,
-/// and the patch's chart normal is folded outward against the supports'
-/// own normal sum; both are stated in [`super::arms`]. So there is no
-/// convex-only argument here to derive one of and leave the rest
-/// stale (#644's shape): the concave widening moves the ADMISSION
-/// doors and nothing in this derivation.
+///   Convexity does not appear in this arm at all: the feet come from
+///   trimlines whose in-plane direction is read off the traversal, and
+///   the patch's chart normal is folded outward against the supports'
+///   own normal sum ([`super::arms`]).
 fn corner_plan<'a, T: Decide + Bounds>(
     body: &Body<T>,
     links: CornerLinks<'a, T>,
@@ -704,17 +704,29 @@ fn corner_plan<'a, T: Decide + Bounds>(
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {
         BlendKind::Fillet => {
-            let ball = corner_ball([p; 3], normals, radius, true);
-            // The ball at rest is at distance `radius` inside every
-            // support, so its foot on each is the centre displaced
-            // back along that support's outward normal — and that
-            // point is on both of the support's trimlines, because the
-            // centre is on both incident spines.
+            let convex = matches!(convexity, Convexity::Convex);
+            let ball = corner_ball([p; 3], normals, radius, convex);
+            // The ball at rest is at distance `radius` from every
+            // support — inside the material at a convex corner, in the
+            // void at a concave one — so its foot on each is the
+            // centre displaced back TOWARD that support: along the
+            // outward normal from a convex rest, against it from a
+            // concave one. Either way the foot is on both of the
+            // support's trimlines, because the centre is on both
+            // incident spines.
+            //
+            // ONE fold, two named spellings, cross-cited so neither
+            // drifts alone: this `toward` is the same sign the band
+            // arm folds into its feet (`plane_plane_blend`'s
+            // `signed`), and the NEGATIVE of `corner_ball`'s `signed`
+            // — which is the rest DEPTH (`c·n = p·n + signed`), the
+            // displacement's opposite by definition of tangency.
+            let toward = if convex { radius } else { -radius };
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
-                *foot = ball.center + n * radius;
+                *foot = ball.center + n * toward;
             }
-            let (u_ref, axis) = super::build::octant_chart(body, &faces, &links)?;
+            let (u_ref, axis) = super::build::octant_chart(body, &faces, &links, convexity)?;
             (
                 Some((ball.center, radius)),
                 feet,
@@ -3588,6 +3600,8 @@ mod tests {
 
     use topo::EdgeKey;
 
+    use geom::Surface;
+
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
     use super::{AdmittedOpen, BlendError, BlendKind, CornerLinks, corner_plan, rim_trim_circles};
@@ -3618,9 +3632,7 @@ mod tests {
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
-        let tol = geom_core::Tol::witness().get();
-        let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("a band");
-        let err = fillet_edges(&dst, &edges, R, band, Tol::witness())
+        let err = fillet_edges(&dst, &edges, R, Tol::witness())
             .expect_err("a two-solid body is outside the in-place surgery's door");
         assert!(
             matches!(
@@ -3692,61 +3704,82 @@ mod tests {
         )
     }
 
-    /// **The surgery corner takes its links' orientation bit too**, and
-    /// the concave case reaches the derivation for ONE of the two verbs:
-    /// the open-chain door admits it under a ruled strip and refuses it
-    /// under a rolling ball.
+    /// **The corner plan FOLDS its links' convexity verdict — as one
+    /// decision, at every site that reads its sign.** The same cube
+    /// corner is planned twice: once under the verdict its links
+    /// really carry (convex), once under the same links with the
+    /// verdict FALSIFIED to concave. The two plans must disagree in
+    /// exactly the mirrored ways — ball centre reflected to the other
+    /// side of the vertex, feet reflected with it, sense bit flipped,
+    /// chart pole flipped — and any single fold left convex-hardcoded
+    /// breaks one of the four assertions while the others stay green,
+    /// which is what makes each an independent pin.
     ///
     /// **The concave half of this probe is not a body.** The fixture
-    /// FALSIFIES the battery's stored verdict on a cube whose geometry
+    /// falsifies the battery's stored verdict on a cube whose geometry
     /// is untouched — a lie about a convex body, not a concave one.
-    /// What it pins is the DOOR's own answer to that verdict, per verb,
-    /// which is a question about [`AdmittedOpen::admit`] and not about
-    /// the cube. A real concave body carved end to end is the vented
-    /// cavity of the concave-chamfer suite.
+    /// What it pins is the PLAN's derivation as a function of the
+    /// verdict. A real concave body carved end to end is the filleted
+    /// vented cavity of the concave-fillet suite.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
         let body = cube(L, Tol::witness());
         let links = all_links(&body, Tol::witness());
         let v = links[0].start;
-        let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
-        let admitted: Vec<AdmittedOpen<'_, f64>> = chains
-            .iter()
-            .map(|c| {
-                AdmittedOpen::admit(c, BlendKind::Fillet)
-                    .expect("a cube's links are convex plane–plane")
-            })
-            .collect();
-        let mut here = admitted.iter().filter(|o| {
-            let l = o.link();
-            l.start == v || l.end == v
-        });
-        let first = *here.next().expect("the seed link of this corner");
-        let mut corner_links = CornerLinks::seed(v, first).expect("the seed link touches v");
-        for o in here {
-            corner_links
-                .also(*o)
-                .expect("every filtered link touches v");
-        }
-        let convex =
-            corner_plan(&body, corner_links, R, BlendKind::Fillet).expect("the corner plans");
-        assert!(convex.convexity.blend_sense(), "a convex octant is outward");
-
-        let mut concave = links[0].clone();
-        concave.convexity = Convexity::Concave;
-        let chain = open_chain(concave);
-        let Err(err) = AdmittedOpen::admit(&chain, BlendKind::Fillet) else {
-            panic!("a concave chain must be refused at the rolling ball's door, not planned")
+        let plan_with = |flip: bool| {
+            let flipped: Vec<Link<f64>> = links
+                .iter()
+                .cloned()
+                .map(|mut l| {
+                    if flip {
+                        l.convexity = Convexity::Concave;
+                    }
+                    l
+                })
+                .collect();
+            let chains: Vec<Chain<f64>> = flipped.into_iter().map(open_chain).collect();
+            let admitted: Vec<AdmittedOpen<'_, f64>> = chains
+                .iter()
+                .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+                .collect();
+            let mut here = admitted.iter().filter(|o| {
+                let l = o.link();
+                l.start == v || l.end == v
+            });
+            let first = *here.next().expect("the seed link of this corner");
+            let mut corner_links = CornerLinks::seed(v, first).expect("the seed link touches v");
+            for o in here {
+                corner_links
+                    .also(*o)
+                    .expect("every filtered link touches v");
+            }
+            let corner = corner_plan(&body, corner_links, R, BlendKind::Fillet)
+                .expect("either verdict plans");
+            let (centre, _) = corner.arc.expect("a fillet corner plans an arc centre");
+            let Surface::Sphere { axis, .. } = corner.surface else {
+                panic!("a fillet corner patch is a sphere");
+            };
+            let p = super::point_of(&body, v).expect("the corner's point");
+            (corner.convexity.blend_sense(), centre, corner.feet, axis, p)
         };
+        let (conv_sense, cc, conv_feet, ax, p) = plan_with(false);
+        let (conc_sense, kc, conc_feet, kx, _) = plan_with(true);
+        assert!(conv_sense, "a convex octant is outward");
+        assert!(!conc_sense, "a concave octant faces its ball centre");
         assert!(
-            matches!(err, BlendError::UnsupportedChain { .. }),
-            "expected the open-chain door's typed refusal, got {err}"
+            (kc - (p + (p - cc))).norm() < 1e-14,
+            "the concave rest is the convex one reflected through the vertex"
         );
-        let strip = AdmittedOpen::admit(&chain, BlendKind::Chamfer)
-            .expect("a ruled strip's door admits either convexity");
+        for i in 0..3 {
+            let mirrored = p + (p - conv_feet[i]);
+            assert!(
+                (conc_feet[i] - mirrored).norm() < 1e-14,
+                "foot {i} reflects with the ball it touches"
+            );
+        }
         assert!(
-            matches!(strip.convexity(), Convexity::Concave),
-            "the token carries the verdict it was admitted with, not a convex one"
+            (ax + kx).norm() < 1e-14,
+            "the two verdicts' chart poles are antipodal (the fold's sign)"
         );
     }
 }

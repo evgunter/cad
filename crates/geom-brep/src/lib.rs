@@ -81,7 +81,10 @@ pub use certify::{
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
-pub use dihedral::{DihedralClass, classify_dihedral};
+pub use dihedral::{
+    DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral, classify_material_pairing,
+    folded_lever_arm, material_kappa_rel,
+};
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
@@ -92,8 +95,9 @@ pub use implicit::{
 };
 pub use intersect::{
     EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
-    RadiusEvidence, Rung, SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
-    plane_cylinder_section, plane_sphere_section, route,
+    RadiusEvidence, Rung, SectionError, SphereSphereSection, SurfaceKind,
+    cylinder_cylinder_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
+    route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
