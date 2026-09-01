@@ -2824,3 +2824,37 @@ the VERBS-7 per-slot line at dispatch: FABLE — the block's drawn
 fable executes, no deviation. Lane verbs-c5a (reference clone of
 verbs-ga2, borrower rule in force). Brief carries the
 suites-via-CI method rule.
+## C5ARMS PR-1 STOPPED AT THE OPENING MEASUREMENT — ADJUDICATED (c) (2026-09-01)
+
+The spec's item-1 STOP fired exactly as pre-registered: with
+(Plane,Torus) flipped true in a scratch probe, ALL FOUR demanded
+consumers (klein elbow shell_open + sealed, torus_barrel hollow,
+teapot wall-1 hollow) stop at ReanchorOffCarrier — the per-chart
+corner-accumulation refusal at replace_face.rs:1922-1930, NOT a
+certification/adjacency row a section arm can satisfy. The lane's
+measurement is exemplary: every gap decodes to ~13 digits as one
+chart's rigid transport checked against a neighbour's unmoved
+carrier (klein 8.47e-4 = √(1.475²+0.05²)−1.475; barrel 6.10e-3
+and teapot 4.42e-3 as the exact hypot forms) — the refusal
+correctly rejects genuinely wrong corner geometry. Mechanically:
+offset_axial::axial_frame's roster is plane/cylinder/cone/sphere;
+Torus falls to the sequential per-chart loop whose corners are
+transported rigidly once per chart. Zero commits, no PR — the
+report is the deliverable.
+
+ADJUDICATED: option (c) — HOLD C5ARMS PR-1 behind a new enabling
+unit, VERBS-TORAX (the torus arm of offset_axial: axial_frame
+widens to Torus with the circle ProfileConstraint the sphere arm
+already uses, plus the meridian-plane cap azimuth constraint the
+elbow needs — the SHELLFIX-2b axial-corner lineage, one kind
+wider). (a) rejected: crosses the unit's specced layer
+(geom-brep section vs topo offset-orchestration). (b) rejected:
+the unit's only effect on every named consumer would be renaming
+their refusal — an arm with no live consumer. No settled design
+decision moves; this is sequencing within the program's remit
+(noted for Evan's visibility, non-blocking). The C5ARMS spec
+gains a hold note; branch verbs/c5arms-1 stays pushed at main;
+the roster instance (the spec's flag-flip-moves-the-refusal
+premise landing on a foreclosing door) records in
+refusal-text-is-not-cause per the spec's own instruction WHEN the
+unit lands. VERBS-8 block draw next; TORAX takes slot 1.
