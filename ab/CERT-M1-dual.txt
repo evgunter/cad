@@ -4,13 +4,21 @@ expected 709 — next free after CERT-8's 708; take the next free
 ordinal at claim time and record which).
 slot byte 112 (od /dev/urandom, one byte), parity 0 => R1 OPUS + R2 FABLE
 (cross-model).
-METHOD NOTE (pre-recorded so both arms run identically): reviews run
-SEQUENTIALLY on the frozen head ef27ed03a — the delivered head, six
-commits on merge base 75e98361, no orchestrator-direct commits past
-it at this writing (if the gate reds and a discipline fix is needed,
-this note is amended pre-R1 per its own rule and the frozen head
-restated). Dispatch CONDITIONAL on ef27ed03a's gate (run 33572342088)
-concluding green on PR 1533. CERT-N1's implementation lane runs
+METHOD NOTE (pre-recorded so both arms run identically; AMENDED once,
+pre-R1, per its own rule): reviews run SEQUENTIALLY on the frozen head
+1318b6d10 — the delivered head ef27ed03a (six commits on merge base
+75e98361) plus ONE one-file orchestrator-direct commit that is NOT this
+unit's ground: the delivered head's gate (run 33572342088) drew k-lint's
+probe+interval unification and redded on a MAIN-SIDE breakage
+(crates/editor-core/tests/m10_3_driver_k_probe_interval.rs imports
+UnitSym twice and sets display_unit twice, the product of two
+independent fixes — PRs 1523 and 1526 — both merging; main's own gate
+has not drawn that row yet). The tip deletes the two duplicate lines,
+verified with the exact failing unification (cargo check -p editor-core
+--tests --features probe,interval, exit 0), and a fix PR for main is
+opened alongside so the port no-ops on merge. Reviewers should verify
+that delta is exactly two deletions and nothing else. Dispatch
+CONDITIONAL on 1318b6d10's gate concluding green on PR 1533. CERT-N1's implementation lane runs
 concurrently on ITS fence (geom/src, geom-core spline/ and linalg/);
 the two grounds are file-disjoint. R2 after R1 with the IDENTICAL
 stored brief, isolated. Probe branches: cert/m1r1-probes,
@@ -28,9 +36,14 @@ COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
 ---
 You are a blinded adversarial reviewer for unit CERT-M1 of the
 S-CERT program (repo evgunter/cad) — the first of the absorbed SMELL
-tracks. Review PR 1533 on its FROZEN head ef27ed03a — do not review
+tracks. Review PR 1533 on its FROZEN head 1318b6d10 — do not review
 any later commit; if the branch has moved, say so and still review
-ef27ed03a.
+1318b6d10. The tip commit past the delivered head ef27ed03a is a
+one-file ORCHESTRATOR-DIRECT port of a main-side fix (two duplicate
+lines deleted in crates/editor-core/tests/m10_3_driver_k_probe_interval.rs,
+outside this unit's fence — a doubled UnitSym import and a doubled
+display_unit field that redded k-lint's probe+interval row); verify
+that delta yourself: exactly two deletions, nothing else.
 
 Read first, in order: docs/prompts/reviewer-style-lane.md (binding
 style-lane brief; carry its structural questions and confidence
