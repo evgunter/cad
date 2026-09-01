@@ -59,10 +59,6 @@ mod issue1362_band_placement;
 mod issue555_subfloor_cap;
 #[path = "issue896_pole_guard.rs"]
 mod issue896_pole_guard;
-#[path = "r1_probe_bool_route.rs"]
-mod r1_probe_bool_route;
-#[path = "r1_probe_hash.rs"]
-mod r1_probe_hash;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -79,6 +75,10 @@ mod prisms;
 mod probe_review;
 #[path = "profile_overrides.rs"]
 mod profile_overrides;
+#[path = "r1_probe_bool_route.rs"]
+mod r1_probe_bool_route;
+#[path = "r1_probe_hash.rs"]
+mod r1_probe_hash;
 #[path = "r1_probes_issue1362.rs"]
 mod r1_probes_issue1362;
 #[path = "r1_probes_issue303.rs"]

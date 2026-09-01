@@ -43,7 +43,13 @@ fn ball(r: f64) -> Result<topo::Body<f64>, sweep::RevolveError> {
         ProfileVertex::new(p2(0.0, -r), bulge),
         ProfileVertex::new(p2(0.0, r), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness()).map(|r| r.body)
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .map(|r| r.body)
 }
 
 /// Slab covering x,y up to y = d (top wall a y-normal plane), z in
@@ -60,15 +66,24 @@ fn slab(d: f64, l: f64) -> Result<topo::Body<f64>, sweep::ExtrudeError> {
     let plane = SketchPlane::new(geom_core::Affine3::translation(geom_core::Vec3::new(
         0.0, 0.0, -l,
     )));
-    let profile = Profile::new(plane, vec![lp]).validate(Tol::witness()).unwrap();
-    sweep::extrude(&profile, sweep::Extrusion::Distance(2.0 * l), Tol::witness())
-        .map(|r| r.body)
+    let profile = Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance(2.0 * l),
+        Tol::witness(),
+    )
+    .map(|r| r.body)
 }
 
 fn attempt(r: f64, gap: f64) {
     let d = r - gap;
     let rho = (r * r - d * d).max(0.0).sqrt();
-    println!("--- r = {r:e}, r - d = {:e} (requested gap {gap:e}), rim rho = {rho:e}", r - d);
+    println!(
+        "--- r = {r:e}, r - d = {:e} (requested gap {gap:e}), rim rho = {rho:e}",
+        r - d
+    );
     if r - d == 0.0 {
         println!("    gap not representable at this r: exact tangency, skip");
         return;

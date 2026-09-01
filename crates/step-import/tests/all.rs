@@ -59,8 +59,6 @@ mod p1b_r1_import_scan;
 mod parser;
 #[path = "poleguard.rs"]
 mod poleguard;
-#[path = "r1_probe_halfcap.rs"]
-mod r1_probe_halfcap;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
@@ -83,6 +81,8 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
+#[path = "r1_probe_halfcap.rs"]
+mod r1_probe_halfcap;
 #[path = "r2_import_door.rs"]
 mod r2_import_door;
 #[path = "recognize_pins.rs"]

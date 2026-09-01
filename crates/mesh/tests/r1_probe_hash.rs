@@ -3,7 +3,12 @@
 //! boundary polyline of a body subset at two deltas; run at the PR
 //! head and at merge-base 7b0bfab76 under the same ambient eps, the
 //! printed hashes must be identical. Review probe only.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
 
 use geom_core::Tol;
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -38,17 +43,19 @@ fn fnv(bytes: impl Iterator<Item = u64>) -> u64 {
 }
 
 fn hash_mesh(m: &mesh::Mesh) -> (u64, u64, u64) {
-    let hp = fnv(m.positions.iter().flat_map(|p| {
-        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()].into_iter()
-    }));
+    let hp = fnv(m
+        .positions
+        .iter()
+        .flat_map(|p| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()].into_iter()));
     let ht = fnv(m.patches.iter().flat_map(|p| {
         p.triangles
             .iter()
             .flat_map(|t| t.iter().map(|&i| u64::from(i)))
     }));
-    let hb = fnv(m.boundaries.iter().flat_map(|b| {
-        b.points.iter().map(|&i| u64::from(i))
-    }));
+    let hb = fnv(m
+        .boundaries
+        .iter()
+        .flat_map(|b| b.points.iter().map(|&i| u64::from(i))));
     (hp, ht, hb)
 }
 
