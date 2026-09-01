@@ -1015,12 +1015,21 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
 ///
 /// **The behaviour change on BUILT charts, called out.** A kernel-built
 /// chart is normalized to `[0, 1]²`, so a closed-in-u one now answers
-/// `Some(1.0)` where the old code used `τ`. `azimuth_arm` falls back to
-/// `1` for NURBS charts, so the pole-joint arm is reachable there, and
-/// a gap that used to floor to `ku = 0` against `τ` can now shift by a
-/// whole chart period. It is reachable only where the old path could
-/// not close the loop at all, and the joint's own `decide` still
-/// certifies the shifted entry — but it is a change, not an identity.
+/// `Some(1.0)` where the old code used `τ`, and a gap that used to
+/// floor to `ku = 0` against `τ` can now shift by a whole chart
+/// period. It is reachable only where the old path could not close the
+/// loop at all, and the joint's own `decide` still certifies the
+/// shifted entry — but it is a change, not an identity.
+///
+/// The shift is offered only when the pole-joint gate reads the arm as
+/// definitely nonzero, and on a spline chart that arm is the net's own
+/// `sup |S_u|` ([`azimuth_arm`]), not a constant. So the gate is LIVE
+/// on these charts in all three of its outcomes: a chart whose whole
+/// `u` stretch sits under the band reads `Zero` and takes no shift at
+/// all (which is honest — no `u` displacement on it moves a point
+/// past ε), one whose stretch lands inside the band escalates, and
+/// only a definitely-metric chart reaches the periodic rounding. The
+/// paragraph above describes the last of the three.
 ///
 /// **Why a NURBS chart needs this (#327).** A full-period cylinder
 /// wall stated as ONE B-spline patch with a seam generator used twice
@@ -1057,13 +1066,20 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
 
 /// The meridional (second-channel) lever arm where that channel is
 /// itself an angle — sphere `v` (arm `r`), torus `v` (arm `r_minor`).
-/// `None` = the channel is a length and gaps in it are already metres.
+/// `None` = the channel is NOT an angle, which is a different claim
+/// from "already metres": see [`v_meter`], which is what a caller
+/// wanting the channel's metre rate must ask.
 fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
     match *surface {
         Surface::Sphere { radius, .. } => Some(radius),
         Surface::Torus { minor_radius, .. } => Some(minor_radius),
-        // The second channel is a length on these charts (spline
-        // parameters included), so gaps in it are already metres.
+        // The second channel is not an ANGLE on these charts, so no
+        // polar radius levers it. That does not make it metres: on a
+        // plane, cylinder or cone `v` IS a length, but a spline
+        // chart's `v` is the net's own parameter, whose metre rate
+        // [`v_meter`] reads off the chart. `None` here means "no
+        // polar arm", and `v_meter` is the door that answers what the
+        // rate actually is.
         Surface::Plane { .. }
         | Surface::Cylinder { .. }
         | Surface::Cone { .. }
@@ -1454,17 +1470,31 @@ fn walk_loop<T: PcurveFittedLane>(
                 let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
                 for cand in candidates {
                     let raw = cand.eval(entry_t);
-                    // An AZIMUTH-FREE joint (a pole / the apex: the
-                    // local azimuth lever is zero in metres) has no
+                    // An AZIMUTH-FREE joint (a pole / the apex / a
+                    // spline chart whose whole u stretch sits under
+                    // the band: the lever is zero in metres) has no
                     // branch to pick — every azimuth agrees there, and
                     // the whole-period rounding below would land on an
                     // integer boundary (the gap need not be a period at
                     // all), which the interval scalar honestly reports
-                    // as a two-integer floor. Skip the shift; the
-                    // continuity margins still run (and pass, at the
-                    // zero lever), and downstream joints anchor their
-                    // own branches. In-band levers take the same arm —
-                    // a sub-tolerance lever cannot select a branch.
+                    // as a two-integer floor. Skip the shift; downstream
+                    // joints anchor their own branches.
+                    //
+                    // **The in-band arm takes the same skip, and this
+                    // is the argument for it — which is NOT that a
+                    // sub-tolerance lever is harmless.** An escalated
+                    // arm means the lever's own size is undecided, so
+                    // whether a period shift is even meaningful is
+                    // undecided with it, and rounding on an undecided
+                    // lever would MANUFACTURE a branch choice from a
+                    // measurement that refused. Skipping keeps the
+                    // decision unmade. What makes that safe is not the
+                    // skip: it is that the continuity margins below run
+                    // unconditionally on the unshifted candidate and are
+                    // metred by the same arm, so a joint that genuinely
+                    // needed the shift fails them and the loop refuses
+                    // or escalates rather than certifying. The skip
+                    // defers; the margins decide.
                     let joint_arm = azimuth_arm(surface, prev.y);
                     let ku = match decide("pcurve_loop_pole_joint", Margin::of(joint_arm), band) {
                         Ok(Sign::Zero) | Err(_) => T::zero(),
@@ -2117,6 +2147,76 @@ mod stretch_meter {
             ),
             Ok(Sign::Zero),
             "5e-10 m is honestly closed"
+        );
+    }
+
+    /// **The pole-joint gate is LIVE on spline charts, in all three
+    /// outcomes** (review item 5: before this unit the arm was the
+    /// constant `1` there, so the gate could only ever answer
+    /// `Positive` and no row exercised it at all).
+    ///
+    /// The gate reads `Margin::of(azimuth_arm(..))` — the arm's own
+    /// size, gated as a length (the collapsed-arm idiom) — and the
+    /// walk converts `Zero` and an escalation alike to "take no
+    /// branch shift".
+    #[test]
+    fn the_pole_joint_gate_answers_all_three_ways_on_spline_charts() {
+        // A chart whose whole u stretch is 1e-12 m per chart unit:
+        // no u displacement on it moves a point past the band, so
+        // the lever is honestly collapsed and no branch is selectable.
+        let collapsed = flat_chart(1e-12);
+        assert_eq!(
+            decide(
+                "pcurve_loop_pole_joint",
+                Margin::of(azimuth_arm(&collapsed, 0.0)),
+                band()
+            ),
+            Ok(Sign::Zero),
+            "a sub-band chart stretch is a collapsed lever"
+        );
+        // In-band: the lever's own size is undecided, so the walk
+        // defers the shift rather than manufacturing one, and the
+        // continuity margins below decide instead.
+        for span in [5e-9_f64, 2e-9] {
+            let s = flat_chart(span);
+            assert!(
+                decide(
+                    "pcurve_loop_pole_joint",
+                    Margin::of(azimuth_arm(&s, 0.0)),
+                    band()
+                )
+                .is_err(),
+                "an in-band lever ({span:e}) escalates rather than deciding"
+            );
+        }
+        // And a real chart reaches the periodic rounding.
+        assert_eq!(
+            decide(
+                "pcurve_loop_pole_joint",
+                Margin::of(azimuth_arm(&flat_chart(100.0), 0.0)),
+                band()
+            ),
+            Ok(Sign::Positive)
+        );
+        // The analytic poles are unmoved: a sphere pole still reads
+        // an exactly-zero lever through the same door.
+        let sphere: Surface<f64> = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            azimuth_arm(&sphere, core::f64::consts::FRAC_PI_2),
+            2.0 * core::f64::consts::FRAC_PI_2.cos()
+        );
+        assert_eq!(
+            decide(
+                "pcurve_loop_pole_joint",
+                Margin::of(azimuth_arm(&sphere, core::f64::consts::FRAC_PI_2)),
+                band()
+            ),
+            Ok(Sign::Zero)
         );
     }
 

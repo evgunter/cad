@@ -2571,12 +2571,23 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
 ///
 /// # What this bounds, and what it must not be used for
 ///
-/// Each component **dominates** the true local stretch everywhere on
-/// the chart: `|S_u(u, v)| ≤ arm_u` and `|S_v(u, v)| ≤ arm_v` at
-/// every `(u, v)` of the chart's domain. It is therefore
-/// **sup-side by construction and is NOT a lower bound**. Quoting it
-/// where an `inf` is wanted is unsound, and the two uses split like
-/// this:
+/// On every chart kind **except the cone**, each component
+/// **dominates** the true local stretch everywhere on the chart:
+/// `|S_u(u, v)| ≤ arm_u` and `|S_v(u, v)| ≤ arm_v` at every `(u, v)`
+/// of the chart's domain.
+///
+/// **The CONE is the carve-out and it is stated here, not buried in
+/// an arm.** A cone's true azimuth stretch is `|v·sin α|`, which no
+/// surface-level constant dominates — it grows without bound down the
+/// ruling — so this function answers unit arms for it, and those are
+/// **not** an upper bound on anything. A cone caller must go through
+/// [`chart_arms_at`], which supplies `v_sup·sin α` from the check's
+/// own boxes. Reading this function's cone arms as a sup is the one
+/// way to misuse it, which is why it is the second paragraph.
+///
+/// Subject to that, the pair is **sup-side by construction and is NOT
+/// a lower bound**. Quoting it where an `inf` is wanted is unsound,
+/// and the two uses split like this:
 ///
 /// - **ESCAPE metering (sound).** A claim of the form *"this
 ///   chart-space displacement does not move the point out of the
@@ -2668,17 +2679,23 @@ fn chart_arms_at<T: Real>(
     }
 }
 
-/// `(sup |S_u|, sup |S_v|)` bounds for a **non-rational** NURBS chart,
-/// from the derivative control net (the B-spline derivative formula
-/// `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` per row/column, then the
-/// partition-of-unity hull `max |Qᵢⱼ|`). Knot arithmetic is `f64`
-/// structure; a zero divisor (a fully collapsed support) contributes
-/// nothing, per the standard convention. Callers gate rationality —
-/// with weights ≠ 1 this formula does not bound the true derivative.
+/// `(sup |S_u|, sup |S_v|)` bounds for a NURBS chart — **rational
+/// nets included** — from the derivative control net (the B-spline
+/// derivative formula `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` per
+/// row/column, then the partition-of-unity hull `max |Qᵢⱼ|`), carried
+/// to the rational case by the weight-ratio factor the body applies
+/// (see the note at `ratio`). Knot arithmetic is `f64` structure; a
+/// zero divisor (a fully collapsed support) contributes nothing, per
+/// the standard convention.
+///
+/// The "callers gate rationality" contract this header used to carry
+/// was retired by M8-3, when the factor went in and the iso lane's
+/// rational gate came out; it is spelled out here because
+/// [`chart_stretch_inf`] cites this function three times and a stale
+/// precondition on a cited derivation is a trap for the next reader.
 fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
-    let (nu, nv) = s.control_counts();
     // **The rational factor** (M8-3). The control-difference bounds
-    // below are POLYNOMIAL convexity facts. For a rational patch the
+    // are POLYNOMIAL convexity facts. For a rational patch the
     // standard extension (Floater 1992, derivatives of rational
     // Bézier/B-spline forms) multiplies them by the weight ratio;
     // squaring it is the conservative reading, and conservative is the
@@ -2687,34 +2704,20 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
     // larger, never the reverse. Exactly 1 for a weight-1 net, so no
     // integral-lane number moves.
     let ratio = weight_ratio_factor::<T>(s.weights());
-    let ctl = s.control();
-    let mut sup_u = T::zero();
-    let (pu, ku) = (s.knots_u().degree(), s.knots_u().knots());
-    #[allow(clippy::cast_precision_loss)]
-    for i in 0..nu.saturating_sub(1) {
-        let denom = ku[i + pu + 1] - ku[i + 1];
-        if denom == 0.0 {
-            continue;
-        }
-        let factor = T::from_f64(pu as f64 / denom);
-        for j in 0..nv {
-            sup_u = sup_u.max((ctl[(i + 1) * nv + j] - ctl[i * nv + j]).norm() * factor);
-        }
-    }
-    let mut sup_v = T::zero();
-    let (pv, kv) = (s.knots_v().degree(), s.knots_v().knots());
-    #[allow(clippy::cast_precision_loss)]
-    for j in 0..nv.saturating_sub(1) {
-        let denom = kv[j + pv + 1] - kv[j + 1];
-        if denom == 0.0 {
-            continue;
-        }
-        let factor = T::from_f64(pv as f64 / denom);
-        for i in 0..nu {
-            sup_v = sup_v.max((ctl[i * nv + j + 1] - ctl[i * nv + j]).norm() * factor);
-        }
-    }
-    (sup_u * ratio, sup_v * ratio)
+    // ONE spelling of the derivative net for the whole file: this
+    // function's two loops were the same walk as `derivative_net`'s,
+    // down to the `denom == 0.0` skip, and a second copy of a
+    // convexity fact is a second place for it to drift. The `inf`
+    // door reads the same nets, so `chart_stretch_sup(s).0` and
+    // `chart_stretch_inf(s).sup_u` are now one computation rather
+    // than two that happen to agree — an equality the `ρ` assembly
+    // ASSUMES, and which is pinned by
+    // `the_two_doors_report_one_sup`.
+    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
+    (
+        sup_of(&derivative_net(s, false)) * ratio,
+        sup_of(&derivative_net(s, true)) * ratio,
+    )
 }
 
 /// The INF-side reading of a spline chart's derivative nets — the
@@ -2782,7 +2785,17 @@ pub struct ChartStretchInf<T> {
 /// [`weight_ratio_factor`] computes and [`nurbs_stretch_bounds`]
 /// MULTIPLIES by. The two ends of that one bracket are the two sides:
 /// the sup multiplies, the inf **divides**, and the area element — a
-/// product of two such factors — divides by `ratio²`. A rational
+/// product of two such factors — divides by `ratio²`.
+///
+/// *Provenance, stated because the citation does not cover all of
+/// it.* Floater's result is a CURVE statement, and the tensor-product
+/// reading — apply it per direction with the patch's own weight
+/// bracket — is the same extension `nurbs_stretch_bounds` already
+/// makes on the sup side and has shipped under since M8-3; the
+/// in-tree evidence is that function's consumers, not a citation.
+/// What is quoted from Floater is the two-sidedness of the bracket:
+/// that the same `(w_max/w_min)²` bounds the coefficient sum from
+/// both ends. Sharpening either end is a separate unit. A rational
 /// chart therefore earns a weaker inf reading than a unit-weight one.
 /// That is the conservative direction, and on a unit-weight net every
 /// factor is exactly 1, so nothing here moves for the polynomial
@@ -2817,6 +2830,19 @@ pub struct ChartStretchInf<T> {
 /// only well-conditioned once `inf_u` and `inf_v` are **definitely**
 /// positive, which is a band question this function has no band to
 /// ask.
+///
+/// # Which scalar makes this rigorous
+///
+/// Every step above is floating point, and at `f64` every step rounds
+/// to **nearest**: the answer is a lower bound *up to a few ulps*,
+/// not a below-rounded one, so a value that is a bound in exact
+/// arithmetic can come back a fraction of an ulp high. That is
+/// immaterial against a band whose tightest setting is 1e-12 against
+/// arms of order 1, and it is not an argument. Under the **interval
+/// scalar** every step rounds outward and the returned bracket's
+/// floor is a genuine certified lower bound — which is the lane a
+/// caller leaning on these numbers should ask for, and the reason
+/// the caller reads the FLOOR rather than the bracket.
 ///
 /// Analytic charts do not come through here: every one of them is
 /// orthogonal by construction with a closed-form inf, and their arms
@@ -2922,6 +2948,8 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     let ratio = weight_ratio_factor::<T>(s.weights());
+    // The same two nets [`nurbs_stretch_bounds`] reads, from the same
+    // door, so `sup_u`/`sup_v` below ARE that function's components.
     let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
     let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
     let (poly_sup_u, poly_sup_v) = (sup_of(&q_u), sup_of(&q_v));
@@ -5054,5 +5082,78 @@ mod tests {
         .unwrap();
         let rate = param_rate_gate(&Curve3::Nurbs(Arc::new(ok)), band()).unwrap();
         assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
+    }
+}
+
+/// The two stretch doors' agreement — cheap, and load-bearing.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod stretch_door_agreement {
+    use geom::{NurbsSurface, Surface};
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+    use std::sync::Arc;
+
+    /// `chart_stretch_sup(s).0` and `chart_stretch_inf(s).sup_u` are
+    /// the same number, and the `ρ` assembly ASSUMES they are: it
+    /// divides the second by the inf to form the normalized trace
+    /// while the escape lane meters with the first. They now share one
+    /// derivative-net door, so this pin costs nothing and would red
+    /// the moment either grows a factor the other does not.
+    #[test]
+    fn the_two_doors_report_one_sup() {
+        /// `(knots_u, degree_u, knots_v, degree_v, flat xyz, weights)`
+        type Case = (Vec<f64>, usize, Vec<f64>, usize, Vec<f64>, Vec<f64>);
+        let cases: Vec<Case> = vec![
+            // bilinear, unit weights
+            (
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
+                vec![1.0; 4],
+            ),
+            // bilinear, RATIONAL: the factor must land on both doors
+            (
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
+                vec![1.0, 0.5, 2.0, 1.0],
+            ),
+            // degree 2 in u, a varying stretch and a repeated knot
+            (
+                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                2,
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![
+                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.0, 0.0, 0.25, 1.0, 0.0, 4.25, 0.0, 0.0,
+                    4.25, 1.0, 0.0,
+                ],
+                vec![1.0; 6],
+            ),
+        ];
+        for (ku, pu, kv, pv, coords, weights) in cases {
+            let control: Vec<Point3<f64>> = coords
+                .chunks_exact(3)
+                .map(|c| Point3::new(c[0], c[1], c[2]))
+                .collect();
+            let s: Surface<f64> = Surface::Nurbs(Arc::new(
+                NurbsSurface::new(
+                    KnotVector::clamped(ku, pu).unwrap(),
+                    KnotVector::clamped(kv, pv).unwrap(),
+                    control,
+                    weights,
+                )
+                .unwrap(),
+            ));
+            let (sup_u, sup_v) = super::chart_stretch_sup(&s);
+            let inf = super::chart_stretch_inf(&s);
+            assert_eq!(sup_u, inf.sup_u, "the u sup must be ONE number");
+            assert_eq!(sup_v, inf.sup_v, "the v sup must be ONE number");
+        }
     }
 }

@@ -688,8 +688,18 @@ fn overlap_of_uv<T: Decide + Bounds>(
     // 3. Certified LOWER arms over the pair's own v-window, or a
     //    typed refusal. Inf-side because the claim below is a
     //    POSITIVE-extent one (`certified_arms`).
+    // The window is over BOTH faces' extracted loops, and neither can
+    // be empty: `loop_uv_polygon` refuses `DegenerateLoop` on any loop
+    // with fewer than 3 vertices — the outer loop and every ring —
+    // before extraction returns, so a `FaceUv` reaching here has at
+    // least three vertices per polygon. A `None` therefore means the
+    // extraction gate let an empty polygon through, which is a kernel
+    // bug and not a shape any input can present; it is announced, not
+    // laundered into a typed refusal that would read as a bad body.
     let Some((v_lo, v_hi)) = v_window(uv_a, uv_b) else {
-        return Err(ChartRegionError::Corrupt);
+        unreachable!(
+            "chart-region: both faces' UV loops are empty, but              `loop_uv_polygon` refuses `DegenerateLoop` below three              vertices on the outer loop and on every ring, so an              empty polygon cannot reach the arm stage"
+        )
     };
     let (arm_u, arm_v) = certified_arms(surface, v_lo, v_hi, band)?;
 
@@ -1420,6 +1430,20 @@ fn certified_arms<T: Decide + Bounds>(
     // or negative arm is the chart having no certified extent in that
     // channel; an in-band arm escalates rather than guessing.
     let gate = |arm: T, chart: &'static str| -> Result<T, ChartRegionError> {
+        // **Structure first (C6): an arm with no positive FLOOR is
+        // not a bound at all.** At `f64` the bracket is the value and
+        // this is exactly the `Zero`/`Negative` arm below. Under the
+        // interval scalar it is the case that arm carries — a folded
+        // net's `min_dot/|c|` quotient divides by a bracket straddling
+        // zero and comes back as the whole admissible range, whose
+        // floor is 0 — and reading the floor keeps that answer TYPED
+        // (`ArmUnbounded`, the chart honestly has no bound) instead of
+        // laundering it into an escalation that reads as "undecided
+        // measurement". Only the floor is ever leaned on downstream,
+        // so this is the same question the row asks, asked first.
+        if arm.lo() <= 0.0 {
+            return Err(ChartRegionError::ArmUnbounded { chart });
+        }
         match decide("chart_region_arm_inf", Margin::of(arm), band) {
             Ok(Sign::Positive) => Ok(arm),
             Ok(Sign::Zero | Sign::Negative) => Err(ChartRegionError::ArmUnbounded { chart }),
@@ -1433,6 +1457,20 @@ fn certified_arms<T: Decide + Bounds>(
         Surface::Cylinder { radius, .. } => Ok((radius, T::one())),
         Surface::Sphere { radius, .. } => {
             let v_abs = v_lo.abs().max(v_hi.abs());
+            // **`cos` is monotone only on `[0, π/2]`, and the window
+            // is not required to live there.** `v` is shifted by whole
+            // periods of `τ` by `shift_polar_branch`, so a stored
+            // branch can carry `|v| > π/2`, and past `π` the cosine
+            // comes back POSITIVE — `cos 6.5 ≈ 0.977` — while the
+            // window it describes has swept the pole and the true inf
+            // is 0. Reading the bracket's top (C6 structure; the
+            // enclosure's sup under the interval scalar) and refusing
+            // outside the monotone range is the whole guard: within
+            // it, `cos v_abs ≤ cos|v|` for every `v` in the window,
+            // which is the claim the arm makes.
+            if v_abs.hi() > core::f64::consts::FRAC_PI_2 || v_abs.hi().is_nan() {
+                return Err(ChartRegionError::ArmUnbounded { chart: "sphere" });
+            }
             Ok((gate(radius * v_abs.cos(), "sphere")?, radius))
         }
         Surface::Torus {
@@ -1477,6 +1515,14 @@ fn certified_arms<T: Decide + Bounds>(
                 .sqrt();
             // `2D/(T + √(T²−4D))` — the cancellation-free spelling of
             // `(T − √(T²−4D))/2`.
+            // The `min(1)` is a SAFETY cap, not a tightening: `T` and
+            // `D` come from different points of the chart, so their
+            // corner can nominally exceed the true `λ_min ≤ 1` and an
+            // arm above its own per-axis inf would be unsound. It is
+            // also what makes `arm ≤ inf_u` near-tautological, so no
+            // test may use that inequality as evidence of anything —
+            // the swap row pins the arm's DERIVED VALUE for exactly
+            // this reason.
             let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
                 .sqrt()
                 .min(T::one());
@@ -3577,6 +3623,26 @@ mod inf_arms {
         assert!(arm_u < 2.0, "the inf is strictly under the sup arm r");
     }
 
+    /// **A sphere window past the monotone range of `cos` refuses**
+    /// rather than reading the cosine's return to positive (review
+    /// item 10). `cos 6.5 ≈ 0.977`, and a naive arm would certify a
+    /// window that has swept the pole.
+    #[test]
+    fn a_sphere_window_beyond_the_monotone_range_refuses() {
+        for (lo, hi) in [(0.0, 6.5), (-6.5, 0.0), (0.0, 3.5), (2.0, 2.5)] {
+            assert!(
+                matches!(
+                    certified_arms(&sphere(2.0), lo, hi, band()),
+                    Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
+                ),
+                "window [{lo}, {hi}] must refuse"
+            );
+        }
+        // And the monotone range itself still certifies, right up to
+        // the edge where the arm collapses.
+        assert!(certified_arms(&sphere(2.0), -1.5, 1.5, band()).is_ok());
+    }
+
     /// A sphere window reaching a POLE has inf 0 and keeps refusing.
     #[test]
     fn a_pole_reaching_sphere_window_still_refuses() {
@@ -3823,15 +3889,34 @@ mod inf_arms {
     }
 }
 
-/// CERT-8 review probes (reviewer lane 8r2), interval lane. Not for merge.
+/// **The inf-arm rows under the INTERVAL scalar** (review item 4:
+/// nothing in the original diff ran `net_inf`, `chart_stretch_inf` or
+/// `certified_arms` under anything but `f64`, and both reviewers had
+/// to write their own probes to find out whether they work at all).
+///
+/// Promoted from reviewer lane 8r2's interval probe, which printed
+/// these values; the rows below assert them.
+///
+/// **Why this lane is where the bound is rigorous.** Every step of
+/// the derivation — the net differences, the summed direction, the
+/// `min_dot / |c|` quotient, the cross products, and the assembly's
+/// trace/determinant arithmetic — is floating point. At `f64` each
+/// step rounds to NEAREST, so the answer is a lower bound *up to a
+/// few ulps*, not below-rounded: a bound that is exact in exact
+/// arithmetic can come back a fraction of an ulp high. That is
+/// immaterial against a band whose narrowest setting is 1e-12
+/// relative to arms of order 1, and it is not an argument, which is
+/// why the interval lane exists: there every step rounds outward and
+/// the returned bracket's `lo()` is a genuine certified floor. These
+/// rows check exactly that.
 #[cfg(all(test, feature = "interval"))]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod r2_probe_cert8_interval {
+mod inf_arms_interval {
     use super::certified_arms;
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Interval, Margin, Point3, Real};
+    use geom_core::{Band, Bounds, Interval, Margin, Point3, Real, Sign};
     use std::sync::Arc;
 
     fn band() -> Band {
@@ -3852,27 +3937,87 @@ mod r2_probe_cert8_interval {
         ))
     }
 
+    /// The `(4, 1)` orthogonal chart, under the interval scalar: the
+    /// per-axis infs and the assembled arms bracket the `f64` answer,
+    /// and the bracket's FLOOR is what a positive claim may lean on.
     #[test]
-    fn probe_interval_inf_arms() {
+    fn the_inf_arms_are_certified_brackets_under_the_interval_scalar() {
         let s = flat_chart(4.0, 1.0);
         let i = geom_brep::chart_stretch_inf(&s);
-        println!(
-            "interval inf=({:?},{:?}) sup=({:?},{:?}) area={:?}",
-            i.inf_u, i.inf_v, i.sup_u, i.sup_v, i.area_inf
+        // Outward rounding widens the bracket by ulps, never more.
+        assert!(
+            i.inf_u.lo() > 3.999_999_999 && i.inf_u.hi() <= 4.0 + 1e-9,
+            "inf_u bracket {:?}..{:?}",
+            i.inf_u.lo(),
+            i.inf_u.hi()
         );
-        let arms = certified_arms(&s, Interval::from_f64(0.0), Interval::from_f64(1.0), band());
-        println!("interval certified arms: {arms:?}");
+        assert!(i.inf_v.lo() > 0.999_999_999 && i.inf_v.hi() <= 1.0 + 1e-9);
+        assert!(i.area_inf.lo() > 3.999_999_999, "the area floor is 4");
+        let (arm_u, arm_v) =
+            certified_arms(&s, Interval::from_f64(0.0), Interval::from_f64(1.0), band()).unwrap();
+        // An orthogonal chart of constant stretch: ρ = 1, so the arms
+        // are the per-axis infs, and both floors are POSITIVE — which
+        // is the only property a positive-area claim may use.
+        assert!(
+            arm_u.lo() > 3.999_999_999 && arm_v.lo() > 0.999_999_999,
+            "arms ({:?}, {:?})",
+            arm_u.lo(),
+            arm_v.lo()
+        );
+        assert!(arm_u.lo() > 0.0 && arm_v.lo() > 0.0);
     }
 
-    /// The pole-joint gate on a SPLINE chart, which before this unit was
-    /// always exactly `T::one()` — never Zero, never escalating.
+    /// The refusals survive the scalar change: a folded net still
+    /// reads a zero floor and refuses.
     #[test]
-    fn probe_pole_joint_gate_on_spline_charts() {
-        for span in [1.0_f64, 1e-9, 5e-9, 1e-12] {
-            let s = flat_chart(span, span);
-            let (sup_u, _) = geom_brep::chart_stretch_sup(&s);
-            let verdict = decide("pcurve_loop_pole_joint", Margin::of(sup_u), band());
-            println!("span {span:e}: sup_u={sup_u:?} pole-joint -> {verdict:?}");
+    fn a_folded_net_still_refuses_under_the_interval_scalar() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let f = Interval::from_f64;
+        let p = |x: f64, y: f64| Point3::new(f(x), f(y), f(0.0));
+        let control = vec![
+            p(0.0, 0.0),
+            p(0.0, 1.0),
+            p(2.0, 0.0),
+            p(2.0, 1.0),
+            p(0.0, 0.0),
+            p(0.0, 1.0),
+        ];
+        let s: Surface<Interval> = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+        ));
+        // The interval quotient divides by a bracket straddling zero,
+        // so the floor is 0 and the bracket is wide — the honest
+        // reading of a net whose derivative vanishes somewhere. The
+        // gate reads the FLOOR, so the refusal stays typed rather than
+        // degrading to an escalation.
+        let i = geom_brep::chart_stretch_inf(&s);
+        assert_eq!(i.inf_u.lo(), 0.0, "no positive floor on a folded net");
+        assert!(matches!(
+            certified_arms(&s, f(0.0), f(1.0), band()),
+            Err(super::ChartRegionError::ArmUnbounded { chart: "NURBS" })
+        ));
+    }
+
+    /// The pole-joint gate on a SPLINE chart under the interval
+    /// scalar — the path the old constant `1` arm could not reach.
+    /// Promoted from the reviewer probe's printed table.
+    #[test]
+    fn the_spline_pole_joint_gate_answers_all_three_ways() {
+        let sup = |span: f64| geom_brep::chart_stretch_sup(&flat_chart(span, span)).0;
+        assert_eq!(
+            decide("pcurve_loop_pole_joint", Margin::of(sup(1e-12)), band()),
+            Ok(Sign::Zero)
+        );
+        for span in [1e-9, 5e-9] {
+            assert!(
+                decide("pcurve_loop_pole_joint", Margin::of(sup(span)), band()).is_err(),
+                "in-band lever {span:e} escalates"
+            );
         }
+        assert_eq!(
+            decide("pcurve_loop_pole_joint", Margin::of(sup(1.0)), band()),
+            Ok(Sign::Positive)
+        );
     }
 }

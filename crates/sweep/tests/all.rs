@@ -81,8 +81,6 @@ mod verbs_shell;
 
 #[path = "bitdump.rs"]
 mod bitdump;
-#[path = "cert8_r1_probes.rs"]
-mod cert8_r1_probes;
 #[path = "blend1_r1_probes.rs"]
 mod blend1_r1_probes;
 #[path = "blend2_r2_probes.rs"]
@@ -105,6 +103,8 @@ mod blend_tworims;
 mod cert5_offgrid_knot_rational;
 #[path = "cert5_r1_e2e_probes.rs"]
 mod cert5_r1_e2e_probes;
+#[path = "cert8_r1_probes.rs"]
+mod cert8_r1_probes;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
