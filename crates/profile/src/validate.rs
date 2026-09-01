@@ -686,6 +686,17 @@ pub enum LoopRole {
     Hole,
 }
 
+impl core::fmt::Display for LoopRole {
+    /// The role as a prose noun — the one spelling a user-facing
+    /// message uses, so a rendered role never leans on `Debug`.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Outer => "outer",
+            Self::Hole => "hole",
+        })
+    }
+}
+
 /// A validated segment's classified carrier, exposed read-only for
 /// sweeps (PR 4 lowers `Arc` to a `geom` circle carrier and
 /// `Line` to a line carrier at sweep time).

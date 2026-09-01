@@ -33,7 +33,7 @@ use pncad::document::{
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
-use pncad::profile::PathError;
+use pncad::profile::{PathError, PathErrorKind};
 use pncad::select::{DanglingRef, InterrogateError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -48,40 +48,42 @@ use pncad::workspace::WorkspaceError;
 /// the [`persist_error_tag`] treatment, not the `Debug`-dump one.
 ///
 /// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
-/// `PathError` carries no fieldless kind, so this map derives one from
-/// outside and `editor-core`'s edit door — which cannot reach even
-/// this far, the refusal degrading to `String` there — substring-matches
-/// prose for the same fact. #1480 is that type's half.
+/// It is `PathError::kind`, and this map keys off it — one stable
+/// string per kind, over `PathErrorKind`'s arms rather than `..`, so a
+/// new kernel refusal stops this build instead of acquiring a silent
+/// tag. A kind with no arm behind it is a phantom, and the fix is to
+/// delete it kernel-side; minting a tag for one would publish an FFI
+/// name no refusal can ever carry.
 pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
-    match err {
-        PathError::JunctionTangent { .. } => "junction_tangent",
-        PathError::JunctionCusp { .. } => "junction_cusp",
-        PathError::TangentLineClose { .. } => "tangent_line_close",
-        PathError::SameCarrierJunction { .. } => "same_carrier_junction",
-        PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
-        PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
-        PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
-        PathError::FilletEnclosesLegCarrier { .. } => "fillet_encloses_leg_carrier",
-        PathError::ArcLegOnOpenFillet { .. } => "arc_leg_on_open_fillet",
-        PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
-        PathError::Structure { .. } => "guided_structure",
-        PathError::DegenerateArcSpec { .. } => "degenerate_arc_spec",
-        PathError::NonpositiveLeg { .. } => "nonpositive_leg",
-        PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
-        PathError::NonpositiveCircleRadius { .. } => "nonpositive_circle_radius",
-        PathError::CircleSplitCount { .. } => "circle_split_count",
-        PathError::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
-        PathError::ArcContinueOffCarrier { .. } => "arc_continue_off_carrier",
-        PathError::ZeroDirection { .. } => "zero_direction",
-        PathError::ArcViaCollinear { .. } => "arc_via_collinear",
-        PathError::DegenerateArcChord { .. } => "degenerate_arc_chord",
-        PathError::ArcCenterNotEquidistant { .. } => "arc_center_not_equidistant",
-        PathError::DegenerateArcCenter { .. } => "degenerate_arc_center",
-        PathError::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
-        PathError::Escalated { .. } => "escalated",
-        PathError::Band(_) => "band",
-        PathError::UnderdeterminedLeg { .. } => "underdetermined_leg",
-        PathError::OverdeterminedJunction { .. } => "overdetermined_junction",
+    match err.kind() {
+        PathErrorKind::JunctionTangent => "junction_tangent",
+        PathErrorKind::JunctionCusp => "junction_cusp",
+        PathErrorKind::TangentLineClose => "tangent_line_close",
+        PathErrorKind::SameCarrierJunction => "same_carrier_junction",
+        PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
+        PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",
+        PathErrorKind::FilletOffsetLeverTooShort => "fillet_offset_lever_too_short",
+        PathErrorKind::FilletEnclosesLegCarrier => "fillet_encloses_leg_carrier",
+        PathErrorKind::ArcLegOnOpenFillet => "arc_leg_on_open_fillet",
+        PathErrorKind::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
+        PathErrorKind::Structure => "guided_structure",
+        PathErrorKind::DegenerateArcSpec => "degenerate_arc_spec",
+        PathErrorKind::NonpositiveLeg => "nonpositive_leg",
+        PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
+        PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
+        PathErrorKind::CircleSplitCount => "circle_split_count",
+        PathErrorKind::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
+        PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
+        PathErrorKind::ZeroDirection => "zero_direction",
+        PathErrorKind::ArcViaCollinear => "arc_via_collinear",
+        PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
+        PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
+        PathErrorKind::DegenerateArcCenter => "degenerate_arc_center",
+        PathErrorKind::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
+        PathErrorKind::Escalated => "escalated",
+        PathErrorKind::Band => "band",
+        PathErrorKind::UnderdeterminedLeg => "underdetermined_leg",
+        PathErrorKind::OverdeterminedJunction => "overdetermined_junction",
     }
 }
 
