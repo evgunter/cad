@@ -551,3 +551,74 @@ Slate: CERT-8 (chart-stretch honesty, issues 501+528) and CERT-10
 (patch-hull consolidation — its CERT-5/CERT-7 sequencing gate is
 now satisfied) dispatch next, opening block CERT-B3; then CERT-M/
 CERT-N track lanes and the exit walk.
+
+### CERT-8 — chart-stretch honesty (issues 501 + 528) — MERGED
+
+PR 1398; spec `docs/CERT-8-SPEC.md` (cert/orchestrator d90e7441); block
+CERT-B3 slot 0 (byte 27, fable at 3 → OPUS); ordinal 708 claimed at
+dispatch (main 30195f16c); sample number at merge.
+
+Delivered head 085ddf8f (+1002/−142 over seven files). Two
+orchestrator-direct discipline fixes before review, both disclosed in the
+twice-amended method note: the interval-square-allowlist catch on
+`chart_stretch_inf`'s `ratio * ratio` (1a2574b0, powi(2), value-identical)
+and the one `exact_arms` doc link the rename left dangling (bde7b17f, the
+CERT-7 class). Frozen review head bde7b17f. Its first hosted run died at a
+GitHub spending-limit startup failure (both root jobs, no runner); Evan
+refreshed the budget and re-ran: 22/22 green, both ε=1e-12 lanes pinned.
+
+Dual (v6, sequential; byte 201 parity 1 ⇒ R1 FABLE + R2 OPUS): R1 A-W-F
+0/5/3 (rubric 4/3/4), R2 A-W-F 2/4/+. Both upheld the singular-value
+inf-arm assembly by independent execution (a 3684-chart hunt and a
+161²×8 sweep, zero violations; every acceptance digit reproduced). The
+union: the mean-width CONTRACT at `ChartOverlap::PositiveArea` false under
+non-constant stretch (R2's strip exhibit, model width 97× below the
+reading; R1 held the fact at NOTE/MIN — partially bilateral, severity
+divergence); the swap row's `(0, inf_u]` pin non-binding (bilateral,
+executed twice: a full sup-swap assembly survived the suite); R1's
+`v_window` axis mutation surviving the suite (unilateral executed);
+interval reachability zero in the diff (bilateral); the D2 Corrupt row
+argued from a premise its own file contradicts (R2: row 4, unreachable
+behind the `len < 3` gate); two prose premises invalidated at the pole
+joint; the derivative-net loop spelled four times in one file with nothing
+pinning the two sup readings equal (bilateral class). Severity divergence
+on converged substance again — calibration signal; no clean unilateral
+executed MAJOR, so no tally candidate here (the partial-bilateral pair's
+coding deferred to the blinded adjudication).
+
+Fix pass (implementer-inherited, all items taken, none declined beyond
+taste): the contract narrowed at the claim site (`mw_model ≥ (ρ/√T)·
+mw_scaled` quoted, the strip exhibit promoted to a row); the swap pin
+rebound to the derived arm (0.031189; the sup read now reds at 0.353726);
+the face-level `v_window` row (axis swap flips PositiveArea to
+ArmUnbounded); interval-typed rows reaching `net_inf`/`chart_stretch_inf`/
+`certified_arms`, with the arm gate now reading the bracket FLOOR so a
+folded net refuses typed in both lanes; the pole-joint three-way row on a
+spline chart and both stale premises rewritten; the D2 row moved to row 4
+(`unreachable!` naming the gate); both doc contracts corrected; the
+net-loop class absorbed into `derivative_net` with the sup-agreement pin
+(`the_two_doors_report_one_sup`); AND one soundness fix the reviews only
+suspected — the sphere arm's `r·cos v` re-entering positive past π
+(cos 6.5 ≈ 0.977 would have certified a pole-sweeping window) now refuses
+outside cos's monotone range. Both reviewer probe suites adopted with
+authorship preserved (cert/8r1-probes, cert/8r2-probes pushed). Then the
+598-commit main merge (one real conflict, chart_region.rs, additive both
+sides; main's cylinder-band lane is kind-gated ahead of `overlap_of_uv`,
+so the narrowed contract holds for its exact-arm producer too) and main's
+newer tooling — ruff on the adopted Python probe, the new
+interval-cfg-additive gate on the interval rows, two clippy lints in the
+adopted Rust probes — each caught once, fixed once. Sweep re-run at the new
+base 2f7edd2d: no new default meters, no new wrong-side reads. Final head
+970f5f4d: run 33555716228, 22/22 green, both lanes at 1e-12 by trailer.
+The lane owned its earlier verification-claim miss ("nothing is denied"
+about rustdoc — an inference dressed as a measurement).
+
+Issues: 501 and 528 closed at merge; filed: the `edge_chord_len` 1 m
+default at two plane-gated sites (disclosed-unscheduled in the sweep). The
+tree's other inf-side surface bound (`offset_meters`' ‖S_u×S_v‖ floor)
+recorded as the shared-home wish beside CERT-10's `TensorNet` — not taken;
+`step-import/recognize.rs`'s two net-loop siblings recorded, other crate.
+
+Slate: CERT-10 (PR 1403) is the last defect-cluster unit; then the
+CERT-M/CERT-N track lanes, the blinded tally adjudication (four standing
+candidates), and the exit walk.
