@@ -633,6 +633,84 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
     );
 }
 
+/// **The positive control for the exhaustive hunt above, and the
+/// SHARPENING of the PR's generalization.** The hunt returning zero
+/// successes proves nothing unless `try_author` can succeed at all, so
+/// two outlines that MUST author:
+///
+/// 1. a plain 8-gon whose every vertex turns (no subdivision anywhere);
+/// 2. an 8-vertex outline on the SAME budget whose subdivisions are
+///    distributed unevenly — one side carrying two interior vertices
+///    and one side carrying none.
+///
+/// (2) is the sharpening: the PR generalizes the wall to "every closed
+/// outline whose every side is subdivided", and the real mechanism is
+/// the strict corner/subdivision ALTERNATION that "exactly one per
+/// side" forces. Move one subdivision and the same vertex budget
+/// authors, because the closer can then depart a corner and land on
+/// one. Lily cannot do that — the loft pins where its vertices are —
+/// which is what makes its wall a geometry fact rather than a
+/// spelling one.
+#[test]
+fn probe_positive_control_and_the_uneven_distribution_that_escapes_the_wall() {
+    let t = Tol::witness();
+    // (1) every vertex turns.
+    let octagon: Vec<Point2<f64>> = (0..8)
+        .map(|k| {
+            let a = core::f64::consts::TAU * (k as f64) / 8.0;
+            p2(a.cos(), a.sin())
+        })
+        .collect();
+    assert!(
+        try_author(&octagon, Closer::LineTo, t).is_ok(),
+        "POSITIVE CONTROL FAILED: the harness cannot author even an all-corner \
+         outline, so the exhaustive hunt's zero successes would be vacuous"
+    );
+    // (2) same budget, uneven distribution: a rectangle whose right
+    // side carries two interior vertices, whose top and bottom carry
+    // one each, and whose left side carries none.
+    let uneven = [
+        p2(1.0, -1.0),  // corner
+        p2(1.0, -0.25), // subdivision
+        p2(1.0, 0.25),  // subdivision (same side)
+        p2(1.0, 1.0),   // corner
+        p2(0.0, 1.0),   // subdivision
+        p2(-1.0, 1.0),  // corner
+        p2(-1.0, -1.0), // corner  <- left side NOT subdivided
+        p2(0.0, -1.0),  // subdivision
+    ];
+    // The escape needs the UNSUBDIVIDED side to be the closing one, so
+    // try every rotation exactly as the seam hunt does. The lily
+    // outlines score 0/16 there; this one must score at least 1.
+    let n = uneven.len();
+    let mut ok = 0usize;
+    for start in 0..n {
+        for rev in [false, true] {
+            let ring: Vec<Point2<f64>> = (0..n)
+                .map(|j| {
+                    let idx = if rev {
+                        (start + n - j) % n
+                    } else {
+                        (start + j) % n
+                    };
+                    uneven[idx]
+                })
+                .collect();
+            if try_author(&ring, Closer::LineTo, t).is_ok() {
+                ok += 1;
+            }
+        }
+    }
+    println!(
+        "probe: the uneven 8-vertex distribution authors in {ok}/{} spellings",
+        2 * n
+    );
+    assert!(
+        ok > 0,
+        "the same vertex budget DOES author once the alternation is broken"
+    );
+}
+
 #[derive(Clone, Copy)]
 enum Closer {
     LineTo,
