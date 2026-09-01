@@ -61,11 +61,18 @@ pub use geom_core::{
 // surface and must not become it. Scope: the prelude carries the
 // value types + the six unit constants + the formatter; the unit
 // TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
-// `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
-// per the corpus-measured prelude rule (module docs above).
+// `MILLI`, `CENTI`, `ONE`) stay one module hop away at
+// `pncad::quantity`, per the corpus-measured prelude rule (module
+// docs above).
+// `WrittenLength`/`WrittenAngle` are value types by the same rule and
+// ride here for the same reason `Length` does: they are what an
+// authored quantity IS at this boundary — a magnitude plus the
+// notation it was written in — and `Expr::written_length` is the door
+// they open, which is how a library recipe records `300 mm` rather
+// than `0.3` for a reader to interpret.
 pub use quantity::{
     Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, PI, RAD,
-    fmt_angle, fmt_length,
+    WrittenAngle, WrittenLength, fmt_angle, fmt_length,
 };
 
 // --- 2. Profile authoring -------------------------------------

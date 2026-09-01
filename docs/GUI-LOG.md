@@ -560,6 +560,32 @@ anymore". Every committed document was regenerated
 assembly corpora, `v20_golden.cad`); v19's golden stays on disk, as
 every version's does.
 
+**The demos carry the exhibit**, because a demo demonstrates REAL
+usage and "author in millimetres" is the usage in question. The four
+gallery documents now span the space deliberately: `ring` is written
+in millimetres and half-turns throughout (`300 mm`, and a full turn as
+`2 pi rad` rather than `6.283185307179586 rad`); `diefillet` is MIXED
+— millimetres for its lengths, degrees for the pip table's quarter and
+half turns, dimensionless for the rotation axes — and it exercises the
+other authoring door, `WrittenLength::canonical_in`, because its
+lengths are DERIVED from the die's geometry and only their notation is
+being chosen, which is exactly a GUI form's shape; `checks` and
+`heatsink` stay canonical, and say in a comment that they are the
+control. `ring`'s constants moved to millimetres with the canonical
+metres derived through `quantity::MILLI`, so the analytic oracle and
+the recipe cannot drift.
+
+Degrees are inexact by nature (the unit table says so), so the die's
+pip rotations moved by an ulp — `180 deg` is `180 · fl(π/180)`, not
+`PI`. That is the honest consequence of writing an angle in degrees,
+it is orders below every tolerance the scene asserts, and the tour
+runs clean.
+
+`WrittenLength`/`WrittenAngle` joined the prelude for `Length`'s
+reason: they are what an authored quantity IS at the D6 boundary. The
+prefix data (`MILLI`, `ONE`, `UNITS`) stayed one hop away at
+`pncad::quantity`, per the corpus-measured prelude rule.
+
 **A rider bug, found on the way and fixed by the change rather than
 beside it:** the creation forms' `unit_field` read the draft's raw
 unit while the `unit_picker` beside it resolved through
