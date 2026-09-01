@@ -2858,3 +2858,27 @@ the roster instance (the spec's flag-flip-moves-the-refusal
 premise landing on a foreclosing door) records in
 refusal-text-is-not-cause per the spec's own instruction WHEN the
 unit lands. VERBS-8 block draw next; TORAX takes slot 1.
+## ORDINAL 110 CLAIMED — TORAX dual (2026-09-01)
+
+TORAX delivered on the ELBOW-SPLIT STOP branch: the
+barrel/teapot half lands (rho_c generalization at the three
+arithmetic sites, bit-identity receipt CLEAN — the general form
+is the only spelling, no two-spelling fence needed; seven
+torax_axial rows with exact closed forms ρ=3(2−√2)/64 etc.;
+≥16 metered incidences ≤1e-15; hollow-and-repose commutation),
+and the elbow WAITS on a measured capability gap: the spec's
+item-5 premise (extend the sphere-rim path) is FALSE at this
+head — no sphere-rim path exists; the partial revolve's rim is
+unbuilt for EVERY curved wall (the sphere lune refuses
+TogetherEdgeDisagreement gap 0.05), and the torus rim
+additionally needs a quartic carrier (half-width 0.2252027 vs
+half-height 0.225 measured). C5ARMS rows 12/13 UNBLOCK; 3/4/8
+wait on a rim capability, not the kind roster. Opening
+measurement hit the expected pair gate and reproduced the
+C5ARMS STOP gaps to the last digit under the scratch flip.
+Three declared deviations (mint_carrier torus-seam arm;
+surface_residual torus arm; the unauthorable planted red —
+needs a move_point_for_tests door, scheduled as an adjudication
+ask). Teapot wall 1 RETIRED (shipped pot unchanged). Dual:
+parity byte 105 ⇒ R1 FABLE + R2 OPUS, frozen 086c66944; claim
+to main at dispatch.
