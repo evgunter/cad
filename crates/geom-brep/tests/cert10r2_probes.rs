@@ -137,7 +137,10 @@ fn probe1_signed_reading_encloses_adversarial_extremes() {
 struct Lcg(u64);
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0
     }
     fn f(&mut self, lo: f64, hi: f64) -> f64 {
@@ -226,11 +229,7 @@ fn probe1_quarter_cylinder_fold_norms_dominate() {
             .sqrt()
             .next_up()
     };
-    let (muu, muv, mvv) = (
-        comp(|c| c.s_uu),
-        comp(|c| c.s_uv),
-        comp(|c| c.s_vv),
-    );
+    let (muu, muv, mvv) = (comp(|c| c.s_uu), comp(|c| c.s_uv), comp(|c| c.s_vv));
     let n = 700usize;
     let (mut wuu, mut wuv, mut wvv) = (0.0f64, 0.0f64, 0.0f64);
     for i in 0..=n {
@@ -247,9 +246,15 @@ fn probe1_quarter_cylinder_fold_norms_dominate() {
         "qc fold bounds: muu {muu:.6e} muv {muv:.6e} mvv {mvv:.6e}; \
          sampled {wuu:.6e} {wuv:.6e} {wvv:.6e}"
     );
-    assert!(wuu <= muu && wuv <= muv && wvv <= mvv, "sampled escapes fold bound");
+    assert!(
+        wuu <= muu && wuv <= muv && wvv <= mvv,
+        "sampled escapes fold bound"
+    );
     // The PR body's claimed signed figures for this face.
-    assert!((muu - 3.030539).abs() < 2e-6 || muu < 3.94, "muu scale sanity");
+    assert!(
+        (muu - 3.030539).abs() < 2e-6 || muu < 3.94,
+        "muu scale sanity"
+    );
 }
 
 /// Claim 2: the coarser grid (48 x 2 at delta_s = 4e-3, the PR's
@@ -260,9 +265,7 @@ fn probe2_coarser_grid_still_meets_chord_tolerance() {
     let s = quarter_cylinder();
     let delta_s = 4e-3f64;
     let (nu, nv) = (48usize, 2usize);
-    let at = |i: usize, j: usize| -> [f64; 2] {
-        [i as f64 / nu as f64, j as f64 / nv as f64]
-    };
+    let at = |i: usize, j: usize| -> [f64; 2] { [i as f64 / nu as f64, j as f64 / nv as f64] };
     let m = 12usize;
     let mut worst = 0.0f64;
     for i in 0..nu {
@@ -284,10 +287,9 @@ fn probe2_coarser_grid_still_meets_chord_tolerance() {
                             b0 * p[0].y + b1 * p[1].y + b2 * p[2].y,
                             b0 * p[0].z + b1 * p[1].z + b2 * p[2].z,
                         );
-                        let dev = ((sv.x - pi.x).powi(2)
-                            + (sv.y - pi.y).powi(2)
-                            + (sv.z - pi.z).powi(2))
-                        .sqrt();
+                        let dev =
+                            ((sv.x - pi.x).powi(2) + (sv.y - pi.y).powi(2) + (sv.z - pi.z).powi(2))
+                                .sqrt();
                         worst = worst.max(dev);
                     }
                 }
@@ -317,7 +319,11 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
         let base = TensorNet::from_fn(nu, nv, |i, j| {
             let x = (i as f64 * 1.3).sin() * 7.0 - (j as f64 * 0.9).cos() * 5.0
                 + if (i, j) == (0, 0) { 40.0 } else { 0.0 }
-                + if (i, j) == (nu - 1, nv - 1) { -33.0 } else { 0.0 };
+                + if (i, j) == (nu - 1, nv - 1) {
+                    -33.0
+                } else {
+                    0.0
+                };
             RingInterval::point(x)
         });
         let kv_u1 = patch_bound::derived_knots(&kv_u).unwrap();

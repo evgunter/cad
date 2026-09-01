@@ -1,9 +1,9 @@
 //! R2 digit probe: `nurbs_patch_face` on the multiplicity-=-degree
 //! rational wall (the `Dir::Raw` / `raw_deriv` path), full-precision
 //! Debug output for a bit-level merge-base vs HEAD comparison.
+use geom_brep::props::quad::{RVec3, nurbs_patch_face};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Tol, ring_interval::RingInterval};
-use geom_brep::props::quad::{RVec3, nurbs_patch_face};
 
 fn pt(x: f64) -> RingInterval {
     RingInterval::point(x)

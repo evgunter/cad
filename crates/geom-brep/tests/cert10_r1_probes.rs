@@ -283,7 +283,11 @@ fn cert10r1_control_ders_agrees_with_finite_differences() {
                     // Absolute floor: a central difference of a quantity that
                     // is exactly zero returns its own O(eps/h^2) noise.
                     let d = (an - fd).abs();
-                    let rel = if d < 1e-4 { 0.0 } else { d / an.abs().max(fd.abs()) };
+                    let rel = if d < 1e-4 {
+                        0.0
+                    } else {
+                        d / an.abs().max(fd.abs())
+                    };
                     if rel > worst {
                         worst = rel;
                         worst_where =
@@ -297,7 +301,10 @@ fn cert10r1_control_ders_agrees_with_finite_differences() {
     // Central differences at h = 1e-5 carry O(h^2) truncation and
     // O(eps/h^2) noise on the second differences; 1e-3 is loose enough
     // for that and three decades tighter than the excursions above.
-    assert!(worst < 1e-3, "ders disagrees with finite differences: {worst_where}");
+    assert!(
+        worst < 1e-3,
+        "ders disagrees with finite differences: {worst_where}"
+    );
 }
 
 /// The SAME sweep on the integral arm (all weights 1.0): unit weights
@@ -403,7 +410,11 @@ fn cert10r1_cell_windows_cover_the_net_at_every_admissible_multiplicity() {
     for p in 1..=5usize {
         // The C1 gate: degree 1 must be single-span; degree >= 2
         // admits interior multiplicity up to p - 1.
-        let mults: Vec<usize> = if p == 1 { vec![] } else { (1..=p - 1).collect() };
+        let mults: Vec<usize> = if p == 1 {
+            vec![]
+        } else {
+            (1..=p - 1).collect()
+        };
         for m in mults {
             let mut k = vec![0.0; p + 1];
             for (idx, t) in [0.3, 0.7].iter().enumerate() {
@@ -469,7 +480,10 @@ fn cert10r1_cell_windows_cover_the_net_at_every_admissible_multiplicity() {
     // when m <= p - k + 1. At k = 2 that is m <= p - 1, which is
     // EXACTLY the C1 gate's ceiling. The gate is therefore load-bearing
     // for the fold's soundness, not only for C1.
-    assert!(!rows.is_empty(), "no admissible multiplicities were exercised");
+    assert!(
+        !rows.is_empty(),
+        "no admissible multiplicities were exercised"
+    );
 }
 
 // ---------------------------------------------------------------
