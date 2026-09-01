@@ -120,8 +120,13 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
 
 /// The scene's flush plane declaration, reproduced: the ONE coplanar
 /// cross pair (stem end cap against arch start cap), declared `Rest` —
-/// the weld's whole declared contact, exactly as
-/// `demos/tour/src/booleans.rs::flush_declarations` would find it.
+/// the weld's whole declared contact, the pair
+/// `topo::flush::find_flush_candidates` reports there (which is what
+/// the scene's own helper now runs).
+///
+/// The selection here is by POSITION, not by flushness: it picks the
+/// caps at the fork and lets the op verify them, which is why it is
+/// not a second spelling of the detector's decisions.
 fn weld_declarations(stem: &Body<f64>, arch: &Body<f64>) -> (BooleanDeclarations, usize) {
     let fork = arch_frame().fork;
     let mut decls = BooleanDeclarations::none();

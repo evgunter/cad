@@ -985,6 +985,12 @@ NOT_BOUND = {
     # `GeomPred.surface_kind` / `GeomPred.adjacent_kinds`, and the
     # `Evaluation.all_edges`/`all_faces` materializers.
     "query": SHAPE,
+    # The kernel flush seat (`topo::flush`): the detect/declare
+    # protocol over two `Body`s and their arena keys — the same
+    # vocabulary Python is deliberately kept from naming. The Python
+    # spelling of these questions is the document door, already bound:
+    # `Evaluation.find_flush_candidates` and `Doc.declare`.
+    "flush": SHAPE,
     "real": SHAPE,
     "v2": SHAPE,
     "v3": SHAPE,

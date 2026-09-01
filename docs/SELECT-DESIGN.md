@@ -202,6 +202,12 @@ bare cosine, `demo_flush_offset` proper `Margin`) are the flagged
 bare-gate family the library version must not replicate. The honest
 library form is three separated pieces:
 
+*(Status, SEAT-3: retired in fact as well as in principle. The
+body-seat detector below gave the demo and test-common declarers a
+library door to call, both hand declarers are gone with their six
+flagged sites, and the fixture-twin disposition recorded in (b) and
+§6 has closed.)*
+
 **(a) Detect — findings, never declarations.**
 
 ```text
@@ -210,12 +216,27 @@ find_flush_candidates<T: Decide>(
     tol: Tol,
 ) -> Result<Vec<FlushFinding>, SelectRefusal>
 
-FlushFinding {
-    pair: (StableName, StableName),   -- names, never keys (G1)
+FlushFinding<P> {
+    pair: P,                          -- the SEAT's pair vocabulary
     class: ContactClass,              -- Rest, in v1
     evidence: ...,                    -- the definite margins found
 }
 ```
+
+**The pair field is the seat's vocabulary (amended, SEAT-3):**
+findings are **names at the document door, keys at the body door, one
+verifier under both**. The document detector above answers
+`FlushFinding<(StableName, StableName)>` — names, never keys, which is
+G1 for everything above the kernel line; the kernel's own detector
+(`topo::flush::find_flush_candidates(&Body, &Body, tol)`, the
+producer `BooleanDeclarations` lacked) answers
+`FlushFinding<(FaceKey, FaceKey)>`, because arena keys ARE the body
+seat's vocabulary and a stable name cannot be spelled below G1. This
+does not weaken the anti-twin rule of (b) — it is that rule one layer
+down: both doors enumerate over the SAME per-pair verify rung, so
+neither seat can report a finding the other's verifier would refuse,
+and the type is literally one type over two pair vocabularies rather
+than two types kept in step.
 
 A finding is a REPORT: "this cross-body face pair would verify as
 `Rest` if declared." It glues nothing, changes no topology, and is
@@ -236,8 +257,11 @@ declared rung will later verify with. Consequences: detect-then-
 declare can never disagree with verify-at-use (no twin drift — the
 demo twins' "kept in step BY HAND" comment in `eval/wire.rs` is the
 warning label); the flagged bare-gate family is retired on the
-public path rather than promoted (the demo fixture keeps its twins,
-per LB11 "fixture twins stay put"); and no new ledger rows are
+public path rather than promoted — and, since SEAT-3 gave the body
+seat the same door, retired at the fixtures too: the demo and
+test-common declarers call the library rather than mirroring it, so
+LB11's "fixture twins stay put" has closed rather than been waived;
+and no new ledger rows are
 minted for detection — the interpretation-discipline contract is
 "the detector interprets nothing the verifier doesn't".
 
@@ -286,6 +310,18 @@ door re-exports the rest of the vocabulary a rendered refusal needs
 `ContactRefusal`, `DeclaredContact`) so a message quotes the kernel's
 sentence rather than paraphrasing it.
 
+SEAT-3 put the FINDING vocabulary on the same chain and for the same
+reason: `FlushFinding`, `FlushEvidence` and `FlushRung` are defined in
+`topo::flush` beside the detector that produces them, and
+`editor_core::names::flush` re-exports them (its `FlushFinding` is the
+kernel type at this seat's pair vocabulary — the amendment in (a)), so
+every path above is spelled as it was. The kernel doors themselves
+reach the prelude as a MODULE (`pub use topo::flush;`, the `topo::query`
+precedent): all three names — `find_flush_candidates`, `declare`,
+`declare_all` — exist at both seats, answering names from an evaluation
+above and keys from a body below, and a prelude must not make one
+shadow the other.
+
 M9-1 PR-2 closed the gap between (a) and (c): `Node::Declare`'s pairs
 each carry their class, so the class a finding reports is the class
 the declaration records and the class the boolean verifies against —
@@ -306,6 +342,24 @@ kernel rather than in the recipe layer. Recorded here as the named
 next step rather than approximated: a detector that reported tangency
 candidates without a locus would be reporting something the verifier
 cannot check.
+
+Nor does it report a CURVED conformal (`Rest`) pair, and that one is
+a scope decision rather than a missing capability — measured at
+SEAT-3 and recorded so the next unit does not re-derive it. The
+`Rest` verify ladder covers the carrier inventory today
+(`carrier_pair_relation`: plane, sphere, cylinder, torus), and asked
+in its DETECTOR posture it already answers a cylindrical cosurface
+pair with the same "would verify if declared" encoding the planar
+door answers a flush plane pair with
+(`demos/tour/src/twopeg.rs`'s `seat3_measurements` runs both
+postures on the peg/bore mate). So widening the detector is a door
+swap — `flush_pair_relation` → `carrier_pair_relation`, with the
+carrier verdict/refusal in place of the plane one — and no verify
+table moves. What it is NOT is free: it widens both seats at once
+(the document detector's answers change), and every caller of the
+demo helper that must keep REFUSING on a curved contact
+(`demos/tour/src/lily.rs`'s stem glue) is downstream of it. That
+decision wants its own unit.
 
 ## 4. GQ7 re-homing
 
@@ -371,8 +425,10 @@ wherever it exists; a plain `Expr` is correct either way.
   future S8-ladder site; not v1.
 - **`Tangent`/`Fit` detectors**: the finding type reserves the slot
   (§3); demand decides when.
-- **Fixture twins**: the demo/test declarers stay as they are —
-  LB11's ruling; the ledger rows continue to document them.
+- **Fixture twins**: CLOSED at SEAT-3, not carried. LB11's ruling
+  ("stay put") held while no library door existed to replace them;
+  the body-seat detector is that door, so both declarers and their
+  six flagged sites are gone.
 
 ## 7. Question ledger — the rulings and their grounds
 
