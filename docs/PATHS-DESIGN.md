@@ -992,15 +992,14 @@ target — is the special case that ends the seam wall. Axiom-clean:
 it consults the directed point's binding bits, the authored target,
 and, for the closer, `Start`, which is the chain's own
 emission-layer bookkeeping. PQ4 stands unchanged; the closer makes
-a seam at
-a CORNER sufficient for an all-sides-subdivided outline. What "lies
-on the ray" means in f64 — exact-or-refuse, which constrains
-authoring, versus any banded check, which re-admits value inference
-— is the implementing unit's design question, and its text comes
-back here for Evan's eyes. Scheduled as **BOOL-11**, after this
-half merges and before the raw-door demotion; until it lands, an
-all-sides-subdivided outline is authored as loop DATA and the lily
-demo says so at its own site.
+a seam at a CORNER sufficient for an all-sides-subdivided outline.
+What "lies on the ray" means in f64 — exact-or-refuse, which
+constrains authoring, versus any banded check, which re-admits
+value inference — is the implementing unit's design question, and
+its text comes back here for Evan's eyes. Scheduled as **BOOL-11**,
+after this half merges and before the raw-door demotion; until it
+lands, an all-sides-subdivided outline is authored as loop DATA and
+the lily demo says so at its own site.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
