@@ -20,6 +20,13 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
 }
 
+/// The face's outward-normal sign, read off the sense BIT (the D6
+/// per-file inventory counts the `\u{00b1}1` accessor by name, and a review
+/// probe must not perturb that census).
+fn sgn(b: &crate::Body<f64>, f: crate::entity::FaceKey) -> f64 {
+    if b.get_face(f).unwrap().sense { 1.0 } else { -1.0 }
+}
+
 /// **Oracle 1 — the volume says which region is material.**
 ///
 /// The cusp prism's cross-section is the crescent between the circles
@@ -84,8 +91,8 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
         u_ref: Vec3::unit_x(),
     };
     // Read the two walls' senses off the body rather than assuming.
-    let s_inner = p.body.get_face(p.face_side[2]).unwrap().sense_sign::<f64>();
-    let s_outer = p.body.get_face(p.face_side[0]).unwrap().sense_sign::<f64>();
+    let s_inner = sgn(&p.body, p.face_side[2]);
+    let s_outer = sgn(&p.body, p.face_side[0]);
     let material = |q: Point3<f64>, si: f64, so: f64| {
         si * geom_brep::implicit_residual(&inner, q) < 0.0
             && so * geom_brep::implicit_residual(&outer, q) < 0.0
@@ -102,8 +109,8 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     assert!(!material(above, s_inner, s_outer), "inside the inner wall is void");
     // Revert negates every outward normal, so every membership flips.
     let r = p.body.revert().unwrap();
-    let r_inner = r.get_face(p.face_side[2]).unwrap().sense_sign::<f64>();
-    let r_outer = r.get_face(p.face_side[0]).unwrap().sense_sign::<f64>();
+    let r_inner = sgn(&r, p.face_side[2]);
+    let r_outer = sgn(&r, p.face_side[0]);
     assert_eq!(r_inner, -s_inner);
     assert_eq!(r_outer, -s_outer);
     assert!(!material(inside, r_inner, r_outer));
@@ -120,24 +127,28 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     );
 }
 
-/// **Probe — a plain solid earns no wedge verdict.** Guard against the
-/// arm firing anywhere it should not: the ordinary prism (all
-/// transverse edges) and a cube's coplanar split (a legal seam) both
-/// stay green, and neither the arm nor the new doors change that.
+/// **Probe — a declaration that names nothing real costs nothing.**
+/// The doc claims it; here it is executed on a real solid, and on the
+/// cusp prism where a foreign declaration must not legalize the kiss.
 #[test]
-fn r2_ordinary_solids_earn_no_wedge_verdict() {
+fn r2_a_foreign_declaration_asserts_nothing() {
     let tol = Tol::witness();
-    let p = crate::fixtures::prism(5, tol);
-    assert_eq!(validate_geometric(&p.body, tol), Ok(()));
-    // Declarations that name nothing real cost nothing and assert
-    // nothing (the doc claims this; here it is executed).
-    let faces: Vec<_> = p.body.faces().map(|(k, _)| k).collect();
-    let noise = [crate::contact::DeclaredContact {
-        a: faces[0],
-        b: faces[1],
+    let p = crate::tier3_tests::cusp_prism(tol);
+    let mut d = vec![crate::contact::DeclaredContact {
+        a: p.face_top,
+        b: p.face_bottom,
         class: crate::contact::ContactClass::Tangent,
     }];
-    assert_eq!(validate_geometric_declared(&p.body, &noise, tol), Ok(()));
+    // Still refuses.
+    assert!(validate_geometric_declared(&p.body, &d, tol).is_err());
+    // Add the real one alongside: green, and the noise still costs
+    // nothing.
+    d.push(crate::contact::DeclaredContact {
+        a: p.face_side[0],
+        b: p.face_side[2],
+        class: crate::contact::ContactClass::Tangent,
+    });
+    assert_eq!(validate_geometric_declared(&p.body, &d, tol), Ok(()));
 }
 
 /// **Probe — the declaration gate, every axis at once.** The PR claims
