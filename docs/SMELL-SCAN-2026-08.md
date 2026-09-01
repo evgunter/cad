@@ -5307,57 +5307,6 @@ A lane sweeping `BooleanError` — or any `topo` refusal enum — should
 sweep by VARIANT NAME, and should expect let-else and `matches!` shapes.
 A disclosed blind spot that produces a real hit is a work order.
 
-## S105. The shared refusal ladder retired one duplication and minted a documented hand-synced one
-
-`crates/editor-core/src/eval/wire.rs:717-723`'s new `ladder` module doc:
-*"**Not shared with `crate::resolve`, yet** … The two agree by hand
-across a module boundary, at coarser grain than the duplication this
-module retired; folding them is a larger change … recorded as such and
-not attempted here."* The duplication is real:
-`crates/editor-core/src/resolve/mod.rs:552-557` re-derives the
-`next_id`/`ForeignNode`/`NodeDeleted` rung and `:583`/`:606` rebuild the
-same `TieWitness`. "Recorded as such" is not a schedule.
-
-Same wave, same shape:
-`crates/editor-core/src/persist/kernel_wire.rs:17-20` says the module
-exists *"so the technique has one home and one doc instead of one per
-type"*, and `boolean_op.rs:13-15` makes a point of the read direction
-not restating the write direction — *"it calls it"*.
-`contact_class::untag` (`contact_class.rs:87-113`) restates the table
-anyway, for the enum that is `#[non_exhaustive]`, and has no equivalent
-of `boolean_op::serialize`'s round-trip guard.
-
-**Verdict:**
-
-## S170. The PATHS verb vocabulary's sixth copy is the Python surface, and it is the only silent one
-
-`crates/pncad-py/src/py/path.rs` binds the PATHS lattice state for
-state, one `#[pymethods]` block per state, and
-`crates/pncad-py/pncad.pyi` declares the same methods again. The module
-header's *"The Python layer re-implements NOTHING"* is true of the
-BODIES — every verb clones its `PartialPath` and calls the same generic
-Rust method — and false of the vocabulary: which verbs exist at which
-states is written out by hand, twice.
-
-Nothing anchors either copy. Measured: with a probe verb added to
-`transition_table!` and `editor-core`'s two exhaustive matches on
-`profile::Step` discharged, `cargo check --workspace --all-targets` is
-clean, `pncad-py` included. A verb the table gains simply does not exist
-in Python, and no test says so.
-
-S4's `Step`-verb row counted **5, across 3 crates**; with this one it
-is **6**, and its anchor list named no `pncad-py` file. Both are
-corrected at that row, which now cites every copy by name.
-
-The `editor-core` half is closed by S106's census, which cannot reach
-here: `Verb::ALL` is Rust and this surface is a PyO3 binding plus a
-`.pyi`. The shape that would work is the one S4's `RoleSeg` row already
-describes for the same crate — enumerate the Rust vocabulary and assert
-one Python attribute per member — so the first question is whether the
-`Step` mirror and the `RoleSeg` mirror want one census or two.
-
-**Verdict:**
-
 ## S195. The arc-mode vocabulary is the profile `Step` vocabulary one level down, and it has no census at all
 
 **Raised by #836 (G7/S106) out of its own claim site.** The verb
@@ -5534,7 +5483,6 @@ see §C.
   unguardable — a re-run of the import census would guard it"*. By its
   own account a guard is available and not taken; no import-census row
   exists in `ci.yml`.
-- (e) `crates/editor-core/src/eval/wire.rs:717-723` — see S105.
 - (f) `crates/topo/src/euler.rs:3220-3251` — `strum::EnumCount` named as
   the way out and declined; see S94.
 
@@ -7902,7 +7850,7 @@ re-scoped or re-argued by being moved.
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census; `D305` filed 2026-09-01 by SMELL-UV at `D361`'s closure, so 12)* |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 6 *(re-derived 2026-09-01: six rows landed — PRs 1452, 1481, 1490, 1493; `D341` filed by uv-g, `D342`–`D344` by the commission scan, S410–S415)* |
-| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 9 *(re-derived 2026-09-01: seven rows landed — PRs 1453, 1454, 1475, 1490, 1493, 1498; `D364`–`D366` filed by the closing lanes)* |
+| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 8 *(re-derived 2026-09-01: nine rows landed — PRs 1453, 1454, 1475, 1490, 1493, 1498, 1502; `D364`–`D367` filed by the closing lanes)* |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 11 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
 
@@ -8127,9 +8075,8 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | # | What | Was |
 |---|---|---|
 | **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**, both of its old gates have fallen (#791, #801), and **the collapse is proven mechanical** — executed and discarded under PR 1453 (49 sites plus two import lines; identical test counts; instantiation set identical by construction, the trait having no items and one blanket impl). **What holds it now**: the retirement reds `scripts/gates/bounds-allowlist.sh` (entries for `family.rs` and `program.rs`, plus KNOWN GAP 3's text, which names this trait as its example) — Track K's fence, so it lands as one piece with K's `D68` answer or an allowlist row filed there (UV-R8). It is also a breaking public-API removal: `pncad::profile` re-exports the trait. The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
+| **D367** | **The D344 class's two `editor-core` members** (found by uv-j's sweep, verified by its review): `names/flush.rs::declare_all` returns `(applied.doc, id)` and `refactor.rs::rem_apply` takes `applied.doc` + `minted` — both drop `applied.maintenance`, so a caller composing either loses the maintenance record the edit performed. The fix shape is PR 1503's one-accept-funnel, one level down; check what each caller does with the record before assuming a stored mirror exists to go stale | uv-j, unrowed |
 | **D366** | **`D39` one door up, with a 48-arm parallel match waiting on it** (filed at PR 1490's close, both halves verified by its review): `NodeErrorKind` is `#[derive(Debug)]` only — its doc says kernel errors are carried UNALTERED, so it inherits every kernel error's derive poverty — and `pncad-py`'s `node_error_tag` is an exhaustive 48-arm parallel match on it (#1480's shape again; **the `pncad-py` half rides by the same fence exception `D75` carried**). The unit that takes it also decides, uniformly for BOTH kind mirrors, whether a `transition_table!`-style single declaration replaces the hand mirror — PR 1490's review showed the hand shape leaves the phantom-variant direction red only downstream. The `topo::BooleanError` sibling is #1491, Track Q's | uv-e, unrowed |
-| **C12** | `editor-core`'s remaining classification residues from #731's style review — three things, including a test oracle that under-reports silently through a `_ => false` arm | Track C |
-| **S105** | The shared refusal ladder retired one duplication and minted a documented hand-synced one | unrowed |
 | **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which. **The kernel half is S-BOOL's** (UV-R6: the fix is `CensusUnsupported` carrying the pair, a `topo/census.rs` change, Track Q's fence); this track's residue is the `attribute`-side consumption once that variant exists, HELD on it | unrowed |
 | **C6** | W2f remainder / S4 — `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core. **Genuinely blocked**, each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format); kept as a row so the block is visible rather than forgotten | Track C |
 | **D364** | **`ProgramTarget`/`profile::Target` is the construct-hop one type over from the arc modes** (filed by uv-d, verified by its review): `res_target` and `res_spec`'s `tgt` closure construct `profile::Target` with no tag, no `ALL` and no census — two structural variants today, and `program.rs`'s own docs promise curve-pose targets in v2, which is when the silent-drop hole opens. The shape of the fix is PR 1475's, one vocabulary over | uv-d, unrowed |

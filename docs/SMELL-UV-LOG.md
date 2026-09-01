@@ -112,6 +112,25 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 
 ## Lane records (wave 3)
 
+**uv-h (PR 1502, merged).** C12's three residues: (a) the resolve-mention
+oracle read ten of `RoleSeg`'s forty variants — thirteen name-carrying
+variants invisible on the shipped tree — replaced by an exhaustive
+`Partners`-parameterised walker (plant receipt: old walkers under the
+new row red at the blend assertion); (b) the resolve-table scan
+quadruplication collapsed onto `tables()` + `ResolveError`
+constructors; (c) the merge/rebind depth asymmetry answered at the
+site — the review corrected the supporting sentence to the Cascade
+invariant that actually holds the line. S105: the ladder's rungs 1–2
+genuinely collapsed (the `removal_edit` no-op consult deleted at
+review's proof); `ContactClass` wire round-trip derived from
+`topo::ContactClass::ALL` after the review caught the new literal
+re-minting the exact anti-pattern the kernel slice retires — the
+`kernel_wire` parent doc now carries the take-the-vocabulary-from-
+where-the-type-lives rule. Review: no MAJOR. Out-of-fence finds filed:
+#1504 (workspace-vs-hosted rustdoc divergence over a dead `topo` link).
+
+
+
 **uv-i (PR 1498, merged).** D363's four groups adjudicated under
 `edit.rs`'s header rule, uniformly: `Dimension` ruled a quantity kind
 (one `Display` home in `expr.rs`, 19 arms / 32 interpolations
