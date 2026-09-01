@@ -22,11 +22,11 @@
 
 mod common;
 
-use common::{body_volume, insert, near};
+use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, Doc, Expr, LoopProgram, Node, NodeError, NodeErrorKind,
-    NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
+    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -63,17 +63,17 @@ fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
         session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: size[0],
                 height: size[1],
-            }],
+            })],
         },
     );
     insert(
         session,
         SessionOp::AddExtrude {
             profile,
-            distance: size[2],
+            distance: len(size[2]),
         },
     )
 }
@@ -89,9 +89,9 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
         &mut session,
         SessionOp::AddTransform {
             input: raw_b,
-            translation: OFFSET,
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
+            translation: len3(OFFSET),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
     );
     (session, a, b)
@@ -238,18 +238,18 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Circle {
+            loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
-            }],
+            })],
         },
     );
     let plane = insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0; 3],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -316,8 +316,8 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, cut],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, cut]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -325,8 +325,8 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -385,8 +385,8 @@ fn several_bodies_are_not_one_body_at_a_seat() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.004],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, 0.004]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -403,8 +403,8 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             input: body,
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [1.0, 0.0, 0.0],
-                spacing: 0.05,
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
             },
         },
     );
@@ -417,9 +417,9 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             },
             SessionOp::AddTransform {
                 input: wrong,
-                translation: [0.0; 3],
-                rotation_axis: [0.0, 0.0, 1.0],
-                rotation_angle: 0.0,
+                translation: len3([0.0; 3]),
+                rotation_axis: scl3([0.0, 0.0, 1.0]),
+                rotation_angle: ang(0.0),
             },
             SessionOp::AddSplit {
                 target: wrong,
@@ -451,9 +451,9 @@ fn the_transform_door_places_a_body_with_literal_slots() {
         &mut session,
         SessionOp::AddTransform {
             input: body,
-            translation: OFFSET,
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: core::f64::consts::FRAC_PI_2,
+            translation: len3(OFFSET),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
         },
     );
     // A rigid placement preserves the volume, and the slots it landed
@@ -478,17 +478,26 @@ fn the_transform_door_places_a_body_with_literal_slots() {
         .expect("the angle slot is there");
     assert_eq!(angle.dim(), Dimension::Angle);
 
-    // A non-finite field never reaches the document: the literal door
-    // refuses it, and nothing is recorded.
+    // A non-finite field never reaches the document, and now cannot
+    // reach the OP either: the literal door refuses it where the
+    // expression is built, so the op has no spelling for it.
+    assert!(matches!(
+        Expr::literal(f64::NAN, Dimension::Length),
+        Err(DimensionError::NonFiniteLiteral)
+    ));
+
+    // What the door still refuses is a wrong-DIMENSION expression —
+    // an angle where a translation belongs — through the edit door,
+    // which is the one authority on what a slot may hold.
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddTransform {
         input: body,
-        translation: [f64::NAN, 0.0, 0.0],
-        rotation_axis: [0.0, 0.0, 1.0],
-        rotation_angle: 0.0,
+        translation: [ang(0.0), len(0.0), len(0.0)],
+        rotation_axis: scl3([0.0, 0.0, 1.0]),
+        rotation_angle: ang(0.0),
     });
     assert!(
-        matches!(refused.refusal, Some(Refusal::Dimension(_))),
+        matches!(refused.refusal, Some(Refusal::Edit(_))),
         "{:?}",
         refused.refusal
     );
@@ -506,8 +515,8 @@ fn the_pattern_door_spells_its_count_structurally() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -517,8 +526,8 @@ fn the_pattern_door_spells_its_count_structurally() {
             input: body,
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: [1.0, 0.0, 0.0],
-                spacing: 0.05,
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
             },
         },
     );
@@ -557,7 +566,7 @@ fn the_pattern_door_spells_its_count_structurally() {
             count: 4,
             rule: PatternRuleSpec::Circular {
                 axis,
-                step: core::f64::consts::FRAC_PI_2,
+                step: ang(core::f64::consts::FRAC_PI_2),
             },
         },
     );
@@ -573,7 +582,7 @@ fn the_pattern_door_spells_its_count_structurally() {
         count: 4,
         rule: PatternRuleSpec::Circular {
             axis: body,
-            step: 1.0,
+            step: ang(1.0),
         },
     });
     assert!(
@@ -605,8 +614,8 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0; 3],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -648,26 +657,26 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddTransform {
             input: body,
-            translation: [0.0; 3],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
+            translation: len3([0.0; 3]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
         SessionOp::AddPattern {
             input: body,
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [1.0, 0.0, 0.0],
-                spacing: 0.05,
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
             },
         },
         SessionOp::AddFillet {
             target: body,
-            radius: 0.001,
+            radius: len(0.001),
             selection: edges.clone(),
         },
         SessionOp::AddChamfer {
             target: body,
-            distance: 0.001,
+            distance: len(0.001),
             selection: edges.clone(),
         },
     ] {
@@ -704,16 +713,16 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddTransform {
             input: plane,
-            translation: [0.0; 3],
-            rotation_axis: [0.0, 0.0, 1.0],
-            rotation_angle: 0.0,
+            translation: len3([0.0; 3]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
         },
         SessionOp::AddPattern {
             input: plane,
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [1.0, 0.0, 0.0],
-                spacing: 0.05,
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
             },
         },
         SessionOp::AddPattern {
@@ -721,17 +730,17 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             count: 2,
             rule: PatternRuleSpec::Circular {
                 axis: body,
-                step: 1.0,
+                step: ang(1.0),
             },
         },
         SessionOp::AddFillet {
             target: plane,
-            radius: 0.001,
+            radius: len(0.001),
             selection: edges.clone(),
         },
         SessionOp::AddChamfer {
             target: plane,
-            distance: 0.001,
+            distance: len(0.001),
             selection: edges.clone(),
         },
     ] {
@@ -767,8 +776,8 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
                 input: body,
                 count,
                 rule: PatternRuleSpec::Linear {
-                    direction: [1.0, 0.0, 0.0],
-                    spacing: 0.05,
+                    direction: scl3([1.0, 0.0, 0.0]),
+                    spacing: len(0.05),
                 },
             },
         );
@@ -866,7 +875,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 
     let mut transform = TransformTool::new();
     assert!(matches!(
-        transform.op([0.0; 3], [0.0, 0.0, 1.0], 0.0),
+        transform.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(0.0)),
         Err(SeatError::Empty {
             seat: Seat::TransformBody
         })
@@ -890,11 +899,11 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let mut pattern = PatternTool::new();
     pattern.pick(session.committed_doc(), a);
     assert!(matches!(
-        pattern.linear_op(3, [1.0, 0.0, 0.0], 0.05),
+        pattern.linear_op(3, scl3([1.0, 0.0, 0.0]), len(0.05)),
         Ok(SessionOp::AddPattern { count: 3, .. })
     ));
     assert!(matches!(
-        pattern.circular_op(3, 1.0),
+        pattern.circular_op(3, ang(1.0)),
         Err(SeatError::Empty {
             seat: Seat::PatternAxis
         })
@@ -1002,18 +1011,18 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
-            }],
+            })],
         },
     );
     let plane = insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.005],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, 0.005]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -1021,8 +1030,8 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
-                origin: [0.0; 3],
-                direction: [0.0, 0.0, 1.0],
+                origin: len3([0.0; 3]),
+                direction: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -1060,7 +1069,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             Seat::RevolveProfile | Seat::RevolveAxis => SessionOp::AddRevolve {
                 profile: filled(Seat::RevolveProfile),
                 axis: filled(Seat::RevolveAxis),
-                angle: core::f64::consts::TAU,
+                angle: ang(core::f64::consts::TAU),
             },
             Seat::OperandA | Seat::OperandB => SessionOp::AddBoolean {
                 op: BooleanOp::Union,
@@ -1073,9 +1082,9 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::TransformBody => SessionOp::AddTransform {
                 input: filled(Seat::TransformBody),
-                translation: [0.0; 3],
-                rotation_axis: [0.0, 0.0, 1.0],
-                rotation_angle: 0.0,
+                translation: len3([0.0; 3]),
+                rotation_axis: scl3([0.0, 0.0, 1.0]),
+                rotation_angle: ang(0.0),
             },
             // The CIRCULAR rule, because it is the only one with an
             // axis seat to refuse about.
@@ -1084,7 +1093,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                 count: 3,
                 rule: PatternRuleSpec::Circular {
                     axis: filled(Seat::PatternAxis),
-                    step: 1.0,
+                    step: ang(1.0),
                 },
             },
         };
@@ -1126,8 +1135,8 @@ fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.005],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, 0.005]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -1151,8 +1160,8 @@ fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.002],
-                normal: [0.0, 0.0, 1.0],
+                origin: len3([0.0, 0.0, 0.002]),
+                normal: scl3([0.0, 0.0, 1.0]),
             },
         },
     );
@@ -1191,10 +1200,10 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle {
+            loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
-            }],
+            })],
         },
     );
     let doc = session.committed_doc();
@@ -1353,9 +1362,9 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Transform,
             SessionOp::AddTransform {
                 input: RecipeNodeId(1),
-                translation: [0.0; 3],
-                rotation_axis: [0.0, 0.0, 1.0],
-                rotation_angle: 0.0,
+                translation: len3([0.0; 3]),
+                rotation_axis: scl3([0.0, 0.0, 1.0]),
+                rotation_angle: ang(0.0),
             },
         ),
         (
@@ -1364,8 +1373,8 @@ fn a_tool_closes_on_its_own_committed_edit() {
                 input: RecipeNodeId(1),
                 count: 2,
                 rule: PatternRuleSpec::Linear {
-                    direction: [1.0, 0.0, 0.0],
-                    spacing: 0.05,
+                    direction: scl3([1.0, 0.0, 0.0]),
+                    spacing: len(0.05),
                 },
             },
         ),
@@ -1374,7 +1383,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
             SessionOp::AddRevolve {
                 profile: RecipeNodeId(1),
                 axis: RecipeNodeId(2),
-                angle: 1.0,
+                angle: ang(1.0),
             },
         ),
     ];
@@ -1394,7 +1403,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
     for op in [
         SessionOp::AddExtrude {
             profile: RecipeNodeId(1),
-            distance: 0.01,
+            distance: len(0.01),
         },
         SessionOp::Undo,
     ] {
@@ -1738,8 +1747,8 @@ fn the_split_plane_is_the_datum_form_s_own_plane() {
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
-                origin: [0.0, 0.0, 0.001],
-                normal: [0.0, 1.0, 0.0],
+                origin: len3([0.0, 0.0, 0.001]),
+                normal: scl3([0.0, 1.0, 0.0]),
             },
         },
     );

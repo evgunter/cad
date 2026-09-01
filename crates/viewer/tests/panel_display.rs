@@ -6,7 +6,7 @@
 //! * the three components of a 3-vector are ONE panel row
 //!   (`props::group_rows`),
 //! * a value is shown in the unit its literal remembers, and authored
-//!   back through the same factor (`written_unit` / `in_written` /
+//!   back through the same factor (`rendering_unit` / `in_written` /
 //!   `from_written`),
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
@@ -27,10 +27,10 @@ use pncad::document::{
     Axis3, Datum, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, SlotId, VectorSlot,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{DEG, IN, MM, PI};
+use pncad::prelude::{DEG, IN, MM, PI, RAD};
 use pncad::quantity::{UnitDef, unit_by_symbol};
 use viewer::props::{
-    self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, written_unit,
+    self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
 };
 use viewer::session::{DocSession, Refusal, Selection, SessionOp};
 
@@ -156,16 +156,17 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     let rows = props::slot_rows(&doc, extrude);
     let row = rows.first().expect("the extrude has a distance");
     assert_eq!(row.unit, Some(MM.def()), "the stored unit is remembered");
-    let unit = written_unit(row.dimension, row.unit);
-    assert_eq!(unit, Some(MM.def()));
+    let unit = rendering_unit(row.dimension, row.unit).expect("a length row");
+    assert_eq!(unit, MM.def());
     // 0.008 m shown as 8 mm — and back to the identical bits.
     let shown = in_written(0.008, unit);
     assert!((shown - 8.0).abs() < 1e-12, "shown as {shown}");
     assert_eq!(from_written(shown, unit).to_bits(), 0.008_f64.to_bits());
 
-    // A literal that remembers nothing falls back to the CANONICAL
-    // row, whose factor is exactly 1.0 — so the fallback shows the same
-    // number it stores and merely names the unit it is in.
+    // A literal authored canonically NAMES the canonical row rather
+    // than remembering nothing: `m`'s factor is exactly 1.0, so the
+    // number shown is the number stored, and the row says which unit
+    // that is instead of leaving a reader to decide.
     let (doc, plain) = common::inserted(
         &doc,
         Node::Extrude {
@@ -176,25 +177,57 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     );
     let rows = props::slot_rows(&doc, plain);
     let row = rows.first().expect("the extrude has a distance");
-    assert_eq!(row.unit, None);
-    let unit = written_unit(row.dimension, row.unit);
+    assert_eq!(
+        row.unit.map(|u| u.symbol()),
+        Some("m"),
+        "a literal always names its notation"
+    );
+    let unit = rendering_unit(row.dimension, row.unit);
     assert_eq!(unit.map(|u| u.symbol()), Some("m"));
-    assert_eq!(in_written(0.008, unit).to_bits(), 0.008_f64.to_bits());
+    assert_eq!(
+        in_written(0.008, unit.expect("a length row")).to_bits(),
+        0.008_f64.to_bits()
+    );
 
-    // An ANGLE that remembers nothing falls back to HALF TURNS, not
-    // to radians — the notation this editor says angles in, and the
-    // one the creation forms' angle fields therefore open in: a
-    // full-turn revolve reads "2 pi rad" rather than "6.283 rad".
-    let unit = written_unit(Dimension::Angle, None);
-    assert_eq!(unit.map(|u| u.symbol()), Some("pi rad"));
-    let shown = in_written(core::f64::consts::TAU, unit);
-    assert!((shown - 2.0).abs() < 1e-12, "a full turn shown as {shown}");
+    // `None` reaches `rendering_unit` only for a value NOBODY WROTE — a
+    // slot driven by an expression — and the unit chosen there is the
+    // CANONICAL one, which is what `unparse` renders such a value in
+    // too. The two used to disagree: this function's predecessor chose
+    // half-turns for an unmarked angle while the text formatter chose
+    // radians, so one stored value read two ways.
+    let unit = rendering_unit(Dimension::Angle, None);
+    assert_eq!(unit.map(|u| u.symbol()), Some("rad"));
+    let shown = in_written(core::f64::consts::TAU, unit.expect("an angle row"));
+    assert!(
+        (shown - core::f64::consts::TAU).abs() < 1e-12,
+        "a full turn shown as {shown}"
+    );
 
-    // A Scalar has no units at all: a direction component is a number,
-    // not a quantity, and offering it `mm` would be an invitation to
-    // author nonsense.
-    assert_eq!(written_unit(Dimension::Scalar, None), None);
+    // Half-turns are still a row a user can PICK — the notation this
+    // editor says angles in, and the creation forms' angle default. It
+    // is now named by the literal rather than supplied by the reader.
+    let turn = Expr::literal_with_unit(core::f64::consts::TAU, Dimension::Angle, PI.def())
+        .expect("a full turn in half-turns");
+    let unit = turn.display_unit().expect("a literal names its unit");
+    assert_eq!(unit.symbol(), "pi rad");
+    assert!((in_written(core::f64::consts::TAU, unit) - 2.0).abs() < 1e-12);
+
+    // A Scalar names the DIMENSIONLESS row: the empty symbol, factor
+    // exactly 1.0. It is a row so that no literal has to decline to
+    // name a notation — and the picker still offers nothing for it,
+    // because a choice between one option is not a choice.
+    let dimensionless = rendering_unit(Dimension::Scalar, None).expect("the dimensionless row");
+    assert_eq!(dimensionless.symbol(), "");
+    assert_eq!(dimensionless.factor(), 1.0);
+    assert_eq!(
+        common::scl(0.5).display_unit().map(|u| u.symbol()),
+        Some(""),
+        "a scalar literal names it too"
+    );
     assert!(props::unit_options(Dimension::Scalar).is_empty());
+    // A Count has no unit at all: an instance count is a number, and
+    // the table has no row for it.
+    assert_eq!(rendering_unit(Dimension::Count, None), None);
     assert!(props::unit_options(Dimension::Count).is_empty());
 }
 
@@ -213,6 +246,16 @@ fn the_unit_options_are_the_tables_rows_of_that_dimension() {
         .map(|u| u.symbol())
         .collect();
     for row in pncad::quantity::UNITS {
+        // The dimensionless row is the ONE the picker does not offer,
+        // and deliberately: it is the only unit a `Scalar` can be
+        // written in, and a choice between one option is not a choice.
+        // It exists so that a literal can NAME its notation, not so
+        // that a user can pick it.
+        if row.quantity() == pncad::quantity::UnitQuantity::Scalar {
+            assert_eq!(row.symbol(), "");
+            assert!(props::unit_options(Dimension::Scalar).is_empty());
+            continue;
+        }
         let listed = lengths.contains(&row.symbol()) || angles.contains(&row.symbol());
         assert!(listed, "{} is offered nowhere", row.symbol());
         assert!(
@@ -231,7 +274,7 @@ fn the_unit_options_are_the_tables_rows_of_that_dimension() {
 /// literal would lose the user's chosen notation silently, once, on the
 /// first touch.
 #[test]
-fn a_value_edit_keeps_the_slots_written_unit() {
+fn a_value_edit_keeps_the_slots_rendering_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-unit-keep", tol);
     let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
@@ -283,7 +326,7 @@ fn a_value_edit_keeps_the_slots_written_unit() {
 /// that distinguishes them is the stored notation — which is why
 /// rewriting the notation must not touch the value.
 #[test]
-fn changing_the_written_unit_leaves_the_value_bit_identical() {
+fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-unit-switch", tol);
     let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
@@ -320,7 +363,7 @@ fn changing_the_written_unit_leaves_the_value_bit_identical() {
     let outcome = session.perform(SessionOp::SetSlotUnit {
         node: placed,
         slot: SlotId::RotationAngle,
-        unit: Some(PI.def()),
+        unit: PI.def(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "one edit, one undo step");
@@ -337,25 +380,33 @@ fn changing_the_written_unit_leaves_the_value_bit_identical() {
     );
     // And that notation is what the user asked for: a right angle,
     // written as half a π.
-    let shown = in_written(radians, written_unit(after.dimension, after.unit));
+    let shown = in_written(
+        radians,
+        rendering_unit(after.dimension, after.unit).expect("an angle row"),
+    );
     assert!((shown - 0.5).abs() < 1e-15, "shown as {shown}");
 
-    // `None` clears the authored notation — the literal remembers
-    // nothing, and the DEFAULT written unit for an angle is the
-    // half-turn row (`props::written_unit`), not the canonical one.
+    // There is no "clear the notation" spelling: the canonical unit is
+    // named by naming it, so moving a literal back to radians is the
+    // same kind of edit as moving it to degrees.
     session.perform(SessionOp::SetSlotUnit {
         node: placed,
         slot: SlotId::RotationAngle,
-        unit: None,
+        unit: RAD.def(),
     });
     let after = props::slot_rows(session.doc(), placed)
         .into_iter()
         .find(|row| row.slot == SlotId::RotationAngle)
         .expect("the rotation angle");
-    assert_eq!(after.unit, None);
     assert_eq!(
-        written_unit(after.dimension, after.unit).map(|u| u.symbol()),
-        Some(PI.symbol())
+        after.unit.map(|u| u.symbol()),
+        Some("rad"),
+        "the literal now names radians, rather than declining to name anything"
+    );
+    assert_eq!(
+        rendering_unit(after.dimension, after.unit).map(|u| u.symbol()),
+        Some("rad"),
+        "and the panel renders what the literal says, with nothing to infer"
     );
 }
 
@@ -367,7 +418,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     // The parametric fixture's distance is DRIVEN by `thickness`.
-    let fault = props::slot_unit_edit(&doc, extrude, SlotId::Distance, Some(MM.def()))
+    let fault = props::slot_unit_edit(&doc, extrude, SlotId::Distance, MM.def())
         .expect_err("a computed slot has no written unit");
     assert!(
         matches!(fault, SlotUnitFault::NotALiteral { .. }),
@@ -378,7 +429,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
     let outcome = session.perform(SessionOp::SetSlotUnit {
         node: extrude,
         slot: SlotId::Distance,
-        unit: Some(MM.def()),
+        unit: MM.def(),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::SlotUnit(_))));
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
@@ -396,14 +447,14 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
         },
         tol,
     );
-    let fault = props::slot_unit_edit(&doc, plain, SlotId::Distance, Some(deg))
+    let fault = props::slot_unit_edit(&doc, plain, SlotId::Distance, deg)
         .expect_err("a length is not written in degrees");
     assert!(
         matches!(fault, SlotUnitFault::Dimension { .. }),
         "{fault:?}"
     );
     // And a slot the node does not carry.
-    let fault = props::slot_unit_edit(&doc, plain, SlotId::Radius, Some(MM.def()))
+    let fault = props::slot_unit_edit(&doc, plain, SlotId::Radius, MM.def())
         .expect_err("an extrude has no radius");
     assert!(
         matches!(fault, SlotUnitFault::NoExpression { .. }),
@@ -436,7 +487,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         .next()
         .expect("the distance row");
     assert_eq!(props::field_text(&row), "8");
-    assert_eq!(written_unit(row.dimension, row.unit), Some(MM.def()));
+    assert_eq!(rendering_unit(row.dimension, row.unit), Some(MM.def()));
     // The SOURCE the row carries is the whole literal, unit and all —
     // it is what the expression door would read back — but that is not
     // what a literal's field shows.
@@ -539,7 +590,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
-        value: SlotValue::of(Dimension::Length, from_written(2.0, Some(IN.def()))),
+        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def())),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let row = props::slot_rows(session.doc(), extrude)

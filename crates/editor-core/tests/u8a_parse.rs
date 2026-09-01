@@ -651,12 +651,12 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
             Some(symbol)
         );
     }
-    // A literal that remembers NO unit is written canonically and
-    // comes back remembering the canonical one — the suffix is not
-    // optional (a bare real is a Scalar in this grammar), so the round
-    // trip is bit-exact on the value and names `m`/`rad` on the way.
+    // A literal authored through `Expr::literal` NAMES the canonical
+    // row rather than remembering nothing — there is no unmarked state
+    // — so it writes its suffix like any other and the round trip is a
+    // fixed point rather than a normalisation.
     let bare = Expr::literal(0.025, Dimension::Length).expect("finite length");
-    assert_eq!(bare.display_unit(), None);
+    assert_eq!(bare.display_unit().map(|u| u.symbol()), Some("m"));
     let text = round_trip(&bare);
     assert_eq!(text, "0.025 m");
     assert_eq!(
@@ -664,6 +664,13 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
         Some("m"),
         "the canonical suffix is what the reparse remembers"
     );
+
+    // The dimensionless row is the one whose notation is the ABSENCE of
+    // a suffix, so a Scalar still writes bare digits — and `2.0` rather
+    // than `2`, because a bare integer is a `Count` in this grammar.
+    let scalar = Expr::literal(2.0, Dimension::Scalar).expect("finite scalar");
+    assert_eq!(scalar.display_unit().map(|u| u.symbol()), Some(""));
+    assert_eq!(round_trip(&scalar), "2.0");
 }
 
 #[test]

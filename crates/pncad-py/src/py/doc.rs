@@ -1452,11 +1452,21 @@ impl DocParam {
             d::DocParam::Continuous {
                 dim,
                 value,
+                display_unit,
                 distribution,
             } => {
                 0u8.hash(&mut h);
                 format!("{dim:?}").hash(&mut h);
                 fold_zero(*value).to_bits().hash(&mut h);
+                // The authored notation is part of the DERIVED
+                // `PartialEq` this hash mirrors, so it is part of the
+                // hash: two parameters that `__eq__` calls different
+                // may collide, but two it calls equal may never hash
+                // apart, and leaving the unit out is the direction that
+                // costs nothing to close. (`DocParam::bit_eq` excludes
+                // it — that comparator is D7 replay identity, where a
+                // notation is not part of what a document IS.)
+                display_unit.def().symbol().hash(&mut h);
                 // The distribution is part of the parameter, so it is
                 // part of the equality this hash mirrors — and it gets
                 // the SAME `-0.0` fold the nominal gets, per field,
@@ -1477,16 +1487,25 @@ impl DocParam {
 
     fn __repr__(&self) -> String {
         match &self.0 {
+            // The unit is shown because `__eq__` distinguishes it: a
+            // repr that hid a field two values can differ on would
+            // print them identically. The dimensionless row's symbol is
+            // empty, which reads as the absence it is.
             d::DocParam::Continuous {
                 dim,
                 value,
+                display_unit,
                 distribution: None,
-            } => format!("DocParam({dim:?} {value})"),
+            } => format!("DocParam({dim:?} {value} {})", display_unit.def().symbol()),
             d::DocParam::Continuous {
                 dim,
                 value,
+                display_unit,
                 distribution: Some(d),
-            } => format!("DocParam({dim:?} {value} {d:?})"),
+            } => format!(
+                "DocParam({dim:?} {value} {} {d:?})",
+                display_unit.def().symbol()
+            ),
             d::DocParam::Count { value } => format!("DocParam(Count {value})"),
         }
     }

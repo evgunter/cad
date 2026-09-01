@@ -484,6 +484,7 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         PersistError::ToleranceConflict { .. } => ResolveFault::EpsilonSeam,
         PersistError::NonFinite { .. }
         | PersistError::Distribution { .. }
+        | PersistError::DisplayUnit { .. }
         | PersistError::ProfileProgram { .. }
         | PersistError::Serialize { .. }
         | PersistError::Header { .. }
