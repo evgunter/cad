@@ -82,3 +82,8 @@ as ordinal 1307, PR #1482). Briefs symmetric, stored at
 docs/MATE-7A-REVIEW-BRIEF.md on this branch pre-dispatch; only the
 R-label and probe branch substitute ({R}=R1 ⇒ mate/7a-r1-probes,
 {R}=R2 ⇒ mate/7a-r2-probes; {OTHER} = the sibling's label+branch).
+
+MATE-9 dispatch consumes B3 slot 3 (FABLE) — 2026-09-01, difficulty
+M-L (pre-logged at spec). Spec docs/MATE-9-SPEC.md on main
+(PR #1485). BLOCK MATE-B3 FULLY CONSUMED — the next implementer
+needs a B4 draw.
