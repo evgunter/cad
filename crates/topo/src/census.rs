@@ -15,9 +15,17 @@
 //!   pairs (the conformal arm, [`sweep_conformal_patches`], through
 //!   the chart-region predicate); declared curve/patch records (the
 //!   jet schedule; the patch certifier). A proper pierce
-//!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable — 3′ allows
-//!   touching, never crossing; the recourse is separating the
-//!   bodies or making the crossing a boolean's working state.
+//!   (`EdgeFacePierce`) is CATEGORICALLY undeclarable at rest — a
+//!   transverse dive is interpenetration, and the vocabulary that
+//!   could admit one (C6's recorded interference gate-skips) does
+//!   not exist yet; the MATE-4b ruling defers that arm to C6's era
+//!   BY NAME. The recourse is separating the bodies or making the
+//!   crossing a boolean's working state. An in-plane `EdgeEdgeCross`
+//!   at a declared seat is different: it is what an overhanging seat
+//!   looks like from the census's side, and it is backable at the
+//!   unified strength ([`ee_cross_backed`] — the crossing point in
+//!   the declared pair's verified overlap region, material on
+//!   opposite sides of the shared carrier).
 //! - **Refused as UNDECIDABLE** (the conservative loudness backstop,
 //!   [`sweep_cross_solid_backstop`]): cross-solid face pairs with a
 //!   curved side within reach — curved × curved (the conformal
@@ -43,15 +51,22 @@
 //! A record or candidate outside a certifier's lane refuses
 //! [`ValidationError::CensusUnsupported`], never samples.
 //!
-//! **Sense-invariant** (M5 S10 audit). Every use of a face's plane
-//! `normal` here is either an on-plane residual compared against
-//! `Sign::Zero` (does this point/segment LIE on the face's carrier?)
-//! or the in-plane frame of a ray-crossing PARITY count
-//! (`contfp`-style containment). Neither reads a side: negating the
-//! normal leaves a zero residual zero and leaves a crossing count
-//! unchanged. So the census needs no `sense_sign`, and multiplying
-//! one in would be noise, not caution — coincidence is a question
-//! about position, never about which way the material lies.
+//! **Sense-invariant** (M5 S10 audit), with ONE named exception.
+//! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
+//! either an on-plane residual compared against `Sign::Zero` (does
+//! this point/segment LIE on the face's carrier?) or the in-plane
+//! frame of a ray-crossing PARITY count (`contfp`-style containment).
+//! Neither reads a side: negating the normal leaves a zero residual
+//! zero and leaves a crossing count unchanged — coincidence is a
+//! question about position, never about which way the material lies.
+//! The exception is the crossing rung's SIDE TEST
+//! ([`ee_cross_backed`]): whether a declared pair may back an
+//! `EdgeEdgeCross` is a question about which way the material lies —
+//! opposite sides of the shared carrier is a legal overhang, one side
+//! is interpenetration — and it reads `Face::sense_sign` through the
+//! one sense algebra the kernel already carries
+//! (`geom_brep::classify_material_pairing`, the tier-3 wedge pass's
+//! family), never a hand-rolled sign.
 //!
 //! **Certification (F1/F2(iii))**: the census never blesses — every
 //! finding must be *backed* by a declaration and every declaration
@@ -73,16 +88,26 @@
 //! is a vertex on an edge's interior reads `ve_face_backed` whichever
 //! overlap it bounds, edge-edge or edge-on-face.
 //!
-//! **All three rungs are structural-incidence and region-unconfined,
-//! by one deliberate decision.** A rung asks whether a declared face
-//! pair HOLDS the entities of the event — one on each side, through
-//! boundary membership and an edge's incidence to the faces it bounds
-//! — and never where on those faces the event lies. So a declared pair
-//! backs an event on the entities it holds even where that event lies
-//! outside the pair's own overlap region. Confining a rung to that
-//! region is not a tightening of one rung, it is a second standard the
-//! other two do not meet; the region question belongs to the confirm
-//! pass, which verifies the declared pair itself in both directions.
+//! **The ruled strength is UNIFIED** (CONTACT-DESIGN C3/C4's
+//! post-ratification annotation; `docs/MATE-4B-CROSSING-DESIGN.md`):
+//! *a declared pair answers exactly for its verified interface — the
+//! overlap region, with material opposition being what "interface"
+//! means for a crossing.* Two consult sites hold that strength today:
+//! the crossing rung ([`ee_cross_backed`], born at it) and
+//! [`ef_bound_backed`]'s face-pair arms (migrated, measured). The
+//! REMAINING rungs are structural-incidence and region-unconfined —
+//! GRANDFATHERED BY NAME, each to be migrated one at a time with its
+//! own measurement: [`Declared::vv_face_backed`] at
+//! [`sweep_vertex_vertex`], [`Declared::vf_face_backed`] at
+//! [`sweep_vertex_face`], [`Declared::ve_face_backed`] at
+//! [`sweep_vertex_edge`], and [`ee_bound_backed`]'s face-pair arms. A
+//! grandfathered rung asks whether a declared face pair HOLDS the
+//! entities of the event — one on each side, through boundary
+//! membership and an edge's incidence to the faces it bounds — and
+//! never where on those faces the event lies, so it backs an event on
+//! the entities it holds even where that event lies outside the
+//! pair's own overlap region (the demonstrated reach:
+//! `review_mate4a_r2_probes`' unrelated-pair rows).
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are certified by
 //! **reconstruction from their bounding vertex events**:
@@ -125,9 +150,9 @@
 //!   edge's span only at the face's boundary VERTICES, so one cell
 //!   spans the crossing and is judged from its single midpoint probe.
 //!   The configuration itself is reported by the edge-edge lane, whose
-//!   crossing class is the categorically-undeclarable one (issue 973
-//!   schedules that question; part (a), this bound rung, is what is
-//!   settled).
+//!   crossing class takes the unified-strength crossing rung
+//!   ([`ee_cross_backed`] — issue 973 part (b), stage 1 of the
+//!   MATE-4b staging; part (a), this bound rung, was settled first).
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -242,7 +267,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLan
     sweep_vertex_edge(&geo, &declared, band, &mut errors);
     sweep_vertex_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_face(body, &geo, &declared, band, &mut errors);
-    sweep_edge_edge(&geo, &declared, band, &mut errors);
+    sweep_edge_edge(body, &geo, &declared, band, &mut errors);
     sweep_conformal_patches(body, &geo, &declared, band, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, &mut errors);
     confirm_declarations(body, &geo, contacts, band, &mut errors);
@@ -330,6 +355,139 @@ impl Declared {
     fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
         self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
+
+    /// [`Declared::vf_face_backed`] at the UNIFIED strength: the
+    /// declared pair `(g, f)` backs the event only where the pair
+    /// ANSWERS FOR IT — the event point `q` on the pair's shared
+    /// carrier and within both closed regions
+    /// ([`pair_holds_point`]), and the pair's own overlap region
+    /// verified through the two doors ([`pair_region_verified`]).
+    /// The side condition is vacuous here: a touching-class event
+    /// carries no crossing to take a side on.
+    #[allow(clippy::too_many_arguments)] // the confinement's whole state
+    fn vf_face_backed_confined<T: Decide + crate::chart_region::ChartRegionLane>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        v: VertexKey,
+        f: FaceKey,
+        q: Point3<T>,
+        band: Band,
+        errors: &mut Vec<ValidationError>,
+    ) -> bool {
+        let Some(gs) = geo.vertex_faces.get(&v) else {
+            return false;
+        };
+        gs.iter().any(|&g| {
+            if !self.faces.contains(&(g, f)) {
+                return false;
+            }
+            let (Some(ga), Some(gf)) = (planar_face(geo, g), planar_face(geo, f)) else {
+                // A non-planar side is outside the exact sweeps'
+                // lane; its pairs certify through the face-granular
+                // arms, never through this rung.
+                return false;
+            };
+            pair_holds_point(body, ga, gf, q, band, errors) && pair_region_verified(body, g, f, band)
+        })
+    }
+
+    /// [`Declared::ve_face_backed`] at the UNIFIED strength — the
+    /// confined v-on-f rung against either face the edge bounds.
+    #[allow(clippy::too_many_arguments)] // the confinement's whole state
+    fn ve_face_backed_confined<T: Decide + crate::chart_region::ChartRegionLane>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        v: VertexKey,
+        e: &EdgeGeo<T>,
+        q: Point3<T>,
+        band: Band,
+        errors: &mut Vec<ValidationError>,
+    ) -> bool {
+        self.vf_face_backed_confined(body, geo, v, e.f_plus, q, band, errors)
+            || self.vf_face_backed_confined(body, geo, v, e.f_minus, q, band, errors)
+    }
+}
+
+/// The planar snapshot entry for a face, or `None` for a curved one.
+fn planar_face<T: Real>(geo: &Geo<T>, key: FaceKey) -> Option<&FaceGeo<T>> {
+    geo.faces.iter().find(|f| f.key == key)
+}
+
+/// The REGION half of the unified strength's confinement: the event
+/// point lies ON the declared pair's shared carrier (a signed
+/// point-to-plane residual per face — metres, [`Margin::of`]'s door)
+/// and within both faces' CLOSED regions. Closed, not strict: the
+/// events this confines — a crossing of two boundary edges, a bound
+/// of an overlap cell — lie on the trims' boundaries by construction,
+/// so `In`, `OnEdge` and `OnVertex` all hold the point; only a
+/// definite `Out` (or a containment the census cannot decide, already
+/// pushed by [`contain`]) exiles it. A definitely-off-carrier point
+/// is a silent non-answer — the pair simply does not hold the event —
+/// while an in-band residual escalates through the shared row.
+fn pair_holds_point<T: Decide>(
+    body: &Body<T>,
+    fa: &FaceGeo<T>,
+    fb: &FaceGeo<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> bool {
+    for f in [fa, fb] {
+        let residual = (q - f.origin).dot(f.normal);
+        if signed_is_zero(
+            "pm_census_confined_carrier",
+            Margin::of(residual),
+            band,
+            errors,
+        ) != Some(true)
+        {
+            return false;
+        }
+        if !matches!(
+            contain(body, f, q, band, errors),
+            Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
+        ) {
+            return false;
+        }
+    }
+    true
+}
+
+/// The VERIFIED-INTERFACE half of the confinement: the declared pair
+/// itself answers through the SAME two doors the confirm pass runs —
+/// Door 1 (`contact_pair_verdict`, class `Rest`: carrier identity
+/// through the kind ladder, senses opposed) and Door 2 (the
+/// chart-region overlap through the per-scalar lane, the verdict
+/// carried between them, `interior_witness`'s rescue included) — and
+/// the overlap region is definitely positive. Anything else is a
+/// non-answer HERE, deliberately unreported: the confirm pass reports
+/// the declared pair's own state in both directions, and a pair that
+/// does not verify simply answers for nothing (the unified sentence's
+/// letter). A scalar with no certified region lane (dual) answers
+/// `None` at Door 2 and lands in the same non-answer.
+fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    band: Band,
+) -> bool {
+    let Ok(verdict) = crate::boolean::contact_pair_verdict(
+        body,
+        fa,
+        body,
+        fb,
+        crate::contact::ContactClass::Rest,
+        None,
+        band,
+    ) else {
+        return false;
+    };
+    matches!(
+        T::declared_overlap(body, fa, body, fb, verdict, band),
+        Some(Ok(crate::chart_region::ChartOverlap::PositiveArea))
+    )
 }
 
 /// Builds the geometry snapshot: exact planar entities for the
@@ -740,22 +898,62 @@ fn any_boundary_vertex_at<T: Decide>(
     false
 }
 
+/// [`any_boundary_vertex_at`]'s collecting form — EVERY boundary
+/// vertex of `f` sitting AT `q`, same row, same agreement obligation.
+/// It exists for the one consumer whose per-vertex check must itself
+/// push escalations (the confined rung reads decided rows), which the
+/// closure form cannot lend `errors` to. The cost of collecting over
+/// short-circuiting is that every boundary vertex's gap is decided;
+/// the decisions are the same row either way.
+fn boundary_vertices_at<T: Decide>(
+    f: &FaceGeo<T>,
+    geo: &Geo<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Vec<VertexKey> {
+    let mut out = Vec::new();
+    for &w in &f.boundary {
+        let Some(&pw) = geo.vmap.get(&w) else {
+            continue;
+        };
+        if gap_is_zero(
+            "pm_census_bound_vertex",
+            Margin::norm3(pw - q),
+            band,
+            errors,
+        ) == Some(true)
+        {
+            out.push(w);
+        }
+    }
+    out
+}
+
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
-/// at the two granularities a bound can have.
+/// at the two granularities a bound can have — **its face-pair arms at
+/// the UNIFIED strength** (the module docs' one sentence): this rung's
+/// declared-pair consults are the migrated instance, so a pair backs a
+/// bound only where the bound lies in the pair's verified overlap
+/// region ([`Declared::vf_face_backed_confined`] /
+/// [`Declared::ve_face_backed_confined`]). The vertex-granularity
+/// arms (a v-on-f declaration, a v-v declaration at a coincident
+/// boundary vertex, structural membership) are their own records with
+/// their own confirms and are not face-pair rungs at all.
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
-/// boundary vertex of `f`, face-backed onto `f`, or the vertex is
-/// itself on `f`'s boundary (structural).
+/// boundary vertex of `f`, face-backed onto `f` (confined), or the
+/// vertex is itself on `f`'s boundary (structural).
 ///
 /// Where it does not, a boundary vertex of `f` rests at the bound: the
-/// event is a vertex-on-edge, and it takes that lane's rung
-/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
-/// incidence step further out, exactly as [`ee_bound_backed`]'s
-/// asymmetric arm reads it for a collinear overlap. A bound is a bound
-/// of the overlap because some entity ends there; which side's entity
-/// that is, is a fact about the configuration, not about what a
-/// declaration can hold.
+/// event is a vertex-on-edge, and it takes that lane's rung — the same
+/// declared face pair, one incidence step further out, exactly as
+/// [`ee_bound_backed`]'s asymmetric arm reads it for a collinear
+/// overlap (that arm still at the grandfathered strength, module
+/// docs). A bound is a bound of the overlap because some entity ends
+/// there; which side's entity that is, is a fact about the
+/// configuration, not about what a declaration can hold.
 ///
 /// [`edge_vertex_at`] answers `None` for TWO reasons — an interior
 /// position, and an escalated span decide — and this arm is selected by
@@ -764,7 +962,9 @@ fn any_boundary_vertex_at<T: Decide>(
 /// escalation is already pushed as [`ValidationError::CensusEscalated`],
 /// which refuses the body on its own, and it is the arm's caveat rather
 /// than the module docs' because it is a property of this call site.
-fn ef_bound_backed<T: Decide>(
+#[allow(clippy::too_many_arguments)] // the rung's whole state, no less
+fn ef_bound_backed<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
     s: T,
@@ -775,13 +975,13 @@ fn ef_bound_backed<T: Decide>(
 ) -> bool {
     let q = e.p0 + e.dir * s;
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
-        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-            declared.ve_face_backed(geo, w, e)
-        });
+        return boundary_vertices_at(f, geo, q, band, errors)
+            .into_iter()
+            .any(|w| declared.ve_face_backed_confined(body, geo, w, e, q, band, errors));
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
-        || declared.vf_face_backed(geo, ve, f.key)
+        || declared.vf_face_backed_confined(body, geo, ve, f.key, q, band, errors)
     {
         return true;
     }
@@ -790,7 +990,7 @@ fn ef_bound_backed<T: Decide>(
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
 /// in-plane overlap segments (D3-certified).
-fn sweep_edge_face<T: Decide>(
+fn sweep_edge_face<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -826,6 +1026,17 @@ fn sweep_edge_face<T: Decide>(
                     // OnEdge → the edge-edge pass's crossing finding;
                     // OnVertex → the v-on-e finding; Out/escalated →
                     // nothing more here.
+                    //
+                    // NO backing rung is consulted, deliberately: a
+                    // transverse dive through a face's interior is
+                    // interpenetration however the seat is declared,
+                    // and the vocabulary that could admit one —
+                    // C6's recorded interference gate-skips — does
+                    // not exist yet. The MATE-4b ruling defers this
+                    // class to that era BY NAME (staging, stage 2);
+                    // the crossing rung [`ee_cross_backed`] is the
+                    // in-contact-plane stage 1 and does not reach
+                    // here.
                     if contain(body, f, q, band, errors) == Some(FaceContainment::In) {
                         errors.push(ValidationError::UndeclaredContact {
                             contact: CensusContact::EdgeFacePierce {
@@ -849,7 +1060,7 @@ fn sweep_edge_face<T: Decide>(
 /// The in-plane overlap lane of pass 4: cut the edge's span at the
 /// face's coincident boundary vertices, probe each cell midpoint, and
 /// D3-certify every `In` cell.
-fn ef_overlap_lane<T: Decide>(
+fn ef_overlap_lane<T: Decide + crate::chart_region::ChartRegionLane>(
     body: &Body<T>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
@@ -910,8 +1121,8 @@ fn ef_overlap_lane<T: Decide>(
             // cell, vertex passes cover it.
             continue;
         }
-        let backed = ef_bound_backed(e, f, a, geo, declared, band, errors)
-            && ef_bound_backed(e, f, b, geo, declared, band, errors);
+        let backed = ef_bound_backed(body, e, f, a, geo, declared, band, errors)
+            && ef_bound_backed(body, e, f, b, geo, declared, band, errors);
         if !backed {
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeFaceOverlap {
@@ -924,10 +1135,11 @@ fn ef_overlap_lane<T: Decide>(
     }
 }
 
-/// Census pass 5: edge × edge — proper interior crossings
-/// (undeclarable) and collinear positive-length overlaps
-/// (D3-certified at both bounds).
-fn sweep_edge_edge<T: Decide>(
+/// Census pass 5: edge × edge — proper interior crossings (backable
+/// at the unified strength through [`ee_cross_backed`]) and collinear
+/// positive-length overlaps (D3-certified at both bounds).
+fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -947,7 +1159,7 @@ fn sweep_edge_edge<T: Decide>(
                 band,
                 errors,
             ) {
-                Some(false) => ee_crossing_lane(ea, eb, ncross, band, errors),
+                Some(false) => ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, errors),
                 Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
                 None => {}
             }
@@ -955,9 +1167,155 @@ fn sweep_edge_edge<T: Decide>(
     }
 }
 
-/// Non-parallel pair: report a crossing iff the lines meet (gap zero)
-/// strictly inside both spans (endpoint events are pass-1/2 findings).
-fn ee_crossing_lane<T: Decide>(
+/// The crossing rung's SIDE VERDICT — deliberately three-valued, and
+/// the declared-interpenetration hook: a future C6 class (recorded
+/// interference gate-skips, A5's interference-fit representation)
+/// consumes [`SameSide`](Self::SameSide) as its ADMISSION evidence,
+/// so no bool may stand where this enum does. Today exactly one
+/// variant backs; the other two refuse, each its own way (the
+/// [`ee_cross_backed`] contract).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CrossingSideVerdict {
+    /// The two faces' material lies on opposite sides of the shared
+    /// carrier at the crossing — the legal in-contact-plane crossing
+    /// (an overhanging seat), the backing verdict.
+    OppositeSides,
+    /// The material lies on ONE side: the crossing is transverse —
+    /// interpenetration evidence. Refuses, NAMING this verdict
+    /// (C6's future admission evidence, never silently a plain
+    /// undeclared finding).
+    SameSide,
+    /// The sense algebra could not decide at this ε — escalated
+    /// typed ([`ValidationError::CensusEscalated`]), never sampled.
+    Undecided,
+}
+
+/// What the crossing rung answered for one `EdgeEdgeCross`.
+enum CrossingBacking {
+    /// A declared pair answers for the crossing: point in its
+    /// verified overlap region, side verdict
+    /// [`CrossingSideVerdict::OppositeSides`].
+    Backed,
+    /// A declared, region-holding pair answered — and its verdict
+    /// refuses. The finding must NAME it.
+    Refused(CrossingSideVerdict),
+    /// No declared pair answers for the crossing point at all: the
+    /// plain hard finding, exactly as an undeclared seat has always
+    /// read.
+    Unanswered,
+}
+
+/// **The `EdgeEdgeCross` backing rung** — the unified strength's
+/// first instance (module docs; `docs/MATE-4B-CROSSING-DESIGN.md`,
+/// option A, planar-first): a declared face pair backs a crossing of
+/// two coplanar boundary edges iff
+///
+/// 1. the crossing point lies within the pair's VERIFIED overlap
+///    region — [`pair_holds_point`] confines WHICH pair may answer
+///    (on the shared carrier, within both closed regions), and
+///    [`pair_region_verified`] is the pair's own verification through
+///    the confirm pass's two doors; and
+/// 2. the side test answers
+///    [`CrossingSideVerdict::OppositeSides`] — the material pairing
+///    at the crossing, decided by the ONE sense algebra the tier-3
+///    wedge pass carries (`geom_brep::classify_material_pairing`,
+///    outward normals via `Face::sense_sign`, levered by
+///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
+///    same arm the parallel gate meters). No new numerics.
+///
+/// The side test is read BEFORE the verified-overlap doors, and the
+/// order is load-bearing rather than convenient: Door 1 CONTRADICTS a
+/// declared `Rest` pair whose senses are aligned, so a transverse
+/// (same-side) crossing can never emerge from behind those doors with
+/// its verdict named — it would drown as one more unverified pair.
+/// The point-confinement runs first either way, so only a pair that
+/// HOLDS the crossing point ever speaks; a remote pair's senses name
+/// nothing.
+///
+/// Candidates walk `Declared::faces` in `BTreeSet` order (D9 — both
+/// orientations are present and the certified region answers are
+/// frame-invariant, `world_carrier`'s lemma), first backing pair
+/// wins. Curved pairs are outside the planar-first rung and never
+/// answer; `EdgeFacePierce` takes NO rung at all (the MATE-4b
+/// staging: a transverse dive is interpenetration until C6's era, by
+/// name).
+#[allow(clippy::too_many_arguments)] // the rung's whole state, no less
+fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> CrossingBacking {
+    let mut named: Option<CrossingSideVerdict> = None;
+    for &(fa, fb) in &declared.faces {
+        let (Some(ga), Some(gb)) = (planar_face(geo, fa), planar_face(geo, fb)) else {
+            continue; // planar-first: a curved pair never answers here
+        };
+        if !pair_holds_point(body, ga, gb, q, band, errors) {
+            continue; // the pair does not hold the crossing point
+        }
+        let (Some(da), Some(db)) = (body.get_face(fa), body.get_face(fb)) else {
+            continue;
+        };
+        let (Some(sa), Some(sb)) = (body.surfaces.get(da.surface), body.surfaces.get(db.surface))
+        else {
+            continue;
+        };
+        let arm = geom_brep::folded_lever_arm(sa, sb, q, ea.len.min(eb.len));
+        let side = match geom_brep::classify_material_pairing(
+            sa,
+            da.sense_sign::<T>(),
+            sb,
+            db.sense_sign::<T>(),
+            q,
+            arm,
+            band,
+        ) {
+            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
+            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                CrossingSideVerdict::Undecided
+            }
+        };
+        match side {
+            CrossingSideVerdict::OppositeSides => {
+                if pair_region_verified(body, fa, fb, band) {
+                    return CrossingBacking::Backed;
+                }
+                // An opposite-sides pair that does not verify answers
+                // for nothing; its own state is the confirm pass's
+                // report.
+            }
+            // A refusing verdict is remembered for the finding; a
+            // SAME-SIDE answer outranks an undecided one (definite
+            // evidence over an escalation, which is already pushed).
+            CrossingSideVerdict::SameSide => named = Some(CrossingSideVerdict::SameSide),
+            CrossingSideVerdict::Undecided => {
+                named = named.or(Some(CrossingSideVerdict::Undecided));
+            }
+        }
+    }
+    match named {
+        Some(verdict) => CrossingBacking::Refused(verdict),
+        None => CrossingBacking::Unanswered,
+    }
+}
+
+/// Non-parallel pair: the lines meet (gap zero) strictly inside both
+/// spans (endpoint events are pass-1/2 findings) — then the crossing
+/// is either backed by a declared pair at the unified strength
+/// ([`ee_cross_backed`]) or a hard finding, with the side verdict
+/// NAMED in the witness when a region-holding pair refused it.
+#[allow(clippy::too_many_arguments)] // the lane's whole state, no less
+fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     ncross: Vec3<T>,
@@ -983,14 +1341,47 @@ fn ee_crossing_lane<T: Decide>(
             }
         }
     }
-    if interior {
-        errors.push(ValidationError::UndeclaredContact {
-            contact: CensusContact::EdgeEdgeCross {
-                a: ea.key,
-                b: eb.key,
-            },
-            witness: witness(ea.p0 + ea.dir * sa),
-        });
+    if !interior {
+        return;
+    }
+    let q = ea.p0 + ea.dir * sa;
+    match ee_cross_backed(body, geo, declared, ea, eb, q, band, errors) {
+        CrossingBacking::Backed => {}
+        CrossingBacking::Unanswered => {
+            errors.push(ValidationError::UndeclaredContact {
+                contact: CensusContact::EdgeEdgeCross {
+                    a: ea.key,
+                    b: eb.key,
+                },
+                witness: witness(q),
+            });
+        }
+        CrossingBacking::Refused(verdict) => {
+            // The witness is display data (its contract), and the
+            // verdict rides it so the refusal NAMES what the sense
+            // algebra answered — same-side is interpenetration
+            // evidence (the C6 hook), undecided already escalated
+            // typed alongside this finding.
+            let name = match verdict {
+                CrossingSideVerdict::OppositeSides => unreachable!("Backed above"),
+                CrossingSideVerdict::SameSide => {
+                    "side verdict: same-side — the declared pair holds the crossing \
+                     point but the material lies on ONE side of the shared carrier: \
+                     a transverse crossing, interpenetration evidence (the C6 \
+                     declared-interpenetration class is this verdict's consumer)"
+                }
+                CrossingSideVerdict::Undecided => {
+                    "side verdict: undecided — escalated typed alongside this finding"
+                }
+            };
+            errors.push(ValidationError::UndeclaredContact {
+                contact: CensusContact::EdgeEdgeCross {
+                    a: ea.key,
+                    b: eb.key,
+                },
+                witness: format!("{} — {name}", witness(q)),
+            });
+        }
     }
 }
 
