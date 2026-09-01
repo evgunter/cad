@@ -66,3 +66,11 @@ M (pre-logged at spec). Spec docs/MATE-8-SPEC.md on main
 MATE-7a dispatch consumes B3 slot 2 (OPUS) — 2026-09-01, difficulty
 L (pre-logged at spec). Spec docs/MATE-7A-SPEC.md on main
 (PR #1471). B3 slot 3 (FABLE) unconsumed.
+
+MATE-8 dual DRAW (2026-09-01, recorded at dispatch): CONCURRENT on
+frozen 11947309b — the three-lane budget holds (MATE-7a implementer
++ R1 + R2). Byte 50 parity 0 ⇒ R1 OPUS + R2 FABLE (claimed on main
+as ordinal 1306, PR #1476). Briefs symmetric, stored at
+docs/MATE-8-REVIEW-BRIEF.md on this branch pre-dispatch; only the
+R-label and probe branch substitute ({R}=R1 ⇒ mate/8r1-probes,
+{R}=R2 ⇒ mate/8r2-probes; {OTHER} = the sibling's label+branch).
