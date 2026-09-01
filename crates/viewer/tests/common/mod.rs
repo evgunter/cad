@@ -224,7 +224,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
 /// schema break makes this file unreadable, and the fix is to
 /// regenerate it from `demo-tour gallery` and rename, never to teach
 /// the loader about an old shape.
-pub const GALLERY_RING: &str = include_str!("../gallery_ring.v19.pncad");
+pub const GALLERY_RING: &str = include_str!("../gallery_ring.v20.pncad");
 
 /// **ε is a run parameter, and a saved document records the one it was
 /// decided at** — "one process, one ε", which `load` enforces by
