@@ -359,8 +359,9 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
     let (cp, cq) = (cylinders(p), cylinders(q));
     for &(fa, ax, ay, ar) in &cp {
         for &(fb, bx, by, br) in &cq {
-            let same =
-                (ax - bx).abs() < 1e-12 && (ay - by).abs() < 1e-12 && (ar - br).abs() < 1e-12;
+            let same = (ax - bx).abs() < SAME_CARRIER
+                && (ay - by).abs() < SAME_CARRIER
+                && (ar - br).abs() < SAME_CARRIER;
             if same {
                 decls
                     .coincident_faces
