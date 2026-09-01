@@ -28,13 +28,40 @@
 //! divergence is stated in both module docs and neither is the other's
 //! accident.
 //!
-//! # Kinds are not judged here
+//! # Kinds ROUTE a pick; they still do not judge one
 //!
-//! No tool checks what KIND of node filled a seat. That is the session
-//! door's job ([`crate::session::Refusal::WrongNodeKind`], one arm for
-//! every creation seat), so a wrong-kind pick refuses typed at the
-//! commit rather than being silently ignored at pick time, and the rule
-//! lives in one place.
+//! No tool decides whether a seat's contents are legal — that is the
+//! session door's job ([`crate::session::Refusal::WrongNodeKind`], one
+//! arm for every creation seat), so a wrong-kind pick still refuses
+//! typed at the commit rather than being silently ignored at pick
+//! time, and the verdict lives in one place.
+//!
+//! What the kinds do decide here is WHICH SEAT a pick lands in. The
+//! seats of a two-seat tool have different kinds — a split cuts a
+//! BODY with a PLANE, a pattern steps a BODY around an AXIS — so
+//! under a plain fill-then-replace rule a user with both seats full
+//! who clicks a second body puts that body in the DATUM seat: a pick
+//! that can only ever refuse, having displaced one that was fine.
+//! There is exactly one seat such a pick can have been meant for, so
+//! it goes there. [`Seats::pick`] states the rule; the kinds
+//! themselves come from [`Seat::wants`], and the classification is
+//! [`crate::session::admits`] — the SAME one the commit door refuses
+//! by.
+//!
+//! **What is shared is the classifier, not the table.** Which kind a
+//! seat wants is stated here AND at each door's own `require_kind`
+//! call, so the two can drift. What holds them together is a test:
+//! `every_seats_wanted_kind_is_the_one_its_door_refuses_by`
+//! (`tests/combine_ops.rs`) drives every seat's op with a node of the
+//! wrong kind and asserts the refusal names exactly [`Seat::wants`]. That row is what makes "a
+//! seat cannot steer a pick into a seat the door would reject" a
+//! fact rather than an intention.
+//!
+//! The routing is deliberately narrow: it moves a pick only when the
+//! seat it would otherwise land in cannot hold it AND another seat
+//! can. A pick that fits nowhere lands where the plain rule puts it
+//! and refuses at the commit, which is the case the typed refusal
+//! exists for.
 //!
 //! # Survival, and the hazard it does not cover
 //!
@@ -50,6 +77,8 @@
 //! tracked as issue #1384.
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+
+use crate::session::{NodeKindWanted, admits};
 
 /// Which seat of a tool a pick (or a drop) is about — one vocabulary of
 /// roles for every seated tool, so a sentence about a held pick is
@@ -77,6 +106,68 @@ pub enum Seat {
 }
 
 impl Seat {
+    /// Every seat, so a sweep over the vocabulary cannot silently
+    /// miss one — the shape `crate::tools::ToolKind::ALL` uses, for
+    /// its reason.
+    ///
+    /// [`Seat::ordinal`] is the compiler-forced half of this list's
+    /// completeness and `combine_ops::
+    /// every_seats_wanted_kind_is_the_one_its_door_refuses_by` is the
+    /// other, checking that the ordinals this list covers are
+    /// distinct and leave no hole. The residual is `ToolKind`'s too:
+    /// a seat given an ordinal past the end of this list is not
+    /// reached by the sweep, so a variant added to `ordinal` and
+    /// forgotten HERE goes unchecked.
+    pub const ALL: [Self; 9] = [
+        Self::RevolveProfile,
+        Self::RevolveAxis,
+        Self::OperandA,
+        Self::OperandB,
+        Self::SplitTarget,
+        Self::SplitPlane,
+        Self::TransformBody,
+        Self::PatternBody,
+        Self::PatternAxis,
+    ];
+
+    /// A place in [`Seat::ALL`], as an exhaustive match.
+    pub fn ordinal(self) -> usize {
+        match self {
+            Self::RevolveProfile => 0,
+            Self::RevolveAxis => 1,
+            Self::OperandA => 2,
+            Self::OperandB => 3,
+            Self::SplitTarget => 4,
+            Self::SplitPlane => 5,
+            Self::TransformBody => 6,
+            Self::PatternBody => 7,
+            Self::PatternAxis => 8,
+        }
+    }
+
+    /// **What kind of node this seat is for.**
+    ///
+    /// The same vocabulary the commit door refuses by
+    /// ([`crate::session::NodeKindWanted`]) rather than a second one:
+    /// this table and the door's are two readings of one fact, and
+    /// two spellings of it would let a tool route a pick into a seat
+    /// the door rejects.
+    ///
+    /// Exhaustive on purpose — a new seat has to say what it is for
+    /// before it can be routed to.
+    pub fn wants(self) -> NodeKindWanted {
+        match self {
+            Self::RevolveProfile => NodeKindWanted::Profile,
+            Self::RevolveAxis | Self::PatternAxis => NodeKindWanted::Axis,
+            Self::SplitPlane => NodeKindWanted::Plane,
+            Self::OperandA
+            | Self::OperandB
+            | Self::SplitTarget
+            | Self::TransformBody
+            | Self::PatternBody => NodeKindWanted::Body,
+        }
+    }
+
     /// The seat's name, for sentences.
     pub fn name(self) -> &'static str {
         match self {
@@ -183,23 +274,55 @@ impl Seats {
     }
 
     /// Fill the first empty seat; with both full, REPLACE the second
-    /// (the module docs' pick rule).
-    pub fn pick(&mut self, node: RecipeNodeId) {
-        if self.held[0].is_none() {
+    /// (the module docs' pick rule) — **unless the seat that would
+    /// take the pick cannot hold this KIND of node and the other seat
+    /// can**, in which case it lands in the seat it can only have
+    /// been meant for.
+    ///
+    /// The narrow condition is the point (module docs): a pick that
+    /// fits both seats, or neither, follows the plain rule, so the
+    /// roles still fill in order and a re-pick still replaces the
+    /// last. What the routing removes is the one move that could only
+    /// ever refuse — a second body clicked into a datum seat — where
+    /// wanting to re-target the body is the only thing the click can
+    /// have meant.
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        // **A one-seat tool has one seat, and its role names itself
+        // twice to say so** (`Seats::one`) — so a pick can only
+        // land in the first slot, and the second is not a seat to
+        // route to or to reconcile.
+        //
+        // Stated here rather than left to the rule below, which is
+        // written over the first EMPTY slot: on a one-seat tool that
+        // sends a second pick to a slot nothing reads, and the pick
+        // is then a click that silently did nothing.
+        if self.roles[0] == self.roles[1] {
             self.held[0] = Some(node);
-        } else {
-            self.held[1] = Some(node);
+            return;
         }
+        let plain = usize::from(self.held[0].is_some());
+        let held = doc.node(node);
+        let other = 1 - plain;
+        let seat = if admits(held, self.roles[other].wants())
+            && !admits(held, self.roles[plain].wants())
+        {
+            other
+        } else {
+            plain
+        };
+        self.held[seat] = Some(node);
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
     ///
-    /// Recorded ergonomic limit of the pick rule (a review observation,
-    /// kept rather than fixed): once both seats are full, a further pick
-    /// always replaces the SECOND, so a wrong FIRST pick is corrected by
-    /// clearing and re-picking, not by a third click. A per-seat re-pick
-    /// affordance is chrome a later unit can add without touching this
-    /// value.
+    /// Recorded ergonomic limit of the pick rule: once both seats are
+    /// full, a further pick that the SECOND seat's kind admits replaces
+    /// the second, so a wrong first pick of a kind both seats admit is
+    /// corrected by clearing and re-picking, not by a third click.
+    /// (A pick only the first seat admits is routed there — see
+    /// [`Seats::pick`] — which is this limit's other half, lifted.) A
+    /// per-seat re-pick affordance is chrome a later unit can add
+    /// without touching this value.
     pub fn clear(&mut self) {
         self.held = [None, None];
     }

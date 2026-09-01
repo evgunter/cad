@@ -330,11 +330,17 @@ impl Tools {
     /// [`Tools::reconcile`] answers with and are shown the same way; a
     /// frame in which every pick landed answers with none.
     ///
+    /// **`doc` is what routes a seated tool's pick**, not what
+    /// judges it: a seat asks the document what KIND of node was
+    /// picked so a pick that only one of two seats can hold lands in
+    /// that one (`crate::seats`). The commit door still owns the
+    /// verdict.
+    ///
     /// `#[must_use]`: the notices ARE the refusal — dropping them is
     /// how a declined pick becomes a click that silently did nothing,
     /// which is the bug this return value exists to prevent.
     #[must_use = "a declined pick is only reported if its notice is shown"]
-    pub fn feed(&mut self, ops: &[SessionOp]) -> Vec<ToolNotice> {
+    pub fn feed(&mut self, doc: &Doc<ProfileProgram>, ops: &[SessionOp]) -> Vec<ToolNotice> {
         let mut notices = Vec::new();
         for op in ops {
             let SessionOp::Select(selection) = op else {
@@ -352,11 +358,11 @@ impl Tools {
                         notices.extend(tool.pick(edge).map(ToolNotice::Blend));
                     }
                 }
-                Some(ToolKind::Revolve) => seat(self.revolve.as_mut(), selection.node()),
-                Some(ToolKind::Boolean) => seat(self.boolean.as_mut(), selection.node()),
-                Some(ToolKind::Split) => seat(self.split.as_mut(), selection.node()),
-                Some(ToolKind::Transform) => seat(self.transform.as_mut(), selection.node()),
-                Some(ToolKind::Pattern) => seat(self.pattern.as_mut(), selection.node()),
+                Some(ToolKind::Revolve) => seat(self.revolve.as_mut(), doc, selection.node()),
+                Some(ToolKind::Boolean) => seat(self.boolean.as_mut(), doc, selection.node()),
+                Some(ToolKind::Split) => seat(self.split.as_mut(), doc, selection.node()),
+                Some(ToolKind::Transform) => seat(self.transform.as_mut(), doc, selection.node()),
+                Some(ToolKind::Pattern) => seat(self.pattern.as_mut(), doc, selection.node()),
             }
         }
         notices
@@ -426,14 +432,14 @@ impl Tools {
 /// else — and a seventh tool has to implement it before it can be
 /// routed at all.
 trait Seated {
-    fn seat_pick(&mut self, node: RecipeNodeId);
+    fn seat_pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId);
     fn seat_reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent>;
 }
 
 /// Feed one seated tool, if it is the one open.
-fn seat<T: Seated>(tool: Option<&mut T>, node: Option<RecipeNodeId>) {
+fn seat<T: Seated>(tool: Option<&mut T>, doc: &Doc<ProfileProgram>, node: Option<RecipeNodeId>) {
     if let (Some(tool), Some(node)) = (tool, node) {
-        tool.seat_pick(node);
+        tool.seat_pick(doc, node);
     }
 }
 
@@ -446,8 +452,8 @@ fn drop_lost<T: Seated>(tool: Option<&mut T>, doc: &Doc<ProfileProgram>) -> Vec<
 macro_rules! seated {
     ($($t:ty),+ $(,)?) => {
         $(impl Seated for $t {
-            fn seat_pick(&mut self, node: RecipeNodeId) {
-                self.pick(node);
+            fn seat_pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+                self.pick(doc, node);
             }
             fn seat_reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
                 self.reconcile(doc)
