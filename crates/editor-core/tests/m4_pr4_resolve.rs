@@ -950,6 +950,56 @@ fn only_sideof_mention(hay: &StableName, needle: &StableName) -> bool {
     !occurs(hay, needle, Partners::Skip) && occurs(hay, needle, Partners::Include)
 }
 
+/// The detector answers about a name reached through a segment its
+/// FIRST vocabulary knew nothing about.
+///
+/// This row is the detector's own pin, and it is here because the
+/// detector shipped for a year reading three groups of segments and
+/// sweeping the rest into a catch-all. Everything the fillet emitter
+/// mints — this row's `BlendFace` among them — was in that catch-all,
+/// so a phantom wrapped in one read as no mention at all and the
+/// suggestion row above passed by not looking.
+///
+/// The shape is the one that row cares about: a name that mentions
+/// `needle` ONLY as a `SideOf` partner, one derivation step below the
+/// surface. It is a phantom, and saying so requires descending
+/// through the blend segment — which is why a detector blind to that
+/// segment reports the opposite.
+#[test]
+fn the_phantom_detector_sees_through_the_whole_vocabulary() {
+    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::Top));
+    let partner_only = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(2),
+        path: vec![RoleSeg::Fragment(Qualifier::SideOf(vec![(
+            needle.clone(),
+            editor_core::SideVerdict::Positive,
+        )]))],
+    };
+    let blended = fixture::fname(
+        RecipeNodeId(3),
+        RoleSeg::BlendFace(Box::new(partner_only.clone())),
+    );
+
+    assert!(
+        only_sideof_mention(&partner_only, &needle),
+        "a bare SideOf partner mention is the phantom shape itself"
+    );
+    assert!(
+        only_sideof_mention(&blended, &needle),
+        "a phantom stays a phantom under a blend segment — a detector \
+         that cannot read the segment calls this NO MENTION and lets \
+         the suggestion row through"
+    );
+    // The same segment, carrying the needle structurally: a real
+    // derivation, and the detector must not call it a phantom.
+    let derived = fixture::fname(RecipeNodeId(3), RoleSeg::BlendFace(Box::new(needle.clone())));
+    assert!(
+        !only_sideof_mention(&derived, &needle),
+        "a blend OF the name is a derivation, not a phantom"
+    );
+}
+
 #[test]
 fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
     // The reviewer's band-cut rig: the subtract mints SideOf-qualified
