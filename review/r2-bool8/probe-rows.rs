@@ -54,7 +54,13 @@ fn r2_probe_arc_continuations_never_pass_validate() {
     let t = Tol::witness();
     let undeclared = Open
         .at(p2(-1.0, 0.0))
-        .arc_to(Bulge { p: p2(1.0, 0.0), b: 1.0 }, t)
+        .arc_to(
+            Bulge {
+                p: p2(1.0, 0.0),
+                b: 1.0,
+            },
+            t,
+        )
         .unwrap()
         .line(0.5, t)
         .unwrap()
