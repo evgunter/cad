@@ -186,45 +186,6 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
     }
 }
 
-/// **The whole-patch bound as a fold over the per-cell enclosures**
-/// ([`patch_bound::PatchCell`]) — the one arm, both patch classes.
-///
-/// Per-cell-then-union is tighter or equal, never wider: a cell's
-/// window is a SUBSET of the whole net's, so no cell can report more
-/// than the whole net. It reports LESS wherever the three channels'
-/// extremes live in different cells — the whole-net reading adds three
-/// per-channel maxima that no single point of the patch attains
-/// together, while the fold takes the largest sum any one cell
-/// realises.
-///
-/// The accumulation is hull-then-`m`, at the ring level and in cell
-/// order, because that is what makes a poisoned cell reach the shared
-/// finite check: `m` maps poison to NaN, and an f64 `max` over NaN
-/// would drop it.
-fn folded_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    let cells = patch_bound::patch_cells(n).map_err(|e| face_err(fk, e))?;
-    let mut acc: [Option<RingInterval>; 5] = [None; 5];
-    for c in &cells {
-        for (slot, v) in acc.iter_mut().zip(cell_readings(c)) {
-            *slot = Some(match *slot {
-                None => v,
-                Some(h) => RingInterval::hull(h, v),
-            });
-        }
-    }
-    let m = |sq: Option<RingInterval>| sq.map_or(f64::NAN, cell_component);
-    Ok(NurbsFaceBound {
-        muu: m(acc[0]),
-        muv: m(acc[1]),
-        mvv: m(acc[2]),
-        mu1: m(acc[3]),
-        mv1: m(acc[4]),
-    })
-}
-
 /// One cell's five squared-sum readings, in [`NurbsFaceBound`]'s field
 /// order (`uu, uv, vv, u, v`) — the single place this crate names which
 /// enclosure feeds which bound.
@@ -507,7 +468,7 @@ fn min3(a: f64, b: f64, c: f64) -> f64 {
 }
 
 /// One knot-span cell's own certified Hessian bound (the
-/// [`nurbs_face_bound`] assembly restricted to the cell's active
+/// [`nurbs_cell_grid`] assembly restricted to the cell's active
 /// coefficient window) with the UV rectangle it is valid on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CellBound {
@@ -536,7 +497,7 @@ fn cell_component(sq: RingInterval) -> f64 {
 }
 
 /// **The per-cell bounds** (TESS-SPAN, promoted from the #320 sizing
-/// diagnostic): the same certified assembly as [`nurbs_face_bound`],
+/// diagnostic): the same certified assembly as [`face_bound`],
 /// reported per knot-span cell instead of maxed over the patch.
 ///
 /// Since TESS-SPAN this is the SHIPPED lane's sizing input (through
@@ -560,7 +521,8 @@ fn cell_component(sq: RingInterval) -> f64 {
 ///
 /// # Errors
 ///
-/// As [`nurbs_face_bound`] — same gates, same arms, same refusals.
+/// As [`patch_bound::patch_cells`] — same gates, same arms, same
+/// refusals, reported in this crate's error type.
 pub(crate) fn nurbs_cell_bounds(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
@@ -593,34 +555,65 @@ pub(crate) fn nurbs_cell_bounds(
 /// tightening and [`crate::trimmed`]'s band schedule both need the
 /// same per-face fact, and a cache hosted inside one of its two
 /// consumers is the shape that drifts.
-pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsFaceBound>;
+pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsCellGrid>;
 
-/// A described NURBS face's certified whole-patch bound, assembled on
-/// first ask and remembered for the rest of the tessellation.
+/// A described NURBS face's certified cell table, assembled on first
+/// ask and remembered for the rest of the tessellation.
 ///
-/// The assembly is the most expensive thing either pass does and its
-/// answer is a per-face fact, so one memo threaded from
-/// [`crate::tessellate()`] through both passes makes it one assembly
-/// per face per tessellation instead of one per pass.
+/// **The memo holds the CELL GRID, not the whole-patch bound, and that
+/// is the whole point of it.** The whole-patch bound is a *reading* of
+/// the cells ([`NurbsCellGrid::patch`]) since the fold, so a memo of
+/// the coarser fact would make the finer one unreachable and force the
+/// second consumer to reassemble. It was measured doing exactly that:
+/// with a `NurbsFaceBound` memo, a swept elbow ran `patch_cells` twice
+/// per described NURBS face — once for the chord pass, once for the
+/// trimmed lane — because [`crate::tessellate()`] runs
+/// [`crate::chords::compute_chords`] BEFORE the per-face dispatch, so
+/// the trimmed lane's ask was always a memo hit on a value it could
+/// not refine. `crates/mesh/tests/cert10r1_assembly_accounting.rs`
+/// pins the count.
+///
+/// It lives HERE, beside the assembly it remembers, rather than in
+/// either pass that reads it: [`crate::chords`]' adjacent-face
+/// tightening and [`crate::trimmed`]'s band schedule both need the
+/// same per-face fact, and a cache hosted inside one of its two
+/// consumers is the shape that drifts.
 ///
 /// # Errors
 ///
-/// As [`nurbs_face_bound`] — a face outside the certified inventory
+/// As [`nurbs_cell_grid`] — a face outside the certified inventory
 /// refuses here exactly as it would there, on the first ask and (from
-/// the memo's absence) on every later one.
+/// the memo's absence) on every later one. The refusal CLASS is
+/// unchanged from a whole-patch memo: the per-cell finite check and
+/// the whole-patch one refuse the same faces with the same prose,
+/// because the fold's hull carries a poisoned or infinite cell
+/// straight into the whole-patch number.
+pub(crate) fn face_grid<'m>(
+    memo: &'m mut FaceBounds,
+    payload: &NurbsSurface<f64>,
+    fk: FaceKey,
+) -> Result<&'m NurbsCellGrid, TessellateError> {
+    if !memo.contains_key(&fk) {
+        let g = nurbs_cell_grid(payload, fk)?;
+        memo.insert(fk, g);
+    }
+    memo.get(&fk).ok_or(TessellateError::MissingEntity {
+        what: "NURBS face bound memo entry just inserted",
+    })
+}
+
+/// The whole-patch bound of a described NURBS face, read off the
+/// memoized cell table ([`face_grid`]).
+///
+/// # Errors
+///
+/// As [`face_grid`].
 pub(crate) fn face_bound(
     memo: &mut FaceBounds,
     payload: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<NurbsFaceBound, TessellateError> {
-    match memo.get(&fk) {
-        Some(&b) => Ok(b),
-        None => {
-            let b = nurbs_face_bound(payload, fk)?;
-            memo.insert(fk, b);
-            Ok(b)
-        }
-    }
+    Ok(face_grid(memo, payload, fk)?.patch())
 }
 
 /// The realized-anisotropy line beyond which a band snaps to the
@@ -719,7 +712,8 @@ impl NurbsCellGrid {
     /// **The whole-patch bound, folded off the cells already
     /// assembled** — componentwise max over this grid's own cells.
     ///
-    /// Identical to [`nurbs_face_bound`] on the same face, and the
+    /// Identical to the fold over [`nurbs_cell_bounds`] on the same
+    /// face, and the
     /// identity is exact rather than approximate: that function hulls
     /// the per-cell squared-sum ENCLOSURES and collapses once, this one
     /// collapses per cell and takes the f64 max, and
@@ -753,7 +747,7 @@ impl NurbsCellGrid {
 }
 
 /// The shipped lane's entry to per-cell sizing: [`nurbs_cell_bounds`]
-/// finite-checked cell by cell (the [`nurbs_face_bound`] refusal,
+/// finite-checked cell by cell (the whole-patch refusal,
 /// applied where the shipped consumer now reads) and assembled into a
 /// [`NurbsCellGrid`].
 ///
@@ -765,6 +759,7 @@ pub(crate) fn nurbs_cell_grid(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<NurbsCellGrid, TessellateError> {
+    crate::budget::note_assembly();
     let cells = nurbs_cell_bounds(n, fk)?;
     for c in &cells {
         let b = c.bound;
@@ -1178,49 +1173,24 @@ impl NurbsCellGrid {
     }
 }
 
-/// The certified Hessian sup bounds of a described NURBS face, or the
-/// typed refusal naming its class (module docs).
-///
-/// ONE arm for both patch classes: the fold over
-/// [`patch_bound::patch_cells`]' per-cell enclosures
-/// ([`folded_face_bound`]). Which assembly produced those cells is the
-/// patch's own business — the plain hull assembly for an integral net,
-/// the quotient rule over the homogeneous nets for a rational one
-/// (module docs, "The rational arm").
-///
-/// # Errors
-///
-/// [`TessellateError::UnsupportedNurbsFace`] — C⁰-creased, degree-0,
-/// an illegal rational description (non-positive/non-finite weight),
-/// or a poisoned/unbounded hull. The PLACEHOLDER is the caller's check
-/// (it refuses `UnsupportedSurface`, the mvfs state's historical
-/// variant).
-pub(crate) fn nurbs_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    patch_bound::check_direction(n.knots_u()).map_err(|e| face_err(fk, e))?;
-    patch_bound::check_direction(n.knots_v()).map_err(|e| face_err(fk, e))?;
-    let bound = folded_face_bound(n, fk)?;
-    if !(bound.muu.is_finite()
-        && bound.muv.is_finite()
-        && bound.mvv.is_finite()
-        && bound.mu1.is_finite()
-        && bound.mv1.is_finite())
-    {
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "NURBS face second-derivative hull is unbounded/poisoned — \
-                   outside the certified inventory",
-        });
-    }
-    Ok(bound)
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The whole-patch bound of a single face, with no memo — the door
+    /// the rows below take. The shipped lane never has this shape (it
+    /// always carries a `FaceBounds`), which is why it lives here: an
+    /// un-memoized production entry is exactly how a second assembly
+    /// per face gets reintroduced, and `cert10r1_assembly_accounting`
+    /// is the row that would catch it.
+    fn nurbs_face_bound(
+        n: &NurbsSurface<f64>,
+        fk: FaceKey,
+    ) -> Result<NurbsFaceBound, TessellateError> {
+        Ok(nurbs_cell_grid(n, fk)?.patch())
+    }
+
     use geom_core::Point3;
     use geom_core::Tol;
     use geom_core::spline::KnotVector;

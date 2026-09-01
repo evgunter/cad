@@ -99,7 +99,7 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, nurbs_cell_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::types::TessellateError;
@@ -186,12 +186,14 @@ pub(crate) fn tessellate_trimmed(
         // An approximating surface takes the spline lane on its fit
         // (there is no placeholder state to screen: it is certified by
         // construction).
-        // The whole-patch bound is a READING of the cells this line
-        // just assembled (`NurbsCellGrid::patch`), memoized for the
-        // chord pass — not a second assembly over the same net.
+        // Both readings off ONE assembly: the memo holds the cell
+        // table (`nurbs_cert::face_grid`), and the whole-patch bound is
+        // a reading of it. The chord pass has normally already filled
+        // this entry, so the usual cost here is a clone of the table,
+        // not an assembly.
         Surface::Approx(ref a) => {
-            let grid = nurbs_cell_grid(a.fit(), fk)?;
-            let patch = *bounds.entry(fk).or_insert_with(|| grid.patch());
+            let grid = face_grid(bounds, a.fit(), fk)?.clone();
+            let patch = grid.patch();
             Lane::Nurbs { grid, patch }
         }
         Surface::Nurbs(ref payload) => {
@@ -200,8 +202,8 @@ pub(crate) fn tessellate_trimmed(
                 // refusal, kept for exactly this class (types docs).
                 return Err(TessellateError::UnsupportedSurface { face: fk });
             }
-            let grid = nurbs_cell_grid(payload, fk)?;
-            let patch = *bounds.entry(fk).or_insert_with(|| grid.patch());
+            let grid = face_grid(bounds, payload, fk)?.clone();
+            let patch = grid.patch();
             Lane::Nurbs { grid, patch }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),

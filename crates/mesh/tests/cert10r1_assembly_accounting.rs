@@ -1,52 +1,59 @@
-//! CERT-10 review probe — RECORD of an executed measurement.
+//! CERT-10 review probe (R1), PROMOTED to a permanent check.
 //!
-//! The PR body's §2 argues the fold's 1.01-1.20x cost "is more than
-//! given back" because `trimmed.rs` used to ask for the per-cell grid
-//! and the whole-patch bound of the same face back to back, so "a
-//! shipped integral face therefore assembles its derivative nets ONCE
-//! where it used to assemble them twice."
+//! # What it caught
 //!
-//! MEASURED at the frozen head f5ab8bab, by temporarily instrumenting
-//! `patch_bound::patch_cells` (the assembly), `nurbs_cell_grid`,
-//! `NurbsCellGrid::patch` and `face_bound`'s memo, then running
-//! `mesh::tessellate(&swept_elbow(Tol::witness()), 1e-2, ...)`:
+//! The PR body's §2 argued the fold's 1.01-1.20x cost was "more than
+//! given back" because `trimmed.rs` asked for the per-cell grid and the
+//! whole-patch bound of the same face back to back, so a shipped
+//! integral face "assembles its derivative nets ONCE where it used to
+//! assemble them twice". **The reviewer instrumented it and the claim
+//! was false**, and the mechanism is structural rather than incidental:
+//! `tessellate()` runs `compute_chords` BEFORE the per-face dispatch,
+//! and the chord pass's `nurbs_tighten` calls `face_bound` on every
+//! described NURBS face adjacent to an edge. With a memo of the
+//! WHOLE-PATCH bound, the trimmed lane's later ask was therefore always
+//! a hit — on a value it could not refine into cells — so
+//! `NurbsCellGrid::patch` was never reached and the lane paid for two
+//! assemblies per face:
 //!
 //! ```text
-//! nurbs faces = 4
-//! patch_cells (THE assembly) = 8   -> 2.00 per face
-//! nurbs_cell_grid calls       = 4
-//! face_bound MISSES           = 4
-//! face_bound memo HITS        = 12
-//! NurbsCellGrid::patch reads  = 0
+//! swept_elbow, memo of NurbsFaceBound (the reviewed head f5ab8bab):
+//!   nurbs faces = 4   assemblies = 8  (2.00/face)   patch reads = 0
 //! ```
 //!
-//! `NurbsCellGrid::patch` — the "reading of the cells the grid already
-//! assembled" the argument rests on — is NEVER CALLED. `tessellate()`
-//! runs `compute_chords` before the per-face dispatch
-//! (`tessellate.rs`), and the chord pass's `nurbs_tighten` calls
-//! `face_bound` on every described NURBS face adjacent to an edge,
-//! populating the shared `FaceBounds` memo. By the time
-//! `tessellate_trimmed` evaluates `bounds.entry(fk).or_insert_with(||
-//! grid.patch())`, the entry is always present. The count is still 2
-//! assemblies per shipped face; the fold's cost is net.
+//! # What the fix pass did about it
 //!
-//! The instrumentation is not committed (it edits three files under
-//! review). This file records the numbers so the finding is
-//! reproducible: re-add a `fetch_add` at the head of
-//! `patch_bound::patch_cells` and re-run the body above.
-
+//! The memo now holds the CELL TABLE (`nurbs_cert::face_grid`), and the
+//! whole-patch bound is a reading of it. The chord pass fills the memo
+//! with the finer fact; the trimmed lane clones it. Re-measured:
+//!
+//! ```text
+//! swept_elbow, memo of NurbsCellGrid (this head):
+//!   nurbs faces = 4   assemblies = 4  (1.00/face)
+//! ```
+//!
+//! # Why this file can assert rather than narrate
+//!
+//! The reviewer's measurement needed instrumentation in three files
+//! under review, so it could only be recorded as prose. The count is
+//! now a first-class measurement: `mesh::budget` — the meter that
+//! already exists for exactly this kind of question — counts assemblies
+//! behind its own feature, so the check runs in the armed lane and
+//! costs a shipped build nothing.
+#![cfg(feature = "budget")]
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom_core::Tol;
-use sweep::test_support::swept_elbow;
+use mesh::budget::{self, Mode};
 
-/// The uninstrumented half that still runs: the fixture really does
-/// carry four described NURBS faces, and the chord pass really does
-/// precede the per-face dispatch (so the memo is warm).
+/// Every described NURBS face costs the tessellation **exactly one**
+/// certified cell-table assembly — the most expensive thing the lane
+/// does per face. A second one means a consumer asked through a door
+/// that bypasses the memo, which is the regression this row exists for.
 #[test]
-fn cert10r1_the_fixture_behind_the_assembly_accounting() {
-    let body = swept_elbow(Tol::witness());
-    let nurbs_faces = body
+fn cert10r1_one_assembly_per_described_nurbs_face() {
+    let body = sweep::test_support::swept_elbow(Tol::witness());
+    let faces = body
         .faces()
         .filter(|(_, f)| {
             matches!(
@@ -55,7 +62,15 @@ fn cert10r1_the_fixture_behind_the_assembly_accounting() {
             )
         })
         .count();
-    assert_eq!(nurbs_faces, 4, "the accounting above was taken on 4 faces");
-    let m = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
-    assert!(!m.positions.is_empty());
+    assert_eq!(faces, 4, "the accounting above was taken on 4 faces");
+    budget::arm(Mode::Sizing);
+    mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
+    let assemblies = budget::assemblies();
+    let _ = budget::take();
+    assert_eq!(
+        assemblies, faces,
+        "{assemblies} cell-table assemblies for {faces} described NURBS faces — the \
+         reviewed head measured 2.00/face because the memo held the whole-patch bound, \
+         a fact too coarse for the trimmed lane to refine; see this file's docs"
+    );
 }
