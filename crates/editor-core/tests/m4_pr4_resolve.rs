@@ -853,65 +853,101 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
 // ---- Review Finding 2: suggestions are structural wraps only, ----
 // ---- kind-filtered (adopted reviewer probe, inverted to a pin) ----
 
+/// Whether a walk counts `SideOf` discriminator PARTNERS as
+/// occurrences of a name.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Partners {
+    /// Count partner positions: any mention at all.
+    Include,
+    /// Structural embedding only — a derivation OF the name.
+    Skip,
+}
+
+/// True iff `needle` occurs anywhere under `hay`, counting
+/// discriminator partners iff `partners` says so.
+///
+/// This is the test's OWN reading of the role vocabulary, spelled out
+/// rather than borrowed from `resolve`'s walker: an oracle that asks
+/// the code under test what the answer is pins nothing.
+///
+/// The match is EXHAUSTIVE, and that is what keeps it an oracle. A
+/// role segment added to the vocabulary must be classified here —
+/// embedding, discrimination, or neither — before this suite
+/// compiles. Under a catch-all a new name-carrying segment reads as
+/// "no occurrence", so [`only_sideof_mention`] would report NO
+/// PHANTOM for a phantom of exactly the new shape, and the row below
+/// would pass while the property it names had failed.
+fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
+    let under = |n: &StableName| n == needle || occurs(n, needle, partners);
+    hay.path.iter().any(|seg| match seg {
+        // One embedded operand name: the entity derives from it.
+        RoleSeg::FromA(x)
+        | RoleSeg::FromB(x)
+        | RoleSeg::SectionEdge { face: x, .. }
+        | RoleSeg::SplitFragment { parent: x, .. }
+        | RoleSeg::CrossingVertex { edge: x, .. }
+        | RoleSeg::OnToolVertex { of: x, .. }
+        | RoleSeg::Instance { of: x, .. }
+        | RoleSeg::FromTarget(x)
+        | RoleSeg::BlendFace(x)
+        | RoleSeg::CornerFace(x)
+        | RoleSeg::BandTrim { edge: x, .. }
+        | RoleSeg::BandFoot(x)
+        | RoleSeg::BandCross(x)
+        | RoleSeg::BandCut(x)
+        | RoleSeg::BandSlit(x) => under(x),
+        // Two.
+        RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::TrimEdge {
+            edge: x,
+            support: y,
+        }
+        | RoleSeg::FootVertex {
+            vertex: x,
+            support: y,
+        }
+        | RoleSeg::CornerArc {
+            vertex: x,
+            edge: y,
+        } => under(x) || under(y),
+        // A set.
+        RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(|n| under(n)),
+        // ANOTHER document's id space: a local name and a part-local
+        // name that print alike are different names, so a walk that
+        // descended here would report occurrences that are not.
+        RoleSeg::InPart { .. } => false,
+        // Discrimination, not derivation: the fragment is classified
+        // AGAINST these, not built from them.
+        RoleSeg::Fragment(Qualifier::SideOf(v)) => {
+            partners == Partners::Include && v.iter().any(|(p, _)| under(p))
+        }
+        RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => false,
+        // Segments that embed no name.
+        RoleSeg::OutputBody
+        | RoleSeg::Cap(_)
+        | RoleSeg::Lateral(_)
+        | RoleSeg::RimEdge(..)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::CapVertex(..)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Meridian(..)
+        | RoleSeg::MeridianVertex(..)
+        | RoleSeg::RevolveCap(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::SplitBody(_)
+        | RoleSeg::SectionFace { .. } => false,
+    })
+}
+
 /// True iff `needle` occurs in `hay`'s path ONLY inside SideOf
 /// discriminator vectors (never as a structural embedding) — the
 /// reviewer's phantom detector.
 fn only_sideof_mention(hay: &StableName, needle: &StableName) -> bool {
-    fn embeds_structurally(n: &StableName, needle: &StableName) -> bool {
-        if n == needle {
-            return true;
-        }
-        for seg in &n.path {
-            let hit = match seg {
-                RoleSeg::FromA(x)
-                | RoleSeg::FromB(x)
-                | RoleSeg::SectionEdge { face: x, .. }
-                | RoleSeg::SplitFragment { parent: x, .. }
-                | RoleSeg::CrossingVertex { edge: x, .. }
-                | RoleSeg::OnToolVertex { of: x, .. }
-                | RoleSeg::Instance { of: x, .. } => embeds_structurally(x, needle),
-                RoleSeg::Seam { a, b } => {
-                    embeds_structurally(a, needle) || embeds_structurally(b, needle)
-                }
-                RoleSeg::Merged(v) => v.iter().any(|x| embeds_structurally(x, needle)),
-                // SideOf partners deliberately NOT counted here.
-                _ => false,
-            };
-            if hit {
-                return true;
-            }
-        }
-        false
-    }
-    fn mentions_anywhere(n: &StableName, needle: &StableName) -> bool {
-        if n == needle {
-            return true;
-        }
-        for seg in &n.path {
-            let hit = match seg {
-                RoleSeg::FromA(x)
-                | RoleSeg::FromB(x)
-                | RoleSeg::SectionEdge { face: x, .. }
-                | RoleSeg::SplitFragment { parent: x, .. }
-                | RoleSeg::CrossingVertex { edge: x, .. }
-                | RoleSeg::OnToolVertex { of: x, .. }
-                | RoleSeg::Instance { of: x, .. } => mentions_anywhere(x, needle),
-                RoleSeg::Seam { a, b } => {
-                    mentions_anywhere(a, needle) || mentions_anywhere(b, needle)
-                }
-                RoleSeg::Merged(v) => v.iter().any(|x| mentions_anywhere(x, needle)),
-                RoleSeg::Fragment(Qualifier::SideOf(v)) => {
-                    v.iter().any(|(p, _)| mentions_anywhere(p, needle))
-                }
-                _ => false,
-            };
-            if hit {
-                return true;
-            }
-        }
-        false
-    }
-    !embeds_structurally(hay, needle) && mentions_anywhere(hay, needle)
+    !occurs(hay, needle, Partners::Skip) && occurs(hay, needle, Partners::Include)
 }
 
 #[test]

@@ -50,6 +50,18 @@
 //! this build has no spelling for — including the WRITE direction. A
 //! file written under a guessed tag is worse than a refusal: it is
 //! read back as something else.
+//!
+//! **Derive the inverse; never restate it.** A spelling is written
+//! down once, in the module's `tag`, and the read direction searches
+//! an `ALL` table by `tag` rather than repeating the pairs — so the
+//! two directions cannot disagree, and neither can a refusal message
+//! that quotes the same table. What no `ALL` can be checked for is
+//! completeness (safe Rust cannot tie an array literal to a variant
+//! list without a proc macro, and the workspace has none), so the
+//! write direction pays for it at run time: it verifies the round
+//! trip before writing and refuses rather than creating a file this
+//! build could not open. Both modules here do exactly this, and a
+//! third owes it too.
 
 pub(crate) mod boolean_op;
 pub(crate) mod contact_class;

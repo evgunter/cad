@@ -1019,7 +1019,20 @@ fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
                 phase: pb,
             },
         ) => pair_bit_eq(ca, cb) && ra.bit_eq(rb) && na == nb && pa.bit_eq(pb),
-        _ => false,
+        // Different variants are unequal — spelled over the whole
+        // vocabulary by first element rather than swept up by a
+        // catch-all. That is what makes the answer for a variant added
+        // to `LoopProgram` a compile error here: under a catch-all it
+        // would compare unequal to ITSELF, and the D7 replay identity
+        // and the document diff both read this answer, so a program
+        // that never changed would report as changed. The same holds
+        // for the three functions below.
+        (
+            LoopProgram::Chain(_)
+            | LoopProgram::Circle { .. }
+            | LoopProgram::CircleSplit { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -1031,7 +1044,7 @@ fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        _ => false,
+        (ProgramTarget::Start | ProgramTarget::Point(_), _) => false,
     }
 }
 
@@ -1081,7 +1094,15 @@ fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
                 len: lb,
             },
         ) => ra.bit_eq(rb) && sa == sb && la.bit_eq(lb),
-        _ => false,
+        (
+            S::Radius { .. }
+            | S::Bulge { .. }
+            | S::Via { .. }
+            | S::Center { .. }
+            | S::Sweep { .. }
+            | S::ArcLen { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -1134,7 +1155,26 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
                 spec2: s2b,
             },
         ) => spec_bit_eq(sa, sb) && ra.bit_eq(rb) && spec_bit_eq(s2a, s2b),
-        _ => false,
+        (
+            P::At(_)
+            | P::Angle(_)
+            | P::Toward { .. }
+            | P::Tangent
+            | P::Cusp
+            | P::Turn(_)
+            | P::Line(_)
+            | P::LineTo(_)
+            | P::ArcTo(_)
+            | P::TangentArcTo(_)
+            | P::ArcContinue(_)
+            | P::Fillet(_)
+            | P::FilletArc { .. }
+            | P::ArcFillet { .. }
+            | P::ArcFilletArc { .. }
+            | P::FarEndTo(_)
+            | P::CloseTo,
+            _,
+        ) => false,
     }
 }
 

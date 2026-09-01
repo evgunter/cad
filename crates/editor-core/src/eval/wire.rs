@@ -943,17 +943,22 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// the door's business. Which typed refusal comes out is this
 /// module's, and has one home.
 ///
-/// **Not shared with [`mod@crate::resolve`], yet.** That module's
-/// whole-evaluation ladder re-derives rung 1 from the same two facts
-/// (`doc.node(..).is_none()`, then the id against the mint counter)
-/// and builds the same [`crate::resolve::TieWitness`]. The two agree
-/// by hand across a module boundary, at coarser grain than the
-/// duplication this module retired; folding them is a larger change
-/// than one evaluation door, recorded as such and not attempted here.
+/// **What is shared with [`mod@crate::resolve`], and what is not.**
+/// Rungs 1 and 2 are that module's: [`ResolveError::node_gone`] mints
+/// the deleted-vs-foreign split and [`ResolveError::ambiguous`] mints
+/// the tie payload and its witness, so neither ladder restates the
+/// other's refusal and the two cannot drift about what a stranded or
+/// tie-marked name looks like. Rung 3 is NOT shared and is not the
+/// same refusal: that module's `Vanished` runs a diagnosis ladder over
+/// two evaluations, and mid-evaluation there is neither a prior run
+/// nor a whole-evaluation index to run it against, which is exactly
+/// why this rung's diagnosis is the single-run fallback above. What
+/// stays here is what is this module's subject: the rung ORDER, the
+/// [`ladder::Live`] token that enforces it, and a door's arity.
 mod ladder {
     use crate::names::{EntityRef, Entry, NameTable, StableName};
     use crate::program::ProfileProgram;
-    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError, TieWitness};
+    use crate::resolve::{Diagnosis, RecipeEditRef, ResolveError};
 
     /// Where a name landed in ONE table (rungs 2 and 3, as data).
     pub(super) enum Landing {
@@ -990,22 +995,20 @@ mod ladder {
         }
     }
 
-    /// Rung 1: `NodeGone` with the deleted-vs-foreign split.
+    /// Rung 1: `NodeGone` with the deleted-vs-foreign split, taken
+    /// from the one home that mints it ([`ResolveError::node_gone`]).
+    ///
+    /// No refinement is offered for the deleted case: mid-evaluation
+    /// there is no prior run to hold the node, which is the same fact
+    /// that makes rung 3's diagnosis a fallback here.
     pub(super) fn live<'n>(
         name: &'n StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
     ) -> Result<Live<'n>, Box<ResolveError>> {
-        if doc.node(name.node).is_some() {
-            return Ok(Live(name));
+        match ResolveError::node_gone(name, doc, None) {
+            None => Ok(Live(name)),
+            Some(gone) => Err(Box::new(gone)),
         }
-        Err(Box::new(ResolveError::NodeGone {
-            name: name.clone(),
-            edit: if name.node.0 < doc.next_id {
-                RecipeEditRef::NodeDeleted { node: name.node }
-            } else {
-                RecipeEditRef::ForeignNode { node: name.node }
-            },
-        }))
     }
 
     /// Rungs 2 and 3: the entity, or the refusal its landing earns.
@@ -1016,15 +1019,15 @@ mod ladder {
         let name = live.0;
         match landing {
             Landing::Unique(ent) => Ok(ent),
-            Landing::Tied(width) => Err(Box::new(ResolveError::Ambiguous {
-                name: name.clone(),
-                candidates: vec![name.clone()],
-                tie: TieWitness {
-                    node: name.node,
-                    at: name.clone(),
-                    width,
-                },
-            })),
+            // The tie row is the name itself: a door resolves the
+            // authored name against one table, so there is no widened
+            // base to tie against here.
+            Landing::Tied(width) => Err(Box::new(ResolveError::ambiguous(
+                name,
+                name.clone(),
+                name.node,
+                width,
+            ))),
             Landing::Absent => Err(Box::new(ResolveError::Vanished {
                 name: name.clone(),
                 diagnosis: Diagnosis::RecipeEdit {

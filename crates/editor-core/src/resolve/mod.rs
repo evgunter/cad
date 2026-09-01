@@ -163,6 +163,71 @@ impl core::fmt::Display for ResolveError {
 
 impl core::error::Error for ResolveError {}
 
+/// The two refusals every N5 ladder in this crate mints, minted in one
+/// place.
+///
+/// Two ladders answer the same question at different scopes — this
+/// module's whole-evaluation one and [`crate::eval`]'s mid-evaluation
+/// one ([`crate::eval::wire`]'s `ladder`) — and their rungs 1 and 2
+/// are the SAME refusal, derived from the same facts. What differs
+/// between them is rung order enforcement and the `Vanished` rung, so
+/// those stay where they are and these do not: a payload shape is
+/// held by one constructor rather than by two sites agreeing.
+impl ResolveError {
+    /// Rung 1: the minting node must still be in the document, or the
+    /// name is stranded. `None` when it is live.
+    ///
+    /// Ids are never reused, so the two cases are derivable rather
+    /// than recorded: an id below the mint counter named a node this
+    /// document DELETED, and one at or above it was never this
+    /// document's at all.
+    ///
+    /// `deleted` refines the deleted case for a caller holding
+    /// evidence the id comparison does not carry — a prior run that
+    /// still resolves the node. The foreign case takes no refinement
+    /// and can take none: an id at or above the mint counter was
+    /// never minted here, so no run of this document can say anything
+    /// else about it.
+    pub(crate) fn node_gone(
+        name: &StableName,
+        doc: &Doc<ProfileProgram>,
+        deleted: Option<RecipeEditRef>,
+    ) -> Option<Self> {
+        if doc.node(name.node).is_some() {
+            return None;
+        }
+        Some(Self::NodeGone {
+            name: name.clone(),
+            edit: if name.node.0 < doc.next_id {
+                deleted.unwrap_or(RecipeEditRef::NodeDeleted { node: name.node })
+            } else {
+                RecipeEditRef::ForeignNode { node: name.node }
+            },
+        })
+    }
+
+    /// Rung 2: `name` landed on a tie row — `at`, recorded at `node`,
+    /// `width` candidates wide.
+    ///
+    /// The tie row IS the ambiguity (N5), so the candidates are that
+    /// row expressed in names and are derived from the witness here
+    /// rather than restated per door. `at` is the referenced name
+    /// itself, except on an `order_along` over-tie, where it is the
+    /// widened base row the reference actually tied against.
+    pub(crate) fn ambiguous(
+        name: &StableName,
+        at: StableName,
+        node: RecipeNodeId,
+        width: u32,
+    ) -> Self {
+        Self::Ambiguous {
+            name: name.clone(),
+            candidates: vec![at.clone()],
+            tie: TieWitness { node, at, width },
+        }
+    }
+}
+
 /// Why a name vanished — N5 verbatim plus the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3; constructed by the M6
 /// solver).
@@ -517,15 +582,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
         && let Some(Entry::Tied(ents)) = v.name_table.lookup(&loss.name)
     {
         return Resolution::Failed(ResolutionFailure {
-            error: ResolveError::Ambiguous {
-                name: loss.name.clone(),
-                candidates: vec![loss.name.clone()],
-                tie: TieWitness {
-                    node: *at,
-                    at: loss.name.clone(),
-                    width: ents.len() as u32,
-                },
-            },
+            error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len() as u32),
             offers: Vec::new(),
         });
     }
@@ -684,22 +741,11 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     prior: P,
     name: &StableName,
 ) -> Resolution {
-    // 1. NodeGone: the minting node is not live. Ids are never
-    //    reused, so an id below the mint counter was deleted; an id
-    //    at/above it was never this document's (ForeignNode).
-    if new.doc.node(name.node).is_none() {
-        let edit = if name.node.0 < new.doc.next_id {
-            prior
-                .removal_edit(name.node)
-                .unwrap_or(RecipeEditRef::NodeDeleted { node: name.node })
-        } else {
-            RecipeEditRef::ForeignNode { node: name.node }
-        };
+    // 1. NodeGone: the minting node is not live, with the prior run
+    //    refining the deleted case when it holds the node.
+    if let Some(error) = ResolveError::node_gone(name, new.doc, prior.removal_edit(name.node)) {
         return Resolution::Failed(ResolutionFailure {
-            error: ResolveError::NodeGone {
-                name: name.clone(),
-                edit,
-            },
+            error,
             offers: Vec::new(),
         });
     }
@@ -716,15 +762,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         }
         Some((node, Entry::Tied(ents))) => {
             return Resolution::Failed(ResolutionFailure {
-                error: ResolveError::Ambiguous {
-                    name: name.clone(),
-                    candidates: vec![name.clone()],
-                    tie: TieWitness {
-                        node,
-                        at: name.clone(),
-                        width: ents.len() as u32,
-                    },
-                },
+                error: ResolveError::ambiguous(name, name.clone(), node, ents.len() as u32),
                 offers: Vec::new(),
             });
         }
@@ -739,15 +777,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         match lookup(new.eval, &base) {
             Some((node, Entry::Tied(ents))) => {
                 return Resolution::Failed(ResolutionFailure {
-                    error: ResolveError::Ambiguous {
-                        name: name.clone(),
-                        candidates: vec![base.clone()],
-                        tie: TieWitness {
-                            node,
-                            at: base,
-                            width: ents.len() as u32,
-                        },
-                    },
+                    error: ResolveError::ambiguous(name, base, node, ents.len() as u32),
                     offers: Vec::new(),
                 });
             }
@@ -850,9 +880,8 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 /// `Sign` for either would be fabrication (the R9 honesty pin), so
 /// both fall through to the documented fallback.
 fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option<Diagnosis> {
-    for &id in &eval.order {
-        let Some(v) = eval.value(id) else { continue };
-        for (candidate, _) in v.name_table.iter() {
+    for (_, table) in tables(eval) {
+        for (candidate, _) in table.iter() {
             if let Some((from, to)) = single_pure_sideof_delta(name, candidate) {
                 return Some(Diagnosis::PredicateFlip {
                     predicate: "name_frag_side_of",
@@ -917,19 +946,30 @@ fn pure_sign(v: &crate::names::SideVerdict) -> Option<Sign> {
     }
 }
 
+/// Every Ok table of an evaluation, with its node, in EVALUATION
+/// ORDER — the one scan this module resolves, offers and diagnoses
+/// through.
+///
+/// The order is the determinism every consumer here leans on: "the
+/// first carrying node wins", "the first honest evidence wins" and
+/// the deterministic order of an offer list are all this iterator's
+/// order and not four independent claims. Nodes that failed or were
+/// never evaluated carry no table and are skipped — a resolution
+/// reads what the run actually built.
+fn tables<T: Decide>(
+    eval: &Evaluation<T>,
+) -> impl Iterator<Item = (RecipeNodeId, &crate::names::NameTable)> {
+    eval.order
+        .iter()
+        .filter_map(|&id| eval.value(id).map(|v| (id, &*v.name_table)))
+}
+
 /// The first (evaluation-order) Ok table carrying `name`.
 fn lookup<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     name: &StableName,
 ) -> Option<(RecipeNodeId, &'a Entry)> {
-    for &id in &eval.order {
-        if let Some(v) = eval.value(id)
-            && let Some(entry) = v.name_table.lookup(name)
-        {
-            return Some((id, entry));
-        }
-    }
-    None
+    tables(eval).find_map(|(id, table)| table.lookup(name).map(|entry| (id, entry)))
 }
 
 /// [`lookup`], demanding a unique entry.
@@ -969,20 +1009,18 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
         }
     }
     // Merge: a live Merged row lists `name` as a constituent.
-    for &id in &eval.order {
-        if let Some(v) = eval.value(id) {
-            for (candidate, _) in v.name_table.iter() {
-                let mut contains = false;
-                for seg in &candidate.path {
-                    if let RoleSeg::Merged(constituents) = seg
-                        && constituents.contains(name)
-                    {
-                        contains = true;
-                    }
+    for (_, table) in tables(eval) {
+        for (candidate, _) in table.iter() {
+            let mut contains = false;
+            for seg in &candidate.path {
+                if let RoleSeg::Merged(constituents) = seg
+                    && constituents.contains(name)
+                {
+                    contains = true;
                 }
-                if contains && !offers.contains(candidate) {
-                    offers.push(candidate.clone());
-                }
+            }
+            if contains && !offers.contains(candidate) {
+                offers.push(candidate.clone());
             }
         }
     }
@@ -1008,21 +1046,19 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// offering un-rebindable names is not ergonomics.
 pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut out: Vec<StableName> = Vec::new();
-    for &id in &eval.order {
-        if let Some(v) = eval.value(id) {
-            for (candidate, _) in v.name_table.iter() {
-                if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
-                    continue;
+    for (_, table) in tables(eval) {
+        for (candidate, _) in table.iter() {
+            if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
+                continue;
+            }
+            let mut wraps = false;
+            walk_names(candidate, Partners::Skip, &mut |inner| {
+                if inner == name {
+                    wraps = true;
                 }
-                let mut wraps = false;
-                walk_names(candidate, Partners::Skip, &mut |inner| {
-                    if inner == name {
-                        wraps = true;
-                    }
-                });
-                if wraps {
-                    out.push(candidate.clone());
-                }
+            });
+            if wraps {
+                out.push(candidate.clone());
             }
         }
     }
