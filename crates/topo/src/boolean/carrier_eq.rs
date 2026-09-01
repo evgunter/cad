@@ -14,6 +14,7 @@
 //! | plane | origin, outward normal | `bool_plane_parallel` (·arm), `bool_plane_offset` |
 //! | sphere | centre, radius | `carrier_sphere_center`, `carrier_sphere_radius` |
 //! | cylinder | axis line, radius | `carrier_cyl_axis_parallel` (·arm), `carrier_cyl_axis_offset`, `carrier_cyl_radius` |
+//! | torus | centre, axis line, both radii | `carrier_torus_axis_parallel` (·arm), `carrier_torus_center`, `carrier_torus_major_radius`, `carrier_torus_minor_radius` |
 //!
 //! The lever arms are the honest ones: an ANGULAR margin (two
 //! normalized directions crossed) is dimensionless, so it is metered
@@ -141,6 +142,26 @@ pub enum CarrierDesc<T: geom_core::Real> {
         /// axis (a shaft) rather than toward it (a bore).
         outward: bool,
     },
+    /// A torus, by centre, the unit axis of revolution, and the two
+    /// radii. Unlike a cylinder's, the centre is a POINT of the
+    /// carrier's own data (it is where the tube's midplane meets the
+    /// axis), so the two carriers' centres are compared directly and
+    /// no perpendicular projection is taken. The axis is a LINE: a
+    /// torus is carried onto itself by reversing it, so its direction
+    /// sign holds no material information.
+    Torus {
+        /// The centre.
+        center: Point3<T>,
+        /// The unit axis of revolution.
+        axis: Vec3<T>,
+        /// The major radius: centre to tube centre (positive).
+        major_radius: T,
+        /// The minor radius: the tube radius (positive).
+        minor_radius: T,
+        /// Whether the face's outward normal points OUT of the tube (a
+        /// pipe wall) rather than into it (a toroidal cavity).
+        outward: bool,
+    },
 }
 
 impl<T: geom_core::Real> CarrierDesc<T> {
@@ -150,6 +171,7 @@ impl<T: geom_core::Real> CarrierDesc<T> {
             Self::Plane { .. } => "plane",
             Self::Sphere { .. } => "sphere",
             Self::Cylinder { .. } => "cylinder",
+            Self::Torus { .. } => "torus",
         }
     }
 }
@@ -265,6 +287,43 @@ pub fn carrier_eq_verdict<T: Decide>(
                 ),
                 ("carrier_cyl_axis_offset", Margin::norm3(perp)),
                 ("carrier_cyl_radius", Margin::of(*r1 - *r2)),
+            ];
+            data_rungs(&margins, id.declared, *w1 == *w2, band)
+        }
+        (
+            CarrierDesc::Torus {
+                center: p1,
+                axis: a1,
+                major_radius: r1,
+                minor_radius: t1,
+                outward: w1,
+            },
+            CarrierDesc::Torus {
+                center: p2,
+                axis: a2,
+                major_radius: r2,
+                minor_radius: t2,
+                outward: w2,
+            },
+        ) => {
+            if let Some(v) = source_rung(id, *w1 != *w2) {
+                return Ok((v, ContactVerdict::Definite));
+            }
+            // The axis LINE, as for a cylinder — parallelism is metered
+            // on the cross product, which is sign-free by construction.
+            // The offset datum, however, is NOT a cylinder's: a torus
+            // pins a point ON its axis (the tube midplane's centre), so
+            // the whole centre separation is the datum and projecting
+            // out its axial part would discard a real difference — two
+            // coaxial tori slid along the axis are different carriers.
+            let margins = [
+                (
+                    "carrier_torus_axis_parallel",
+                    Margin::levered(a1.cross(*a2).norm(), arm),
+                ),
+                ("carrier_torus_center", Margin::norm3(*p1 - *p2)),
+                ("carrier_torus_major_radius", Margin::of(*r1 - *r2)),
+                ("carrier_torus_minor_radius", Margin::of(*t1 - *t2)),
             ];
             data_rungs(&margins, id.declared, *w1 == *w2, band)
         }
@@ -397,6 +456,16 @@ mod tests {
             origin: Point3::new(o[0], o[1], o[2]),
             axis: Vec3::new(a[0], a[1], a[2]),
             radius: r,
+            outward,
+        }
+    }
+
+    fn torus(c: [f64; 3], a: [f64; 3], major: f64, minor: f64, outward: bool) -> CarrierDesc<f64> {
+        CarrierDesc::Torus {
+            center: Point3::new(c[0], c[1], c[2]),
+            axis: Vec3::new(a[0], a[1], a[2]),
+            major_radius: major,
+            minor_radius: minor,
             outward,
         }
     }
@@ -589,6 +658,178 @@ mod tests {
             }
             other => panic!("expected Contradicted at the long arm, got {other:?}"),
         }
+    }
+
+    /// The toroidal peg-in-bore row: one carrier, opposed material
+    /// sides. UNDECLARED it refuses (value equality never glues);
+    /// DECLARED it is the `Rest` verdict — the torus arm's version of
+    /// the sphere and cylinder rows above.
+    #[test]
+    fn torus_value_equal_needs_the_declaration() {
+        let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, false);
+        assert!(matches!(
+            carrier_eq(&a, &b, PlaneIdentity::NONE, 1.0, band()),
+            Err(CarrierEqError::Undeclared { .. })
+        ));
+        assert_eq!(
+            carrier_eq(&a, &b, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOpposite
+        );
+    }
+
+    /// A torus's axis is a LINE: reversing the stored direction leaves
+    /// the same point set, and the material side comes from `outward`
+    /// alone.
+    #[test]
+    fn torus_axis_direction_sign_is_not_material() {
+        let a = torus([1.0, 2.0, 3.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let b = torus([1.0, 2.0, 3.0], [0.0, 0.0, -1.0], 5.0, 0.06, false);
+        assert_eq!(
+            carrier_eq(&a, &b, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOpposite
+        );
+    }
+
+    /// **The centre is a POINT, not an axis anchor.** Sliding a torus
+    /// ALONG its own axis moves the carrier — the datum a cylinder's
+    /// perpendicular-projection offset would have thrown away, which
+    /// is why the torus arm compares the whole centre separation.
+    #[test]
+    fn torus_slid_along_its_own_axis_is_a_different_carrier() {
+        let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let b = torus([0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 5.0, 0.06, false);
+        assert_eq!(
+            carrier_eq(&a, &b, PlaneIdentity::NONE, 1.0, band()).unwrap(),
+            CarrierRelation::Distinct
+        );
+        match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
+            CarrierEqError::Contradicted(d) => {
+                assert_eq!(d.predicate, Some("carrier_torus_center"));
+            }
+            other => panic!("expected Contradicted, got {other:?}"),
+        }
+    }
+
+    /// The two radii are INDEPENDENT data, and each contradicts on its
+    /// own margin: a bore of the right ring but the wrong tube is not
+    /// the same carrier, and neither is the reverse.
+    #[test]
+    fn each_torus_radius_contradicts_at_its_own_margin() {
+        let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        for (b, expected) in [
+            (
+                torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.5, 0.06, false),
+                "carrier_torus_major_radius",
+            ),
+            (
+                torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.09, false),
+                "carrier_torus_minor_radius",
+            ),
+        ] {
+            match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
+                CarrierEqError::Contradicted(d) => assert_eq!(d.predicate, Some(expected)),
+                other => panic!("expected Contradicted at {expected}, got {other:?}"),
+            }
+            assert_eq!(
+                carrier_eq(&a, &b, PlaneIdentity::NONE, 1.0, band()).unwrap(),
+                CarrierRelation::Distinct
+            );
+        }
+    }
+
+    /// ε-row on the torus's own margins, three outcomes at one
+    /// geometry — owed to every new margin, and stated in BAND UNITS
+    /// so it means the same thing at every ε the matrix runs. The
+    /// minor radius carries it.
+    #[test]
+    fn torus_minor_radius_epsilon_row_three_outcomes() {
+        let b = band();
+        let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let in_band = torus(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            5.0,
+            0.06 + (b.zero() + b.escalate()) * 0.5,
+            false,
+        );
+        assert!(
+            matches!(
+                carrier_eq(&a, &in_band, PlaneIdentity::NONE, 1.0, band()),
+                Err(CarrierEqError::Undeclared { .. })
+            ),
+            "in-band, undeclared: refuses"
+        );
+        assert_eq!(
+            carrier_eq(&a, &in_band, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOpposite,
+            "in-band, declared: the bridged residue"
+        );
+        let definite = torus(
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            5.0,
+            0.06 + b.escalate() * 1000.0,
+            false,
+        );
+        match carrier_eq(&a, &definite, declared(), 1.0, band()).unwrap_err() {
+            CarrierEqError::Contradicted(d) => {
+                assert_eq!(d.predicate, Some("carrier_torus_minor_radius"));
+            }
+            other => panic!("expected Contradicted, got {other:?}"),
+        }
+    }
+
+    /// The torus's ANGULAR margin is metered at its named lever arm,
+    /// exactly as the cylinder's is: a tilt indecisive over a 1 m
+    /// consumption extent is definite over a 1000 km one.
+    #[test]
+    fn torus_axis_tilt_is_decided_at_the_lever_arm() {
+        let b = band();
+        let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let tilt = b.zero() * 0.1;
+        let tilted = torus([0.0, 0.0, 0.0], [tilt, 0.0, 1.0], 5.0, 0.06, false);
+        assert_eq!(
+            carrier_eq(&a, &tilted, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOpposite,
+            "at a 1 m arm the tilt is below the band: the declaration stands"
+        );
+        match carrier_eq(&a, &tilted, declared(), 1e6, band()).unwrap_err() {
+            CarrierEqError::Contradicted(d) => {
+                assert_eq!(d.predicate, Some("carrier_torus_axis_parallel"));
+            }
+            other => panic!("expected Contradicted at the long arm, got {other:?}"),
+        }
+    }
+
+    /// Aligned coincidence is the carrier ladder's honest
+    /// `SameOriented`, on the torus arm as on every other: two
+    /// same-carrier walls facing the SAME way are a merge-stage pair,
+    /// and refusing containment is the contact door's job.
+    #[test]
+    fn torus_aligned_is_same_oriented() {
+        let a = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let b = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        assert_eq!(
+            carrier_eq(&a, &b, declared(), 1.0, band()).unwrap(),
+            CarrierRelation::SameOriented
+        );
+    }
+
+    /// A torus is not a cylinder at any pair of radii: the kind rung
+    /// answers structurally, in both directions.
+    #[test]
+    fn torus_against_cylinder_is_a_kind_mismatch() {
+        let t = torus([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, 0.06, true);
+        let c = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0, false);
+        assert_eq!(
+            carrier_eq(&t, &c, PlaneIdentity::NONE, 1.0, band()).unwrap(),
+            CarrierRelation::Distinct
+        );
+        assert!(matches!(
+            carrier_eq(&c, &t, declared(), 1.0, band()),
+            Err(CarrierEqError::Contradicted(_))
+        ));
     }
 
     /// Kinds do not compare: a plane is not a cylinder at any radius,

@@ -136,12 +136,9 @@ impl core::fmt::Display for NonFiniteSite {
                 "float {index} of the sketch-plane placement on profile node {}",
                 node.0
             ),
-            Self::Metadata { name, key, path } => write!(
-                f,
-                "metadata {key:?} on the {} named by node {}, at {path}",
-                name.kind.noun(),
-                name.node.0
-            ),
+            Self::Metadata { name, key, path } => {
+                write!(f, "metadata {key:?} on the {name}, at {path}")
+            }
             Self::InsertedProfile { index } => write!(
                 f,
                 "float {index} of an inserted profile's sketch-plane placement"
@@ -489,8 +486,8 @@ pub enum SnapshotError {
 // wherever the payload has one (`RootFault`, `PlacementRuleFault`,
 // `MetaVersionError`) — a site that re-states a payload it holds
 // invents a second vocabulary for a refusal that already has one. A
-// `StableName` renders as its entity noun plus its minting node,
-// which is the document layer's spelling of a name.
+// `StableName` renders through its own `Display` (kind plus minting
+// node), never a hand-rolled respelling.
 impl core::fmt::Display for SnapshotError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -586,10 +583,8 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
-                "metadata {key:?} on the {} named by node {} does not carry the D7 integer \
-                 \"v\" version field: {error}",
-                name.kind.noun(),
-                name.node.0
+                "metadata {key:?} on the {name} does not carry the D7 integer \
+                 \"v\" version field: {error}"
             ),
         }
     }

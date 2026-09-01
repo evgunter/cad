@@ -1081,6 +1081,22 @@ mod verbs_gate_r1_probes {
     //! now, and which pair depends on which faces' boxes may meet.
     //!
     //! Same pins as the walls themselves, so the two cannot drift.
+    //!
+    //! **Why the operand gate's covered-pair rung cannot reach either
+    //! wall.** The gate no longer refuses a pair the caller's
+    //! declarations speak for — but "the caller's declarations" is the
+    //! `BooleanDeclarations` value handed to the op, and both walls
+    //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
+    //! the doors that take none. `DeclaredPairs` is empty on both, so
+    //! the covered predicate answers no for every pair and the gate is
+    //! byte-for-byte the gate these pins were written against.
+    //!
+    //! Wall 4 is doubly out of reach and the second reason is the more
+    //! durable one: it is a SUBTRACT, and the revert roster it refuses
+    //! at has no covered rung at all. A declaration supplies the verdict
+    //! a germ arm would have; it cannot supply a seam lane to revert
+    //! through. So even a fully declared torus pair refuses there
+    //! unchanged, which is a claim `mate7a_torus_rest` pins directly.
 
     use super::*;
 

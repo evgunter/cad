@@ -138,6 +138,19 @@ pub enum ProgramStep {
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).
+///
+/// It is the arc-mode vocabulary's second spelling, and it has to be
+/// for the reason [`ProgramStep`] does. A mode the kernel vocabulary
+/// gains does break this crate at compile — `spec_lit` and the two
+/// content-key hashers are exhaustive on `profile::ArcData` — but
+/// each of those breaks can be discharged where it stands, with a
+/// refusal arm and a tag, while this enum, the wire and the
+/// expression-slot roles stay short: the hop that would need them,
+/// `res_spec`, matches THIS type and CONSTRUCTS the kernel one, so it
+/// keeps compiling. What forces arrival is the mode census in
+/// `tests/switch_program_vocabulary.rs`, keyed on
+/// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
+/// so a mode with no document spelling is a compile error there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -279,10 +292,20 @@ pub trait ProfilePayload {
 ///
 /// The resolve and validate classes carry their causes UNALTERED
 /// (`EvalError`/`ProfileError` are `PartialEq`, as `EditError`
-/// requires). The geometry-replay class cannot: `profile::PathError`
-/// deliberately derives no equality, so [`ProgramRefusal::Geometry`]
-/// carries the driver's rendered refusal plus the typed coordinates —
-/// the full typed error remains the EVALUATION surface's contract
+/// requires). The geometry-replay class cannot carry its cause whole:
+/// `profile::PathError` is generic in the evaluation scalar and its
+/// arms carry scalar payloads, and `Real` omits comparison. A derived
+/// `PartialEq` would not be unavailable so much as useless — it would
+/// exist only where the scalar supplies equality on its own, which is
+/// `f64` and neither `Interval` nor `Dual`, and even at `f64` it is
+/// float `==`, non-reflexive at the poison value `Real`'s totality
+/// contract promises. [`ProgramRefusal::Geometry`] therefore
+/// carries the part that does compare — `profile::PathErrorKind`, the
+/// refusal's class — beside the driver's rendered sentence and the
+/// typed coordinates. **The class is the typed interface; the prose is
+/// for a reader.** A consumer asking WHICH geometry refusal fired
+/// matches that variant's `kind` and never the string.
+/// The full typed error remains the EVALUATION surface's contract
 /// (`NodeErrorKind` carries it unaltered); the edit door is the early
 /// ergonomic mirror. REPORTED shape, not silent (LIB-SWITCH §10).
 #[derive(Debug, Clone, PartialEq)]
@@ -316,8 +339,11 @@ pub enum ProgramRefusal {
         loop_: u32,
         /// The offending step index.
         step: u32,
-        /// The driver's rendered refusal (see enum docs for why this
-        /// class is rendered here and typed at evaluation).
+        /// Which geometry refusal fired — the typed half, and the one
+        /// a consumer branches on.
+        kind: profile::PathErrorKind,
+        /// The driver's rendered refusal, for a reader. Carries the
+        /// scalar payloads `kind` drops; never an interface.
         rendered: String,
     },
     /// The replayed loops refused profile validation under the current
@@ -345,6 +371,7 @@ impl core::fmt::Display for ProgramRefusal {
                 loop_,
                 step,
                 rendered,
+                ..
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
         }
@@ -358,10 +385,15 @@ impl core::error::Error for ProgramRefusal {}
 // ------------------------------------------------------------------
 
 /// The argument roles a target contributes ([] for `Start`).
+///
+/// Exhaustive on the target vocabulary rather than a test for one
+/// form: a target form that carries expressions and enumerates no role
+/// is an expression no slot addresses, which the bijection census sees
+/// only where the corpus reaches it.
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::TargetX);
-        out.push(StepArg::TargetY);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
+        ProgramTarget::Start => {}
     }
 }
 
@@ -414,11 +446,11 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     }
 }
 
-/// The spec₂ twin of [`target_slots`].
+/// The spec₂ twin of [`target_slots`], exhaustive for the same reason.
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::Target2X);
-        out.push(StepArg::Target2Y);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
+        ProgramTarget::Start => {}
     }
 }
 
@@ -750,6 +782,15 @@ fn res_step<T: Decide>(
 
 /// Resolves an arc spec to its scalar-valued mirror (`second` selects
 /// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the hop the compiler cannot check in the direction that
+/// matters: it matches the document vocabulary and CONSTRUCTS the
+/// kernel one, so it stays well-typed while the kernel vocabulary
+/// grows past it. The mode census keyed on `profile::ArcMode::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what stands there, and it
+/// checks both directions of the same arm: that every kernel mode is
+/// reachable from a document spec, and that each one resolves to ITS
+/// OWN mode rather than being laundered into a neighbour's.
 fn res_spec<T: Decide>(
     spec: &ProgramArcData,
     env: &ParamEnv<T>,
@@ -900,6 +941,7 @@ impl ProfileProgram {
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
                     loop_: li as u32,
                     step: e.step as u32,
+                    kind: source.kind(),
                     rendered: source.to_string(),
                 },
             })?;

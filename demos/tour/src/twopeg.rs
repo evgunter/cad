@@ -87,6 +87,7 @@ const PEG_R: f64 = 0.5;
 /// its stations the same way. Both are the plain-body door's missing
 /// selector showing through (#1345); a document would say this with a
 /// `GeoSelect`.
+const SAME_CARRIER: f64 = 1e-12;
 const PEG_X: [f64; 2] = [2.0, 4.0];
 const PEG_Y: f64 = 2.0;
 /// How far each peg stands proud of its plate — and, equally, how deep
@@ -358,8 +359,9 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
     let (cp, cq) = (cylinders(p), cylinders(q));
     for &(fa, ax, ay, ar) in &cp {
         for &(fb, bx, by, br) in &cq {
-            let same =
-                (ax - bx).abs() < 1e-12 && (ay - by).abs() < 1e-12 && (ar - br).abs() < 1e-12;
+            let same = (ax - bx).abs() < SAME_CARRIER
+                && (ay - by).abs() < SAME_CARRIER
+                && (ar - br).abs() < SAME_CARRIER;
             if same {
                 decls
                     .coincident_faces

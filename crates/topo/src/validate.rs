@@ -2215,6 +2215,18 @@ pub(crate) enum MaterialArmOutcome {
 /// The material arm's fold: the flags one edge's sample loop
 /// accumulates, resolved into the ONE outcome that edge earns.
 ///
+/// **Two callers accumulate those flags on two different sample
+/// schedules, deliberately.** This pass walks an EDGE — an open arc
+/// whose endpoints are vertices other rules already classify — so it
+/// samples the interior, `1..CERT_SAMPLES-1`. `boolean::rim_wedge`
+/// walks a cross-operand RIM, a closed circle with no endpoint to
+/// exclude, so every station is interior to it and it takes all
+/// `CERT_SAMPLES` at uniform phase. The fold itself is schedule-blind —
+/// it reads flags, not samples — which is what lets one function serve
+/// both; the divergence is in what "interior" means for an arc versus a
+/// circle, and it is named at both ends so neither can drift into
+/// looking like the other's bug.
+///
 /// Total and pure, which is the point. Two of its input states —
 /// a pairing that split (`aligned == opposed`) and a wedge end that
 /// split (`side_mixed`) — are not known to be reachable through

@@ -267,7 +267,7 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
 /// verb. Each is authored through the typed surface, so its recorded
 /// program is the table's own output.
 pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
-    use profile::{ArcSide, Bulge, Center, Radius, Sweep};
+    use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
     use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
 
     // 1. The fused entry verb, the plain binders and the straight legs.
@@ -477,6 +477,34 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .tangent_arc_to(Start, Tol::witness())
         .unwrap();
 
+    // 12. The two arc modes the chains above never reach: the
+    //     endpoint-free `ArcLen` leg off a directed tip (the extent
+    //     authored as a length rather than a swept angle), and the
+    //     three-point `Via` leg off the bare point it lands on.
+    let mode_legs = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            ArcLen {
+                r: 2.0,
+                side: ArcSide::Left,
+                len: 1.2,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_to(
+            Via {
+                q: p2(2.0, 1.5),
+                p: p2(3.0, 0.5),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -491,6 +519,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         far_end,
         eye,
         lune,
+        mode_legs,
         circle,
         split,
     ]

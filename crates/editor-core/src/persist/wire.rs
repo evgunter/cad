@@ -325,7 +325,16 @@ enum WireStep {
     CloseTo,
 }
 
-/// An arc spec on the wire (`ProgramArcData`'s structural mirror).
+/// An arc spec on the wire (`ProgramArcData`'s structural mirror), and
+/// the arc-mode vocabulary's last stop — a mode reaching here is a
+/// schema change for the same reason a verb is.
+///
+/// It cannot go short of `ProgramArcData`: [`WireArcData::from_spec`]
+/// and [`WireArcData::into_spec`] are exhaustive on the document type
+/// and on this one. What those two cannot see is a mode `profile`'s
+/// vocabulary gained and `ProgramArcData` never learned, or an arm
+/// mapping one mode onto another's wire shape; both are checked by
+/// the mode census in `tests/switch_program_vocabulary.rs`.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum WireArcData {
