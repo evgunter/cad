@@ -1732,7 +1732,7 @@ be unified."
 
 Six error surfaces answer unrelated questions through one variant name, and
 most of them drop the payload that would tell the answers apart. Row by row in
-the table below; the live placements are **D36**, **D37**, **D39**, **D47** and **D48**.
+the table below; the live placements are **D36**, **D37**, **D39** and **D48**.
 
 **The per-site standard for calling a state a kernel bug rather than invalid
 input** (both clauses required): **(i)** every arena key the site dereferences
@@ -1753,7 +1753,7 @@ D2 addendum's row 0 asked at a lookup site.
 | `MissingEntity` | 49 | Documented as "corrupt input"; also carries "non-iso trim carrier reached the iso-rectangle walk (**router defect**)" — kernel bugs reported to the caller through the dangling-key variant |
 | `UnsupportedCarrier` — **placed as D36** | 22 | Re-derived: 22 construction sites, all in `geom-brep/src/pcurve_cache.rs`, carrying **three** unrelated meanings under one payload-free name, beside a sibling `IsoUnsupported { what }` at 16 sites in the same file that names its refused class every time |
 | `ValidationError` | 59 variants | Spans four validity tiers; tier membership lives in doc-comment prose, so `validate()`'s signature promises nothing and no consumer can exhaustively handle "the structural failures" as a set |
-| `pncad-py/tags.rs` — **REFUTED as stated; residue placed as D37** | 383 lines | A discriminant tag map is the right FFI shape and *does not* "drop the payload": the payload path is the exception's `Display` message plus its per-variant fields, and the map's exhaustiveness is a drift alarm that fires in CI. What survives is a **duplicated** discriminant (`path_error_tag` re-derives in `pncad-py` what belongs on `PathError`) and an unowned deferral (*"full per-variant field projection … deferred to the unit that binds the complete surface"* — no such unit exists). One more in the same crate is placed beside it: **D47** (the *"never a `Debug` dump"* rule's two remaining sites, and nothing guarding it) |
+| `pncad-py/tags.rs` — **REFUTED as stated; residue placed as D37** | 383 lines | A discriminant tag map is the right FFI shape and *does not* "drop the payload": the payload path is the exception's `Display` message plus its per-variant fields, and the map's exhaustiveness is a drift alarm that fires in CI. What survives is the **duplicated** discriminant (`path_error_tag` re-derives in `pncad-py` what belongs on `PathError`) — in flight as #1480; the deferral gained its owner (#1479) with PR 1481, which also landed the funnel guard that now holds the crate's *"never a `Debug` dump"* rule |
 | `ProgramRefusal::Geometry` — **placed as D39** | 1 | The constraint still holds exactly as stated: `EditError` derives `PartialEq` (`edit.rs:246`), `PathError<T: Real>` derives only `Clone, Debug` (`path.rs:516`). The degradation is at `program.rs:862` (`:846` is the enclosing `check`). Its cost is now visible in the tree: `editor-core/tests/switch_slots.rs:191` can only identify *which* geometry refusal fired by `rendered.contains("radius")` |
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). "Ha these are funny (and also show
@@ -4672,12 +4672,10 @@ enumerates "the four lane traits" will miss it.
 ## S88. The sole-`T: Bounds` doors the D1 census enumerated and did not take
 
 **Scope, first, because the `FIXED` lead would otherwise read as the
-whole finding.** #875 closed the `geom` half only. The `profile` half —
-`fillet_select.rs::nearest_joint` and `path/arc_fillet.rs:361` — was routed to
-Track G's `G4`, and that route stopped resolving when Track G closed: the `G4`
-this partition carries is scoped to `ArcCarrierScalar` alone. **It is now
-Track V's `D361`.** `crates/geom-brep/` is likewise enumerated and not taken,
-and no row names it. **The enumeration is keyed on symbols, not on line
+whole finding.** #875 closed the `geom` half, and PR #1453 the `profile`
+half — each door carries its disposition at the site. **What stands open
+is `crates/geom-brep/`** — enumerated and not taken, rowed as Track R's
+`D305` at the `profile` half's closure. **The enumeration is keyed on symbols, not on line
 numbers**, in the census tables — this document's citations are the thing
 G-R13 keeps finding falsified by a merge that touched nothing the citation was
 about, and #875 moved every one of those lines itself. Line numbers survive
@@ -7817,10 +7815,10 @@ re-scoped or re-argued by being moved.
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 11 |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 *(re-derived from the track's own table, 2026-08-31; had read 18 against 16 rows)* |
-| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census)* |
+| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census; `D305` filed 2026-09-01 by SMELL-UV at `D361`'s closure, so 12)* |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
-| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 6 *(re-derived 2026-09-01: `E-m`/#711 retired VERIFIED-CLOSED — #784 merged 2026-08-27; UV-R2)* |
-| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
+| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 5 *(re-derived 2026-09-01: `E-m`/#711, `D94` and `D47` landed — PRs 1452, 1481; `D340` filed by uv-d; `D37`'s remaining half rides #1480)* |
+| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 11 *(re-derived 2026-09-01: `D361`, `D362`, `D81` and `D121` landed — PRs 1453, 1454, 1475; `D363`–`D365` filed by the closing lanes)* |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 11 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
 
@@ -8005,6 +8003,7 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 #872 could route. When it is ruled, the implementation is this track's.)*
 | **D303** | **`mesh::sizing::ceil_count` answers `1` for a NEGATIVE step**, in the function about to allocate that many grid points: `raw` is negative, finite, and floors to one, so it refuses only what makes `raw` non-finite (a NaN, a zero step, a count ≥ 2^24). `tess_meter::divisions`, the consumer-side second spelling, now refuses a negative step under `D105`, so **the kernel is the laxer of the pair** — and a negative step is not a smaller grid, it is a reading that did not happen. The fail-loud side of a two-spelling pair should be the one holding the allocation. Unreachable today only because every step reaching it is `sqrt`- or `cap_angular`-derived | `D105` residue |
 | **D304** | **`walk.rs`'s rim-anchored `out.first()` — `D96`'s one non-empty-by-construction member outside `sweep/`** (re-homed by Track T's `T-c` when `D96`'s in-fence nine were disposed; citation re-derived 2026-08-31 — `crates/mesh/src/walk.rs:1200`, which read `:1132` when `D96` was written). `let Some(first) = out.first() else { unreachable!(…) }`, where the rim arm above pushes unconditionally and its own twenty-line comment proves so: the polygon is non-empty by construction and a bare `Vec` is what represents it. **The site is already argued in writing** — the comment records that the default it replaced (`0.0` for the lever arm) would have made `gap * 0 < eps` true for every gap and silently disabled the detector — so what row 0 asks is only whether the sequence can stop being a bare `Vec` on the path that reaches here | `D96`, via `T-c` |
+| **D305** | **`S88`'s `geom-brep` half** — the sole-`T: Bounds` doors the D1 census enumerated in `crates/geom-brep/` and did not take; no row named them until the `profile` half closed (filed by SMELL-UV, 2026-09-01 — the same census, one crate over; `S88` carries the pattern and its stated blind spots). The two `profile` doors closed with argued site dispositions rather than bound moves (#875's rule: the bound follows the defect); re-derive rather than assume the same shape here | S88, filed by SMELL-UV |
 
 ## Track T — `sweep/`
 
@@ -8028,39 +8027,31 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 | # | What | Was |
 |---|---|---|
+| **D340** | **`pncad-py`'s arc-mode surface is the silent sixth spelling of the mode vocabulary** (filed by uv-d, verified by its review — the mode twin of V's `D75`/S170): `py/path.rs` spells the six spec structs plus the `PointSpec`/`ArrivalSpec` sub-enums, `pncad.pyi` carries them too, and neither references `ArcMode`, so a mode that fails to arrive in Python is invisible. Now anchorable on `ArcMode::ALL` (PR 1475). **Cheaper taken with `D75`, whose row carries the pncad-py fence exception in the other direction** | uv-d, unrowed |
 | **C13** | ε has no type of its own, so `StepOptions::uncertainty_m` and two bare `f64`s restate `Tolerance::init`'s finite-and-strictly-positive rule by hand (#741). **Wants a plan signed off before implementation** — cross-crate public API. **HELD (UV-R5): LIB drafts the plan, then Evan signs off; implementation lands here after** | Track C |
 | **C14** | The STEP writer hardcodes two Part 21 header fields the standard assigns to the user (#742). **Same signed-off-plan caveat and the same UV-R5 hold** | Track C |
 | **C16** | The Python STEP door exposes one of `StepOptions`' six fields, silently (#730) | Track C |
-| **D94** | The discard idiom does not stop at `crates/topo`, and `D21`'s crate clause was a scope of work rather than a finding about the class. **The sharpest instance answers the same question two incompatible ways five lines apart** | Track E |
-| **D37** | `pncad-py`'s tag map re-derives a discriminant that belongs on the kernel error, and its field-projection deferral has no owner | Track E |
-| **D47** | The *"never a `Debug` dump"* rule has two remaining violations, blocked on kernel types with no `Display` — **the missing impls are Track V's `D362`** (`mesh::TessellateError`'s landed at `mesh/src/types.rs:271`, so its violation is unblocked; the consumer-side read at `viewer/src/scene.rs` is #1111's, per that site's own citation) | Track E |
-
-*(`D37` and `D47` are one crate and one class, and `D37(a)` shares a
-mechanism with Track V's `D121`. Taking them as one lane is cheaper than
-either alone. `D47`'s remaining blocker is Track V's `D362`.)*
+| **D37** | `pncad-py`'s tag map re-derives a discriminant that belongs on the kernel error — **what is left is that half alone** (`path_error_tag` vs `PathError`), **taken, in flight as #1480 on lane uv-e**; the deferral half closed with PR 1481 (the field-projection remainder is owned and tabulated by #1479) | Track E |
 
 ## Track V — `editor-core` and `profile`
 
 **Fence:** `crates/editor-core/`, `crates/profile/`. **Block:** `D360`–`D379` /
 `S430`–`S449`. **Claimed whole 2026-09-01; execution record
-`docs/SMELL-UV-LOG.md`.** While **#1423 (MATE-3)** is open, its files are
-keep-out (UV-R4): `editor-core/{assembly.rs, program.rs, persist/wire.rs,
-eval/}`, `profile/{path.rs, path/program.rs}`.
+`docs/SMELL-UV-LOG.md`.**
 
 | # | What | Was |
 |---|---|---|
-| **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**; both of its old gates have fallen (#791, #801). The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
-| **D121** | The arc-mode vocabulary is the profile `Step` vocabulary one level down, with no `ALL` and no census (S195) — six spec structs restated three times, and `res_spec` CONSTRUCTS the kernel form so the compiler cannot see a mode that fails to arrive. **HELD (UV-R4): `res_spec` is `program.rs`'s and the vocabulary reaches `profile/path`, both inside #1423's edit set** | Track G |
+| **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**, both of its old gates have fallen (#791, #801), and **the collapse is proven mechanical** — executed and discarded under PR 1453 (49 sites plus two import lines; identical test counts; instantiation set identical by construction, the trait having no items and one blanket impl). **What holds it now**: the retirement reds `scripts/gates/bounds-allowlist.sh` (entries for `family.rs` and `program.rs`, plus KNOWN GAP 3's text, which names this trait as its example) — Track K's fence, so it lands as one piece with K's `D68` answer or an allowlist row filed there (UV-R8). It is also a breaking public-API removal: `pncad::profile` re-exports the trait. The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
 | **D75** | The PATHS verb vocabulary's sixth copy is the Python surface and it is the only silent one (S170). **The `pncad-py` stub edit is this row's, by exception to U's fence** | Track G |
-| **D81** | A typed payload rendered by `Debug` at a composing layer. **What is left is the `StableName`-as-`{name:?}` class** — 23 sites, `edit.rs` (14), `refactor.rs` (6) and `names/emit.rs` (3), each putting a `StableName` into user-facing refusal prose through `Debug`. **It is not the shape this row was written for**: a bypass renders through `Debug` a payload whose type has a `Display`, and `StableName` has none at all, so this half is blocked on `D362` rather than being a rendering slip. Re-derive the count before taking it | Track E |
-| **D39** | A typed refusal degrades to `String` at the edit door because two derive sets do not meet, and a test in the tree is already substring-matching prose to get the class back. **Both sides of it — `EditError` and `profile::PathError` — are inside this track**. **HELD (UV-R4): `PathError` is `path.rs:522`'s, inside #1423's edit set; tracker sibling #1282 (its `Display` arms render scalars `{:?}`) rides the same hold and the same lane** | Track E |
+| **D39** | A typed refusal degrades to `String` at the edit door because two derive sets do not meet, and a test in the tree is already substring-matching prose to get the class back. **Both sides of it — `EditError` and `profile::PathError` — are inside this track**. Tracker sibling #1282 (`PathError`'s `Display` arms render scalars `{:?}`) rides the same lane | Track E |
 | **C12** | `editor-core`'s remaining classification residues from #731's style review — three things, including a test oracle that under-reports silently through a `_ => false` arm | Track C |
 | **S105** | The shared refusal ladder retired one duplication and minted a documented hand-synced one | unrowed |
-| **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which. **The kernel half is S-BOOL's** (UV-R6: the fix is `CensusUnsupported` carrying the pair, a `topo/census.rs` change, Track Q's fence); this track's residue is the `attribute`-side consumption once that variant exists, HELD on it and on #1423 (`assembly.rs`) | unrowed |
+| **S190 / #855** | `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which. **The kernel half is S-BOOL's** (UV-R6: the fix is `CensusUnsupported` carrying the pair, a `topo/census.rs` change, Track Q's fence); this track's residue is the `attribute`-side consumption once that variant exists, HELD on it | unrowed |
 | **C6** | W2f remainder / S4 — `ProgramStep`/`WireStep`, `SegTag` and the "no usable value" core. **Genuinely blocked**, each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format); kept as a row so the block is visible rather than forgotten | Track C |
+| **D364** | **`ProgramTarget`/`profile::Target` is the construct-hop one type over from the arc modes** (filed by uv-d, verified by its review): `res_target` and `res_spec`'s `tgt` closure construct `profile::Target` with no tag, no `ALL` and no census — two structural variants today, and `program.rs`'s own docs promise curve-pose targets in v2, which is when the silent-drop hole opens. The shape of the fix is PR 1475's, one vocabulary over | uv-d, unrowed |
+| **D365** | **The content-key mode tags 30–35 share one number space with the verb, side and winding tags and have no injectivity census**: they are written inline in `feed_step` (`eval/mod.rs`), and `verb_tags_are_injective` iterates `Verb::ALL` only — the mode/side/winding tags are distinct today by inspection alone. The census wants anchoring on `ArcMode::ALL` the way the verb half already is | uv-d, unrowed |
+| **D363** | **The typed-payload-through-`Debug` residue uv-a's sweep enumerated and could not carry** (filed at PR 1454's close): (a) the `Dimension`-via-`Debug` family, ~20 sites across `edit.rs`, `expr.rs`, `persist/check.rs`, `names/geompred.rs`, `measure.rs`, `eval/mod.rs` — re-derive the count; (b) `geom_core::Sign` rendered `Debug` in `Diagnosis::PredicateFlip`; (c) `persist/check.rs:831`'s `{verb:?}/{state:?}`; (d) the remaining hand-rolled kind-noun+minting-node copies — `assembly.rs:416` and `eval/mod.rs:1010` (in fence), and `product.rs:202`, which sits on M10's slate and waits for it. The `SlotId` `{slot:?}` family is NOT a member — `edit.rs`'s header sanctions identifiers-as-location — and (a)–(c) are adjudicated against that same rule before converting: some of them may BE locations | uv-a's sweep, unrowed |
 | **D360** | A classification spelled as a let-else, which #833's type-keyed sweep could not have found (`S193`) — `editor-core/src/eval/wire.rs`'s `refusal_menu`. The site itself is benign; **the row is the sweep rule** — a lane sweeping `topo::BooleanError`, or any `topo` refusal enum, sweeps by VARIANT NAME and expects let-else and `matches!` shapes | unrowed |
-| **D361** | **`S88`'s `profile` half** — the sole-`T: Bounds` doors the D1 census enumerated in this track's crates and did not take: `fillet_select.rs::nearest_joint` (`:169`; the finding's `:98` is a doc line, not a door) and `path/arc_fillet.rs:361`'s `map_refusal<T: Bounds>`, which the finding does not name. The rest of `arc_fillet.rs` is the ratified `Decide + Bounds` seam. Routed to Track G's `G4` before that track closed; the `G4` this partition carries is `ArcCarrierScalar` alone and does not cover it | Track G, unplaced |
-| **D362** | **Two `editor-core` types still have no `Display`, each with a named `crates/viewer/` site blocked on it** (re-derived 2026-09-01, UV-R3 — the row's other members have since landed: `HitTestError`'s impl is at `resolve/hit.rs:61`, `InterrogateError`'s at `names/interrogate.rs:129`, and the `ParseError`/#1103 member closed with LIB's unparse door): `NodePickError` (`resolve/pick.rs`), which `viewer/src/pick.rs` records at the site as its reason for keeping a `Debug` rendering; and `ResolveIndeterminate` (`resolve/mod.rs`), **which reaches a user-read egui label** — `viewer/src/app.rs`'s *"this face cannot be resolved right now: {cause:?}"*. `editor-core`'s `finding.rs` gives the crate's six sink types a `Display`; these two are outside that set, and they are what unblocks Track U's `D47` | unrowed |
 
 ## Track W — the test targets: guards, doctests, fixtures and stand-downs
 

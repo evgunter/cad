@@ -69,6 +69,7 @@ pub mod revolvetool;
 pub mod scene;
 pub mod seats;
 pub mod session;
+pub mod sketch;
 pub mod theme;
 pub mod tools;
 pub mod tree;

@@ -9,11 +9,20 @@
 //! overhanging — still reaches `ef_bound_backed`'s interior arm (the
 //! shelf edge dives through the cap between two cap vertices resting
 //! on its interior), but the declared pair's overlap is large enough
-//! that the #1063 interior-witness schedule (the shelf rectangle's
-//! candidates all sit at (0.45, 0.15)) proves PositiveArea, so door 2
-//! CERTIFIES: the class's outcome bifurcates on the fixed witness
-//! schedule; `TouchingBoundary`→`CensusUnsupported` is this fixture's
-//! outcome, not the class's.
+//! that the #1063 interior-witness schedule's very first candidate
+//! proves PositiveArea, so door 2 CERTIFIES. Measured, because the
+//! order is easy to get backwards: stage 1 walks `[uv_a.outer,
+//! uv_b.outer]`, so FACE A's five candidates all precede face B's, and
+//! the winner here is face A — the CAP — on its candidate #1, its own
+//! vertex centroid, which in the carrier chart sits at
+//! (0.0, -1.586e-17) because a plane description's origin is the face's
+//! centroid. The shelf rectangle's candidates are never reached.
+//! So: the class's outcome bifurcated on the fixed witness
+//! schedule; `TouchingBoundary`→`CensusUnsupported` was this fixture's
+//! outcome, not the class's. This row is unmoved by the schedule's
+//! completion (issue 1435) precisely because it never needed it: the
+//! seat it bifurcated against certifies now too, and
+//! `mate8_witness_schedule` runs the two together.
 //!
 //! Probe 2 (`the_spike_seat_bare_is_loud`): the same seat undeclared
 //! stays loud (the rung consults declarations) — the control that

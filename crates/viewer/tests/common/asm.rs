@@ -211,6 +211,27 @@ pub fn down_at(x: f64, y: f64) -> Ray {
     }
 }
 
+/// A ray straight up from under the assembly at `(x, y)` — how a
+/// part's underside is picked.
+pub fn up_at(x: f64, y: f64) -> Ray {
+    Ray {
+        origin: Point3::new(x, y, -1.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
+/// The seat choice the mate rows commit: Rest at frame coincidence,
+/// axes opposed, no clocking rider — on a frame coincidence the coset
+/// table decides any nonzero rider contradictory.
+pub fn seat() -> viewer::matetool::MateChoice {
+    viewer::matetool::MateChoice {
+        class: pncad::select::ContactClass::Rest,
+        primitive: pncad::document::MatePrimitive::FrameCoincidence,
+        sense: pncad::document::AxisSense::Opposed,
+        clocking: None,
+    }
+}
+
 /// A `BTreeMap` from a small list — the shape a few rows want for
 /// expected-per-instance assertions.
 pub fn map_of<K: Ord, V>(entries: impl IntoIterator<Item = (K, V)>) -> BTreeMap<K, V> {

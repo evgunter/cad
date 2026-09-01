@@ -133,6 +133,16 @@ struct Uniforms {
     probe: [f32; 4],
     /// The focused feature's mark; see [`Uniforms::selected`].
     focus: [f32; 4],
+    /// **What the edge pass needs to measure the screen**: the
+    /// viewport's size in physical pixels (`xy`) and half an edge
+    /// mark's width in the same units (`z`); `w` is padding.
+    ///
+    /// A uniform lane rather than a shader constant for the reason
+    /// the marks are lanes: the pane is resized by dragging a
+    /// divider, and a pipeline rebuilt to repaint the same triangles
+    /// at a different window size would be an odd way to spend a
+    /// frame. The shaded and id passes read none of it.
+    edge: [f32; 4],
 }
 
 /// One [`Mark`] as the uniform lane the shader reads: linear tint in
@@ -197,9 +207,24 @@ struct IdPass {
 /// primary distinction was always form — a one-pixel line over a
 /// filled patch — rather than value.
 ///
-/// Lines are one pixel: wgpu's core specification has no line width,
-/// and widening a mark means expanding each segment into a quad, which
-/// is a second geometry pass this unit does not need.
+/// **The marks are QUADS, not lines.** wgpu's core specification has
+/// no line width, so a `LineList` mark is one physical pixel wide —
+/// which on a hidpi screen is half a point, and which lands on a
+/// marked edge only where the rasterizer's diamond-exit rule says it
+/// does. The result reads as a dotted mark rather than a thin one:
+/// segments a few pixels long, seen nearly end-on, drop most of their
+/// pixels. So each segment is expanded into a screen-space quad here
+/// — the CPU emits six vertices carrying BOTH endpoints, and
+/// `vs_edge` offsets each corner along the segment's screen normal by
+/// [`EDGE_MARK_HALF_WIDTH_POINTS`]. The width is in POINTS, so a mark
+/// is the same thickness to the eye at any device pixel ratio.
+///
+/// The expansion is per segment and deliberately does not join them:
+/// a polyline's corners are left as two overlapping quads rather than
+/// mitred. At these widths the overlap is invisible, and a mitre
+/// needs the neighbouring segment's direction — which is a different
+/// vertex format and a real amount of arithmetic for a join nobody
+/// can see.
 struct EdgePass {
     pipeline: wgpu::RenderPipeline,
     /// The uploaded overlay, and the value it was built from — the
@@ -230,25 +255,105 @@ const EDGE_MARK_HOVERED: u32 = 1;
 /// its mark composites over the probe-tinted body exactly as the
 /// shaded pass's marks do (`EdgePass`'s note on the shared base).
 const EDGE_FLAG_PROBE: u32 = 2;
+/// Set when this vertex belongs to a PREVIEW — a wireframe of
+/// something a form is composing, which is not in the document.
+///
+/// Drawn in the theme's probe mark, the mark that means "this
+/// placement is not committed" (`Theme::probe`, G3's honesty
+/// requirement), so a preview can never read as a selection of
+/// something that exists. A bit rather than a third value in the
+/// selected/hovered pair, because it says something orthogonal: a
+/// preview segment is neither picked nor hovered.
+const EDGE_MARK_PREVIEW: u32 = 4;
 
-/// The constant half of the edge pass's depth bias, in units of the
-/// smallest resolvable depth increment at the fragment.
+/// **Half the width of an edge mark, in POINTS** — so a mark is
+/// three points thick wherever it is drawn, and the same thickness to
+/// the eye on a hidpi screen as on a 1× one (`vs_edge` is handed the
+/// physical half-width, scaled by the frame's device pixel ratio).
+///
+/// A judgement, and the range it sits in is narrow at both ends: a
+/// mark under about two points starts to show the dotting this
+/// expansion exists to remove, and much above four its own width
+/// hides the short edges it is marking. Three points is also roughly
+/// the weight of the chrome's own text, which is what makes a mark
+/// findable at a glance without becoming the loudest thing in the
+/// picture.
+const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
+
+/// One vertex of an expanded edge mark: the segment it belongs to,
+/// twice over, plus which corner of the quad this is.
+///
+/// **Both endpoints on every vertex** — the shader needs the
+/// segment's screen DIRECTION to know which way to offset, and a
+/// vertex that carried only its own position could not compute one.
+/// The cost is the duplication (24 bytes of position per vertex
+/// instead of 12, six vertices per segment instead of two); the marks
+/// are a handful of edges, so it buys correctness for nothing that
+/// matters.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct SegmentVertex {
+    /// The segment's first endpoint, world space.
+    a: [f32; 3],
+    /// Its second endpoint, world space.
+    b: [f32; 3],
+    /// The corner code: bit 0 picks the endpoint (`b` when set), bit
+    /// 1 picks the side of the segment (the negative normal when
+    /// set). Decoded in `vs_edge`, which is why the two bits are
+    /// documented here and not spelled twice.
+    corner: u32,
+}
+
+/// The corner codes of one quad, as two triangles.
+///
+/// Order is `(a+, a−, b+)` then `(b+, a−, b−)` — consistent winding
+/// is not load-bearing (the pipeline culls nothing, because a mark
+/// seen from behind is still a mark) but a coherent order is what
+/// makes the two triangles a quad rather than a bow tie.
+const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
+
+/// The edge pass's depth nudge: a dimensionless multiplicative shrink
+/// applied to clip-space z in `vs_edge`, before the perspective
+/// divide.
+///
+/// Applied in the vertex shader, not as pipeline `DepthBiasState`:
+/// WebGPU validation forbids a depth bias on non-triangle topology,
+/// so a line pipeline that asks for one refuses to build at all. On a
+/// float depth buffer the shrink is worth a handful of quanta at
+/// every depth — an f32's ulp steps per binade, so `z * k * 2^-23`
+/// lands between k/2 and k quanta depending on where `z` sits within
+/// its binade — never exactly "k quanta", but enough either way to
+/// clear the shared-position z-fight.
 ///
 /// **Eyeballed, and there is no measurement behind it**: the lines lie
-/// exactly on the surface (they share its positions), so any bias
-/// toward the eye large enough to clear one depth quantum is enough,
+/// exactly on the surface (they share its positions), so a nudge
+/// toward the eye large enough to clear a few depth quanta is enough,
 /// and one large enough to lift a mark off a NEIGHBOURING surface
-/// would be a bug. Two quanta is the smallest value that is not one.
-/// The pass writes no depth, so an over-large bias could only make a
-/// mark show through geometry it should not — which is the reason to
-/// keep it minimal rather than to tune it.
-const EDGE_DEPTH_BIAS: i32 = -2;
-
-/// The slope-scaled half of the same bias: one depth quantum per unit
-/// of depth slope across the fragment, which is what a line lying on a
-/// steeply-angled facet needs and a flat-on one does not. Eyeballed
-/// beside [`EDGE_DEPTH_BIAS`], for the same reason.
-const EDGE_DEPTH_BIAS_SLOPE: f32 = -1.0;
+/// would be a bug. A handful of quanta rather than the fixed-function
+/// era's two, because a vertex-shader nudge has no slope-scaled half —
+/// the extra quanta stand in for what `slope_scale` gave a line lying
+/// on a steeply-angled facet. The pass writes no depth, so an
+/// over-large shrink could only make a mark show through geometry it
+/// should not — which is the reason to keep it minimal rather than to
+/// tune it.
+///
+/// `crate::pick`'s `OCCLUSION_SLACK_REL` plays the same
+/// coincident-edge-over-its-own-face role on the CPU pick lane, in a
+/// different numeric domain (f64 world-depth comparison there, f32
+/// clip z here) — a pointer each way, deliberately not one shared
+/// constant.
+///
+/// **A quad, unlike a line, reaches ONTO the facets its edge
+/// divides** — which is what sets the magnitude. On a concave edge
+/// the neighbouring facet is nearer the eye than the shared chord, so
+/// without enough nudge the outer half of a mark fails the depth test
+/// and the mark thins on exactly the edges width was buying. The
+/// nudge is still small enough that a mark cannot climb over
+/// unrelated geometry: the pass writes no depth, so the worst an
+/// over-large shrink could do is show a mark through a surface in
+/// front of it, and at 1e-5 relative that surface would have to be
+/// within a thousandth of a percent of the edge's own depth.
+const EDGE_CLIP_Z_SHRINK: f32 = 1.0e-5;
 
 struct Geometry {
     positions: wgpu::Buffer,
@@ -469,6 +574,7 @@ impl ViewportRenderer {
                 hovered: [0.0; 4],
                 probe: [0.0; 4],
                 focus: [0.0; 4],
+                edge: [0.0; 4],
             }),
         );
         let color_view = self
@@ -694,19 +800,23 @@ impl EdgePass {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: &[
                     Some(wgpu::VertexBufferLayout {
-                        array_stride: 12,
+                        array_stride: core::mem::size_of::<SegmentVertex>() as u64,
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x3],
+                        attributes: &wgpu::vertex_attr_array![
+                            0 => Float32x3, 1 => Float32x3, 2 => Uint32,
+                        ],
                     }),
                     Some(wgpu::VertexBufferLayout {
                         array_stride: 4,
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![1 => Uint32],
+                        attributes: &wgpu::vertex_attr_array![3 => Uint32],
                     }),
                 ],
             },
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineList,
+                // Triangles, because a mark is a quad now: see
+                // `EdgePass`'s note on why a line cannot be widened.
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: None,
@@ -723,17 +833,19 @@ impl EdgePass {
                 // there.
                 depth_write_enabled: Some(false),
                 // The polyline's chord points ARE mesh positions the
-                // triangles share, so the line lands exactly on the
-                // surface's own depth: `LessEqual` plus the bias below
-                // is what keeps it from z-fighting with the facet it
-                // borders.
+                // triangles share, so a mark lands exactly on the
+                // surface's own depth: `LessEqual` plus the vertex
+                // shader's `EDGE_CLIP_Z_SHRINK` nudge is what keeps it
+                // from z-fighting with the facet it borders. The
+                // nudge stays in the shader rather than moving to
+                // `DepthBiasState` now that the topology would admit
+                // one: the widened quad needs the SAME depth its
+                // endpoints have (see `EDGE_CLIP_Z_SHRINK`), and a
+                // slope-scaled bias over a quad that is flat in
+                // screen space is not that.
                 depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState {
-                    constant: EDGE_DEPTH_BIAS,
-                    slope_scale: EDGE_DEPTH_BIAS_SLOPE,
-                    clamp: 0.0,
-                },
+                bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState::default(),
             fragment: Some(wgpu::FragmentState {
@@ -773,8 +885,11 @@ impl EdgePass {
             self.held = None;
             return;
         }
-        let mut positions: Vec<[f32; 3]> =
-            Vec::with_capacity(overlay.selected.len() + overlay.hovered.len());
+        // Six vertices per SEGMENT, not one per endpoint: the quad
+        // is `QUAD_CORNERS` — two triangles over the four corners the
+        // shader derives from the segment's own screen direction.
+        let segments = overlay.segments();
+        let mut positions: Vec<SegmentVertex> = Vec::with_capacity(segments * QUAD_CORNERS.len());
         let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
         for (mark, probed, corners) in [
             (
@@ -783,10 +898,27 @@ impl EdgePass {
                 &overlay.selected,
             ),
             (EDGE_MARK_HOVERED, overlay.hovered_probed, &overlay.hovered),
+            // A preview belongs to nothing in the document, so there
+            // is no instance for it to be free-moved WITH: the probe
+            // FLAG stays clear and the preview mark supplies the
+            // probe tint on its own.
+            (EDGE_MARK_PREVIEW, false, &overlay.preview),
         ] {
             let word = if probed { mark | EDGE_FLAG_PROBE } else { mark };
-            positions.extend_from_slice(corners);
-            marks.extend(std::iter::repeat_n(word, corners.len()));
+            // `chunks_exact(2)`: the overlay is a LINE LIST, so a
+            // trailing odd position is not half a segment to draw —
+            // it is a producer bug, and drawing nothing for it is the
+            // quiet half of failing loud at the producer.
+            for pair in corners.chunks_exact(2) {
+                for corner in QUAD_CORNERS {
+                    positions.push(SegmentVertex {
+                        a: pair[0],
+                        b: pair[1],
+                        corner,
+                    });
+                    marks.push(word);
+                }
+            }
         }
         let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
         self.held = Some(EdgeGeometry {
@@ -856,6 +988,13 @@ pub(crate) struct ViewportCallback {
     /// decision and a pass that took them separately could be handed
     /// halves of two different themes.
     pub(crate) theme: Theme,
+    /// The pane's size in physical pixels, and how many of those go
+    /// to a point — what the edge pass measures its marks' width
+    /// against ([`EDGE_MARK_HALF_WIDTH_POINTS`]).
+    pub(crate) viewport_px: [f32; 2],
+    /// The frame's device pixel ratio; see
+    /// [`ViewportCallback::viewport_px`].
+    pub(crate) pixels_per_point: f32,
     /// Which patch ids to mark, from `crate::pick::highlight` — a
     /// value computed from (index, selection, hover) and handed
     /// straight through. **No highlight decision is taken here**; this
@@ -917,6 +1056,12 @@ impl ViewportCallback {
             hovered: mark_lane(self.theme.hovered),
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
+            edge: [
+                self.viewport_px[0],
+                self.viewport_px[1],
+                EDGE_MARK_HALF_WIDTH_POINTS * self.pixels_per_point,
+                0.0,
+            ],
         }
     }
 }
@@ -1014,6 +1159,8 @@ fn shader_source() -> String {
         )
         .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
+        .replace("{{EDGE_MARK_PREVIEW}}", &EDGE_MARK_PREVIEW.to_string())
+        .replace("{{EDGE_CLIP_Z_SHRINK}}", &format!("{EDGE_CLIP_Z_SHRINK:e}"))
 }
 
 const SHADER: &str = r#"
@@ -1028,6 +1175,9 @@ struct Uniforms {
     hovered: vec4<f32>,
     probe: vec4<f32>,
     focus: vec4<f32>,
+    // Viewport size in physical pixels (xy) and an edge mark's half
+    // width in the same units (z). See the Rust `Uniforms`.
+    edge: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -1105,13 +1255,56 @@ struct EdgeOut {
     @location(0) @interpolate(flat) mark: u32,
 };
 
+// The screen-space expansion: both of the segment's endpoints arrive
+// on every vertex, and `corner` says which one this vertex sits at
+// and which side of the segment it is offset to. See `SegmentVertex`
+// for the bit layout and `EdgePass` for why a mark is a quad.
 @vertex
 fn vs_edge(
-    @location(0) position: vec3<f32>,
-    @location(1) mark: u32,
+    @location(0) a: vec3<f32>,
+    @location(1) b: vec3<f32>,
+    @location(2) corner: u32,
+    @location(3) mark: u32,
 ) -> EdgeOut {
+    var clip_a = uniforms.view_projection * vec4<f32>(a, 1.0);
+    var clip_b = uniforms.view_projection * vec4<f32>(b, 1.0);
+    // The mark pass's depth nudge, in the shader rather than as a
+    // pipeline bias: a relative shrink of clip z, worth a few
+    // float-depth quanta at any depth; see EDGE_CLIP_Z_SHRINK.
+    clip_a.z *= 1.0 - {{EDGE_CLIP_Z_SHRINK}};
+    clip_b.z *= 1.0 - {{EDGE_CLIP_Z_SHRINK}};
+
+    let half_viewport = max(uniforms.edge.xy, vec2<f32>(1.0, 1.0)) * 0.5;
+    // abs(w), not w: an endpoint behind the eye has a negative w, and
+    // the projected point is then mirrored through the origin. The
+    // magnitude keeps the two endpoints on the same side of that
+    // mirror, so the DIRECTION between them — all this is for — stays
+    // the segment's own. Such a segment is clipped by the rasterizer
+    // in any case; what this avoids is a quad twisted into a bow tie
+    // before the clip gets to it.
+    let screen_a = clip_a.xy / max(abs(clip_a.w), 1.0e-6) * half_viewport;
+    let screen_b = clip_b.xy / max(abs(clip_b.w), 1.0e-6) * half_viewport;
+    let along = screen_b - screen_a;
+    let span = length(along);
+    // A segment with no screen extent (seen exactly end-on, or a
+    // degenerate chord) has no direction to take a normal from. It is
+    // widened along x, which draws a square dot at the point the
+    // segment collapsed to — the honest picture of a mark with no
+    // length, and never a NaN.
+    var direction = vec2<f32>(1.0, 0.0);
+    if (span > 1.0e-6) {
+        direction = along / span;
+    }
+    let normal = vec2<f32>(-direction.y, direction.x);
+    let side = select(1.0, -1.0, (corner & 2u) != 0u);
+    let clip = select(clip_a, clip_b, (corner & 1u) != 0u);
+    // Pixels back to clip space: an NDC offset is a pixel offset over
+    // the half viewport, and multiplying by w undoes the perspective
+    // divide the rasterizer is about to apply — which is what makes
+    // the width constant on screen rather than in world units.
+    let offset = normal * side * uniforms.edge.z / half_viewport;
     var out: EdgeOut;
-    out.clip_position = uniforms.view_projection * vec4<f32>(position, 1.0);
+    out.clip_position = vec4<f32>(clip.xy + offset * clip.w, clip.z, clip.w);
     out.mark = mark;
     return out;
 }
@@ -1132,6 +1325,11 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     var color = tint(base, uniforms.selected);
     if ((in.mark & {{EDGE_MARK_HOVERED}}u) != 0u) {
         color = tint(base, uniforms.hovered);
+    }
+    // Last, so it wins: a preview is not in the document, and saying
+    // so outranks saying which of the picked marks it would have been.
+    if ((in.mark & {{EDGE_MARK_PREVIEW}}u) != 0u) {
+        color = tint(base, uniforms.probe);
     }
     return vec4<f32>(color, 1.0);
 }
@@ -1157,3 +1355,43 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
     return in.id;
 }
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every `{{TOKEN}}` in [`SHADER`] must be substituted by
+    /// [`shader_source`]: an unreplaced token would reach the WGSL
+    /// compiler as a parse error at pipeline build — i.e. at app
+    /// startup, not at test time. Both directions are pinned: the
+    /// substituted source carries no `{{`, and the template still
+    /// spells every token `shader_source` replaces (a token renamed on
+    /// one side only would otherwise pass silently).
+    ///
+    /// Runs only under `--features app`, the module's own gate — an
+    /// instance of issue 1451's class: no CI row builds the app
+    /// feature, and the smoke row proposed there is where this starts
+    /// gating.
+    #[test]
+    fn every_shader_token_is_substituted() {
+        let source = shader_source();
+        assert!(
+            !source.contains("{{"),
+            "an unreplaced template token survives in the shader source"
+        );
+        for token in [
+            "{{FLAG_PROBE}}",
+            "{{FLAG_FOCUS}}",
+            "{{EDGE_MARK_HOVERED}}",
+            "{{EDGE_FLAG_PROBE}}",
+            "{{EDGE_MARK_PREVIEW}}",
+            "{{EDGE_CLIP_Z_SHRINK}}",
+        ] {
+            assert!(
+                SHADER.contains(token),
+                "the template no longer spells {token}; keep this list \
+                 and shader_source's replacements in step"
+            );
+        }
+    }
+}

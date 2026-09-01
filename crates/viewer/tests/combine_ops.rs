@@ -22,11 +22,12 @@
 
 mod common;
 
+use common::{body_volume, insert, near};
+use pncad::document::SplitSide;
 use pncad::document::{
-    Axis3, BooleanOp, Datum, Dimension, Doc, DocEdit, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Axis3, BooleanOp, Datum, Dimension, Doc, Expr, LoopProgram, Node, NodeError, NodeErrorKind,
+    NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
-use pncad::document::{BooleanValue, SplitSide};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::profile::SketchPlane;
@@ -53,23 +54,6 @@ const OVERLAP: f64 = 0.005 * 0.01 * 0.006;
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("combine-start", tol), tol)
-}
-
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
 }
 
 /// A box of `size`, authored through the creation doors: one
@@ -113,20 +97,6 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     (session, a, b)
 }
 
-/// The evaluated volume of a node's single body, with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let body = match &eval.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(body) => body.clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
-        other => panic!("expected a body, got {other:?}"),
-    };
-    pncad::topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume
-}
-
 /// A split node's two sides, by volume, with the seam pumped — an
 /// empty side reading as zero.
 fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f64, f64) {
@@ -146,12 +116,6 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
         SplitSide::Empty => 0.0,
     };
     (volume_of(above), volume_of(below))
-}
-
-/// `left` and `right` agree to within a relative tolerance the planar
-/// boolean rows can hold.
-fn near(left: f64, right: f64) -> bool {
-    ((left - right) / right).abs() < 1e-9
 }
 
 /// A body's volume, with the closed form it must match.
@@ -843,20 +807,20 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             seat: Seat::OperandA
         })
     ));
-    boolean.pick(a);
+    boolean.pick(session.committed_doc(), a);
     assert!(matches!(
         boolean.op(BooleanOp::Union),
         Err(SeatError::Empty {
             seat: Seat::OperandB
         })
     ));
-    boolean.pick(b);
+    boolean.pick(session.committed_doc(), b);
     assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(b)));
     // A third pick replaces the SECOND seat: the first pick is the
     // one a subtraction keeps, and it stays where it was put.
-    boolean.pick(a);
+    boolean.pick(session.committed_doc(), a);
     assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(a)));
-    boolean.pick(b);
+    boolean.pick(session.committed_doc(), b);
     assert!(matches!(
         boolean.op(BooleanOp::Subtract),
         Ok(SessionOp::AddBoolean {
@@ -888,11 +852,11 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert_eq!((boolean.a(), boolean.b()), (Some(a), None));
     // The next pick refills the empty seat rather than displacing the
     // held one.
-    boolean.pick(a);
+    boolean.pick(session.committed_doc(), a);
     assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(a)));
 
     let mut split = SplitTool::new();
-    split.pick(a);
+    split.pick(session.committed_doc(), a);
     assert!(matches!(
         split.op(),
         Err(SeatError::Empty {
@@ -907,7 +871,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             seat: Seat::TransformBody
         })
     ));
-    transform.pick(b);
+    transform.pick(session.committed_doc(), b);
     let events = transform.reconcile(session.committed_doc());
     assert!(
         matches!(
@@ -924,7 +888,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     // The pattern tool's axis seat is required by the CIRCULAR rule
     // and by nothing else.
     let mut pattern = PatternTool::new();
-    pattern.pick(a);
+    pattern.pick(session.committed_doc(), a);
     assert!(matches!(
         pattern.linear_op(3, [1.0, 0.0, 0.0], 0.05),
         Ok(SessionOp::AddPattern { count: 3, .. })
@@ -1016,6 +980,268 @@ fn every_tool_kind_is_listed_in_all() {
     assert!(seen.into_iter().all(|hit| hit), "every ordinal is listed");
 }
 
+/// **Every seat's wanted kind is the one its own door refuses by.**
+///
+/// The routing in `viewer::seats` and the gate in `viewer::session`
+/// share a CLASSIFIER (`session::admits`) but not a table: which kind
+/// a seat wants is stated at `Seat::wants` and again at each door's
+/// `require_kind` call. This row is what holds them together — for
+/// every seat, its op is driven with a node of the wrong kind and the
+/// refusal has to name exactly `seat.wants()`.
+///
+/// It catches drift in both directions. A `wants()` that disagreed
+/// with its door would either pick a "wrong" node the door happily
+/// accepts (no refusal, and the row fails) or draw a refusal naming a
+/// different kind (and the row fails). `Seat::ALL` is what makes it a
+/// sweep rather than a list somebody remembers to extend.
+#[test]
+fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
+    let tol = Tol::witness();
+    let (mut session, body, _) = two_boxes(tol);
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: SketchPlane::xy(),
+            loops: vec![ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.01,
+            }],
+        },
+    );
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: [0.0, 0.0, 0.005],
+                normal: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    let axis = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Axis {
+                origin: [0.0; 3],
+                direction: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    // A node the seat's own `wants()` says it cannot hold — and one
+    // that is a legal node of SOME kind, so what the door refuses is
+    // the kind and never the absence.
+    let right = |wanted: NodeKindWanted| match wanted {
+        NodeKindWanted::Body => body,
+        NodeKindWanted::Profile => profile,
+        NodeKindWanted::Plane => plane,
+        NodeKindWanted::Axis => axis,
+    };
+    let wrong = |wanted: NodeKindWanted| match wanted {
+        NodeKindWanted::Body => profile,
+        NodeKindWanted::Profile => body,
+        NodeKindWanted::Plane => axis,
+        NodeKindWanted::Axis => plane,
+    };
+
+    let mut seen = vec![false; Seat::ALL.len()];
+    for seat in Seat::ALL {
+        let at = seat.ordinal();
+        assert!(!seen[at], "{seat:?} shares an ordinal");
+        seen[at] = true;
+        // Every OTHER seat of the same op is filled correctly, so the
+        // refusal can only be about the seat under test.
+        let filled = |other: Seat| {
+            if other == seat {
+                wrong(other.wants())
+            } else {
+                right(other.wants())
+            }
+        };
+        let op = match seat {
+            Seat::RevolveProfile | Seat::RevolveAxis => SessionOp::AddRevolve {
+                profile: filled(Seat::RevolveProfile),
+                axis: filled(Seat::RevolveAxis),
+                angle: core::f64::consts::TAU,
+            },
+            Seat::OperandA | Seat::OperandB => SessionOp::AddBoolean {
+                op: BooleanOp::Union,
+                a: filled(Seat::OperandA),
+                b: filled(Seat::OperandB),
+            },
+            Seat::SplitTarget | Seat::SplitPlane => SessionOp::AddSplit {
+                target: filled(Seat::SplitTarget),
+                tool: filled(Seat::SplitPlane),
+            },
+            Seat::TransformBody => SessionOp::AddTransform {
+                input: filled(Seat::TransformBody),
+                translation: [0.0; 3],
+                rotation_axis: [0.0, 0.0, 1.0],
+                rotation_angle: 0.0,
+            },
+            // The CIRCULAR rule, because it is the only one with an
+            // axis seat to refuse about.
+            Seat::PatternBody | Seat::PatternAxis => SessionOp::AddPattern {
+                input: filled(Seat::PatternBody),
+                count: 3,
+                rule: PatternRuleSpec::Circular {
+                    axis: filled(Seat::PatternAxis),
+                    step: 1.0,
+                },
+            },
+        };
+        let out = session.perform(op);
+        match out.refusal {
+            Some(Refusal::WrongNodeKind { node, wanted }) => {
+                assert_eq!(
+                    wanted,
+                    seat.wants(),
+                    "the {} door refuses by {wanted:?}, but the seat says {:?}",
+                    seat.name(),
+                    seat.wants(),
+                );
+                assert_eq!(node, wrong(seat.wants()), "it names the node it refused");
+            }
+            other => panic!(
+                "the {} seat took a {:?} without refusing: {other:?}",
+                seat.name(),
+                seat.wants(),
+            ),
+        }
+    }
+    assert!(seen.into_iter().all(|hit| hit), "every seat is listed");
+}
+
+/// **A pick only one seat can hold goes to that seat.**
+///
+/// A split's seats are a BODY and a PLANE. Under the plain
+/// fill-then-replace rule a user with both seats full who clicked a
+/// second body put that body in the plane seat — a pick that can only
+/// ever refuse at the commit, having silently displaced a plane that
+/// was fine. The only thing such a click can mean is "split this body
+/// instead", so that is where it lands, and the plane stays put.
+#[test]
+fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
+    let tol = Tol::witness();
+    let (mut session, a, b) = two_boxes(tol);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: [0.0, 0.0, 0.005],
+                normal: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    let doc = session.committed_doc();
+
+    let mut split = SplitTool::new();
+    split.pick(doc, a);
+    split.pick(doc, plane);
+    assert_eq!((split.target(), split.plane()), (Some(a), Some(plane)));
+
+    split.pick(doc, b);
+    assert_eq!(
+        (split.target(), split.plane()),
+        (Some(b), Some(plane)),
+        "the second body re-targets the split; the plane is untouched",
+    );
+
+    // And the routing runs the other way too: a second PLANE replaces
+    // the plane, not the body it would otherwise displace.
+    let lower = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: [0.0, 0.0, 0.002],
+                normal: [0.0, 0.0, 1.0],
+            },
+        },
+    );
+    let doc = session.committed_doc();
+    split.pick(doc, lower);
+    assert_eq!((split.target(), split.plane()), (Some(b), Some(lower)));
+}
+
+/// The routing is NARROW: a pick both seats admit follows the plain
+/// rule, so the boolean's operands still fill in order and a third
+/// pick still replaces the second — which is what makes `A ∖ B`'s
+/// first operand stay where it was put.
+///
+/// The other half of the same narrowness: a pick NEITHER seat admits
+/// is not steered anywhere. It lands where the plain rule puts it and
+/// refuses typed at the commit door, which is the refusal's job.
+#[test]
+fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
+    let tol = Tol::witness();
+    let (mut session, a, b) = two_boxes(tol);
+    let doc = session.committed_doc();
+
+    let mut boolean = BooleanTool::new();
+    boolean.pick(doc, a);
+    boolean.pick(doc, b);
+    boolean.pick(doc, a);
+    assert_eq!(
+        (boolean.a(), boolean.b()),
+        (Some(a), Some(a)),
+        "two body seats: the third pick replaces the second, as before",
+    );
+
+    // A profile is neither a body nor a plane, so the split tool has
+    // no seat to steer it to.
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: SketchPlane::xy(),
+            loops: vec![ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.01,
+            }],
+        },
+    );
+    let doc = session.committed_doc();
+    let mut split = SplitTool::new();
+    split.pick(doc, a);
+    split.pick(doc, profile);
+    assert_eq!(
+        (split.target(), split.plane()),
+        (Some(a), Some(profile)),
+        "an unroutable pick lands where the plain rule puts it",
+    );
+    assert!(
+        matches!(
+            split.op(),
+            Ok(SessionOp::AddSplit { tool, .. }) if tool == profile
+        ),
+        "and is refused at the commit door, not here",
+    );
+}
+
+/// **A one-seat tool has ONE seat.** Its role is named twice so the
+/// pick rule degenerates to "replace", and this is the row that holds
+/// it there: the rule underneath fills the first EMPTY slot, so
+/// without the arity arm a second pick lands in a slot nothing reads
+/// and the transform tool's own door ("a second pick replaces the
+/// first") stops being true.
+#[test]
+fn a_second_pick_replaces_a_one_seat_tools_body() {
+    let tol = Tol::witness();
+    let (session, a, b) = two_boxes(tol);
+    let doc = session.committed_doc();
+
+    let mut transform = TransformTool::new();
+    transform.pick(doc, a);
+    assert_eq!(transform.input(), Some(a));
+    transform.pick(doc, b);
+    assert_eq!(transform.input(), Some(b), "the second pick replaces");
+
+    // The survival step sees one seat, so a vanished pick is reported
+    // once rather than twice.
+    let mut session = session;
+    let out = session.perform(SessionOp::DeleteNode { node: b });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let events = transform.reconcile(session.committed_doc());
+    assert_eq!(events.len(), 1, "one seat, one drop: {events:?}");
+}
+
 /// The open tool consumes the ordinary selection stream at the
 /// vocabulary it was written against, and a closed one consumes
 /// nothing.
@@ -1030,11 +1256,17 @@ fn the_open_tool_consumes_the_selection_stream() {
 
     let mut tools = Tools::new();
     // Nothing open: the stream reaches nothing.
-    assert!(tools.feed(&picks).is_empty(), "every pick landed");
+    assert!(
+        tools.feed(session.committed_doc(), &picks).is_empty(),
+        "every pick landed"
+    );
     assert_eq!(tools.open_kind(), None);
 
     tools.open(ToolKind::Boolean);
-    assert!(tools.feed(&picks).is_empty(), "every pick landed");
+    assert!(
+        tools.feed(session.committed_doc(), &picks).is_empty(),
+        "every pick landed"
+    );
     let boolean = tools.boolean().expect("the boolean tool is open");
     assert_eq!((boolean.a(), boolean.b()), (Some(a), Some(b)));
 
@@ -1042,7 +1274,10 @@ fn the_open_tool_consumes_the_selection_stream() {
     // the tool that held them.
     tools.open(ToolKind::Pattern);
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), None);
-    assert!(tools.feed(&picks[..1]).is_empty(), "the pick landed");
+    assert!(
+        tools.feed(session.committed_doc(), &picks[..1]).is_empty(),
+        "the pick landed"
+    );
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), Some(a));
 
     // The survival step reaches whichever tool is open, from the
