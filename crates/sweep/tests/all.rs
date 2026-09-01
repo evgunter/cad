@@ -56,6 +56,8 @@ mod p1b_r1_probes;
 mod pcurve_p1b_r2_probes;
 #[path = "r1_mate3_probes.rs"]
 mod r1_mate3_probes;
+#[path = "r2_mate3_probes.rs"]
+mod r2_mate3_probes;
 #[path = "r2_mesh1_donut_probes.rs"]
 mod r2_mesh1_donut_probes;
 #[path = "sf2a_r1.rs"]
