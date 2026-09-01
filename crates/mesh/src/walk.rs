@@ -1100,7 +1100,9 @@ pub(crate) fn loop_polygon(
     // exactly ε from a pole is identified with it.
     let pole_index = |id: u32| -> Option<usize> {
         let p = positions[id as usize];
-        poles.iter().position(|&(pp, _)| eps.coincident((p - pp).norm()))
+        poles
+            .iter()
+            .position(|&(pp, _)| eps.coincident((p - pp).norm()))
     };
     let pole_v = |id: u32| -> Option<f64> { pole_index(id).map(|ix| poles[ix].1) };
     // D2 addendum row 5, beside the declared-vertex guard above, and
@@ -1740,7 +1742,10 @@ mod tests {
         let p = unit_sphere_positions();
         // A pole-to-pole band: two meridians, both junctions a pole.
         let travs = vec![meridian(&[1, 2, 0]), meridian(&[0, 3, 1])];
-        assert_eq!(iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)), vec![true, true]);
+        assert_eq!(
+            iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9)),
+            vec![true, true]
+        );
         // ... and the same two meridians with a vertex dropped on the
         // FIRST one are one side across that vertex and two sides
         // across each pole.
@@ -2062,7 +2067,15 @@ mod tests {
             .expect("the revolve mints a sphere wall");
         let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
-            let _ = loop_polygon(&body, &chart, &chords.ids, &positions, fk, lk, Eps::exactly(0.15));
+            let _ = loop_polygon(
+                &body,
+                &chart,
+                &chords.ids,
+                &positions,
+                fk,
+                lk,
+                Eps::exactly(0.15),
+            );
         }
         unreachable!("a loop of this face holds the in-band junction, so the guard fires");
     }
