@@ -78,32 +78,44 @@ pub enum ExportError {
     Product(ProductError),
 }
 
+// A node reaches prose as its bare id. The message is for a human,
+// and the wrapper's `Debug` spelling puts a Rust type name in front of
+// the one part of it they can act on.
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::UnknownNode { node } => {
-                write!(f, "export: node {node:?} has no entry in this evaluation")
+                write!(
+                    f,
+                    "export: node {} has no entry in this evaluation",
+                    node.0
+                )
             }
             Self::NodeFailed { node } => write!(
                 f,
-                "export: node {node:?} failed to evaluate (ask \
-                 `Evaluation::node_error` for the typed cause)"
+                "export: node {} failed to evaluate (ask \
+                 `Evaluation::node_error` for the typed cause)",
+                node.0
             ),
             Self::Poisoned { node, through } => write!(
                 f,
-                "export: node {node:?} never ran — poisoned through failed \
-                 ancestor {through:?}"
+                "export: node {} never ran — poisoned through failed \
+                 ancestor {}",
+                node.0,
+                through.0
             ),
             Self::NotABody { node, kind } => {
                 write!(
                     f,
-                    "export: node {node:?} evaluates to a `{kind}`, not a body"
+                    "export: node {} evaluates to a `{kind}`, not a body",
+                    node.0
                 )
             }
             Self::EmptyBoolean { node } => {
                 write!(
                     f,
-                    "export: node {node:?}'s Boolean is empty — nothing to export"
+                    "export: node {}'s Boolean is empty — nothing to export",
+                    node.0
                 )
             }
             Self::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
