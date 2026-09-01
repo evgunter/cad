@@ -181,12 +181,15 @@ logged pre-draw per the protocol.
   bold): the `walk::iso_side_starts` qualification either survives
   the fold or is closed by it. #723's extent gap, which #726 warned
   the fold would import, is closed (CERT-1).
-- **MESH-8 — #868, the typed warning channel (L; design conversation
-  — Q2 below — then implementation).** Retroactively re-answers the
-  #896/#897 guard shapes if a channel exists, which is why it is
-  sequenced after their measurements but before any of the three
-  detectors is re-classified. The issue's non-scope binds: no typed
-  refusals as a drive-by.
+- **MESH-8 — #868, the coherence-detector relocation (M/L; under
+  the Q2 ruling).** Delete the three mesh-side detectors; land the
+  body-side coherence examination with a non-gating findings report
+  per the ruling; the door decision (tier-adjacent examine vs
+  step-import diagnostics) is the unit's first recorded question,
+  answered by the dependency graph and the finding's audience. The
+  issue's non-scope still binds: no condition becomes a refusal as
+  a drive-by. Sequenced after MESH-3 (which may add a fourth
+  detector-adjacent guard to the same file).
 - **MESH-9 — #950, parked with a trigger.** The issue's own words:
   neither fix is needed until a body presents the configuration, and
   the failure is a typed `CertificateExceeded` refusal that names it
@@ -218,16 +221,19 @@ program's leave — same orchestrator, seam recorded in both plans.
    unit that measures their cost, adds them as debug-profile-only
    guards if cheap, and otherwise records the verdict and closes
    #897.
-2. **Q2 — #868's warning channel shape (OPEN; sharpened in-chat
-   2026-09-01).** Evan's question — are the detector conditions
-   kernel-bug indicators? — is answered no: all three fire on input
-   (a defective source file), and the mesh does not depend on the
-   detected quantity, so today (debug-assertions on in release) a
-   legal-but-dirty import panics over a diagnostic, and after the
-   debug-off transition the detectors vanish. The choice as
-   sharpened: (a) the mesh-local typed warning below, (b) delete
-   the three detectors, (c) leave as-is until the transition forces
-   it. Recommendation unchanged: (a).
+2. **Q2 — RULED (Evan, in-chat, 2026-09-01): option (d),
+   relocation.** The three detectors measure body-data coherence
+   (carrier-vs-vertex gaps computable from the body alone — no mesh
+   state, no δ dependence), so the conditions move to the body's own
+   examination lane and the mesh-side debug_asserts are DELETED —
+   the tessellator stops being a lint for other people's data and
+   `tessellate`'s signature never changes. MESH-8 reshapes to the
+   relocation unit: one body-side coherence examination with a
+   NON-GATING findings report (bodies that mesh today keep meshing;
+   nothing panics), the unit's first job being to confirm which door
+   carries it (tier-adjacent examine vs step-import diagnostics) and
+   its second to show each relocated condition firing on the same
+   witness the mesh assert would have caught.
    **mesh-local**, a typed `MeshWarning` (all three detectors measure
    the same thing — a gap against a lever arm, in meters, against ε,
    so the payload is a struct, not a string), returned beside the
