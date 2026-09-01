@@ -90,10 +90,7 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
         }
         // An in-band escalation is the honest decline; only the rung-5
         // `Invalid` (constructed ≠ certified) is a broken premise.
-        Err(e) => (
-            None,
-            matches!(e.margin, geom_core::MarginDiag::Invalid),
-        ),
+        Err(e) => (None, matches!(e.margin, geom_core::MarginDiag::Invalid)),
     }
 }
 
@@ -125,7 +122,11 @@ fn r2_adversarial_rays_agree_with_the_independent_counter() {
         (Point3::new(1.3 - 1e-12, 0.0, -5.0), ez, None), // inside the tangency band
         (Point3::new(0.31, 0.27, -3.0), ez, Some(4)), // grazes high in the tube
         // Through the centre: pierces the tube on both sides.
-        (Point3::new(2.0, 1.0, 3.0), Vec3::new(-2.0, -1.0, -3.0), Some(4)),
+        (
+            Point3::new(2.0, 1.0, 3.0),
+            Vec3::new(-2.0, -1.0, -3.0),
+            Some(4),
+        ),
     ];
     for (q, d_raw, expect) in cases {
         let (got, escalated) = probe(q, d_raw, band);
@@ -198,9 +199,7 @@ fn r2_lattice_certified_counts_agree_with_the_independent_counter() {
                     }
                     for (a, b) in ts.iter().zip(independent.iter()) {
                         if (a - b).abs() > 1e-6 {
-                            mismatches.push(format!(
-                                "root {a} vs bisected {b} at {q:?} {d_raw:?}"
-                            ));
+                            mismatches.push(format!("root {a} vs bisected {b} at {q:?} {d_raw:?}"));
                         }
                     }
                 }
