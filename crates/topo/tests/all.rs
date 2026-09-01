@@ -112,6 +112,10 @@ mod mate8_witness_schedule;
 mod merge_skip;
 #[path = "r1_mate4a_probes.rs"]
 mod r1_mate4a_probes;
+#[path = "r1_mate8_probes.rs"]
+mod r1_mate8_probes;
+#[path = "r1_mate8_decomp_probe.rs"]
+mod r1_mate8_decomp_probe;
 #[path = "r1_mate5_interval_probe.rs"]
 mod r1_mate5_interval_probe;
 #[path = "r1_mate5_probe.rs"]
