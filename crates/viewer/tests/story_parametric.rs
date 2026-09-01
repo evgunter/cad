@@ -31,12 +31,13 @@ mod common;
 
 use core::f64::consts::PI;
 
+use common::{body_volume, insert, near};
 use pncad::document::{
-    Axis3, BooleanOp, BooleanValue, Dimension, Doc, DocEdit, DocParam, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId, StepArg,
+    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, ParamName, ProfileProgram, RecipeNodeId,
+    SlotId, StepArg,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{MM, ValuePayload};
+use pncad::prelude::MM;
 use pncad::profile::SketchPlane;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, written_unit};
@@ -66,30 +67,6 @@ fn lighthouse_volume(base_r: f64, taper: f64, height: f64, embed: f64, lamp_h: f
     PI * (r0 * r0 * height + r1 * r1 * (2.0 * height) + r2 * r2 * lamp_h
         - r1 * r1 * embed
         - r2 * r2 * embed)
-}
-
-/// `got` agrees with the closed form to a relative tolerance the
-/// curved mass-property quadrature holds (the tour's boolean oracle
-/// gates the same shapes at 1e-9 absolute near unit scale).
-fn near(got: f64, want: f64) -> bool {
-    ((got - want) / want).abs() < 1e-9
-}
-
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
 }
 
 /// Replace one slot's expression from source text, asserting the door
@@ -141,24 +118,12 @@ fn param_of(doc: &Doc<ProfileProgram>, name: &ParamName) -> SlotValue {
         .value
 }
 
-/// The evaluated volume of `node`'s single body, with the seam pumped
-/// — the SHOWN document's evaluation, so mid-gesture it reads the
-/// scratch preview exactly as the viewport does.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let body = match &eval.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(body) => body.clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
-        other => panic!("expected a body, got {other:?}"),
-    };
-    pncad::topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume
-}
-
 /// One drum: a circle profile on world XY driven by `radius_expr`,
 /// extruded up by a literal the caller may re-drive afterwards.
+///
+/// Stacked extruded drums rather than one revolved silhouette,
+/// because `ProfileShape` spells no revolvable silhouette — the
+/// template poverty issue 1457 tracks.
 fn drum(
     session: &mut DocSession,
     radius_expr: &str,
@@ -265,6 +230,10 @@ fn the_parametric_living_walk() {
     // ── 4. The base drum: a circle profile whose radius is DRIVEN by
     // `base_r`, extruded by `height`. The slot rows say who drives
     // what, and the evaluated body is the closed-form cylinder.
+    // The literal 0.03 deliberately equals `height`'s value, so the
+    // part is coherent even mid-build; were the expression below to
+    // silently not take over, the stage-9/11 parameter ripples would
+    // catch the literal standing still.
     let (base_profile, base) = drum(&mut session, "base_r", 0.03);
     drive(&mut session, base, SlotId::Distance, "height");
     let radius_row = row_of(
@@ -293,6 +262,9 @@ fn the_parametric_living_walk() {
         &mut session,
         SessionOp::AddTransform {
             input: tower,
+            // 0.025 deliberately equals `height - embed` today, so the
+            // part is coherent before the drive lands; a literal that
+            // stayed driving would be caught by the stage-9/11 ripples.
             translation: [0.0, 0.0, 0.025],
             rotation_axis: [0.0, 0.0, 1.0],
             rotation_angle: 0.0,
@@ -355,6 +327,9 @@ fn the_parametric_living_walk() {
         &mut session,
         SessionOp::AddTransform {
             input: lamp,
+            // 0.08 deliberately equals `height * 3 - embed * 2` today
+            // (coherent mid-build); a literal that stayed driving would
+            // be caught by the stage-9/11 parameter ripples.
             translation: [0.0, 0.0, 0.08],
             rotation_axis: [0.0, 0.0, 1.0],
             rotation_angle: 0.0,
@@ -421,8 +396,11 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "and mints no history");
 
     // ── 8. About to move `taper`, the user asks how far it can go.
-    // The probe is explicit, commits nothing, and answers in the
-    // session: below, a wall exists (a drum's radius hits zero before
+    // The probe targets the PARAMETER, not a driven slot: on an
+    // expression-driven slot the probe lacks the `DrivenByExpression`
+    // guard its sibling doors have (issue 1458), so the parameter door
+    // is the one that behaves. The probe is explicit, commits nothing,
+    // and answers in the session: below, a wall exists (a drum's radius hits zero before
     // taper does — degenerate profile), so the low side is an EDGE
     // strictly inside (0, taper); above, the drums merely re-stack, so
     // the search finds real room past the first reach. A probe on an
@@ -611,14 +589,14 @@ fn the_parametric_living_walk() {
         assert_eq!(outcome.previewed.len(), 1);
     }
     let previewed = body_volume(&mut session, lighthouse, tol);
-    let want = lighthouse_volume(BASE_R, TAPER, 0.04, EMBED, 0.013);
+    // The drag passed 0.04 second and 0.036 last: the picture reads
+    // the newest preview's volume, not a stale one's.
+    let stale_volume = lighthouse_volume(BASE_R, TAPER, 0.04, EMBED, 0.013);
     assert!(
-        // The volume of the LAST preview evaluated: the drag passed
-        // 0.04 second and 0.036 last, so this reads 0.036's volume.
         near(
             previewed,
             lighthouse_volume(BASE_R, TAPER, 0.036, EMBED, 0.013)
-        ) && !near(previewed, want),
+        ) && !near(previewed, stale_volume),
         "the picture follows the newest preview: {previewed}"
     );
     assert_eq!(
@@ -745,11 +723,11 @@ fn the_parametric_living_walk() {
         "same solid after reload"
     );
 
-    // ── 14. The gallery door: when the orchestrator asks for a
-    // rendering, save the finished part there through the session's
-    // own save door. No assertion depends on the variable being set.
-    if let Some(gallery) = std::env::var_os("PNCAD_STORY_GALLERY") {
-        let shot = std::path::Path::new(&gallery).join("story-lighthouse.pncad");
+    // ── 14. The gallery door (`common::story_gallery_dir` states the
+    // contract): the finished part, saved through the session's own
+    // save door.
+    if let Some(gallery) = common::story_gallery_dir() {
+        let shot = gallery.join("story-lighthouse.pncad");
         let outcome = session.perform(SessionOp::Save(shot));
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }

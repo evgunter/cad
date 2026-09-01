@@ -231,17 +231,18 @@ const EDGE_MARK_HOVERED: u32 = 1;
 /// shaded pass's marks do (`EdgePass`'s note on the shared base).
 const EDGE_FLAG_PROBE: u32 = 2;
 
-/// The constant half of the edge pass's depth bias, in units of the
-/// smallest resolvable depth increment at the fragment.
+/// The edge pass's depth nudge: a dimensionless multiplicative shrink
+/// applied to clip-space z in `vs_edge`, before the perspective
+/// divide.
 ///
-/// Applied in `vs_edge` as a RELATIVE shrink of clip-space z, not as
-/// pipeline `DepthBiasState`: WebGPU validation forbids a depth bias
-/// on non-triangle topology, so a line pipeline that asks for one
-/// refuses to build at all. For a float depth buffer the two are the
-/// same currency — an f32's quantum at depth `z` is `z * 2^-23`, so a
-/// multiplicative `z * (1 - k * 2^-23)` IS "k quanta toward the eye"
-/// at every depth, which is what the fixed-function constant bias
-/// meant on this format.
+/// Applied in the vertex shader, not as pipeline `DepthBiasState`:
+/// WebGPU validation forbids a depth bias on non-triangle topology,
+/// so a line pipeline that asks for one refuses to build at all. On a
+/// float depth buffer the shrink is worth a handful of quanta at
+/// every depth — an f32's ulp steps per binade, so `z * k * 2^-23`
+/// lands between k/2 and k quanta depending on where `z` sits within
+/// its binade — never exactly "k quanta", but enough either way to
+/// clear the shared-position z-fight.
 ///
 /// **Eyeballed, and there is no measurement behind it**: the lines lie
 /// exactly on the surface (they share its positions), so a nudge
@@ -251,10 +252,16 @@ const EDGE_FLAG_PROBE: u32 = 2;
 /// era's two, because a vertex-shader nudge has no slope-scaled half —
 /// the extra quanta stand in for what `slope_scale` gave a line lying
 /// on a steeply-angled facet. The pass writes no depth, so an
-/// over-large bias could only make a mark show through geometry it
+/// over-large shrink could only make a mark show through geometry it
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
-const EDGE_NDC_BIAS: f32 = 1.0e-6;
+///
+/// `crate::pick`'s `OCCLUSION_SLACK_REL` plays the same
+/// coincident-edge-over-its-own-face role on the CPU pick lane, in a
+/// different numeric domain (f64 world-depth comparison there, f32
+/// clip z here) — a pointer each way, deliberately not one shared
+/// constant.
+const EDGE_CLIP_Z_SHRINK: f32 = 1.0e-6;
 
 struct Geometry {
     positions: wgpu::Buffer,
@@ -731,10 +738,10 @@ impl EdgePass {
                 // The polyline's chord points ARE mesh positions the
                 // triangles share, so the line lands exactly on the
                 // surface's own depth: `LessEqual` plus the vertex
-                // shader's `EDGE_NDC_BIAS` nudge is what keeps it from
-                // z-fighting with the facet it borders. No
+                // shader's `EDGE_CLIP_Z_SHRINK` nudge is what keeps it
+                // from z-fighting with the facet it borders. No
                 // `DepthBiasState` here — WebGPU refuses one on a line
-                // topology (see `EDGE_NDC_BIAS`).
+                // topology (see `EDGE_CLIP_Z_SHRINK`).
                 depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
@@ -1018,7 +1025,7 @@ fn shader_source() -> String {
         )
         .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
-        .replace("{{EDGE_NDC_BIAS}}", &format!("{EDGE_NDC_BIAS:e}"))
+        .replace("{{EDGE_CLIP_Z_SHRINK}}", &format!("{EDGE_CLIP_Z_SHRINK:e}"))
 }
 
 const SHADER: &str = r#"
@@ -1117,10 +1124,11 @@ fn vs_edge(
 ) -> EdgeOut {
     var out: EdgeOut;
     out.clip_position = uniforms.view_projection * vec4<f32>(position, 1.0);
-    // The line pass's depth bias, relocated here from the pipeline —
-    // WebGPU forbids DepthBiasState on a line topology. Relative
-    // shrink = quanta on a float depth buffer; see EDGE_NDC_BIAS.
-    out.clip_position.z *= 1.0 - {{EDGE_NDC_BIAS}};
+    // The line pass's depth nudge, in the shader because WebGPU
+    // forbids DepthBiasState on a line topology: a relative shrink of
+    // clip z, worth a few float-depth quanta at any depth; see
+    // EDGE_CLIP_Z_SHRINK.
+    out.clip_position.z *= 1.0 - {{EDGE_CLIP_Z_SHRINK}};
     out.mark = mark;
     return out;
 }
@@ -1166,3 +1174,42 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
     return in.id;
 }
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every `{{TOKEN}}` in [`SHADER`] must be substituted by
+    /// [`shader_source`]: an unreplaced token would reach the WGSL
+    /// compiler as a parse error at pipeline build — i.e. at app
+    /// startup, not at test time. Both directions are pinned: the
+    /// substituted source carries no `{{`, and the template still
+    /// spells every token `shader_source` replaces (a token renamed on
+    /// one side only would otherwise pass silently).
+    ///
+    /// Runs only under `--features app`, the module's own gate — an
+    /// instance of issue 1451's class: no CI row builds the app
+    /// feature, and the smoke row proposed there is where this starts
+    /// gating.
+    #[test]
+    fn every_shader_token_is_substituted() {
+        let source = shader_source();
+        assert!(
+            !source.contains("{{"),
+            "an unreplaced template token survives in the shader source"
+        );
+        for token in [
+            "{{FLAG_PROBE}}",
+            "{{FLAG_FOCUS}}",
+            "{{EDGE_MARK_HOVERED}}",
+            "{{EDGE_FLAG_PROBE}}",
+            "{{EDGE_CLIP_Z_SHRINK}}",
+        ] {
+            assert!(
+                SHADER.contains(token),
+                "the template no longer spells {token}; keep this list \
+                 and shader_source's replacements in step"
+            );
+        }
+    }
+}

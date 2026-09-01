@@ -9,9 +9,11 @@
 //! volume has a closed form the assertions derive beside the ops. (The
 //! crown is square deliberately: a slab cut through a cylinder WALL is
 //! the boolean's curved-sector frontier and refuses typed —
-//! `CurvedSectorSideUnsupported` — while the curved unions below are
-//! the supported boss class. The story stays on what the kernel
-//! ships.) On the way
+//! `CurvedSectorSideUnsupported`, issue 1455's frontier — while the
+//! curved unions below are the supported boss class. The story stays
+//! on what the kernel ships. Stacked discs stand in for the revolved
+//! silhouette a rook naturally is: `ProfileShape` spells no revolvable
+//! silhouette — issue 1457.) On the way
 //! the user mis-picks a boolean (typed refusals), tries to crown the
 //! rook with a circular pattern and learns instances are not a body,
 //! deletes that experiment (the cascade, priced by the affordance
@@ -38,7 +40,8 @@ mod common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use pncad::document::{BooleanOp, BooleanValue, Doc, DocEdit, RecipeNodeId, SlotId};
+use common::{body_volume, insert, near};
+use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::ValuePayload;
 use pncad::profile::SketchPlane;
@@ -87,6 +90,11 @@ const DRUM_H2: f64 = 0.009;
 /// History states from `NewDocument` to the carved rook: the root
 /// plus seventeen committed edits.
 const CARVED_STATES: usize = 18;
+/// Edits on the FINAL saved path: the seventeen carving edits
+/// (`CARVED_STATES` less the root) plus the taller-drum edit. Equal to
+/// `CARVED_STATES` only because one root and one drum edit cancel —
+/// the two constants count different quantities (states vs edits).
+const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -116,30 +124,7 @@ fn carved_volume(v_plinth: f64, drum_h: f64) -> f64 {
     blank - slab_area() * d1 - d2 * (slab_area() - CUT_T * CUT_T)
 }
 
-/// `left` and `right` agree to within the relative tolerance the
-/// planar-and-quadric rows hold elsewhere in this crate.
-fn near(left: f64, right: f64) -> bool {
-    ((left - right) / right).abs() < 1e-9
-}
-
 // --- session helpers ------------------------------------------------
-
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
-}
 
 /// A circle profile of `radius` on the plane `z` up the rook's axis.
 fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
@@ -157,28 +142,6 @@ fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
             }],
         },
     )
-}
-
-/// The evaluated volume of a node's single body — an extrude's, a
-/// blend's, or a boolean's — with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let value = eval.value(node).unwrap_or_else(|| {
-        panic!(
-            "the node evaluated: {:?}",
-            eval.result(node)
-                .and_then(pncad::document::NodeResult::error)
-        )
-    });
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body.clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
-        other => panic!("expected a body, got {other:?}"),
-    };
-    pncad::topo::mass_properties(&body, tol)
-        .expect("mass properties")
-        .volume
 }
 
 /// The whole sitting, top to bottom. One test because it is one
@@ -315,8 +278,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "… ∪ shaft: {v_u2}"
     );
     // The crown is a square block (a slab cut through a cylinder WALL
-    // is the boolean's curved-sector frontier — the module docs carry
-    // the ruling), so its slots stay in the crossing-slots class.
+    // is the boolean's curved-sector frontier, issue 1455 — the module
+    // docs carry the ruling), so its slots stay in the crossing-slots
+    // class.
     let drum_profile = insert(
         &mut session,
         SessionOp::AddProfile {
@@ -478,7 +442,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     }
     // Fusing them onto the rook is refused at the door, typed: a
     // pattern's value is several bodies, not the ONE a boolean seat
-    // consumes (the F4 division the heatsink demo documents).
+    // consumes (the F4 division the heatsink demo documents). No
+    // session op wraps `Node::PlacedUnion`, so the vocabulary has no
+    // door that fuses a pattern — issue 1456 — which is why this
+    // experiment can only end in the delete below.
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Union,
@@ -650,10 +617,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             .is_none(),
         "the rook saves"
     );
-    // The file records the CURRENT PATH's linear log: seventeen
-    // creation edits plus the drum edit — the abandoned branch is
-    // session state, not document.
-    assert_eq!(session.history().path_edits().len(), CARVED_STATES);
+    // The file records the CURRENT PATH's linear log — the abandoned
+    // branch is session state, not document.
+    assert_eq!(session.history().path_edits().len(), SAVED_PATH_EDITS);
     let saved_doc = session.committed_doc().clone();
     assert!(
         session.perform(SessionOp::Open(path)).refusal.is_none(),
@@ -665,7 +631,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(
         session.history().path_edits().len(),
-        CARVED_STATES,
+        SAVED_PATH_EDITS,
         "the reopened history replays exactly the saved log"
     );
     // Same ids (the log replays in order), same solid, bit for bit.
@@ -676,11 +642,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "the reopened rook is the same solid"
     );
 
-    // The story-gallery door: when the orchestrator sets the variable,
-    // the finished piece is saved there through the session's own save
-    // door. Nothing above depends on it.
-    if let Some(gallery) = std::env::var_os("PNCAD_STORY_GALLERY") {
-        let shot = std::path::Path::new(&gallery).join("story-authoring-chess-rook.pncad");
+    // The story-gallery door (`common::story_gallery_dir` states the
+    // contract): the finished piece, saved through the session's own
+    // save door. Nothing above depends on it.
+    if let Some(gallery) = common::story_gallery_dir() {
+        let shot = gallery.join("story-authoring-chess-rook.pncad");
         let out = session.perform(SessionOp::Save(shot));
         assert!(
             out.refusal.is_none(),
@@ -688,4 +654,5 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             out.refusal
         );
     }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }

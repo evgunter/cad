@@ -26,18 +26,17 @@
 
 mod common;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use pncad::document::{
-    AxisSense, Doc, DocEdit, DocumentId, Frame, MatePrimitive, RecipeNodeId, solve_document,
-};
+use common::asm;
+use common::{body_volume, insert, near};
+use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::prelude::ValuePayload;
-use pncad::select::{ContactClass, Ray, Resolution, RunCtx, resolve};
+use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::DisplayFault;
 use viewer::input::ViewportSize;
-use viewer::matetool::{MateChoice, MateTool, MateToolState};
+use viewer::matetool::{MateTool, MateToolState};
 use viewer::pick::PickIndex;
 use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, ProfileShape, Refusal, Selection, SessionOp,
@@ -74,43 +73,6 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     session
-}
-
-/// Perform one op that must commit exactly one `InsertNode`, answering
-/// the id of the node it inserted (the newest node in the document).
-fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    assert!(matches!(
-        outcome.committed.first(),
-        Some(DocEdit::InsertNode { .. })
-    ));
-    *session
-        .committed_doc()
-        .order()
-        .last()
-        .expect("the insert landed")
-}
-
-/// The evaluated volume of `node`'s body, with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    match &eval.value(node).expect("the node evaluated").payload {
-        ValuePayload::Body(body) => {
-            pncad::topo::mass_properties(body, tol)
-                .expect("mass properties")
-                .volume
-        }
-        other => panic!("expected a body, got {other:?}"),
-    }
-}
-
-/// `left` and `right` agree to within a relative tolerance the planar
-/// rows can hold.
-fn near(left: f64, right: f64) -> bool {
-    ((left - right) / right).abs() < 1e-9
 }
 
 /// Author one box part through the creation ops — a new document, one
@@ -157,33 +119,6 @@ fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
     node
 }
 
-/// The pick index for a session's landed evaluation.
-fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    let delta = viewer::scene::DisplayTolerance::new(1.0e-3).expect("a positive delta");
-    PickIndex::build(doc, eval, generation, delta, session.tol()).expect("the assembly indexes")
-}
-
-/// A ray straight down onto the assembly at `(x, y)`.
-fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 1.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
-
-/// A ray straight up from under the assembly at `(x, y)` — how a
-/// parked part's underside is picked.
-fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    }
-}
-
 /// Pick a face through the session's real ray path, under the current
 /// display view (parked parts are picked where they are drawn).
 fn pick_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
@@ -192,18 +127,6 @@ fn pick_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection 
         .face_at_for(eval, ray, &session.display_view())
         .expect("the pick answers")
         .expect("the ray hits")
-}
-
-/// The seat choice every mate here commits: Rest at frame coincidence,
-/// axes opposed, no clocking rider (on a frame coincidence the coset
-/// table decides any nonzero rider contradictory).
-fn seat() -> MateChoice {
-    MateChoice {
-        class: ContactClass::Rest,
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
 }
 
 /// Componentwise closeness at the solve's tolerance.
@@ -396,7 +319,7 @@ fn the_windmill_story() {
 
     // ── 5. HIDE the hub: the picture drops it, the document keeps
     // it — display state, never an edit, never history.
-    let index = index_of(&session);
+    let index = asm::index_of(&session);
     let full_triangles = index
         .scene_for(&session.display_view())
         .expect("a scene")
@@ -538,9 +461,9 @@ fn the_windmill_story() {
     // underside (picked where it is DRAWN — the parked spot), then the
     // tower's top. One committed edit; the same outcome reports the
     // hub's probe superseded — discarded, not zeroed.
-    let hub_bottom = pick_at(&session, &index, &up_at(HUB_PARK[0], HUB_PARK[1]));
+    let hub_bottom = pick_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
     assert_eq!(hub_bottom.node, hub_i, "the parked hub is picked");
-    let tower_top = pick_at(&session, &index, &down_at(0.0, 0.0));
+    let tower_top = pick_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
     tool.pick(hub_bottom);
@@ -548,7 +471,7 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, tol, seat())
+        tool.proposal(doc, eval, tol, asm::seat())
             .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op());
@@ -650,10 +573,18 @@ fn the_windmill_story() {
     let sail_b = add_instance(&mut session, sail_id);
     park(&mut session, sail_a, SAIL_A_PARK);
     park(&mut session, sail_b, SAIL_B_PARK);
-    let index = index_of(&session);
-    let sail_a_bottom = pick_at(&session, &index, &up_at(SAIL_A_PARK[0], SAIL_A_PARK[1]));
+    let index = asm::index_of(&session);
+    let sail_a_bottom = pick_at(
+        &session,
+        &index,
+        &asm::up_at(SAIL_A_PARK[0], SAIL_A_PARK[1]),
+    );
     assert_eq!(sail_a_bottom.node, sail_a);
-    let sail_b_bottom = pick_at(&session, &index, &up_at(SAIL_B_PARK[0], SAIL_B_PARK[1]));
+    let sail_b_bottom = pick_at(
+        &session,
+        &index,
+        &asm::up_at(SAIL_B_PARK[0], SAIL_B_PARK[1]),
+    );
     assert_eq!(sail_b_bottom.node, sail_b);
     // The hub's front and back walls, picked at the seated hub's
     // mid-height from either side.
@@ -683,7 +614,7 @@ fn the_windmill_story() {
     tool.pick(front_wall);
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, tol, seat())
+        tool.proposal(doc, eval, tol, asm::seat())
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op());
@@ -712,12 +643,16 @@ fn the_windmill_story() {
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
-            .proposal(doc, eval, tol, seat())
+            .proposal(doc, eval, tol, asm::seat())
             .expect("the second sail proposes");
         // Turn the roll: of the derived reference and its in-plane
         // quarter turn (for unit vectors, r turned 90° about n is
         // n × r), keep whichever lands the blade square to the first —
         // the two walls are parallel planes, so exactly one does.
+        // Hand-derived because no affordance clocks a mate: the coset
+        // table statically refuses a clocking rider on a frame
+        // coincidence, and `face_frame` roll references carry no
+        // documented relation across opposite walls — issue 1461.
         let mut chosen = base;
         let derived = vc(chosen.alignment.b.reference);
         let quarter = vc(chosen.alignment.b.axis).cross(derived);
@@ -804,7 +739,12 @@ fn the_windmill_story() {
     // construction — documentation, not a gate).
     let saved = session.perform(SessionOp::Save(asm_path.clone()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    let saved_doc = session.committed_doc().clone();
     let reopened = open_at(&asm_path, tol);
+    assert!(
+        reopened.committed_doc().bit_eq(&saved_doc),
+        "save → reopen is bit-identity on the document"
+    );
     let rows = reopened.tree_rows();
     assert_eq!(rows.len(), 7, "the whole recipe came back");
     for row in &rows {
@@ -832,12 +772,11 @@ fn the_windmill_story() {
         );
     }
 
-    // ── 13. THE GALLERY DOOR: when the orchestrator names a gallery
-    // directory, save the windmill there through the session's own
-    // save door — parts beside the assembly, so the file opens
-    // standalone. Skipped (not weakened) when unset.
-    if let Some(gallery) = std::env::var_os("PNCAD_STORY_GALLERY") {
-        let gallery = PathBuf::from(gallery);
+    // ── 13. THE GALLERY DOOR (`common::story_gallery_dir` states the
+    // contract): the windmill saved through the session's own save
+    // door — parts beside the assembly, so the file opens standalone.
+    // Skipped (not weakened) when unset.
+    if let Some(gallery) = common::story_gallery_dir() {
         for (source, name) in [
             (&tower_file, "story-windmill-tower.pncad"),
             (&hub_file, "story-windmill-hub.pncad"),
