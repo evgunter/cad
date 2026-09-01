@@ -1,6 +1,12 @@
 # Torus×torus rim tangency (issue 968 item 3) — design conversation
 
-**STATUS: DRAFT — for Evan.** The pre-implementation ruling MATE-7
+**STATUS: PARTLY RULED (Evan, in-chat, 2026-09-01): question 2
+RULED — `tangent_locus` may grow the torus×torus arm in MATE-7,
+WITH A DEMO landing alongside it (a tour scene exercising what the
+witness certifies, per the standing demo-purpose rule). Question 1
+is OPEN — Evan asked for the design considerations in full; the
+section added at the end lays them out and adds a THIRD option.
+Question 3 follows question 1.** The pre-implementation ruling MATE-7
 needs (the Q4 ruling scheduled the torus declared-Rest lane last
 and sent this disposition back separately, per the issue-966
 record). MATE-7's other two needs — the torus operand gate under
@@ -85,3 +91,66 @@ Recommendation: the case split (1), witness growth in MATE-7 (2),
 split into two units with gate+rung first (3) — the lily's stem
 retires on the (b) arm, which the first unit's gate and rung
 already unblock.
+
+## The design considerations, in full (added 2026-09-01, answering Evan)
+
+**The geometry.** Two tori sharing a rim circle are two physically
+different situations wearing one description:
+
+1. **The smooth continuation** — walking across the rim, the
+   tangent plane is continuous and material fills a π wedge. This
+   is the tube chain: consecutive segments of one bent pipe meeting
+   at a circular seam. The lily's stem-corm weld is this. There is
+   nothing to *declare* here — the rim is a seam of one composite
+   wall, and the join's job is purely structural: zip the two walls
+   into one body carrying a π edge (the treatment M9-3 already
+   ships for the tube chain).
+2. **The kiss** — tangent planes agree at the rim but the composed
+   material pinches to wedge 0 (a knife-edge circle) or opens to 2π
+   (a circular slit). This is the declared-cusp family the #131
+   ruling covers for straight edges, at a circular rim. Here a
+   DECLARATION is mandatory (the C7 rule: tangency is never
+   inferred from values — the author must say the kiss is
+   intended), and verification needs a certified WITNESS that the
+   two surfaces genuinely touch along that circle. `tangent_locus`
+   is the witness lane, and it has no torus×torus arm — growing one
+   is real certified-numerics work.
+
+**Why the old conversation was stuck.** At #966 time the kernel
+could not TELL these situations apart, so the thread had to pick
+one treatment for the whole class — hence the two candidate shapes,
+each right for one situation and wrong for the other.
+
+**What changed.** MATE-3 landed the material-wedge verdict table:
+given the face senses and the tangency jet, the kernel now
+CLASSIFIES a rim (π vs 0/2π vs in-band-escalate). So the class no
+longer needs one answer — the table can route each rim to its
+treatment.
+
+**The honest catch.** The table runs at tier-3 validation, AFTER a
+body exists. The case split needs the classification at JOIN time,
+while zipping — new consumption of the table's machinery inside the
+boolean lane, whose price is unmeasured, and the emission arm that
+would mint declarations at joins (MATE-3's item-4 handoff) is not
+built.
+
+**What each ruling buys and costs:**
+- **Case split now**: both situations get their defined path; the
+  join learns to ask the wedge question (unpriced); the kissing arm
+  has no demo demanding it yet.
+- **(b)-only now**: the lily's situation is fully served with no
+  new machinery beyond MATE-7's gate and rung; kissing tori stay
+  typed refusals; the routing question returns whenever someone
+  authors a kissing pair.
+- **THIRD OPTION — ratify the routing, build only the π arm**:
+  rule the PRINCIPLE (the wedge table decides which treatment a rim
+  gets) into the design now, implement only treatment (1), and
+  leave treatment (2) as a defined-but-unbuilt path whose typed
+  refusal cites this ruling. This is the A11-rider pattern — ruled
+  ahead of implementation — and separates "what is the design"
+  from "what do we build". Under it, question 3's answer falls
+  out: MATE-7 splits, gate + carrier rung + the π-arm join wiring
+  (+ the ruled demo) first, the kissing arm banked with its ruling
+  of record.
+
+Recommendation, updated: the third option.
