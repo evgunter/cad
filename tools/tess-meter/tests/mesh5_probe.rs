@@ -7,6 +7,30 @@
 //! it fed — one azimuth column takes no rows — lives at
 //! `mesh::curved::grid_counts`' cone arm; the pinned rows live in
 //! `mesh/tests/issue685_nu1_sizing.rs`.
+//!
+//! # Hygiene, disclosed rather than restructured
+//!
+//! - The 45-sample barycentric deviation loop (`n = 8` divisions,
+//!   (n+1)(n+2)/2 samples per triangle) appears TWICE in this file
+//!   (the wedge sweep's inline pass and `curved_report`), again in
+//!   `mesh5_r2probe.rs`, and in `mesh/tests/common` at `n = 4` — a
+//!   copy class. Sharing one spelling would cross the workspace
+//!   boundary (this crate is workspace-excluded so the meter can stay
+//!   out of kernel builds) or add a shared dev-dep crate; for review
+//!   instruments the copies are accepted and this sentence is the
+//!   register of them.
+//! - `schedule()` restates two kernel constants with nothing keeping
+//!   them in step: its `FRAC_PI_4` cap is `mesh::sizing::
+//!   MAX_ANGULAR_STEP` and its `delta * 0.5` is
+//!   `mesh::sizing::sizing_target`, both `pub(crate)` and not
+//!   importable from outside the workspace. If the kernel's spelling
+//!   moves, this restatement goes stale and the (nu, nv) column —
+//!   only that column — reads the OLD schedule; the tessellated
+//!   counts beside it are always the live kernel's.
+//! - The sibling-case table is a printed report with inline
+//!   assertions as its only guard; no register re-takes its numbers.
+//!   Its verdicts (watertight, dev within δ) are asserted, its
+//!   magnitudes are dated at the head that printed them.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -231,6 +255,13 @@ fn mesh5_sibling_cases() {
                         "{name:>20} d={delta:<6} tris={tris:<5} watertight={wt} \
                          max_dev={max_dev:.3e} dev/delta={:.3}",
                         max_dev / delta
+                    );
+                    // The table's verdicts are asserted; only its
+                    // magnitudes are a dated report (module docs).
+                    assert!(wt, "{name} at delta = {delta}: served non-watertight");
+                    assert!(
+                        max_dev <= delta,
+                        "{name} at delta = {delta}: served out of tolerance ({max_dev})"
                     );
                 }
                 Err(e) => println!("{name:>20} d={delta:<6} REFUSED {e:?}"),

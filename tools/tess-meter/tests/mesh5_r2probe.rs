@@ -230,6 +230,7 @@ fn r2_overflow_edge_needle_cone() {
 fn r2_cone_shape_sweep() {
     let theta = core::f64::consts::FRAC_PI_6;
     // (name, profile polygon, deltas at which nu == 1).
+    #[allow(clippy::type_complexity)]
     let shapes: [(&str, [Point2<f64>; 3], &[f64]); 4] = [
         (
             "tall a~0.10",

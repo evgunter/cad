@@ -151,6 +151,7 @@ fn a_public_door_mints_the_removed_refusal() {
         }
         minted_cone += 1;
         let half_angle = angles[0].0;
+        #[allow(clippy::single_element_loop)] // a sweep hook: more deltas slot in here
         for &delta in &[0.1_f64] {
             // rho_max is the patch's largest radius; vspan its slant
             // extent. For this wall: rho_max = r1, slant = h/cos(alpha).

@@ -14,15 +14,15 @@
 //! The three readings, all over the SAME patch `u ∈ [0, U]`,
 //! `v ∈ [v0, v1]`:
 //!
-//! * `strip`  — the decided answer: no interior grid points at all.
-//! * `rows`   — the v-schedule honoured LITERALLY (issue 685's own
-//!              wording: "emit the rows"), i.e. `k` interior v-rows
-//!              whose endpoints sit on the two meridian sides. This is
-//!              the counterfactual PR 1507 could NOT build in the
-//!              kernel (the grid loop needs `nu >= 2` before any
-//!              interior point exists), so it is only measurable here.
-//! * `grid`   — the counterfactual the PR actually measured: `m`
-//!              interior columns AND `k` interior rows.
+//! * `strip` — the decided answer: no interior grid points at all.
+//! * `rows` — the v-schedule honoured LITERALLY (issue 685's own
+//!   wording: "emit the rows"), i.e. `k` interior v-rows whose
+//!   endpoints sit on the two meridian sides. This is the
+//!   counterfactual PR 1507 could NOT build in the kernel (the grid
+//!   loop needs `nu >= 2` before any interior point exists), so it is
+//!   only measurable here.
+//! * `grid` — the counterfactual the PR actually measured: `m`
+//!   interior columns AND `k` interior rows.
 //!
 //! The rim (`v = v1`) keeps ONE azimuthal chord in every reading,
 //! because in the kernel the rim is boundary geometry sized by
@@ -139,7 +139,7 @@ fn patch(alpha: f64, uspan: f64, v0: f64, v1: f64, m: usize, k: usize) -> (usize
 }
 
 /// The kernel's cone sizing, restated from `mesh::curved::grid_counts`
-/// + `mesh::sizing` (both private) so this file can say which shapes
+/// plus `mesh::sizing` (both private) so this file can say which shapes
 /// are in the `nu == 1` regime at all. If the kernel's spelling moves,
 /// this restatement is what goes stale — it is a REVIEW instrument and
 /// the numbers it gates are re-derived, not imported.

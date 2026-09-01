@@ -649,6 +649,16 @@ const SPHERE_SIZING_MARGIN: f64 = 1.25;
 /// and for a torus, so `has_pole` is false on those two arms for every
 /// input there is, and the `debug_assert`s below say so in a form that
 /// fails if it ever stops being true.
+///
+/// KNOWN SIBLING CLASS, recorded and scheduled rather than decided
+/// here: a count of 1 on either axis empties the interior grid's
+/// `1..nu × 1..nv` ranges, so the OTHER axis' schedule is computed
+/// and dropped — the sphere and torus arms at `nu == 1`, every arm at
+/// `nv == 1` with `nu >= 2`, and `trimmed::uniform_candidates` are
+/// the members. Only the cone's `nu == 1` case had a ruling argument
+/// that decides it locally (issue 685, below); the rest stay
+/// certificate-backstopped (measured watertight and in-tolerance —
+/// PR 1507's class sweep) and are the follow-up issue's to decide.
 fn grid_counts(
     chart: &Chart,
     delta_s: f64,
@@ -662,6 +672,9 @@ fn grid_counts(
         ChartKind::Cylinder { r } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a cylinder");
             let hu = sagitta_step(delta_s, r);
+            // `(nu, 1)`: ruled in v at constant radius, so no rows in
+            // any column count. The cone arm's `nu == 1` early-out
+            // below lands on this same shape by decision (issue 685).
             Ok((ceil_count(uspan, hu)?, 1))
         }
         ChartKind::Cone { half_angle } => {
@@ -671,23 +684,54 @@ fn grid_counts(
             if nu == 1 {
                 // ONE COLUMN TAKES NO ROWS, and that is the sizing
                 // decision, not an omission (issue 685). The cone is
-                // ruled in v: a triangle whose whole azimuth span is
-                // one `hu` column deviates from the surface only
-                // through its azimuthal chords, and `hu` is sized at
-                // `rho_max` — the patch's LARGEST radius — so the
-                // chord's sagitta is within delta_s at every v the
-                // patch reaches. Rows would subdivide the ruling
-                // direction, where the deviation is identically zero.
-                // Measured (the pi/6 wedge delta-sweep, issue 685):
-                // emitting the scheduled rows multiplies the patch's
-                // triangles 5-9x and moves the densely sampled
-                // deviation not at all. The rows exist to keep
+                // ruled in v, and `cert::cert_cone` makes the
+                // argument structural, not just measured: the
+                // per-triangle bound is
+                // `cosα·sinα·v_max·(1 − cos(Δu/2))`, and on a
+                // single-column patch the worst triangle keeps the
+                // patch's `v_max` and its full `Δu` however many
+                // v-rows cut the strip — v-rows provably cannot move
+                // the certificate. `hu` is sized at `rho_max`, the
+                // patch's LARGEST radius, so that bound is within
+                // delta_s for the whole strip. Measured (the pi/6
+                // wedge delta-sweep, issue 685, corroborating): rows
+                // ALONE are deviation-identical to the strip; what
+                // the "honour the schedule" reading actually costs is
+                // the interior COLUMN it must mint before any row can
+                // emit, plus the issue-678 pole floor that column
+                // triggers — 5-9x the triangles at bitwise-identical
+                // densely sampled deviation. The rows exist to keep
                 // triangles azimuth-LOCAL when there are several
                 // columns to be local to; with one column there is
                 // nothing to localize, so the v-schedule is not
                 // computed rather than computed and discarded (the
                 // interior grid's `1..nu` range is empty at 1, so a
                 // computed `nv` could only ever have been dropped).
+                // This return is the cylinder arm's `(nu, 1)` shape
+                // above, reached by decision rather than by
+                // construction.
+                //
+                // DIRECTION of the one behavior change: the skipped
+                // `ceil_count(vspan, rho_max * hu)` could refuse
+                // typed — `ResolutionOverflow` when the patch's
+                // slant-extent-to-radius ASPECT puts
+                // `vspan/(rho_max·hu)` at/above 2^24 (the aspect is
+                // the binding parameter, not the half-angle: an
+                // ordinary-aspect patch at half-angle 1e-7 sized
+                // nv = 2), or on the NON-FINITE quotient at
+                // `rho_max·hu == 0`. Such a patch is now SERVED as a
+                // certified strip instead of refused; safe because
+                // `cert_cone` gates every build, and pinned by the
+                // adopted reach probe
+                // (`tess-meter/tests/r1_mesh5_reach.rs`), which mints
+                // the aspect class through `sweep::revolve`. The
+                // non-finite class is believed unmintable: a zero
+                // half-angle is classified a CYLINDER by
+                // `sweep::revolve`'s radial-delta band, and a patch
+                // with `v_absmax == 0` (its whole v extent at the
+                // apex) is a degenerate boundary that profile
+                // validation and this file's `polygon.len() < 3`
+                // refusal close off upstream.
                 return Ok((1, 1));
             }
             Ok((nu, ceil_count(vspan, rho_max * hu)?))
@@ -1840,6 +1884,17 @@ mod tests {
     /// only ever have dropped is not computed. The ruling argument
     /// (the site comment) does not read the pole bit, so the
     /// apex-free frustum case decides the same way.
+    ///
+    /// THIS PRIVATE ROW IS THE DECISION'S ONE MECHANICAL GUARD, and
+    /// that is the right home rather than a gap: the decision's
+    /// mesh-level content is "nothing changes" (reverting the site to
+    /// compute-and-discard reproduces every emitted byte, so no
+    /// integration row CAN discriminate), and its one observable
+    /// consequence — the extreme-aspect refusal now served — is
+    /// guarded at the public door by the adopted reach probe
+    /// (`tess-meter/tests/r1_mesh5_reach.rs`, red at the merge base).
+    /// What is only observable here is the schedule bookkeeping
+    /// itself, so here is where it is pinned.
     #[test]
     fn a_single_column_cone_patch_takes_no_rows() {
         let chart = cone_chart();

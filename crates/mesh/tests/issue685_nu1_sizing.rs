@@ -81,8 +81,11 @@ fn the_pi6_cone_wedge_is_pinned_at_the_measured_deltas() {
 fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
     // Triangle revolved π/6: cone face from (2, 0)–(1, 1), apex off
     // the profile at (0, 2), ρ_max = 2, vspan = √2. At δ = 0.25,
-    // hu = 2·acos(1 − 0.125/2) ≈ 0.708 ≥ π/6: one column (and at this
-    // ρ_max the discarded schedule's own nv was already 1); at
+    // hu = 2·acos(1 − 0.125/2) ≈ 0.710842 ≥ π/6: one column — and at
+    // this ρ_max the discarded schedule's own nv was already 1, but
+    // only by a 0.53% margin (hv = ρ_max·hu ≈ 1.421685 against
+    // vspan ≈ 1.414214), so that parenthetical is one small sizing
+    // drift from flipping while this row's pins stand either way. At
     // δ = 0.1, hu ≈ 0.448 < π/6: two columns, the schedule honoured
     // (nv = 2, one interior point).
     let lp = profile::ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(1.0, 1.0)]);
