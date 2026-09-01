@@ -1109,19 +1109,21 @@ pub(super) fn torus_chart_trim<T: Decide>(
     // Positive is a window the face is trimmed by; Zero is a wrap, which
     // on this chart is a fact about the face (header); Negative is a
     // walk that wound past a period, which is no face at all.
-    let window = |name: &'static str,
-                  w: (T, T),
-                  lever: T|
-     -> Result<Option<(T, T)>, PointInSolidError> {
-        match decide(name, Margin::levered(T::tau() - (w.1 - w.0), lever), band)
-            .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-        {
-            Sign::Positive => Ok(Some(w)),
-            Sign::Zero => Ok(None),
-            Sign::Negative => Err(PointInSolidError::PartialTorusFace { face }),
-        }
-    };
-    let u = window("bool_torus_trim_major_period", u, major_radius + minor_radius)?;
+    let window =
+        |name: &'static str, w: (T, T), lever: T| -> Result<Option<(T, T)>, PointInSolidError> {
+            match decide(name, Margin::levered(T::tau() - (w.1 - w.0), lever), band)
+                .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+            {
+                Sign::Positive => Ok(Some(w)),
+                Sign::Zero => Ok(None),
+                Sign::Negative => Err(PointInSolidError::PartialTorusFace { face }),
+            }
+        };
+    let u = window(
+        "bool_torus_trim_major_period",
+        u,
+        major_radius + minor_radius,
+    )?;
     let v = window("bool_torus_trim_minor_period", v, minor_radius)?;
     // A face that wraps BOTH coordinates covers the whole chart, and a
     // face covering the whole chart has every boundary edge shared with
@@ -1176,10 +1178,7 @@ fn torus_chart_windows<T: Decide>(
     if !f.rings.is_empty() {
         return Ok(None);
     }
-    let surf = body
-        .get_surface(f.surface)
-        .cloned()
-        .ok_or_else(corrupt)?;
+    let surf = body.get_surface(f.surface).cloned().ok_or_else(corrupt)?;
     let lever = match surf {
         Surface::Torus {
             major_radius,
@@ -1237,7 +1236,11 @@ fn torus_chart_windows<T: Decide>(
             }
         }
         let (t0, t1) = curve.params();
-        let (entry_t, exit_t) = if edge.he_plus == he { (t0, t1) } else { (t1, t0) };
+        let (entry_t, exit_t) = if edge.he_plus == he {
+            (t0, t1)
+        } else {
+            (t1, t0)
+        };
         let at = |t: T| (p0.x + pl.x * t, p0.y + pl.y * t);
         let (mut entry, mut exit) = (at(entry_t), at(exit_t));
         if let Some((pu, pv)) = prev_exit {
@@ -1252,14 +1255,8 @@ fn torus_chart_windows<T: Decide>(
                 (entry.1.min(exit.1), entry.1.max(exit.1)),
             ),
             Some((u, v)) => (
-                (
-                    u.0.min(entry.0).min(exit.0),
-                    u.1.max(entry.0).max(exit.0),
-                ),
-                (
-                    v.0.min(entry.1).min(exit.1),
-                    v.1.max(entry.1).max(exit.1),
-                ),
+                (u.0.min(entry.0).min(exit.0), u.1.max(entry.0).max(exit.0)),
+                (v.0.min(entry.1).min(exit.1), v.1.max(entry.1).max(exit.1)),
             ),
         });
         prev_exit = Some(exit);
@@ -1329,8 +1326,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
         // `axis × u_ref` reproduce `â`.
         let frame = r_hat.cross(axis);
         let meridian = r_hat * (rho - major_radius) + axis * h;
-        let margin =
-            chart_azimuth_margin(face, frame, r_hat, mv, meridian, minor_radius, band)?;
+        let margin = chart_azimuth_margin(face, frame, r_hat, mv, meridian, minor_radius, band)?;
         if !ask(margin, &mut verdict)? {
             return Ok(Some(false));
         }
@@ -2641,11 +2637,7 @@ pub(super) fn line_torus_roots<T: Decide>(
         Sign::Negative => 2usize,
         Sign::Zero => return Ok(TorusRoots::Uncertain),
         Sign::Positive => {
-            let shape = decide(
-                "bool_ray_torus_shape",
-                Margin::over_lever(p, ext),
-                band,
-            )?;
+            let shape = decide("bool_ray_torus_shape", Margin::over_lever(p, ext), band)?;
             let depth = decide(
                 "bool_ray_torus_depth",
                 Margin::over_lever(
@@ -2728,11 +2720,7 @@ pub(super) fn line_torus_roots<T: Decide>(
     let mut found = 0usize;
     for (a, c) in [f0, f1] {
         let inner = a.powi(2) - four * c;
-        match decide(
-            "bool_ray_torus_split",
-            Margin::over_lever(inner, ext),
-            band,
-        )? {
+        match decide("bool_ray_torus_split", Margin::over_lever(inner, ext), band)? {
             Sign::Negative => continue,
             Sign::Zero => return Ok(TorusRoots::Uncertain),
             Sign::Positive => {}
@@ -3181,16 +3169,8 @@ fn cast_ray<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let roots = line_torus_roots(
-                    q,
-                    d,
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                    band,
-                )
-                .map_err(escalate)?;
+                let roots = line_torus_roots(q, d, center, axis, major_radius, minor_radius, band)
+                    .map_err(escalate)?;
                 let (count, ts) = match roots {
                     TorusRoots::Miss => continue,
                     // An uncertain count: graze, retry.
@@ -3219,8 +3199,7 @@ fn cast_ray<T: Decide>(
                     let hp = wp.dot(axis);
                     let rad = wp - axis * hp;
                     let rho = rad.norm();
-                    let n_chart =
-                        (rad / rho * (rho - major_radius) + axis * hp) / minor_radius;
+                    let n_chart = (rad / rho * (rho - major_radius) + axis * hp) / minor_radius;
                     let outward = oriented(
                         decide(
                             "bool_ray_torus_incidence",
