@@ -1313,6 +1313,11 @@ impl PickIndex {
 /// answering the near edge where the far one is a rounding error
 /// away; the failure being traded against is a mark drawn through
 /// solid material, which is the louder of the two.
+///
+/// `gpu.rs`'s `EDGE_CLIP_Z_SHRINK` plays the same
+/// coincident-edge-over-its-own-face role on the GPU draw lane, in
+/// f32 clip z — a pointer each way, deliberately not one shared
+/// constant.
 const OCCLUSION_SLACK_REL: f64 = 1.0e-6;
 
 /// How far below `|d|^2 |e|^2` the ray/segment denominator counts as

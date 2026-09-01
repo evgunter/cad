@@ -68,6 +68,10 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "r1_mate3_probes.rs"]
+mod r1_mate3_probes;
+#[path = "r2_mate3_probes.rs"]
+mod r2_mate3_probes;
 #[path = "r2_mesh1_donut_probes.rs"]
 mod r2_mesh1_donut_probes;
 #[path = "sf2a_r1.rs"]
@@ -330,6 +334,10 @@ mod verbs_cylcylb_r1_blinded_probes;
 mod verbs_ga_r2_probes;
 #[path = "verbs_germarms.rs"]
 mod verbs_germarms;
+#[path = "verbs_germarms2.rs"]
+mod verbs_germarms2;
+#[path = "verbs_germarms2_interval.rs"]
+mod verbs_germarms2_interval;
 #[path = "verbs_germarms_interval.rs"]
 mod verbs_germarms_interval;
 #[path = "verbs_germarms_r1_probes.rs"]
