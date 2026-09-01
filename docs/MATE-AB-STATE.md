@@ -74,3 +74,11 @@ as ordinal 1306, PR #1476). Briefs symmetric, stored at
 docs/MATE-8-REVIEW-BRIEF.md on this branch pre-dispatch; only the
 R-label and probe branch substitute ({R}=R1 ⇒ mate/8r1-probes,
 {R}=R2 ⇒ mate/8r2-probes; {OTHER} = the sibling's label+branch).
+
+MATE-7a dual DRAW (2026-09-01, recorded at dispatch): CONCURRENT on
+frozen 530eb8f59 — the three-lane budget holds (MATE-8 fix pass +
+R1 + R2). Byte 41 parity 1 ⇒ R1 FABLE + R2 OPUS (claimed on main
+as ordinal 1307, PR #1482). Briefs symmetric, stored at
+docs/MATE-7A-REVIEW-BRIEF.md on this branch pre-dispatch; only the
+R-label and probe branch substitute ({R}=R1 ⇒ mate/7a-r1-probes,
+{R}=R2 ⇒ mate/7a-r2-probes; {OTHER} = the sibling's label+branch).
