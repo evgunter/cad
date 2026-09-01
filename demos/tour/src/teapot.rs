@@ -965,8 +965,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     println!(
         "   wall 1 — RETIRED: the torus-bellied pot hollows ({} faces over two shells); \
-         its junction corners are pinned to their closed forms in \
-         crates/sweep/tests/torax_axial.rs",
+         its junction corners are pinned to their closed forms by the \
+         kernel's own torax_axial suite",
         torus_pot.faces().count()
     );
 

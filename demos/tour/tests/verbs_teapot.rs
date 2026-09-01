@@ -611,21 +611,19 @@ fn the_hollow_now_survives_every_axial_junction() {
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
     }
 
-    for (what, body, thickness, door) in [
-        (
-            "a hemisphere TANGENT to its cylinder",
-            bullet(tol),
-            t,
-            // main renamed this door's payload to
-            // `CarrierLaneUnsupported(declared)` while this branch was
-            // open. The rename is moot for the bullet: a tangent
-            // junction no longer reaches a carrier lane at all, it
-            // refuses at the corner's own transversality meter. The
-            // lifted dome and the quarter-revolve wedge, which main
-            // still lists here, are on the hollowing list above.
-            "TogetherAxialCorner",
-        ),
-    ] {
+    for (what, body, thickness, door) in [(
+        "a hemisphere TANGENT to its cylinder",
+        bullet(tol),
+        t,
+        // main renamed this door's payload to
+        // `CarrierLaneUnsupported(declared)` while this branch was
+        // open. The rename is moot for the bullet: a tangent
+        // junction no longer reaches a carrier lane at all, it
+        // refuses at the corner's own transversality meter. The
+        // lifted dome and the quarter-revolve wedge, which main
+        // still lists here, are on the hollowing list above.
+        "TogetherAxialCorner",
+    )] {
         let e = pncad::topo::shell(&body, thickness, FIT_TOL, tol)
             .expect_err("this junction is not square, so the hollow must refuse");
         assert_eq!(
