@@ -76,15 +76,14 @@
 //! 2. **The rims are selected BY DESCRIPTION and the description is
 //!    ambiguous at the bore.** `(Cylinder, Plane)` names the bore's
 //!    base rim and its top rim both — the same arm at the other end —
-//!    so a consumer who wants only the base adds an axial station. The
-//!    kernel-side selector that says this in the ratified vocabulary
-//!    (`select_where` + `GeomPred::AdjacentKinds`) is DOCUMENT-LAYER
-//!    ONLY, and a body built by calling `revolve` directly has none:
-//!    this scene scans `body.edges()` through two back-pointers by
-//!    hand, exactly as `klein::corner_edges` does. That is a gap in
-//!    reach rather than a refusal, and it is already on
-//!    `docs/KERNEL-VERBS.md`'s register; the scene is one more consumer
-//!    of it.
+//!    so a consumer who wants only the base adds an axial station.
+//!    The adjacent-kind half is one call at this seat now
+//!    ([`rims_between`] is the kernel query seat's predicate over its
+//!    materializer, the same implementation `select_where` +
+//!    `GeomPred::AdjacentKinds` runs at the document layer); the
+//!    axial-station disambiguation stays this scene's own read of the
+//!    carrier, which is the honest residue of an ambiguous
+//!    description, not a gap.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -94,7 +93,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
-use pncad::prelude::{Open, Start, fillet_edges};
+use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
@@ -187,21 +186,14 @@ fn bud(tol: Tol) -> Body<f64> {
 
 /// Every edge of `body` whose two incident faces carry the surface
 /// kinds `a` and `b`, in either order — the selection said BY
-/// DESCRIPTION, by hand, because a directly revolved body has no
-/// selector (finding 2; `klein::corner_edges` is the same scan).
+/// DESCRIPTION through the kernel query seat (finding 2;
+/// `klein::corner_edges` is the same call).
 fn rims_between(body: &Body<f64>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
-    let kind_at = |he| {
-        let l = body.get_half_edge(he)?.parent_loop;
-        let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface)
-            .map(SurfaceKind::of)
-    };
-    body.edges()
-        .filter(|(_, e)| {
-            let (ka, kb) = (kind_at(e.he_plus), kind_at(e.he_minus));
-            (ka, kb) == (Some(a), Some(b)) || (ka, kb) == (Some(b), Some(a))
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| {
+            query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
         })
-        .map(|(k, _)| k)
         .collect()
 }
 

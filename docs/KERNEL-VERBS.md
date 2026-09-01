@@ -347,7 +347,7 @@ the table.
 - **`shell_open`'s rim on a solid of revolution — FIXED.** Added
   2026-08-27 with the junction row above (the teapot's second finding —
   formerly wall 2, now retired into the scene's inline assertions at
-  `teapot.rs:920-960` — plus the same test file) and repaired the same
+  `teapot.rs:973-1029` — plus the same test file) and repaired the same
   week. **What was wrong**: the verb
   RETURNED a body that passed tiers 1, 2 and 3 while each designated
   face carried its own cavity counterpart's boundary re-labelled as an
@@ -457,9 +457,14 @@ the table.
   cylinder come out with radii differing by tens of ulps. Same drift
   class the `tube_along_arc` door was built to retire, met from the
   profile side.
-- **Geometric edge selection is document-layer only.** `select_where`
-  + `GeomPred::AdjacentKinds` is the ratified way to say "the
-  cone×cylinder corners", and it takes an `Evaluation` — so a body
-  built by calling `revolve` directly has no selector at all and must
-  scan `body.edges()` through two back-pointers by hand
-  (`klein::corner_edges`). A gap in reach rather than a refusal.
+- **Geometric edge selection is document-layer only — RETIRED by
+  SEAT-2 (VERB-SEAT-DESIGN §1).** The kernel query seat exists:
+  `topo::query` carries the whole-body materializers
+  (`all_edges`/`all_faces`, deterministic arena order), the EXACT
+  kind predicates (`edge_carrier_matches`, `face_surface_matches`,
+  `edge_adjacent_matches`) and the DECIDED datum-distance door
+  (`datum_distance_sign`, the `sel_datum_distance` funnel), so "the
+  cone×cylinder corners" is one call on a body built by calling
+  `revolve` directly (`klein::corner_edges` is that call now), and
+  the document layer's `select_where` runs the same one
+  implementation over its name table.

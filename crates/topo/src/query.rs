@@ -411,5 +411,9 @@ pub fn datum_distance_sign<T: Decide>(
     value: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    decide(SEL_DATUM_DISTANCE, Margin::of(datum_distance(datum, p) - value), band)
+    decide(
+        SEL_DATUM_DISTANCE,
+        Margin::of(datum_distance(datum, p) - value),
+        band,
+    )
 }
