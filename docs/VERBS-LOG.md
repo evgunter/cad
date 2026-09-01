@@ -2787,3 +2787,28 @@ kill-order asymmetry flagged). Union fix pass out. S-MATE
 coordination (#1417's parallel Placement split) settled
 on-thread: they unify second-to-merge; our fix pass adds the
 cross-reference only.
+## GERMARMS PR-2 MERGED (#1353, 2026-09-01) — ordinal-109 row (sample #85)
+
+The fix pass landed the union AND the inverted coordination:
+S-MATE's #1417 merged first, so the settled unification landed
+here — EndpointPlacement retired for main's Placement, both
+behavior changes kept, three falsified main-side comments
+corrected, the mutation re-run post-merge (the old fall-through
+reds exactly the three pose rows). The certified-scalar gap
+closed with frame_dispatch_interval_tests (both arms, three eps
+rows, dyadic, red-then-green by the axis-projection mutation —
+the reviewer's suggested mutation measured to red NOTHING and
+that measurement declared at the site); same_door_or_escalated
+shape-matched; the Display formula fixed to the unit form
+everywhere including the pinned string. Final head green as a
+pull_request run; two dispatch runs carried an inherited main
+red routed as #1449 (demos dead-const from d485124ca, invisible
+to pull_request runs — the fourth-face family). Sample number
+corrected post-merge #81→#85 (MATE6 held #81; ledger at #84;
+PR #1466, the M10-P precedent). GERMARMS closes: PR-1 ring lane
++ PR-2 typed-refusal branch; the family's future is #1372
+(parameter identity) → chord-lane widening → #1377 (pinch
+machinery, Evan's must-support ruling). #347's union demand
+narrows to the circle × wall residue (design-gated, not
+specced). VERBS-7 slot 4 (FABLE per the block draw) is the
+remaining dispatch.
