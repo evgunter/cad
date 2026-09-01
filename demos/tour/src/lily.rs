@@ -3837,7 +3837,48 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 1 must name the tangent tube walls against a planar disc: {glued:?}"
+            "wall 1 must name the stem's tube wall against a planar disc of the arch: \
+             {glued:?}"
+        );
+        // **What this pair actually is, measured.** The gate names the
+        // stem's tube wall against the arch's FAR cap — the disc at the
+        // top of the arch, metres from anything the stem occupies. The
+        // two exact loci never come near each other; what overlaps is
+        // the stem wall's BOX, which for a torus is the whole tube
+        // about the ring centre and reads nothing from the face's
+        // boundary, so a 22° arc of a 5 m ring is boxed as the entire
+        // 10 m ring.
+        //
+        // So wall 1 is not a germ-class wall and never was: no arm is
+        // missing for a pair that does not meet. It is the box
+        // artifact the cone arm already had fixed (its slab became the
+        // frustum its window cuts) and the torus arm has not.
+        //
+        // The weld's own contact — the stem's end disc against the
+        // arch's start disc — is plane×plane, declared and verified;
+        // the tube walls take no part in it, because the arch's tube
+        // is thinner than the stem's and the two walls share nothing
+        // but the plane they both end on.
+        let arch_far_cap = arch
+            .faces()
+            .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+                Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
+                _ => None,
+            })
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
+            .expect("the arch carries a cap plane clear of the weld");
+        // Unconditional on both halves. Under an `if let` this row
+        // SELF-DISABLES the moment the refusal's shape changes — which
+        // is exactly when the claim it makes needs re-reading, so the
+        // one arrangement that must not be used is the one that goes
+        // quiet then.
+        let BooleanError::CurvedPairUnsupported { other_face, .. } = &glued else {
+            panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
+        };
+        assert_eq!(
+            *other_face, arch_far_cap.0,
+            "the pair the gate names is the stem's wall against the arch's FAR cap — \
+             a box overlap, not a contact"
         );
 
         let welded = pncad::topo::union(lant, arch, tol)

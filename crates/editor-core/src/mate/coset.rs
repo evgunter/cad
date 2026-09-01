@@ -125,7 +125,21 @@ impl PartialEq for Subgroup {
                     direction: db,
                 },
             ) => point_eq(*pa, *pb) && vec_eq(*da, *db),
-            _ => false,
+            // Different subgroups are unequal — spelled over the whole
+            // lattice rather than swept up by a catch-all, so a
+            // subgroup added to the closure must be given its own arm
+            // above instead of comparing unequal to itself, which is
+            // the one answer this structural equality can never give.
+            (
+                Self::Se3
+                | Self::Planar { .. }
+                | Self::Cylindrical { .. }
+                | Self::Prismatic { .. }
+                | Self::Revolute { .. }
+                | Self::Trivial
+                | Self::Empty,
+                _,
+            ) => false,
         }
     }
 }

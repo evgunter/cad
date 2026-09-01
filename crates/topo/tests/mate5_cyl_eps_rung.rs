@@ -540,7 +540,10 @@ fn the_fold_windows_a_seam_wrapping_pair_and_certifies() {
 /// typed (`SeamBranch`) even though the quotient geometry is
 /// decidable — the one-global-fold schedule's disclosed
 /// incompleteness (the issue-1435 pattern: a decline on decidable
-/// geometry, said out loud rather than sampled around).
+/// geometry, said out loud rather than sampled around). Issue 1435's
+/// own instance has since been closed on the PLANAR side, and this one
+/// is untouched by that: branch normalization is what this decline
+/// wants, and it is a fold question rather than a candidate one.
 #[test]
 fn a_pair_no_single_window_serves_declines_typed() {
     // Spans 3.5 + 3.2 > τ: the two arcs overlap at BOTH seam sides of

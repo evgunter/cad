@@ -468,7 +468,8 @@ pub struct ImportOptions {
 pub enum ImportContact {
     /// Two vertices of the assembled body coincide at `at` and are
     /// declared at REST: resolves to the exactly-two vertices within
-    /// the gate band of the anchor and mints their `VvContact`.
+    /// ε_in of the anchor — the FILE's tolerance, not the kernel band
+    /// — and mints their `VvContact`.
     VertexRest {
         /// The anchor position (model metres).
         at: [f64; 3],
@@ -802,11 +803,11 @@ fn gate3(
 
 /// Resolves the position-anchored import declarations against the
 /// assembled body into the kernel's contact-record currency
-/// ([`ImportContact`] docs). Resolution is exact-arithmetic proximity
-/// at ε_in (the import's own input tolerance — anchors are FILE-side
-/// data, so they resolve at the file's tolerance, not the kernel
-/// band): an anchor with anything other than exactly two coincident
-/// vertices refuses typed.
+/// ([`ImportContact`] docs). Resolution compares a rounded-f64 sum of
+/// squared coordinate differences against ε_in² — the import's own
+/// input tolerance, because anchors are FILE-side data and resolve at
+/// the file's tolerance, not the kernel band. An anchor with anything
+/// other than exactly two coincident vertices refuses typed.
 fn resolve_declarations(
     body: &topo::Body<f64>,
     contacts: &[ImportContact],
@@ -816,25 +817,138 @@ fn resolve_declarations(
     for c in contacts {
         match *c {
             ImportContact::VertexRest { at } => {
-                let mut hits = Vec::new();
-                for (vk, v) in body.vertices() {
-                    let Some(p) = body.get_point(v.point) else {
-                        continue;
-                    };
-                    let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
-                    if d2 <= eps_in.powi(2) {
-                        hits.push(vk);
-                    }
-                }
-                let [a, b] = hits[..] else {
-                    return Err(StepImportError::DeclarationUnresolved {
-                        at,
-                        found: hits.len(),
-                    });
-                };
-                records.vv.push(topo::VvContact { a, b });
+                let candidates = body
+                    .vertices()
+                    .map(|(vk, v)| (vk, body.get_point(v.point).copied()));
+                records
+                    .vv
+                    .push(vertex_rest_contact(candidates, at, eps_in)?);
             }
         }
     }
     Ok(records)
+}
+
+/// One vertex-rest anchor resolved against the body's vertices, each
+/// paired with its position: the exactly-two coincidences within ε_in
+/// of `at`, as the kernel's `VvContact`.
+///
+/// A `None` position is a vertex whose point key does not resolve in
+/// the body that produced it. That is a corrupt-body state, and no
+/// caller here can prove it away: the aggregate body reaches this
+/// resolution before any gate has run on it, and the per-solid gate
+/// above sees only the pre-graft copies and only when more than one
+/// instance ships. Passing over such a vertex would silently
+/// understate the census — a resolvable anchor would report as
+/// `DeclarationUnresolved` with the wrong `found`, a three-way
+/// coincidence would resolve as exactly two — so the census refuses
+/// with [`StepImportError::VertexWithoutPoint`] instead.
+fn vertex_rest_contact(
+    candidates: impl Iterator<Item = (topo::VertexKey, Option<geom_core::Point3<f64>>)>,
+    at: [f64; 3],
+    eps_in: f64,
+) -> Result<topo::VvContact, StepImportError> {
+    let mut hits = Vec::new();
+    for (vk, position) in candidates {
+        let Some(p) = position else {
+            return Err(StepImportError::VertexWithoutPoint {
+                vertex: vk,
+                anchor: at,
+            });
+        };
+        let d2 = (p.x - at[0]).powi(2) + (p.y - at[1]).powi(2) + (p.z - at[2]).powi(2);
+        if d2 <= eps_in.powi(2) {
+            hits.push(vk);
+        }
+    }
+    let [a, b] = hits[..] else {
+        return Err(StepImportError::DeclarationUnresolved {
+            at,
+            found: hits.len(),
+        });
+    };
+    Ok(topo::VvContact { a, b })
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod declaration_tests {
+    use super::{ImportContact, StepImportError, resolve_declarations, vertex_rest_contact};
+    use geom_core::Point3;
+
+    /// Two lone vertices at one position, in one body: the smallest
+    /// thing a vertex-rest anchor can resolve against. `mvfs` mints a
+    /// solid of its own per call, so two calls put two vertices in one
+    /// arena with no edge between them — the shape a touching assembly
+    /// presents to the resolver.
+    fn two_coincident_vertices(at: Point3<f64>) -> topo::Body<f64> {
+        let mut body = topo::Body::new();
+        body.mvfs(at).expect("mvfs mints a lone vertex");
+        body.mvfs(at).expect("mvfs mints a second lone vertex");
+        body
+    }
+
+    /// The resolvable case, end to end through the walk: an anchor on
+    /// two coincident vertices mints their `VvContact`.
+    #[test]
+    fn a_vertex_rest_anchor_resolves_two_coincident_vertices() {
+        let body = two_coincident_vertices(Point3::new(1.0, 1.0, 1.0));
+        let keys: Vec<_> = body.vertices().map(|(vk, _)| vk).collect();
+        let records = resolve_declarations(
+            &body,
+            &[ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
+            1e-9,
+        )
+        .expect("two coincident vertices resolve");
+        assert_eq!(records.vv.len(), 1, "one declaration, one record");
+        assert_eq!(
+            [records.vv[0].a, records.vv[0].b],
+            [keys[0], keys[1]],
+            "the record names the two vertices at the anchor"
+        );
+    }
+
+    /// **The planted witness.** A vertex whose point key does not
+    /// resolve is announced, not passed over. The plant is at the
+    /// position seam rather than in the arena because a dangling point
+    /// key is unconstructible through `topo`'s public doors — nothing
+    /// outside that crate can write a `Vertex::point` — so the corrupt
+    /// state is presented to the resolver exactly as the walk would
+    /// present it: a real body's real vertex keys, one of them with no
+    /// position.
+    ///
+    /// The refusal is the whole point: the vertex with no position is
+    /// one of the anchor's two coincidences, so passing over it would
+    /// have reported `DeclarationUnresolved { found: 1 }` — an
+    /// honest-looking refusal naming the wrong fault, on a declaration
+    /// that is in fact resolvable.
+    #[test]
+    fn a_dangling_point_key_refuses_rather_than_miscounting() {
+        let at = Point3::new(1.0, 1.0, 1.0);
+        let body = two_coincident_vertices(at);
+        let keys: Vec<_> = body.vertices().map(|(vk, _)| vk).collect();
+        let planted = [(keys[0], None), (keys[1], Some(at))];
+        match vertex_rest_contact(planted.into_iter(), [1.0, 1.0, 1.0], 1e-9) {
+            Err(err @ StepImportError::VertexWithoutPoint { vertex, anchor }) => {
+                assert_eq!(anchor, [1.0, 1.0, 1.0], "the refusal names the anchor");
+                assert_eq!(vertex, keys[0], "and the vertex that dangles");
+                // The rendering carries both, so a caller reading only
+                // the message can still act on it.
+                let message = err.to_string();
+                assert!(message.contains("[1.0, 1.0, 1.0]"), "{message}");
+                assert!(
+                    message.contains(&format!("vertex {:?}", keys[0])),
+                    "{message}"
+                );
+                assert!(message.contains("point key does not resolve"), "{message}");
+            }
+            Err(StepImportError::DeclarationUnresolved { found, .. }) => panic!(
+                "the dangling key was passed over: the census read {found} coincidences at an \
+                 anchor that has two"
+            ),
+            other => panic!("expected the corrupt-body refusal, got {other:?}"),
+        }
+    }
 }
