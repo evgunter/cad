@@ -116,6 +116,10 @@ mod r1_mate4a_probes;
 mod r1_mate5_interval_probe;
 #[path = "r1_mate5_probe.rs"]
 mod r1_mate5_probe;
+#[path = "r1_mate8_decomp_probe.rs"]
+mod r1_mate8_decomp_probe;
+#[path = "r1_mate8_probes.rs"]
+mod r1_mate8_probes;
 #[path = "r2_probes.rs"]
 mod r2_probes;
 #[path = "review_m1_pr5.rs"]
