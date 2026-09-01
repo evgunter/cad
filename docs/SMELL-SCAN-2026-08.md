@@ -7815,8 +7815,8 @@ re-scoped or re-argued by being moved.
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 *(re-derived from the track's own table, 2026-08-31; had read 18 against 16 rows)* |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 *(re-derived from the track's own table, 2026-08-31: `D304` arrived from Track T's `T-c` via the S-BLEND exit handoff and `D302` left at the S-MESH claim — the same figure by a different census; `D305` filed 2026-09-01 by SMELL-UV at `D361`'s closure, so 12)* |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 7 *(re-derived from the track's own table, 2026-08-31, after lanes T-a and T-b; had read 10, the partition-time count)* |
-| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 4 *(re-derived 2026-09-01: `E-m`/#711, `D94`, `D47` and `D37` landed — PRs 1452, 1481, 1490; `D340` filed by uv-d)* |
-| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 11 *(re-derived 2026-09-01: `D361`, `D362`, `D81`, `D121` and `D39` landed — PRs 1453, 1454, 1475, 1490; `D363`–`D366` filed by the closing lanes)* |
+| **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 3 *(re-derived 2026-09-01: `E-m`/#711, `D94`, `D47`, `D37`, `C16` and `D340` landed — PRs 1452, 1481, 1490, 1493; `D341` filed by uv-g)* |
+| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 10 *(re-derived 2026-09-01: `D361`, `D362`, `D81`, `D121`, `D39` and `D75` landed — PRs 1453, 1454, 1475, 1490, 1493; `D363`–`D366` filed by the closing lanes)* |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 11 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
 
@@ -7836,7 +7836,7 @@ a place where a reasonable reader would think the fence ambiguous:
   row on the owning track when a mechanism reaches into `src/`, and vice versa.
   (Two other fences carry a named exception the same way, in the other
   direction: Track R's `C23` reaches one line of `geom/src`, which is N's, and
-  Track V's `D75` reaches the `pncad-py` stub, which is U's.)
+  Track V's `D366` reaches the `pncad-py` tag map, which is U's.)
 - **Every `*.py` in the repo is J's**, including the fixtures under
   `crates/*/tests/` and the renderer under `demos/`. Splitting the population
   to match the Rust fences would put four tracks in it. The population is now
@@ -8025,10 +8025,9 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 | # | What | Was |
 |---|---|---|
-| **D340** | **`pncad-py`'s arc-mode surface is the silent sixth spelling of the mode vocabulary** (filed by uv-d, verified by its review — the mode twin of V's `D75`/S170): `py/path.rs` spells the six spec structs plus the `PointSpec`/`ArrivalSpec` sub-enums, `pncad.pyi` carries them too, and neither references `ArcMode`, so a mode that fails to arrive in Python is invisible. Now anchorable on `ArcMode::ALL` (PR 1475). **Cheaper taken with `D75`, whose row carries the pncad-py fence exception in the other direction** | uv-d, unrowed |
+| **D341** | **The `Node` constructor vocabulary is the method-name shape the surface censuses cannot see** (filed at PR 1493's close from its review, confidence `unsure` on urgency, concrete on mechanism): kernel `Node<P>` has ~18 variants and Python spells them as hand-written constructors (`Node.extrude`, `Node.mate`, …) with no `match Node` census — today every variant is accounted for through the name-based curated-export census, but a future variant whose payload reuses already-curated types mints no new curated name and lands silently, which is exactly how `D75` survived earlier sweeps. The `verb_spelling` mold in `surface_census.rs` closes it | uv-g, unrowed |
 | **C13** | ε has no type of its own, so `StepOptions::uncertainty_m` and two bare `f64`s restate `Tolerance::init`'s finite-and-strictly-positive rule by hand (#741). **Wants a plan signed off before implementation** — cross-crate public API. **HELD (UV-R5): LIB drafts the plan, then Evan signs off; implementation lands here after** | Track C |
 | **C14** | The STEP writer hardcodes two Part 21 header fields the standard assigns to the user (#742). **Same signed-off-plan caveat and the same UV-R5 hold** | Track C |
-| **C16** | The Python STEP door exposes one of `StepOptions`' six fields, silently (#730) | Track C |
 
 ## Track V — `editor-core` and `profile`
 
@@ -8039,7 +8038,6 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | # | What | Was |
 |---|---|---|
 | **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**, both of its old gates have fallen (#791, #801), and **the collapse is proven mechanical** — executed and discarded under PR 1453 (49 sites plus two import lines; identical test counts; instantiation set identical by construction, the trait having no items and one blanket impl). **What holds it now**: the retirement reds `scripts/gates/bounds-allowlist.sh` (entries for `family.rs` and `program.rs`, plus KNOWN GAP 3's text, which names this trait as its example) — Track K's fence, so it lands as one piece with K's `D68` answer or an allowlist row filed there (UV-R8). It is also a breaking public-API removal: `pncad::profile` re-exports the trait. The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
-| **D75** | The PATHS verb vocabulary's sixth copy is the Python surface and it is the only silent one (S170). **The `pncad-py` stub edit is this row's, by exception to U's fence** | Track G |
 | **D366** | **`D39` one door up, with a 48-arm parallel match waiting on it** (filed at PR 1490's close, both halves verified by its review): `NodeErrorKind` is `#[derive(Debug)]` only — its doc says kernel errors are carried UNALTERED, so it inherits every kernel error's derive poverty — and `pncad-py`'s `node_error_tag` is an exhaustive 48-arm parallel match on it (#1480's shape again; **the `pncad-py` half rides by the same fence exception `D75` carried**). The unit that takes it also decides, uniformly for BOTH kind mirrors, whether a `transition_table!`-style single declaration replaces the hand mirror — PR 1490's review showed the hand shape leaves the phantom-variant direction red only downstream. The `topo::BooleanError` sibling is #1491, Track Q's | uv-e, unrowed |
 | **C12** | `editor-core`'s remaining classification residues from #731's style review — three things, including a test oracle that under-reports silently through a `_ => false` arm | Track C |
 | **S105** | The shared refusal ladder retired one duplication and minted a documented hand-synced one | unrowed |
