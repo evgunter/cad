@@ -24,7 +24,11 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
 /// per-file inventory counts the `\u{00b1}1` accessor by name, and a review
 /// probe must not perturb that census).
 fn sgn(b: &crate::Body<f64>, f: crate::entity::FaceKey) -> f64 {
-    if b.get_face(f).unwrap().sense { 1.0 } else { -1.0 }
+    if b.get_face(f).unwrap().sense {
+        1.0
+    } else {
+        -1.0
+    }
 }
 
 /// **Oracle 1 — the volume says which region is material.**
@@ -104,9 +108,18 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     let inside = pt(x, 0.00375, 0.5);
     let below = pt(x, 0.001, 0.5);
     let above = pt(x, 0.01, 0.5);
-    assert!(material(inside, s_inner, s_outer), "the crescent is material");
-    assert!(!material(below, s_inner, s_outer), "below the outer wall is void");
-    assert!(!material(above, s_inner, s_outer), "inside the inner wall is void");
+    assert!(
+        material(inside, s_inner, s_outer),
+        "the crescent is material"
+    );
+    assert!(
+        !material(below, s_inner, s_outer),
+        "below the outer wall is void"
+    );
+    assert!(
+        !material(above, s_inner, s_outer),
+        "inside the inner wall is void"
+    );
     // Revert negates every outward normal, so every membership flips.
     let r = p.body.revert().unwrap();
     let r_inner = sgn(&r, p.face_side[2]);

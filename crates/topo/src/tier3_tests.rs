@@ -890,7 +890,6 @@ fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
     }
 }
 
-
 /// **What each material outcome EMITS** — the fold's other half.
 ///
 /// `material_arm_outcome` decides what the edge is; this table decides

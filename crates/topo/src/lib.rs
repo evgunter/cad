@@ -254,9 +254,9 @@ pub mod test_support {
     }
 }
 #[cfg(test)]
-mod tier3_tests;
-#[cfg(test)]
 mod r2_probes;
+#[cfg(test)]
+mod tier3_tests;
 pub mod transform;
 pub mod validate;
 

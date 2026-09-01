@@ -2270,6 +2270,45 @@ pub(crate) fn material_arm_outcome(
     }
 }
 
+/// The material arm's REFUSAL, read off its outcome: the second half
+/// of check 4's material decision, and pure for the same reason the
+/// fold is — the states that matter most here are the ones no fixture
+/// can force, so the only way to pin what each one emits is to call
+/// this with it (`material_arm_error_table`).
+///
+/// `declared` is whether the edge's face pair carries a `Tangent`
+/// contact declaration ([`declares_tangent_contact`]) — the ONE thing
+/// the wedge ends consult, and the reason `None` here is a legality
+/// verdict rather than an absence.
+pub(crate) fn material_arm_error(
+    outcome: Option<MaterialArmOutcome>,
+    edge: EdgeKey,
+    declared: bool,
+    band: Band,
+) -> Option<ValidationError> {
+    match outcome? {
+        // Conformal contact: refused, and no declaration is consulted
+        // because none would cure it.
+        MaterialArmOutcome::Lamina => Some(ValidationError::LaminaWedge { edge }),
+        // The samples disagreed: escalate, naming the predicate that
+        // split. Never silence — see `material_arm_outcome`.
+        MaterialArmOutcome::Split { predicate } => Some(ValidationError::SliverDihedral {
+            edge,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some(predicate),
+            },
+        }),
+        // The two ends of the wedge range are legal exactly where
+        // declared; the seam and a transverse wedge need nothing.
+        MaterialArmOutcome::Wedge(wedge) if wedge.is_declared_arm() && !declared => {
+            Some(ValidationError::UndeclaredCusp { edge, wedge })
+        }
+        MaterialArmOutcome::Wedge(_) => None,
+    }
+}
+
 /// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
 /// runs the structural coarse gate, then the tier-3 battery, and
 /// returns the recorded per-edge [`ContactMark`]s. `Err` carries every
@@ -2879,30 +2918,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // exclusive by construction, so nothing here ranks anything).
         // `None` is an edge the arm never judged: exempt by kind, or
         // already escalated with its own error.
-        match arm {
-            Some(MaterialArmOutcome::Lamina) => {
-                errors.push(ValidationError::LaminaWedge { edge: edge_key });
-            }
-            Some(MaterialArmOutcome::Split { predicate }) => {
-                errors.push(ValidationError::SliverDihedral {
-                    edge: edge_key,
-                    cause: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
-                        band,
-                        predicate: Some(predicate),
-                    },
-                });
-            }
-            Some(MaterialArmOutcome::Wedge(wedge))
-                if wedge.is_declared_arm()
-                    && !declares_tangent_contact(declarations, f_plus, f_minus) =>
-            {
-                errors.push(ValidationError::UndeclaredCusp {
-                    edge: edge_key,
-                    wedge,
-                });
-            }
-            Some(MaterialArmOutcome::Wedge(_)) | None => {}
+        if let Some(error) = material_arm_error(
+            arm,
+            edge_key,
+            declares_tangent_contact(declarations, f_plus, f_minus),
+            band,
+        ) {
+            errors.push(error);
         }
         if mark == ContactMark::Tangent
             && curve.authority().is_declared()

@@ -53,8 +53,8 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
     let validated = Profile::new(plane, loops)
         .validate(tol)
         .expect("the .cusp() profile validates: the joint is DECLARED");
-    let ext = extrude(&validated, Extrusion::Distance(1.0), tol)
-        .expect("extrude BUILDS the cusp solid");
+    let ext =
+        extrude(&validated, Extrusion::Distance(1.0), tol).expect("extrude BUILDS the cusp solid");
     let body = ext.body;
     println!(
         "R2 chain: v/e/f = {}/{}/{}",

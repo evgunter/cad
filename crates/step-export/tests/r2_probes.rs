@@ -27,7 +27,10 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     // --- the conic-trim residual -------------------------------------
     let body = cut_cylinder();
     let v0 = topo::mass_properties(&body, tol).map(|m| m.volume);
-    println!("R2 cut_cylinder: clean volume {v0:?} verdict {:?}", validate_geometric(&body, tol).is_ok());
+    println!(
+        "R2 cut_cylinder: clean volume {v0:?} verdict {:?}",
+        validate_geometric(&body, tol).is_ok()
+    );
     let walls: Vec<_> = body
         .faces()
         .filter(|(_, f)| {
