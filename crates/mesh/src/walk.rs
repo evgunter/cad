@@ -641,24 +641,10 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
 /// files, and the values repeat at a single radius, so they are one
 /// geometric feature instanced many times rather than accumulated
 /// error; in-tree the only nonzero closures are 1 ulp, from the one
-/// obliquely-placed fixture.
-///
-/// The figures behind that, so they are not hand-synced anywhere:
-/// **wild corpus, 125 governed closures per δ, 20 nonzero** — 18 in
-/// `nist_ftc_09_asme1_rd.stp` and 2 in `stepcode/sg1-c5-214.stp`, the
-/// latter out of the committed montage by LICENCE rather than by
-/// capability, which is how a census run off the montage cell set can
-/// report 18 as if it were all of them. **In-tree, 381 closures, 4
-/// nonzero.**
-///
-/// **Nothing re-measures those numbers**, and that is the honest state
-/// rather than an oversight: this crate has no dev-dependency on
-/// `step-import` and no test in this repo tessellates the wild corpus,
-/// so the input class is untested by construction. Treat them as dated
-/// evidence for the SHAPE above — which is the load-bearing claim —
-/// and re-measure before leaning on a figure. A committed sweep that
-/// re-cuts them, the way `docs/tess-budget-data/` is re-cut, is what
-/// would retire this paragraph.
+/// obliquely-placed fixture. **Nothing re-measures that**, and no
+/// figure is kept here for it to drift from: this crate has no
+/// dev-dependency on `step-import` and no test in this repo tessellates
+/// the wild corpus, so the input class is untested by construction.
 ///
 /// TRACED — the one file that matters, kept here because it is the
 /// argument for the bar's UNIT and not a census figure. Those closures
