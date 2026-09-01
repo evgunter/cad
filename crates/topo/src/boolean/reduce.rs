@@ -465,10 +465,20 @@ pub(super) fn face_source<T: Decide>(
 /// "One door" is true of those consumers, not of the workspace: other
 /// faces' outward normals are still hand-multiplied. The ones **in
 /// this crate** are inventoried by [`crate::face_normal`]'s guard,
-/// which COMPUTES them rather than reciting them. The four outside it
-/// — in `editor-core`, `mesh` and `sweep` — are beyond any `topo`
-/// walk; they are listed once in `docs/SMELL-SCAN-2026-08.md` at S67,
-/// beside D6's work order, and nowhere in this tree (smell-scan D6).
+/// which COMPUTES them rather than reciting them. The ones outside it
+/// are beyond any `topo` walk, so they are recited here — four in
+/// production, `editor_core::names::emit_topo::face_plane`,
+/// `mesh::walk::loop_polygon` (the chart area's sign),
+/// `sweep::blend::build::outward_of` and
+/// `sweep::blend::battery::outward`, plus two in a test oracle,
+/// `sweep/tests/common/orient.rs`'s `wall_outward_at` and
+/// `assert_caps_face_out`. Two crates that look like readers are not:
+/// **`geom-brep`** does not depend on `topo` at all and its
+/// `sense_sign` occurrences in `props/curved.rs` are a parameter name
+/// on a value `topo::props` passes in; **`step-export`** reads
+/// `Face::sense` as the `same_sense` bit, never the ±1. **This list is
+/// recited, not computed** — it is the work order for consolidating
+/// them onto this door, and it goes stale the moment that work runs.
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected

@@ -276,7 +276,7 @@ fn certify_powi() {
         if wi == 3 { &mut tight_huge } else { &mut tight }.record(&mine, &oracle);
     }
     // No ceiling, and this one is a DEFERRAL rather than an
-    // unguardable — S134 / §D row D78 schedules it. `powi`'s enclosure
+    // unguardable: it is owed and not written. `powi`'s enclosure
     // is a COMPOSITION of `mul` pads (binary exponentiation, plus a
     // division for a negative exponent), so what it is entitled to is a
     // function of the exponent, not a constant; an exponent-dependent

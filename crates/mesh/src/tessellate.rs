@@ -135,8 +135,8 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             // carrier means the face is not an iso-rectangle — the
             // pcurve-driven trimmed lane takes it.
             //
-            // The converse does NOT follow, and S28 is where that was
-            // established: this is a test on carrier KINDS, and iso
+            // The converse does NOT follow: this is a test on carrier
+            // KINDS, and iso
             // carriers (`Line`, `Circle`) can bound a NON-rectangular
             // domain — a keyway or milled flat on a cylinder is exactly
             // that shape, and nothing on this path screens loop SHAPE.

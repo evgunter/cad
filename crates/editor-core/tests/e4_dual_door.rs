@@ -50,10 +50,9 @@
 //! `CertifiedEnclosure for Dual` impossible (DL1 — a dual never
 //! certifies).
 //!
-//! The scan record this suite's predecessor kept honest — S44's D1
-//! block in `docs/SMELL-SCAN-2026-08.md` — carries the dated LANDED
-//! note for the flip; a change to what this suite claims owes that
-//! record a matching note, as the flip itself did.
+//! **This suite is the record of which bounds a dual satisfies.** When
+//! that set changes, the change belongs in this header with its date,
+//! because nothing else in the tree states it.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;

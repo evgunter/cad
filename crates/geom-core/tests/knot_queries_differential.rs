@@ -38,8 +38,8 @@
 //! # The four oracles are a licensed duplication, and this is its expiry
 //!
 //! `retired_while_idx`, `retired_last_dedup`, `retired_last_mut` and
-//! `retired_c1_gate` are the deleted scans, copied here on purpose:
-//! S36's reviewer-suite independence exemption.
+//! `retired_c1_gate` are the deleted scans, copied here on purpose: a
+//! reviewer's suite has to stay independent of the code it checks.
 //!
 //! **Retire them when the replaced scans are no longer live anywhere in
 //! the tree's history a bisect would reach** — concretely, once no
