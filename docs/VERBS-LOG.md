@@ -2882,3 +2882,54 @@ needs a move_point_for_tests door, scheduled as an adjudication
 ask). Teapot wall 1 RETIRED (shipped pot unchanged). Dual:
 parity byte 105 ⇒ R1 FABLE + R2 OPUS, frozen 086c66944; claim
 to main at dispatch.
+## ORDINAL 110 RETURNED AND ADJUDICATED (2026-09-02)
+
+R1 (fable) 1 MAJ / 3 MIN, 5/4/4 — APPROVE the half + the fired
+STOP. R2 (opus) 3 MAJ / 6 MIN, 4/3/3 — ACCEPT with findings. No
+code defect found by either arm; every closed form re-derived
+independently both arms to ≤2e-17; the opening measurement,
+spiric numbers, and both CI runs reproduced to the last digit.
+
+- BILATERAL (R1 M1 = R2 MAJ-2, dedup single): the bit-identity
+  receipt is CLEAN but STRUCTURALLY BLIND — every cited byte-dump
+  fixture is planes/cylinders/fillets and never reaches the
+  circle arm (R1's 1e-9 mutation at the roots site left all ten
+  dumps byte-identical; the armed dumps are also env-gated skips
+  hosted). The CONCLUSION (one spelling, no fence needed) is
+  TRUE and both arms supplied the missing evidence: R2's
+  mutation A (rho_c:=0 no-op on the sphere path, 5 red torus
+  rows) + mutation B (the generalized d site pinned by a
+  pre-existing sphere row) + the signed-zero analysis; R1's
+  1e-9/1e-13 floor measurements. The spec's fence question is
+  decided by argument+mutation, not the dump harness.
+- R2 MAJ-1 UNILATERAL CANDIDATE (class test-gap, demonstrated by
+  mutation): the 'planted red' exercises NONE of the unit's code
+  — it stops at wall_clearance (kind-agnostic operand gate,
+  shell.rs:386/:568), asserts only !Corrupt, and stayed green
+  under R2's arm-breaking mutation; 3 of 7 torax rows are
+  insensitive to the entire arm; the actual torus floor
+  (OffsetError::TorusRing, offset.rs:376-381) is untested. R1
+  did not raise it and CREDITED the row ('a live planted red')
+  — a calibration miss recorded for the coding.
+- BILATERAL severity-split (R2 MAJ-3 = R1 m1, no candidate):
+  the capability record's 'rim unbuilt for EVERY curved wall' is
+  FALSE — sf2b's wedge (partial revolve, cylinder wall) hollows
+  green; the honest scope is CIRCLE-PROFILE walls
+  (sphere/torus), and the elbow vs lune refusals are at
+  DIFFERENT doors (TogetherAxialCorner vs
+  TogetherEdgeDisagreement) — the follow-on unit must be scoped
+  to that, not to 'every curved wall'.
+- MINOR union: is_axial's doc still calls a torus definite-false
+  (now wrong); the teapot scene note: string missed the
+  retirement (walls.rs's own contract); the by-name
+  (Plane,Torus) pin degraded to an unnamed match; the re-pose
+  row omits translation and compares loose subsets; new decides
+  uninstantiated at Interval (both arms, nuanced differently —
+  R1 measured margins nowhere near any band, low-risk;
+  scheduled); the 1e-14 teapot tolerance unexplained;
+  'unauthorable' overstated (pub(crate) path exists — R1).
+
+TALLY: ONE unilateral candidate (R2 MAJ-1) to the blinded coding
+— running total of candidates now 5 (2 from 107, 1 from 108, 1
+here, plus 106's none); tally 1/8 pending the coding session.
+Pair COUNTS, clean by neither arm. Union fix pass out.
