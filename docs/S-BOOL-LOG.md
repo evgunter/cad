@@ -140,3 +140,40 @@ Slate next: BOOL-8 (the line(len) structural continuation + the
 amended PATHS §4 text + the lily migration — the ratified Q1
 extension) dispatches next; BOOL-4/5/6/7/9/10 and the Q-track
 lanes queue behind per the shared lane budget.
+
+## BOOL-8 merged (2026-09-01) — the straight continuation lands; the seam wall becomes a ruling
+
+PR 1508 at fix head `4934c4fa` after Evan's §4 sign-off (the
+amendment reviewed in-chat; the merge condition — the Residual
+paragraph re-recorded as ruled — verified against the ratified
+plan text). Gates: both heads interval-asked with default ε drawn;
+three-ε + interval battery local at both. line(len) off a directed
+point is the structural straight continuation: one transition
+table row, the direction inherited bitwise (mutant-pinned), no
+junction, nothing declared; validate and the lattice now agree on
+the shape issue 433 found them disagreeing about; every
+keep-refusing case pinned.
+
+**The unit's real product beyond the code is a ruling.** Lily's
+migration — the spec's deliverable 4 — hit a measured wall: a
+straight run crossing the SEAM is unauthorable in either rotation,
+forced by the strict corner/subdivision alternation that
+one-subdivision-per-side produces. The implementer pinned the wall
+as rows instead of papering over it; both reviewers confirmed the
+impossibility independently (a 64-spelling exhaustive search with
+a positive control; the sharpening that uneven distribution
+authors 2/16 — the wall is the alternation, and the loft pins
+lily's vertices). Evan ruled mid-cycle (third round on Q1,
+ratified PR 1512): the declared point-target continuation — any
+authored point, checked on the departing ray, never inferred —
+with the Start-closer as the special case. Scheduled as BOOL-11,
+before the resequenced BOOL-9; the f64 meaning of "on the ray" is
+that unit's design question, returning to Evan with its §4 text.
+
+**The dual (ordinal 1103, sample at the row)**: twin A-W-F, no
+MAJOR either arm, zero silent deviations counted by both — the
+disclosure discipline (the deviation reported as a measured wall,
+not a shortfall) is the cycle's model. One dispatch correction
+recorded orchestrator-side. Issue 433 stays open for the raw-door
+half. Slate next: BOOL-11 (spec first; §4/verb-table hold for Evan
+again), then BOOL-9; BOOL-4/5/6/7/10 and the Q-track queue behind.
