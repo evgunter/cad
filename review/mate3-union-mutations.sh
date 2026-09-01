@@ -38,9 +38,9 @@ run() {
     cargo test -q -p step-export --test all 2>&1
     cargo test -q -p sweep --test all m9_3 2>&1
   )
-  if printf '%s\n' "$out" | grep -qE "^error(\[|:)"; then
+  if printf '%s\n' "$out" | grep -qE "^error\[|^error: could not compile"; then
     echo "      BUILD FAILED (mutation did not compile — not a kill)"
-    printf '%s\n' "$out" | grep -E "^error(\[|:)" | head -3 | sed 's/^/        /'
+    printf '%s\n' "$out" | grep -E "^error\[|^error: could not compile" | head -3 | sed 's/^/        /'
     return
   fi
   local red
