@@ -105,6 +105,9 @@ mod m9_c1_rest_face_rung;
 mod mate4a_ef_bound_rung;
 #[path = "mate5_cyl_eps_rung.rs"]
 mod mate5_cyl_eps_rung;
+
+#[path = "r1_mate5_probe.rs"]
+mod r1_mate5_probe;
 #[path = "merge_skip.rs"]
 mod merge_skip;
 #[path = "r1_mate4a_probes.rs"]
