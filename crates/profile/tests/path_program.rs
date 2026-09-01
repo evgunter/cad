@@ -742,7 +742,10 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
     );
 
     let unclosed = replay(
-        &[Step::At(p2(0.0, 0.0)), Step::LineTo(Target::Point(p2(1.0, 0.0)))],
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::LineTo(Target::Point(p2(1.0, 0.0))),
+        ],
         Tol::witness(),
     )
     .expect_err("a chain that never returns to Start does not close");
