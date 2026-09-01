@@ -1560,15 +1560,49 @@ fn band_overlap<T: Decide + Bounds>(
 /// stands. Three-outcome honest: a proof, a decline, or the refusal it
 /// was already carrying.
 ///
-/// The schedule is each outer trim's vertex centroid then its ear
-/// midpoints `(v[i−1] + v[i+1])/2`, face A's trim then face B's, in
-/// cycle order (fixed, D9). Every `contfp` verdict but `In` — a
-/// boundary coincidence, an exterior point, an in-band containment, an
-/// exhausted ray schedule — means THIS candidate proves nothing and
-/// the walk moves on; the rung's whole output is a proof or its
-/// absence. A candidate is never counted from one face alone: `contfp`
-/// reads each face's own rings, so a point in a hole of either is
-/// `Out` of that face.
+/// # The schedule, and why it is two stages
+///
+/// Every `contfp` verdict but `In` — a boundary coincidence, an
+/// exterior point, an in-band containment, an exhausted ray schedule —
+/// means THIS candidate proves nothing and the walk moves on; the
+/// rung's whole output is a proof or its absence. A candidate is never
+/// counted from one face alone: `contfp` reads each face's own rings,
+/// so a point in a hole of either is `Out` of that face.
+///
+/// Because every candidate is CERTIFIED at the point of use, the
+/// schedule that proposes them is a hint and nothing else. No certified
+/// claim rests on how a candidate was chosen, which is what lets stage
+/// 2 below compute in plain `f64` off the trims' nominal coordinates:
+/// a bad hint costs a wasted `contfp` pair, never a wrong answer.
+///
+/// **Stage 1 — the trims' own landmarks** ([`candidate_points`]): each
+/// outer trim's vertex centroid then its ear midpoints, face A's trim
+/// then face B's, in cycle order. A FLUSH seat — the configuration this
+/// rung exists for — certifies on the very first of these, and stage 2
+/// is not built at all in that case.
+///
+/// **Stage 2 — the pair's own arrangement**
+/// ([`decomposition_witness`]): the cell centres of the vertical
+/// decomposition of both trims' boundaries. This is the completion: a
+/// fixed handful of landmarks is not a search, and legal seats of one
+/// class bifurcated on where those landmarks happened to fall (issue
+/// 1435 — a ~7.5e-3 m² overlap, seven orders above ε, missed by all
+/// fourteen stage-1 candidates on a non-convex trim while a
+/// geometrically equivalent seat certified on its first).
+///
+/// # Why the candidates are not seeded from an exact clip
+///
+/// The obvious seeding — clip the two regions and take a point per
+/// piece — is unavailable HERE, by this rung's own entry condition:
+/// the rung runs only after [`overlap_of_regions`] has already refused
+/// [`ChartRegionError::TouchingBoundary`], which is exactly the answer
+/// [`proper_crossings`] gives when the boundaries meet at a vertex or
+/// share a span. The clip has declined before the rung is reached, so
+/// it cannot be its seed. What stage 2 keeps of that idea is the
+/// clip's COMBINATORICS — the vertex and edge-crossing abscissae —
+/// taken as an uncertified hint and verified pointwise instead.
+/// Per-piece centroids would not have sufficed either: a non-convex
+/// piece's centroid need not lie in the piece.
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
 fn interior_witness<T: Decide + Bounds>(
     body_a: &Body<T>,
@@ -1602,15 +1636,226 @@ fn interior_witness<T: Decide + Bounds>(
             Ok(crate::boolean::FaceContainment::In)
         )
     };
+    let strictly_inside_both = |x: T, y: T| -> bool {
+        let q = origin + u_ref * x + v_ref * y;
+        inside(body_a, face_a, normal, q) && inside(body_b, face_b, normal_b, q)
+    };
+    // Stage 1: the trims' own landmarks. A flush seat lands on the
+    // first candidate and stage 2 is never built.
     for poly in [&uv_a.outer, &uv_b.outer] {
         for c in candidate_points(poly) {
-            let q = origin + u_ref * c.x + v_ref * c.y;
-            if inside(body_a, face_a, normal, q) && inside(body_b, face_b, normal_b, q) {
+            if strictly_inside_both(c.x, c.y) {
+                return true;
+            }
+        }
+    }
+    // Stage 2: the pair's own arrangement.
+    decomposition_witness(uv_a, uv_b, |x, y| {
+        strictly_inside_both(T::from_f64(x), T::from_f64(y))
+    })
+}
+
+/// The most cell centres [`decomposition_witness`] probes before it
+/// declines, and the most boundary segments it will decompose.
+///
+/// Both are the honest half of "complete or honest": inside them the
+/// schedule is complete in the sense argued at
+/// [`decomposition_witness`], and outside them it declines and the
+/// region walk's own typed refusal stands — it never silently narrows
+/// the search and calls the result a decision. A trim pair with more
+/// than `SEGMENTS` boundary segments is refused rather than
+/// half-searched because the decomposition is quadratic in that count;
+/// the pair the rung is reached with in practice carries a few dozen.
+const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
+    segments: 128,
+    cells: 4096,
+};
+
+struct WitnessBudget {
+    segments: usize,
+    cells: usize,
+}
+
+/// **The completion of the witness schedule**: the cell centres of the
+/// two trims' vertical decomposition, in fixed order, each offered to
+/// `probe` until one is certified.
+///
+/// # Why this is a complete schedule and not a bigger handful
+///
+/// Let `P` be the region the rung is asking about — face A's trim minus
+/// its holes, intersected with face B's the same way — and let `X` be
+/// the abscissae of every vertex of both boundaries together with every
+/// boundary edge-pair crossing. Every vertex of `P` is one of those
+/// points, so no vertex of `P` has an abscissa strictly inside a slab
+/// `(x_i, x_i+1)` of consecutive members of `X`. Hence every boundary
+/// edge that meets such a slab crosses it FULLY, and `P ∩ slab` is a
+/// union of trapezoids each spanning the slab's whole width. The
+/// slab's midline therefore meets each of them in a vertical segment of
+/// positive height whose two ends are CONSECUTIVE members of the
+/// midline's sorted crossing list — nothing may lie between them,
+/// since anything that did would be a boundary crossing the trapezoid's
+/// interior. So if `P` has interior at all, some cell centre this
+/// function offers lies in it. That is the property a fixed handful of
+/// landmarks does not have and cannot be given.
+///
+/// # What the argument does NOT claim
+///
+/// - **Positive area is not positive MARGIN.** The centre is the
+///   deepest point of its cell in the two decomposition directions, not
+///   of `P`; a real but slivered overlap can put every cell centre
+///   within ε of a boundary, where `contfp` answers in-band rather than
+///   `In` and the rung declines. That decline is the honest one — the
+///   overlap is not certifiable at this ε — and it is the same posture
+///   [`overlap_of_regions`] takes on a thin region.
+/// - **The hint is nominal.** Candidates are built from each
+///   coordinate's bracket midpoint, so on an enclosure lane the
+///   decomposition describes the nominal trims rather than every member
+///   of the enclosure. It cannot mislead: the certificate is `contfp`'s
+///   and is taken on the lane's own arithmetic.
+/// - **The frame still rotates.** The decomposition is a function of
+///   the unordered PAIR of trims — swapping the arguments permutes
+///   nothing in `X` — but not of the pair alone: it is taken along the
+///   chart's own x-axis, and a declared pair's chart is the FIRST
+///   face's plane. Certified answers are frame-invariant
+///   ([`world_carrier`]'s lemma); which candidate certifies them is
+///   not, and never was.
+fn decomposition_witness<T: Decide + Bounds>(
+    uv_a: &FaceUv<T>,
+    uv_b: &FaceUv<T>,
+    mut probe: impl FnMut(f64, f64) -> bool,
+) -> bool {
+    let segments = boundary_segments(uv_a, uv_b);
+    if segments.len() < 2 || segments.len() > WITNESS_BUDGET.segments {
+        return false;
+    }
+    let mut spent = 0usize;
+    let abscissae = event_abscissae(&segments);
+    for slab in abscissae.windows(2) {
+        let x = midpoint(slab[0], slab[1]);
+        // An adjacent-float slab has no interior to sample.
+        if !(x > slab[0] && x < slab[1]) {
+            continue;
+        }
+        let mut ys: Vec<f64> = segments.iter().filter_map(|s| s.at_abscissa(x)).collect();
+        ys.sort_by(f64::total_cmp);
+        for cell in ys.windows(2) {
+            let y = midpoint(cell[0], cell[1]);
+            if !(y > cell[0] && y < cell[1]) {
+                continue;
+            }
+            spent += 1;
+            if spent > WITNESS_BUDGET.cells {
+                return false;
+            }
+            if probe(x, y) {
                 return true;
             }
         }
     }
     false
+}
+
+/// One boundary segment of one trim, in nominal chart coordinates.
+struct NominalSeg {
+    p: [f64; 2],
+    q: [f64; 2],
+}
+
+impl NominalSeg {
+    /// Where this segment crosses the vertical line at `x`, when it
+    /// crosses it strictly between the endpoints. A segment parallel to
+    /// the line never does; nor does one whose endpoint sits on it,
+    /// since every endpoint abscissa is a slab BOUNDARY and `x` is
+    /// strictly interior to a slab.
+    fn at_abscissa(&self, x: f64) -> Option<f64> {
+        let run = self.q[0] - self.p[0];
+        if run == 0.0 {
+            return None;
+        }
+        let t = (x - self.p[0]) / run;
+        if !(t > 0.0 && t < 1.0) {
+            return None;
+        }
+        let y = self.p[1] + t * (self.q[1] - self.p[1]);
+        y.is_finite().then_some(y)
+    }
+
+    /// The abscissa where this segment meets `other`, endpoints
+    /// included — the remaining vertices of the intersection region.
+    /// Parallel pairs (including collinear ones, whose shared span's
+    /// ends are already endpoint abscissae) contribute nothing.
+    fn meeting_abscissa(&self, other: &Self) -> Option<f64> {
+        let r = [self.q[0] - self.p[0], self.q[1] - self.p[1]];
+        let s = [other.q[0] - other.p[0], other.q[1] - other.p[1]];
+        let denom = r[0] * s[1] - r[1] * s[0];
+        if denom == 0.0 || !denom.is_finite() {
+            return None;
+        }
+        let d = [other.p[0] - self.p[0], other.p[1] - self.p[1]];
+        let t = (d[0] * s[1] - d[1] * s[0]) / denom;
+        let u = (d[0] * r[1] - d[1] * r[0]) / denom;
+        if !(0.0..=1.0).contains(&t) || !(0.0..=1.0).contains(&u) {
+            return None;
+        }
+        let x = self.p[0] + t * r[0];
+        x.is_finite().then_some(x)
+    }
+}
+
+/// Every boundary segment of both trims — outer then rings, face A then
+/// face B, cycle order (fixed, D9). Holes are in: they bound the region
+/// the rung is asking about exactly as the outers do, and a
+/// decomposition that ignored them would propose cell centres inside a
+/// hole (harmless, `contfp` reads rings and answers `Out`) and, worse,
+/// merge two genuine cells across a hole's edge and propose neither.
+fn boundary_segments<T: Decide + Bounds>(uv_a: &FaceUv<T>, uv_b: &FaceUv<T>) -> Vec<NominalSeg> {
+    let mut out = Vec::new();
+    for uv in [uv_a, uv_b] {
+        for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
+            if poly.len() < 3 {
+                continue;
+            }
+            let nominal = |p: &Point2<T>| {
+                Some([midpoint(p.x.lo(), p.x.hi()), midpoint(p.y.lo(), p.y.hi())])
+                    .filter(|c| c[0].is_finite() && c[1].is_finite())
+            };
+            for i in 0..poly.len() {
+                let (Some(p), Some(q)) = (nominal(&poly[i]), nominal(&poly[(i + 1) % poly.len()]))
+                else {
+                    continue;
+                };
+                out.push(NominalSeg { p, q });
+            }
+        }
+    }
+    out
+}
+
+/// The decomposition's slab boundaries: every segment endpoint's
+/// abscissa and every segment-pair meeting's, ascending and deduplicated
+/// (`total_cmp`, so the order is total and fixed whatever the values).
+fn event_abscissae(segments: &[NominalSeg]) -> Vec<f64> {
+    let mut xs = Vec::with_capacity(2 * segments.len());
+    for s in segments {
+        xs.push(s.p[0]);
+        xs.push(s.q[0]);
+    }
+    for i in 0..segments.len() {
+        for j in (i + 1)..segments.len() {
+            if let Some(x) = segments[i].meeting_abscissa(&segments[j]) {
+                xs.push(x);
+            }
+        }
+    }
+    xs.sort_by(f64::total_cmp);
+    xs.dedup();
+    xs
+}
+
+/// The exact midpoint of two finite `f64`s, without the overflow the
+/// naive sum has at the top of the range.
+fn midpoint(a: f64, b: f64) -> f64 {
+    a + 0.5 * (b - a)
 }
 
 /// The witness schedule of one trim polygon (fixed order, D9): its

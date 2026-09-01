@@ -135,18 +135,15 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 /// (H and B, on the shelf edge's interior) are vertex-on-edge events
 /// the declared pair holds, so the overlap is backed like any other.
 ///
-/// What THIS seat is left with is a different door's refusal, and it is
-/// this fixture's outcome rather than the class's: the declared patch's
+/// The seat also has nothing left at door 2. The declared patch's
 /// region-overlap confirm reaches `interior_witness`'s rescue rung with
-/// a `Definite` door-1 verdict, and every candidate of that rung's fixed
-/// schedule misses the H-A-B overlap (an area of ~7.5e-3 m², seven
-/// orders above ε), so it refuses `TouchingBoundary` →
-/// `CensusUnsupported`: `Attribution::Declined`, the `Uncertified`
-/// frontier, not the `Unattributed` hard error this unit retires.
-/// A same-class seat whose overlap the schedule DOES land certifies
-/// outright (`r1_mate4a_probes::a_spike_overhang_certifies_outright`),
-/// so the outcome bifurcates on where the fixed candidates fall — issue
-/// 1435, not this rung's question and not the whole class's fate.
+/// a `Definite` door-1 verdict, and the rung's schedule now searches the
+/// two trims' own arrangement rather than a fixed handful of landmarks,
+/// so it lands the H-A-B overlap (~7.5e-3 m², seven orders above ε) and
+/// certifies `PositiveArea`. This row asserted the opposite residue
+/// while that schedule was a handful — a `CensusUnsupported` that a
+/// geometrically equivalent seat did not raise, which is the
+/// bifurcation `mate8_witness_schedule` now pins away.
 #[test]
 fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
@@ -156,13 +153,8 @@ fn the_declared_overhang_seat_keeps_no_hard_finding() {
         "every finding of the declared overhang seat is answered: {found:?}"
     );
     assert!(
-        matches!(
-            found.as_slice(),
-            [ValidationError::CensusUnsupported {
-                entity: topo::EntityId::Face(f),
-            }] if *f == post_top
-        ),
-        "and the residue is the declared pair's own region door: {found:?}"
+        found.is_empty(),
+        "and door 2 certifies the seat outright: {found:?}"
     );
 }
 

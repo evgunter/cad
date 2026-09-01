@@ -9,11 +9,14 @@
 //! overhanging — still reaches `ef_bound_backed`'s interior arm (the
 //! shelf edge dives through the cap between two cap vertices resting
 //! on its interior), but the declared pair's overlap is large enough
-//! that the #1063 interior-witness schedule (the shelf rectangle's
-//! candidates all sit at (0.45, 0.15)) proves PositiveArea, so door 2
-//! CERTIFIES: the class's outcome bifurcates on the fixed witness
-//! schedule; `TouchingBoundary`→`CensusUnsupported` is this fixture's
-//! outcome, not the class's.
+//! that the #1063 interior-witness schedule's very first candidate (the
+//! shelf rectangle's centroid, at (0.45, 0.15)) proves PositiveArea, so
+//! door 2 CERTIFIES: the class's outcome bifurcated on the fixed witness
+//! schedule; `TouchingBoundary`→`CensusUnsupported` was this fixture's
+//! outcome, not the class's. This row is unmoved by the schedule's
+//! completion (issue 1435) precisely because it never needed it: the
+//! seat it bifurcated against certifies now too, and
+//! `mate8_witness_schedule` runs the two together.
 //!
 //! Probe 2 (`the_spike_seat_bare_is_loud`): the same seat undeclared
 //! stays loud (the rung consults declarations) — the control that

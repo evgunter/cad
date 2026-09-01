@@ -146,20 +146,23 @@ fn the_lemma_probe_undeclared_baseline() {
 /// that lane's rung — `ef_bound_backed`'s interior arm. No finding of
 /// this seat is unattributed any more.
 ///
-/// This seat still does not CERTIFY, through a door that is not the
-/// census's rungs at all: the declared patch's region-overlap confirm
-/// runs `interior_witness`'s rescue rung on a `Definite` door-1 verdict
-/// and declines because that rung's fixed candidate schedule misses
-/// this overlap (measured) — `CensusUnsupported`,
-/// `Attribution::Declined`, the `Uncertified` frontier, where before it
-/// was an `Unattributed` hard error. That is the fixture's outcome, not
-/// the class's: a same-class seat whose overlap the schedule lands
-/// certifies outright (`r1_mate4a_probes`). The schedule's aim is issue
-/// 1435. This probe pins the rung.
+/// The seat CERTIFIES, and this probe's outcome has now flipped twice.
+/// It was an `Unattributed` hard error; the census rungs above made it
+/// `CensusUnsupported`/`Attribution::Declined`, because the declared
+/// patch's region-overlap confirm ran `interior_witness`'s rescue rung
+/// on a `Definite` door-1 verdict and its fixed candidate schedule
+/// missed this overlap (measured — ~7.5e-3 m², seven orders above ε);
+/// completing that schedule to search the two trims' own arrangement
+/// lands the overlap and leaves nothing at all. The intermediate state
+/// was never the class's outcome — a same-class seat whose overlap the
+/// old landmarks happened to land certified outright throughout
+/// (`r1_mate4a_probes`) — which is why the last assertion below is the
+/// whole error list and no longer the census's share of it.
 #[test]
 fn the_lemma_probe_declared() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
-    let found = undeclared(&errors(&body, &declared(post_top, shelf_bottom)));
+    let all = errors(&body, &declared(post_top, shelf_bottom));
+    let found = undeclared(&all);
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
         0,
@@ -174,6 +177,10 @@ fn the_lemma_probe_declared() {
         0,
         "and the ef interior arm reads the same rung at each bound: \
          {found:?}"
+    );
+    assert!(
+        all.is_empty(),
+        "and door 2's rescue rung finds the overlap: {all:?}"
     );
 }
 
