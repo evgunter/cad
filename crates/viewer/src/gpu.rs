@@ -234,21 +234,27 @@ const EDGE_FLAG_PROBE: u32 = 2;
 /// The constant half of the edge pass's depth bias, in units of the
 /// smallest resolvable depth increment at the fragment.
 ///
+/// Applied in `vs_edge` as a RELATIVE shrink of clip-space z, not as
+/// pipeline `DepthBiasState`: WebGPU validation forbids a depth bias
+/// on non-triangle topology, so a line pipeline that asks for one
+/// refuses to build at all. For a float depth buffer the two are the
+/// same currency — an f32's quantum at depth `z` is `z * 2^-23`, so a
+/// multiplicative `z * (1 - k * 2^-23)` IS "k quanta toward the eye"
+/// at every depth, which is what the fixed-function constant bias
+/// meant on this format.
+///
 /// **Eyeballed, and there is no measurement behind it**: the lines lie
-/// exactly on the surface (they share its positions), so any bias
-/// toward the eye large enough to clear one depth quantum is enough,
+/// exactly on the surface (they share its positions), so a nudge
+/// toward the eye large enough to clear a few depth quanta is enough,
 /// and one large enough to lift a mark off a NEIGHBOURING surface
-/// would be a bug. Two quanta is the smallest value that is not one.
-/// The pass writes no depth, so an over-large bias could only make a
-/// mark show through geometry it should not — which is the reason to
-/// keep it minimal rather than to tune it.
-const EDGE_DEPTH_BIAS: i32 = -2;
-
-/// The slope-scaled half of the same bias: one depth quantum per unit
-/// of depth slope across the fragment, which is what a line lying on a
-/// steeply-angled facet needs and a flat-on one does not. Eyeballed
-/// beside [`EDGE_DEPTH_BIAS`], for the same reason.
-const EDGE_DEPTH_BIAS_SLOPE: f32 = -1.0;
+/// would be a bug. A handful of quanta rather than the fixed-function
+/// era's two, because a vertex-shader nudge has no slope-scaled half —
+/// the extra quanta stand in for what `slope_scale` gave a line lying
+/// on a steeply-angled facet. The pass writes no depth, so an
+/// over-large bias could only make a mark show through geometry it
+/// should not — which is the reason to keep it minimal rather than to
+/// tune it.
+const EDGE_NDC_BIAS: f32 = 1.0e-6;
 
 struct Geometry {
     positions: wgpu::Buffer,
@@ -724,16 +730,14 @@ impl EdgePass {
                 depth_write_enabled: Some(false),
                 // The polyline's chord points ARE mesh positions the
                 // triangles share, so the line lands exactly on the
-                // surface's own depth: `LessEqual` plus the bias below
-                // is what keeps it from z-fighting with the facet it
-                // borders.
+                // surface's own depth: `LessEqual` plus the vertex
+                // shader's `EDGE_NDC_BIAS` nudge is what keeps it from
+                // z-fighting with the facet it borders. No
+                // `DepthBiasState` here — WebGPU refuses one on a line
+                // topology (see `EDGE_NDC_BIAS`).
                 depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState {
-                    constant: EDGE_DEPTH_BIAS,
-                    slope_scale: EDGE_DEPTH_BIAS_SLOPE,
-                    clamp: 0.0,
-                },
+                bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState::default(),
             fragment: Some(wgpu::FragmentState {
@@ -1014,6 +1018,7 @@ fn shader_source() -> String {
         )
         .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
+        .replace("{{EDGE_NDC_BIAS}}", &format!("{EDGE_NDC_BIAS:e}"))
 }
 
 const SHADER: &str = r#"
@@ -1112,6 +1117,10 @@ fn vs_edge(
 ) -> EdgeOut {
     var out: EdgeOut;
     out.clip_position = uniforms.view_projection * vec4<f32>(position, 1.0);
+    // The line pass's depth bias, relocated here from the pipeline —
+    // WebGPU forbids DepthBiasState on a line topology. Relative
+    // shrink = quanta on a float depth buffer; see EDGE_NDC_BIAS.
+    out.clip_position.z *= 1.0 - {{EDGE_NDC_BIAS}};
     out.mark = mark;
     return out;
 }
