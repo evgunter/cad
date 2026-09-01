@@ -296,10 +296,20 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
 /// as NINE `FacePairDeclaration`s. The document layer has selection
 /// (`GeoSelect`); the kernel-level `Body` does not, and a declared
 /// contact is a kernel-level object — the two-doors gap, #1345.
-/// `crate::booleans::flush_declarations` is the same gap answered for
-/// PLANES only, and deliberately not widened here: it is called by
-/// scenes whose contacts must keep refusing (the lily's stem glue), so
-/// a curved arm on it would move a wall rather than build a part.
+///
+/// The mating plane above no longer walks the arena for its intent:
+/// `topo::flush::find_flush_candidates` produces it as a finding.
+/// What keeps THESE pairs hand-assembled is the detector's SCOPE, not
+/// a missing producer and not a missing verification — the `Rest`
+/// ladder verifies a cylindrical cosurface pair today, and asked in
+/// its detector posture it already reports this very pair as
+/// would-verify-if-declared ([`seat3_measurements`] runs both). The
+/// detector is planar because the door it enumerates over is
+/// `flush_pair_relation`; widening it to `carrier_pair_relation` is a
+/// door swap that also widens `crate::booleans::flush_declarations`,
+/// which scenes whose curved contacts must keep REFUSING call (the
+/// lily's stem glue), so it is a decision about those scenes rather
+/// than a free generalization.
 fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<(pncad::topo::FaceKey, f64, f64, f64)> {
     body.faces()
         .filter_map(|(k, f)| match body.get_surface(f.surface) {
@@ -345,14 +355,23 @@ fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceK
 /// pairs too — 22 cylindrical `Rest`s rather than 18 — and the mate
 /// refuses anyway, which is what makes the wall a kernel fact rather
 /// than a missing declaration.
-fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    // 1. The mating plane: P's top face against Q's bottom face.
-    decls.coincident_faces.push(FacePairDeclaration::new(
-        plane_face(p, PLATE.2, true),
-        plane_face(q, PLATE.2, false),
-        ContactClass::Rest,
-    ));
+fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclarations {
+    // 1. The mating plane: P's top face against Q's bottom face —
+    //    DETECTED, then declared. The library door reports every
+    //    planar `Rest` candidate between the two parts; the author
+    //    picks the one contact he means and hands that finding to the
+    //    declare sugar, which is the no-fusion boundary doing its job
+    //    (the pairs the door also finds — the plates' flush side
+    //    walls, and the peg tops flush with Q's top face — are real
+    //    contacts this part does not mate on).
+    let mating = (plane_face(p, PLATE.2, true), plane_face(q, PLATE.2, false));
+    let found = pncad::topo::flush::find_flush_candidates(p, q, tol)
+        .expect("the plates' planar pairs are authored exactly, so they decide definitely");
+    let mating = found
+        .iter()
+        .find(|f| f.pair == mating)
+        .expect("the mating plane must be a finding: P's top face rests on Q's bottom face");
+    let mut decls = pncad::topo::flush::declare(mating);
     // 2. Every shared-carrier cylinder pair: the two peg fits (three
     // faces a side, so nine declarations each) and the four corner
     // walls the profile fillets mint.
@@ -400,7 +419,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     }
     println!("   two-peg mate WITHOUT declarations: {refusal}");
 
-    let decls = declarations(&p, &q);
+    let decls = declarations(&p, &q, tol);
     println!(
         "   declared: {} face pairs — the mating plane, and every shared-carrier \
          cylinder pair (P has {} cylinder faces, Q has {}); cross-peg pairs never \
@@ -543,3 +562,100 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         },
     ]
 }
+
+/// **What the flush detector reaches on this mate, measured** — the
+/// evidence behind [`cylinders`]' finding note, kept as a test so the
+/// sentence is re-derived rather than believed.
+///
+/// Two claims, and the second is the load-bearing one:
+///
+/// 1. The PLANAR detector produces the mating plane, and it also
+///    produces contacts this part does not mate on — so the scene
+///    picks its finding out of the report rather than declaring the
+///    report.
+/// 2. The cylindrical peg/bore pairs are outside the DETECTOR, not
+///    outside the verifier: the same carrier ladder that verifies
+///    them under a declaration reports them, asked in its detector
+///    posture, as would-verify-if-declared, with the definite-zero
+///    encoding the planar detector reads as a finding.
+#[cfg(test)]
+mod seat3_measurements {
+    use super::*;
+    use pncad::geom_core::{Band, Tol};
+    use pncad::topo::boolean::carrier_pair_relation;
+
+    #[test]
+    fn the_planar_detector_finds_the_mating_plane_among_other_real_contacts() {
+        let tol = Tol::witness();
+        let p = plate_with_pegs::<f64>(tol);
+        let q = plate_with_holes::<f64>(tol);
+        let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
+            .expect("the plates' planar pairs decide definitely");
+        let mating = (plane_face(&p, PLATE.2, true), plane_face(&q, PLATE.2, false));
+        assert!(
+            found.iter().any(|f| f.pair == mating),
+            "the mate's own plane must be a finding: {found:?}"
+        );
+        assert!(
+            found.len() > 1,
+            "the parts share more planar contacts than they mate on (flush side walls, \
+             peg tops flush with Q's top face), which is why the scene picks: {found:?}"
+        );
+        assert_eq!(
+            declarations(&p, &q, tol)
+                .coincident_faces
+                .iter()
+                .filter(|d| d.a == mating.0 && d.b == mating.1)
+                .count(),
+            1,
+            "and picks exactly the one it means"
+        );
+    }
+
+    #[test]
+    fn the_cylindrical_pairs_are_outside_the_detector_not_outside_the_verifier() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let p = plate_with_pegs::<f64>(tol);
+        let q = plate_with_holes::<f64>(tol);
+        let (fa, fb) = (
+            cylinders(&p)[0],
+            *cylinders(&q)
+                .iter()
+                .find(|c| (c.1 - cylinders(&p)[0].1).abs() < SAME_CARRIER)
+                .expect("a bore on the first peg's carrier"),
+        );
+        // Declared posture: the ladder VERIFIES the pair, which is
+        // what the scene's nine-per-peg declarations rest on.
+        assert!(
+            matches!(
+                carrier_pair_relation(&p, fa.0, &q, fb.0, true, band),
+                Some(Ok(pncad::topo::CarrierRelation::SameOpposite))
+            ),
+            "the Rest ladder verifies a cylindrical cosurface pair today"
+        );
+        // Detector posture: the same door already says "would verify
+        // if declared" — the definite-zero encoding, on a curved rung.
+        // So the scope step is this detector's door, not a verify
+        // table.
+        assert!(
+            matches!(
+                carrier_pair_relation(&p, fa.0, &q, fb.0, false, band),
+                Some(Err(pncad::topo::CarrierEqError::Undeclared {
+                    relation: pncad::topo::CarrierRelation::SameOpposite,
+                    ..
+                }))
+            ),
+            "the detector posture reports the same pair as would-verify-if-declared"
+        );
+        // And the planar detector does not report it, which is the
+        // scope sentence stated as a test rather than as prose.
+        let found = pncad::topo::flush::find_flush_candidates(&p, &q, tol)
+            .expect("the planar pairs decide definitely");
+        assert!(
+            !found.iter().any(|f| f.pair == (fa.0, fb.0)),
+            "the planar detector reports planar pairs only"
+        );
+    }
+}
+
