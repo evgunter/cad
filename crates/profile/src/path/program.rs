@@ -1713,14 +1713,15 @@ impl<T: Real> core::fmt::Display for ReplayError<T> {
                 verb: Some(verb),
             } => write!(
                 f,
-                "step {}: the {verb:?} verb is not a legal continuation of a {state:?} tip \
-                 (lattice violation — no authoring surface can produce this program)",
+                "step {}: the {verb:?} verb is not a legal continuation of tip state \
+                 {state:?} (lattice violation — no authoring surface can produce this \
+                 program)",
                 self.step
             ),
             ReplayErrorKind::Transition { state, verb: None } => write!(
                 f,
-                "step {}: the program ends at a {state:?} tip without closing the loop \
-                 (lattice violation — a chain must end at Start)",
+                "step {}: the program ends at tip state {state:?} without closing the \
+                 loop (lattice violation — a chain must end at Start)",
                 self.step
             ),
             ReplayErrorKind::Path(source) => {

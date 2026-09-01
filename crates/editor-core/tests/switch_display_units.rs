@@ -158,18 +158,18 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
     for (json, unit_dim, literal_dim) in [
         (
             r#"{"Literal":{"value":0.5,"dim":"Angle","unit":"mm"}}"#,
-            "Length",
-            "Angle",
+            "length",
+            "angle",
         ),
         (
             r#"{"Literal":{"value":0.5,"dim":"Length","unit":"deg"}}"#,
-            "Angle",
-            "Length",
+            "angle",
+            "length",
         ),
         (
             r#"{"Literal":{"value":0.5,"dim":"Scalar","unit":"mm"}}"#,
-            "Length",
-            "Scalar",
+            "length",
+            "scalar",
         ),
     ] {
         let err = serde_json::from_str::<Expr>(json)
@@ -179,6 +179,14 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
             text.contains(&format!("measures {unit_dim}"))
                 && text.contains(&format!("literal is {literal_dim}")),
             "the refusal must name the pair it read, got {text}"
+        );
+        // The wire tag and the prose word are two different spellings
+        // of one dimension: the file carries `"dim":"Angle"`, the
+        // message says "angle". A refusal reading the first back out
+        // is rendering through `Debug`.
+        assert!(
+            !text.contains("Length") && !text.contains("Angle") && !text.contains("Scalar"),
+            "the wire tag reached the message where the prose word belongs, got {text}"
         );
     }
 }
