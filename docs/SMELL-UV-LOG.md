@@ -110,6 +110,21 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 | (blocked, kept visible) | C6 | each member on something real (OnArc + RESPELL-TABLE, a first proc-macro crate, a persisted format) — unchanged |
 | (not work) | D360 | a sweep rule, binding on any lane that sweeps `topo` refusal enums in this fence |
 
+## Lane records (wave 3)
+
+**uv-i (PR 1498, merged).** D363's four groups adjudicated under
+`edit.rs`'s header rule, uniformly: `Dimension` ruled a quantity kind
+(one `Display` home in `expr.rs`, 19 arms / 32 interpolations
+converted); `Sign` forwarded; the `{verb:?}/{state:?}` pair argued-KEEP
+as a transition-table coordinate, with the keep pinned; the two
+in-fence `StableName` copies forwarded (`product.rs:202` remains,
+M10's). Review: no MAJOR, one MINOR (sweep-table accounting, fixed);
+its sharpest catch — "a edge name" in the arm the PR touched — became
+the `EntityKind::article()` class fix at the fix pass, plus the
+word-list copy self-declarations and the pncad-py cross-pin. Six
+planted defects, each red on its named test. CI drew three distinct
+matrix points across the branch's heads.
+
 ## Lane records
 
 **uv-b (PR 1453, merged).** D361: both doors keep `T: Bounds` with

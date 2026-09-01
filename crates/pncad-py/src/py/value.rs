@@ -381,6 +381,12 @@ impl Verdict {
 }
 
 /// The F1 dimension as the one spelling this surface uses.
+///
+/// Capitalized on purpose: this is the Python-facing type name a
+/// `Measurement` repr reads back as, not prose. The other two
+/// spellings of the same word list are the kernel's prose rendering
+/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
+/// (the lowercase FFI tag, pinned equal to that rendering).
 fn dimension_name(dim: d::Dimension) -> &'static str {
     match dim {
         d::Dimension::Length => "Length",

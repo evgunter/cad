@@ -1695,6 +1695,16 @@ impl<T: Real> ReplayError<T> {
     }
 }
 
+// The one home of the (state, verb) rendering rule, which
+// `editor-core`'s `ProgramFault::Lattice` repeats for the fault this
+// refusal raises there. The pair is a COORDINATE in the transition
+// table — the row a reader looks up next — so both halves render
+// through `Debug`: the variant spelling is the lookup key and a prose
+// paraphrase would not find it, which is the identifiers-as-location
+// case. Each is introduced by the noun it is ("verb", "tip") so the
+// identifier reads as a value in the sentence and not as a dump that
+// leaked into one. Scalars and typed payloads elsewhere in this
+// module render as words; these do not.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
@@ -1703,14 +1713,15 @@ impl<T: Real> core::fmt::Display for ReplayError<T> {
                 verb: Some(verb),
             } => write!(
                 f,
-                "step {}: {verb:?} is not a legal continuation of a {state:?} tip \
-                 (lattice violation — no authoring surface can produce this program)",
+                "step {}: the {verb:?} verb is not a legal continuation of tip state \
+                 {state:?} (lattice violation — no authoring surface can produce this \
+                 program)",
                 self.step
             ),
             ReplayErrorKind::Transition { state, verb: None } => write!(
                 f,
-                "step {}: the program ends at a {state:?} tip without closing the loop \
-                 (lattice violation — a chain must end at Start)",
+                "step {}: the program ends at tip state {state:?} without closing the \
+                 loop (lattice violation — a chain must end at Start)",
                 self.step
             ),
             ReplayErrorKind::Path(source) => {

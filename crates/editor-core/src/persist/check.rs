@@ -524,7 +524,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::CountContinuous { name } => write!(
                 f,
-                "continuous parameter {:?} is declared with the Count dimension",
+                "continuous parameter {:?} is declared with the count dimension",
                 name.0
             ),
             Self::EpsilonInvalid { value } => write!(
@@ -566,9 +566,12 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "assertion node {} bounds a {measured:?} measure (node {}) with a {bound:?} \
-                 expression",
-                node.0, measure.0
+                "assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression",
+                node.0,
+                measured.article(),
+                measure.0,
+                bound.article()
             ),
             Self::AssertionBound {
                 node,
@@ -577,9 +580,11 @@ impl core::fmt::Display for SnapshotError {
                 bound,
             } => write!(
                 f,
-                "assertion node {} carries a {bound:?} bound against node {}, which is not a \
+                "assertion node {} carries {} {bound} bound against node {}, which is not a \
                  measure",
-                node.0, measure.0
+                node.0,
+                bound.article(),
+                measure.0
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
@@ -786,8 +791,11 @@ pub enum ProgramFault {
 // lattice arm states the walk failure in the same words
 // [`crate::ProgramRefusal::Transition`] does — that refusal is what
 // the probe raised — and then names the tip state and the verb that
-// could not follow it; the vocabulary tokens are the location, and
-// the typed variant remains the machine contract.
+// could not follow it, keeping their `Debug` spellings for the reason
+// `profile`'s `ReplayError` rendering states: the pair is the
+// transition table's coordinate. The dimensions beside them are
+// quantity kinds, so they render as words (`Dimension`'s `Display`).
+// The typed variant remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -801,8 +809,10 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "loop {loop_} step {step}'s {arg:?} argument needs a {expected:?} \
-                 expression, got {found:?}"
+                "loop {loop_} step {step}'s {arg:?} argument needs {} {expected} \
+                 expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::SlotDimension {
                 slot,
@@ -810,7 +820,9 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "slot {slot:?} needs a {expected:?} expression, got {found:?}"
+                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::Lattice {
                 loop_,
@@ -823,7 +835,7 @@ impl core::fmt::Display for ProgramFault {
                     "loop {loop_} step {step} is not a legal chain-lattice walk: "
                 )?;
                 match verb {
-                    Some(verb) => write!(f, "a {verb:?} verb at tip state {state:?}"),
+                    Some(verb) => write!(f, "the {verb:?} verb at tip state {state:?}"),
                     None => write!(f, "the chain is unclosed at tip state {state:?}"),
                 }
             }

@@ -61,6 +61,19 @@ impl EntityKind {
             Self::Vertex => "vertex",
         }
     }
+
+    /// The indefinite article agreeing with [`EntityKind::noun`] — the
+    /// value decides it ("an edge", "a face"), so a sentence that
+    /// hard-codes one is wrong for some kind it can reach. Rendered as
+    /// `"{} {}"` beside the noun, or beside a whole [`StableName`]
+    /// whose kind this is. `Dimension`'s `article` is the same idiom
+    /// and states the rule.
+    pub(crate) fn article(self) -> &'static str {
+        match self {
+            Self::Body | Self::Face | Self::Vertex => "a",
+            Self::Edge => "an",
+        }
+    }
 }
 
 /// N1's stable name: a derivation path — the minting node plus an

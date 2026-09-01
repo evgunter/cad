@@ -396,7 +396,7 @@ impl core::fmt::Display for RefusedRef {
                  a tie is never broken by picking"
             ),
             Self::NotAFace { kind } => {
-                write!(f, "it names a {}, not a face", kind.noun())
+                write!(f, "it names {} {}, not a face", kind.article(), kind.noun())
             }
         }
     }
@@ -406,6 +406,11 @@ impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "assembly: {e}"),
+            // The name forwards `StableName`'s `Display` rather than
+            // re-spelling the kind-plus-minting-node phrase, and the
+            // article comes from the kind because the value decides
+            // it. The pin builds its expectation from the impl, so a
+            // copy that stops tracking it fails.
             Self::Reference {
                 mate,
                 side,
@@ -413,12 +418,11 @@ impl core::fmt::Display for AssemblyError {
                 why,
             } => write!(
                 f,
-                "assembly: mate {}'s {} reference (a {} name minted by node {}) does \
-                 not name a face of the product: {why}",
+                "assembly: mate {}'s {} reference ({} {name}) does not name a face of \
+                 the product: {why}",
                 mate.0,
                 side.name(),
-                name.kind.noun(),
-                name.node.0
+                name.kind.article(),
             ),
             Self::NoAtRestRecord { mate, class, why } => write!(
                 f,
