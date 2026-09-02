@@ -23,11 +23,13 @@
 //!   `(u_ref, v_ref, axis)` is right-handed by construction. The
 //!   plane's frame is the same shape with `normal` in the axis role.
 //!   `u_ref` carries the **seam** (where u = 0 lives).
-//! - **The shared helper.** `radial(u) = u_ref·cos u + v_ref·sin u` is
-//!   the unit vector at azimuth `u`; its derivative
-//!   `tangential(u) = u_ref·(−sin u) + v_ref·cos u`. Every azimuthal
-//!   evaluator is written in terms of these two, with one `sin_cos`
-//!   call per parameter.
+//! - **The azimuthal frame is one body, and it is not here.** The
+//!   radial unit vector at azimuth `u`, its derivative the tangential,
+//!   and the `v_ref` above are the interior `crate::azimuth` module's
+//!   doors; that module is the one home for the formula, its
+//!   association order and the seam convention, and it is shared with
+//!   the curve half. Every azimuthal evaluator below starts from it,
+//!   one `sin_cos` call per parameter.
 //! - **Normals are derived, not stored**: `normal(u, v)` is
 //!   `(∂S/∂u × ∂S/∂v).normalize()` — the orientation is the
 //!   parameterization's, full stop. There is no "outward" concept at

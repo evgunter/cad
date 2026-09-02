@@ -30,6 +30,11 @@
 //!   `start(he_plus)` to `end(he_plus)`**. Per-face traversal senses and
 //!   pcurves are *derived* from that one orientation, never stored as
 //!   peers.
+//! - **The azimuthal frame is one body, and it is not here.** The
+//!   circle and ellipse arms read `v_ref = axis × u_ref` and the
+//!   radial/tangential pair at angle `u` from the interior
+//!   `crate::azimuth` module — the same one home the surface half
+//!   reads, so the two halves cannot drift a convention apart.
 //! - **Periodicity:** a circle is 2π-periodic in θ: as a locus,
 //!   `P(θ) = P(θ + 2πk)` exactly, in the reals. What that does and does
 //!   not promise in floating point is the crate docs' bit-identity

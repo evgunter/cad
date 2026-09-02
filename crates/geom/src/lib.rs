@@ -13,6 +13,13 @@
 //! argument, not API, and the names a consumer needs are at this
 //! root.
 //!
+//! One door is deliberately absent, and is named here so its absence
+//! reads as a decision rather than an omission: **iso-curve
+//! extraction** from a NURBS payload belongs to the EdgeDescription
+//! layer, under a placement rule stated and argued in `geom-brep`'s
+//! `nurbs_iso` module docs. This crate says what a locus is and what
+//! it evaluates to; it does not mint another entity's carrier.
+//!
 //! # Conventions (normative, stated once)
 //!
 //! These are the parameterization conventions every consumer — edges,
