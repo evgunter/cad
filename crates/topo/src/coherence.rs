@@ -99,12 +99,11 @@
 //! is a trace, not a census. Issue 1571 owns FIXING the arc premise;
 //! this door owns seeing it.
 
-use geom::Curve3;
-use geom_brep::EdgeDescription;
 use geom_core::{Point3, Tol};
 
 use crate::body::Body;
 use crate::chart::Chart;
+use crate::chart_iso::{TravKind, classify_kind, unwrap_near};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 /// Which of the three conditions a [`CoherenceFinding`] reports, and
@@ -231,24 +230,22 @@ pub struct CoherenceReport {
     pub unexamined: Vec<Unexamined>,
 }
 
-/// Full turn, the period of every wrapped axis here.
-const TAU: f64 = core::f64::consts::TAU;
-
 /// The unsigned distance between two values of a PERIODIC chart
-/// coordinate: `|a − b|` with `b`'s nearest representative of `a`
-/// chosen, so the answer never exceeds half a period.
+/// coordinate, through the walk's OWN branch selection
+/// ([`unwrap_near`]): `a`'s nearest representative to `b`, minus `b`.
+/// The answer never exceeds half a period.
 ///
 /// This is the same reduction the consuming walk performs before it
-/// discards one of the two values, spelled here as the measurement it
-/// is rather than as a branch selection: on a full turn of skew the
-/// two statements agree, and a report that called that a π gap would
-/// be reporting the reduction and not the data.
+/// discards one of the two values — literally the same function, so a
+/// change to how the walk picks a branch changes what this measures —
+/// read here as a measurement rather than as a selection: on a full
+/// turn of skew the two statements agree, and a report that called
+/// that a π gap would be reporting the reduction and not the data.
 fn wrapped(a: f64, b: f64) -> f64 {
-    let d = a - b;
-    (d - TAU * (d / TAU).round()).abs()
+    (unwrap_near(a, b) - b).abs()
 }
 
-/// **The band, and its only spelling in this module.** Is a chart
+/// **The band, and its only spelling in this crate.** Is a chart
 /// discrepancy of `gap`, at a point whose lever arm for that axis is
 /// `lever` metres per chart unit, float noise rather than something to
 /// report?
@@ -261,12 +258,30 @@ fn wrapped(a: f64, b: f64) -> f64 {
 /// quiet. At `lever == 0` (a vertex on the chart axis: a pole, a cone's
 /// apex) the coordinate carries no length, so every gap is noise — the
 /// correct limit, reached without a special case or a division.
-fn is_noise(gap: f64, lever: f64, eps: f64) -> bool {
+///
+/// # The same expression as `mesh`'s, and why there are two of them
+///
+/// `mesh::walk::gap_is_noise` is `Eps::dominates(gap * lever)`, which
+/// is this comparison with this band edge. It is not shared, and that
+/// is a decision rather than an oversight: MESH-4 made `Eps` a
+/// `mesh`-local newtype whose whole property is that it has no
+/// accessor, so its band cannot cross a crate boundary as a number
+/// and the two spellings cannot be one function without giving it one.
+/// What holds them together instead is an executed row rather than a
+/// promise — `mesh::walk::tests::the_two_spellings_of_the_band_agree`
+/// runs the walk's own literal ladder through both and reds if either
+/// drifts.
+pub fn gap_is_noise(gap: f64, lever: f64, eps: f64) -> bool {
     gap * lever < eps
 }
 
-/// A boundary edge as this examination reads it: the two coordinates
+/// A boundary edge as this examination reads it: the classification
 /// the source states about it, and the two junctions it runs between.
+///
+/// [`TravKind`] is shared with the walk; this struct is not, and the
+/// fields are why — the walk's own traversal carries a chord-id list
+/// into a mesh, and there is no mesh here. Arena keys and the two
+/// junction POINTS are what a body-side reading has.
 struct Trav {
     edge: EdgeKey,
     start: VertexKey,
@@ -274,75 +289,6 @@ struct Trav {
     start_p: Point3<f64>,
     end_p: Point3<f64>,
     kind: TravKind,
-}
-
-/// The iso classification of a boundary edge, and the raw constant
-/// coordinate its own carrier states.
-enum TravKind {
-    /// A circle about the chart axis: the raw row v.
-    Rim { v_raw: f64 },
-    /// A u = const boundary: the raw column azimuth, read at the
-    /// carrier's mid-parameter point.
-    Meridian { u_raw: f64 },
-}
-
-impl TravKind {
-    /// Whether two traversals could be two edges of ONE iso side —
-    /// necessary, not sufficient: the junction between them must also
-    /// lie off the chart axis.
-    fn same_kind(&self, other: &Self) -> bool {
-        matches!(
-            (self, other),
-            (Self::Rim { .. }, Self::Rim { .. }) | (Self::Meridian { .. }, Self::Meridian { .. })
-        )
-    }
-}
-
-/// The azimuth of an edge's mid-parameter carrier point — a
-/// representative INTERIOR point, never an endpoint, so a meridian
-/// running into a pole is still read somewhere the azimuth exists.
-fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
-    let (t0, t1) = curve.params();
-    chart.u_of(curve.carrier().eval(t0 + (t1 - t0) * 0.5))
-}
-
-/// Rim-vs-meridian classification: `Seam` descriptions and line
-/// carriers are meridians; circle carriers split on axis alignment
-/// (structurally either parallel — a rim — or perpendicular — a
-/// meridian; 0.5 splits the two classes with maximal margin).
-///
-/// A meridian's column always comes from the mid-point chart
-/// inversion, never from the edge kind: a `Seam` edge is the surface's
-/// `u_ref`-half-plane meridian, whose chart u is 0 on ordinary kinds
-/// but π on a cone's mirror nappe.
-fn classify(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
-    if matches!(curve.description(), EdgeDescription::Chart(c) if c.seam) {
-        return Some(TravKind::Meridian {
-            u_raw: mid_azimuth(chart, curve),
-        });
-    }
-    match *curve.carrier() {
-        Curve3::Line { .. } => Some(TravKind::Meridian {
-            u_raw: mid_azimuth(chart, curve),
-        }),
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => {
-            if axis.dot(chart.axis).abs() > 0.5 {
-                Some(TravKind::Rim {
-                    v_raw: chart.rim_v(center, radius),
-                })
-            } else {
-                Some(TravKind::Meridian {
-                    u_raw: mid_azimuth(chart, curve),
-                })
-            }
-        }
-        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
-    }
 }
 
 /// Reads one loop into the traversal list the conditions are stated
@@ -381,7 +327,8 @@ fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>,
             .ok_or(corrupt("half-edge mate does not resolve"))?;
         let start_p = point(body, he.start).ok_or(corrupt("vertex point does not resolve"))?;
         let end_p = point(body, end).ok_or(corrupt("vertex point does not resolve"))?;
-        let kind = classify(chart, curve).ok_or(Unexaminable::NonIsoCarrier { edge: he.edge })?;
+        let kind =
+            classify_kind(chart, curve).ok_or(Unexaminable::NonIsoCarrier { edge: he.edge })?;
         out.push(Trav {
             edge: he.edge,
             start: he.start,
@@ -415,17 +362,17 @@ fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>,
 /// walk makes, and it moves only WHICH member of the run is the
 /// reference, never how far the members are from each other.
 fn iso_side_starts(travs: &[Trav], chart: &Chart, eps: f64) -> Vec<bool> {
-    let m = travs.len();
-    if m < 2 {
-        return vec![true; m];
-    }
-    let mut starts: Vec<bool> = (0..m)
-        .map(|k| {
-            let same = travs[(k + m - 1) % m].kind.same_kind(&travs[k].kind);
-            !(same && chart.radial(travs[k].start_p) > eps)
-        })
+    // The RULE is `chart_iso::iso_side_starts`; what is here is this
+    // door's band read (`radial > eps`, strict, the band excluded —
+    // the comparison `mesh` spells `Eps::separates`) and this door's
+    // resolution of the case the rule deliberately leaves open.
+    let kinds: Vec<TravKind> = travs.iter().map(|t| t.kind).collect();
+    let separated: Vec<bool> = travs
+        .iter()
+        .map(|t| chart.radial(t.start_p) > eps)
         .collect();
-    if !starts.iter().any(|&s| s) {
+    let mut starts = crate::chart_iso::iso_side_starts(&kinds, &separated);
+    if !starts.is_empty() && !starts.iter().any(|&s| s) {
         starts[0] = true;
     }
     starts
@@ -473,7 +420,7 @@ fn loop_findings(
     let opens = openings(&starts);
     let mut out = Vec::new();
     let mut push = |edge: EdgeKey, condition: CoherenceCondition, gap: f64, lever: f64| {
-        if !is_noise(gap, lever, eps) {
+        if !gap_is_noise(gap, lever, eps) {
             out.push(CoherenceFinding {
                 face,
                 r#loop: lk,
@@ -640,43 +587,13 @@ pub fn examine_chart_coherence(body: &Body<f64>, tol: Tol) -> CoherenceReport {
 mod tests {
     use super::*;
 
-    /// **The bar is SPATIAL, not angular.** The gap that falsified the
-    /// bare-radian form this predicate replaced —
-    /// `nist_ftc_09_asme1_rd.stp` closes at 3.56e-9 rad on a 2.97 mm
-    /// hole — is noise at any real lever arm, and stops being noise
-    /// only at an absurd one. A scale-free radian constant cannot
-    /// express that, which is the whole reason the unit is metres.
-    #[test]
-    fn the_bar_is_spatial_not_angular() {
-        let gap = 3.56e-9;
-        assert!(
-            is_noise(gap, 0.05, 3.38e-5),
-            "3.56e-9 rad at 50 mm displaces ~1.8e-10 m — far under the band"
-        );
-        assert!(
-            !is_noise(gap, 1e5, 3.38e-5),
-            "the same gap must NOT pass at a 100 km lever arm"
-        );
-    }
-
-    /// Growing the lever arm tightens the angular bar proportionally —
-    /// the property a bare radian constant did not have.
-    #[test]
-    fn the_bar_tightens_as_the_lever_arm_grows() {
-        assert!(is_noise(1e-6, 1.0, 1e-5), "1e-6 m is under the band");
-        assert!(
-            !is_noise(1e-6, 100.0, 1e-5),
-            "1e-4 m is over it — the same angle, a hundred times the arc"
-        );
-    }
-
-    /// On the axis the coordinate carries no length, so every gap is
-    /// noise. A plain comparison reaches that limit; a division would
-    /// have to special-case it.
-    #[test]
-    fn on_the_axis_every_gap_is_noise() {
-        assert!(is_noise(core::f64::consts::PI, 0.0, 1e-9));
-    }
+    // The band's LADDER — the spatial-vs-angular rows, the
+    // lever-arm scaling and the zero-lever limit — is not restated
+    // here: it has one home, `mesh::walk`'s test module, where the
+    // predicate it belongs to has always lived, and
+    // `the_two_spellings_of_the_band_agree` runs that same ladder
+    // through this crate's spelling too. What is below is what is
+    // this module's own.
 
     /// The band is EXCLUDED at both ends it can be excluded at: a zero
     /// band calls nothing noise (so a zero-lever gap is reported rather
@@ -685,12 +602,18 @@ mod tests {
     /// `metres >= eps`" true as written.
     #[test]
     fn the_band_is_excluded_at_both_edges() {
-        assert!(!is_noise(1.0, 0.0, 0.0), "a zero band dominates nothing");
         assert!(
-            !is_noise(1.0, 1e-9, 1e-9),
+            !gap_is_noise(1.0, 0.0, 0.0),
+            "a zero band dominates nothing"
+        );
+        assert!(
+            !gap_is_noise(1.0, 1e-9, 1e-9),
             "exactly on the band is reported"
         );
-        assert!(is_noise(1.0, 1e-9, 1.000_001e-9), "just inside it is not");
+        assert!(
+            gap_is_noise(1.0, 1e-9, 1.000_001e-9),
+            "just inside it is not"
+        );
     }
 
     /// A NaN coordinate is never noise: a poisoned carrier surfaces as
@@ -698,8 +621,8 @@ mod tests {
     /// this comparison has to fail in.
     #[test]
     fn a_poisoned_gap_is_not_noise() {
-        assert!(!is_noise(f64::NAN, 1.0, 1e-9));
-        assert!(!is_noise(1.0, f64::NAN, 1e-9));
+        assert!(!gap_is_noise(f64::NAN, 1.0, 1e-9));
+        assert!(!gap_is_noise(1.0, f64::NAN, 1e-9));
     }
 
     /// A periodic coordinate's disagreement is measured after
@@ -709,7 +632,7 @@ mod tests {
     #[test]
     fn a_whole_turn_of_skew_is_no_disagreement() {
         for turns in [-2.0_f64, -1.0, 1.0, 2.0] {
-            let a = 0.7 + turns * TAU;
+            let a = 0.7 + turns * crate::chart_iso::TAU;
             assert!(wrapped(a, 0.7) < 1e-15, "{turns} turns read as a gap");
         }
         let half = wrapped(core::f64::consts::PI, 0.0);

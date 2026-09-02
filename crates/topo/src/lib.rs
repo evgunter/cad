@@ -135,6 +135,7 @@ pub mod body;
 pub mod boolean;
 pub(crate) mod census;
 pub mod chart;
+pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
@@ -297,6 +298,7 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
+pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
 };

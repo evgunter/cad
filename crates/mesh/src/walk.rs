@@ -28,7 +28,7 @@
 //! A side carried by two or more edges — every exporter emits one the
 //! moment a vertex lands mid-side, and [`topo::Body::split_edge`]
 //! mints one directly — used to have each sub-edge derive its own
-//! column from [`mid_azimuth`] → [`Chart::u_of`], an `atan2` of a
+//! column from [`topo::chart_iso::mid_azimuth`] → [`Chart::u_of`], an `atan2` of a
 //! DIFFERENT point of the same carrier. Those agree analytically, and
 //! agree bitwise on axis-aligned dyadic fixtures, but under a general
 //! rigid placement they differ by ulps — which is how 71 rows of a
@@ -106,42 +106,33 @@
 
 use std::collections::HashMap;
 
-use geom::Curve3;
-use geom_brep::EdgeDescription;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
 
 use crate::sizing::Eps;
 use crate::types::TessellateError;
 
-// The chart's closed forms live in `topo` (`topo::chart`), where the
-// body-side coherence examination reads the same expressions this walk
-// does. What stays here is every CLASSIFICATION built on them: which
-// boundary edges are rims and which meridians, which of them open an
-// iso side, which junction is identified with a pole.
+// The chart's closed forms and the boundary classification built on
+// them live in `topo` (`topo::chart`, `topo::chart_iso`), where the
+// body-side coherence examination runs the SAME expressions this walk
+// does rather than a second copy of them. What stays here is this
+// crate's own disposition of their answers: the typed refusal a
+// non-iso carrier becomes, the band the separation test is read at,
+// the walk's rotation and pole handling, and the emission itself.
 pub(crate) use topo::chart::{Chart, ChartKind};
+pub(crate) use topo::chart_iso::{TAU, TravKind, unwrap_near};
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
 /// walking direction, plus its iso classification.
+///
+/// The KIND moved to `topo::chart_iso`; this struct did not, and the
+/// `ids` field is why — a chord-id list is a mesh, and a mesh is what
+/// the body-side consumer of that classification does not have.
 pub(crate) struct Trav {
     /// Chord ids, traversal order (endpoints included).
     pub ids: Vec<u32>,
     /// Rim (`v = const`) or meridian (`u = const`) data.
     pub kind: TravKind,
-}
-
-/// The iso classification of a boundary edge on a curved face.
-pub(crate) enum TravKind {
-    /// A circle around the surface axis; carries the raw row v.
-    Rim {
-        /// Raw v (unwrapped at emission for periodic v).
-        v_raw: f64,
-    },
-    /// A u = const boundary; carries the raw column azimuth.
-    Meridian {
-        /// Raw u ∈ (−π, π] (exactly 0.0 for `Seam` edges).
-        u_raw: f64,
-    },
 }
 
 /// The loop's half-edge traversal list `(edge, forward)` in `next`
@@ -222,47 +213,17 @@ fn classify(
     curve: &geom_brep::EdgeCurve<f64>,
     _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
-    if matches!(curve.description(), EdgeDescription::Chart(c) if c.seam) {
-        return Ok(TravKind::Meridian {
-            u_raw: mid_azimuth(chart, curve),
-        });
-    }
-    match *curve.carrier() {
-        Curve3::Line { .. } => Ok(TravKind::Meridian {
-            u_raw: mid_azimuth(chart, curve),
-        }),
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => {
-            if axis.dot(chart.axis).abs() > 0.5 {
-                Ok(TravKind::Rim {
-                    v_raw: chart.rim_v(center, radius),
-                })
-            } else {
-                Ok(TravKind::Meridian {
-                    u_raw: mid_azimuth(chart, curve),
-                })
-            }
-        }
-        // RETIRED refusal (M5 PR 11): a conic/B-spline trim carrier
-        // routes the whole face to the pcurve-driven trimmed lane
-        // BEFORE this walk runs (`crate::trimmed::has_trim_carrier`),
-        // so these arms are the router's backstop, not a frontier —
-        // reaching one is a dispatch defect, surfaced typed.
-        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => Err(TessellateError::MissingEntity {
-            what: "non-iso trim carrier reached the iso-rectangle walk (router defect)",
-        }),
-    }
-}
-
-/// The azimuth of the edge's mid-parameter carrier point — a
-/// representative interior point, never an apex/pole endpoint.
-fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
-    let (t0, t1) = curve.params();
-    chart.u_of(curve.carrier().eval(t0 + (t1 - t0) * 0.5))
+    // The classification is `topo::chart_iso::classify_kind`'s; what
+    // is here is THIS crate's disposition of its `None`.
+    //
+    // RETIRED refusal (M5 PR 11): a conic/B-spline trim carrier routes
+    // the whole face to the pcurve-driven trimmed lane BEFORE this
+    // walk runs (`crate::trimmed::has_trim_carrier`), so an
+    // unclassifiable carrier here is the router's backstop, not a
+    // frontier — reaching one is a dispatch defect, surfaced typed.
+    topo::chart_iso::classify_kind(chart, curve).ok_or(TessellateError::MissingEntity {
+        what: "non-iso trim carrier reached the iso-rectangle walk (router defect)",
+    })
 }
 
 /// One UV polygon entry of a curved face's boundary walk.
@@ -278,8 +239,6 @@ pub(crate) struct UvPoint {
     /// Whether this entry is a pole/apex corner.
     pub pole: bool,
 }
-
-const TAU: f64 = core::f64::consts::TAU;
 
 /// The ids that appear at two or more DISTINCT UV locations among
 /// `entries` — the "one mesh vertex, two parameter locations" state
@@ -365,11 +324,6 @@ pub(crate) fn overused_identified_edge_in(
         }
     }
     uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
-}
-
-/// `raw + 2πk` nearest `prev`.
-fn unwrap_near(raw: f64, prev: f64) -> f64 {
-    raw + TAU * ((prev - raw) / TAU).round()
 }
 
 /// [`unwrap_near`] with half-period tie resolution toward `anchor`
@@ -635,24 +589,20 @@ fn iso_side_starts(
     positions: &[Point3<f64>],
     eps: Eps,
 ) -> Vec<bool> {
-    let m = travs.len();
-    if m < 2 {
-        // A single traversal has no predecessor to continue from, and
-        // an empty loop has nothing to mark. Hoisted: it does not vary
-        // with `k`.
-        return vec![true; m];
-    }
-    (0..m)
-        .map(|k| {
-            let same_kind = matches!(
-                (&travs[(k + m - 1) % m].kind, &travs[k].kind),
-                (TravKind::Rim { .. }, TravKind::Rim { .. })
-                    | (TravKind::Meridian { .. }, TravKind::Meridian { .. })
-            );
-            let junction = positions[travs[k].ids[0] as usize];
-            !(same_kind && eps.separates(chart.radial(junction)))
-        })
-        .collect()
+    // THE BAND READ IS THIS CRATE'S and stays here: `Eps` owns every
+    // terminal ε read in `mesh` and deliberately has no accessor, so
+    // the separation ANSWER is what crosses the crate boundary, never
+    // the band. The rule those answers feed —
+    // same kind ∧ separated, cyclically — is
+    // `topo::chart_iso::iso_side_starts`, in one home, and everything
+    // this function's docs argue above is about what the walk then
+    // does with it.
+    let separated: Vec<bool> = travs
+        .iter()
+        .map(|t| eps.separates(chart.radial(positions[t.ids[0] as usize])))
+        .collect();
+    let kinds: Vec<TravKind> = travs.iter().map(|t| t.kind).collect();
+    topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
 /// Where the walk starts (index into `travs`), or `None` to leave the
@@ -1274,28 +1224,73 @@ mod tests {
         assert!(gap_is_noise(core::f64::consts::PI, 0.0, Eps::exactly(1e-9)));
     }
 
-    /// **THE BRANCH HALF of the closing-column rule** (S22). The column
-    /// is `anchor` itself, bitwise, and the value the replaced form
-    /// would have produced sits in `anchor`'s OWN branch — so dropping
-    /// that form cannot change which 2πk is taken and the wedge rule
-    /// for θ > 3π/2 is untouched. This row pins the branch half; the
-    /// bitwise half is pinned where it is observable, by the loop
-    /// closure `debug_assert_eq!` after the walk, which compares the
-    /// emitted column against `out[0].u` over a whole body and reds on
-    /// #648's obliquely-placed split frustum wedge if the arm is put
-    /// back on a derived value. The raws here are a whole number of
-    /// turns from the anchor plus a hair inside the branch — the shape
-    /// imported geometry produces.
+    /// **THE TWO SPELLINGS OF THE BAND AGREE, rung by rung.**
     ///
-    /// `skew` is an ABSOLUTE radian offset, not a count of ulps: an
-    /// earlier form of this row called it `ulps` and multiplied by
-    /// `f64::EPSILON`, which is 2.22e-16 rad flat — a quarter of an ulp
-    /// at `anchor = 5.9` and ~1e36 ulps at `anchor = 0.0`. The row does
-    /// not depend on the count (its job is to be a real difference, and
-    /// the non-vacuity counter below is what checks that), so the
-    /// honest spelling is the offset itself.
+    /// The band has two spellings and cannot have one:
+    /// [`gap_is_noise`] here reads it through [`Eps::dominates`], the
+    /// newtype MESH-4 made `mesh`-local and gave no accessor, so its
+    /// value cannot cross a crate boundary as a number;
+    /// `topo::coherence::gap_is_noise` takes the run's ε as an `f64`
+    /// because a body-side examination has no `Eps` to read. Two
+    /// spellings of one comparison is exactly the shape that drifts,
+    /// and prose reconciling them is not a mechanism.
+    ///
+    /// This is the mechanism: every rung of this file's own ladder —
+    /// the spatial-vs-angular pair, the lever-arm scaling pair, the
+    /// zero-lever limit, both band edges, and a poisoned operand on
+    /// each side — run through BOTH spellings and compared. A change
+    /// to either that moves one and not the other reds here, whichever
+    /// crate it was made in.
     #[test]
-    fn the_replaced_closing_column_form_stays_in_the_anchors_branch() {
+    fn the_two_spellings_of_the_band_agree() {
+        const LADDER: [(f64, f64, f64); 10] = [
+            // `nist_ftc_09`'s residue at a real lever and an absurd one
+            (3.56e-9, 0.05, 3.38e-5),
+            (3.56e-9, 1e5, 3.38e-5),
+            // the same angle, a hundred times the arc
+            (1e-6, 1.0, 1e-5),
+            (1e-6, 100.0, 1e-5),
+            // the zero-lever limit, and the corner where a zero band
+            // meets it
+            (core::f64::consts::PI, 0.0, 1e-9),
+            (core::f64::consts::PI, 0.0, 0.0),
+            // both band edges: exactly on it, and just inside
+            (1.0, 1e-9, 1e-9),
+            (1.0, 1e-9, 1.000_001e-9),
+            // a poisoned operand on either side is never noise
+            (f64::NAN, 1.0, 1e-9),
+            (1.0, f64::NAN, 1e-9),
+        ];
+        for (gap, lever, band) in LADDER {
+            assert_eq!(
+                gap_is_noise(gap, lever, Eps::exactly(band)),
+                topo::coherence::gap_is_noise(gap, lever, band),
+                "the two spellings of the band disagree at \
+                 (gap {gap}, lever {lever}, eps {band})"
+            );
+        }
+    }
+
+    /// **[`unwrap_near`] lands within half a period of its anchor, for
+    /// any raw whatever.** Two live consumers rest on that and neither
+    /// can state it: the walk's wedge rule for θ > 3π/2 needs the
+    /// branch nearest `prev` and no other, and
+    /// `topo::coherence::wrapped` reads this same function as a
+    /// MEASUREMENT — the gap it reports is `|unwrap_near(a, b) − b|`,
+    /// which is a fact about the data only while the selection cannot
+    /// exceed π. A selector that overshot by a turn would make that
+    /// examination report 2π-sized gaps on bodies that agree exactly.
+    ///
+    /// `skew` is an ABSOLUTE radian offset, not a count of ulps: it is
+    /// 2.22e-16 rad flat, a quarter of an ulp at `anchor = 5.9` and
+    /// ~1e36 ulps at `anchor = 0.0`. The row does not depend on the
+    /// count — its job is to be a real difference, and the non-vacuity
+    /// counter below is what checks that — so the honest spelling is
+    /// the offset itself. The raws are a whole number of turns from
+    /// the anchor plus a hair inside the branch, the shape imported
+    /// geometry produces.
+    #[test]
+    fn unwrap_near_lands_within_half_a_period_of_its_anchor() {
         let mut skewed = 0_u32;
         const E: f64 = f64::EPSILON;
         for anchor in [0.0, 0.7, -2.4, core::f64::consts::PI, 5.9] {
@@ -1305,8 +1300,13 @@ mod tests {
                     let carrier = unwrap_near(raw, anchor);
                     assert!(
                         (carrier - anchor).abs() < TAU / 2.0,
-                        "the replaced form already selects the anchor's branch \
+                        "the selection must stay inside the anchor's own branch \
                          (anchor {anchor}, turns {turns}, skew {skew} rad)"
+                    );
+                    assert!(
+                        (topo::chart_iso::unwrap_near(raw, anchor) - anchor).abs() <= TAU / 2.0,
+                        "and so must the measurement `coherence::wrapped` takes \
+                         through it (anchor {anchor}, turns {turns}, skew {skew})"
                     );
                     if carrier != anchor {
                         skewed += 1;
@@ -1314,9 +1314,9 @@ mod tests {
                 }
             }
         }
-        // Non-vacuity: the replaced form really does differ from the
-        // anchor on this fixture, so the row above is a live comparison
-        // rather than an accident of exact arithmetic.
+        // Non-vacuity: the selection really does differ from the anchor
+        // on this fixture, so the rows above are live comparisons rather
+        // than an accident of exact arithmetic.
         assert!(
             skewed >= 20,
             "fixture must exercise real skews; only {skewed} rows differed"

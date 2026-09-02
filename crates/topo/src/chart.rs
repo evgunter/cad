@@ -11,12 +11,22 @@
 //!   carriers and vertices disagree about those coordinates.
 //!
 //! **The expressions are the walk's, moved and not rewritten.** Every
-//! method below is the one `mesh::walk` has always run; the walk still
-//! owns every CLASSIFICATION built on top of them — which boundary
-//! edges are rims and which meridians, which of them open an iso side,
-//! which junction is identified with a pole. Those are decisions about
-//! a traversal and they stay where the traversal is. What lives here is
-//! only the surface's own arithmetic, which has no traversal in it.
+//! method below is the one `mesh::walk` has always run, and there is
+//! one copy of each. The CLASSIFICATION built on top of them — which
+//! boundary edge is a rim and which a meridian, which of them carry
+//! one iso side — is one copy too, next door in [`crate::chart_iso`].
+//!
+//! What is NOT here is each consumer's DISPOSITION of an answer: the
+//! typed refusal `mesh` turns an unclassifiable carrier into, the band
+//! spelling it reads a separation at, its rotation, its pole fan and
+//! its emission; and this crate's own band and its report. A
+//! disposition belongs to the crate that disposes. Those two seams are
+//! named where they are crossed rather than left for a reader to
+//! notice — `chart_iso`'s items say which half is theirs, and
+//! `mesh::walk::tests::the_two_spellings_of_the_band_agree` is the
+//! executed reconciliation of the one expression that genuinely could
+//! not move (the band: `Eps` is `mesh`-local by MESH-4's ruling and
+//! has no accessor).
 //!
 //! `f64` alone, deliberately: these are float-path facts about `f64`
 //! coordinates — `atan2`, `hypot`, `asin` on a clamped ratio — and the
