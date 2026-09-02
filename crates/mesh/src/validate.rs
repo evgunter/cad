@@ -70,7 +70,7 @@ pub fn check_mesh(mesh: &Mesh) -> Result<(), MeshError> {
             }
             for k in 0..3 {
                 let (a, b) = (tri[k], tri[(k + 1) % 3]);
-                let key = (a.min(b), a.max(b));
+                let key = crate::walk::edge_key(a, b);
                 let entry = edges.entry(key).or_insert((0, 0));
                 entry.0 += 1;
                 entry.1 += if a < b { 1 } else { -1 };
