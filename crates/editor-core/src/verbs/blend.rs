@@ -84,7 +84,7 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// choice does and does not decide.
     pub(crate) emitter: Emitter<T>,
     /// The label a SELECTION refusal carries. It is the kernel's blend
-    /// door label rather than a [`VerbKind`] because the refusal it
+    /// door label rather than a `verbs::VerbKind` because the refusal it
     /// lands in is shared with the kernel's own
     /// (`NodeErrorKind::Blend`), and one vocabulary there is what keeps
     /// a refusal's verb from being rendered twice or differently.
