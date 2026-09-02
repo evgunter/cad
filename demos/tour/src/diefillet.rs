@@ -49,10 +49,10 @@ use core::f64::consts::PI;
 use pncad::document::{BooleanOp, BooleanValue, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
-    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, Point3,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SketchPlane, SurfaceKind, SurfaceKindSet, ValuePayload, Vec3, WrittenAngle, WrittenLength,
-    all_edges, apply, evaluate, select_where,
+    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
+    SurfaceKindSet, ValuePayload, WrittenAngle, WrittenLength, all_edges, apply, evaluate,
+    select_where,
 };
 use pncad::topo::Body;
 
@@ -205,10 +205,19 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -
 /// verb and in nothing else.
 fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     // ---- the sharp cube, [0, L]³ ----
+    let cube_plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: cube_plane,
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
         }),
         tol,
@@ -235,16 +244,21 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         }),
         tol,
     );
+    // u = +X, v = +Z: the sketch's revolve axis lands on the world +Z
+    // axis, which is the pole `placements` rotates.
+    let ball_plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            // u = +X, v = +Z: the sketch's revolve axis lands on the
-            // world +Z axis, which is the pole `placements` rotates.
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-            ),
+            plane: ball_plane,
             loops: vec![half_disc()],
         }),
         tol,

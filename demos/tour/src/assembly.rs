@@ -70,15 +70,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Dimension, DocEdit,
-    DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError,
-    LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin,
-    evaluate, inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
+    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
 };
@@ -291,10 +291,19 @@ fn prism_part(
         scope.insert(name, Dimension::Length);
     }
     let zero = pe("0 mm", &scope);
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
+            u: [pe("1", &scope), pe("0", &scope), pe("0", &scope)],
+            v: [pe("0", &scope), pe("1", &scope), pe("0", &scope)],
+        }),
+        tol,
+    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
         }),
         tol,

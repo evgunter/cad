@@ -199,10 +199,19 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         centre: [mm(R_MM), mm(0.0)],
         radius: mm(r_mm),
     };
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [mm(0.0), mm(0.0), mm(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
