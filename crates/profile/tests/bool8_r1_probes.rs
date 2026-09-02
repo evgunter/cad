@@ -604,14 +604,20 @@ fn probe_the_junction_pattern_really_alternates() {
 /// rotation. A plan carrying both a `shoulder = 1` base and a
 /// `shoulder = 0` belly therefore has no rotation that gives every
 /// section a corner at its seam — the parity flips between them and a
-/// uniform rotation cannot follow it. The remaining wall is PQ4's
-/// (a seam at a subdivision vertex is mid-carrier), which the ruling
-/// left standing deliberately.
+/// uniform rotation cannot follow it.
+///
+/// **And that is why the wall was never the departure's to move.** A
+/// third column runs here now: the DECLARED ARRIVAL, which says the
+/// seam's own junction on the target instead of on the closing leg's
+/// departure. It closes all 64 — both sections, every starting vertex,
+/// both directions — so the parity measurement above stands as a fact
+/// about lily's corner sets while ceasing to be a wall.
 #[test]
 fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
     let t = Tol::witness();
     let mut undeclared: Vec<String> = Vec::new();
     let mut declared: Vec<(f64, f64, usize, bool)> = Vec::new();
+    let mut arriving: Vec<(f64, f64, usize, bool)> = Vec::new();
     let mut attempts = 0usize;
     for (w, r, k) in [(0.170, 0.028, 0.020), (0.420, 0.034, 0.016)] {
         for shoulder in [0.0_f64, 1.0] {
@@ -645,14 +651,19 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
                     if try_author(&ring, Closer::ContinueTo, t).is_ok() {
                         declared.push((w, shoulder, start, rev));
                     }
+                    if try_author(&ring, Closer::ArrivesStraight, t).is_ok() {
+                        arriving.push((w, shoulder, start, rev));
+                    }
                 }
             }
         }
     }
     println!(
-        "probe: {attempts} rings; undeclared closed {}, declared closed {}",
+        "probe: {attempts} rings; undeclared closed {}, declared-departure closed {}, \
+         declared-arrival closed {}",
         undeclared.len(),
-        declared.len()
+        declared.len(),
+        arriving.len()
     );
     assert!(
         undeclared.is_empty(),
@@ -693,6 +704,20 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
              pins one rotation for all of them: kite {kite:?} vs rectangle {rect:?}"
         );
     }
+    // **THE PARITY WALL FALLS.** The measurement above is unchanged and
+    // still true of the DEPARTURE-side spellings — it is a fact about
+    // lily's corner sets, not about the closer, and no departure-side
+    // declaration could ever follow a corner set that moves. What the
+    // ARRIVAL-side declaration adds is the other junction: with it,
+    // every ring closes, both sections at every starting vertex and in
+    // both directions, so a loft that pins one rotation for all its
+    // sections now has one.
+    assert_eq!(
+        arriving.len(),
+        attempts,
+        "the declared arrival closes every ring: {} of {attempts}",
+        arriving.len()
+    );
 }
 
 /// **The positive control for the exhaustive hunt above, and the
@@ -781,6 +806,11 @@ enum Closer {
     /// the departure is checked against the ray rather than inferred
     /// from it.
     ContinueTo,
+    /// The DECLARED ARRIVAL (BOOL-12): the closing leg's departure is
+    /// spelled by whichever verb its own junction wants, and the SEAM
+    /// is declared on the target — `Start.arrives_straight()`. This is
+    /// the spelling the parity wall was waiting for.
+    ArrivesStraight,
 }
 
 /// Author `ring` as a closed loop: `toward` at every vertex whose
@@ -827,6 +857,24 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
     let lp = match closer {
         Closer::LineTo => chain.line_to(Start, t).map_err(|_| ())?,
         Closer::ContinueTo => chain.continue_to(Start, t).map_err(|_| ())?,
+        // The two junctions the closing leg touches are independent, and
+        // this arm says each with the verb it wants: the DEPARTURE with
+        // `continue_to` where the run continues through `ring[n-1]` and
+        // `line_to` where it turns there, the ARRIVAL with the target
+        // where the run continues through `ring[0]` and plain `Start`
+        // where it turns.
+        Closer::ArrivesStraight => {
+            match (straight_at(n - 1), straight_at(0)) {
+                (false, false) => chain.line_to(Start, t).map_err(|_| ())?,
+                (false, true) => chain
+                    .line_to(Start.arrives_straight(), t)
+                    .map_err(|_| ())?,
+                (true, false) => chain.continue_to(Start, t).map_err(|_| ())?,
+                (true, true) => chain
+                    .continue_to(Start.arrives_straight(), t)
+                    .map_err(|_| ())?,
+            }
+        }
     };
     let lp = pinned(lp);
     Profile::new(SketchPlane::xy(), vec![lp])
@@ -835,6 +883,7 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
     Ok(match closer {
         Closer::LineTo => "line_to(Start)",
         Closer::ContinueTo => "continue_to(Start)",
+        Closer::ArrivesStraight => "the junction each seam side wants",
     })
 }
 

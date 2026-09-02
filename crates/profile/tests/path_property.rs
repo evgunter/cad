@@ -2000,11 +2000,15 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
 ///   checks `Start` against it. This half of the wall is over.
 /// - **Rotation 2 — seam at the SUBDIVISION vertex.** The closer
 ///   departs the corner asserted below, and the junction in band is the
-///   SEAM'S. That is a mid-carrier seam, PQ4, and no spelling of the
-///   closing leg moves it: `line_to(Start)` refuses
-///   `SeamTangent`, and the declared closer does
-///   not apply at all — the leg departs a CORNER here, so `Start` is
-///   off its ray and the verb refuses that first.
+///   SEAM'S. This half was the wall BOOL-11 left standing, and it is
+///   over too: no spelling of the closing leg's DEPARTURE moves it —
+///   `line_to(Start)` still refuses `SeamTangent` and the declared
+///   closer still does not apply, because the leg departs a CORNER and
+///   `Start` is off its ray — but the declaration the seam wanted was
+///   never on the departure. It is on the ARRIVAL, and
+///   `line_to(Start.arrives_straight())` closes: the seam is a declared
+///   subdivision point, checked against the entry's own outgoing
+///   direction (PATHS §6's revised PQ4).
 ///
 /// The premise both rotations rest on — that the tip `right` is a
 /// DEFINITE corner — is measured here rather than argued, because it is
@@ -2111,6 +2115,20 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
         back_at_keel().continue_to(Start, t),
         Err(PathError::ContinuationTargetOffRay { .. })
     ));
+    // THE FLIP. The declaration the seam wanted rides the ARRIVAL, not
+    // the departure — the seam is the one junction whose arriving leg is
+    // the later-authored one — and with it this rotation closes. Eight
+    // vertices, no tangent joint (one carrier continues through the
+    // seam; the #433 ruling says data like that claims no tangency),
+    // `validate` green.
+    let closed = pinned(
+        back_at_keel()
+            .line_to(Start.arrives_straight(), t)
+            .expect("the declared arrival closes the seam at a subdivision vertex"),
+    );
+    assert_eq!(closed.vertices().len(), 8);
+    assert!(closed.tangent_joints().is_empty());
+    validate_ok(&closed);
 }
 // ==================================================================
 // R2 BOOL-8 probes (PR #1508, frozen head 6aa2684f2). APPENDED to
