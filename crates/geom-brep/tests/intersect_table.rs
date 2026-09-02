@@ -807,12 +807,7 @@ mod interval {
         let PlaneTorusSection::ConcentricCircles { c1: k1, c2: k2 } = s else {
             panic!("expected the concentric circles, got {s:?}");
         };
-        for (plane, c) in [
-            (&meridian, &c1),
-            (&meridian, &c2),
-            (&cap, &k1),
-            (&cap, &k2),
-        ] {
+        for (plane, c) in [(&meridian, &c1), (&meridian, &c2), (&cap, &k1), (&cap, &k2)] {
             for t in [0.0, 0.9, 2.2, -2.8, 5.1] {
                 let p = c.eval(Interval::from_f64(t));
                 for (name, s) in [("plane", plane), ("torus", &tor)] {
@@ -1382,7 +1377,10 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
         panic!("expected the routing refusal, got {err:?}");
     };
     assert_eq!(pair, "plane×torus");
-    assert!(why.contains("spiric"), "the offset refusal names the locus: {why}");
+    assert!(
+        why.contains("spiric"),
+        "the offset refusal names the locus: {why}"
+    );
     // Generic tilt — the Villarceau band's own angle family included.
     let n = Vec3::new(0.6, 0.8, 0.0);
     let tilted = Surface::Plane {
