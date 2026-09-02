@@ -66,6 +66,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "bool12r2_ec_probe.rs"]
+mod bool12r2_ec_probe;
 #[path = "bool13_r1_probes.rs"]
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
