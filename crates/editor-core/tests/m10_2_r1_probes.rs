@@ -1035,9 +1035,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's target: point it at the profile (node 0).
-    // The slab is profile 0 + extrude 1, the measure is 2.
-    let target = "\"measure\": 2";
+    // (b) The assertion's target: point it at the sketch FRAME (node
+    // 0), which is not a measure. The slab is frame 0 + profile 1 +
+    // extrude 2, so the measure is node 3.
+    let target = "\"measure\": 3";
     assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
     let corrupt = text.replace(target, "\"measure\": 0");
     match load(&corrupt, Tol::witness()) {
@@ -1046,10 +1047,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude (node 1).
-    let target = "\"node\": 1,";
+    // minted by the extrude (node 2).
+    let target = "\"node\": 2,";
     let n = text.matches(target).count();
-    assert!(n >= 1, "the measure's refs name node 1");
+    assert!(n >= 1, "the measure's refs name node 2");
     let corrupt = text.replacen(target, "\"node\": 77,", 1);
     match load(&corrupt, Tol::witness()) {
         // Two typed gates can own this corruption: the id-counter

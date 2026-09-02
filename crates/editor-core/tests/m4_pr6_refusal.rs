@@ -132,17 +132,20 @@ fn corrupt_payloads_refuse_typed() {
 #[test]
 fn snapshot_invariant_violations_refuse_typed() {
     let (_, text) = small();
-    // next_id below the live ids (a replay would re-mint id 1).
-    let clipped = text.replace("\"next_id\": 2", "\"next_id\": 1");
+    // next_id below the live ids (a replay would re-mint id 2).
+    let clipped = text.replace("\"next_id\": 3", "\"next_id\": 2");
     assert_ne!(clipped, text);
     match load(&clipped, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 1 })) => {
-            assert_eq!(id, RecipeNodeId(1));
+        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 2 })) => {
+            assert_eq!(id, RecipeNodeId(2));
         }
         other => panic!("expected IdBeyondCounter, got {other:?}"),
     }
     // order/nodes disagreement.
-    let unordered = text.replace("\"order\": [\n      0,\n      1\n    ]", "\"order\": [0]");
+    let unordered = text.replace(
+        "\"order\": [\n      0,\n      1,\n      2\n    ]",
+        "\"order\": [0]",
+    );
     if unordered != text {
         assert!(
             matches!(
@@ -239,7 +242,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    assert_eq!(ev.nodes.len(), 2);
+    assert_eq!(ev.nodes.len(), 3);
     for result in ev.nodes.values() {
         assert!(
             matches!(

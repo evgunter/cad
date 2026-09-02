@@ -694,7 +694,11 @@ fn row3_further_typed_refusals() {
     match inline(&host2, inst2, &store, Tol::witness()) {
         Err(InlineError::UnplaceableFrame { root }) => {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
-            assert_eq!(root, part_doc.order()[PART_BODY], "the plain extrude root is named");
+            assert_eq!(
+                root,
+                part_doc.order()[PART_BODY],
+                "the plain extrude root is named"
+            );
         }
         other => panic!("expected UnplaceableFrame, got {other:?}"),
     }
@@ -1067,7 +1071,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
     let kept_e = doc.order()[PART_BODY];
     let (doc, cut_f) = insert(doc, xy_frame());
-    let (doc, cut_p) = insert(doc, Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])));
+    let (doc, cut_p) = insert(
+        doc,
+        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
+    );
     let (doc, cut_e) = insert(
         doc,
         Node::Extrude {
@@ -1112,7 +1119,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
     let kept_e = doc.order()[PART_BODY];
     let (doc, cut_f) = insert(doc, xy_frame());
-    let (doc, cut_p) = insert(doc, Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])));
+    let (doc, cut_p) = insert(
+        doc,
+        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
+    );
     let (doc, cut_e) = insert(
         doc,
         Node::Extrude {

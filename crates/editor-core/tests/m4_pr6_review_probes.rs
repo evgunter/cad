@@ -698,7 +698,11 @@ fn duplicate_keys_refuse_in_every_map() {
     let cases: [(&str, &str, &str); 5] = [
         (
             "\"witnesses\": {",
-            "\"witnesses\": {\"0\": {\"schema\": 9, \"bytes\": \"22\"}, ",
+            // The key the document ALREADY carries: the row is about
+            // the strict map's duplicate refusal, and a second, unused
+            // node id would be a witness on a node that cannot hold
+            // one — a different door (`WitnessSite`).
+            "\"witnesses\": {\"1\": {\"schema\": 9, \"bytes\": \"22\"}, ",
             "duplicate witness node key",
         ),
         (
