@@ -2236,7 +2236,10 @@ mod frame_dispatch_tests {
         ] {
             let got = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band());
             let Ok(Some((c, axis))) = got else {
-                panic!("{label}: the declared coaxial pose must name a frame, got {}", outcome(&got));
+                panic!(
+                    "{label}: the declared coaxial pose must name a frame, got {}",
+                    outcome(&got)
+                );
             };
             let station = 3.0_f64.sqrt(); // sqrt((2-1)(2+1))
             // A frame-independent radial direction across the axis.
@@ -2262,7 +2265,10 @@ mod frame_dispatch_tests {
                     );
                     // And it is a real, definite sense — not zero on
                     // both sides, which would make the row vacuous.
-                    assert!(shared.abs() > 0.5, "{label}: sense {shared} is not definite");
+                    assert!(
+                        shared.abs() > 0.5,
+                        "{label}: sense {shared} is not definite"
+                    );
                 }
             }
         }
@@ -2305,11 +2311,17 @@ mod frame_dispatch_tests {
             // And that is what the kind dispatch itself does today, in
             // both operand orders.
             assert!(
-                matches!(pair_section_frame(&cyl, &sph, band()), Err(FrameError::NoArm)),
+                matches!(
+                    pair_section_frame(&cyl, &sph, band()),
+                    Err(FrameError::NoArm)
+                ),
                 "{label}: dispatch, cylinder first"
             );
             assert!(
-                matches!(pair_section_frame(&sph, &cyl, band()), Err(FrameError::NoArm)),
+                matches!(
+                    pair_section_frame(&sph, &cyl, band()),
+                    Err(FrameError::NoArm)
+                ),
                 "{label}: dispatch, sphere first"
             );
         }

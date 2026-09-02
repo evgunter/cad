@@ -209,7 +209,10 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
         let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
             panic!("{label}: expected the extent scan's refusal, got {err:?}");
         };
-        assert!(what.contains("cyl×sphere seam lane is not wired"), "{label}: {what}");
+        assert!(
+            what.contains("cyl×sphere seam lane is not wired"),
+            "{label}: {what}"
+        );
     }
 }
 
