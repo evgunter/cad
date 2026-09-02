@@ -284,6 +284,8 @@ mod review_m6_5_pr2_probes;
 mod ring_r1_names_probe;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
+#[path = "seat6_param_source.rs"]
+mod seat6_param_source;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]

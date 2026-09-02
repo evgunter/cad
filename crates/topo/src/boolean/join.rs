@@ -684,7 +684,9 @@ fn germ_section_frame<T: Decide>(
 
 /// Why [`pair_section_frame`] could not name a frame. The keys and
 /// bodies live at the call site, so this carries none of them: the
-/// dispatch is a statement about the KIND PAIR alone.
+/// dispatch is a statement about the kind pair and the DECLARED
+/// evidence it was handed, never about the arenas.
+#[derive(Debug)]
 pub(super) enum FrameError {
     /// A section predicate landed in the sliver band.
     Escalated(geom_core::Indeterminate),
@@ -1991,6 +1993,69 @@ mod frame_dispatch_tests {
                 Ok(None)
             ),
             "parallel cylinder axes meet in rulings"
+        );
+    }
+
+
+    /// **The intersecting-axes cylinder pair routes on the
+    /// parameter-identity channel, and on nothing else.**
+    ///
+    /// The frontier is the same either way — no conic frame exists for
+    /// a pair of crossing walls — but WHICH shape the locus has is a
+    /// radius-equality question, and the refusal now carries the
+    /// channel's answer instead of leaving it open. `Declared` reaches
+    /// the equal-radius closed form (`cylinder_cylinder_section`), which
+    /// verifies the declaration against the geometry and classifies the
+    /// ellipse pair; `None` reaches nothing and routes the general rung
+    /// with the question unanswered, which is the permanent fallback
+    /// for imported and hand-built geometry.
+    ///
+    /// The radii are IDENTICAL in both rows: the only difference is the
+    /// evidence, which is exactly the claim.
+    #[test]
+    fn the_intersecting_axes_pair_routes_on_declared_evidence() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let pair = || (cylinder(z), cylinder_at(Point3::new(0.0, 0.0, 0.0), x, 1.0));
+        for evidence in [
+            geom_brep::RadiusEvidence::None,
+            geom_brep::RadiusEvidence::Declared,
+        ] {
+            let (a, b) = pair();
+            let got = pair_section_frame(&a, &b, evidence, band());
+            match got {
+                Err(FrameError::IntersectingCylinderAxes { evidence: carried }) => assert_eq!(
+                    carried, evidence,
+                    "the refusal must carry the evidence it was reached under"
+                ),
+                other => panic!("{evidence:?}: expected the pinch door, got {other:?}"),
+            }
+        }
+    }
+
+    /// **A declared equality the geometry contradicts is a desync, not a
+    /// quiet fall back to the undeclared arm.**
+    ///
+    /// Two carriers whose radius fields carry the same lowered source
+    /// cannot hold different values — one expression evaluates to one
+    /// number (D9) — so this configuration is a document-layer bug, and
+    /// the dispatch says so rather than silently routing the general
+    /// rung as if nothing had been declared. It is also the row that
+    /// proves the closed form is genuinely REACHED on the declared
+    /// side: only a call into the section table can notice this.
+    #[test]
+    fn a_declared_equality_the_geometry_contradicts_is_a_desync() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let got = pair_section_frame(
+            &cylinder(z),
+            &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, 0.4),
+            geom_brep::RadiusEvidence::Declared,
+            band(),
+        );
+        assert!(
+            matches!(got, Err(FrameError::Desync(_))),
+            "a contradicted declaration must be loud, got {got:?}"
         );
     }
 
