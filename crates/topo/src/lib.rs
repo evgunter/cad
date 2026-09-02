@@ -167,6 +167,8 @@ pub(crate) mod iso;
 pub(crate) mod live;
 pub mod merge_faces;
 pub mod movefac;
+#[cfg(test)]
+mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_together;
@@ -343,5 +345,6 @@ pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     CensusContact, ContactMark, RingContact, StaleDeclaration, ValidationError, contact_marks,
     contact_marks_declared, validate, validate_closed, validate_geometric,
-    validate_geometric_declared, validate_pseudomanifold,
+    validate_geometric_declared, validate_geometric_structural,
+    validate_geometric_structural_declared, validate_pseudomanifold,
 };

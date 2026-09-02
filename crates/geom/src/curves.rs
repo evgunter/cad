@@ -30,6 +30,11 @@
 //!   `start(he_plus)` to `end(he_plus)`**. Per-face traversal senses and
 //!   pcurves are *derived* from that one orientation, never stored as
 //!   peers.
+//! - **The azimuthal frame is one body, and it is not here.** The
+//!   circle and ellipse arms read `v_ref = axis × u_ref` and the
+//!   radial/tangential pair at angle `u` from the interior
+//!   `crate::azimuth` module — the same one home the surface half
+//!   reads, so the two halves cannot drift a convention apart.
 //! - **Periodicity:** a circle is 2π-periodic in θ: as a locus,
 //!   `P(θ) = P(θ + 2πk)` exactly, in the reals. What that does and does
 //!   not promise in floating point is the crate docs' bit-identity
@@ -307,7 +312,7 @@ impl<T: SpanLocate> Curve3<T> {
                 radius,
                 u_ref,
             } => {
-                let (radial, _) = azimuth::frame(*axis, *u_ref, t);
+                let radial = azimuth::frame(*axis, *u_ref, t).radial.0;
                 *center + radial * *radius
             }
             Curve3::Ellipse {
@@ -344,7 +349,7 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (_, tangential) = azimuth::frame(*axis, *u_ref, t);
+                let tangential = azimuth::frame(*axis, *u_ref, t).tangential.0;
                 tangential * *radius
             }
             Curve3::Ellipse {
@@ -1137,7 +1142,8 @@ mod tests {
             origin: Point3::origin(),
             dir: Vec3::unit_x(),
         };
-        assert!(line.eval(f64::NAN).x.is_nan());
+        let lp = line.eval(f64::NAN);
+        assert!(lp.x.is_nan() && lp.y.is_nan() && lp.z.is_nan());
         // The line's deriv is parameter-independent — NaN t does not
         // poison it (there is nothing to poison: the tangent is data).
         assert_eq!(line.deriv(f64::NAN).x, 1.0);
@@ -1153,8 +1159,10 @@ mod tests {
             let _ = c.deriv(t);
             let _ = c.deriv2(t);
         }
-        // ±∞ specifically poisons through sin_cos.
-        assert!(c.eval(f64::INFINITY).x.is_nan());
+        // ±∞ specifically poisons through sin_cos — every channel of
+        // the point, not the first one.
+        let p = c.eval(f64::INFINITY);
+        assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
     }
 
     // ------------------------------------------------------------------
@@ -1254,7 +1262,9 @@ mod tests {
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
             let n: Curve3<Interval> = Curve3::nurbs_placeholder();
-            assert!(n.eval(Interval::zero()).x.lo().is_nan());
+            // All-poison, not first-channel-poison.
+            let q = n.eval(Interval::zero());
+            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
 
         /// The interval half of the payload-lift row: a described NURBS

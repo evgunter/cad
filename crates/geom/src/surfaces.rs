@@ -23,11 +23,13 @@
 //!   `(u_ref, v_ref, axis)` is right-handed by construction. The
 //!   plane's frame is the same shape with `normal` in the axis role.
 //!   `u_ref` carries the **seam** (where u = 0 lives).
-//! - **The shared helper.** `radial(u) = u_ref·cos u + v_ref·sin u` is
-//!   the unit vector at azimuth `u`; its derivative
-//!   `tangential(u) = u_ref·(−sin u) + v_ref·cos u`. Every azimuthal
-//!   evaluator is written in terms of these two, with one `sin_cos`
-//!   call per parameter.
+//! - **The azimuthal frame is one body, and it is not here.** The
+//!   radial unit vector at azimuth `u`, its derivative the tangential,
+//!   and the `v_ref` above are the interior `crate::azimuth` module's
+//!   doors; that module is the one home for the formula, its
+//!   association order and the seam convention, and it is shared with
+//!   the curve half. Every azimuthal evaluator below starts from it,
+//!   one `sin_cos` call per parameter.
 //! - **Normals are derived, not stored**: `normal(u, v)` is
 //!   `(∂S/∂u × ∂S/∂v).normalize()` — the orientation is the
 //!   parameterization's, full stop. There is no "outward" concept at
@@ -344,7 +346,7 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
+                let radial = azimuth::frame(axis, u_ref, u).radial.0;
                 origin + radial * radius + axis * v
             }
             &Surface::Cone {
@@ -354,7 +356,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
+                let radial = azimuth::frame(axis, u_ref, u).radial.0;
                 apex + axis * (v * c_a) + radial * (v * s_a)
             }
             &Surface::Sphere {
@@ -364,7 +366,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
+                let radial = azimuth::frame(axis, u_ref, u).radial.0;
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
@@ -375,7 +377,7 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
+                let radial = azimuth::frame(axis, u_ref, u).radial.0;
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
@@ -435,7 +437,9 @@ impl<T: SpanLocate> Surface<T> {
                 radius,
                 u_ref,
             } => {
-                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(axis, u_ref, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
                 SurfaceJet {
                     point: origin + radial * radius + axis * v,
                     du: tangential * radius,
@@ -452,7 +456,9 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_a, c_a) = half_angle.sin_cos();
-                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(axis, u_ref, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
                 SurfaceJet {
                     point: apex + axis * (v * c_a) + radial * (v * s_a),
                     du: tangential * (v * s_a),
@@ -469,7 +475,9 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(axis, u_ref, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
                 SurfaceJet {
                     point: center + (radial * c_v + axis * s_v) * radius,
                     du: tangential * (radius * c_v),
@@ -487,7 +495,9 @@ impl<T: SpanLocate> Surface<T> {
                 u_ref,
             } => {
                 let (s_v, c_v) = v.sin_cos();
-                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                let f = azimuth::frame(axis, u_ref, u);
+                let radial = f.radial.0;
+                let tangential = f.tangential.0;
                 SurfaceJet {
                     point: center
                         + radial * (major_radius + minor_radius * c_v)
@@ -911,8 +921,9 @@ mod tests {
             }
         }
 
-        /// Periodicity in u at the value level (the honest statement —
-        /// see the crate docs; never bitwise).
+        /// Periodicity in u at the value level (the honest statement is
+        /// the crate docs' bit-identity policy for periodicity; never
+        /// bitwise).
         #[test]
         fn azimuthal_periodicity_value_level(
             u in -3.0..3.0f64,
@@ -1191,24 +1202,31 @@ mod tests {
         let n: Surface<f64> = Surface::nurbs_placeholder();
         let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
         assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
-        assert!(
-            nd.eval(Dual::constant(0.5), Dual::constant(0.5))
-                .x
-                .value
-                .is_nan()
-        );
+        let p = nd.eval(Dual::constant(0.5), Dual::constant(0.5));
+        assert!(p.x.value.is_nan() && p.y.value.is_nan() && p.z.value.is_nan());
     }
 
+    /// The placeholder's own doc promises an ALL-poison answer, so
+    /// every channel is read: a first-channel assertion here passes on
+    /// an answer poisoned in `x` and finite in `y`/`z`, which is
+    /// exactly the state the placeholder has to be distinguishable
+    /// from.
     #[test]
     fn nurbs_placeholder_evaluates_to_poison() {
         let n: Surface<f64> = Surface::nurbs_placeholder();
-        assert!(n.eval(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_u(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_v(0.5, 0.5).x.is_nan());
-        assert!(n.normal(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_uu(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_uv(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_vv(0.5, 0.5).x.is_nan());
+        let all_poison = |x: f64, y: f64, z: f64| x.is_nan() && y.is_nan() && z.is_nan();
+        let p = n.eval(0.5, 0.5);
+        assert!(all_poison(p.x, p.y, p.z));
+        for v in [
+            n.deriv_u(0.5, 0.5),
+            n.deriv_v(0.5, 0.5),
+            n.normal(0.5, 0.5),
+            n.deriv_uu(0.5, 0.5),
+            n.deriv_uv(0.5, 0.5),
+            n.deriv_vv(0.5, 0.5),
+        ] {
+            assert!(all_poison(v.x, v.y, v.z));
+        }
     }
 
     #[test]
@@ -1434,9 +1452,12 @@ mod tests {
         fn poison_propagates_at_interval() {
             let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
-            assert!(p.x.lo().is_nan());
+            assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
             let n: Surface<Interval> = Surface::nurbs_placeholder();
-            assert!(n.eval(Interval::zero(), Interval::zero()).x.lo().is_nan());
+            // All-poison, not first-channel-poison: the placeholder's
+            // promise is the whole point.
+            let q = n.eval(Interval::zero(), Interval::zero());
+            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
     }
 }

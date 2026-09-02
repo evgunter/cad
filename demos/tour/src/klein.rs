@@ -225,7 +225,7 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, Point3, Tol};
+use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
@@ -742,7 +742,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 /// The bottle's frontier, run live (the lily's rule): every shape
 /// this model wanted and the kernel would not state, attempted for
 /// real and pinned by its own typed refusal.
-pub fn wall_probes<S: Scalar>(tol: Tol) {
+///
+/// `CertifiedBounds` beyond [`Scalar`] because wall 6's retirement is
+/// asserted through `validate_geometric`, whose +V invariant reads a
+/// certified volume enclosure — the tour runs this at `f64` and
+/// `Probe`, both of which certify, so the extra term costs the caller
+/// nothing and states what the assertion needs.
+pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
     println!("\n-- the Klein bottle's walls: what a non-orientable surface asks for --");
     let m = meridian();
     let [bulb_body, over, into] = bottle::<S>(tol);
