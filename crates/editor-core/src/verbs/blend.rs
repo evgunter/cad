@@ -59,8 +59,8 @@ pub(crate) type Emitter<T> = fn(
 /// arm to a match inside the lowering is not.
 pub(crate) struct BlendVerb {
     /// Which kernel verb the node lowers to. This is the canonical
-    /// name, and the content tag is a function of it
-    /// ([`crate::eval::verb_content_tag`]).
+    /// name, and the content tag is a function of it (`verb_content_tag`,
+    /// beside the memo machinery in [`mod@crate::eval`]).
     pub(crate) kind: VerbKind,
     /// The label a SELECTION refusal carries. It is the kernel's blend
     /// door label rather than [`Self::kind`] because the refusal it

@@ -137,7 +137,10 @@ fn both_blends_evaluate_in_one_document() {
     let [filleted, chamfered] = fixture.blends;
     let ev = corpus::eval::<f64>(&fixture.doc);
     let failures = corpus::failures(&ev);
-    assert!(failures.is_empty(), "the two-blend document failed: {failures:?}");
+    assert!(
+        failures.is_empty(),
+        "the two-blend document failed: {failures:?}"
+    );
     for id in [filleted, chamfered] {
         let value = ev.value(id).expect("the blend node produced a value");
         assert!(
@@ -199,7 +202,9 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
                 }
             }
             for (key, face) in body.faces() {
-                let surface = body.get_surface(face.surface).expect("a face has a carrier");
+                let surface = body
+                    .get_surface(face.surface)
+                    .expect("a face has a carrier");
                 feed(format!("{key:?}{surface:?}").as_bytes());
             }
             feed(

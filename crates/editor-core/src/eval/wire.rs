@@ -898,8 +898,8 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
         .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
             what: verb.no_records,
         }))?;
-    let table = verb.emitter()(id, target, &target_table, &out.body, rec)
-        .map_err(NodeErrorKind::Naming)?;
+    let table =
+        verb.emitter()(id, target, &target_table, &out.body, rec).map_err(NodeErrorKind::Naming)?;
     let mut body = out.body;
     // The blend's own surfaces, curves and points are minted HERE
     // (D1/N6); the supports' pass-through descriptions keep the source

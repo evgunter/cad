@@ -11,7 +11,7 @@
 //! vocabularies, and this module is where it now lives, one declaration
 //! per verb: which [`SlotId`] feeds which verb parameter, which payload
 //! selection feeds the key list, which emitter mints the names. The
-//! lowering in [`crate::eval`] is generic over it — one body of code
+//! lowering in [`mod@crate::eval`] is generic over it — one body of code
 //! for every verb that has a declaration here.
 //!
 //! [`Expr`]: crate::expr::Expr

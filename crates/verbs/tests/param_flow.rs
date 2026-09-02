@@ -173,7 +173,11 @@ fn the_chamfers_flow_is_empty_beside_a_real_record() {
     );
 
     let rows = VerbKind::Chamfer.param_flow();
-    assert_eq!(rows.len(), 1, "the setback's row must be present, not absent");
+    assert_eq!(
+        rows.len(),
+        1,
+        "the setback's row must be present, not absent"
+    );
     assert!(
         rows[0].fields.is_empty(),
         "the setback reaches no stored field: the chamfer's carriers are planes"
