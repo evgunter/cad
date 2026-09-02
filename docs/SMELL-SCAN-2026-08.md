@@ -5984,7 +5984,9 @@ three exact-structure reads in `chart_region.rs` — and none at all in
 
 **What that does NOT close, which is why this row stands.** The roster is
 a textual walk, so it cannot see a bound reached by a supertrait
-obligation (the gate's KNOWN GAP 2, and `S213`'s subject), a renamed
+obligation (the gate's KNOWN GAP 2 — the class the certified at-rest
+validator's own supertrait obligation belonged to until CERT-M2 made it
+literal, one door out of an unbounded population), a renamed
 import, an `impl Bounds` in argument position, or a bound a macro
 assembles; the suite states each of those at its own site. The doors that
 matter are still the ones nobody would think to look for, since they
@@ -6162,79 +6164,13 @@ postcondition does not say. `Brk` is the one that may need more than a
 doc link: it is a bracket carrier with no certified door, so the question
 of whether it should have one is a design question, not a doc edit.
 
-## S213. `validate_geometric` carries the `Bounds` obligation through a supertrait, where the allowlist gate cannot see it
-
-**Raised by H-g on implementing `S90`'s ruling.** Stated as a bound
-rather than as prose, because a doc edit does not reach it.
-
-`real.rs`'s M7-8 entry of the `Bounds` scope rule describes how the
-`geom_brep::EdgeNurbsLane` extension keeps `Bounds` off `topo`'s default
-doors: *"the lane is a SEPARATE door whose own impl block carries the
-lane bound"*, which is what `Body::set_edge_curve_nurbs_lane` does.
-**`topo`'s validate door does not use that technique.**
-`topo::validate_geometric<T: crate::props::PropsQuadLane>`
-(`topo/src/validate.rs`) carries the obligation on its own signature and
-reaches it by **supertrait** — `PropsQuadLane: Decide +
-geom_brep::PcurveFittedLane + geom_brep::EdgeNurbsLane +
-crate::chart_region::ChartRegionLane` — with nothing injected and no
-door of its own.
-
-**Why that spelling matters.** It is exactly what
-`bounds-allowlist.sh`'s **KNOWN GAP 2** names as invisible to the gate's
-grep: an equivalent bound spelled through a supertrait obligation is not
-matched. So this door carries a certification bound that no instrument
-counts, and it is outside the shape the scope rule describes — a pairing
-no doc edit closes. **A taker should read it beside KNOWN GAP 2 rather
-than as prose**; the gate-side half of the same question is Track K's
-`D68`/`D103`.
-
-**THE FIX'S COST, MEASURED (2026-09-02) rather than estimated, because
-the estimate on record is wrong by an order of magnitude.** `H-R16`
-prices the three-function split at *"exactly one in-repo site
-(`sweep/tests/extrude_acceptance.rs:565` moves to the structural
-half)"*. That number came from `S3`, which cited the one site it had
-read. Compiled: `validate_geometric` bounded
-`crate::props::PropsQuadLane + geom_core::CertifiedBounds`, workspace,
-`--all-targets`, both feature lanes. **Nine files, twenty `E0277`s**, and
-the shape of the list is the finding:
-
-| where | sites | what it is |
-|---|---|---|
-| `crates/topo/src/shell.rs:935` | 1 | the ONLY generic `src` caller — `shell`/`shell_open` are `T: Decide + PropsQuadLane` and validate their output. Tightening them evicts `Body<Dual64>` from two more PUBLIC verbs, which is `H-R3`'s decision and not a mechanical edit. Unowned ground, and live under another program's branch |
-| `crates/topo/src/props.rs:1073`, `:1115` | 2 | `AtRestPolicy`'s own pins — *"`gate_at_rest` must be `validate_geometric` verbatim at a certifying scalar"*, and the dual arm's pin that the door **refuses** at a dual. The second is the row the split retires into unwritability, and it has to be rewritten, not deleted |
-| `crates/editor-core/tests/{r1_dual_probes,r2_m10_di_probes,m10_di_dual_corpus}.rs` | 7 | `Body<Dual64>` through the door, **as a measurement**. `r1_dual_probes.rs:574` states the design fact in its own words: *"the validation DOOR is still callable at a dual (it is `PropsQuadLane`-bounded, not policy-bounded) and refuses there. What DL3 removes is the evaluation service's CALL, not the door."* `r1_is_dl3s_measured_problem_reproducible` re-takes DUAL-DESIGN DL3's founding measurement through it |
-| `crates/topo/tests/{m3_pr6_tier3prime,m5_s1_rest_zip}.rs` | 7 | generic scenario helpers `T: Decide + Bounds + PropsQuadLane` |
-| `crates/topo/tests/{geometric_cube,review_m2_pr3}.rs` | 2 | two of `S44`'s four D9 bit-identity rows |
-| `crates/sweep/tests/extrude_acceptance.rs:668` | 1 | the one site `H-R16` counted |
-
-**And it cannot land green at all**, independently of the site count:
-`crates/topo/src/validate.rs` is not on `bounds-allowlist.sh`'s file
-list, so making the obligation LITERAL is what fires the gate — the
-instrument seeing the bound and the branch going red are the same event.
-Every green spelling is a `KNOWN GAP`: a named alias trait (GAP 3, and
-`D68`'s class), or a `where T: A, T: B` clause (`S158`/`D102`'s hole, no
-live instance today). The gate's own header rules on this — *"a second
-use of the supertrait spelling to dodge this gate is a violation; ratify
-it here first"* — so the ratification is a PREREQUISITE of the fix and
-not a tidy-up after it. Filed as Track K's `D210`.
-
-**So this row is bigger than one lane and crosses two programs**: the
-`Dual`-at-certified-gates semantics the seven `editor-core` probes
-measure are M10's ground (`docs/S-CERT-PLAN.md`, cross-program
-interfaces), and `shell`'s eviction is a capability decision of the class
-`S90` needed a ruling for. A taker sequences the gate row first, then
-prices the seven probes with M10.
-
-**What is NOT claimed:** that the other lanes' entries misdescribe
-themselves — they were read and they do not.
-
 ## S216. The repo has ~39 `compile_fail` rows and not one verifies what it claims
 
 **Number allocated by the Track H orchestrator** (`docs/SMELL-H-LOG.md`),
 not drawn from the block by this lane: `main` cannot see an unmerged
 sibling branch, so re-deriving against it is not a defence between two
-open lanes inside one track. `S213` is this lane's; `S214` and `S215`
-were held elsewhere when this was written.
+open lanes inside one track. `S213` (landed) was this lane's; `S214` and
+`S215` were held elsewhere when this was written.
 
 **One finding, two halves, found six hours apart by two lanes, and
 neither half is visible from the other.**
@@ -7004,7 +6940,6 @@ a place where a reasonable reader would think the fence ambiguous:
 | # | What | Was |
 |---|---|---|
 | **D209** | **`S211`'s two residues, filed by CERT-M1**: (i) `bounds-allowlist.sh`'s header restates the ratified seam ledger at length while `geom_core::real::bounds_allowlist` (the ledger's home since CERT-M1) says the gate *holds the file list and points there for the reasons* — trim the header's per-seam prose to pointers, keeping the three items it is the one home for (the 2026-08-29 negative results). (ii) The 2026-07-29 amendment licenses `crates/bvh/` to write `T: Decide + Bounds`, and the crate is not on the gate's file allowlist, so a compound bound there fires today (CERT-M1 planted one and measured it) — add the file or record that the absence is deliberate; `bvh/src/lib.rs` states the current behaviour meanwhile | CERT-M1 (PR 1533), filed |
-| **D210** | **`S213`'s gate-side half, filed by CERT-M2 — and it is a PREREQUISITE of `S213`, not a tidy-up after it.** `topo::validate_geometric` carries its certification obligation by supertrait (`T: PropsQuadLane`), which is this gate's `KNOWN GAP 2`. Spelling the obligation literally — `T: crate::props::PropsQuadLane + geom_core::CertifiedBounds` — is what the finding asks for, and CERT-M2 compiled it: the gate FIRES on `crates/topo/src/validate.rs`, which the allowlist does not name, so *the instrument seeing the bound* and *the branch going red* are the same event. **`crates/topo/src/shell.rs` comes with it** (`shell`/`shell_open` validate their output and take the bound too). The decision this row owes: ratify both files into `geom_core::real::bounds_allowlist`'s scope rule and this gate's file list — the seam being *the certified at-rest validator*, a compound bound as necessary as `props.rs`'s own — or say which weaker spelling is meant instead, knowing that both green alternatives are `KNOWN GAP`s this header already rules against (a named alias trait is GAP 3 and mints a fresh `D68`; `where T: A, T: B` is `S158`/`D102`'s hole and would be its first live instance in an unratified file). **Not takeable by the Track M lane that needs it**: the file list is this track's ground, and the necessity argument must name the weakest bound that works — CERT-M2 measured that `Decide + CertifiedEnclosure` alone does not, `Bounds` being what `quad_lane::cut_face` reads | CERT-M2, filed |
 | **D102** | The compound-`Bounds` gate anchors on `+`, which is not how Rust expresses a compound bound — `where T: A, T: B` is silent, and so is the multi-line form `rustfmt` converges on (S158) | Track F |
 | **D103** | The allowlist is file-granular while its justifications are per-seam, so a second unrelated bound in an allowlisted file inherits the first's ratification silently (S159) | Track F |
 | **D106** | `bounds-allowlist.sh` is a 204-line header in front of a 20-line function, grown three times for three honest reasons — split the ratification ledger out of the script | Track F |
@@ -7042,8 +6977,21 @@ per-unit by the orchestrator, never taken from here by resemblance.
 
 | # | What | Was |
 |---|---|---|
-| **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12). **`H-f`'s census of the other three lane traits is DONE and is CERT-M3's specification** (CERT-M2's PR body, per trait: where the certified sub-operation sits, what the pass hands back without it, whether the certified half is already a parameter, which absence spelling it carries, and a verdict). Its three verdicts: `EdgeNurbsLane` **splits free and is already split** — `geom_brep::NurbsLane` is a `&dyn Fn` injected at the door and `EdgeCurve::certify` already IS the structural half, so the trait's whole remaining job is naming `T::plane_nurbs_limbs`; `PcurveFittedLane` **does not split** — its certified half CONSTITUTES the pass's product (`run_fitted_checks` check 4 is where the `PcurveCertificate` comes from, and its `envelope` field IS `ssi.hull_sup`), so a structural half hands back a weaker object, not less information; `ChartRegionLane` **splits only with a new contract** — the census's conformal face-pair arm goes silent without it, which is a completeness claim nothing in the tree states | Track H |
-| **S213** | `topo::validate_geometric` carries the `Bounds` obligation by SUPERTRAIT (`PropsQuadLane: … + geom_brep::EdgeNurbsLane`), which is `bounds-allowlist.sh`'s KNOWN GAP 2 — a certification bound no instrument counts. **Not a doc edit**: the `real.rs` sentence that misdescribed the attach door beside it is corrected; this half is the bound itself. **NOT TAKEABLE AS ONE LANE, measured 2026-09-02** — the finding carries the compile: nine files, twenty `E0277`s (not `H-R16`'s *"exactly one in-repo site"*), including seven `Body<Dual64>` probes that are DUAL-DESIGN DL3's own measurement and are M10's ground, and `shell`/`shell_open`'s eviction, which is a public-verb capability decision. **Blocked ahead of all of that on Track K's `D210`**: the literal bound fires the gate on a file the allowlist does not name, and every green spelling is a ratified-away `KNOWN GAP`. Sequence `D210` first | unrowed |
+| **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12). **`H-f`'s census of the other three lane traits is DONE and is CERT-M3's specification** (CERT-M2's PR body, per trait: where the certified sub-operation sits, what the pass hands back without it, whether the certified half is already a parameter, which absence spelling it carries, and a verdict). **And the ruling's own price is falsified, measured rather than argued** —
+the correction `CERT-M3` inherits, relocated here because the finding that
+held it has landed. `H-R16` prices the three-function split at *"exactly one
+in-repo site"*, a number taken from the single site `S3` had read. The split
+of ONE of the four passes cost **nine files and twenty `E0277`s**: one
+generic `src` caller (`topo::shell`/`shell_open`, whose bound tightened with
+the door they validate through), two `props.rs` policy pins, seven generic
+test-helper instantiations, and **eight `Body<Dual64>` rows that call the
+pass and assert a verdict**, seven of them DUAL-DESIGN DL3's own measurement
+in `editor-core`. Two consequences a taker should carry rather than
+rediscover: the per-trait cost is a MEASUREMENT and not an estimate, and the
+`Dual64` rows are the expensive part — they live in other programs' suites,
+they assert what the pass FINDS, and retiring a refusal can empty a witness
+set outright (splitting the validator did exactly that to DL3's two named
+witnesses, whose only refusal was the +V invariant's). Its three verdicts: `EdgeNurbsLane` **splits free and is already split** — `geom_brep::NurbsLane` is a `&dyn Fn` injected at the door and `EdgeCurve::certify` already IS the structural half, so the trait's whole remaining job is naming `T::plane_nurbs_limbs`; `PcurveFittedLane` **does not split** — its certified half CONSTITUTES the pass's product (`run_fitted_checks` check 4 is where the `PcurveCertificate` comes from, and its `envelope` field IS `ssi.hull_sup`), so a structural half hands back a weaker object, not less information; `ChartRegionLane` **splits only with a new contract** — the census's conformal face-pair arm goes silent without it, which is a completeness claim nothing in the tree states | Track H |
 | **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** **Re-read against the tree 2026-09-02, as a measurement and not an unparking** — three things moved and one did not. (i) The blocker STANDS: `sweep::blend::fillet_edges` is still reachable from `editor_core::eval::evaluate`, through `eval::wire::run_op`'s `T: Decide + ContentBits + Bounds + Send + Sync + AtRestPolicy + AxisScalar` to `wire_fillet`, and that set admits `Dual`, so #883's twelve red jobs still reduce to that one `E0277`. (ii) The pass is still mixed, and the split still sits where H-g put it: the geometry builder holds ZERO bracket reads at `T: Real`. (iii) **Every #883-era citation needs re-aiming**: the module is `crates/sweep/src/blend/`, not `sweep/src/fillet/`, and the builder is `blend/arms.rs`, not `blend.rs`. (iv) **H-g's bracket-read count is 14 no longer — it is 17**, `battery.rs` 11 (typed-error payloads: `margin`/`radius`/`gap`/`arm` fields), `build.rs` 3 (the `NonpositiveSize` datum gate and an f64 payload) and `surgery.rs` 3 (representation-datum selections, each with its argument written at the site) — so the class holds and the number does not; re-derive it rather than quoting either | Track H |
 
 ## Track N — `geom`, and the spline and linalg substrate

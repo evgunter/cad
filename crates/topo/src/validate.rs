@@ -2564,6 +2564,14 @@ pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
     }
 }
 
+/// **Check 7, as the battery takes it**: the +V invariant's whole
+/// contribution, derived however the caller can derive it, so the one
+/// check of the battery that CERTIFIES is a parameter rather than a
+/// dispatch. An empty answer is the check not being made, never a
+/// refusal — the refusal, where there is one, is a
+/// [`ValidationError`] in the vector.
+type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Vec<ValidationError>;
+
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
 /// dihedral/jet loop derives anyway).
@@ -2581,7 +2589,7 @@ fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
-    plus_v: &dyn Fn(&Body<T>, Band, Tol) -> Vec<ValidationError>,
+    plus_v: PlusVCheck<'_, T>,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
