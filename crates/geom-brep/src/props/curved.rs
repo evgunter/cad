@@ -3,6 +3,19 @@
 //! (see [`super`] module docs for the formulation and the stored-data
 //! discipline).
 //!
+//! **Not everything public here serves that lane, and one item must
+//! NOT be cited by it.** This module hosts two structural predicates
+//! beside the flux arms: [`require_iso_rectangle`], the shape door
+//! every consumer of the iso-rectangle premise cites, and
+//! [`require_one_chart_branch`], the BRANCH door, which is `mesh`'s
+//! alone. The flux lane must not cite the branch door: its own extent
+//! derivations fold a chart singularity into the extent on purpose and
+//! measure a pole-crossing arc EXACTLY (four rows of
+//! `geom-brep/tests/cert1_sphere_polar.rs` ride that fold), so citing
+//! the branch door from [`curved_face`] or from `mass_properties`
+//! would retract those rows. Two predicates for two consumers, one
+//! module, and the sentence that keeps them apart lives here.
+//!
 //! Classification vocabulary: a boundary edge of a revolution surface
 //! is a **rim** (iso-`v` circle about the surface axis — carrier axis
 //! parallel or antiparallel to the surface axis) or a **meridian**
@@ -391,15 +404,27 @@ pub fn require_iso_rectangle<T: Decide>(
 /// and both are right about the same face.
 ///
 /// **The quiet side is the walk's own inclusive pole rule.** Only a
-/// definite `Positive` — the singularity strictly inside the span, by
-/// more than the band at the arc's own lever — refuses. `Zero`, the
-/// indeterminate band and a poisoned margin all ADMIT, because an arc
-/// that ENDS at a pole is exactly the shape every sphere cap in the
-/// inventory has, and because this door's disposition must not
-/// contradict the extent fold's on the same margin
-/// ([`sphere_meridian_pole_margins`], the one home): the fold takes
-/// everything but `Negative`, this takes only `Positive`, and the gap
-/// between them is the arc that ends at the singularity.
+/// definite `Positive` refuses. `Zero`, the indeterminate band and a
+/// poisoned margin all ADMIT, because an arc that ENDS at a pole is
+/// exactly the shape every sphere cap in the inventory has, and
+/// because this door's disposition must not contradict the extent
+/// fold's on the same margin ([`sphere_meridian_pole_margins`], the
+/// one home): the fold takes everything but `Negative`, this takes
+/// only `Positive`, and the gap between them is the arc that ends at
+/// the singularity.
+///
+/// **The floor is [`Band::escalate`], not ε, and the distance is a
+/// factor of K.** A definite sign needs `|m| ≥ escalate`, which at the
+/// ratified `K = 10` is TEN coincidence widths; between `zero` and
+/// `escalate` the classification is indeterminate and this door
+/// admits. So the refusal begins at `10·ε` of point deviation at the
+/// arc's own lever, not at `ε` — a singularity `5·ε` inside a span is
+/// admitted, deliberately and by the rule above, and any statement of
+/// this door's threshold that says "the band" or "ε" understates it by
+/// K. The rows that pin it bracket `escalate` from both sides
+/// (`0.99×` admits, `1.01×` refuses) and walk the ladder
+/// `0.25·zero → zero → the indeterminate midpoint → escalate →
+/// 4·escalate`.
 ///
 /// **Per kind.**
 ///
@@ -438,12 +463,28 @@ pub fn require_iso_rectangle<T: Decide>(
 /// * **plane — not its question**, refused typed exactly as
 ///   [`require_iso_rectangle`] refuses it.
 ///
-/// **Layering.** This door decides ARC membership on carriers the
-/// per-kind parse has certified; it does not re-certify them. A caller
-/// that has not run [`require_iso_rectangle`] first is asking the
-/// second question without the first, and on a carrier that is no iso
-/// curve at all the answer here is not meaningful. `mesh`'s
+/// **Layering, and the one classify each arm repeats.** This door
+/// decides ARC membership on carriers the per-kind parse has
+/// certified; it does not re-certify them. A caller that has not run
+/// [`require_iso_rectangle`] first is asking the second question
+/// without the first, and on a carrier that is no iso curve at all the
+/// answer here is not meaningful. `mesh`'s
 /// `curved::require_iso_rectangle_face` asks them in order.
+///
+/// Each arm nonetheless repeats ONE of the parse's classifications —
+/// `props_circle_axis_class` on the sphere, `props_meridian_apex` on
+/// the cone — because it must know WHICH edges the per-kind question
+/// is about, and a public door may not rest on a caller having run
+/// another one. That costs one duplicate funnel sample per circle or
+/// line edge at `mesh`'s door. It is a duplicate of a sample already
+/// in the stream, never a new margin VALUE, so the large-K lint (which
+/// lints margins against K, not counts) cannot move on it. The
+/// alternative a reviewer proposed — route this door through
+/// `sphere_boundary` and read its per-edge kinds — is strictly worse
+/// on exactly this axis: it would repeat EVERY decide of the parse
+/// (`props_rim_fit`, `props_meridian_great`, `props_meridian_pole`,
+/// the rim incidences) instead of one, since the shape door has
+/// already run that parse by the time this one is asked.
 ///
 /// # Errors
 ///
@@ -471,10 +512,28 @@ pub fn require_one_chart_branch<T: Decide>(
                 let Curve3::Line { origin, dir } = e.carrier else {
                     continue;
                 };
+                // GENERATORS only, by the parse's own incidence margin
+                // — the cone's mirror of the sphere arm's
+                // rim/meridian filter. A line that misses the apex is
+                // no generator of this cone, has no apex in its span
+                // to cross, and must not be refused here: without this
+                // the arm read EVERY `Line` carrier as a generator and
+                // answered `NotOneChartBranch` on a line the shape
+                // door answers `props_meridian_generator` for.
+                if classify(
+                    "props_meridian_apex",
+                    Margin::norm3((apex - e.p0()).cross(dir)),
+                    band,
+                )? != Sign::Zero
+                {
+                    continue;
+                }
                 // The apex's own parameter on the generator's line
-                // (`dir` unit, so `t` is metres); the margin is its
-                // signed distance to the nearer span end, positive
-                // exactly when the apex is interior to the span.
+                // (`dir` unit — `props_meridian_generator` certifies
+                // the direction and the parse mints it so — hence `t`
+                // is metres); the margin is its signed distance to the
+                // nearer span end, positive exactly when the apex is
+                // interior to the span.
                 let t_apex = (apex - origin).dot(dir);
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 if matches!(
@@ -483,8 +542,9 @@ pub fn require_one_chart_branch<T: Decide>(
                 ) {
                     return Err(PropsError::NotOneChartBranch {
                         edge: i,
-                        what: "a cone generator whose stored span runs through the apex — \
-                               the chart singularity, where u jumps to the mirror nappe",
+                        what: "a cone generator whose stored span runs through the apex, the \
+                               chart singularity: the azimuth this edge holds constant flips \
+                               to the mirror nappe there",
                     });
                 }
             }
@@ -522,8 +582,9 @@ pub fn require_one_chart_branch<T: Decide>(
                     ) {
                         return Err(PropsError::NotOneChartBranch {
                             edge: i,
-                            what: "a sphere meridian arc whose stored span contains a pole — \
-                                   the chart singularity, where u jumps by π",
+                            what: "a sphere meridian arc whose stored span contains a pole, \
+                                   the chart singularity: the azimuth this edge holds \
+                                   constant jumps by π there",
                         });
                     }
                 }
@@ -1528,44 +1589,6 @@ fn sphere<T: Decide>(
     Ok(FaceContribution { flux, area })
 }
 
-/// Push the latitude-sine extremes a sphere meridian arc attains over
-/// its **stored parameter span** — the span-derived `v`-extent, the
-/// torus's own derivation carried to the sphere. Endpoint latitudes
-/// alone are not the arc's extent: a great circle contains both poles,
-/// so an arc whose span crosses one reaches latitude ±1 in its
-/// INTERIOR, where an endpoint fold never looks.
-///
-/// Along the meridian the latitude sine is `λ(θ) = sa·cosθ + ca·sinθ`
-/// for `θ` measured from `t0`, with `sa = λ(t0)` and `ca = dλ/dt(t0)`
-/// read off stored data (`dP/dt = n_c × (P − center)` for the stored
-/// circle parameterization). Over the full circle the extremes are
-/// `±r0` with `r0 = √(sa² + ca²)` (= 1 up to the certified
-/// `props_meridian_great` / `props_circle_axis_class` residuals),
-/// attained at the two poles; the arc attains one exactly when that
-/// pole's angular offset from `t0` lands inside the span.
-///
-/// That containment is `props_meridian_pole`: the chord from the
-/// pole's span-relative direction to the nearer span endpoint,
-/// carrying the membership sign, levered at the sphere radius — the
-/// point deviation of moving the pole onto the span boundary.
-/// `Negative` = outside, nothing to push; **everything else folds**
-/// — `Positive`, `Zero`, and the indeterminate band alike. At or
-/// near a span end the endpoint latitude already sits within band²
-/// of the pole's (the latitude is quadratic at its extremum), so the
-/// fold choices agree far inside any honest tolerance, the folded
-/// extent is continuous across the decision, and an indeterminate
-/// margin carries no information a refusal could honestly report.
-/// The margin still records through the funnel like any decide.
-///
-/// Total over every positive stored span: a span of `2π` or more
-/// covers the whole parameter circle and folds both poles (the
-/// membership edge saturates at a half-turn).
-///
-/// The pole is located relative to the STORED span, as directions —
-/// no chart inversion at all, so this is not the wedge-unwrap trap
-/// the module docs forbid (two endpoint inversions differenced,
-/// which loses the winding); the interval stays the stored
-/// `t1 − t0`.
 /// The two poles' span-membership margins for a sphere meridian arc,
 /// each with the latitude sine it would carry — **one home for the
 /// test, two dispositions**.
@@ -1595,9 +1618,25 @@ fn sphere<T: Decide>(
 /// membership sign, levered at the sphere radius — the point
 /// deviation of moving the pole onto the span boundary.
 ///
-/// Total over every positive stored span: a span of `2π` or more
-/// covers the whole parameter circle and contains both poles (the
-/// membership edge saturates at a half-turn).
+/// **Saturated spans (`dt ≥ 2π`) are NOT total, and the earlier claim
+/// that they were is retracted here** (issue 1601, pre-existing on
+/// this unit's base and NOT fixed by it — the fix is the flux lane's).
+/// The clamp holds `c_edge` at `−1`, which leaves the membership test
+/// as `f = ⟨P, M⟩ + 1` — nonnegative, but with a zero set that is not
+/// empty: it vanishes at the ONE direction antipodal to the span's
+/// midpoint `M`. "A full turn covers every direction, so the edge
+/// cosine excludes nothing" is the claim that needed an EMPTY zero
+/// set. At and near that direction `f` is a rounding residual, and
+/// `copysign` transfers its SIGN onto the chord, so a `2π + 2δ` span
+/// whose pole lands there can read `Negative` and fold short — by
+/// `(1 − cos δ)/2` in the dot value — rather than folding as the
+/// paragraph above promises.
+///
+/// **The branch door is unaffected**, which is why this is a note and
+/// not a blocker for it: [`require_one_chart_branch`] refuses only a
+/// definite `Positive`, so a residual `Negative` at that direction
+/// ADMITS — the direction this door is already permissive in, and the
+/// same answer it gives for the arc that merely ends at a pole.
 ///
 /// The pole is located relative to the STORED span, as directions —
 /// no chart inversion at all, so this is not the wedge-unwrap trap

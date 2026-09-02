@@ -340,13 +340,44 @@ pub enum PropsError {
     /// cannot read this edge at all. Valid input, unbuilt lane (D2
     /// addendum row 2): the recourse is to state the meridian as two
     /// edges meeting at the singularity, which every consumer reads.
+    ///
+    /// **`what` carries the per-kind sentence, not this variant's
+    /// prose**, because the jump is not one fact: a sphere meridian's
+    /// azimuth jumps by π at a pole, a cone generator's flips to the
+    /// mirror nappe at the apex. A single sentence here would be a
+    /// sphere sentence printed over a cone refusal.
+    ///
+    /// **No measured overshoot in the payload, and that is a
+    /// scheduled gap, not a choice** (issue 1602). The margin IS
+    /// measured — it is the same `props_meridian_pole` /
+    /// `props_cone_apex` quantity the funnel records, levered to
+    /// metres — but reading a DEFINITE margin back as `f64` from a
+    /// `Decide`-generic lane needs a compound `Bounds`/`Enclosure`
+    /// bound, which `scripts/gates/bounds-allowlist.sh` does not
+    /// ratify for `props/curved.rs`. Every arm of this enum that
+    /// carries a measured `f64` gets it from a concrete scalar
+    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
+    /// generic arms are name-only, exactly as
+    /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
+    /// that would let this arm carry the number.
     NotOneChartBranch {
         /// Which boundary edge, as its index in the loop slice the
         /// caller handed in — the same order `topo::props::loop_edges`
         /// flattens the half-edge cycle into.
+        ///
+        /// **An index and not an `EdgeKey`, structurally.** A
+        /// [`LoopEdge`] is a KEY-FREE view by construction — that is
+        /// the trust boundary this module's docs draw — and
+        /// `geom-brep` sits BELOW `topo` in the dependency order, so
+        /// `EdgeKey` is not a type this crate can name. The index is
+        /// what a caller can resolve: it indexes the same slice it
+        /// passed, and `topo::props::loop_edges` returns the loop's
+        /// half-edges in that order beside it, so the caller holds
+        /// the key it wants without props ever handling one.
         edge: usize,
-        /// Which chart branch boundary the span crosses (static
-        /// description).
+        /// The per-kind sentence: which chart singularity the span
+        /// crosses and what the edge's constant coordinate does there
+        /// (static description).
         what: &'static str,
     },
     /// The face's parameter extent is coincident with zero — a
@@ -415,9 +446,7 @@ impl core::fmt::Display for PropsError {
             Self::NotOneChartBranch { edge, what } => write!(
                 f,
                 "integral properties: boundary edge {edge}'s traversed arc leaves one chart \
-                 branch ({what}) — its carrier is an iso curve but its stored span crosses \
-                 the singularity, where the coordinate it holds constant jumps by π; state \
-                 the side as two edges meeting there"
+                 branch — {what}; state the side as two edges meeting at the singularity"
             ),
             Self::DegenerateFace => write!(
                 f,
