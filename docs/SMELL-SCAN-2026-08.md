@@ -4182,17 +4182,16 @@ seams — the part that grows — is `geom_core::real::bounds_allowlist`.
 
 ## S89. The one-home fix for the ring crossing minted three local aliases
 
-`RingInterval::from_certified` is the declared one home, and three
+`RingInterval::from_certified` is the declared one home, and two
 private one-line wrappers sit on top of it, each carrying its own
-multi-paragraph restatement of the same rule — two of them sharing a
-verbatim sentence and the third restating it differently. **Citations
-re-derived 2026-09-01**, because none of the three was where the finding
-said: `bracket` is `crates/geom-core/src/spline/hull.rs:116` (Track N's
-ground, not `ring_interval.rs`), `ring` is
-`crates/geom-brep/src/ssi/enclose.rs:195` (Track Q's), `br` is
-`crates/topo/src/props.rs:1174`, which the finding cited as `:494`.
+multi-paragraph restatement of the same rule — and the two share a
+verbatim sentence. **Citations re-derived 2026-09-01**, because neither
+was where the finding said: `bracket` is
+`crates/geom-core/src/spline/hull.rs:116` (Track N's ground, not
+`ring_interval.rs`) and `ring` is
+`crates/geom-brep/src/ssi/enclose.rs:195` (Track Q's).
 
-A unit that unifies duplicates minting three named copies is the fix
+A unit that unifies duplicates minting named copies is the fix
 reproducing what it closed.
 
 Also open: `trv()`/`healthy()` and the whole
@@ -6955,7 +6954,7 @@ re-scoped or re-argued by being moved.
 | Track | Territory (the fence) | Block |
 |---|---|---|
 | **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` |
-| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` |
+| **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` |
@@ -7030,14 +7029,23 @@ a place where a reasonable reader would think the fence ambiguous:
 ## Track M — the scalar and certification traits
 
 **Fence:** `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`,
-`interval-transcendentals/`, `crates/bvh/`. **Block:** `D220`–`D239` /
+`interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs`.
+**Block:** `D220`–`D239` /
 `S290`–`S309`. **The largest track by blast radius**
 — `H5` alone is 535 refs across 15 files and is expected to split into two or
 three sub-lanes inside the track.
 
+**`crates/topo/src/props.rs` is this track's ground, drawn 2026-09-02** and
+not a re-verdict: the file was in neither Track P's list nor Track Q's, so it
+belonged to no track — the `geom-brep` hole one crate over, and the same
+remedy. It comes here because the lane traits' first instance
+(`PropsQuadLane`) and the certified-quadrature plumbing live in it, which is
+what `H5` is about. `crates/topo/src/validate.rs` stays **Track P's**: a
+`validate.rs` edit that a lane-trait row forces is filed on P, or fenced
+per-unit by the orchestrator, never taken from here by resemblance.
+
 | # | What | Was |
 |---|---|---|
-| **D222** | **`S89`'s third alias, on ground no track's fence names**: `crates/topo/src/props.rs:1166-1176`'s private `fn br<T: CertifiedEnclosure>` restates `from_certified`'s rule in its own words. `props.rs` is in neither Track P's list nor Track Q's; the partition rule says the fence is drawn first — and the natural drawer is CERT-M2, which takes `S213` (`PropsQuadLane`'s supertrait obligation) in this same file. Inline, delete the restatement, keep `bracket_seam_tests` pinning the crossing | CERT-M1 (PR 1533), filed; fence to CERT-M2 |
 | **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12) | Track H |
 | **S213** | `topo::validate_geometric` carries the `Bounds` obligation by SUPERTRAIT (`PropsQuadLane: … + geom_brep::EdgeNurbsLane`), which is `bounds-allowlist.sh`'s KNOWN GAP 2 — a certification bound no instrument counts. **Not a doc edit**: the `real.rs` sentence that misdescribed the attach door beside it is corrected; this half is the bound itself | unrowed |
 | **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** | Track H |
@@ -7194,7 +7202,7 @@ its own tests in its own PR, as always.
 
 | # | What | Was |
 |---|---|---|
-| **D384** | **`S89`'s rides-along, three copies**: `trv()`/`healthy()` and the whole `the_fixture_is_a_finite_bracket_that_cannot_certify` row are restated verbatim in `crates/geom/tests/{curves,surfaces}/decoration_ring_coords.rs` (same filename in sibling directories, one `geom` binary) and a third time in `crates/topo/src/props.rs`'s `bracket_seam_tests` (unowned ground — `D222`'s fence question applies before that copy moves). One fixture home, three consumers | CERT-M1 (PR 1533), filed |
+| **D384** | **`S89`'s rides-along, three copies**: `trv()`/`healthy()` and the whole `the_fixture_is_a_finite_bracket_that_cannot_certify` row are restated verbatim in `crates/geom/tests/{curves,surfaces}/decoration_ring_coords.rs` (same filename in sibling directories, one `geom` binary) and a third time in `crates/topo/src/props.rs`'s `bracket_seam_tests` (**Track M's ground since 2026-09-02**; the third copy moves only with that track's agreement, and its own bracket-door row has since landed there). One fixture home, three consumers | CERT-M1 (PR 1533), filed |
 | **D113** | Decide what an intra-doc link in a `tests/` file is (S135): `cargo doc` builds no test targets, so every one is inert on every tier and nine are already broken. **Closes on a decision plus its mechanism** | Track G |
 | **H12** | Eleven `compile_fail` doctests in `geom-core/tests/` have never been collected (S214) — each asserts the compiler rejects a specific program, so each is a negative proof no tier has ever run | Track H |
 | **S216** | The repo has ~39 `compile_fail` rows and not one verifies what it claims — 28 of the 36 collected ones carry an error code that is never compared to anything. **The generalisation of `H12`, and the two want one lane** | unrowed |

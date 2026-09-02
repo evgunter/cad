@@ -1163,18 +1163,6 @@ mod quad_lane {
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
     }
 
-    /// Bracket a scalar into the C9 ring through the **certified** door.
-    ///
-    /// Fallible, which is the whole point: the static lane split above
-    /// guarantees only that a *bracket-carrying* scalar reaches this
-    /// module, and a sound bracket can still be inadmissible —
-    /// `sqrt([−1, 4]) + 1` is `[1, 3]` at `Trv`. Such a scalar becomes
-    /// ring poison here rather than a plausible bound nothing downstream
-    /// can question. See `bracket_seam_tests` below.
-    fn br<T: CertifiedEnclosure>(x: T) -> RingInterval {
-        RingInterval::from_certified(x)
-    }
-
     /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
     /// recovered algebraically from the carrier frame and the interval
     /// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
@@ -1200,9 +1188,11 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref)) / br(*radius);
-                let s = br(w.dot(v_ref)) / br(*radius);
-                let pad = (RingInterval::point(eps) / br(*radius)).mag();
+                let c = RingInterval::from_certified(w.dot(*u_ref))
+                    / RingInterval::from_certified(*radius);
+                let s = RingInterval::from_certified(w.dot(v_ref))
+                    / RingInterval::from_certified(*radius);
+                let pad = (RingInterval::point(eps) / RingInterval::from_certified(*radius)).mag();
                 Ok((clamp(c, pad), clamp(s, pad)))
             }
             Curve3::Ellipse {
@@ -1214,10 +1204,12 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref)) / br(*major);
-                let s = br(w.dot(v_ref)) / br(*minor);
-                let pad_c = (RingInterval::point(eps) / br(*major)).mag();
-                let pad_s = (RingInterval::point(eps) / br(*minor)).mag();
+                let c = RingInterval::from_certified(w.dot(*u_ref))
+                    / RingInterval::from_certified(*major);
+                let s = RingInterval::from_certified(w.dot(v_ref))
+                    / RingInterval::from_certified(*minor);
+                let pad_c = (RingInterval::point(eps) / RingInterval::from_certified(*major)).mag();
+                let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
@@ -1238,10 +1230,10 @@ mod quad_lane {
         cl: T,
     ) -> Result<HarmChan, PropsError> {
         Ok(HarmChan {
-            c0: br(c0),
-            ca: br(ca),
-            cb: br(cb),
-            cl: br(cl),
+            c0: RingInterval::from_certified(c0),
+            ca: RingInterval::from_certified(ca),
+            cb: RingInterval::from_certified(cb),
+            cl: RingInterval::from_certified(cl),
         })
     }
 
@@ -1280,7 +1272,7 @@ mod quad_lane {
         };
         let eps = tol.eps();
         let va = loop_vector_area(outer, *origin)?;
-        let o_dot_va = br((*origin - Point3::origin()).dot(va));
+        let o_dot_va = RingInterval::from_certified((*origin - Point3::origin()).dot(va));
         let mut edges = Vec::with_capacity(outer.len());
         for (le, he) in outer.iter().zip(hes) {
             let Some(cache) = body.pcurve(*he) else {
@@ -1316,14 +1308,20 @@ mod quad_lane {
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: br(t0),
-                t1: br(t1),
+                t0: RingInterval::from_certified(t0),
+                t1: RingInterval::from_certified(t1),
                 forward: le.forward,
                 trig0,
-                env: br(cache.certificate().envelope),
+                env: RingInterval::from_certified(cache.certificate().envelope),
             });
         }
-        quad::cylinder_cut_face::<T>(br(*radius), o_dot_va, &edges, eps, band)
+        quad::cylinder_cut_face::<T>(
+            RingInterval::from_certified(*radius),
+            o_dot_va,
+            &edges,
+            eps,
+            band,
+        )
     }
 
     /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since
@@ -1394,8 +1392,14 @@ mod quad_lane {
             let (t0, t1) = cache.params();
             let a = cache.pcurve().eval(t0);
             let b = cache.pcurve().eval(t1);
-            let (ax, ay) = (exact(br(a.x))?, exact(br(a.y))?);
-            let (bx, by) = (exact(br(b.x))?, exact(br(b.y))?);
+            let (ax, ay) = (
+                exact(RingInterval::from_certified(a.x))?,
+                exact(RingInterval::from_certified(a.y))?,
+            );
+            let (bx, by) = (
+                exact(RingInterval::from_certified(b.x))?,
+                exact(RingInterval::from_certified(b.y))?,
+            );
             if ax != bx && ay != by {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
@@ -1411,18 +1415,22 @@ mod quad_lane {
             }
             // Metric boundary length bound + the map-residual defect.
             let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (br(dir.norm()) * br(t1 - t0)).mag(),
+                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                    * RingInterval::from_certified(t1 - t0))
+                .mag(),
                 geom::Curve3::Nurbs(c) => {
                     let mut l = RingInterval::zero();
                     for w in c.control().windows(2) {
-                        l = l + br(w[0].distance(w[1]));
+                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
                     }
                     l.mag()
                 }
                 // An ARC cap rim on a rational wall (M8-3): the metric
                 // length is exactly `r·Δθ` — the carrier's own
                 // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (br(*radius) * br(t1 - t0)).mag(),
+                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                    * RingInterval::from_certified(t1 - t0))
+                .mag(),
                 _ => {
                     return Err(PropsError::QuadratureUnsupported {
                         what: "a NURBS-face boundary carrier outside the loft inventory \
@@ -1431,7 +1439,8 @@ mod quad_lane {
                 }
             };
             perimeter += len;
-            boundary_defect += len * br(cache.certificate().envelope).mag();
+            boundary_defect +=
+                len * RingInterval::from_certified(cache.certificate().envelope).mag();
         }
         // The rectangle certificate: hull of the traversal polygon,
         // every vertex on a corner, and the shoelace equal to ±the
@@ -1473,7 +1482,13 @@ mod quad_lane {
         let control: Vec<quad::RVec3> = payload
             .control()
             .iter()
-            .map(|p| [br(p.x), br(p.y), br(p.z)])
+            .map(|p| {
+                [
+                    RingInterval::from_certified(p.x),
+                    RingInterval::from_certified(p.y),
+                    RingInterval::from_certified(p.z),
+                ]
+            })
             .collect();
         let out = quad::nurbs_patch_face::<T>(
             payload.knots_u(),
@@ -1527,9 +1542,10 @@ mod quad_lane {
         #[cfg(feature = "interval")]
         #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
         mod bracket_seam_tests {
+            use geom_core::ring_interval::RingInterval;
             use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
-            use super::super::{br, chan};
+            use super::super::chan;
 
             /// Finite, strictly positive, and unable to certify — the case
             /// where the laundered answer is a *usable* number.
@@ -1545,25 +1561,26 @@ mod quad_lane {
             }
 
             #[test]
-            fn br_refuses_a_violated_scalar() {
-                let r = br(trv_pos());
+            fn the_certified_door_refuses_a_violated_scalar() {
+                let r = RingInterval::from_certified(trv_pos());
                 assert!(
                     r.is_poison(),
                     "a domain-violated scalar crossed into the ring as {r:?} —                  the bracket door does not read decorations, so the                  quadrature lane certifies a flux built from it"
                 );
                 // Non-vacuity: a certified scalar crosses with its endpoints.
-                let ok = br(Interval::from_bounds(1.0, 4.0).sqrt());
+                let ok = RingInterval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());
                 assert_eq!((ok.lo(), ok.hi()), (1.0, 2.0));
             }
 
             /// Where a violated scalar would have to come FROM. Every
-            /// scalar this lane hands to `br` is either read straight off
+            /// scalar this lane hands to [`RingInterval::from_certified`]
+            /// is either read straight off
             /// the stored body or built from it by `dot`, `norm`,
             /// `distance` and arithmetic — and none of those can
             /// manufacture a domain violation: a norm is the square root of
             /// a sum of squares, which is never partly negative, so it
             /// certifies even where it is zero and the vector degenerate.
-            /// A `Trv` reaching `br` therefore has to have been STORED in
+            /// A `Trv` reaching the door therefore has to have been STORED in
             /// the body, not produced here. That is a property of the
             /// arithmetic, not of any guard, so it is pinned rather than
             /// assumed.
@@ -1584,7 +1601,7 @@ mod quad_lane {
                         v.norm().certified_bracket().is_some(),
                         "a norm certified nothing for {v:?}"
                     );
-                    assert!(!br(v.norm()).is_poison());
+                    assert!(!RingInterval::from_certified(v.norm()).is_poison());
                 }
             }
 
