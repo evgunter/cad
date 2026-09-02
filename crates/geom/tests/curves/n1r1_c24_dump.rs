@@ -31,17 +31,14 @@ fn corpus3() -> Vec<(&'static str, NurbsCurve3<f64>)> {
     // 2. same net, extreme weights
     out.push((
         "cubic_extreme_w",
-        NurbsCurve3::new(
-            kv,
-            control,
-            vec![1.0, 1e9, 1e-9, 4.0, 1e7, 1e-7, 1.0],
-        )
-        .unwrap(),
+        NurbsCurve3::new(kv, control, vec![1.0, 1e9, 1e-9, 4.0, 1e7, 1e-7, 1.0]).unwrap(),
     ));
     // 3. rational quadratic full circle
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let kc = KnotVector::clamped(
-        vec![0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0],
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
         2,
     )
     .unwrap();

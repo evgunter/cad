@@ -29,9 +29,7 @@ fn brutal_curve() -> NurbsCurve3<f64> {
             Point3::new(t * 0.37 - 1.0, (t * 0.9).sin() * 3.0, t * t * 0.05)
         })
         .collect();
-    let weights = vec![
-        1.0, 1e8, 1e-8, 3.5, 1e6, 1e-6, 2.0, 1e7, 1e-7, 1.0,
-    ];
+    let weights = vec![1.0, 1e8, 1e-8, 3.5, 1e6, 1e-6, 2.0, 1e7, 1e-7, 1.0];
     NurbsCurve3::new(knots, control, weights).unwrap()
 }
 
@@ -136,8 +134,7 @@ fn n1r1_dual_lift_matches_source_everywhere() {
 /// The 2-D curve lifts too (`NurbsCurve2`, the `$dim = 2` macro arm).
 #[test]
 fn n1r1_curve2_lift_matches_source() {
-    let knots =
-        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let control = vec![
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 4.0),
@@ -154,8 +151,14 @@ fn n1r1_curve2_lift_matches_source() {
         let p = cd.eval(Dual::variable(t));
         assert_eq!(p.x.value.to_bits(), q.x.to_bits(), "t={t} x");
         assert_eq!(p.y.value.to_bits(), q.y.to_bits(), "t={t} y");
-        assert!((p.x.deriv - d.x).abs() <= 1e-9 * (1.0 + d.x.abs()), "t={t} dx");
-        assert!((p.y.deriv - d.y).abs() <= 1e-9 * (1.0 + d.y.abs()), "t={t} dy");
+        assert!(
+            (p.x.deriv - d.x).abs() <= 1e-9 * (1.0 + d.x.abs()),
+            "t={t} dx"
+        );
+        assert!(
+            (p.y.deriv - d.y).abs() <= 1e-9 * (1.0 + d.y.abs()),
+            "t={t} dy"
+        );
     }
 }
 
@@ -172,7 +175,10 @@ fn n1r1_partly_poisoned_net_is_not_the_placeholder() {
     ];
     let weights = vec![1.0, 1.0, 1.0];
     let c = NurbsCurve3::new(knots, control, weights).unwrap();
-    assert!(!c.is_placeholder(), "source: one poison point is not the placeholder");
+    assert!(
+        !c.is_placeholder(),
+        "source: one poison point is not the placeholder"
+    );
     let cd: NurbsCurve3<Dual64> = c.map_scalar(Dual::constant);
     assert!(
         !cd.is_placeholder(),
@@ -293,14 +299,14 @@ mod interval_probes {
             // The lift itself adds NO width: every control coordinate is
             // a degenerate interval.
             for p in ci.control() {
-                assert_eq!(p.x.lo().to_bits(), p.x.hi().to_bits(), "{name}: lift widened a control coordinate");
+                assert_eq!(
+                    p.x.lo().to_bits(),
+                    p.x.hi().to_bits(),
+                    "{name}: lift widened a control coordinate"
+                );
             }
             assert_eq!(ci.weights(), c.weights(), "{name}: weights moved");
-            assert_eq!(
-                ci.knots().knots(),
-                c.knots().knots(),
-                "{name}: knots moved"
-            );
+            assert_eq!(ci.knots().knots(), c.knots().knots(), "{name}: knots moved");
             for t in params() {
                 let q = c.eval(t);
                 let p = ci.eval(Interval::from_f64(t));
@@ -341,9 +347,7 @@ mod interval_probes {
             radius: 2.25,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let composed = c
-            .map_scalar(Interval::from_f64)
-            .map_scalar(Dual::constant);
+        let composed = c.map_scalar(Interval::from_f64).map_scalar(Dual::constant);
         let lifted = c.map_scalar(Interval::from_f64);
         let Curve3::Circle {
             center,
