@@ -46,7 +46,7 @@ use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::document::{
     Axis3, BooleanOp, Dimension, DimensionError, DocumentId, Expr, LoopProgram, ParamName,
-    RecipeNodeId, SlotId,
+    ProductError, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::profile::{ArcSide, ArcSweep};
@@ -54,6 +54,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, UnitDef, WrittenAngle, Writte
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
+use crate::datums;
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
 #[cfg(not(target_family = "wasm"))]
@@ -169,6 +170,105 @@ fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
     });
 }
 
+/// **The glyphs the chrome draws, and the rule they all obey.**
+///
+/// egui bundles its own fonts, and the PROPORTIONAL family is exactly
+/// three: `Ubuntu-Light`, `NotoEmoji-Regular` and `emoji-icon-font`.
+/// A character in none of them is not approximated — it is drawn as
+/// the missing-glyph box, on the user's screen, with nothing anywhere
+/// reporting it. That is what these four used to be: `✕`, `▲`, `▼`
+/// and `▸` are all absent from that stack (`▲`/`▼` exist only in
+/// `Hack-Regular`, which is the MONOSPACE family and never reached by
+/// a button label), so every row of the path form carried three empty
+/// boxes and every product root in the feature tree carried a fourth.
+///
+/// They are named here rather than spelled at each use so the rule has
+/// somewhere to be written down: **a glyph added to this list must
+/// exist in that stack.** `×` is Latin-1 and lives in Ubuntu-Light;
+/// `⬆`, `⬇` and `»` are in the emoji fonts and Ubuntu-Light
+/// respectively.
+const GLYPH_REMOVE: &str = "×";
+/// Move a list row earlier — see [`GLYPH_REMOVE`] for the font rule.
+const GLYPH_UP: &str = "⬆";
+/// Move a list row later — see [`GLYPH_REMOVE`] for the font rule.
+const GLYPH_DOWN: &str = "⬇";
+/// Marks a product root in the feature tree — see [`GLYPH_REMOVE`].
+const GLYPH_ROOT: &str = "»";
+
+/// **The picture's own size**, in metres: the diagonal of the scene's
+/// bounding box, which is what a datum is drawn relative to.
+///
+/// Zero for a scene with no geometry — an emptied document, or one
+/// holding only datums — and `datums::draws` turns that into its own
+/// fallback rather than this function inventing one. Two places would
+/// be two answers to "how big is nothing".
+fn scene_extent(scene: &SceneMesh) -> f64 {
+    let bounds = scene.bounds();
+    let span = |axis| bounds.max(axis) - bounds.min(axis);
+    let (x, y, z) = (span(bvh::Axis::X), span(bvh::Axis::Y), span(bvh::Axis::Z));
+    (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
+}
+
+/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// metres: a fraction of the whole preview's extent.
+///
+/// Relative rather than absolute because a preview has no fixed scale
+/// — a 2 mm boss and a 2 m plate go through this same form — and
+/// relative to the WHOLE preview rather than to each loop, so a bore's
+/// marks match its outer's. A preview with no extent at all (a single
+/// authored point, nothing yet) has nothing to take a fraction of and
+/// gets no marks; a cross of size zero would be no mark anyway.
+fn tip_mark(loops: &[sketch::PreviewLoop]) -> f64 {
+    let points = loops.iter().flat_map(|drawn| drawn.points.iter());
+    let mut lo = [f64::INFINITY; 2];
+    let mut hi = [f64::NEG_INFINITY; 2];
+    for point in points {
+        for axis in 0..2 {
+            lo[axis] = lo[axis].min(point[axis]);
+            hi[axis] = hi[axis].max(point[axis]);
+        }
+    }
+    let diagonal = (hi[0] - lo[0]).hypot(hi[1] - lo[1]);
+    if diagonal.is_finite() && diagonal > 0.0 {
+        diagonal * TIP_MARK_FRACTION
+    } else {
+        0.0
+    }
+}
+
+/// The share of a preview's diagonal one tip mark spans — small enough
+/// that a dense chain does not become a field of crosses, large enough
+/// to read against the geometry it sits on. The heading tick is twice
+/// this again, because a direction has to be long enough to have one.
+///
+/// Set by looking: at 0.025 it was under a pixel on a profile filling
+/// a third of the viewport, which is a mark nobody can see — and a
+/// sketch plane seen at a grazing angle foreshortens whatever is left.
+const TIP_MARK_FRACTION: f64 = 0.07;
+
+/// **Which way the chain leaves the vertex at `at`** — a unit vector,
+/// or `None` where there is no next point to take one from.
+///
+/// The next flattened point, which is the tangent to within the chord
+/// tolerance the preview was flattened at. At the LAST vertex of an
+/// open chain there is no leaving direction, so the INCOMING one is
+/// answered instead: that tip is where the chain currently ends, and
+/// the heading a reader wants there is the one it arrived on.
+fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
+    let (from, to) = if at + 1 < points.len() {
+        (points[at], points[at + 1])
+    } else if closed && points.len() > 1 {
+        (points[at], points[0])
+    } else if at > 0 {
+        (points[at - 1], points[at])
+    } else {
+        return None;
+    };
+    let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
+    let length = dx.hypot(dy);
+    (length > 0.0).then(|| [dx / length, dy / length])
+}
+
 /// Points of indent per level of the feature tree.
 const INDENT_STEP: f32 = 12.0;
 
@@ -275,8 +375,18 @@ struct Drafts {
     /// The same for every ANGLE field. Defaults to half turns
     /// (`pi rad`), the notation this editor says angles in.
     angle_unit: AngleUnit,
-    /// The add-profile form's shape choice.
-    profile_shape: ShapeKind,
+    /// The add-profile form's shape choice — `None` until the user
+    /// makes one.
+    ///
+    /// **Optional because the form is LIVE.** Every other draft here
+    /// is a number sitting in a field, but this one decides what the
+    /// viewport draws: the add-profile preview is taken from these
+    /// drafts each frame, so a pre-selected shape meant that merely
+    /// opening "Add feature" — to reach the datum form, say — put a
+    /// circle in the picture that nobody had asked for. `None` is the
+    /// form at rest: no shape fields, no preview, and the commit
+    /// disabled until a shape is chosen.
+    profile_shape: Option<ShapeKind>,
     /// The path form's verbs, in authoring order.
     ///
     /// Starts as the SQUARE a `line_to` chain spells — an empty list
@@ -285,8 +395,6 @@ struct Drafts {
     /// reader can take apart. It is a draft like every other field
     /// here: nothing reaches a document until Add profile.
     profile_path: Vec<PathStep>,
-    /// Which verb the path form's "add step" control appends.
-    path_verb: PathVerb,
     /// The circle form's centre, metres.
     profile_centre: [f64; 2],
     /// The circle form's radius, metres.
@@ -361,7 +469,7 @@ impl Default for Drafts {
             datum_direction: [0.0, 0.0, 1.0],
             length_unit: quantity::M,
             angle_unit: quantity::PI,
-            profile_shape: ShapeKind::Circle,
+            profile_shape: None,
             profile_path: vec![
                 PathStep::At([0.0, 0.0]),
                 PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
@@ -369,7 +477,6 @@ impl Default for Drafts {
                 PathStep::LineTo(PathTarget::Point([0.0, 0.01])),
                 PathStep::LineTo(PathTarget::Start),
             ],
-            path_verb: PathVerb::LineTo,
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
             profile_bored: false,
@@ -405,9 +512,13 @@ impl Drafts {
     /// than a special case — and the form's own guard on it lives at
     /// the commit ([`ViewerBehavior::add_profile_ui`]), because it is
     /// about what the loops MEAN, not about what they are.
+    /// No shape chosen yet is the empty list, not a refusal: the form
+    /// authors nothing and the preview draws nothing, which is what
+    /// [`Drafts::profile_shape`] being `None` means.
     fn profile_loops(&self) -> Vec<ProfileShape> {
         match self.profile_shape {
-            ShapeKind::Circle => {
+            None => Vec::new(),
+            Some(ShapeKind::Circle) => {
                 let mut loops = vec![ProfileShape::Circle {
                     centre: self.profile_centre,
                     radius: self.profile_radius,
@@ -420,11 +531,11 @@ impl Drafts {
                 }
                 loops
             }
-            ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
+            Some(ShapeKind::Rectangle) => vec![ProfileShape::Rectangle {
                 width: self.profile_extent[0],
                 height: self.profile_extent[1],
             }],
-            ShapeKind::Path => vec![ProfileShape::Path {
+            Some(ShapeKind::Path) => vec![ProfileShape::Path {
                 steps: self.profile_path.clone(),
             }],
         }
@@ -1045,6 +1156,19 @@ pub struct ViewerApp {
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
+    /// **Whether the viewport draws the document's datums.**
+    ///
+    /// A VIEW setting and not a document one, and the line is the same
+    /// one `DisplayState`'s hide is on the other side of: which datums
+    /// exist is the recipe's business, and whether this window draws
+    /// them is this window's. It is not persisted for that reason
+    /// either — a preference file holds what a person chose about the
+    /// application, and this is what they chose about a glance.
+    ///
+    /// On by default: a feature nobody can see is a feature nobody
+    /// finds, and construction geometry is most wanted exactly when it
+    /// has just been authored.
+    show_datums: bool,
     /// A fit is owed as soon as the NEXT rebuilt scene lands — set by
     /// a successful `Open`, whose document arrives asynchronously, so
     /// fitting immediately would frame the outgoing picture.
@@ -1270,6 +1394,7 @@ impl ViewerApp {
             split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
+            show_datums: true,
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
@@ -1373,7 +1498,20 @@ impl ViewerApp {
                 self.status = self
                     .session
                     .product_fault()
-                    .map(|fault| format!("product: {fault}"));
+                    // **A document with no body root is EMPTY, not
+                    // malformed.** A fresh document is in that state,
+                    // and so is one whose last feature was just
+                    // deleted — and the blank viewport this arm has
+                    // just drawn says so more plainly than a line of
+                    // text could. Reporting it made deleting the last
+                    // feature look like a failure. Every other gather
+                    // refusal is a fault no tree badge carries, which
+                    // is what this line exists for, and stays here.
+                    .filter(|fault| !matches!(fault, ProductError::NoBodyRoots))
+                    // `ProductError`'s own `Display` opens every arm
+                    // with "product: ", so the prefix this used to add
+                    // by hand said the word twice.
+                    .map(ToString::to_string);
             }
             Err(error) => self.status = Some(format!("scene: {error}")),
         }
@@ -1910,34 +2048,52 @@ impl eframe::App for ViewerApp {
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
-        egui::CentralPanel::no_frame().show(ui, |ui| {
-            let mut behavior = ViewerBehavior {
-                session: &self.session,
-                delta: self.delta,
-                budget_delta: self.budget_delta,
-                scene: &self.scene,
-                index: self.picks.index(),
-                revision: self.revision,
-                camera: &mut self.camera,
-                input: self.input,
-                theme: self.theme,
-                drafts: &mut self.drafts,
-                display: &display,
-                tools: &mut self.tools,
-                part_chooser: &mut self.part_chooser,
-                profile_preview: &profile_preview,
-                profile_form_drawn: &mut profile_form_drawn,
-                pending_fit: &mut self.pending_fit,
-                status: &mut self.status,
-                id_answer: &self.id_answer,
-                id_log: &mut self.id_log,
-                ops: &mut ops,
-                delta_request: &mut delta_request,
-                features_content_height: &mut features_content_height,
-                split_dragged: &mut split_dragged,
-            };
-            self.tree.ui(&mut behavior, ui);
-        });
+        // **The tiles stand on the chrome's own ground.** `no_frame`
+        // alone gives the panes no background at all, which does not
+        // leave them transparent onto something sensible: it leaves
+        // them on eframe's window clear colour, a near-black constant
+        // (`App::clear_color`'s default) that no `Visuals` ever
+        // touches. Every pane in the side panel was therefore drawn on
+        // black under all three palettes, so the light themes put dark
+        // text on it and could not be read.
+        //
+        // `Frame::NONE.fill(panel_fill)` is the narrow fix: NONE keeps
+        // the zero margin the tiles need to reach the window edge, and
+        // `panel_fill` is the same ground the toolbar above them
+        // already stands on — so the chrome follows [`Polarity`]
+        // through the toolkit's visuals, exactly as
+        // [`apply_polarity`] intends, instead of one panel escaping it.
+        egui::CentralPanel::no_frame()
+            .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
+            .show(ui, |ui| {
+                let mut behavior = ViewerBehavior {
+                    session: &self.session,
+                    delta: self.delta,
+                    budget_delta: self.budget_delta,
+                    scene: &self.scene,
+                    index: self.picks.index(),
+                    revision: self.revision,
+                    camera: &mut self.camera,
+                    input: self.input,
+                    theme: self.theme,
+                    drafts: &mut self.drafts,
+                    display: &display,
+                    tools: &mut self.tools,
+                    part_chooser: &mut self.part_chooser,
+                    profile_preview: &profile_preview,
+                    profile_form_drawn: &mut profile_form_drawn,
+                    pending_fit: &mut self.pending_fit,
+                    status: &mut self.status,
+                    id_answer: &self.id_answer,
+                    id_log: &mut self.id_log,
+                    ops: &mut ops,
+                    delta_request: &mut delta_request,
+                    features_content_height: &mut features_content_height,
+                    split_dragged: &mut split_dragged,
+                    show_datums: &mut self.show_datums,
+                };
+                self.tree.ui(&mut behavior, ui);
+            });
         self.checks_window(ui.ctx(), &mut ops);
         self.profile_form_drawn = profile_form_drawn;
         // An edit made while the panes drew leaves the preview a
@@ -1972,6 +2128,23 @@ impl eframe::App for ViewerApp {
             .extend(declined.iter().map(ToString::to_string));
 
         self.perform_batch(ops);
+    }
+
+    /// What the window is cleared to before a single panel paints.
+    ///
+    /// The trait's default is a hard-coded near-black at 180/255
+    /// alpha — a constant that does not read the `Visuals` it is
+    /// handed, so it stays black under a light palette and
+    /// translucent under every one. Both are wrong here: the chrome
+    /// states its ground through [`Polarity`], and a viewer that let
+    /// the desktop show through its panels would be reporting a
+    /// transparency nobody asked for.
+    ///
+    /// The same `panel_fill` the central panel above fills with, so
+    /// the clear and the panel agree and no seam can appear between
+    /// them.
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        visuals.panel_fill.to_normalized_gamma_f32()
     }
 }
 
@@ -2025,6 +2198,9 @@ struct ViewerBehavior<'a> {
     features_content_height: &'a mut Option<f32>,
     /// Set when the user resized a tile themselves.
     split_dragged: &'a mut bool,
+    /// Whether the viewport draws datums ([`ViewerApp::show_datums`]);
+    /// the View pane's checkbox writes through it.
+    show_datums: &'a mut bool,
 }
 
 /// Land a fold: take the camera it reached, and either show the
@@ -2100,7 +2276,13 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         // at the tile's edge, no collapse under short content); the
         // salt is the tile id, so two tabs of one tile scroll
         // independently.
-        let scrolled = egui::ScrollArea::vertical()
+        // **Both axes**, not just the vertical. A row of this
+        // chrome is as wide as the controls on it — a path step's verb
+        // decides how many fields follow it — so a pane that scrolled
+        // only downward clipped the right-hand end of its widest rows
+        // with nothing to reach them by. That is the same failure
+        // first light found downward (#1097), in the other direction.
+        let scrolled = egui::ScrollArea::both()
             .auto_shrink([false, false])
             .id_salt(tile_id)
             .show(ui, |ui| match pane {
@@ -2304,20 +2486,98 @@ impl ViewerBehavior<'_> {
         // the form; one that replayed but does not VALIDATE draws
         // anyway, which is the case where looking at it is the whole
         // point.
+        // **The document's construction geometry**, drawn before the
+        // preview so a form composing something over a datum reads on
+        // top of it. Sized against the scene's own extent
+        // (`datums::draws`), so a datum is the same size relative to
+        // the part whatever the part's scale is.
+        if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
+            for drawn in datums::draws(doc, evaluation, scene_extent(self.scene)) {
+                for point in drawn.segments {
+                    edges
+                        .datums
+                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
+                }
+            }
+        }
         if let Some(Ok(drawn)) = self.profile_preview {
             let plane = sketch::form_plane();
+            // ONE size for every loop in the preview, from the whole
+            // picture's extent: marks that each scaled to their own
+            // loop would draw a bore's crosses smaller than its
+            // outer's for no reason a reader could name.
+            let tick = tip_mark(&drawn.loops);
             for polyline in &drawn.loops {
-                // Closed by construction, so the segment list wraps:
-                // the last point joins the first, which is the same
-                // thing `ProfileLoop` means by being closed.
-                for (index, point) in polyline.iter().enumerate() {
-                    let next = polyline[(index + 1) % polyline.len()];
-                    for [x, y] in [*point, next] {
+                let points = &polyline.points;
+                // A CLOSED loop's segment list wraps — the last point
+                // joins the first, which is the same thing
+                // `ProfileLoop` means by being closed by construction.
+                // An OPEN one's must not: the leg back to the start is
+                // the provisional close `sketch::preview` walked the
+                // chain under and nobody authored, so the wrap is
+                // dropped and what is drawn is the authored legs
+                // exactly. That is the whole of "a path draws while it
+                // is still being written".
+                let segments = if polyline.closed {
+                    points.len()
+                } else {
+                    points.len().saturating_sub(1)
+                };
+                let mut segment = |a: [f64; 2], b: [f64; 2]| {
+                    for [x, y] in [a, b] {
                         let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
                         edges
                             .preview
                             .push([world.x as f32, world.y as f32, world.z as f32]);
                     }
+                };
+                for index in 0..segments {
+                    segment(points[index], points[(index + 1) % points.len()]);
+                }
+                // **The directed point at each step.** A tip is a
+                // position and, once a verb has bound one, a
+                // direction — the pair the lattice calls a directed
+                // point, and the thing a person composing a chain is
+                // actually reasoning about. The polyline alone shows
+                // where the chain went and not where its steps ARE:
+                // an arc's flattening puts a dozen indistinguishable
+                // points along one leg, which is why
+                // `PreviewLoop::vertices` says which of them the loop
+                // owns.
+                //
+                // Each is drawn as a small cross with a tick along the
+                // heading. The heading is taken from the polyline
+                // itself rather than from bulge arithmetic: the next
+                // flattened point IS the tangent to within the chord
+                // tolerance, and a second derivation of a direction is
+                // a second thing to get wrong.
+                for &at in &polyline.vertices {
+                    let here = points[at];
+                    let Some([dx, dy]) = heading(points, at, polyline.closed) else {
+                        continue;
+                    };
+                    // Both marks are drawn ACROSS the heading, never
+                    // along it. A tick that ran along the chain would
+                    // lie on the leg already drawn there and be
+                    // invisible on every vertex but an open chain's
+                    // last — which is the one place a reader needs it
+                    // least.
+                    let (nx, ny) = (-dy, dx);
+                    let at_offset = |along: f64, across: f64| {
+                        [
+                            here[0] + dx * along * tick + nx * across * tick,
+                            here[1] + dy * along * tick + ny * across * tick,
+                        ]
+                    };
+                    // The position: a tick through the point, square
+                    // to the path.
+                    segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
+                    // The direction: an arrowhead just ahead of it,
+                    // opening backward, so the pair reads as "here,
+                    // going that way".
+                    let tip = at_offset(1.0, 0.0);
+                    segment(tip, at_offset(0.2, 0.45));
+                    segment(tip, at_offset(0.2, -0.45));
                 }
             }
         }
@@ -2428,7 +2688,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             ui.add_space(indent(row.depth));
             let label = if row.root {
-                format!("{} ▸", row.kind)
+                format!("{} {GLYPH_ROOT}", row.kind)
             } else {
                 row.kind.to_owned()
             };
@@ -3068,13 +3328,18 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             ui.label("profile");
             for (shape, label) in ShapeKind::ALL {
-                ui.radio_value(&mut self.drafts.profile_shape, shape, label);
+                ui.radio_value(&mut self.drafts.profile_shape, Some(shape), label);
             }
             ui.weak("on the world XY plane");
         });
+        let shape = self.drafts.profile_shape;
         let mut blocked: Option<&'static str> = None;
-        match self.drafts.profile_shape {
-            ShapeKind::Circle => {
+        match shape {
+            // No shape chosen: the form is at rest. It says what it is
+            // waiting for and draws nothing — no fields to fill in for
+            // a shape nobody picked, and no preview in the viewport.
+            None => blocked = Some("choose a shape to add"),
+            Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
                     ui.label("centre");
@@ -3111,7 +3376,7 @@ impl ViewerBehavior<'_> {
                     );
                 }
             }
-            ShapeKind::Rectangle => {
+            Some(ShapeKind::Rectangle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
                     ui.label("width");
@@ -3131,7 +3396,16 @@ impl ViewerBehavior<'_> {
                     length_picker(ui, "profile_rectangle", &mut self.drafts.length_unit);
                 });
             }
-            ShapeKind::Path => self.path_steps_ui(ui),
+            Some(ShapeKind::Path) => {
+                self.path_steps_ui(ui);
+                // A chain with no steps is a form waiting for its
+                // first one, not a chain that fails to close. Without
+                // this the empty list drew the lattice's own refusal
+                // about a program nobody had started writing.
+                if self.drafts.profile_path.is_empty() {
+                    blocked = Some("add a step to the chain");
+                }
+            }
         }
         if let Some(reason) = blocked {
             ui.weak(reason);
@@ -3141,12 +3415,31 @@ impl ViewerBehavior<'_> {
         // so a refusal here is the refusal the button would get —
         // which is why the button waits on it rather than letting a
         // reader find out by clicking.
-        let refused = match self.profile_preview {
+        // **A form at rest reports no preview.** With no shape chosen,
+        // or a path chain with no steps, there are no loops to have an
+        // opinion about — and a refusal about nothing would be a line
+        // of text arguing with the "choose a shape" the form has just
+        // said. `blocked` already carries that sentence, and it is
+        // what disables the commit; this only keeps a second one from
+        // contradicting it.
+        let at_rest = shape.is_none() || self.drafts.profile_path.is_empty() && blocked.is_some();
+        let refused = match self.profile_preview.as_ref().filter(|_| !at_rest) {
             // The first frame this form is on screen: the latch has
             // not asked for a preview yet, so there is nothing
             // honest to say about one. The commit door is still the
             // judge, so the button is not held for a frame either.
             None => false,
+            Some(Ok(drawn)) if drawn.has_open_chain() => {
+                // **Drawn, and still not committable.** The chain is
+                // in the viewport (`sketch::preview` walks it under a
+                // provisional close) so the shape can be looked at
+                // while it is written; what it is not yet is a loop,
+                // and the commit door refuses a program that does not
+                // close. Saying which of the two this is beats a
+                // disabled button with a lattice refusal beside it.
+                ui.weak("the chain does not close yet — its last step has to target the start");
+                true
+            }
             Some(Ok(drawn)) => {
                 if let Some(invalid) = &drawn.invalid {
                     ui.colored_label(
@@ -3163,7 +3456,19 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(Err(error)) => {
-                ui.colored_label(chrome(self.theme.unresolved), error.to_string());
+                // **Unfinished is not wrong.** The end-of-program arm
+                // says only that the chain has no closing verb yet,
+                // which is the state every chain passes through while
+                // it is being written — a one-point chain reaches the
+                // form this way, because there is no leg for the
+                // provisional close to be walked over. Every OTHER
+                // refusal blames a step somebody actually wrote, and
+                // keeps the colour that says so.
+                if matches!(error, PreviewError::Transition { verb: None, .. }) {
+                    ui.weak(error.to_string());
+                } else {
+                    ui.colored_label(chrome(self.theme.unresolved), error.to_string());
+                }
                 true
             }
         };
@@ -3190,20 +3495,30 @@ impl ViewerBehavior<'_> {
     /// **The path form's step list**: one row per verb, plus the
     /// control that appends another.
     ///
-    /// Each row is `[✕] [▲] [▼] <verb> <the verb's fields>` — a list
-    /// a person edits in place, because a chain IS a list and its
+    /// Each row is `N [x] [up] [down] <verb> <the verb's fields>` — a
+    /// list a person edits in place, because a chain IS a list and its
     /// order is the whole content. Changing a row's verb replaces the
     /// step with a fresh one of that verb rather than carrying
     /// numbers across: two verbs' fields mean different things (a
     /// `line`'s length is not a `turn`'s angle), so a carried number
     /// would be a guess the form cannot check.
     ///
-    /// **Nothing here judges the chain.** Which verbs are well-typed
-    /// at which tip is the lattice's to say, and it says it through
-    /// the preview under the form (`add_profile_ui`, which draws it)
-    /// — the same ladder the commit door runs. A form that offered only the
-    /// legal verbs would be a second copy of the lattice, kept in
-    /// step by hand.
+    /// **The row number is the one the refusals use.** A preview
+    /// refusal reads "loop 0 step 2", and a list with nothing written
+    /// on it left a reader counting rows to find which one that was.
+    /// It is therefore zero-based, matching the sentence rather than
+    /// matching what a list of things usually looks like.
+    ///
+    /// **The verb combo offers only what the lattice admits at that
+    /// tip**, and shows the rest greyed with the refusal as their
+    /// hover text — [`sketch::admits_at`], which answers by putting
+    /// the candidate in front of the same `replay` the commit door
+    /// runs. That is deliberately NOT a table here: an earlier version
+    /// of this form offered every verb everywhere precisely to avoid
+    /// keeping a second copy of the lattice in step by hand, and the
+    /// probe is how the offer narrows without one existing. The
+    /// admissible set is computed only while a combo is OPEN, so a
+    /// closed form pays nothing for it.
     fn path_steps_ui(&mut self, ui: &mut egui::Ui) {
         let length_unit = self.drafts.length_unit.def();
         let angle_unit = self.drafts.angle_unit.def();
@@ -3219,72 +3534,136 @@ impl ViewerBehavior<'_> {
         // asked for.
         let mut remove: Option<usize> = None;
         let mut swap: Option<(usize, usize)> = None;
+        // A verb chosen in a row's combo, applied after the loop for
+        // the same reason the moves are: the probe that decides which
+        // verbs a combo may offer reads the WHOLE list, and it cannot
+        // borrow it while a row holds a mutable slice of it.
+        let mut rebind: Option<(usize, PathVerb)> = None;
+        let mut insert: Option<usize> = None;
+        let notation = self.drafts.notation();
+        let tol = self.session.tol();
         let last = self.drafts.profile_path.len().saturating_sub(1);
         for index in 0..self.drafts.profile_path.len() {
             let salt = format!("path_step_{index}");
             ui.horizontal(|ui| {
+                // Zero-based, because "loop 0 step 2" is.
+                ui.weak(format!("{index}"));
                 if ui
-                    .small_button("✕")
+                    .small_button(GLYPH_REMOVE)
                     .on_hover_text("remove this step")
                     .clicked()
                 {
                     remove = Some(index);
                 }
                 if ui
-                    .add_enabled(index > 0, egui::Button::new("▲").small())
+                    .add_enabled(index > 0, egui::Button::new(GLYPH_UP).small())
+                    .on_hover_text("move this step earlier")
                     .clicked()
                 {
                     swap = Some((index, index - 1));
                 }
                 if ui
-                    .add_enabled(index < last, egui::Button::new("▼").small())
+                    .add_enabled(index < last, egui::Button::new(GLYPH_DOWN).small())
+                    .on_hover_text("move this step later")
                     .clicked()
                 {
                     swap = Some((index, index + 1));
                 }
-                let step = &mut self.drafts.profile_path[index];
-                let mut verb = PathVerb::of(step);
-                let before = verb;
+                // **Insert after this row.** A chain is written in the
+                // middle as often as at the end — a leg forgotten
+                // between two that exist used to mean appending it and
+                // walking it up with the arrows — so every row carries
+                // the control, and the last row's is the append.
+                //
+                // In the row's own control cluster rather than at the
+                // far end of it, which is where this first went: a
+                // row's width is its verb's, so at the end the `+`
+                // sits at a different place on every row and, on the
+                // widest, past the edge of a pane that does not scroll
+                // sideways. A control that moves under the cursor is
+                // worse than one that is not where a reader first
+                // looks for it.
+                if ui
+                    .small_button("+")
+                    .on_hover_text("insert a step after this one")
+                    .clicked()
+                {
+                    insert = Some(index + 1);
+                }
+                let verb = PathVerb::of(&self.drafts.profile_path[index]);
                 egui::ComboBox::from_id_salt(("path_verb", index))
                     .selected_text(verb.label())
                     .width(120.0)
                     .show_ui(ui, |ui| {
+                        // Asked once per OPEN combo, never per frame:
+                        // the probe replays the prefix once per
+                        // candidate verb, which is cheap but not free,
+                        // and a closed combo has nobody to show it to.
+                        let mut chain = self.drafts.profile_path.clone();
                         for option in PathVerb::ALL {
-                            ui.selectable_value(&mut verb, option, option.label());
+                            chain[index] = option.fresh();
+                            let refusal = sketch::admits_at(&chain, index, notation, tol).err();
+                            // `add_enabled` on the widget itself, not
+                            // an `add_enabled_ui` around it: the
+                            // reason a choice is greyed out is told
+                            // through `on_disabled_hover_text`, and
+                            // that is a `Response`'s door — a region's
+                            // response shows nothing.
+                            let row = ui.add_enabled(
+                                refusal.is_none(),
+                                egui::Button::selectable(option == verb, option.label()),
+                            );
+                            match refusal {
+                                Some((state, _refused)) => {
+                                    // The label the combo shows, not
+                                    // the kernel verb's `Debug`: the
+                                    // sentence is about the row a
+                                    // reader is looking at.
+                                    row.on_disabled_hover_text(format!(
+                                        "{} is not well-typed here — the tip is {}",
+                                        option.label(),
+                                        sketch::tip_state_words(state),
+                                    ));
+                                }
+                                None if row.clicked() && option != verb => {
+                                    rebind = Some((index, option));
+                                }
+                                None => {}
+                            }
                         }
                     });
-                if verb != before {
-                    *step = verb.fresh();
-                }
+                let step = &mut self.drafts.profile_path[index];
                 path_step_fields(ui, &salt, length_unit, angle_unit, step);
             });
         }
+        if let Some((index, verb)) = rebind {
+            self.drafts.profile_path[index] = verb.fresh();
+        }
         if let Some(index) = remove {
             self.drafts.profile_path.remove(index);
+        }
+        if let Some(at) = insert {
+            self.drafts.profile_path.insert(at, fresh_step(at));
         }
         if let Some((from, to)) = swap {
             self.drafts.profile_path.swap(from, to);
         }
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("path_add_verb")
-                .selected_text(self.drafts.path_verb.label())
-                .width(120.0)
-                .show_ui(ui, |ui| {
-                    for option in PathVerb::ALL {
-                        ui.selectable_value(&mut self.drafts.path_verb, option, option.label());
-                    }
-                });
-            if ui.button("Add step").clicked() {
-                let step = self.drafts.path_verb.fresh();
-                self.drafts.profile_path.push(step);
-            }
-            if ui
-                .add_enabled(
-                    !self.drafts.profile_path.is_empty(),
-                    egui::Button::new("Clear"),
-                )
-                .clicked()
-            {
+            // **"Add step" only when there is no row to insert after.**
+            // Once the list has rows, every one of them carries a `+`
+            // that inserts after it — including the last, which is the
+            // append — so a second control at the bottom would be the
+            // same move spelled twice.
+            //
+            // There is no verb picker beside it either. It duplicated
+            // the row combo one row down: whatever the new step is,
+            // the way to change it is the same control either way, and
+            // a second one only asked the question a frame earlier.
+            if self.drafts.profile_path.is_empty() {
+                if ui.button("Add step").clicked() {
+                    self.drafts.profile_path.push(fresh_step(0));
+                }
+            } else if ui.button("Clear").clicked() {
                 self.drafts.profile_path.clear();
             }
         });
@@ -4251,6 +4630,15 @@ impl ViewerBehavior<'_> {
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
         ui.separator();
+        // **Datum visibility, and why it is a switch at all.**
+        // Construction geometry is drawn over the part, which is
+        // where it has to be for a plane to say what it cuts — and it
+        // is also in the way once a document has several. A view
+        // setting rather than a document one: which datums exist is
+        // the recipe's business, and whether this window draws them is
+        // this window's.
+        ui.checkbox(self.show_datums, "show datums");
+        ui.separator();
         ui.label(format!(
             "camera yaw {:.1}°, pitch {:.1}°",
             self.camera.yaw().to_degrees(),
@@ -4384,14 +4772,47 @@ fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
 /// applied to a field showing millimetres is the same gesture made a
 /// thousand times finer by a change of notation.
 fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical: &mut f64) {
+    named_field(ui, "", unit, speed, canonical);
+}
+
+/// [`unit_field`] with the quantity's NAME written into the field
+/// itself.
+///
+/// A prefix rather than a `Label` beside it, and that is the point: a
+/// path step's row is a horizontal strip of controls, and the labels
+/// that used to sit between them belonged to whichever field a reader
+/// guessed. `arc_fillet` is the case that made it matter — an arc
+/// radius and a fillet radius, both written `r`, both in the same row,
+/// with nothing saying which was which. A prefix cannot drift away
+/// from its field.
+///
+/// The name is the QUANTITY, never the unit: the picker beside the
+/// form says the unit, and a second statement of it here would be
+/// free to disagree ([`length_picker`]'s own rule).
+fn named_field(ui: &mut egui::Ui, name: &str, unit: UnitDef, speed: f64, canonical: &mut f64) {
     let mut written = props::in_written(*canonical, unit);
-    let response = ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, unit)));
+    let mut field = egui::DragValue::new(&mut written).speed(props::in_written(speed, unit));
+    if !name.is_empty() {
+        field = field.prefix(format!("{name} "));
+    }
+    let response = ui.add(field);
     // Written back only on a real edit: an untouched field would
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
         *canonical = props::from_written(written, unit);
     }
+}
+
+/// A dimensionless field with its own name written in — the scalar
+/// twin of [`named_field`], for the components and bulges that carry
+/// no unit at all.
+fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mut f64) {
+    ui.add(
+        egui::DragValue::new(value)
+            .speed(speed)
+            .prefix(format!("{name} ")),
+    );
 }
 
 /// The vector twin of [`unit_field`] — one label, three components,
@@ -4405,10 +4826,13 @@ fn unit_vec3_row(ui: &mut egui::Ui, label: &str, unit: UnitDef, speed: f64, valu
     });
 }
 
-/// Two Length fields, one point of the sketch frame.
+/// Two Length fields, one point of the sketch frame — each carrying
+/// the axis it is, because a row of a path form holds several points
+/// and a bare pair of numbers says which of them it belongs to only
+/// by position.
 fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut [f64; 2]) {
-    for component in point {
-        unit_field(ui, unit, FIELD_DRAG_SPEED, component);
+    for (axis, component) in ["x", "y"].into_iter().zip(point) {
+        named_field(ui, axis, unit, FIELD_DRAG_SPEED, component);
     }
 }
 
@@ -4476,10 +4900,21 @@ fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSweep) {
 fn arc_fields(
     ui: &mut egui::Ui,
     salt: &str,
+    role: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
     spec: &mut ArcSpec,
 ) {
+    // What to call this arc's own radius. A step can hold TWO arcs and
+    // a fillet between them (`arc_fillet_arc`), and every one of the
+    // three has a radius: unqualified, all three fields read `r` and
+    // the row is unreadable. The caller names the role because only
+    // the caller knows which arc of the step this is.
+    let radius = if role.is_empty() {
+        "r".to_owned()
+    } else {
+        format!("{role} r")
+    };
     let mut mode = ArcMode::of(spec);
     let before = mode;
     egui::ComboBox::from_id_salt(("arc_mode", salt))
@@ -4495,14 +4930,12 @@ fn arc_fields(
     }
     match spec {
         ArcSpec::Radius { r, side } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
         }
         ArcSpec::Bulge { target, b } => {
             target_fields(ui, length_unit, target);
-            ui.label("bulge");
-            ui.add(egui::DragValue::new(b).speed(UNIT_DRAG_SPEED));
+            named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
         }
         ArcSpec::Via { q, target } => {
             ui.label("via");
@@ -4516,19 +4949,31 @@ fn arc_fields(
             target_fields(ui, length_unit, target);
         }
         ArcSpec::Sweep { r, side, angle } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
-            ui.label("angle");
-            unit_field(ui, angle_unit, ANGLE_DRAG_SPEED, angle);
+            named_field(ui, "sweep", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
         ArcSpec::ArcLen { r, side, len } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
-            ui.label("length");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, len);
+            named_field(ui, "arc length", length_unit, FIELD_DRAG_SPEED, len);
         }
+    }
+}
+
+/// **The step a fresh row starts as**, by where it is going.
+///
+/// `at` at position 0 — nothing else is well-typed at the entry, so
+/// offering anything there would be offering a refusal — and `line_to`
+/// anywhere after it, which is the verb a chain is mostly made of. It
+/// is a starting point and not a judgement: the row's own combo,
+/// narrowed to what the lattice admits at that tip, is where it
+/// becomes something else.
+fn fresh_step(at: usize) -> PathStep {
+    if at == 0 {
+        PathVerb::At.fresh()
+    } else {
+        PathVerb::LineTo.fresh()
     }
 }
 
@@ -4546,38 +4991,73 @@ fn path_step_fields(
     angle_unit: UnitDef,
     step: &mut PathStep,
 ) {
+    // **Every field says which quantity it is.** The arms below are
+    // split further than the lowering's are — `line` and `fillet` both
+    // carry one Length and shared an arm — because what a number MEANS
+    // is the thing a row has to say, and a shared arm can only give
+    // two different quantities one name.
     match step {
-        PathStep::At(point) | PathStep::ArcContinue(point) | PathStep::FarEndTo(point) => {
+        PathStep::At(point) => point_fields(ui, length_unit, point),
+        PathStep::ArcContinue(point) => {
+            ui.label("through");
             point_fields(ui, length_unit, point);
         }
-        PathStep::Angle(angle) | PathStep::Turn(angle) => {
-            unit_field(ui, angle_unit, ANGLE_DRAG_SPEED, angle);
+        PathStep::FarEndTo(point) => {
+            ui.label("far end");
+            point_fields(ui, length_unit, point);
+        }
+        PathStep::Angle(angle) => {
+            named_field(ui, "angle", angle_unit, ANGLE_DRAG_SPEED, angle);
+        }
+        PathStep::Turn(angle) => {
+            named_field(ui, "turn", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
         PathStep::Toward { dx, dy } => {
-            ui.add(egui::DragValue::new(dx).speed(UNIT_DRAG_SPEED));
-            ui.add(egui::DragValue::new(dy).speed(UNIT_DRAG_SPEED));
+            named_scalar(ui, "dx", UNIT_DRAG_SPEED, dx);
+            named_scalar(ui, "dy", UNIT_DRAG_SPEED, dy);
         }
-        PathStep::Line(length) | PathStep::Fillet(length) => {
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, length);
+        PathStep::Line(length) => {
+            named_field(ui, "length", length_unit, FIELD_DRAG_SPEED, length);
+        }
+        PathStep::Fillet(radius) => {
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
             target_fields(ui, length_unit, target);
         }
-        PathStep::ArcTo(spec) => arc_fields(ui, salt, length_unit, angle_unit, spec),
-        PathStep::FilletArc { radius, spec } | PathStep::ArcFillet { spec, radius } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, salt, length_unit, angle_unit, spec);
+        PathStep::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        // The two mixed verbs read in the order their names do, so the
+        // row is the step spelled left to right.
+        PathStep::FilletArc { radius, spec } => {
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+        }
+        PathStep::ArcFillet { spec, radius } => {
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         PathStep::ArcFilletArc {
             spec,
             radius,
             spec2,
         } => {
-            arc_fields(ui, &format!("{salt}_in"), length_unit, angle_unit, spec);
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, &format!("{salt}_out"), length_unit, angle_unit, spec2);
+            arc_fields(
+                ui,
+                &format!("{salt}_in"),
+                "in arc",
+                length_unit,
+                angle_unit,
+                spec,
+            );
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(
+                ui,
+                &format!("{salt}_out"),
+                "out arc",
+                length_unit,
+                angle_unit,
+                spec2,
+            );
         }
         // Structural verbs: the verb IS the whole step.
         PathStep::Tangent | PathStep::Cusp | PathStep::CloseTo => {}

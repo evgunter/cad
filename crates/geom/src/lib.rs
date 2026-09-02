@@ -99,7 +99,6 @@ mod azimuth;
 pub mod curves;
 mod net;
 mod projection;
-#[cfg(test)]
 mod scalar_lift;
 pub mod surfaces;
 

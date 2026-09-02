@@ -35,7 +35,7 @@ fn slab(y0: f64) -> topo::Body<f64> {
 
 #[test]
 fn r2_bool_door_near_pole() {
-    let eps = Tol::witness().get().eps;
+    let eps = common::eps();
     let mut lines = vec![format!("eps = {eps:e}")];
     for rho in [0.9 * eps, 5.0 * eps, 1e-6, 1e-3, 0.1] {
         let y0 = (1.0f64 - rho * rho).sqrt();

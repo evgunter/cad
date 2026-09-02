@@ -807,6 +807,7 @@ typestate, and it retires:
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
 | `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
+| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, so PQ4 still wants a corner there, refusing `SeamTangent` when it is not one. The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
 | `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
@@ -962,44 +963,181 @@ the vertex table is the materialized form intensional recipes
 evaluate into. The units: this half is **BOOL-8**, the
 `arc_continue` retirement **BOOL-10**, the declared point-target
 continuation and its closer **BOOL-11**, the raw-door demotion
-**BOOL-9** (resequenced behind BOOL-11). #433 closes when the
-lattice half and the raw-door half have both landed.
+**BOOL-9** (resequenced behind BOOL-11). **The LATTICE half has now
+landed in full** — the interior continuation (BOOL-8) and the declared
+point-target form with its structural closer (BOOL-11); the RAW DOOR
+remains (BOOL-9), and #433 closes when it lands.
 
 **The seam, measured here and RULED (third round, Evan, in-chat,
-2026-09-01).** The continuation as landed spells INTERIOR
-subdivisions only. A straight run crossing the SEAM is unauthorable
-in either rotation: with the seam at a corner the closer departs
-the run's subdivision vertex (`TangentLineClose`), and with the
-seam at that subdivision vertex the seam's own junction is the
-straight one, which PQ4 (§6, no mid-carrier seam) refuses by
-construction. What forces the choice is the strict
-corner/subdivision ALTERNATION that one subdivision per side
-produces: the seam junction and the junction the closer departs are
-then always adjacent and always of different kinds, so no rotation
-puts a corner at both. An outline free to distribute the same
-vertex budget unevenly has spellings that close; one whose vertices
-are pinned — the lily loft section, whose correspondence the loft
-fixes — is not free. The lift layer has carried a name for this
-wall since it was written (`LiftRefusal::SameCarrierClose`).
+2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
+BOOL-8 shipped it spells INTERIOR subdivisions only, and a straight run
+crossing the SEAM was unauthorable in either rotation: with the seam at
+a corner the closer departs the run's subdivision vertex (a tangent
+DEPARTURE), and with the seam at that subdivision vertex the
+seam's own junction is the straight one, which PQ4 (§6, no mid-carrier
+seam) refuses by construction. What forced the choice is the strict
+corner/subdivision ALTERNATION that one subdivision per side produces:
+the seam junction and the junction the closer departs are then always
+adjacent and always of different kinds, so no rotation puts a corner at
+both. The lift layer has carried a name for this wall since it was written:
+`LiftRefusal::DeclaredJointBeforeClosingLine` (`crates/profile/src/lift.rs`),
+whose message says a run's "leaving segment closes the loop straight;
+`.tangent().line(len)` cannot close" — the straight wall exactly. (An
+earlier draft cited `SameCarrierClose` here. That variant is about ARC
+runs — `arc_continue` has no closing form — so it names a different
+wall; the identical mis-citation was dropped from the lily demo's
+comment in the same unit, and this is its retained sibling.)
 
 The ruling: the straight continuation gains a DECLARED POINT-TARGET
 form — the leg declared to land on a NAMED point, with the kernel
-CHECKING that the target lies on the departing directed point's ray
-and refusing when it does not (a declared structural fact,
-verified, never inferred from a value coincidence). The target is
-ANY authored point, and the structural CLOSER — `Start` as the
-target — is the special case that ends the seam wall. Axiom-clean:
-it consults the directed point's binding bits, the authored target,
-and, for the closer, `Start`, which is the chain's own
-emission-layer bookkeeping. PQ4 stands unchanged; the closer makes
-a seam at a CORNER sufficient for an all-sides-subdivided outline.
-What "lies on the ray" means in f64 — exact-or-refuse, which
-constrains authoring, versus any banded check, which re-admits
-value inference — is the implementing unit's design question, and
-its text comes back here for Evan's eyes. Scheduled as **BOOL-11**,
-after this half merges and before the raw-door demotion; until it
-lands, an all-sides-subdivided outline is authored as loop DATA and
-the lily demo says so at its own site.
+CHECKING that the target lies on the departing directed point's ray and
+refusing when it does not (a declared structural fact, verified, never
+inferred from a value coincidence). The target is ANY authored point,
+and the structural CLOSER — `Start` as the target — is the special case
+that ends the seam wall. Axiom-clean: it consults the directed point's
+binding bits, the authored target, and, for the closer, `Start`, which
+is the chain's own emission-layer bookkeeping. PQ4 stands unchanged;
+the closer makes a seam at a CORNER sufficient for an
+all-sides-subdivided outline.
+
+**Landed as `continue_to(target)` (§3's row).** The f64 question the
+third round left open — exact-or-refuse versus a banded check — was
+ruled in the fourth round: BANDED, as ever, because the DECLARATION is
+what legalizes the band. With the intent authored, comparing the target
+against the ray is authored-data CONSISTENCY (the arc verbs' class),
+not the value inference the ladder refuses, which reads intent OFF a
+coincidence nobody declared. The unit's three decisions, recorded here
+for the record they belong to:
+
+- **Which ε: the run's own linear band, whose refusing edge is
+  ε_input.** The two candidates were not really alternatives. ε_input
+  IS K·ε (D4's two-tolerance principle — a role name, not a third
+  dial), and K·ε is the escalation band's upper edge, so "use ε_input"
+  and "use the run band" name the same threshold; what differs is
+  whether the comparison goes through the predicate funnel. It does.
+  Below ε_precision the target and the ray are the same place at the
+  precision anything here represents, and the declaration is
+  consistent; above ε_input they are definitely different places, and
+  the authored data contradicts itself; between them nothing is
+  decidable and the band ESCALATES. A bare comparison against K·ε would
+  have swallowed that middle and decided where the numbers cannot,
+  which is the one thing escalate-never-guess forbids. ε_input is the
+  right edge to refuse at for the reason the role exists: the question
+  is about authored INPUT — does the point the author wrote agree with
+  the intent the author declared — not about what the kernel can build.
+- **The lever: none, and that is the dimension-honest answer.** The
+  miss is `(target − at) · n̂` with `n̂ ⟂ û` a unit direction — already
+  the target's own displacement from the ray, in metres, and already
+  the point deviation the tolerance is defined about. §4 item 1 levers
+  ITS margin (sin φ · arm) because its datum is an ANGLE, which means
+  nothing until an arm says what it displaces; here the datum is a
+  POINT. Levering anyway would mean dividing the length by the leg to
+  make an angle and multiplying it back — bits lost, and a threshold
+  that would drift with how far along the ray the author put the point.
+- **The D2 row: 1 (reachable by input, invalid) — typed error.** Row 0
+  was asked first and answered NO out loud: whether a runtime `Point2`
+  lies on a runtime ray is a value fact, and making it unrepresentable
+  needs the type system to carry the geometry. Row 3 (poison) would be
+  wrong — an off-ray target is not a domain degeneracy, it is
+  well-formed input that disagrees with itself.
+
+Two smaller decisions came with it, both recorded because they are
+contracts rather than implementation. The emitted vertex is the
+AUTHORED TARGET, never its projection onto the ray: item 3 says every
+authored point lies on the final path, and projecting would also leave
+the closer's endpoint a hair off the entry vertex, which is the one
+place a hair is not allowed. And the CLOSER mints no vertex at all —
+`Start` is the entry, which the loop already carries.
+
+**What the closer did NOT move, measured.** It ends the DEPARTURE half
+of the wall and leaves PQ4's half exactly where it was, and the two are
+now separable at the refusal rather than only through the fixture that
+provoked them — and separable by TYPE, not by a payload tag. A tangent
+DEPARTURE on a closing leg refuses `JunctionTangent`, exactly as any
+other departure does; a tangent SEAM refuses `SeamTangent`, a refusal
+only a seam can produce.
+
+That is a correction to how this first landed (ruled 2026-09-01). The
+first version gave one refusal a `site: Departure | Seam` payload, which
+kept a close-only second name for a departure — and a tangent departure
+on a closing leg is geometrically identical to one mid-chain, with an
+identical recourse now that the declared closer exists (spell it
+structurally). A second name for the same fact is uniformity debt
+against this document's own rule that `Start` goes through ORDINARY
+verbs, and it predated the program: it is the original lattice's
+`line_close: bool`, from when the recourses really did differ. Two types
+also beat a tag on the merits — a tag must be read and a `{ .. }`
+pattern can ignore it, whereas types cannot be confused by a caller, and
+each refusal now carries only the payload its own recourse needs. Re-running BOOL-8's exhaustive hunt with the declared closer in
+the alphabet (64 rings — both lily section widths, both ends of the
+shoulder parameter, every starting vertex, both directions) closes 32
+of them where the undeclared closer still closes zero. Every closure is
+a spelling whose SEAM is a corner, which is the ruling's "sufficient"
+made a measurement.
+
+The same run also measures what remains, and it is a fact about lily
+rather than about the closer. The spellings that close sit at OPPOSITE
+PARITY in the two sections a leaf plan carries: in the kite
+(`shoulder = 0`) the corners are the TIPS — starts 0, 2, 4, 6 — and in
+the rectangle (`shoulder = 1`) they are the SHOULDERS — starts 1, 3, 5,
+7. The two sets are disjoint, and not by accident: the kite's corner
+set IS its tips and the rectangle's IS its shoulders, which are
+disjoint points of the outline whatever vertex budget is spent. A loft
+matches segment j of every section to segment j of every other, so all
+of a plan's sections must be authored at ONE rotation — and a plan
+carrying both a `shoulder = 1` base and a `shoulder = 0` belly has no
+rotation that gives every section a corner at its seam. So the lily
+demo does NOT migrate here: its remaining wall is PQ4's, reached by the
+one section whose seam is forced onto a subdivision vertex.
+
+**That leaves a question this document does not answer, and it is
+Evan's.** BOOL-8 already made a side legal with two authored vertices
+on one carrier, so "one authored side, one carrier" is not what PQ4 is
+protecting any more. Whether a DECLARED subdivision vertex is an
+admissible seam — the loop cut where the author said the carrier
+continues, rather than mid-segment where nobody said anything — is the
+question the lily family raises and this unit did not take: the ruling
+said PQ4 stands unchanged, and it stands. Until it is asked and
+answered, an outline whose corner set moves between its own sections is
+authored as loop DATA, and the lily demo says so at its own site.
+
+**The band's guarantee is PER LEG, and the run-level certifier is the
+data gate** (recorded after review; a limit, not a hole). Each
+`continue_to` checks THIS leg's target against THIS leg's declared ray.
+That is the honest scope of the on-ray band, and it composes as any
+per-step tolerance composes: forty legs each accepting a same-side miss
+of 0.5·ε put the run's end 20·ε — two full ε_input — off the ray it
+started on, with every per-leg check green and correctly so. The drift
+does not escape quietly: the data gate sees the accumulated bow that no
+per-leg check can, and ESCALATES on `chord_side` rather than accepting
+it. Loud, not silent, and not a guess. Tightening the per-leg band
+would not change the shape of this, so the answer is the gate — which
+is already this design's answer for run-level facts.
+`the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins the
+gate's verdict.
+
+**The ε_input story of the new arms** (D4 consequence (iv): for every
+arm added to a decision, name which ε_input story it belongs to, or say
+why it belongs to none). The definite arm,
+`ContinuationTargetOffRay`, belongs to the AUTHORED-DATA story: the
+target and the ray are definitely different places, and the recourse is
+to move the target onto the ray — or, if the miss is genuinely
+acceptable, to WIDEN the input tolerance. That is the opposite
+direction from the tangency refusals, where closeness is what refuses
+and lowering the tolerance is the recourse, and the message says so
+rather than inheriting the wrong half of the template.
+
+The in-band arm belongs to NO existing story, and this is the "or say
+why" branch. The shared sub-ε_input recourse is "declare the
+coincidence, move the geometry, or lower the tolerance" — and at this
+site the first lever is meaningless, because the DECLARATION IS THE
+VERB: there is nothing left to declare that `continue_to` has not
+already said. So the escalation at `path_continuation_target_offset`
+composes its own message from the margin payload, with its own two
+levers (move the target, or widen ε_input), instead of the shared tail.
+The same correction was owed to `path_leg_length`, which had been
+reporting an authored extent under the prefix "path junction
+classification" — it is not a junction, and neither is this.
 
 The #101 verify layer runs UNCHANGED on the lowered output — the
 algebra is upstream insurance; the flags remain the contract of
@@ -1057,6 +1195,27 @@ was considered and declined — the relaxation touches the
 same-carrier discipline (one authored side = one carrier), which
 germ matching and the merge ladders lean on. Revisit only with a
 concrete authoring need, as a revision to this section.
+**REOPENED (Evan, in-chat, 2026-09-01) — relaxed for the DECLARED
+case only, on BOOL-11's measured need (the block-quote below):
+a closing leg may declare that it arrives straight into the
+entry's first side, checked within ε through the funnel;
+undeclared mid-side closes keep refusing. Mechanism, spelling and
+the loop-start reading of the two consumers named above ride
+BOOL-12's PR as a revision to this entry.**
+
+> **A concrete authoring need is now on the table (§4, BOOL-11, open —
+> Evan-gated).** The declared closer made a seam at a CORNER sufficient,
+> which is what closed the departure half of the seam wall; it did not
+> reach the lily leaf family, because that family's two sections put
+> their corners at disjoint stations (tips vs shoulders) while a loft
+> pins one rotation for all sections, so one section always seams at a
+> subdivision vertex. §4 asks whether a DECLARED subdivision vertex — the
+> loop cut where the author said the carrier continues — is an admissible
+> seam, given that BOOL-8 already made a side legal with two authored
+> vertices on one carrier, which is the "one authored side = one carrier"
+> premise this entry rests on. The question is filed there, not answered;
+> this pointer exists so a reader of the register finds it, per this
+> entry's own "as a revision to this section".
 
 ## 7. Explicitly out of scope
 

@@ -314,6 +314,36 @@ impl SceneMesh {
         }
     }
 
+    /// **The picture of a document that denotes no geometry at all**
+    /// — an empty recipe, or one holding only datums and profiles.
+    ///
+    /// [`SceneMesh::empty`]'s sibling, and the distinction between
+    /// them is where the extent comes from: that one is drawn from
+    /// geometry that EXISTS and is hidden, so it carries that
+    /// geometry's box; this one has no geometry to take a box from,
+    /// and says so with a degenerate one at the world origin. A
+    /// camera asked to frame it refuses with
+    /// [`crate::camera::CameraError::DegenerateScene`], which is the
+    /// honest answer — inventing a scale for a document with no
+    /// extent would put the user somewhere no fact chose.
+    ///
+    /// This is a legal outcome, not a refusal.
+    /// [`SceneError::EmptyMesh`] stays what it always was: parts that
+    /// exist and tessellated to nothing, which is a fault in the
+    /// tessellation rather than a document with nothing in it.
+    pub fn nothing(delta: DisplayTolerance) -> Self {
+        // `from_points` answers `None` only for an EMPTY iterator, and
+        // this one holds a point — but the absence is handled rather
+        // than asserted away, because a panic in the picture of an
+        // empty document would be the loudest possible answer to the
+        // quietest possible state. The poison box is the fallback with
+        // the same meaning the degenerate one has here: nothing a
+        // camera can frame.
+        let nowhere =
+            Aabb::from_points([Point3::new(0.0_f64, 0.0, 0.0)]).unwrap_or_else(Aabb::poison);
+        Self::empty(nowhere, delta)
+    }
+
     /// Build a drawable scene from a tessellated body.
     ///
     /// Winding comes from `mesh::FacePatch`'s documented contract —

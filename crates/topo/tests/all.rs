@@ -180,6 +180,8 @@ mod review_ssiflat_r2_probes;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "seat3_flush_detector.rs"]
+mod seat3_flush_detector;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "solid_separation.rs"]

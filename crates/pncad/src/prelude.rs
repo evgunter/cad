@@ -101,8 +101,9 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError,
-    PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcLen, ArcSide, Bulge, Center, ClosedLoop, ContinueTarget, LineTarget, Open, PartialPath,
+    PathError, PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle,
+    circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -222,3 +223,14 @@ pub use crate::select::{
 // (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
 // already above, one definition re-exported upward.
 pub use topo::query;
+// The KERNEL flush seat (`topo::flush`): the same detect/declare
+// protocol as a pure function of two `Body`s, for the caller who holds
+// arena keys and no document. A MODULE for the reason `query` is one,
+// and more sharply — all three door names collide with the document
+// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
+// which answer names from an evaluation where `flush::` answers keys
+// from a body. The finding vocabulary the doors speak
+// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
+// already above, one definition re-exported upward: `FlushFinding` is
+// literally the same type at both seats, over each seat's pair.
+pub use topo::flush;

@@ -596,7 +596,7 @@ pub(crate) fn tessellate_trimmed(
                         // and on a flat wall certifying at ~5e-17 a
                         // bare `d / cert` would read pure rounding
                         // dust as a violation.
-                        let r = d / (bound + tol.eps);
+                        let r = d / tol.eps.pad(bound);
                         // A first sample replaces the NaN seed; after
                         // that, max — sticky-NaN, the same rule the
                         // certificate accumulation below follows,
