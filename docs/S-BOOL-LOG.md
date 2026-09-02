@@ -215,3 +215,37 @@ wall survived a 1600-case hunt. One overruled finding (the author
 identity), one dispatch correction (K = 1.0 is rejected, not a
 floor). Slate next: BOOL-13 (schema demolition; away-channel
 announcement first) → BOOL-12 → BOOL-9 → BOOL-10.
+
+## BOOL-13 merged (2026-09-02) — the schema demolition; no pre-release schema version
+
+PR 1553 at head b471e545a (gate 33606990398 green), merged after the
+away-channel window announced on the PR (no objections; SEAT-4's
+in-flight `schema:` pin was the one predicted collision, resolved in
+the branch as "the version is gone"). Deliverable 1 was verified
+FIRST: serde_json's unknown-variant and missing-field rejections are
+typed and reach the caller's message with the name, so the fallback
+was never built. Gone: `SCHEMA_VERSION`, the `schema:` header line,
+the version door, the empty migration chain, the thirteen
+per-version suites and goldens v1–v19. One refusal stays,
+`Unreadable`, on the deserializer's own category, with the regenerate
+recourse — and `HeaderId` carries it too since the fix pass. The
+corpus regenerated once; the bench `layout` document had drifted
+since PR 1506 (issue 1186's missing closure) and now matches its
+scene, pinned to the scene for all seven quantities.
+
+**The dual (ordinal 1105, sample #104 — row in this docs PR after the
+merge)**: both arms mergeable-after-MINORs, no MAJOR, pair COUNTS.
+Both reviews caught the SPEC's own error: the fence sentence said
+`persist/` was not Track V ground, and C6's S4 anchors include
+`persist/wire.rs`; corrected in the spec post-merge, recorded as a
+symmetric dispatch correction. Class pickups with durable homes: C6's
+"persisted format" blocker annotated as dissolved (SMELL, this PR);
+issue 1561 (the tour's false `transform_rigid` re-mint rationale, a
+fifth instance of a class declared closed); the positional-array body
+hatch pinned at the persist header; the observation that a PR whose
+merge-ref conflicts gets NO CI run silently.
+
+Slate next: BOOL-12 (the declared arrival at the seam) dispatches
+now on a main with no schema version — its `ContinueTo` wire spelling
+is an additive vocabulary change plus a corpus regeneration; BOOL-B3
+is the draw block. Then BOOL-9, BOOL-10.

@@ -338,11 +338,16 @@ pub enum SplitSide<T: Decide> {
 // An evaluated datum (spec D3): geometry VALUES, not kernel entities,
 // which is why the type itself lives at the kernel query seat
 // (`topo::query`) — it is the resolved comparand the decided distance
-// predicate takes, and this layer's evaluation is what mints one
-// (normals/directions normalized; a degenerate, decided-zero-length
-// vector is a typed refusal). Re-exported at its historical home so
-// this crate's public surface is unchanged.
-pub use topo::query::DatumValue;
+// predicate takes, and this layer's evaluation is what mints one. Its
+// normals and axis directions are `UnitVec3`, whose constructor is
+// where a degenerate, decided-zero-length vector becomes a typed
+// refusal; this layer maps that refusal onto its own node error and
+// invents nothing. `DatumValue` is re-exported at its historical home,
+// so no consumer's path to it moved — but the surface GREW: the two
+// `UnitVec3` names are new here, and they are not optional decoration.
+// A consumer cannot build a datum, or read a normal back out of one,
+// without naming the type that carries the invariant.
+pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
 
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
@@ -511,6 +516,15 @@ pub enum NodeErrorKind {
     /// A direction-valued vector decided to zero length (datum
     /// normal/direction, transform rotation axis, pattern direction).
     DegenerateDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
+    /// A direction-valued vector whose LENGTH is not a finite number:
+    /// components large enough to overflow the norm, or a poisoned
+    /// one. A separate fact from a zero length and a separate
+    /// recourse — the model is outside the range its own arithmetic
+    /// can measure, and the fix is scale, not direction.
+    NonFiniteDirection {
         /// Which vector, by role.
         role: &'static str,
     },
@@ -948,6 +962,12 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} direction has zero length")
             }
+            Self::NonFiniteDirection { role } => write!(
+                f,
+                "the {role} direction has no finite length — its components \
+                 overflow the norm, or one of them is not a number; scale \
+                 the geometry into the session's range"
+            ),
             Self::Band(e) => write!(
                 f,
                 "the ambient tolerance could not form a classification band: {e}"
@@ -1743,6 +1763,36 @@ where
     }
 }
 
+/// **The content-key tag of a MIGRATED verb** — the memoization
+/// commitment, held where memoization lives, matching on the kernel's
+/// own name for the verb.
+///
+/// The kernel says nothing about content keys; this crate says nothing
+/// about what a verb IS. What connects them is one exhaustive match
+/// over [`verbs::VerbKind`], so a variant added to the vocabulary
+/// breaks this file at compile rather than defaulting to a tag that
+/// already means something else.
+///
+/// **The numbers are the ones that were already here** and they do not
+/// move: they are the tags [`content_key`]'s match wrote inline before
+/// the vocabulary had a home, and `verb_content_tags_are_the_committed
+/// _numbers` pins each of them. Keys are process-internal and never
+/// persist, so a tag costs a memo invalidation and no schema — but an
+/// EXISTING tag must never be reused for a new meaning, which is the
+/// rule this whole tag space runs on.
+///
+/// It takes the fieldless [`verbs::VerbKind`] rather than a
+/// `&Verb<T>` because a content key is computed BEFORE the node's
+/// selection has resolved to arena keys or its slot to a scalar: at
+/// this point in evaluation there is no verb value to match on, only
+/// the verb's name — which is exactly what the tag is a function of.
+fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
+    match kind {
+        verbs::VerbKind::Fillet => 17,
+        verbs::VerbKind::Chamfer => 24,
+    }
+}
+
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS, upstream keys — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
@@ -1822,6 +1872,11 @@ where
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
+    // NODE-TAG-SPACE BEGIN — the sentinel `node_tag_space_is_injective`
+    // reads. Every number between here and the END sentinel is a tag in
+    // ONE space, whether it is written inline or comes back from
+    // `verb_content_tag`; do not move a tag out of these lines without
+    // teaching that test where it went.
     let tag = match node {
         Node::Datum(Datum::Plane { .. }) => 1,
         Node::Datum(Datum::Axis { .. }) => 2,
@@ -1849,8 +1904,10 @@ where
         // an EXISTING tag must never be reused for a new meaning.
         Node::Loft { .. } => 15,
         Node::Sweep { .. } => 16,
-        // M5 PR 12.
-        Node::Fillet { .. } => 17,
+        // M5 PR 12. The number is not written here: a migrated verb's
+        // tag is a function of the KERNEL's name for it, so it comes
+        // out of `verb_content_tag`.
+        Node::Fillet { .. } => verb_content_tag(verbs::VerbKind::Fillet),
         // ASM-2A.
         Node::InstantiatePart { .. } => 18,
         // LIB-PLACEDUNION (19 is `Pattern`'s explicit rule, above):
@@ -1867,8 +1924,9 @@ where
         Node::Mate { .. } => 23,
         // LIB-G16. Appended, never a reused tag: a chamfer and a
         // fillet of the same size on the same edges are different
-        // geometry, so they must not share a key.
-        Node::Chamfer { .. } => 24,
+        // geometry, so they must not share a key. Same home as the
+        // fillet's, for the same reason.
+        Node::Chamfer { .. } => verb_content_tag(verbs::VerbKind::Chamfer),
         // M10-2. Tags APPEND — an existing one must never be reused
         // for a new meaning. Both of these claimed 24 on their own
         // branches; LIB-G16 merged first, so they take the next free
@@ -1877,6 +1935,7 @@ where
         Node::Measure { .. } => 25,
         Node::Assertion { .. } => 26,
     };
+    // NODE-TAG-SPACE END
     h.write_tag(tag);
     // Structural payloads beyond the tag — everything a node carries
     // that its SLOTS do not express, and that two nodes of one tag can
@@ -2524,8 +2583,6 @@ fn contact_class_tag(class: topo::ContactClass) -> u8 {
     }
 }
 
-/// Feeds a [`StableName`] structurally into the content key (names
-/// are float-free by construction — pure tags and integers).
 /// Feeds a measured expression: one tag per AST node, then each
 /// node's own payload. The tag space is closed and the match is
 /// EXHAUSTIVE, so a new arithmetic arm cannot default to hashing like
@@ -2595,7 +2652,8 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
 /// Feeds one stable name: its entity kind as a tag, its minting node,
 /// then its role path segment by segment. Every field participates —
 /// a name is an identity, and two names differing anywhere are two
-/// different recipe payloads.
+/// different recipe payloads. Names are float-free by construction
+/// (pure tags and integers), so nothing here is eps-dependent.
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {
@@ -2869,6 +2927,130 @@ mod verb_tag_tests {
             seen.push((*verb, tag));
         }
         assert_eq!(seen.len(), profile::Verb::ALL.len());
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod verb_content_tag_tests {
+    use super::verb_content_tag;
+
+    /// **The migrated verbs' content tags are the numbers the inline
+    /// match already wrote**, pinned digit by digit.
+    ///
+    /// This is the load-bearing row of moving the match: a memo key is
+    /// a function of the tag, so a tag that moved would silently
+    /// re-key every document carrying that node — every blend
+    /// document in the corpus recomputing where it used to hit, and,
+    /// worse, no red anywhere to say so. The numbers below are read
+    /// off the pre-change source, not off the function.
+    #[test]
+    fn verb_content_tags_are_the_committed_numbers() {
+        assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
+        assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+    }
+
+    /// No two verbs share a tag — the property `verb_tag`'s injectivity
+    /// row asserts for the profile vocabulary, here for the node one,
+    /// computed over `VerbKind::ALL` so a verb the vocabulary gains is
+    /// measured the moment it has an arm.
+    #[test]
+    fn verb_content_tags_are_injective() {
+        let mut seen: Vec<(verbs::VerbKind, u8)> = Vec::new();
+        for kind in verbs::VerbKind::ALL {
+            let tag = verb_content_tag(*kind);
+            assert!(
+                !seen.iter().any(|(_, t)| *t == tag),
+                "{kind:?} shares content tag {tag} with {:?}",
+                seen.iter().find(|(_, t)| *t == tag).map(|(k, _)| *k)
+            );
+            seen.push((*kind, tag));
+        }
+        assert_eq!(seen.len(), verbs::VerbKind::ALL.len());
+    }
+
+    /// **The COMBINED node-tag space is injective** — the migrated
+    /// verbs' tags and every tag still written inline, checked as the
+    /// one space they actually are.
+    ///
+    /// The row above is not this row. It says no two VERBS collide, and
+    /// it would stay green while a new inline node claimed 17 or 24 —
+    /// which is precisely the accident that moving two tags out of the
+    /// match created the room for, and precisely the accident the S4
+    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
+    /// a reviewer rather than a type) says costs a memo hit serving
+    /// another node's geometry.
+    ///
+    /// **It is a source census, and that is the honest shape here.** The
+    /// tags live in a match over `&Node`, so enumerating them by calling
+    /// `content_key` would mean constructing one of every node variant —
+    /// a fixture larger than the property, and one that would go stale
+    /// silently. Instead the sentinels bracketing that match delimit the
+    /// text, every `=> <number>` inside it is read as an inline tag, and
+    /// every `verb_content_tag(VerbKind::X)` is read as a migrated one
+    /// and resolved through the real function. Nothing is hand-listed,
+    /// so nothing drifts: a tag added inside the sentinels is measured
+    /// the moment it is typed.
+    ///
+    /// What it cannot see, stated: a tag written OUTSIDE the sentinels
+    /// (the sentinel comment says not to), and a tag whose arm computes
+    /// rather than names a number. Neither exists today.
+    #[test]
+    fn node_tag_space_is_injective() {
+        const SOURCE: &str = include_str!("mod.rs");
+        let region = SOURCE
+            .split_once("NODE-TAG-SPACE BEGIN")
+            .expect("the tag match carries its opening sentinel")
+            .1
+            .split_once("NODE-TAG-SPACE END")
+            .expect("the tag match carries its closing sentinel")
+            .0;
+        // Comments inside the region discuss tag numbers in prose ("the
+        // tag-29 lesson"), which are not arms — blanked through the
+        // SHARED Rust reader rather than a `split("//")` this test rolled
+        // itself, which would have mis-read a `//` inside a string.
+        let code_only = test_utils::source::code_and_literals(region);
+        let mut tags: Vec<(u8, String)> = Vec::new();
+        for (n, code) in code_only.lines().enumerate() {
+            if let Some(rest) = code.split_once("=> ") {
+                let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
+                if let Ok(tag) = token.parse::<u8>() {
+                    tags.push((tag, format!("inline arm at region line {n}")));
+                    continue;
+                }
+            }
+            for kind in verbs::VerbKind::ALL {
+                if code.contains(&format!("VerbKind::{kind:?}")) {
+                    tags.push((verb_content_tag(*kind), format!("{kind:?}")));
+                }
+            }
+        }
+        // A census that read nothing would pass vacuously.
+        assert!(
+            tags.len() >= 20,
+            "the tag census found only {} tags — the sentinels or the scan have drifted from the \
+             match they are supposed to read",
+            tags.len()
+        );
+        for kind in verbs::VerbKind::ALL {
+            assert!(
+                tags.iter().any(|(t, _)| *t == verb_content_tag(*kind)),
+                "{kind:?}'s migrated tag is not reachable from the node match — the census is \
+                 measuring the wrong region"
+            );
+        }
+        let mut seen: Vec<(u8, String)> = Vec::new();
+        for (tag, who) in tags {
+            assert!(
+                !seen.iter().any(|(t, _)| *t == tag),
+                "content tag {tag} is claimed twice: by {who} and by {}",
+                seen.iter()
+                    .find(|(t, _)| *t == tag)
+                    .map(|(_, w)| w.clone())
+                    .unwrap_or_default()
+            );
+            seen.push((tag, who));
+        }
     }
 }
 

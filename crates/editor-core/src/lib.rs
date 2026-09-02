@@ -7,7 +7,7 @@
 //! conditionals — total by construction). This crate holds NO geometry
 //! evaluation (PR 2) and NO name resolution (PR 3/4) in its document
 //! layer; persistence
-//! (schema v1) arrived in M4 PR 6 as [`persist`].
+//! arrived in M4 PR 6 as [`persist`].
 //!
 //! Layering (M4 PR 2 spec D1, G1): editor-core sits ABOVE the kernel —
 //! the evaluation service ([`mod@eval`]) depends on the op crates it wires
@@ -50,6 +50,7 @@ pub mod refactor;
 pub mod resolve;
 pub mod roots;
 pub mod update;
+mod verbs;
 pub mod witness;
 
 pub use analysis::{
@@ -83,7 +84,7 @@ pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_or
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
-    NodeValue, PartFault, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeValue, PartFault, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
@@ -118,8 +119,8 @@ pub use node::{
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
-    Loaded, MigrationStep, PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, canonical_bytes,
-    content_pin, header_document_id, load, save,
+    Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
+    load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::Frame;

@@ -36,12 +36,11 @@ Schedules nothing; the unit dispatches when Evan signs off.
   (pure `Vec<DocEdit>`, caller applies all-or-nothing —
   `update_references`, refactor::split/inline precedents).
 - Schema: a new persisted `Doc` field = one strict serde module +
-  one field + a ledger paragraph at whatever the NEXT schema version
-  is when the change lands (`SCHEMA_VERSION` clean-break mechanics,
-  persist/mod.rs; `tests/schema_ledger.rs`). No number is reserved
-  here: a version is claimed by an explicit read of main's constant at
-  the claiming branch's final re-merge, never by a spec written
-  earlier.
+  one field. The format carries no schema version before release
+  (persist/mod.rs's module docs): an optional field is additive and
+  invalidates no checked-in document; a required one regenerates the
+  corpus through the tour build. Nothing to claim, nothing to
+  coordinate.
 
 ## PL1 — Scope v1: the parameter-table diagonal (a sharpening, not
 ## just base-rate control)
@@ -132,9 +131,8 @@ exists; the substrate argues it should not exist for this purpose.
   (canonical name order; record carries provenance per DS7's
   ladder). Document-level, not node-level, because the relation is
   about the table's leaves, not any consuming node — the
-  `AppearanceMap` precedent. Persistence: strict serde module +
-  a ledger paragraph at the next schema version, claimed the way the
-  bullet above says. `Doc::bit_eq` and `diff.rs` each gain a
+  `AppearanceMap` precedent. Persistence: strict serde module, per
+  the bullet above. `Doc::bit_eq` and `diff.rs` each gain a
   clause.
 - *Declared-same (unify)*: no record — the repair rewrites the
   document so the coincidence becomes structural: elaboration-style

@@ -1268,13 +1268,13 @@ pub enum RecordedProgramError {
     /// vocabularies (G1 layering: `profile` has neither expressions nor
     /// serde), and the hop back from a recorded program is where the
     /// difference becomes visible. A verb the table gains reaches this
-    /// arm until the document form — and, with it, the persisted form
-    /// and its schema version — grows to match.
+    /// arm until the document form — and, with it, the persisted form —
+    /// grows to match.
     ///
     /// One verb sits here today: `continue_to`, the declared
     /// point-target continuation. Spelling it in the document is a WIRE
-    /// change and therefore a ratified schema bump, which is its own
-    /// coordinated unit; the census in
+    /// change (the checked-in corpus regenerates; the format carries no
+    /// schema version), which is its own unit; the census in
     /// `tests/switch_program_vocabulary.rs` carries the gap as a named
     /// exception so it stays loud rather than quiet.
     VerbNotInDocumentVocabulary(profile::Verb),
@@ -1299,8 +1299,8 @@ impl core::fmt::Display for RecordedProgramError {
             Self::VerbNotInDocumentVocabulary(verb) => write!(
                 f,
                 "the authoring verb {verb:?} has no document spelling: the document and \
-                 persisted vocabularies grow with a ratified schema version, and this one \
-                 has not landed yet"
+                 persisted vocabularies grow by a format change that regenerates the \
+                 corpus, and this one has not landed yet"
             ),
         }
     }

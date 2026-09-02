@@ -46,7 +46,7 @@ fn r1_lifting_door_refuses_continue_to_typed() {
     ));
     let msg = err.to_string();
     assert!(msg.contains("ContinueTo"), "{msg}");
-    assert!(msg.contains("schema version"), "{msg}");
+    assert!(msg.contains("format change"), "{msg}");
 }
 
 /// And the `Start` arm alone reaches it too (the closer, with no

@@ -39,10 +39,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};
+use geom_core::tolerance::DEFAULT_EPS;
+use geom_core::{Bounds, Interval, MarginDiag, Point2, Real, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::Body;
+use test_utils::vacuity::stood_down;
+use topo::{Body, ShellError, ValidationError};
 
 fn iv(x: f64) -> Interval {
     Interval::from_f64(x)
@@ -100,6 +102,20 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
 /// zero, which is what a dyadic cap offset should give. The bound is
 /// `1e-9`, six decades of headroom, so it reds on a real widening and
 /// not on a last-place wobble.
+///
+/// **Per band, honestly** (the issue-1356 practice). At ε = 1e-12 the
+/// hollow does not build: its tier-3 pass cannot decide ONE sliver
+/// dihedral — the margin's enclosure is `[0, ~1.2e-12]` against a
+/// `1e-12` band — and the certified scalar escalates rather than
+/// answers, which is exactly the law this file's header states. So the
+/// row takes the band it is run at: where the hollow builds, the
+/// corners are checked as enclosures; where it escalates, the
+/// escalation's exact shape is pinned (one error, that class, that
+/// predicate, the band the run committed to, a margin inside the
+/// escalation band — a REAL widening clears `escalate` and reds here)
+/// and the corner claims are stood down BY NAME. MEASURED at this
+/// head: green at ε ∈ {1e-6, 1e-9}; at 1e-12 `EdgeKey(17v1)`,
+/// `tangent_second_order`, enclosure `[0, 1.1625e-12]`.
 #[test]
 fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     let tol = Tol::witness();
@@ -122,8 +138,51 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
         "the barrel's wall is a torus at this scalar too"
     );
 
-    let hollow = topo::shell(&body, iv(T), FIT_TOL, tol)
-        .expect("the torus barrel hollows at the certified scalar");
+    let hollow = match topo::shell(&body, iv(T), FIT_TOL, tol) {
+        Ok(hollow) => hollow,
+        Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
+            let [ValidationError::SliverDihedral { edge, cause }] = errors.as_slice() else {
+                panic!(
+                    "at ε = {:e} the hollow refused with something other than ONE sliver \
+                     dihedral: {errors:?}",
+                    tol.eps()
+                );
+            };
+            assert_eq!(
+                cause.predicate,
+                Some("tangent_second_order"),
+                "the escalation at {edge:?} is not the dihedral classifier's own"
+            );
+            assert_eq!(
+                cause.band.zero(),
+                tol.eps(),
+                "the band is the run's own ε, not a number the fixture carries"
+            );
+            let MarginDiag::Enclosure { lo, hi } = cause.margin else {
+                panic!(
+                    "the sliver margin at {edge:?} is not an enclosure: {:?}",
+                    cause.margin
+                );
+            };
+            assert!(
+                lo <= cause.band.zero() && hi >= cause.band.zero() && hi < cause.band.escalate(),
+                "the margin [{lo:e}, {hi:e}] at {edge:?} is not an in-band escalation against \
+                 zero {:e} / escalate {:e} — a real widening would clear the escalation \
+                 threshold, and this row must red on that",
+                cause.band.zero(),
+                cause.band.escalate()
+            );
+            stood_down(
+                &format!("the torus barrel's interval hollow, eps = {:e}", tol.eps()),
+                "the hollow escalated on one sliver dihedral before any corner was \
+                 reachable, so THIS RUN ASSERTS NEITHER the two-shell count NOR the corner \
+                 enclosures — only that the escalation is the certified scalar's honest \
+                 one, at the run's own band, on a margin inside the escalation band",
+            );
+            return;
+        }
+        Err(e) => panic!("the torus barrel hollows at the certified scalar: {e:?}"),
+    };
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
         Ok(()),

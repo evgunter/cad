@@ -137,3 +137,54 @@ evidence includes a differential of the digest suite against
 extracted main. v6 dual dispatches on frozen head 6f4fdea6: parity
 byte 40 → **R1 opus + R2 fable**. Difficulty L was logged pre-draw.
 Full row recorded at merge; block SEAT-B1 closes at that row.
+
+## SEAT-4 MERGED (2026-09-02, PR 1547) — BLOCK SEAT-B1 CLOSES
+
+The Verb substrate landed: crates/verbs owns the canonical blend
+vocabulary, editor-core lowers both blends through one generic
+wire_blend with behavior pinned end to end (tags, wire format, and
+a provenance-extended evaluation digest differentially reproduced
+on the merge base). Zero MAJORs from either review arm; the fix
+pass extended the digest rather than softening its claim, with
+red-first evidence for all three planted mutations, and fixed the
+BlendVerb wart the Shell compiler-experiment exposed. The
+compound-Bounds allowlist row is flagged for Evan's retroactive
+review. Full row + the SEAT-B1 block-close record (draw byte 85):
+MODEL-AB-LOG SEAT4 (ordinal 1003, sample #103 at merge).
+
+Next: SEAT-DV (the issue-1527 ruling — DatumValue unit-by-
+construction) opens block SEAT-B2; then SEAT-5 (the boolean
+migration) and SEAT-6 (the ParamSource channel, with the issue-1372
+handoff note to VERBS at dispatch).
+
+## ORDINAL 1004 CLAIMED — SEAT-DV dual (2026-09-02)
+
+SEAT-DV (PR 1564, DatumValue normals unit-by-construction — the
+issue-1527 ruling executed) implementation delivered and green
+(lane=interval ASKED, eps 1e-12 drawn; run 33605838986). Newtype
+UnitVec3 in topo::query; bound loosened to Real with Decide only at
+the deciding doors; the SEAT-2 tripwire deleted; ONE disclosed
+observable move — the datum length decision reaches the funnel as
+the NEW site datum_unit_norm (K-REPORT carrier row added; audit row
+declined by the honest-length argument) — the dual's scrutiny
+point. v6 dual dispatches on frozen head 12ca8295: parity byte 216 → **R1 opus + R2 fable**. Difficulty S was
+logged pre-draw. Full row recorded at merge.
+
+## SEAT-DV MERGED (2026-09-02, PR 1564) — issue 1527 closed
+
+The issue-1527 ruling is executed: DatumValue normals are
+unit-by-construction, and the dual earned its keep — the review
+found the overflow class the newtype's guarantee missed (norm
+overflow reads as maximally definite; the deleted tripwire had been
+catching exactly that input loudly), executed end to end including
+the merge-base panic reproduction. SEAT's FIRST tally candidate
+(unilateral, executed, one defect after dedup; coding at the
+blinded adjudication). The fix gated finiteness through the value
+channel with no Bounds ratification, and the fix pass's own sibling
+probe found the same class LIVE at unit() (Pattern directions —
+issue 1572, one line from closed). Issues 1570 (direction-family
+home) and 1572 filed. Full row: MODEL-AB-LOG SEATDV (ordinal 1004,
+sample #105 at merge).
+
+Next: SEAT-5 (the boolean migration onto Verb) on block SEAT-B2's
+next slot; SEAT-6 (ParamSource + the issue-1372 handoff) behind it.

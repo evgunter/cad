@@ -279,17 +279,16 @@ pub enum Qualifier {
 /// other by an identity match. The duplication is deliberate and the
 /// emitter's match is the SEAM.
 ///
-/// This side is what a file remembers: persisted and VERSIONED, so its
-/// spelling is file data and cannot move without a schema break (v18
-/// is that break). The kernel side is a birth record of arena keys
-/// with no serde and no version, free to be re-spelled with the
-/// surgery. Collapsing them would either drag serde and a schema
-/// number down into the kernel — which G1 layering forbids the other
-/// way round too, since the kernel must not depend on `editor-core` —
-/// or let a surgery refactor silently re-spell every saved document.
-/// With the seam, a rename on the kernel side that the emitter still
-/// maps costs no version bump at all. The fuller statement lives at
-/// `RimSide`'s own declaration.
+/// This side is what a file remembers: persisted, so its spelling is
+/// file data and cannot move without every saved document moving with
+/// it. The kernel side is a birth record of arena keys with no serde,
+/// free to be re-spelled with the surgery. Collapsing them would
+/// either drag serde down into the kernel — which G1 layering forbids
+/// the other way round too, since the kernel must not depend on
+/// `editor-core` — or let a surgery refactor silently re-spell every
+/// saved document. With the seam, a rename on the kernel side that
+/// the emitter still maps touches no file. The fuller statement lives
+/// at `RimSide`'s own declaration.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
