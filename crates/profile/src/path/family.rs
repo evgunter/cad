@@ -1507,6 +1507,17 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
 /// `Via` and `Center` fix an end tangent too and the same token would
 /// serve them. Their arms stay lattice violations until a unit takes
 /// them (PATHS-DESIGN §6 records it).
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesStraight> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::StartArriving(super::Arrival::Straight),
+            b: spec.b,
+        }));
+        path.arc_to_start(spec.b, Some(super::Arrival::Straight), tol)
+    }
+}
+
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesTangent> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {

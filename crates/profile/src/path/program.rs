@@ -927,8 +927,8 @@ transition_table! {
                 <Tgt as super::LineTarget<T, F>>::line_from(self, target, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_line_to(p0, target, TipState::PlainPoint, tol),
-                DynTip::DirectedPoint(p0) => do_line_to(p0, target, TipState::DirectedPoint, tol),
+                DynTip::PlainPoint(p0) => do_line_to(p0, target, tol),
+                DynTip::DirectedPoint(p0) => do_line_to(p0, target, tol),
             }
         }
     }
@@ -994,7 +994,7 @@ transition_table! {
                 <Tgt as super::ContinueTarget<T>>::continue_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, TipState::DirectedPoint, tol),
+                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, tol),
             }
         }
     }
@@ -1068,10 +1068,8 @@ transition_table! {
                 <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target, TipState::DirectedPlain, tol),
-                DynTip::DirectedIncoming(p0) => {
-                    do_tangent_arc_to(p0, target, TipState::DirectedIncoming, tol)
-                }
+                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
+                DynTip::DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
             }
         }
     }
@@ -1981,26 +1979,26 @@ fn violation<T: Real>(state: TipState, verb: Verb) -> Applying<T> {
 fn do_line_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     t: Target<T>,
-    state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
+        // BOTH members, on every closer: the token classifies the
+        // JOINT, not the leg (Evan, in-chat, 2026-09-02), so a straight
+        // leg may declare that the joint it closes at is a tangent one.
         Target::StartArriving(Arrival::Straight) => {
             Ok(Applied::Closed(p.line_to(Start.arrives_straight(), tol)?))
         }
-        // A straight leg's arrival direction IS its own direction, so
-        // the G1 declaration has no straight spelling: the typed
-        // surface has no impl and the wire pair is a lattice violation.
-        Target::StartArriving(Arrival::Tangent) => violation(state, Verb::LineTo),
+        Target::StartArriving(Arrival::Tangent) => {
+            Ok(Applied::Closed(p.line_to(Start.arrives_tangent(), tol)?))
+        }
     }
 }
 
 fn do_continue_to<T: Decide>(
     p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
     t: Target<T>,
-    state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match t {
@@ -2009,7 +2007,9 @@ fn do_continue_to<T: Decide>(
         Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
             p.continue_to(Start.arrives_straight(), tol)?,
         )),
-        Target::StartArriving(Arrival::Tangent) => violation(state, Verb::ContinueTo),
+        Target::StartArriving(Arrival::Tangent) => Ok(Applied::Closed(
+            p.continue_to(Start.arrives_tangent(), tol)?,
+        )),
     }
 }
 
@@ -2058,8 +2058,14 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         )?)),
         ArcData::Bulge {
             target: Target::StartArriving(Arrival::Straight),
-            ..
-        } => violation(state, Verb::ArcTo),
+            b,
+        } => Ok(Applied::Closed(p.arc_to(
+            Bulge {
+                p: Start.arrives_straight(),
+                b,
+            },
+            tol,
+        )?)),
         ArcData::Via {
             q,
             target: Target::Point(t),
@@ -2121,7 +2127,6 @@ fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
 fn do_tangent_arc_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
     t: Target<T>,
-    state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match t {
@@ -2132,10 +2137,11 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
         Target::StartArriving(Arrival::Tangent) => Ok(Applied::Closed(
             p.tangent_arc_to(Start.arrives_tangent(), tol)?,
         )),
-        // "Arrives straight" is the straight closers' declaration; an
-        // arc arriving straight into a straight first side IS the G1
-        // member, spelled `Arrival::Tangent`.
-        Target::StartArriving(Arrival::Straight) => violation(state, Verb::TangentArcTo),
+        // A closing ARC may declare a SUBDIVISION joint too — a seam
+        // on one carrier, which is what a cocircular close is.
+        Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
+            p.tangent_arc_to(Start.arrives_straight(), tol)?,
+        )),
     }
 }
 

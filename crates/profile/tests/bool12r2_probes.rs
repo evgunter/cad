@@ -525,19 +525,37 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     println!("R2: arc-first-side, undeclared -> {undeclared:?}");
     assert!(matches!(undeclared, Err(PathError::SeamTangent { .. })));
 
-    // AFTER THE FIX: the declared spelling refuses at the AUTHORING
-    // layer, which is where the finding said this belongs. The ruling's
-    // case is a declared SUBDIVISION point — one carrier continuing —
-    // and an arc first side is not that.
-    let refused = ring(true);
-    println!("R2: arc-first-side, declared -> {refused:?}");
-    assert!(
-        matches!(refused, Err(PathError::SeamArrivalNeedsStraightFirstSide)),
-        "{refused:?}"
-    );
-    // The message does NOT send the reader to the raw door.
-    let msg = refused.unwrap_err().to_string();
-    assert!(!msg.contains("tangent_joints"), "{msg}");
+    // AFTER THE RULING (Evan, in-chat, 2026-09-02): the lattice may not
+    // consult the following carrier, so it closes declaring nothing and
+    // the DATA gate — which owns materialized carriers — refuses.
+    let closed = ring(true).expect("the declared straight arrival closes");
+    assert!(closed.loop_.tangent_joints().is_empty());
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    println!("R2: arc-first-side, declared -> at the gate {verdict:?}");
+    let msg = format!("{verdict:?}");
+    assert!(msg.contains("UndeclaredTangency"), "{msg}");
+    assert!(msg.contains("joint: 0"), "{msg}");
+
+    // The RECOURSE the ruling gives: the same straight closer declaring
+    // a TANGENT joint. It closes, declares joint 0, and validates.
+    let g1 = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .tangent_arc_to(p2(1.0, 1.0), t)
+        .unwrap()
+        .line_to(p2(3.0, 3.0), t)
+        .unwrap()
+        .line_to(p2(3.0, -2.0), t)
+        .unwrap()
+        .line_to(p2(-2.0, -2.0), t)
+        .unwrap()
+        .line_to(p2(-2.0, 0.0), t)
+        .unwrap()
+        .line_to(Start.arrives_tangent(), t)
+        .expect("a straight leg may declare a TANGENT seam joint");
+    assert_eq!(g1.loop_.tangent_joints(), &[0]);
+    validate_ok(&g1.loop_);
 }
 
 /// The SIBLING of the row above, on the tangent member: a closing arc
@@ -567,12 +585,14 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
         .turn(turn_to_east, t)
         .unwrap()
         .tangent_arc_to(Start.arrives_tangent(), t);
-    // FIXED: the seam check reads the ENTRY's first side, not only the
-    // previous segment's carrier, so the straight leg in between no
-    // longer hides the identity.
-    println!("R2: cocircular G1 seam -> {built:?}");
-    assert!(
-        matches!(built, Err(PathError::SameCarrierJunction { .. })),
-        "{built:?}"
-    );
+    // AFTER THE RULING: the seam check reads NOTHING about the
+    // following carrier, so this closes and the DATA gate refuses the
+    // declaration the carriers contradict.
+    let closed = built.expect("the declared G1 arrival closes");
+    assert_eq!(closed.loop_.tangent_joints(), &[0]);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    println!("R2: cocircular G1 seam, at the gate -> {verdict:?}");
+    let msg = format!("{verdict:?}");
+    assert!(msg.contains("TangencyContradicted"), "{msg}");
+    assert!(msg.contains("same_carrier: true"), "{msg}");
 }

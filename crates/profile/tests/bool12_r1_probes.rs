@@ -202,16 +202,44 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
         "{:?}",
         fan(false)
     );
-    // Declared "straight": refused HERE, not left to the gate.
-    let refused = fan(true);
-    println!("R1: straight arrival into an arc first side -> {refused:?}");
+    // Declared "straight": the algebra closes, declaring nothing —
+    // `arrives_straight` says the seam is a SUBDIVISION joint, and the
+    // lattice cannot see that the following carrier is an arc.
+    let closed = fan(true).expect("the algebra accepts the declared straight arrival");
+    assert!(closed.loop_.tangent_joints().is_empty());
+    // ...and the DATA gate refuses the line-onto-arc tangency at joint
+    // 0: the data says two carriers meet where the declaration said one
+    // continued.
+    let verdict = validate(&closed);
+    println!("R1: straight arrival into an arc first side -> {verdict:?}");
     assert!(
-        matches!(refused, Err(PathError::SeamArrivalNeedsStraightFirstSide)),
-        "{refused:?}"
+        matches!(
+            verdict,
+            Err(ProfileError::UndeclaredTangency { joint: 0, .. })
+        ),
+        "{verdict:?}"
     );
-    let msg = refused.unwrap_err().to_string();
-    assert!(msg.contains("SUBDIVISION point"), "{msg}");
-    assert!(msg.contains("open question"), "{msg}");
+
+    // THE RECOURSE, and the ruling's own point: the same straight
+    // closer declaring a TANGENT joint closes AND validates.
+    let g1 = Open
+        .at(p2(0.0, 0.0))
+        .arc_to(
+            Bulge {
+                p: p2(1.0, 1.0),
+                b: FRAC_PI_8.tan(),
+            },
+            t,
+        )
+        .unwrap()
+        .line_to(p2(-1.0, 1.0), t)
+        .unwrap()
+        .line_to(p2(-1.0, 0.0), t)
+        .unwrap()
+        .line_to(Start.arrives_tangent(), t)
+        .expect("a straight leg may declare a TANGENT seam joint");
+    assert_eq!(g1.loop_.tangent_joints(), &[0]);
+    validate(&g1).expect("the declared G1 seam validates");
 }
 
 /// **R1 MINOR, FIXED — the row flipped.** `Start.arrives_tangent()` on
@@ -245,11 +273,42 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
         .angle(FRAC_PI_4, t)
         .unwrap()
         .tangent_arc_to(Start.arrives_tangent(), t);
-    println!("R1: cocircular declared tangent seam -> {closed:?}");
+    let closed = closed.expect("the algebra closes: it cannot see the following carrier");
+    assert!(closed.loop_.tangent_joints().contains(&0));
+    let verdict = validate(&closed);
+    println!("R1: cocircular declared tangent seam -> {verdict:?}");
     assert!(
-        matches!(closed, Err(PathError::SameCarrierJunction { .. })),
-        "{closed:?}"
+        matches!(
+            verdict,
+            Err(ProfileError::TangencyContradicted {
+                joint: 0,
+                same_carrier: true,
+                ..
+            })
+        ),
+        "{verdict:?}"
     );
+
+    // The RECOURSE: the same closing arc declaring a SUBDIVISION joint
+    // instead — which is what a cocircular seam actually is — closes,
+    // declares nothing, and validates.
+    let sub = Open
+        .at(p2(1.0, 0.0))
+        .arc_to(
+            Bulge {
+                p: p2(0.0, -1.0),
+                b: (3.0 * FRAC_PI_8).tan(),
+            },
+            t,
+        )
+        .unwrap()
+        .line_to(p2(c, -c), t)
+        .unwrap()
+        .angle(FRAC_PI_4, t)
+        .unwrap()
+        .tangent_arc_to(Start.arrives_straight(), t)
+        .expect("a closing arc may declare a SUBDIVISION seam joint");
+    assert!(sub.loop_.tangent_joints().is_empty());
 }
 
 // ------------------------------------------------------------------

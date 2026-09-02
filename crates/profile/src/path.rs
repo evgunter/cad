@@ -46,13 +46,14 @@
 //!
 //! The seam's own junction is the one declaration that cannot ride a
 //! departing leg, because the arriving leg is authored LAST. It rides
-//! the TARGET, and it is CHECKED, never inferred:
-//! [`Start::arrives_straight`] on the straight closers declares the
-//! seam a SUBDIVISION point of the entry's first side (which must
-//! therefore be a line), and [`Start::arrives_tangent`] on the arc
-//! closers declares it a G1 joint. Undeclared, a tangent seam refuses
-//! [`PathError::SeamTangent`] from every closing verb, exactly as
-//! before.
+//! the TARGET, it is CHECKED, and it classifies the JOINT rather than
+//! the leg: [`Start::arrives_straight`] declares a SUBDIVISION joint
+//! and [`Start::arrives_tangent`] a G1 joint, and EVERY closing verb
+//! takes either. The check reads the arriving direction and `Start`'s
+//! own direction and nothing else — a declaration the materialized
+//! carriers contradict is DATA, refused at the gate. Undeclared, a
+//! tangent seam refuses [`PathError::SeamTangent`] from every closing
+//! verb, exactly as before.
 //!
 //! # Lowering
 //!
@@ -489,9 +490,8 @@ pub struct Start;
 impl sealed::Sealed for Start {}
 
 impl Start {
-    /// The entry, targeted with a DECLARED STRAIGHT ARRIVAL: the
-    /// closing leg arrives straight into the entry's first side, so the
-    /// seam is a declared SUBDIVISION point of one carrier.
+    /// The entry, targeted with a declaration that the seam is a
+    /// **SUBDIVISION joint** — G0, one carrier continuing through it.
     ///
     /// The declaration is the target, because the seam is the one
     /// junction whose arriving leg is the later-authored one — every
@@ -502,54 +502,64 @@ impl Start {
     /// side is already authored and cannot carry the seam's content
     /// from the front (§2's entry rule).
     ///
-    /// Nothing is inferred. The kernel CHECKS that the entry's outgoing
-    /// direction continues the arriving one, banded through the funnel
-    /// exactly as [`continue_to`](PartialPath::continue_to) checks its
-    /// target; a seam past the band refuses
-    /// [`PathError::SeamArrivalOffDirection`] as inconsistent authored
-    /// data. Without the declaration the same seam keeps refusing
-    /// [`PathError::SeamTangent`].
+    /// **The token classifies the JOINT, not the leg** (Evan, in-chat,
+    /// 2026-09-02). Every closing verb takes either token; the check is
+    /// the SAME for both — the arriving direction against `Start`'s own
+    /// direction, banded and levered — and they differ only in what the
+    /// lowered loop declares. This one declares nothing, exactly as the
+    /// #433 ruling says a subdivided straight run declares nothing.
+    ///
+    /// Nothing is inferred, and nothing here looks at the FOLLOWING
+    /// carrier: a declaration the materialized carriers contradict is a
+    /// DATA contradiction, refused by the data gate
+    /// ([`crate::ProfileError::UndeclaredTangency`]) rather than
+    /// guessed at here. A seam past the band refuses
+    /// [`PathError::SeamArrivalOffDirection`]; without the declaration
+    /// it keeps refusing [`PathError::SeamTangent`].
     #[must_use]
     pub fn arrives_straight(self) -> ArrivesStraight {
         ArrivesStraight
     }
 
-    /// The entry, targeted with a DECLARED G1 ARRIVAL: the closing ARC
-    /// arrives tangent to the entry's outgoing direction, so the seam
-    /// is a declared tangent joint (and the lowered loop carries the
-    /// flag at joint 0, which the verify layer re-checks).
+    /// The entry, targeted with a declaration that the seam is a **G1
+    /// JOINT** — two carriers meeting tangentially. The lowered loop
+    /// carries the flag at joint 0, which the verify layer re-checks.
     ///
     /// The same declaration [`tangent`](PartialPath::tangent) makes on
-    /// a departure, moved to the arrival for the reason above. The arc
-    /// itself is constructed from the DEPARTURE as it always was — one
-    /// end constructs, the other is checked, so nothing is
-    /// overdetermined. Where no circular arc can carry both tangencies
-    /// the check refuses and names the seam fillet, which constructs
-    /// both.
+    /// a departure, moved to the arrival for the reason above, and
+    /// available from every closing verb for the reason in
+    /// [`Start::arrives_straight`]: the token says what the JOINT is,
+    /// not what shape the leg reaching it has. A closing ARC is still
+    /// constructed from its own authored data — one end constructs, the
+    /// other is checked, so nothing is overdetermined — and where no
+    /// circular arc can carry both tangencies the check refuses and
+    /// names the seam fillet, which constructs both.
+    ///
+    /// A tangency declared onto what turns out to be ONE carrier is a
+    /// DATA contradiction, refused by the data gate
+    /// ([`crate::ProfileError::TangencyContradicted`]); the recourse is
+    /// [`Start::arrives_straight`], which is what that seam is.
     #[must_use]
     pub fn arrives_tangent(self) -> ArrivesTangent {
         ArrivesTangent
     }
 }
 
-/// [`Start`] with the closing leg's STRAIGHT arrival declared — the
-/// target of the straight closers ([`line_to`](PartialPath::line_to),
-/// [`continue_to`](PartialPath::continue_to)). Built by
-/// [`Start::arrives_straight`].
+/// [`Start`] with the seam declared a SUBDIVISION joint. A target of
+/// every closing verb — [`line_to`](PartialPath::line_to),
+/// [`continue_to`](PartialPath::continue_to),
+/// [`tangent_arc_to`](PartialPath::tangent_arc_to) and
+/// `arc_to(Bulge { … })`. Built by [`Start::arrives_straight`].
 #[derive(Clone, Copy, Debug)]
 pub struct ArrivesStraight;
 
 impl sealed::Sealed for ArrivesStraight {}
 
-/// [`Start`] with the closing arc's G1 arrival declared — the target
-/// of [`tangent_arc_to`](PartialPath::tangent_arc_to). Built by
+/// [`Start`] with the seam declared a G1 joint. A target of every
+/// closing verb, exactly as [`ArrivesStraight`] is: a STRAIGHT leg may
+/// declare that the joint it closes at is a tangent one, because what
+/// the token classifies is the joint and not the leg. Built by
 /// [`Start::arrives_tangent`].
-///
-/// It is not a [`LineTarget`]: a straight leg's arrival direction IS
-/// its own direction, so "arrives tangent" and "arrives straight" name
-/// one fact there and the straight token is that fact's spelling. The
-/// missing impl is the §2c matrix discipline — unrepresentable rather
-/// than refused.
 #[derive(Clone, Copy, Debug)]
 pub struct ArrivesTangent;
 
@@ -650,12 +660,13 @@ pub enum PathError<T: Real> {
     /// directions that happen to agree is the inference nothing here
     /// makes.
     ///
-    /// The recourse is to DECLARE the arrival, or to move the seam.
-    /// The arriving leg is the later-authored one, so the declaration
-    /// rides the target: [`Start::arrives_straight`] for a straight
-    /// leg continuing the entry's first side (the seam becomes a
-    /// declared subdivision point), [`Start::arrives_tangent`] for a
-    /// closing ARC meeting it G1. Both are CHECKED, not inferred.
+    /// The recourse is to DECLARE the joint, or to move the seam. The
+    /// arriving leg is the later-authored one, so the declaration rides
+    /// the target and says which JOINT this is:
+    /// [`Start::arrives_straight`] for a subdivision (one carrier
+    /// continuing), [`Start::arrives_tangent`] for a G1 joint. Either
+    /// is legal on any closing verb, and both are CHECKED, not
+    /// inferred.
     /// Undeclared, the seam stays refused however the closing leg is
     /// spelled — `continue_to(Start)` does not reach it either, because
     /// the junction in band is the entry's, not the closer's.
@@ -716,24 +727,6 @@ pub enum PathError<T: Real> {
         /// spellings rather than both.
         arrival: Arrival,
     },
-    /// **A STRAIGHT arrival declared at a seam whose entry side is an
-    /// ARC.** [`Start::arrives_straight`] declares that the seam is a
-    /// SUBDIVISION point — one carrier continuing through it — which is
-    /// the ruling's own words, and that is only true when the entry's
-    /// first side is a line. A straight leg arriving along an arc's
-    /// start tangent is a G1 joint between DISTINCT carriers, which
-    /// #101 says must be declared, and this declaration declares no
-    /// tangency.
-    ///
-    /// Refused HERE rather than left to the data gate: without it the
-    /// lattice mints a loop whose only recourse is the raw door's
-    /// `tangent_joints`, which is the door issue 433 is demoting. The
-    /// authoring layer is the insurance, so it has to speak first.
-    ///
-    /// The shape is [`SeamRetrimsArcFirstSide`](Self::SeamRetrimsArcFirstSide)'s:
-    /// a structural fact about the entry's first side, with a
-    /// structural recourse and no measured payload.
-    SeamArrivalNeedsStraightFirstSide,
     /// **A declared seam arrival with no lever to measure it against.**
     /// The arriving leg's arm — its own length, or `radius.min(chord)`
     /// for an arc — is not definitely positive, so the levered turn and
@@ -1106,8 +1099,6 @@ pub enum PathErrorKind {
     SeamTangent,
     /// [`PathError::SeamArrivalOffDirection`].
     SeamArrivalOffDirection,
-    /// [`PathError::SeamArrivalNeedsStraightFirstSide`].
-    SeamArrivalNeedsStraightFirstSide,
     /// [`PathError::SeamArrivalLeverTooShort`].
     SeamArrivalLeverTooShort,
     /// [`PathError::SameCarrierJunction`].
@@ -1175,9 +1166,6 @@ impl<T: Real> PathError<T> {
             Self::JunctionCusp { .. } => PathErrorKind::JunctionCusp,
             Self::SeamTangent { .. } => PathErrorKind::SeamTangent,
             Self::SeamArrivalOffDirection { .. } => PathErrorKind::SeamArrivalOffDirection,
-            Self::SeamArrivalNeedsStraightFirstSide => {
-                PathErrorKind::SeamArrivalNeedsStraightFirstSide
-            }
             Self::SeamArrivalLeverTooShort { .. } => PathErrorKind::SeamArrivalLeverTooShort,
             Self::SameCarrierJunction { .. } => PathErrorKind::SameCarrierJunction,
             Self::ContinuationTargetOffRay { .. } => PathErrorKind::ContinuationTargetOffRay,
@@ -1318,17 +1306,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     arm = num(arm)
                 )
             }
-            Self::SeamArrivalNeedsStraightFirstSide => write!(
-                f,
-                "Start.arrives_straight() declares the seam a SUBDIVISION point — one carrier \
-                 continuing through it — and the entry\'s first side is an ARC, so there is no \
-                 one carrier: a straight leg arriving along an arc\'s start tangent is a G1 \
-                 joint between two carriers, which is a tangency and must be declared as one. \
-                 Rotate the loop so the seam sits where the outline TURNS, or make the \
-                 entry\'s first side the straight one (the loop is cyclic, so either side can \
-                 be side 1). Whether a straight leg should be able to declare a TANGENT \
-                 arrival here is an open question in PATHS-DESIGN §6"
-            ),
             Self::SeamArrivalLeverTooShort { arm } => write!(
                 f,
                 "the declared seam arrival has no lever: the closing leg\'s arm is {arm} m, \
@@ -1971,38 +1948,20 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// The entry's FIRST SIDE — the seam's other half. Structural: the
-    /// kind comes from `first_seg`, which the first emission pins, and
-    /// the carrier from the first vertex's own authored bulge and the
-    /// two points it spans. Nothing is measured and nothing is
-    /// re-derived from a value.
-    fn first_side(&self) -> Result<FirstSide<T>, PathError<T>> {
-        let a = self.verts.first().ok_or(PathError::UnderdeterminedLeg {
-            site: "the entry's first side on an empty chain",
-        })?;
-        match self.first_seg {
-            FirstSeg::Line => Ok(FirstSide::Line),
-            FirstSeg::Arc => {
-                let b = self.verts.get(1).ok_or(PathError::UnderdeterminedLeg {
-                    site: "an arc first side with no far end",
-                })?;
-                Ok(FirstSide::Arc(arc_carrier(a.pos, b.pos, a.bulge)))
-            }
-            // The closing leg IS the first segment: a one-segment loop,
-            // which has no seam to classify because it has no second
-            // side to meet.
-            FirstSeg::NotYet => Err(PathError::UnderdeterminedLeg {
-                site: "a seam arrival on a chain with no first side",
-            }),
-        }
-    }
-
-    /// Declares the SEAM joint — joint 0, the entry vertex — tangent.
-    /// The seam fillet does the same thing inline when its arc IS the
-    /// closing segment; a declared G1 arrival is the other way a
-    /// closing leg can make joint 0 a tangency.
-    fn declare_seam(&mut self) {
-        if !self.tangent.contains(&0) {
+    /// Records what the seam ARRIVAL declared at joint 0 — the entry
+    /// vertex. This is the ONLY thing the two arrival members do
+    /// differently (Evan, in-chat, 2026-09-02): both run the same
+    /// direction check, and the token says which JOINT the author
+    /// meant. [`Arrival::Tangent`] is a G1 joint and carries the flag
+    /// the verify layer re-checks; [`Arrival::Straight`] is a
+    /// subdivision joint — one carrier continuing — which claims no
+    /// tangency, exactly as the #433 ruling says a subdivided straight
+    /// run does.
+    ///
+    /// The seam fillet does the same push inline when its arc IS the
+    /// closing segment.
+    fn declare_seam_as(&mut self, arrival: Arrival) {
+        if arrival == Arrival::Tangent && !self.tangent.contains(&0) {
             self.tangent.push(0);
         }
     }
@@ -2140,16 +2099,6 @@ fn junction_check<T: Decide>(
     }
 }
 
-/// The entry's FIRST SIDE, as the seam's other half — read off the
-/// chain's own emission-layer bookkeeping (§2c's parenthetical homes
-/// identity data there), never re-derived from a value.
-enum FirstSide<T: Real> {
-    /// The entry departs on a straight carrier.
-    Line,
-    /// The entry departs on this arc carrier.
-    Arc(ArcData<T>),
-}
-
 /// **The declared seam ARRIVAL's check** — the inverted twin of
 /// [`junction_check`]'s tangent arm, and the mirror of
 /// [`PartialPath::on_ray_extent`]: there the ray is declared and the
@@ -2163,15 +2112,25 @@ enum FirstSide<T: Real> {
 /// disagreeing with itself and refuses
 /// ([`PathError::SeamArrivalOffDirection`]).
 ///
-/// **The seam's CLASS follows the declaration AND the entry's first
-/// side, never the arriving direction alone.** Two directions agreeing
-/// is not yet a subdivision: whether the seam joins one carrier to
-/// itself or two carriers tangentially depends on what the entry
-/// departs on, which is why this takes the chain rather than a pair of
-/// angles. A STRAIGHT arrival onto an arc first side is not the ruled
-/// case at all (the ruling's words are "a declared SUBDIVISION point"),
-/// and a TANGENT arrival onto the SAME carrier is declared tangency
-/// onto identity, which §4 item 4 refuses at every junction.
+/// **The token classifies the JOINT, and this check consults NOTHING
+/// about the following carrier** (Evan, in-chat, 2026-09-02). The only
+/// entry-side data it reads is `Start`'s own binding bits — its
+/// direction — which is exactly what the interior junction check reads
+/// of a directed point. The seam's other half is the FOLLOWING leg, and
+/// the chain has no business seeing it: [`Arrival::Straight`] and
+/// [`Arrival::Tangent`] run the SAME comparison here and differ only in
+/// what they declare in `tangent_joints`, so a declaration that
+/// contradicts the materialized carriers — a subdivision declared
+/// across two different carriers, a tangency declared onto one carrier
+/// — is a DATA contradiction, and the data gate is the layer that owns
+/// materialized carriers. It refuses those loudly and typed
+/// ([`crate::ProfileError::UndeclaredTangency`],
+/// [`crate::ProfileError::TangencyContradicted`]).
+///
+/// The chain reading its own PREVIOUS leg is a different thing and
+/// stays: `tangent_arc_geom` refuses a collinear target under a
+/// declared departure ([`PathError::SameCarrierJunction`]) because the
+/// incoming carrier is data the chain already holds.
 ///
 /// The datum is `sin` of the turn — dimensionless — so comparing it
 /// against a LENGTH tolerance is a category error until an arm says
@@ -2190,39 +2149,20 @@ enum FirstSide<T: Real> {
 /// cusp — [`PathError::JunctionCusp`], the same name it carries at any
 /// other junction. One fact, one refusal.
 fn seam_arrival_check<T: Decide>(
-    core: &Core<T>,
     arrival: Arrival,
     arriving: Dir<T>,
-    arriving_carrier: Option<&ArcData<T>>,
     arm: T,
     start_ang: Dir<T>,
     tol: Tol,
 ) -> Result<(), PathError<T>> {
     let band = linear_band(tol)?;
-    // (i) The seam's CLASS, before any measurement.
-    match (arrival, core.first_side()?) {
-        (Arrival::Straight, FirstSide::Line) => {}
-        (Arrival::Straight, FirstSide::Arc(_)) => {
-            return Err(PathError::SeamArrivalNeedsStraightFirstSide);
-        }
-        (Arrival::Tangent, FirstSide::Line) => {}
-        (Arrival::Tangent, FirstSide::Arc(first)) => {
-            // Carrier identity is not tangency, at the seam as anywhere
-            // else. `tangent_arc_geom` runs the same test against the
-            // PREVIOUS segment's carrier; the entry's is a different
-            // neighbour, and a straight leg in between hides it.
-            if let Some(closing) = arriving_carrier {
-                refuse_identical_carriers(&first, closing, tol)?;
-            }
-        }
-    }
-    // (ii) The lever.
+    // (i) The lever.
     match decide("path_seam_arrival_lever", Margin::of(arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::SeamArrivalLeverTooShort { arm }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    // (iii) The direction the declaration asserts.
+    // (ii) The direction the declaration asserts.
     let turn = arriving.unit.perp_dot(start_ang.unit);
     let margin = turn * arm;
     match decide("path_seam_arrival_turn", Margin::levered(turn, arm), band) {
@@ -2241,6 +2181,10 @@ fn seam_arrival_check<T: Decide>(
         Ok(_) => Err(PathError::SeamArrivalOffDirection {
             margin,
             arm,
+            // Payload only. The check itself is the SAME for both
+            // members — that is the ruling — and `arrival` rides here
+            // so the refusal names the joint the author declared rather
+            // than guessing which recourse to offer.
             arrival,
         }),
         Err(source) => Err(PathError::Escalated { source }),
@@ -3264,7 +3208,8 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // (it continues the entry's first side) — and the D-shape's two
         // rotations need one each.
         if let Some(arrival) = arrival {
-            seam_arrival_check(&self.core, arrival, ang, None, arm, start_ang, tol)?;
+            seam_arrival_check(arrival, ang, arm, start_ang, tol)?;
+            self.core.declare_seam_as(arrival);
         } else {
             junction_check(
                 &Incoming {
@@ -3503,16 +3448,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let g = self.tangent_arc_geom(start_pos, tol)?;
         let arm = arc_arm(&g.carrier, g.chord);
         if let Some(arrival) = arrival {
-            seam_arrival_check(
-                &self.core,
-                arrival,
-                g.end_ang,
-                Some(&g.carrier),
-                arm,
-                start_ang,
-                tol,
-            )?;
-            self.core.declare_seam();
+            seam_arrival_check(arrival, g.end_ang, arm, start_ang, tol)?;
+            self.core.declare_seam_as(arrival);
         } else {
             junction_check(
                 &Incoming {
@@ -3599,7 +3536,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let head = self.core.head()?;
         let arm = (start_pos - head).norm_squared().sqrt();
         if let Some(arrival) = arrival {
-            seam_arrival_check(&self.core, arrival, gamma, None, arm, start_ang, tol)?;
+            seam_arrival_check(arrival, gamma, arm, start_ang, tol)?;
+            self.core.declare_seam_as(arrival);
         } else {
             junction_check(
                 &Incoming {
@@ -3770,16 +3708,8 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let carrier = arc_carrier(at, start_pos, bulge);
         let arm = arc_arm(&carrier, chord);
         if let Some(arrival) = arrival {
-            seam_arrival_check(
-                &self.core,
-                arrival,
-                end_t,
-                Some(&carrier),
-                arm,
-                start_ang,
-                tol,
-            )?;
-            self.core.declare_seam();
+            seam_arrival_check(arrival, end_t, arm, start_ang, tol)?;
+            self.core.declare_seam_as(arrival);
         } else {
             junction_check(
                 &Incoming {
@@ -3890,6 +3820,15 @@ impl<T: Decide, F: Flavor> LineTarget<T, F> for Start {
     }
 }
 
+impl<T: Decide, F: Flavor> LineTarget<T, F> for ArrivesTangent {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn line_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, tol: Tol) -> Self::Out {
+        path.core
+            .record(Step::LineTo(Target::StartArriving(Arrival::Tangent)));
+        path.line_to_start(Some(Arrival::Tangent), tol)
+    }
+}
+
 impl<T: Decide, F: Flavor> LineTarget<T, F> for ArrivesStraight {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn line_from(mut path: PartialPath<T, HasPos<F>, NoAng>, _target: Self, tol: Tol) -> Self::Out {
@@ -3943,6 +3882,19 @@ impl<T: Decide> ContinueTarget<T> for Start {
     }
 }
 
+impl<T: Decide> ContinueTarget<T> for ArrivesTangent {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn continue_from(
+        mut path: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+        _target: Self,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core
+            .record(Step::ContinueTo(Target::StartArriving(Arrival::Tangent)));
+        path.continue_to_start_kernel(Some(Arrival::Tangent), tol)
+    }
+}
+
 impl<T: Decide> ContinueTarget<T> for ArrivesStraight {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn continue_from(
@@ -3991,6 +3943,19 @@ impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for Start {
     ) -> Self::Out {
         path.core.record(Step::TangentArcTo(Target::Start));
         path.tangent_arc_to_start(None, tol)
+    }
+}
+
+impl<T: Decide, F: Flavor> TangentArcTarget<T, F> for ArrivesStraight {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn tangent_arc_from(
+        mut path: PartialPath<T, HasPos<F>, HasAng>,
+        _target: Self,
+        tol: Tol,
+    ) -> Self::Out {
+        path.core
+            .record(Step::TangentArcTo(Target::StartArriving(Arrival::Straight)));
+        path.tangent_arc_to_start(Some(Arrival::Straight), tol)
     }
 }
 

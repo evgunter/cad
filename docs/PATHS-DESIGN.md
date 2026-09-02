@@ -256,18 +256,23 @@ coordinates value-matching.
 - Declared seam (§6's revised PQ4): the seam's own junction is the
   one declaration that cannot ride a departing leg, because the
   arriving leg is authored last. It rides the TARGET, and the
-  kernel CHECKS it: `line_to(Start.arrives_straight())` /
-  `continue_to(Start.arrives_straight())` for a straight arrival
-  into a straight first side (the seam is a declared SUBDIVISION
-  point — refused, typed, if that first side is an ARC),
-  `tangent_arc_to(Start.arrives_tangent())` and
-  `arc_to(Bulge { p: Start.arrives_tangent(), b })` for a G1 one.
+  token classifies the JOINT: `Start.arrives_straight()` declares
+  a SUBDIVISION joint (G0, one carrier continuing) and
+  `Start.arrives_tangent()` a G1 joint. **Every closing verb takes
+  either** — `line_to`, `continue_to`, `tangent_arc_to` and
+  `arc_to(Bulge { … })` — because what is declared is the joint,
+  not the shape of the leg that reaches it. The kernel CHECKS the
+  arriving direction against `Start`'s own direction and nothing
+  else: a declaration the materialized carriers contradict is DATA,
+  and the data gate refuses it.
 - Tangent seam: **declared**, per the bullet above. The 2026-07-28
   text here read "`.tangent().tangent_arc_to(Start)`", and that
   spelling refuses `SeamTangent` — its DEPARTURE tangency is
   declared and its ARRIVAL was not, which is the half no departing
   leg could ever carry. The stadium is exactly that shape, and it
   closes as `.tangent().tangent_arc_to(Start.arrives_tangent())`.
+  A straight closing leg reaching a G1 seam says the same thing the
+  same way: `line_to(Start.arrives_tangent())`.
   (A tangent LINE close is still overdetermined — direction
   inherited AND through Start — and refuses ALWAYS, exact
   collinearity included: a ray hitting an independently-authored
@@ -831,8 +836,8 @@ typestate, and it retires:
 | arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
 | arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes | anchor in the spec; one director pending |
 | `Start` | directed-point VALUE | targeting it closes, structurally; the seam's junction is classified and, UNDECLARED, a tangent one refuses `SeamTangent` from every closing verb |
-| `Start.arrives_straight()` | target of `line_to` / `continue_to` → complete loop | the DECLARED STRAIGHT ARRIVAL (§6's revised PQ4): the seam is a declared SUBDIVISION point — ONE carrier continuing through it — so the entry's first side must be a LINE, and an ARC first side refuses `SeamArrivalNeedsStraightFirstSide`. The kernel CHECKS the entry's outgoing direction against the arriving one, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. Independent of the DEPARTURE declaration, which is still the verb's: `line_to` where the closing leg turns at its own start, `continue_to` where it continues. Declares no tangency — one carrier continues through the seam. |
-| `Start.arrives_tangent()` | target of `tangent_arc_to` / `arc_to(Bulge{…})` → complete loop | the DECLARED G1 ARRIVAL: the closing ARC says it arrives tangent to the entry's outgoing direction. The arc is still constructed from its own authored data — the departure tangency for `tangent_arc_to`, the bulge for `arc_to` — so one end constructs and the other is checked, and nothing is overdetermined; the same banded check runs on the arc's end tangent with `radius.min(chord)` as the lever. Joint 0 carries the declared flag, re-verified at the gate, and a closing arc COCIRCULAR with the entry's first side is identity, not tangency (`SameCarrierJunction`). A shape no circular arc can serve at both ends refuses, naming the seam FILLET, which constructs both. Not a `line_to` target TODAY — see §6's open question, which is about the JOINT's class rather than the leg's shape. |
+| `Start.arrives_straight()` | target of EVERY closing verb → complete loop | the seam is a declared **SUBDIVISION joint** (G0 — one carrier continuing through it). The kernel CHECKS the arriving direction against `Start`'s own direction, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. It reads NOTHING about the following carrier: declaring a subdivision where the two sides ride different carriers is a DATA contradiction and the gate refuses it (`UndeclaredTangency { joint: 0 }`). Declares no tangency at joint 0. Independent of the DEPARTURE declaration, which is still the verb's: `line_to` where the closing leg turns at its own start, `continue_to` where it continues. |
+| `Start.arrives_tangent()` | target of EVERY closing verb → complete loop | the seam is a declared **G1 joint** — two carriers meeting tangentially. The SAME banded check as its sibling, on the same lever (`radius.min(chord)` where the arriving leg is an arc), and the only difference is what joint 0 declares: this one carries the flag the verify layer re-checks. A closing ARC is still constructed from its own authored data — the departure tangency for `tangent_arc_to`, the bulge for `arc_to` — so one end constructs and the other is checked. A STRAIGHT leg may declare it too: what the token classifies is the JOINT, not the leg (Evan, in-chat, 2026-09-02). Declaring it onto ONE carrier is a DATA contradiction and the gate refuses it (`TangencyContradicted { same_carrier: true }`). A shape no circular arc can serve at both ends refuses `SeamArrivalOffDirection`, naming the seam FILLET, which constructs both. |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-subdivision closed carrier: `n` equal arcs from `phase`, structural subdivisions of one carrier — the same no-seam story as `circle`, with the count and phase authored |
@@ -901,8 +906,6 @@ authored target off it — authored points never re-project);
 does not continue the entry's outgoing direction — the levered
 miss, its lever and the member that declared, in the payload; a
 REVERSED one is `JunctionCusp`);
-`SeamArrivalNeedsStraightFirstSide` (a declared STRAIGHT arrival
-whose entry side is an arc — not the ruled subdivision case);
 `SeamArrivalLeverTooShort` (a declared arrival on a closing leg
 whose arm cannot carry the question).
 RETIRED with the §2b register: `ArcCarrierSpelling` and the doctrine-level
@@ -1171,18 +1174,32 @@ arrival into `continue_to` would have made the middle case unspellable.
   is a value fact. Row 3 (poison) would be wrong — a misaligned arrival
   is well-formed input disagreeing with itself, not a domain degeneracy.
 
-**The seam's CLASS is read, not assumed.** The check takes the CHAIN,
-not a pair of angles, and asks it what the entry's first side is
-(`Core::first_side`, off `first_seg` and the first vertex's own authored
-bulge). Two directions agreeing is not yet a subdivision: a straight leg
-arriving along an ARC's start tangent is a G1 joint between distinct
-carriers, and a closing arc COCIRCULAR with the entry's first arc is
-carrier identity. Both refuse at the authoring layer —
-`SeamArrivalNeedsStraightFirstSide` and `SameCarrierJunction` — rather
-than minting a loop for the data gate to refuse, because the algebra is
-the insurance and the gate's own recourse for the first of them names
-the raw door #433 is demoting. §6 records the open question the first
-raises.
+**The token classifies the JOINT, and the seam check consults NOTHING
+about the following carrier** (RULED — Evan, in-chat, 2026-09-02). An
+earlier draft had the check read the entry's first side and refuse a
+straight arrival onto an arc, or a cocircular declared tangency, at the
+authoring layer. That is withdrawn: nothing at the seam may care about
+the following carrier, and Evan's words were that he had hoped it was
+impossible to express. The only entry-side datum the check reads is
+`Start`'s own direction — exactly what the interior junction check reads
+of a directed point.
+
+So `arrives_straight` declares a SUBDIVISION joint (G0, one carrier
+continuing) and `arrives_tangent` a G1 joint; BOTH are legal on every
+closing verb, both run the SAME banded direction check, and they differ
+in exactly one observable — what joint 0 declares in `tangent_joints`. A
+declaration the materialized carriers contradict is a DATA
+contradiction, and the data gate is the layer that owns materialized
+carriers: it refuses a subdivision declared across two carriers as
+`UndeclaredTangency { joint: 0 }` and a tangency declared onto one
+carrier as `TangencyContradicted { same_carrier: true }`. Loud, typed,
+and at the right layer. Each has a lattice recourse, which is the other
+token.
+
+What is unchanged is the chain reading its OWN PREVIOUS leg:
+`tangent_arc_geom` still refuses a collinear target under a declared
+departure with `SameCarrierJunction`, because the incoming carrier is
+data the chain already holds. Only the FOLLOWING-carrier lookup went.
 
 Three more contracts came with it. A declared arrival that REVERSES the
 entry's outgoing direction has a near-zero turn too, and it is a CUSP:
@@ -1381,77 +1398,70 @@ rung, so whether the sweep lowering gives them one surface key or
 one `GeomSource` is a live question BOOL-8's ruling opened. It is
 seam-independent and belongs to sweep/topo.
 
-**The seam's CLASS follows the declaration AND the entry's first
-side.** Two directions agreeing is not yet a subdivision: whether
-the seam joins one carrier to itself or two carriers tangentially
-depends on what the ENTRY departs on, which the check reads off the
-chain's own emission-layer bookkeeping (`Core::first_side`). Two
-consequences, both refusals at the authoring layer rather than
-findings at the data gate:
+**The token classifies the JOINT** (RULED — Evan, in-chat,
+2026-09-02, closing the question this entry put). `arrives_straight`
+declares a SUBDIVISION joint — G0, one carrier continuing through the
+seam; `arrives_tangent` declares a G1 joint. Every closing verb takes
+either token: what is declared is the joint, not the shape of the leg
+reaching it, so a STRAIGHT leg may declare a tangent seam
+(`line_to(Start.arrives_tangent())`) and a closing ARC may declare a
+subdivision seam (`tangent_arc_to(Start.arrives_straight())`, which is
+what a cocircular close is). Both members run the same banded check and
+differ only in what the lowered loop declares.
 
-- a declared STRAIGHT arrival whose entry first side is an ARC is
-  not the ruled case — the ruling's words are "a declared
-  SUBDIVISION point", and there is no one carrier there — so it
-  refuses `SeamArrivalNeedsStraightFirstSide`;
-- a declared TANGENT arrival onto the entry's OWN carrier is
-  declared tangency onto identity, which §4 item 4 refuses at every
-  junction: `SameCarrierJunction`. (`tangent_arc_geom` runs the
-  same identity test against the PREVIOUS segment's carrier; the
-  entry's is a different neighbour, and a straight leg in between
-  hid it.)
+**And nothing at the seam consults the FOLLOWING carrier.** The only
+entry-side datum the check reads is `Start`'s own direction — exactly
+what the interior junction check reads of a directed point. The earlier
+draft of this entry had the check read the entry's first SIDE and refuse
+two cases at the authoring layer; that is withdrawn, and the sentence it
+rested on — "a straight leg's arrival direction IS its own direction" —
+is retired with it, because it conflated the leg's shape with the
+joint's class.
 
-**OPEN QUESTION, put and not answered (Evan's).** When the entry's
-first side is an ARC, should a STRAIGHT closing leg be able to
-declare a TANGENT arrival — `line_to(Start.arrives_tangent())` —
-with the token classifying the JOINT rather than the leg? The two
-readings are:
+The two cases are DATA contradictions, and the data gate owns
+materialized carriers:
 
-- *the leg's shape* (what shipped first): "a straight leg's
-  arrival direction IS its own direction", so `arrives_straight` is
-  that fact's one spelling and `arrives_tangent` has no `LineTarget`
-  impl. **That sentence conflates the leg's shape with the joint's
-  class**, and this section corrects it: what a token declares is
-  what the JOINT is, and a straight leg meeting an arc's start
-  tangent makes a G1 joint exactly as a closing arc meeting a
-  straight first side does.
-- *the joint's class* (the alternative): `arrives_straight` means
-  "the seam is a subdivision — one carrier continues", legal only
-  onto a straight first side; `arrives_tangent` means "the seam is
-  a G1 joint between two carriers", legal from any closing verb
-  whose leg can arrive with a bound direction, straight legs
-  included. Under it the refusal above becomes a spelling, and the
-  matrix is (declaration x first side) rather than (declaration x
-  leg shape).
+- a SUBDIVISION declared where the two sides ride different carriers
+  (a straight arrival into an arc first side) closes at the lattice and
+  the gate refuses `UndeclaredTangency { joint: 0 }`. Recourse:
+  `arrives_tangent`, which is what that joint is;
+- a G1 joint declared where the two sides ride ONE carrier (a
+  cocircular closing arc) closes at the lattice and the gate refuses
+  `TangencyContradicted { same_carrier: true }`. Recourse:
+  `arrives_straight`.
 
-The second reading is the more uniform one and the implementer
-recommends it; it is left OPEN because it widens the ruled family
-and admits a seam nobody has asked for yet. Until it is answered,
-the case refuses typed and the refusal names this question.
+The chain reading its own PREVIOUS leg is untouched:
+`tangent_arc_geom`'s collinear refusal (`SameCarrierJunction`) stands,
+because the incoming carrier is data the chain already holds.
 
-**What is still refused.** An undeclared mid-carrier seam
-(`SeamTangent`); an undeclared tangent seam, from every closing
+**What is still refused at the LATTICE.** An undeclared mid-carrier
+seam (`SeamTangent`); an undeclared tangent seam, from every closing
 verb — the arc closers classify the seam under the seam's own name
-now, not the departure's; a DECLARED arrival the check refuses
-(`SeamArrivalOffDirection`); a declared arrival that REVERSES the
-entry's outgoing direction, which is a cusp and says so
-(`JunctionCusp`); and a declared arrival whose closing leg has no
-LEVER — an arm below ε, where any arriving direction would satisfy
-the declaration inside the band — which refuses
-`SeamArrivalLeverTooShort` rather than being left to the data gate's
-`DegenerateSegment`. A circular arc cannot generically carry a
+now, not the departure's; a DECLARED arrival the direction check
+refuses (`SeamArrivalOffDirection`); a declared arrival that
+REVERSES the entry's outgoing direction, which is a cusp and says
+so (`JunctionCusp`); and a declared arrival whose closing leg has
+no LEVER — an arm below ε, where any arriving direction would
+satisfy the declaration inside the band — which refuses
+`SeamArrivalLeverTooShort` rather than being left to the data
+gate's `DegenerateSegment`. Every one of these is a fact about the
+ARRIVING leg or about `Start`'s own bits; none reads the following
+carrier. A circular arc cannot generically carry a
 tangency at both ends, so a closing arc asked for both gets the
 check's refusal with the seam FILLET named as the spelling that
 constructs them.
 
-**Which closing verbs take the declaration**: `line_to` and
-`continue_to` take `arrives_straight`; `tangent_arc_to` and
-`arc_to(Bulge { … })` take `arrives_tangent`. `arc_to`'s `Via` and
-`Center` modes fix an end tangent too and the same token would
-serve them; their arms stay lattice violations until a unit takes
-them (issue 1579). So does the construct-from-arrival closer — the
-arc through the departure point and `Start` whose END tangent is
-`Start.dir`, which would spare an author solving for a departure
-angle (issue 1578).
+**Which closing verbs take the declaration**: `line_to`,
+`continue_to`, `tangent_arc_to` and `arc_to(Bulge { … })` each take
+BOTH tokens — the matrix is (declaration x closer), and it is full,
+because the token names the joint rather than the leg. `arc_to`'s
+`Via` and `Center` modes are the one gap: they fix an end tangent
+like `Bulge` does and the same tokens would serve them, and their
+arms stay lattice violations until a unit takes them (issue 1579).
+The construct-from-arrival closer — the arc through the departure
+point and `Start` whose END tangent is `Start.dir`, which would
+spare an author solving for a departure angle — is also still
+unbuilt (issue 1578).
 
 ## 7. Explicitly out of scope
 

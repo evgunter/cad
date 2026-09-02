@@ -60,9 +60,6 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::JunctionCusp => "junction_cusp",
         PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
-        PathErrorKind::SeamArrivalNeedsStraightFirstSide => {
-            "seam_arrival_needs_straight_first_side"
-        }
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::SameCarrierJunction => "same_carrier_junction",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
