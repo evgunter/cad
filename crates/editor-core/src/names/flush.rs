@@ -30,16 +30,18 @@
 //! # The anti-twin rule (§3b): the detector IS the verifier
 //!
 //! The detector has NO predicate triple of its own. It enumerates
-//! candidate pairs and asks the ONE door the declared rung verifies
-//! with, and it asks it at the seat where that door lives:
-//! [`topo::flush::pair_finding`] — descriptions, oriented identity
-//! evidence, and the REST lane's verification arm all live inside the
-//! kernel's [`topo::flush_pair_relation`] under it. Consequences, all
-//! deliberate:
+//! candidate pairs and asks the kernel's own rung at the seat where
+//! that rung lives: [`topo::flush::pair_finding`] — descriptions,
+//! oriented identity evidence and the verification arm all live
+//! inside [`topo::flush_pair_relation`] under it, whose verdict
+//! ladder is the one verify-at-use reaches through `carrier_eq`'s
+//! plane delegation (the three-link chain is stated once, in
+//! [`topo::flush`]'s module docs, and not restated here).
+//! Consequences, all deliberate:
 //!
-//! - detect-then-declare can never disagree with verify-at-use (no
-//!   twin drift — the demo twins' "kept in step BY HAND" warning
-//!   label is retired on the public path);
+//! - detect-then-declare can never disagree with verify-at-use: the
+//!   two paths converge on one verdict function, so there is no
+//!   second implementation to keep in step by hand;
 //! - the body seat's own detector
 //!   ([`topo::flush::find_flush_candidates`]) enumerates over the
 //!   SAME rung, so the two seats cannot disagree either: findings are
@@ -99,7 +101,7 @@
 //!   and the caller holding the recipe is the one who knows.
 
 use geom_core::{Band, Decide, Tol};
-use topo::flush::pair_finding;
+use topo::flush::{finding, pair_finding};
 use topo::{Body, FaceKey, PlaneRelation};
 
 use crate::doc::Doc;
@@ -287,10 +289,13 @@ fn pair_verdict<T: Decide>(
     }
     match (matched, relation) {
         (0, _) | (_, None) => Ok(None),
-        (m, Some(relation)) if m == total => Ok(Some(FlushFinding {
-            pair: (na.clone(), nb.clone()),
-            class: ContactClass::Rest,
-            evidence: FlushEvidence {
+        // The CLASS is minted at the kernel's one site, not here: this
+        // seat contributes the pair vocabulary and the tie-resolved
+        // evidence, and takes the classification from the door that
+        // decides it (`topo::flush::finding`).
+        (m, Some(relation)) if m == total => Ok(Some(finding(
+            (na.clone(), nb.clone()),
+            FlushEvidence {
                 relation,
                 rung: if all_shared_source {
                     FlushRung::SharedSource
@@ -298,7 +303,7 @@ fn pair_verdict<T: Decide>(
                     FlushRung::DecidedCoincident
                 },
             },
-        })),
+        ))),
         _ => Err(tied_disagrees(na, ca, nb, matched, total)),
     }
 }

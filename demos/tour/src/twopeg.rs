@@ -301,19 +301,28 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
 /// (`GeoSelect`); the kernel-level `Body` does not, and a declared
 /// contact is a kernel-level object — the two-doors gap, #1345.
 ///
-/// The mating plane above no longer walks the arena for its intent:
-/// `topo::flush::find_flush_candidates` produces it as a finding.
-/// What keeps THESE pairs hand-assembled is the detector's SCOPE, not
-/// a missing producer and not a missing verification — the `Rest`
-/// ladder verifies a cylindrical cosurface pair today, and asked in
-/// its detector posture it already reports this very pair as
-/// would-verify-if-declared (`seat3_measurements` below runs both). The
-/// detector is planar because the door it enumerates over is
-/// `flush_pair_relation`; widening it to `carrier_pair_relation` is a
-/// door swap that also widens `crate::booleans::flush_declarations`,
-/// which scenes whose curved contacts must keep REFUSING call (the
-/// lily's stem glue), so it is a decision about those scenes rather
-/// than a free generalization.
+/// **What the library door changed for the mating plane, stated
+/// narrowly**: `topo::flush::find_flush_candidates` now PRODUCES the
+/// verified candidate set, so the declaration below is a finding the
+/// kernel vouched for rather than a pair this file asserted. It did
+/// NOT retire the arena walk: the report holds seven planar findings
+/// and the scene means one of them, so [`plane_face`] still walks the
+/// arena positionally to say WHICH — and that pick is exactly the
+/// selection gap this note records, moved from "assemble the
+/// declaration by hand" to "choose among findings by hand".
+///
+/// What keeps THESE pairs hand-assembled is a different thing again:
+/// the detector's SCOPE, not a missing producer and not a missing
+/// verification — the `Rest` ladder verifies a cylindrical cosurface
+/// pair today, and asked in its detector posture it already reports
+/// this very pair as would-verify-if-declared (`seat3_measurements`
+/// below runs both). The detector is planar because the door it
+/// enumerates over is `flush_pair_relation`; widening it to
+/// `carrier_pair_relation` is a one-identifier door swap that also
+/// widens `crate::booleans::flush_declarations`, which scenes whose
+/// curved contacts must keep REFUSING call (the lily's stem glue), so
+/// it is a decision about those scenes rather than a free
+/// generalization. Filed as #1537 with the re-baselining it forces.
 fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<(pncad::topo::FaceKey, f64, f64, f64)> {
     body.faces()
         .filter_map(|(k, f)| match body.get_surface(f.surface) {
@@ -326,7 +335,15 @@ fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<(pncad::topo::FaceKey, f64, f64, 
 }
 
 /// The one planar face of `body` at height `z` whose outward normal
-/// points up (`up`) or down. Same finding as [`cylinders`].
+/// points up (`up`) or down — a POSITIONAL pick, by stored plane
+/// parameters, and it stays one.
+///
+/// Same finding as [`cylinders`], at the half of it the flush detector
+/// does not close: the detector says which face pairs WOULD verify,
+/// and this says which of them the author meant. Nothing on the plain
+/// body API says "the mating face" — a document would say it with a
+/// `GeoSelect` — so the scene says it in coordinates and the kernel
+/// verifies the declaration that results.
 fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
@@ -360,14 +377,18 @@ fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceK
 /// refuses anyway, which is what makes the wall a kernel fact rather
 /// than a missing declaration.
 fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>, tol: Tol) -> BooleanDeclarations {
-    // 1. The mating plane: P's top face against Q's bottom face —
-    //    DETECTED, then declared. The library door reports every
-    //    planar `Rest` candidate between the two parts; the author
-    //    picks the one contact he means and hands that finding to the
-    //    declare sugar, which is the no-fusion boundary doing its job
-    //    (the pairs the door also finds — the plates' flush side
-    //    walls, and the peg tops flush with Q's top face — are real
-    //    contacts this part does not mate on).
+    // 1. The mating plane: P's top face against Q's bottom face.
+    //    The library door DETECTS — it reports every planar `Rest`
+    //    candidate between the two parts, seven of them here — and
+    //    `plane_face` PICKS, positionally, the one contact the author
+    //    means; the picked FINDING is what becomes the declaration.
+    //    Detection and selection are two different missing doors and
+    //    only the first one shipped: the six findings not picked are
+    //    real contacts (the plates' flush side walls, the peg tops
+    //    flush with Q's top face) that this part does not mate on, and
+    //    nothing but the author knows that. Passing the finding — not
+    //    the key pair — to `declare` is the no-fusion boundary doing
+    //    its job: what is declared is what the kernel vouched for.
     let mating = (plane_face(p, PLATE.2, true), plane_face(q, PLATE.2, false));
     let found = pncad::topo::flush::find_flush_candidates(p, q, tol)
         .expect("the plates' planar pairs are authored exactly, so they decide definitely");
@@ -546,9 +567,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 build. Beside it the same two parts apart, Q lifted clear, so the three \
                 contacts are visible before the union makes them interior",
         ops: "extrude plate + 2 x extrude three-arc peg -> 2 transverse unions (P); \
-              extrude one profile whose two inner loops are the bores (Q); declare \
-              every shared-carrier face pair Rest -> union_with; transform_rigid for \
-              the apart framing",
+              extrude one profile whose two inner loops are the bores (Q); \
+              find_flush_candidates -> pick the mating plane's finding -> declare, \
+              plus every shared-carrier cylinder pair declared Rest by hand (the \
+              detector is planar) -> union_with; transform_rigid for the apart \
+              framing",
         delta: 1e-2,
         note: Some(note),
         view: View {

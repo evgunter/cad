@@ -36,25 +36,49 @@ fn stacked() -> (Body<f64>, Body<f64>) {
     )
 }
 
-/// The face of `body` whose plane is `z = at` — the pair the stack's
-/// contact is about, named independently of the detector so the row
-/// below is a claim about WHICH pair, not just how many.
-fn cap_at(body: &Body<f64>, at: f64) -> FaceKey {
+/// The one planar face of `body` whose stored plane satisfies `want`
+/// (given `origin.x`, `origin.z`, `normal.x`, `normal.z`) — a
+/// POSITIONAL pick, so the rows below can claim WHICH pairs the
+/// detector answers with rather than only how many.
+///
+/// This is the same hand-rolled arena scan the demo scenes carry
+/// (`twopeg::plane_face` and its siblings), and it is here for their
+/// reason: the flush detector says which face pairs WOULD verify, and
+/// nothing on the plain-body API says which one an AUTHOR meant. That
+/// selection half is the two-doors gap (#1345) and this detector does
+/// not close it. Picking out of `find_flush_candidates`'s own answer
+/// would close it here and cost the rows their subject — a test that
+/// selects from the answer cannot then assert the answer.
+fn plane_face(body: &Body<f64>, want: impl Fn(f64, f64, f64, f64) -> bool) -> FaceKey {
     let hits: Vec<FaceKey> = query::all_faces(body)
         .into_iter()
         .filter(
             |&f| match body.get_face(f).and_then(|f| body.get_surface(f.surface)) {
                 Some(topo::Surface::Plane { origin, normal, .. }) => {
-                    normal.x.abs() < 0.5 && normal.y.abs() < 0.5 && (origin.z - at).abs() < 1e-12
+                    want(origin.x, origin.z, normal.x, normal.z)
                 }
                 _ => false,
             },
         )
         .collect();
     let [f] = hits[..] else {
-        panic!("expected exactly one z = {at} cap, got {hits:?}");
+        panic!("expected exactly one matching planar face, got {hits:?}");
     };
     f
+}
+
+/// The face whose plane is `z = at`, outward normal along z.
+fn cap_at(body: &Body<f64>, at: f64) -> FaceKey {
+    plane_face(body, |_, oz, nx, nz| {
+        nx.abs() < 0.5 && nz.abs() > 0.5 && (oz - at).abs() < 1e-12
+    })
+}
+
+/// The face whose plane is `x = at`, outward normal along x.
+fn wall_at(body: &Body<f64>, at: f64) -> FaceKey {
+    plane_face(body, |ox, _, nx, nz| {
+        nz.abs() < 0.5 && nx.abs() > 0.5 && (ox - at).abs() < 1e-12
+    })
 }
 
 // ------------------------------------------------------------------
@@ -178,26 +202,87 @@ fn declare_declares_exactly_one_finding() {
     );
 }
 
+/// **A finding is a report about GEOMETRY, not a promise that the op
+/// will run** — the honest boundary of what detection buys, pinned on
+/// the arm that shows it.
+///
+/// The stepped fixture carries a `SameOriented` flush wall pair (the
+/// merge-stage flavor) beside its resting cap pair. Declare BOTH — no
+/// declaration is contradicted, the verifier agrees each pair is one
+/// plane — and the union still refuses, at `RestZipUnsupported`: a
+/// named capability frontier of the declared zip, downstream of every
+/// verification the declarations pass. Detection cannot see that
+/// frontier and does not claim to.
+///
+/// The subset arm is pinned in the same row because it is the other
+/// half of the same lesson: declaring only the wall leaves the cap
+/// coincidence undeclared, and the op says so
+/// (`UndeclaredCoincidence`) rather than proceeding. A report is a
+/// SET, and declaring part of it declares part of it.
+#[test]
+fn a_declared_same_oriented_finding_can_still_meet_a_typed_lane_frontier() {
+    let (a, b) = stepped();
+    let found = find_flush_candidates(&a, &b, Tol::witness()).expect("the pair decides");
+    let wall = found
+        .iter()
+        .find(|f| f.evidence.relation == PlaneRelation::SameOriented)
+        .expect("the flush wall pair is a finding");
+
+    let partial = union_with(&a, &b, &declare(wall), Tol::witness())
+        .expect_err("the cap pair is still undeclared");
+    assert!(
+        matches!(partial, topo::BooleanError::UndeclaredCoincidence { .. }),
+        "declaring one finding of a report declares one finding: {partial:?}"
+    );
+
+    let err = union_with(&a, &b, &declare_all(&found), Tol::witness())
+        .expect_err("the fully declared union meets the zip's frontier");
+    assert!(
+        matches!(err, topo::BooleanError::RestZipUnsupported { .. }),
+        "a typed lane frontier, NOT a contact contradiction — the declarations are true \
+         and the op is what cannot proceed: {err:?}"
+    );
+}
+
 // ------------------------------------------------------------------
 // 5. The order is arena order, and it is stable.
 // ------------------------------------------------------------------
+
+/// The order fixture: `b` rests on `a`'s top cap AND their x = 1 walls
+/// are flush, so the report holds two findings of different relations.
+fn stepped() -> (Body<f64>, Body<f64>) {
+    (
+        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+        brick((0.5, 1.0), (0.25, 0.75), (1.0, 2.0)),
+    )
+}
 
 /// Findings arrive in `a`'s arena order major, `b`'s minor — the order
 /// the enumeration walks (D9: slot-index order is deterministic given
 /// identical construction history). Pinned because a caller indexes
 /// into the vector it gets back.
+///
+/// MEMBERSHIP is pinned first, and separately: the expected ORDER
+/// below is derived from the answer (it filters the full arena product
+/// by what came back), so on its own it could not tell a right answer
+/// from a wrong one delivered in arena order.
 #[test]
 fn findings_arrive_in_arena_order_and_repeat() {
-    // A shared wall AND a shared cap, so there is more than one
-    // finding to order: `b` sits on top of `a` and their x = 1 walls
-    // are flush.
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick((0.5, 1.0), (0.25, 0.75), (1.0, 2.0));
+    let (a, b) = stepped();
     let found = find_flush_candidates(&a, &b, Tol::witness()).expect("the pair decides");
-    assert!(
-        found.len() >= 2,
-        "the fixture must exercise ORDER, so it needs at least two findings: {found:?}"
+    let members: Vec<(FaceKey, FaceKey)> = found.iter().map(|f| f.pair).collect();
+    assert_eq!(
+        members,
+        vec![
+            (cap_at(&a, 1.0), cap_at(&b, 1.0)),
+            (wall_at(&a, 1.0), wall_at(&b, 1.0)),
+        ],
+        "exactly two contacts exist between these bricks — the resting cap pair and the \
+         flush x = 1 wall pair — and the report is exactly them: {found:?}"
     );
+    assert_eq!(found[0].evidence.relation, PlaneRelation::SameOpposite);
+    assert_eq!(found[1].evidence.relation, PlaneRelation::SameOriented);
+
     let (fa, fb) = (query::all_faces(&a), query::all_faces(&b));
     let expected: Vec<(FaceKey, FaceKey)> = fa
         .iter()

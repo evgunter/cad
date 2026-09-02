@@ -588,6 +588,16 @@ library flush detector, which decides at the verifier's own
 `bool_plane_*` sites — and the K sweep's CSV has carried no
 `demo_flush_*` row since.
 
+**That retirement moved a population, not just a name.** Every margin
+the tour's flush contacts used to contribute under `demo_flush_*` now
+enters the K stream under `bool_plane_parallel` /
+`bool_plane_orient` / `bool_plane_offset`, alongside the boolean's
+own. Those three rows therefore carry more samples than before, drawn
+from the same geometry through a different door — a distribution
+change to READ rather than a threshold to restore, and the first
+`k-lint` sweep after the merge is what reads it (SEAT-3 asked for one
+with a `klint=dev-probe` head trailer).
+
 **Maintenance: this roster is a RECORD, and stays hand-maintained.**
 The decision is on what the roster is *for*, and the evidence is that
 nothing computes with it:

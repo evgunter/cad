@@ -3,9 +3,9 @@
 //! detect/declare protocol as a pure function of two [`Body`]s, and
 //! the [`BooleanDeclarations`] sugar beside it.
 //!
-//! [`BooleanDeclarations`] is what the declared boolean doors take;
-//! this module is where the declarations a caller holding two bodies
-//! and no document can come by. The document layer's detector speaks
+//! [`BooleanDeclarations`] is what the declared boolean doors take,
+//! and this module is where a caller holding two bodies and no
+//! document can come by one. The document layer's detector speaks
 //! stable names and delegates its per-pair test HERE; a kernel-direct
 //! consumer asks the same question through the same one
 //! implementation. **Findings are names at the document door, keys at
@@ -17,14 +17,30 @@
 //! verifier
 //!
 //! The detector has NO predicate triple of its own. It enumerates
-//! candidate pairs and asks the ONE door the declared rung verifies
-//! with — [`flush_pair_relation`], where the descriptions
-//! (outward, sense-folded), the oriented identity evidence and the
-//! verification arm all live. Consequences, all deliberate:
+//! candidate pairs and asks [`flush_pair_relation`], and that call
+//! **converges with verify-at-use one link down** — which is the
+//! honest statement of the property, and worth stating as a chain
+//! because the two are not the same function:
 //!
-//! - detect-then-declare can never disagree with verify-at-use: the
-//!   `Rest` lane re-asks this same function in its `declared: true`
-//!   posture;
+//! 1. this module calls `flush_pair_relation`, which builds the
+//!    sense-folded plane descriptions and the oriented identity
+//!    evidence and hands them to `oriented_plane_eq`;
+//! 2. verify-at-use (`verify_declared_pairs`, and the op's front-door
+//!    contact check) calls the kind-generalized
+//!    [`carrier_pair_relation`](crate::boolean::carrier_pair_relation),
+//!    which builds the SAME description from the same face sense and
+//!    the same identity record;
+//! 3. `carrier_eq`'s `(Plane, Plane)` arm delegates to
+//!    `oriented_plane_eq_verdict` — the function
+//!    `oriented_plane_eq` is a projection of. **That delegation is
+//!    the load-bearing link**: one verdict ladder, one set of
+//!    `decide` sites, one verification arm, so a pair this detector
+//!    calls flush cannot be a pair the declared rung then contradicts.
+//!
+//! Consequences, all deliberate:
+//!
+//! - detect-then-declare can never disagree with verify-at-use, by the
+//!   convergence above rather than by care;
 //! - detection's decisions go through the funnel at the VERIFIER'S
 //!   sites (`bool_plane_parallel` / `bool_plane_orient` /
 //!   `bool_plane_offset`) — the detector mints no site of its own and
@@ -36,6 +52,23 @@
 //! margin lands inside the ambiguity band is neither reported nor
 //! silently dropped: the query refuses with
 //! [`FlushRefusal::PairInBand`] naming the pair.
+//!
+//! Definite is a claim about the GEOMETRY, and only that. A finding
+//! says "declared, this pair verifies"; it does not say the op will
+//! build. A true declaration still meets whatever capability frontier
+//! lies downstream of verification — a `SameOriented` wall pair
+//! declared on a stepped mate verifies and then refuses at
+//! `RestZipUnsupported`, typed, at the zip. Detection cannot see those
+//! frontiers and does not claim to.
+//!
+//! The refusal names ONE pair — the FIRST indeterminate pair in the
+//! enumeration order below — and abandons the walk there. It is not a
+//! survey of every in-band pair a body pair holds: the honesty
+//! obligation is that an undecidable pair can never be silently
+//! included or dropped, and one named pair discharges it. (The
+//! document-seat detector refuses the same way, on the first such
+//! pair its own name-order walk meets, and this door is deliberately
+//! identical to it.)
 //!
 //! # Scope: planar `Rest`, v1
 //!
@@ -164,8 +197,9 @@ impl core::error::Error for FlushRefusal {}
 /// resolution, the tie trilean, refusal payloads) upstairs.
 ///
 /// Everything — descriptions, oriented sources, AND the verification
-/// arm — comes from [`flush_pair_relation`], the one door the `Rest`
-/// lane's verify-at-use site also calls. ONE call, in
+/// arm — comes from [`flush_pair_relation`], whose verdict ladder is
+/// the one verify-at-use reaches through `carrier_eq`'s plane
+/// delegation (module docs, the three-link chain). ONE call, in
 /// `declared: false` mode: its `Undeclared` refusal with the
 /// verifier's definite-zero encoding ([`MarginDiag::Invalid`]) is
 /// precisely "would verify if declared", and the refusal itself
@@ -228,6 +262,22 @@ pub fn pair_finding<T: Decide>(
     }
 }
 
+/// A finding from a pair and the evidence the verify door reported —
+/// **the one place the reported CLASS is minted**, for either seat.
+///
+/// `Rest` is not a default here, it is the whole v1 detector: this
+/// door reports coincident-plane contact and nothing else. When a
+/// second class becomes detectable, this function is where it is
+/// decided, once, rather than at each seat's own push.
+#[must_use]
+pub fn finding<P>(pair: P, evidence: FlushEvidence) -> FlushFinding<P> {
+    FlushFinding {
+        pair,
+        class: ContactClass::Rest,
+        evidence,
+    }
+}
+
 /// **The cross-body flush-plane candidates between two bodies** — the
 /// C4 verifier run in candidate-generation mode (module docs).
 ///
@@ -261,11 +311,7 @@ pub fn find_flush_candidates<T: Decide>(
                     source,
                 })?;
             if let Some(evidence) = evidence {
-                out.push(FlushFinding {
-                    pair: (ka, kb),
-                    class: ContactClass::Rest,
-                    evidence,
-                });
+                out.push(finding((ka, kb), evidence));
             }
         }
     }

@@ -587,9 +587,15 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
 /// sugar. Coincidence CERTIFICATION still happens inside the op
 /// through the verified declared rung, never here.
 ///
-/// A finding is only ever DEFINITE, so an in-band pair refuses rather
-/// than being declared on a guess — which is a fixture assertion in
-/// itself: every fixture that reaches this helper decides definitely.
+/// **The in-band arm INVERTED here, deliberately.** The hand declarer
+/// this replaced treated an in-band pair as plausible and declared it
+/// anyway, leaving the op's declared rung to re-check it. A finding is
+/// only ever DEFINITE, so the library refuses instead — and this
+/// helper turns that refusal into a panic rather than swallowing it,
+/// which makes "every fixture that reaches this helper decides
+/// definitely" a fixture assertion instead of an assumption. A future
+/// fixture built inside the band fails loudly at its own door; the old
+/// helper would have declared it and moved on.
 pub fn flush_declarations<T: geom_core::Decide>(
     a: &Body<T>,
     b: &Body<T>,

@@ -211,10 +211,16 @@ flagged sites, and the fixture-twin disposition recorded in (b) and
 **(a) Detect — findings, never declarations.**
 
 ```text
+-- the document seat
 find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>, a: RecipeNodeId, b: RecipeNodeId,
     tol: Tol,
-) -> Result<Vec<FlushFinding>, SelectRefusal>
+) -> Result<Vec<FlushFinding<(StableName, StableName)>>, SelectRefusal>
+
+-- the body seat (SEAT-3), the same finding over the other pair
+topo::flush::find_flush_candidates<T: Decide>(
+    a: &Body<T>, b: &Body<T>, tol: Tol,
+) -> Result<Vec<FlushFinding<(FaceKey, FaceKey)>>, FlushRefusal>
 
 FlushFinding<P> {
     pair: P,                          -- the SEAT's pair vocabulary
@@ -252,11 +258,16 @@ an in-band pair is refused into the result honestly
 its own predicate triple. C4's `Rest` verify table already names
 the ladder (the kind-generalized `oriented_plane_eq` — shipped,
 `topo/src/boolean/plane_eq.rs` — plus sense opposition and overlap);
-the detector enumerates candidate pairs and asks the SAME doors the
-declared rung will later verify with. Consequences: detect-then-
-declare can never disagree with verify-at-use (no twin drift — the
-demo twins' "kept in step BY HAND" comment in `eval/wire.rs` is the
-warning label); the flagged bare-gate family is retired on the
+the detector enumerates candidate pairs and reaches the SAME verdict
+ladder the declared rung will later verify with — not by calling the
+identical entry point (SEAT-3 measured that: detection enters at
+`flush_pair_relation`, verify-at-use at `carrier_pair_relation`), but
+because `carrier_eq`'s `(Plane, Plane)` arm delegates to the very
+`oriented_plane_eq_verdict` the detection door wraps. One verdict
+function, one set of `decide` sites, two spellings of the same three
+inputs. Consequences: detect-then-declare can never disagree with
+verify-at-use, and there is no second implementation to keep in step
+by hand; the flagged bare-gate family is retired on the
 public path rather than promoted — and, since SEAT-3 gave the body
 seat the same door, retired at the fixtures too: the demo and
 test-common declarers call the library rather than mirroring it, so
@@ -358,8 +369,10 @@ carrier verdict/refusal in place of the plane one — and no verify
 table moves. What it is NOT is free: it widens both seats at once
 (the document detector's answers change), and every caller of the
 demo helper that must keep REFUSING on a curved contact
-(`demos/tour/src/lily.rs`'s stem glue) is downstream of it. That
-decision wants its own unit.
+(`demos/tour/src/lily.rs`'s stem glue) is downstream of it. Filed as
+**#1537**, which carries the one-identifier door swap together with
+the re-baselining it forces on the scenes downstream — the unit that
+takes it decides both halves, or neither.
 
 ## 4. GQ7 re-homing
 
