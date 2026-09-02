@@ -247,14 +247,16 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     validate(&g1).expect("the declared G1 seam validates");
 }
 
-/// **R1 MINOR, FIXED — the row flipped.** `Start.arrives_tangent()` on
-/// a closing arc COCIRCULAR with the entry's first arc is declared
-/// tangency onto carrier IDENTITY — §4 item 4's refusal
-/// (`SameCarrierJunction`) at every other junction, and the fifth-round
-/// ruling's "declared-tangency-onto-identity all keep refusing". The
-/// seam check now READS the entry's first side (`Core::first_side`) and
-/// refuses there, instead of closing and leaving the data gate to say
-/// `TangencyContradicted { same_carrier: true }`.
+/// **R1's finding, RULED the other way (Evan, in-chat, 2026-09-02,
+/// addendum 3): this ACCEPTS.** `Start.arrives_tangent()` on a closing
+/// arc cocircular with the entry's first arc declares tangency onto
+/// carrier IDENTITY, which R1 found the algebra could not see and the
+/// data gate refused. Both halves are settled the other way now: the
+/// lattice may not ask whether the carriers are the same, and identity
+/// is not a reason to refuse a declaration — identity is a fact about
+/// the CARRIERS, tangency a fact about the DIRECTIONS, and the
+/// directions agree here. Every zero-turn joint is a declared tangent
+/// joint. The loop closes, joint 0 is declared, `validate` is green.
 ///
 /// Fixture: entry (1,0) heading north; a 3/4 unit circle to (0,-1);
 /// a chord to (1/√2, -1/√2); a sharp `.angle(π/4)` departure whose
@@ -278,42 +280,11 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
         .angle(FRAC_PI_4, t)
         .unwrap()
         .tangent_arc_to(Start.arrives_tangent(), t);
-    let closed = closed.expect("the algebra closes: it cannot see the following carrier");
+    let closed = closed.expect("a declared tangent joint onto one carrier is a tangent joint");
     assert!(closed.loop_.tangent_joints().contains(&0));
     let verdict = validate(&closed);
     println!("R1: cocircular declared tangent seam -> {verdict:?}");
-    assert!(
-        matches!(
-            verdict,
-            Err(ProfileError::TangencyContradicted {
-                joint: 0,
-                same_carrier: true,
-                ..
-            })
-        ),
-        "{verdict:?}"
-    );
-
-    // The RECOURSE: the same closing arc declaring a SUBDIVISION joint
-    // instead — which is what a cocircular seam actually is — closes,
-    // declares nothing, and validates.
-    let sub = Open
-        .at(p2(1.0, 0.0))
-        .arc_to(
-            Bulge {
-                p: p2(0.0, -1.0),
-                b: (3.0 * FRAC_PI_8).tan(),
-            },
-            t,
-        )
-        .unwrap()
-        .line_to(p2(c, -c), t)
-        .unwrap()
-        .angle(FRAC_PI_4, t)
-        .unwrap()
-        .tangent_arc_to(Start.arrives_tangent(), t)
-        .expect("a closing arc may declare a SUBDIVISION seam joint");
-    assert!(sub.loop_.tangent_joints().is_empty());
+    verdict.expect("the data gate accepts it too: the directions agree");
 }
 
 // ------------------------------------------------------------------

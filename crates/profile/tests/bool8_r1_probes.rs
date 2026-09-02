@@ -327,13 +327,17 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
         ),
         "an in-band-but-not-exact director must still refuse"
     );
-    // (e) declared identity.
+    // (e) declared identity — RULED LEGAL (Evan, in-chat, 2026-09-02):
+    // every zero-turn joint is a declared tangent joint, and the
+    // lattice never asks whether the carriers are the same. This used
+    // to refuse `SameCarrierJunction`. It is the one arm of this probe
+    // that moved, and it moved by ruling: the probe's subject is that
+    // no AUTHORED DIRECTION sneaks a tangency through undeclared, and
+    // (a)-(d) and (f)-(h) still hold that line.
+    let declared = base().tangent().line(2.0, t);
     assert!(
-        matches!(
-            base().tangent().line(2.0, t),
-            Err(PathError::SameCarrierJunction { .. })
-        ),
-        "declared identity must still refuse"
+        declared.is_ok(),
+        "declared identity is a tangent joint: {declared:?}"
     );
     // (f) `.tangent()` binds the angle slot, and `line_to` is not
     // available on a Directed tip at all — recorded here as a typed
@@ -357,13 +361,12 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
         ),
         "the continuation must not launder a later authored tangency"
     );
-    // (i) the continuation, then declared identity off it.
+    // (i) the continuation, then declared identity off it — legal for
+    // the same ruling, and the laundering worry it was written against
+    // is answered by (h) above, which is about an AUTHORED direction.
     assert!(
-        matches!(
-            base().line(2.0, t).unwrap().tangent().line(1.0, t),
-            Err(PathError::SameCarrierJunction { .. })
-        ),
-        "the continuation must not launder a later declared identity"
+        base().line(2.0, t).unwrap().tangent().line(1.0, t).is_ok(),
+        "a declared identity after a continuation is a tangent joint"
     );
 }
 

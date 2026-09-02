@@ -2865,6 +2865,13 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // claim about the emitted coordinates: `at + û·len` rounds like
         // any other sum, so two legs of equal length lay down identical
         // displacements only while those sums are exact.
+        // The continuation verbs DECLARE the zero-turn joint they mint
+        // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+        // declared tangent joint). The departure is the incoming ray
+        // itself, so the joint at this vertex is tangent by
+        // construction — declaration BY construction, exactly as
+        // `.tangent()` is, and the verify layer re-checks the flag.
+        self.core.declare_last();
         let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
         Ok(in_state(self.core, tip))
     }
@@ -2975,6 +2982,13 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let (at, ang) = self.continuation_ray("continue_to on a tip without incoming data")?;
         Self::on_ray_extent(at, ang, target, tol)?;
+        // The continuation verbs DECLARE the zero-turn joint they mint
+        // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+        // declared tangent joint). The departure is the incoming ray
+        // itself, so the joint at this vertex is tangent by
+        // construction — declaration BY construction, exactly as
+        // `.tangent()` is, and the verify layer re-checks the flag.
+        self.core.declare_last();
         let tip = emit_straight_leg_at(&mut self.core, target, ang)?;
         Ok(in_state(self.core, tip))
     }
@@ -3085,6 +3099,13 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                 tol,
             )?;
         }
+        // The continuation verbs DECLARE the zero-turn joint they mint
+        // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+        // declared tangent joint). The departure is the incoming ray
+        // itself, so the joint at this vertex is tangent by
+        // construction — declaration BY construction, exactly as
+        // `.tangent()` is, and the verify layer re-checks the flag.
+        self.core.declare_last();
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
         Ok(self.core.build())
     }

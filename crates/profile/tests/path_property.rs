@@ -340,15 +340,17 @@ fn turn_pi_refuses_as_cusp_naming_the_declaration_door() {
 }
 
 #[test]
-fn declared_straight_continuation_of_a_line_is_same_carrier() {
+fn declared_straight_continuation_of_a_line_is_a_declared_tangent_joint() {
+    // RULED (Evan, in-chat, 2026-09-02): every zero-turn joint is a
+    // declared tangent joint, and the lattice never asks whether the
+    // carriers are the same. This used to refuse `SameCarrierJunction`.
     let leg = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0), Tol::witness())
         .unwrap();
-    assert!(matches!(
-        leg.tangent().line(1.0, Tol::witness()),
-        Err(PathError::SameCarrierJunction { .. })
-    ));
+    leg.tangent()
+        .line(1.0, Tol::witness())
+        .expect("a declared collinear joint is a tangent joint");
 }
 
 #[test]
@@ -367,10 +369,12 @@ fn cocircular_tangent_arc_is_same_carrier() {
         )
         .unwrap()
         .tangent();
-    assert!(matches!(
-        arc_end.tangent_arc_to(p2(0.0, 1.0), Tol::witness()),
-        Err(PathError::SameCarrierJunction { .. })
-    ));
+    // RULED (2026-09-02): cocircular under a declared tangency is a
+    // declared tangent joint, not a refusal.
+    assert!(
+        arc_end.tangent_arc_to(p2(0.0, 1.0), Tol::witness()).is_ok(),
+        "a declared cocircular joint is a tangent joint"
+    );
 }
 
 #[test]
@@ -638,9 +642,13 @@ fn circle_primitive_leaves_pq4_refusing_for_chains() {
         .unwrap()
         .tangent()
         .tangent_arc_to(Start, Tol::witness());
+    // The seam's own junction is UNDECLARED here, and that is what
+    // still refuses: `Start` alone declares nothing, so a zero-turn
+    // seam is `SeamTangent`. Carrier identity is no longer a reason for
+    // anything (Evan, in-chat, 2026-09-02).
     assert!(
-        matches!(refused, Err(PathError::SameCarrierJunction { .. })),
-        "a chain closing on its own carrier still refuses: {refused:?}"
+        matches!(refused, Err(PathError::SeamTangent { .. })),
+        "an undeclared seam on one carrier still refuses: {refused:?}"
     );
 }
 
@@ -2170,11 +2178,11 @@ fn r2_probe_authored_spellings_cannot_sneak_the_continuation() {
         tip().angle(theta, t),
         Err(PathError::JunctionTangent { .. })
     ));
-    // declared identity: refuses (the #101 rule, untouched).
-    assert!(matches!(
-        tip().tangent().line(2.0, t),
-        Err(PathError::SameCarrierJunction { .. })
-    ));
+    // declared identity: LEGAL since 2026-09-02 — a declared zero-turn
+    // joint is a tangent joint whatever the carriers do. The probe's
+    // subject, that no AUTHORED direction sneaks a tangency through, is
+    // carried by the arms above.
+    assert!(tip().tangent().line(2.0, t).is_ok());
 }
 
 /// PROBE 2 (claim 4): the carrier-blindness seam cannot be laundered
@@ -2260,10 +2268,12 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
             .line(half(keel, right), t)
             .unwrap()
     };
-    // (a) declared + tangent arc to Start: degenerate onto the carrier.
+    // (a) declared + tangent arc to Start: the seam itself is
+    // UNDECLARED, so it refuses as a seam (2026-09-02: identity is not
+    // a reason, an undeclared zero-turn seam is).
     assert!(matches!(
         at_m3().tangent().tangent_arc_to(Start, t),
-        Err(PathError::SameCarrierJunction { .. })
+        Err(PathError::SeamTangent { .. })
     ));
     // (b) reversed traversal (right -> keel -> left -> ridge -> right):
     // the closer still departs a subdivision vertex.

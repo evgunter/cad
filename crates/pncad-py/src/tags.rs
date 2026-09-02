@@ -61,7 +61,6 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
-        PathErrorKind::SameCarrierJunction => "same_carrier_junction",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
         PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",

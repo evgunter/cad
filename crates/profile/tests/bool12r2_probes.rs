@@ -592,11 +592,12 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // AFTER THE RULING: the seam check reads NOTHING about the
     // following carrier, so this closes and the DATA gate refuses the
     // declaration the carriers contradict.
+    // RULED the other way (Evan, in-chat, 2026-09-02, addendum 3):
+    // every zero-turn joint is a declared tangent joint, so declaring
+    // one onto an identical carrier is true rather than contradicted.
     let closed = built.expect("the declared G1 arrival closes");
-    assert_eq!(closed.loop_.tangent_joints(), &[0]);
+    assert!(closed.loop_.tangent_joints().contains(&0));
     let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
     println!("R2: cocircular G1 seam, at the gate -> {verdict:?}");
-    let msg = format!("{verdict:?}");
-    assert!(msg.contains("TangencyContradicted"), "{msg}");
-    assert!(msg.contains("same_carrier: true"), "{msg}");
+    verdict.expect("the data gate accepts it: the directions agree");
 }
