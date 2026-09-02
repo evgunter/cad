@@ -12,7 +12,12 @@ use topo::{Body, FaceKey, FaceSurface};
 
 fn square() -> Vec<ProfileLoop<f64>> {
     let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    vec![ProfileLoop::new(vec![v(-1.0, -1.0), v(1.0, -1.0), v(1.0, 1.0), v(-1.0, 1.0)])]
+    vec![ProfileLoop::new(vec![
+        v(-1.0, -1.0),
+        v(1.0, -1.0),
+        v(1.0, 1.0),
+        v(-1.0, 1.0),
+    ])]
 }
 
 /// A bowed loft with described NURBS walls (copied from
@@ -37,9 +42,23 @@ fn nurbs_wall(body: &Body<f64>) -> FaceKey {
 }
 
 /// The wall's own structure with every control point re-mapped.
-fn corrupt(wall: &NurbsSurface<f64>, f: impl Fn(usize, Point3<f64>) -> Point3<f64>) -> NurbsSurface<f64> {
-    let control = wall.control().iter().enumerate().map(|(i, p)| f(i, *p)).collect();
-    NurbsSurface::new(wall.knots_u().clone(), wall.knots_v().clone(), control, wall.weights().to_vec()).unwrap()
+fn corrupt(
+    wall: &NurbsSurface<f64>,
+    f: impl Fn(usize, Point3<f64>) -> Point3<f64>,
+) -> NurbsSurface<f64> {
+    let control = wall
+        .control()
+        .iter()
+        .enumerate()
+        .map(|(i, p)| f(i, *p))
+        .collect();
+    NurbsSurface::new(
+        wall.knots_u().clone(),
+        wall.knots_v().clone(),
+        control,
+        wall.weights().to_vec(),
+    )
+    .unwrap()
 }
 
 fn poison_x(_: usize, p: Point3<f64>) -> Point3<f64> {
@@ -49,19 +68,35 @@ fn poison_y(_: usize, p: Point3<f64>) -> Point3<f64> {
     Point3::new(p.x, f64::NAN, p.z)
 }
 fn poison_one_point(i: usize, p: Point3<f64>) -> Point3<f64> {
-    if i == 0 { Point3::new(f64::NAN, f64::NAN, f64::NAN) } else { p }
+    if i == 0 {
+        Point3::new(f64::NAN, f64::NAN, f64::NAN)
+    } else {
+        p
+    }
 }
 
 /// A loft body whose one NURBS wall is swapped for the masquerade.
-fn masqueraded(f: impl Fn(usize, Point3<f64>) -> Point3<f64>) -> (Body<f64>, FaceKey, NurbsSurface<f64>) {
+fn masqueraded(
+    f: impl Fn(usize, Point3<f64>) -> Point3<f64>,
+) -> (Body<f64>, FaceKey, NurbsSurface<f64>) {
     let mut body = loft();
     let wall = nurbs_wall(&body);
-    let Some(Surface::Nurbs(payload)) = body.get_surface(body.get_face(wall).unwrap().surface).cloned() else {
+    let Some(Surface::Nurbs(payload)) = body
+        .get_surface(body.get_face(wall).unwrap().surface)
+        .cloned()
+    else {
         unreachable!()
     };
     let masq = corrupt(&payload, f);
-    assert!(!masq.is_placeholder(), "the masquerade reads described since PR 1558");
-    body.set_face_surface(wall, FaceSurface::New(Surface::Nurbs(Arc::new(masq.clone())))).unwrap();
+    assert!(
+        !masq.is_placeholder(),
+        "the masquerade reads described since PR 1558"
+    );
+    body.set_face_surface(
+        wall,
+        FaceSurface::New(Surface::Nurbs(Arc::new(masq.clone()))),
+    )
+    .unwrap();
     (body, wall, masq)
 }
 
@@ -82,10 +117,18 @@ fn n2r2_class3_chart_stretch_sup_inf_f64() {
     eprintln!("[class 3 f64 x-poison] chart_stretch_inf = {inf:?}");
     let (_, _, my) = masqueraded(poison_y);
     let sy = Surface::Nurbs(Arc::new(my));
-    eprintln!("[class 3 f64 y-poison] sup = {:?} inf = {:?}", geom_brep::chart_stretch_sup(&sy), geom_brep::chart_stretch_inf(&sy));
+    eprintln!(
+        "[class 3 f64 y-poison] sup = {:?} inf = {:?}",
+        geom_brep::chart_stretch_sup(&sy),
+        geom_brep::chart_stretch_inf(&sy)
+    );
     let (_, _, m1) = masqueraded(poison_one_point);
     let s1 = Surface::Nurbs(Arc::new(m1));
-    eprintln!("[class 3 f64 one-point] sup = {:?} inf = {:?}", geom_brep::chart_stretch_sup(&s1), geom_brep::chart_stretch_inf(&s1));
+    eprintln!(
+        "[class 3 f64 one-point] sup = {:?} inf = {:?}",
+        geom_brep::chart_stretch_sup(&s1),
+        geom_brep::chart_stretch_inf(&s1)
+    );
 }
 
 #[cfg(feature = "interval")]
@@ -98,25 +141,52 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     let s = Surface::Nurbs(Arc::new(mi));
     let sup = geom_brep::chart_stretch_sup(&s);
     let inf = geom_brep::chart_stretch_inf(&s);
-    let show = |x: Interval| format!("[{}, {}] poison={}", geom_core::Bounds::lo(x), geom_core::Bounds::hi(x), x.is_poison());
-    eprintln!("[class 3 Interval x-poison] sup_u={} sup_v={}", show(sup.0), show(sup.1));
+    let show = |x: Interval| {
+        format!(
+            "[{}, {}] poison={}",
+            geom_core::Bounds::lo(x),
+            geom_core::Bounds::hi(x),
+            x.is_poison()
+        )
+    };
+    eprintln!(
+        "[class 3 Interval x-poison] sup_u={} sup_v={}",
+        show(sup.0),
+        show(sup.1)
+    );
     eprintln!(
         "[class 3 Interval x-poison] inf_u={} inf_v={} sup_u={} sup_v={} area_inf={}",
-        show(inf.inf_u), show(inf.inf_v), show(inf.sup_u), show(inf.sup_v), show(inf.area_inf)
+        show(inf.inf_u),
+        show(inf.inf_v),
+        show(inf.sup_u),
+        show(inf.sup_v),
+        show(inf.area_inf)
     );
     // Placeholder at Interval for comparison.
     let ph = Surface::<Interval>::nurbs_placeholder();
     let sp = geom_brep::chart_stretch_sup(&ph);
-    eprintln!("[class 3 Interval placeholder] sup_u={} sup_v={}", show(sp.0), show(sp.1));
+    eprintln!(
+        "[class 3 Interval placeholder] sup_u={} sup_v={}",
+        show(sp.0),
+        show(sp.1)
+    );
 }
 
 #[test]
 fn n2r2_class9_validate_geometric_and_pseudomanifold() {
-    for (name, f) in [("x-poison", poison_x as fn(usize, Point3<f64>) -> Point3<f64>), ("y-poison", poison_y), ("one-point", poison_one_point)] {
+    for (name, f) in [
+        (
+            "x-poison",
+            poison_x as fn(usize, Point3<f64>) -> Point3<f64>,
+        ),
+        ("y-poison", poison_y),
+        ("one-point", poison_one_point),
+    ] {
         let (body, _, _) = masqueraded(f);
         let g = topo::validate_geometric(&body, tol());
         eprintln!("[class 9 {name}] validate_geometric -> {g:?}");
-        let pm = topo::validate_pseudomanifold(&body, &topo::boolean::ContactRecords::default(), tol());
+        let pm =
+            topo::validate_pseudomanifold(&body, &topo::boolean::ContactRecords::default(), tol());
         eprintln!("[class 8/7 {name}] validate_pseudomanifold -> {pm:?}");
     }
 }
@@ -146,19 +216,33 @@ fn n2r2_class1_step_export() {
     let (body, _, _) = masqueraded(poison_x);
     let doc = step_export::step_string(&body, &step_export::StepOptions::default(), tol());
     match &doc {
-        Ok(d) => eprintln!("[class 1 x-poison] step_string -> Ok ({} bytes) contains NaN: {}", d.len(), d.contains("NaN")),
+        Ok(d) => eprintln!(
+            "[class 1 x-poison] step_string -> Ok ({} bytes) contains NaN: {}",
+            d.len(),
+            d.contains("NaN")
+        ),
         Err(e) => eprintln!("[class 1 x-poison] step_string -> Err: {e}"),
     }
 }
 
 #[test]
 fn n2r2_class11_class4_mint_pcurves() {
-    for (name, f) in [("x-poison", poison_x as fn(usize, Point3<f64>) -> Point3<f64>), ("y-poison", poison_y), ("one-point", poison_one_point)] {
+    for (name, f) in [
+        (
+            "x-poison",
+            poison_x as fn(usize, Point3<f64>) -> Point3<f64>,
+        ),
+        ("y-poison", poison_y),
+        ("one-point", poison_one_point),
+    ] {
         let (mut body, _, _) = masqueraded(f);
         let r = topo::mint_pcurves(&mut body, tol());
         eprintln!("[class 11/4 {name}] mint_pcurves -> {r:?}");
         let v = topo::pcurves::validate_pcurves(&body, band());
-        eprintln!("[class 11/4 {name}] validate_pcurves -> {} errors: {v:?}", v.len());
+        eprintln!(
+            "[class 11/4 {name}] validate_pcurves -> {} errors: {v:?}",
+            v.len()
+        );
     }
 }
 
@@ -201,7 +285,9 @@ fn n2r2_class12_step_import_overflow_real() {
     assert!(done, "a CARTESIAN_POINT was corrupted");
     let r = step_import::import_step(&out, &step_import::ImportOptions::default(), tol());
     match r {
-        Ok(_) => eprintln!("[class 12] import of a 1.E999 coordinate -> Ok (a non-finite real entered a body)"),
+        Ok(_) => eprintln!(
+            "[class 12] import of a 1.E999 coordinate -> Ok (a non-finite real entered a body)"
+        ),
         Err(e) => eprintln!("[class 12] import of a 1.E999 coordinate -> Err: {e}"),
     }
 }

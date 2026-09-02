@@ -3429,7 +3429,13 @@ mod tests {
             .map(|(i, _)| Point3::new(f64::NAN, i as f64, 2.0))
             .collect();
         Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::new(ph.knots_u().clone(), ph.knots_v().clone(), control, ph.weights().to_vec()).unwrap(),
+            geom::NurbsSurface::new(
+                ph.knots_u().clone(),
+                ph.knots_v().clone(),
+                control,
+                ph.weights().to_vec(),
+            )
+            .unwrap(),
         ))
     }
 
@@ -3440,7 +3446,8 @@ mod tests {
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {
-            body.set_face_surface(f, FaceSurface::New(masquerade_like_placeholder())).unwrap();
+            body.set_face_surface(f, FaceSurface::New(masquerade_like_placeholder()))
+                .unwrap();
         }
         seeds
     }
@@ -3496,7 +3503,8 @@ mod tests {
             Point3::new(1.0, 101.0, 101.0),
         ])
         .unwrap();
-        let near = bvh::Aabb::from_points([Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)]).unwrap();
+        let near = bvh::Aabb::from_points([Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)])
+            .unwrap();
         eprintln!(
             "[face_box] overlaps(far y/z-disjoint box) = {}  overlaps(near box) = {}",
             b.overlaps(&far),

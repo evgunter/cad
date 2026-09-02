@@ -32,9 +32,36 @@ fn n2r2_masquerade_channel_positions_f64() {
         ("z only", curve(|i| Point3::new(i as f64, 1.0, nan()))),
         ("x+y", curve(|i| Point3::new(nan(), nan(), i as f64))),
         ("y+z", curve(|i| Point3::new(i as f64, nan(), nan()))),
-        ("one point all-poison", curve(|i| if i == 2 { Point3::new(nan(), nan(), nan()) } else { Point3::new(i as f64, 1.0, 0.0) })),
-        ("one point x-poison", curve(|i| if i == 4 { Point3::new(nan(), 1.0, 0.0) } else { Point3::new(i as f64, 1.0, 0.0) })),
-        ("all but one point all-poison", curve(|i| if i == 0 { Point3::new(0.0, 1.0, 0.0) } else { Point3::new(nan(), nan(), nan()) })),
+        (
+            "one point all-poison",
+            curve(|i| {
+                if i == 2 {
+                    Point3::new(nan(), nan(), nan())
+                } else {
+                    Point3::new(i as f64, 1.0, 0.0)
+                }
+            }),
+        ),
+        (
+            "one point x-poison",
+            curve(|i| {
+                if i == 4 {
+                    Point3::new(nan(), 1.0, 0.0)
+                } else {
+                    Point3::new(i as f64, 1.0, 0.0)
+                }
+            }),
+        ),
+        (
+            "all but one point all-poison",
+            curve(|i| {
+                if i == 0 {
+                    Point3::new(0.0, 1.0, 0.0)
+                } else {
+                    Point3::new(nan(), nan(), nan())
+                }
+            }),
+        ),
     ];
     for (name, c) in &rows {
         assert!(!c.is_placeholder(), "{name}: must read described");
@@ -47,7 +74,16 @@ fn n2r2_masquerade_channel_positions_f64() {
         ("y only", surf(|i| Point3::new(i as f64, nan(), 2.0))),
         ("z only", surf(|i| Point3::new(i as f64, 1.0, nan()))),
         ("x+y", surf(|i| Point3::new(nan(), nan(), i as f64))),
-        ("one point x-poison", surf(|i| if i == 3 { Point3::new(nan(), 1.0, 0.0) } else { Point3::new(i as f64, 1.0, 0.0) })),
+        (
+            "one point x-poison",
+            surf(|i| {
+                if i == 3 {
+                    Point3::new(nan(), 1.0, 0.0)
+                } else {
+                    Point3::new(i as f64, 1.0, 0.0)
+                }
+            }),
+        ),
     ];
     for (name, s) in &srows {
         assert!(!s.is_placeholder(), "surface {name}: must read described");
@@ -68,7 +104,10 @@ fn n2r2_masquerade_in_two_dimensions() {
     .unwrap();
     // NurbsCurve2 has no `is_placeholder` door? — check what exists.
     let p = c2.eval(0.5);
-    assert!(p.x.is_nan() && p.y.is_finite(), "the 2-D masquerade evaluates partially: {p:?}");
+    assert!(
+        p.x.is_nan() && p.y.is_finite(),
+        "the 2-D masquerade evaluates partially: {p:?}"
+    );
 }
 
 /// `Dual<f64>`: `is_poison` reads the VALUE channel only. A net whose
@@ -77,15 +116,35 @@ fn n2r2_masquerade_in_two_dimensions() {
 #[test]
 fn n2r2_dual_value_versus_derivative_poison() {
     let finite_value_nan_deriv = curve::<Dual<f64>>(|i| {
-        Point3::new(Dual::new(i as f64, nan()), Dual::new(1.0, nan()), Dual::new(0.0, nan()))
+        Point3::new(
+            Dual::new(i as f64, nan()),
+            Dual::new(1.0, nan()),
+            Dual::new(0.0, nan()),
+        )
     });
-    assert!(!finite_value_nan_deriv.is_placeholder(), "finite values over NaN derivatives: described");
+    assert!(
+        !finite_value_nan_deriv.is_placeholder(),
+        "finite values over NaN derivatives: described"
+    );
     let nan_value_finite_deriv = curve::<Dual<f64>>(|_| {
-        Point3::new(Dual::new(nan(), 1.0), Dual::new(nan(), 2.0), Dual::new(nan(), 3.0))
+        Point3::new(
+            Dual::new(nan(), 1.0),
+            Dual::new(nan(), 2.0),
+            Dual::new(nan(), 3.0),
+        )
     });
-    assert!(nan_value_finite_deriv.is_placeholder(), "NaN values over finite derivatives: placeholder (value-channel rule)");
+    assert!(
+        nan_value_finite_deriv.is_placeholder(),
+        "NaN values over finite derivatives: placeholder (value-channel rule)"
+    );
     // The masquerade at Dual: NaN value in x only.
-    let m = curve::<Dual<f64>>(|i| Point3::new(Dual::new(nan(), 1.0), Dual::constant(i as f64), Dual::constant(0.0)));
+    let m = curve::<Dual<f64>>(|i| {
+        Point3::new(
+            Dual::new(nan(), 1.0),
+            Dual::constant(i as f64),
+            Dual::constant(0.0),
+        )
+    });
     assert!(!m.is_placeholder());
     let e = m.eval(Dual::variable(0.5));
     eprintln!("dual masquerade eval: {e:?}");
@@ -102,7 +161,10 @@ mod interval_lane {
     }
     fn empty() -> Interval {
         let e = Interval::from_bounds(-2.0, -1.0).sqrt();
-        assert!(e.is_poison(), "sqrt of a negative bracket is the empty enclosure");
+        assert!(
+            e.is_poison(),
+            "sqrt of a negative bracket is the empty enclosure"
+        );
         e
     }
     fn entire() -> Interval {
@@ -128,7 +190,10 @@ mod interval_lane {
         let x_entire = curve::<Interval>(|i| Point3::new(entire(), pt(1.0), pt(i as f64)));
         assert!(!x_nai.is_placeholder(), "NaI in x only: described");
         assert!(!x_empty.is_placeholder(), "empty in x only: described");
-        assert!(!x_entire.is_placeholder(), "[-inf,inf] in x only: described (not poison)");
+        assert!(
+            !x_entire.is_placeholder(),
+            "[-inf,inf] in x only: described (not poison)"
+        );
         // All-empty and mixed empty/NaI nets: every channel is poison
         // under the interval `is_poison`, so these read PLACEHOLDER —
         // a wider placeholder set than at f64 (where only NaN counts).
@@ -147,6 +212,11 @@ mod interval_lane {
         let s = surf::<Interval>(|i| Point3::new(empty(), pt(i as f64), pt(2.0)));
         assert!(!s.is_placeholder());
         let q = s.eval(pt(0.5), pt(0.5));
-        eprintln!("surface empty-x eval: x.poison={} y.poison={} z.poison={}", q.x.is_poison(), q.y.is_poison(), q.z.is_poison());
+        eprintln!(
+            "surface empty-x eval: x.poison={} y.poison={} z.poison={}",
+            q.x.is_poison(),
+            q.y.is_poison(),
+            q.z.is_poison()
+        );
     }
 }

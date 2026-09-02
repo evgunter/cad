@@ -28,20 +28,45 @@ fn patch<T: Real>(f: impl Fn(usize, Point3<f64>) -> Point3<T>) -> NurbsSurface<T
 fn n2r2_class3_f64() {
     let clean = Surface::Nurbs(Arc::new(patch(|_, p| p)));
     let x = Surface::Nurbs(Arc::new(patch(|_, p| Point3::new(f64::NAN, p.y, p.z))));
-    let one = Surface::Nurbs(Arc::new(patch(|i, p| if i == 4 { Point3::new(f64::NAN, p.y, p.z) } else { p })));
-    for (name, s) in [("clean", &clean), ("x-poison", &x), ("one point x-poison", &one)] {
-        eprintln!("[class 3 f64 {name}] sup={:?} inf={:?}", geom_brep::chart_stretch_sup(s), geom_brep::chart_stretch_inf(s));
+    let one = Surface::Nurbs(Arc::new(patch(|i, p| {
+        if i == 4 {
+            Point3::new(f64::NAN, p.y, p.z)
+        } else {
+            p
+        }
+    })));
+    for (name, s) in [
+        ("clean", &clean),
+        ("x-poison", &x),
+        ("one point x-poison", &one),
+    ] {
+        eprintln!(
+            "[class 3 f64 {name}] sup={:?} inf={:?}",
+            geom_brep::chart_stretch_sup(s),
+            geom_brep::chart_stretch_inf(s)
+        );
     }
     let ph = Surface::<f64>::nurbs_placeholder();
-    eprintln!("[class 3 f64 placeholder] sup={:?} inf={:?}", geom_brep::chart_stretch_sup(&ph), geom_brep::chart_stretch_inf(&ph));
+    eprintln!(
+        "[class 3 f64 placeholder] sup={:?} inf={:?}",
+        geom_brep::chart_stretch_sup(&ph),
+        geom_brep::chart_stretch_inf(&ph)
+    );
 }
 
 #[test]
 fn n2r2_class3_dual_poisoned_derivative_only() {
     let d: Surface<Dual<f64>> = Surface::Nurbs(Arc::new(patch(|_, p| {
-        Point3::new(Dual::new(p.x, f64::NAN), Dual::constant(p.y), Dual::constant(p.z))
+        Point3::new(
+            Dual::new(p.x, f64::NAN),
+            Dual::constant(p.y),
+            Dual::constant(p.z),
+        )
     })));
-    eprintln!("[class 3 Dual value-finite/deriv-NaN] sup={:?}", geom_brep::chart_stretch_sup(&d));
+    eprintln!(
+        "[class 3 Dual value-finite/deriv-NaN] sup={:?}",
+        geom_brep::chart_stretch_sup(&d)
+    );
 }
 
 #[cfg(feature = "interval")]
@@ -53,10 +78,28 @@ fn n2r2_class3_interval() {
     let empty = || Interval::from_bounds(-2.0, -1.0).sqrt();
     let entire = || Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
     let cases: Vec<(&str, Surface<Interval>)> = vec![
-        ("clean", Surface::Nurbs(Arc::new(patch(|_, p| p.map(Interval::from_f64))))),
-        ("x NaI", Surface::Nurbs(Arc::new(patch(|_, p| Point3::new(nai(), Interval::from_f64(p.y), Interval::from_f64(p.z)))))),
-        ("x empty", Surface::Nurbs(Arc::new(patch(|_, p| Point3::new(empty(), Interval::from_f64(p.y), Interval::from_f64(p.z)))))),
-        ("x entire", Surface::Nurbs(Arc::new(patch(|_, p| Point3::new(entire(), Interval::from_f64(p.y), Interval::from_f64(p.z)))))),
+        (
+            "clean",
+            Surface::Nurbs(Arc::new(patch(|_, p| p.map(Interval::from_f64)))),
+        ),
+        (
+            "x NaI",
+            Surface::Nurbs(Arc::new(patch(|_, p| {
+                Point3::new(nai(), Interval::from_f64(p.y), Interval::from_f64(p.z))
+            }))),
+        ),
+        (
+            "x empty",
+            Surface::Nurbs(Arc::new(patch(|_, p| {
+                Point3::new(empty(), Interval::from_f64(p.y), Interval::from_f64(p.z))
+            }))),
+        ),
+        (
+            "x entire",
+            Surface::Nurbs(Arc::new(patch(|_, p| {
+                Point3::new(entire(), Interval::from_f64(p.y), Interval::from_f64(p.z))
+            }))),
+        ),
         ("placeholder", Surface::<Interval>::nurbs_placeholder()),
     ];
     for (name, s) in &cases {
@@ -64,7 +107,11 @@ fn n2r2_class3_interval() {
         let inf = geom_brep::chart_stretch_inf(s);
         eprintln!(
             "[class 3 Interval {name}] sup_u={} sup_v={} | inf_u={} inf_v={} area_inf={}",
-            show(su), show(sv), show(inf.inf_u), show(inf.inf_v), show(inf.area_inf)
+            show(su),
+            show(sv),
+            show(inf.inf_u),
+            show(inf.inf_v),
+            show(inf.area_inf)
         );
         // Sanity: which state does the predicate report?
         if let Surface::Nurbs(p) = s {
