@@ -39,10 +39,12 @@
 //! builds is a manifest setting.** The floor is three lines and runs
 //! everywhere. The `debug_assert` in [`tessellate_curved`]'s emit pass
 //! that re-derives the conclusion over the patch (D2 addendum row 5)
-//! is `#[cfg(debug_assertions)]`, which cargo's release default
-//! compiles out — but the root `Cargo.toml`'s `[profile.release]` sets
+//! is `#[cfg(debug_assertions)]`, which cargo's release DEFAULT would
+//! drop — but the root `Cargo.toml`'s `[profile.release]` sets
 //! `debug-assertions = true`, so **every profile this workspace builds
-//! today runs the re-derivation**. That stanza is a pre-publish
+//! today runs the re-derivation**. "Compiled out of every shipping
+//! build" is therefore the wrong tense for this tree: the guard is
+//! cfg-conditional, and today the condition holds. That stanza is a pre-publish
 //! posture and is on `DESIGN.md`'s *Before publishing* list to come
 //! back out; with it gone, the floor is the entire guard in release,
 //! for a class whose failure is a *silently* non-watertight mesh
@@ -68,14 +70,25 @@
 //! **The two cases that sat outside this re-derivation are now inside
 //! one or the other of two, decided by measurement (issue 897).** The
 //! full-2π seam — held off by [`pole_columns`]' arithmetic rather than
-//! by any check, in the lane that actually has seams — is covered by
-//! widening the emit pass's census from pole-incident edges to
-//! IDENTIFIED ones ([`identified_ids`]). Cross-face identification is
-//! outside a per-patch census by construction, whatever its footprint,
-//! so it is re-derived once per mesh instead, at the end of
-//! [`fn@crate::tessellate`], as a use count over the chord segments the
-//! adjacent faces are supposed to share. Both are `debug_assertions`
-//! only, which is S65's ruled posture, and neither reads a tolerance.
+//! by any check — is covered by widening the emit pass's census from
+//! pole-incident edges to IDENTIFIED ones ([`identified_ids`]).
+//! Cross-face identification is outside a per-patch census by
+//! construction, whatever its footprint, so it is re-derived once per
+//! mesh instead, at the end of [`fn@crate::tessellate`], as a use count
+//! over the chord segments the adjacent faces are supposed to share.
+//!
+//! **Both are `cfg`-CONDITIONAL, which today means both RUN in a
+//! release build, and that is the ruled state rather than a gap in
+//! it.** S65's ruling is that no guard for this class ships
+//! UNCONDITIONALLY; `#[cfg(debug_assertions)]` is what that means in
+//! code, and the manifest is what decides the reach. With the root
+//! `Cargo.toml`'s pre-publish `[profile.release] debug-assertions =
+//! true` in place — as it is now — every profile this workspace builds
+//! runs both censuses, at the measured cost (donut, the corpus's
+//! largest mesh: +13% to +15% of `tessellate` for the pair). When that
+//! stanza comes back out at publish, both go quiet in release together
+//! and the floor is again the whole of the shipped guard. Neither
+//! census reads a tolerance in any build.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
@@ -312,9 +325,13 @@ pub(crate) fn tessellate_curved(
     // lane that actually has seams. What decided it was the price,
     // measured on the tour corpus rather than estimated: the widening
     // is free on a face the walk identifies nothing on (the census
-    // does not run), and costs +4% to +13% of `tessellate` on the
+    // does not run), and costs +5% to +12% of `tessellate` on the
     // donut, whose two torus patches carry a 212-id seam over 178k
-    // triangles each at the finest δ. That is at or under the price already paid for
+    // triangles each at the finest δ. (That range is the review's
+    // independent in-binary reproduction, which is the tighter of the
+    // two measurements; this lane's own rounds put the same three rows
+    // at +8% to +13%. Both are inside the box's noise for anything
+    // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
     // the pole half, and it buys the case a mechanical check.
     #[cfg(debug_assertions)]
     {
@@ -640,15 +657,36 @@ fn require_swept_rectangle(
 /// the row that goes red if the cap is lowered — at `pi`, four times
 /// today's cap, the same `2*pi` span sizes to exactly the two columns
 /// the fan needs — so the claim depends on the cap and says which way.
-/// Not the whole argument: `nu` counts INTERIOR columns, and on the arm
-/// where a full-`2*pi` seam actually lives, [`grid_counts`]' cylinder
-/// arm returns `nv = 1`, whose `1..nv` interior range is empty. There
-/// are no interior columns there at all, so a bound of eight on them
-/// separates the seam's two entries only in the sense that an empty set
-/// contains no counterexample; what actually separates them is the
-/// boundary chord rows. The emission is therefore re-derived rather
-/// than argued — the emit pass's census now runs on every patch the
-/// walk identifies a vertex on, seam or pole.
+/// **Not the whole argument, and the reason is PER ARM.** A full-`2*pi`
+/// seam does not live on one arm; the corpus puts one on three, and the
+/// bound means different things on each. The interior grid is
+/// `for j in 1..nv { for i in 1..nu }`, so it is EMPTY unless BOTH
+/// ranges are — `nv == 1` empties it however many columns `nu`
+/// schedules, which is the distinction the bound alone does not make:
+///
+/// * **Torus** — the seam arm where the bound is fully protective. The
+///   donut's two patches carry a seam on both meridians and size
+///   `nu x nv` = 85x43 up to 422x211, i.e. 3 528 up to **88 410**
+///   interior grid vertices per patch. Eight columns is a floor on a
+///   set with tens of thousands of members, and the two seam entries
+///   are separated by every one of them.
+/// * **Cone and sphere, seam-carrying and pole-free** — protective
+///   exactly when `nv >= 2`. The `band_0.1` body's cone walls run
+///   `nv` = 1 to 7 at the same deltas, so this arm is on both sides of
+///   the line depending on the patch.
+/// * **Cylinder** — the arm where the bound is VACUOUS, structurally
+///   and at every delta: [`grid_counts`]' cylinder arm returns
+///   `(nu, 1)` by construction, so the ROW range `1..nv` is empty and
+///   no interior point is ever emitted, whatever `nu` says. The
+///   washer's walls are `nu` = 10..71 with `nv = 1` throughout. What
+///   separates the seam's two entries there is the boundary chord
+///   rows, which this paragraph never mentioned.
+///
+/// So the floor is a real separation on most seam faces and no
+/// separation at all on the cylinder ones, and reading it as covering
+/// "the seam case" flattens that. The emission is therefore re-derived
+/// rather than argued — the emit pass's census runs on every patch the
+/// walk identifies a vertex on, on every arm, seam or pole.
 fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
 }
@@ -667,37 +705,21 @@ fn pole_columns(nu: usize, has_pole: bool) -> usize {
 /// fan rather than a hole is the same argument in both. Splitting
 /// them into two cases is what let the seam half go unchecked while
 /// the pole half was re-derived every build ([`pole_columns`] holds
-/// the seam off by arithmetic — `sagitta_step`'s π/4 cap forces
-/// `nu >= 8` on a 2π span, so the two seam entries never share a
-/// single interior column — and arithmetic is exactly the kind of
-/// argument this row re-derives rather than trusts).
+/// the seam off by arithmetic, and that arithmetic is protective on
+/// some arms and vacuous on others — the per-arm reading is there).
 ///
 /// A pole entry that appears ONCE is still in the set: it cannot be
 /// collapsed, but including it keeps the census's footprint a
 /// superset of the pole-incident one it replaces, so no coverage
 /// moves with this definition.
 ///
-/// **"Distinct" means what SPADE means by it** — plain `==` on the
-/// `f64` pair, the comparison `insert` dedupes on, not a bit compare.
-/// Two entries spade merges are one CDT vertex and cannot be fanned
-/// apart; two it keeps can. (`trimmed::id_repeats_apart` states the
-/// same rule for the trimmed lane's polygon.)
+/// The repeat half is [`crate::walk::ids_at_two_uvs`], which is where
+/// the spade-equality rule lives for both lanes; this function is that
+/// set unioned with the pole flags.
 #[cfg(debug_assertions)]
-#[allow(clippy::float_cmp)]
 fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
-    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
-    let mut identified: std::collections::HashSet<u32> = std::collections::HashSet::new();
-    for e in polygon {
-        if e.pole {
-            identified.insert(e.id);
-        }
-        if seen
-            .insert(e.id, (e.u, e.v))
-            .is_some_and(|p| p != (e.u, e.v))
-        {
-            identified.insert(e.id);
-        }
-    }
+    let mut identified = crate::walk::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
+    identified.extend(polygon.iter().filter(|e| e.pole).map(|e| e.id));
     identified
 }
 
@@ -721,19 +743,7 @@ fn overused_identified_edge(
     triangles: &[[u32; 3]],
 ) -> Option<((u32, u32), usize)> {
     let identified = identified_ids(polygon);
-    if identified.is_empty() {
-        return None;
-    }
-    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-    for t in triangles {
-        for k in 0..3 {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
-            if identified.contains(&a) || identified.contains(&b) {
-                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
-            }
-        }
-    }
-    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
+    crate::walk::overused_identified_edge_in(&identified, triangles)
 }
 
 /// The sphere arm's extra sizing margin: it sizes at δ_s divided by
@@ -2079,10 +2089,16 @@ mod tests {
     }
 
     /// A boundary entry at a chosen UV with a chosen mesh id.
+    ///
+    /// Gated with the rows that use it: they call
+    /// `#[cfg(debug_assertions)]` items, so with debug-assertions off
+    /// the rows are gone and this would be dead code.
+    #[cfg(debug_assertions)]
     fn entry(u: f64, v: f64, id: u32, pole: bool) -> UvPoint {
         UvPoint { u, v, id, pole }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn identified_ids_takes_the_seam_the_pole_filter_misses() {
         // RED FIRST for the widening (issue 897). A full-2π seam
@@ -2102,6 +2118,7 @@ mod tests {
         assert_eq!(got, vec![7, 8]);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn identified_ids_keeps_a_pole_corner_and_drops_an_ordinary_walk() {
         // The set stays a SUPERSET of the pole-incident one it
@@ -2127,6 +2144,7 @@ mod tests {
         assert_eq!(overused_identified_edge(&plain, &[[1, 2, 3]]), None);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn a_repeat_at_the_same_uv_is_one_spade_vertex_and_not_identified() {
         // "Distinct" is spade's `==`, not a bit compare: an entry the
@@ -2139,6 +2157,7 @@ mod tests {
         assert!(identified_ids(&merged).is_empty());
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn a_seam_vertex_fanned_over_one_column_is_caught() {
         // RED FIRST for the guard itself, in #678's own shape but with
@@ -2159,6 +2178,32 @@ mod tests {
         assert_eq!(overused_identified_edge(&seam, &clean), None);
     }
 
+    /// The census threshold is at THREE uses, not four.
+    ///
+    /// Three is already the non-manifold state — an undirected edge
+    /// interior to a patch has two uses and a boundary one has one, so
+    /// a third use is the defect however many more follow. #678's own
+    /// witness happens to show four, and a threshold written from that
+    /// witness (`n > 3`) is a mutant this census would otherwise
+    /// survive: every other row here fans an edge four times. This row
+    /// fans one exactly three times.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn three_uses_of_an_identified_edge_is_already_the_defect() {
+        let seam = vec![
+            entry(0.0, 0.0, 7, false),
+            entry(0.0, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 0.0, 7, false),
+        ];
+        let thrice = [[8, 9, 7], [9, 8, 10], [8, 9, 11]];
+        assert_eq!(
+            overused_identified_edge(&seam, &thrice),
+            Some(((8, 9), 3)),
+            "a third use is the defect; a threshold of four would pass this patch"
+        );
+    }
+
     #[test]
     fn the_full_2pi_seam_never_reaches_the_two_column_shape() {
         // `pole_columns`' argument for the seam case, VERIFIED as the
@@ -2166,7 +2211,20 @@ mod tests {
         // column between the two identified entries (`nu == 2`), and a
         // 2π span cannot size to one while the angular cap holds.
         let tau = core::f64::consts::TAU;
-        const { assert!(MAX_ANGULAR_STEP <= core::f64::consts::FRAC_PI_4) };
+        // THE MECHANISM, NAMED AS THE ONE THAT FIRES. An earlier
+        // spelling of this row opened with
+        // `const { assert!(MAX_ANGULAR_STEP <= FRAC_PI_4) }`, which
+        // reds at COMPILE time if the cap is raised — so the runtime
+        // asserts the row advertises would never have run, and the row
+        // named a mechanism that could not be the one to fire. The cap
+        // is pinned here instead, through the same door the sizing
+        // arms use, so a raised cap reds THIS assert, at run time, in
+        // the same battery as the rest.
+        assert_eq!(
+            ceil_count(tau, cap_angular(f64::INFINITY)).unwrap(),
+            8,
+            "the angular cap decides the seam bound: at pi/4 a 2*pi span takes eight columns"
+        );
         for step in [
             f64::MIN_POSITIVE,
             1e-12,

@@ -100,6 +100,8 @@ mod r2_cert9_probes;
 mod r2_mesh1_probes;
 #[path = "r2_mesh2_probes.rs"]
 mod r2_mesh2_probes;
+#[path = "r2_mesh6_probes.rs"]
+mod r2_mesh6_probes;
 #[path = "r2_split_door.rs"]
 mod r2_split_door;
 #[path = "review_m2_pr6_cert_oracle.rs"]

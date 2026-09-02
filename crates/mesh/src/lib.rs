@@ -153,11 +153,19 @@
 //! (`curved::identified_ids`, issue 897) — and a second re-derivation
 //! at the end of `tessellate` counts each chord segment's uses across
 //! the whole mesh, which is the CROSS-FACE half no per-patch census
-//! can see. Both are `#[cfg(debug_assertions)]`, which cargo's release default
-//! compiles out — so whether a release build carries more than the
-//! floor is a manifest setting, and the root `Cargo.toml` currently
-//! sets `debug-assertions = true` for `[profile.release]` (a
-//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
+//! can see. **What that made mechanical is the FULL-2π SEAM half of
+//! the pole-fan argument**: before issue 897 the seam was held off by
+//! an arithmetic claim in `pole_columns`' prose (a `2π` span sizes to
+//! `nu >= 8`, so the two seam entries never share one interior column)
+//! and by no check at all, while the pole half was re-derived on every
+//! patch. The seam half is now re-derived on the same footing.
+//! Both censuses are `#[cfg(debug_assertions)]`, which cargo's release
+//! default would drop — so whether a release build carries more than
+//! the floor is a manifest setting, and the root `Cargo.toml`
+//! currently sets `debug-assertions = true` for `[profile.release]` (a
+//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list), so
+//! today both DO run in release, at a measured +13% to +15% of
+//! `tessellate` on the corpus's largest mesh.
 //! `curved`'s module header states what runs where, and why the
 //! `debug_assert` — not a typed refusal — is the settled mechanism for
 //! that state (a D2 addendum row-5 state, ruled in #884).

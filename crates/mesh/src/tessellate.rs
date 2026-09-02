@@ -186,15 +186,25 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     //
     // WHY NOT `check_mesh`, which is already the oracle for exactly
     // this: it was the first candidate and it was MEASURED against
-    // this one on the tour corpus, at all three ε rows and the byte
-    // instrument's three deltas. Switched in, it costs +10% to +63% of
-    // `tessellate`, and +27% to +34% on the donut — the corpus's
-    // largest mesh and so its least noisy row — and never 0%, because
-    // it censuses every edge of every patch, most of which are
-    // patch-interior grid edges no cross-face question is about, and
-    // because it re-checks winding and degeneracy, which are other
-    // rows' classes. The segment census below is +3% to +8% on those
-    // same donut rows, and its footprint IS the class:
+    // this one, both switched into one binary on the tour corpus, at
+    // all three ε rows and the byte instrument's three deltas.
+    //
+    // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
+    // its real width. On the sub-millisecond rows the same-binary
+    // spread between rounds runs to ~98%, which swamps both columns;
+    // there `check_mesh` measures CHEAPER than the census below on
+    // several rows, and that is not evidence for it any more than
+    // against it. The rows that decide are the donut's, where the
+    // spread is 4-12% and the meshes are 7k-178k triangles per patch:
+    // `check_mesh` +24% to +33% of `tessellate`, this census −8% to
+    // +1%. That gap is the price argument, and it is the whole of it.
+    //
+    // The rest is FOOTPRINT, which does not depend on the clock:
+    // `check_mesh` censuses every edge of every patch — overwhelmingly
+    // patch-interior grid edges that no cross-face question is about —
+    // and re-checks winding and degeneracy, which are other rows'
+    // classes. This census reads the chord segments and nothing else,
+    // so its footprint IS the class:
     // an unidentified shared boundary makes each side's copy a
     // one-use edge, which is what `n != 2` catches. The narrower guard
     // is not a second copy of the oracle; it is the class's own
@@ -239,6 +249,31 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
 /// an integer compare on the overwhelming majority of triangle edges
 /// rather than a map probe.
 ///
+/// **PRECONDITION: the body is CLOSED, and that is the caller's, not
+/// this census's.** [`tessellate`]'s contract says the input is a
+/// closed solid at rest and that it does not re-validate; it never
+/// calls `topo::validate_closed`. On an OPEN body — a tier-1-legal
+/// scaffolding strut, say, which `topo::validate` accepts and
+/// `validate_closed` rejects — a chord polyline exists that no face
+/// triangle can use twice, and this census reports it. That firing is
+/// a broken PRECONDITION, not the D2-row-5 kernel bug the assert is
+/// worded for, and it is the one way the guard can be reached by input
+/// rather than by defect. It stays a `debug_assert` on that basis: the
+/// precondition is documented at the door, an open body is already
+/// outside what `tessellate` promises anything about, and no shipped
+/// build is made to panic by it that was not already garbage-in.
+///
+/// **The route is documented, not demonstrated, and the difference is
+/// recorded rather than glossed.** A reviewer's probe
+/// (`r2_mesh6_probes::r2_scaffold_strut_body_through_tessellate`)
+/// mints the strut body through the Euler doors and calls
+/// [`tessellate`] on it; the call refuses EARLIER and typed —
+/// `UnsupportedSurface`, because faces assembled that way carry no
+/// surface description — so the census is never reached and no open
+/// body is yet known to reach it. The probe is kept as the record of
+/// that attempt: it pins where the door actually stops, which is the
+/// honest state of the precondition claim.
+///
 /// **This reads no tolerance.** It is a census of ids and counts;
 /// `Eps` has no role in it, and a band would be the wrong instrument
 /// for a question whose answer is an integer.
@@ -251,7 +286,7 @@ fn unpaired_chord_segment(
     let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
     for ids in polylines {
         for w in ids.windows(2) {
-            uses.insert((w[0].min(w[1]), w[0].max(w[1])), 0);
+            uses.insert(crate::walk::edge_key(w[0], w[1]), 0);
         }
     }
     for t in patch_triangles.iter().copied().flatten() {
@@ -259,7 +294,7 @@ fn unpaired_chord_segment(
             let (a, b) = (t[k], t[(k + 1) % 3]);
             if a < shared_below
                 && b < shared_below
-                && let Some(n) = uses.get_mut(&(a.min(b), a.max(b)))
+                && let Some(n) = uses.get_mut(&crate::walk::edge_key(a, b))
             {
                 *n += 1;
             }
@@ -268,7 +303,13 @@ fn unpaired_chord_segment(
     uses.iter().find(|&(_, &n)| n != 2).map(|(&e, &n)| (e, n))
 }
 
-#[cfg(test)]
+// GATED ON THE GUARD IT TESTS, the way `walk`'s own row-5 test row is
+// (`walk::tests::the_closure_detector_fires_when_the_gap_clears_the_
+// spatial_bar`): every row here calls `unpaired_chord_segment`, which
+// is `#[cfg(debug_assertions)]`, so with debug-assertions OFF the
+// subject does not exist and neither should the rows. Without this the
+// lib test target fails to COMPILE in that configuration.
+#[cfg(all(test, debug_assertions))]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     //! The cross-face identification census (issue 897), red first.
