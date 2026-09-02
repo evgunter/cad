@@ -3139,6 +3139,18 @@ relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
 
+BOOL-12 (PR #1573) ordinal FIXED AT DISPATCH (2026-09-02):
+**ordinal 1106** (S-BOOL band 1100–1199). v6 dual: parity byte **173**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `50740f965`
+(run 33617098411 verified at dispatch: head SHA matches, 21 checks —
+17 success + 4 skipped; gate point interval lane ASKED by trailer ×
+eps 1e-6 DRAWN), R2 isolated from R1, briefs symmetric, no relaxations
+granted. Implementer difficulty M (pre-logged at the spec, pre-draw).
+The PR is HELD for Evan's sign-off (PATHS §6 PQ4 / §4 / verb table —
+design surface); merge follows the dual + sign-off. Sample number at
+merge; row in the docs PR after the merge.
+
+
 BOOL-11 REVIEWS DELIVERED + ROW (2026-09-01/02; CONCURRENT on frozen
 0d285cd3f per the fixed-at-dispatch record above; fix pass
 IMPLEMENTER-INHERITED via agent resume, plus one ruled addendum).
