@@ -86,14 +86,18 @@
 //! 0.117-inch holes while passing the same physical error elsewhere.
 //!
 //! **The two π-rad witnesses**, both a meridian ARC that crosses a
-//! pole mid-edge: issue 723's half-cap through import, and issue
-//! 1571's Euler-door body, which the iso-rectangle shape door admits.
-//! The carrier midpoint then sits a half-turn from the closing vertex.
-//! Nothing else on source data has been seen above 3.6e-9 rad — and
-//! **nothing re-measures that**: no test in this repo examines the wild
-//! or FreeCAD corpora, so the input class these conditions are about
-//! is untested by construction and that sentence is a trace, not a
-//! census.
+//! pole mid-edge, so the carrier's midpoint sits a half-turn from its
+//! own endpoint: issue 723's half-cap through import
+//! (`step-import/tests/fixtures/halfcap/halfcap_eps7.step`, whose
+//! offending endpoint is 1.0e-9 m from the axis, so the half-turn
+//! opens 3.14 nm of arc and the report is band-shaped across the ε
+//! rows), and issue 1571's Euler-door body, which the iso-rectangle
+//! shape door admits. Nothing else on source data has been seen above
+//! 3.6e-9 rad — and **nothing re-measures that**: no test in this repo
+//! examines the wild or FreeCAD corpora, so the input class these
+//! conditions are about is untested by construction and that sentence
+//! is a trace, not a census. Issue 1571 owns FIXING the arc premise;
+//! this door owns seeing it.
 
 use geom::Curve3;
 use geom_brep::EdgeDescription;
