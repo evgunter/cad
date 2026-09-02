@@ -215,6 +215,14 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/verbs/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/verbs/tests/layer_guard.rs",
+        disposition: Shared, // the crate's src/ directory walk, for the file-list pin
+    },
+    Entry {
         path: "crates/viewer/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

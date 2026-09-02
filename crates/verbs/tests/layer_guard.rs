@@ -50,6 +50,8 @@ fn the_manifest_names_no_serde_dependency() {
     // crate's sources, and a literal here would be a first match if the
     // list ever widened to `tests/`.
     let serde = ["ser", "de"].concat();
+    // TOML, not Rust — a `#` line comment, read as such. The shared
+    // Rust reader would be the wrong lexer here.
     let hits: Vec<&str> = MANIFEST
         .lines()
         .filter(|l| !l.trim_start().starts_with('#'))
@@ -79,17 +81,13 @@ fn no_document_layer_type_is_named_in_the_source() {
     ];
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in SOURCES {
-        for line in src.lines() {
-            // Prose may DISCUSS what is excluded — that is what the
-            // module docs are for — so the scan reads code only. A
-            // doc line is a LEADING `///`, `//!` or `//`; a TRAILING
-            // comment still counts as code, which errs toward firing
-            // rather than missing and is the same direction the LB13
-            // façade guard takes.
-            let trimmed = line.trim_start();
-            if trimmed.starts_with("//") {
-                continue;
-            }
+        // Prose may DISCUSS what is excluded — that is what the module
+        // docs are for — so the scan reads CODE, comments blanked and
+        // string literals kept, through the shared Rust reader rather
+        // than a line test this file rolled itself. A trailing comment
+        // is blanked too, which a leading-`//` line test would have
+        // read as code.
+        for line in test_utils::source::code_and_literals(src).lines() {
             for bad in &forbidden {
                 if line.contains(bad.as_str()) {
                     violations.push(format!("{name}: {bad} in `{}`", line.trim()));

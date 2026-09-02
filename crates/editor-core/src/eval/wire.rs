@@ -870,6 +870,10 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
 /// result carries, even against a disjoint operand — and that frontier,
 /// which predates M6-5, is pinned executed in the same file. The naming
 /// side is ready; the kernel side is not.
+// The 8th is the verb's correspondence — which is what collapses two
+// of these functions into one, so it is the parameter that REMOVES
+// duplication rather than adding a duty.
+#[allow(clippy::too_many_arguments)]
 fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     verb: &crate::verbs::blend::BlendVerb,
     id: RecipeNodeId,

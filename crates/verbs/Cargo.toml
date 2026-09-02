@@ -48,8 +48,10 @@ topo = { path = "../topo" }
 # Dev-only: the featured edge never enters a production build graph
 # (`scripts/gates/test-features-dev-only.sh`).
 sweep = { path = "../sweep", features = ["test-support"] }
-# `tests/all.rs`'s aggregation companion reads the suite directory
-# through this crate's one source-scanning door.
+# The one Rust-source reader the suites use: `tests/all.rs`'s
+# aggregation companion and the layer guard's code view both go through
+# `test_utils::source` rather than lexing Rust themselves (the
+# `reader_census` ledger's rule).
 test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs).

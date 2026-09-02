@@ -4,6 +4,10 @@
 //! this one binary stands in for one test target per suite — the
 //! workspace rule `scripts/gates/test-aggregation.sh` enforces, for the
 //! reason `crates/topo/tests/all.rs`'s header records.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not

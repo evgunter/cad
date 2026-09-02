@@ -75,10 +75,10 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
     pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError> {
         let blended = match self {
             Self::Fillet { edges, radius } => {
-                sweep::blend::build::fillet_edges(operand, edges, radius.clone(), tol)
+                sweep::blend::build::fillet_edges(operand, edges, *radius, tol)
             }
             Self::Chamfer { edges, distance } => {
-                sweep::blend::build::chamfer_edges(operand, edges, distance.clone(), tol)
+                sweep::blend::build::chamfer_edges(operand, edges, *distance, tol)
             }
         }
         .map_err(VerbError::Blend)?;
