@@ -1,7 +1,7 @@
 //! **The ground truth #874 is measured against, and the record of what
 //! `Dual64` reported before the doors stopped admitting it.**
 //!
-//! `crates/geom/src/projection.rs`'s `mid` freezes the Newton foot
+//! `crates/geom/src/projection_policy.rs`'s `mid` freezes the Newton foot
 //! parameter as `f64`, so a dual scalar differentiates every quantity
 //! built on `t*` at fixed `t*` and loses its `dt*/dp` term. The two
 //! `Projection` types state which field that reaches and by how much;
@@ -11,7 +11,7 @@
 //! `::project_from_seed` bound `T: CertifiedBounds` — a SOLE bracket
 //! bound, no `Decide` — so the wrong
 //! tangent is unreachable rather than fixed. The eviction is pinned by
-//! `compile_fail` rows in `crates/geom/src/projection.rs`'s module docs
+//! `compile_fail` rows in `crates/geom/src/projection_policy.rs`'s module docs
 //! — a doctest is only collected from a `lib` target, so it cannot live
 //! in this file.
 //!

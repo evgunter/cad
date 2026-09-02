@@ -191,7 +191,7 @@ fn seeding_is_bit_deterministic() {
 /// `tests/curves/projection.rs`'s overflow row.
 ///
 /// The two rows are not two facts. They pin **one** property of a
-/// shared helper: `crate::projection::mid` is `x + ½(x − x)`, the
+/// shared helper: `crate::projection_policy::mid` is `x + ½(x − x)`, the
 /// identity on every finite `x` and **NaN at ±∞**, and that
 /// non-totality is *load-bearing at every caller* — it is what turns an
 /// overflowed residual into the typed refusal instead of a converged

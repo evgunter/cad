@@ -193,7 +193,7 @@ fn poisoned_input_is_a_typed_refusal_never_a_foot_point() {
 /// coordinate magnitude, so a control net at 1e200 is a legal curve
 /// reachable through the public door. Its squared distance to a point
 /// at the origin overflows to `+∞`, and the Newton loop reads that
-/// residual through `crate::projection::mid` — `x + ½(x − x)`, which
+/// residual through `crate::projection_policy::mid` — `x + ½(x − x)`, which
 /// is NaN at `±∞`. NaN loses every acceptance comparison, so the
 /// iteration falls out to the typed refusal instead of reporting a
 /// converged foot at infinite distance.

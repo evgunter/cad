@@ -4107,7 +4107,7 @@ three dispositions that issue lists, taken structurally.
 
 **`project_seed` and the box constructors are deliberately NOT tightened** —
 the census table above gives each its verdict and its reason, and
-`geom/src/projection.rs`'s `mid` carries the rule they share. **The bound
+`geom/src/projection_policy.rs`'s `mid` carries the rule they share. **The bound
 follows the defect, not the class of the bound**, so a door whose freeze costs
 no derivative keeps the sole bracket bound even though its signature looks
 identical to one that tightened.
