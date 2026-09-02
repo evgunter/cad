@@ -133,6 +133,15 @@ struct Uniforms {
     probe: [f32; 4],
     /// The focused feature's mark; see [`Uniforms::selected`].
     focus: [f32; 4],
+    /// **Construction geometry's colour**, linear in `xyz`; `w` is
+    /// padding and the shader does not read it.
+    ///
+    /// A whole lane for three numbers, and the padding is the honest
+    /// cost of the block staying a struct whose fields the shader
+    /// mirrors one for one. `Theme::datum` is a colour and not a
+    /// [`Mark`], so there is no strength to put in `w`: a datum is
+    /// drawn in this colour, not tinted toward it.
+    datum: [f32; 4],
     /// **What the edge pass needs to measure the screen**: the
     /// viewport's size in physical pixels (`xy`) and half an edge
     /// mark's width in the same units (`z`); `w` is padding.
@@ -265,6 +274,17 @@ const EDGE_FLAG_PROBE: u32 = 2;
 /// selected/hovered pair, because it says something orthogonal: a
 /// preview segment is neither picked nor hovered.
 const EDGE_MARK_PREVIEW: u32 = 4;
+/// Set when this vertex belongs to a DATUM — construction geometry
+/// that IS in the document but is not material (`crate::datums`).
+///
+/// Drawn in `Theme::datum`, stated rather than mixed: every other
+/// mark here composites over the body colour because it says what
+/// state a piece of material is in, and a datum is not a piece of
+/// material. A bit of its own for [`EDGE_MARK_PREVIEW`]'s reason, and
+/// it outranks that one in the shader for the same reason preview
+/// outranks the picked marks — the more specific statement about what
+/// a segment IS wins over which mark it would otherwise wear.
+const EDGE_MARK_DATUM: u32 = 8;
 
 /// **Half the width of an edge mark, in POINTS** — so a mark is
 /// three points thick wherever it is drawn, and the same thickness to
@@ -574,6 +594,7 @@ impl ViewportRenderer {
                 hovered: [0.0; 4],
                 probe: [0.0; 4],
                 focus: [0.0; 4],
+                datum: [0.0; 4],
                 edge: [0.0; 4],
             }),
         );
@@ -903,6 +924,10 @@ impl EdgePass {
             // FLAG stays clear and the preview mark supplies the
             // probe tint on its own.
             (EDGE_MARK_PREVIEW, false, &overlay.preview),
+            // A datum belongs to no instance either: it is document
+            // content that nothing places, so the probe flag stays
+            // clear and the datum mark supplies its colour outright.
+            (EDGE_MARK_DATUM, false, &overlay.datums),
         ] {
             let word = if probed { mark | EDGE_FLAG_PROBE } else { mark };
             // `chunks_exact(2)`: the overlay is a LINE LIST, so a
@@ -1056,6 +1081,10 @@ impl ViewportCallback {
             hovered: mark_lane(self.theme.hovered),
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
+            datum: {
+                let [r, g, b] = crate::theme::linear(self.theme.datum);
+                [r, g, b, 0.0]
+            },
             edge: [
                 self.viewport_px[0],
                 self.viewport_px[1],
@@ -1187,6 +1216,7 @@ fn shader_source(target_format: wgpu::TextureFormat) -> String {
         .replace("{{EDGE_MARK_HOVERED}}", &EDGE_MARK_HOVERED.to_string())
         .replace("{{EDGE_FLAG_PROBE}}", &EDGE_FLAG_PROBE.to_string())
         .replace("{{EDGE_MARK_PREVIEW}}", &EDGE_MARK_PREVIEW.to_string())
+        .replace("{{EDGE_MARK_DATUM}}", &EDGE_MARK_DATUM.to_string())
         .replace("{{EDGE_CLIP_Z_SHRINK}}", &format!("{EDGE_CLIP_Z_SHRINK:e}"))
 }
 
@@ -1202,6 +1232,8 @@ struct Uniforms {
     hovered: vec4<f32>,
     probe: vec4<f32>,
     focus: vec4<f32>,
+    // The construction colour, in xyz; w is padding.
+    datum: vec4<f32>,
     // Viewport size in physical pixels (xy) and an edge mark's half
     // width in the same units (z). See the Rust `Uniforms`.
     edge: vec4<f32>,
@@ -1384,6 +1416,12 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     if ((in.mark & {{EDGE_MARK_PREVIEW}}u) != 0u) {
         color = tint(base, uniforms.probe);
     }
+    // Later still, and NOT a tint: a datum is not material, so there
+    // is no body colour for it to be a state of. It is drawn in the
+    // theme's construction colour as stated.
+    if ((in.mark & {{EDGE_MARK_DATUM}}u) != 0u) {
+        color = uniforms.datum.xyz;
+    }
     return vec4<f32>(to_display(color), 1.0);
 }
 
@@ -1438,6 +1476,7 @@ mod tests {
             "{{EDGE_MARK_HOVERED}}",
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_MARK_PREVIEW}}",
+            "{{EDGE_MARK_DATUM}}",
             "{{EDGE_CLIP_Z_SHRINK}}",
             "{{ENCODE_SRGB}}",
         ] {

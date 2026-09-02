@@ -1671,17 +1671,31 @@ pub struct EdgeOverlay {
     /// requirement), so a wireframe can never be mistaken for a
     /// selection of something that exists.
     pub preview: Vec<[f32; 3]>,
+    /// **Construction geometry that is in the document but is not
+    /// material**: the datum wireframes `crate::datums` draws, in the
+    /// same line-list shape as everything above.
+    ///
+    /// It rides this overlay for [`EdgeOverlay::preview`]'s reason —
+    /// one pass for every world-space segment drawn over the solid —
+    /// and it is a separate LANE for the same reason that one is: the
+    /// mark is what differs. A datum is drawn in `Theme::datum`, the
+    /// colour that means "not material", so it can never be mistaken
+    /// for a marked face of something that is.
+    pub datums: Vec<[f32; 3]>,
 }
 
 impl EdgeOverlay {
     /// Whether there is nothing to draw.
     pub fn is_empty(&self) -> bool {
-        self.selected.is_empty() && self.hovered.is_empty() && self.preview.is_empty()
+        self.selected.is_empty()
+            && self.hovered.is_empty()
+            && self.preview.is_empty()
+            && self.datums.is_empty()
     }
 
     /// How many line segments this overlay draws.
     pub fn segments(&self) -> usize {
-        (self.selected.len() + self.hovered.len() + self.preview.len()) / 2
+        (self.selected.len() + self.hovered.len() + self.preview.len() + self.datums.len()) / 2
     }
 }
 
@@ -1722,8 +1736,11 @@ pub fn edge_overlay(
         hovered_probed: hovered_edge.is_some_and(probed),
         // Nothing a SELECTION implies: a preview is about something
         // that is not in the document, so it is added by whoever is
-        // composing it, not derived from what is picked.
+        // composing it, not derived from what is picked. Datums are
+        // not derived from a pick either — they are simply what the
+        // document holds — so the same line covers both.
         preview: Vec::new(),
+        datums: Vec::new(),
     }
 }
 

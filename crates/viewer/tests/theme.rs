@@ -371,6 +371,25 @@ mod cvd {
     /// lambert`, so what an eye receives on an unlit face is the
     /// whole palette scaled toward black — where separations are
     /// smallest and a claim fails first.
+    /// **What the GROUND is measured against**: every swatch, plus
+    /// the construction colour.
+    ///
+    /// `Theme::datum` is not a mark — it shades with nothing and
+    /// tints nothing — so it is absent from [`swatches`] and from the
+    /// marks check. It is still DRAWN IN THE VIEWPORT, though, which
+    /// is the whole of what the ground check is about: a datum the
+    /// colour of the surround is a datum nobody can see. It is
+    /// measured unshaded, once, because a line is not lit.
+    pub(super) fn against_ground(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
+        let mut out = swatches(theme, shade);
+        let [r, g, b] = linear(theme.datum);
+        out.push((
+            "datum",
+            Color::new(f64::from(r), f64::from(g), f64::from(b)),
+        ));
+        out
+    }
+
     fn swatches(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
         let scale = |c: [f32; 3]| {
             Color::new(
@@ -431,7 +450,7 @@ mod cvd {
         let shades = [ambient, ambient + (1.0 - ambient) * 0.5, 1.0];
         let mut worst = (f64::INFINITY, String::new());
         for shade in shades {
-            for (name, swatch) in swatches(theme, shade) {
+            for (name, swatch) in against_ground(theme, shade) {
                 for kind in kinds_of(theme) {
                     let d = distance(seen(ground, *kind), seen(swatch, *kind));
                     if d < worst.0 {

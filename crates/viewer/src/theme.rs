@@ -195,6 +195,25 @@ pub struct Theme {
     /// poisoned badge — everything that says "this does not denote
     /// anything". Chrome only; it tints no geometry.
     pub unresolved: Rgba8,
+    /// **Construction geometry**: the wireframe a datum plane, axis or
+    /// point is drawn as (`crate::datums`).
+    ///
+    /// A field rather than one of the four [`Mark`]s, because it is
+    /// not one of them: a mark says what STATE a piece of material is
+    /// in, and this says the thing on screen is not material at all.
+    /// It therefore tints nothing and shades with nothing — it is a
+    /// line colour, used as stated.
+    ///
+    /// **It is held to the GROUND check and not to the marks check**,
+    /// and the split is the honest one. Held to the ground because a
+    /// datum is drawn in the viewport and one the colour of the
+    /// surround is a datum nobody can see. Not held to the marks
+    /// check because that check asks whether four STATES of one
+    /// surface stay apart, and a datum is told from a face by being a
+    /// thin bright line across it rather than by its hue — the same
+    /// redundancy argument [`Theme::unresolved`] makes, and the reason
+    /// it is not in [`Theme::marks`] either.
+    pub datum: Rgba8,
     /// This palette's legibility claim.
     pub safety: Safety,
 }
@@ -263,6 +282,8 @@ const DARK_NEUTRAL: Theme = Theme {
         strength: 0.24,
     },
     unresolved: Rgba8::opaque(210, 90, 70),
+    // Construction blue, well above the near-black ground.
+    datum: Rgba8::opaque(122, 162, 214),
     safety: Safety::Unchecked,
 };
 
@@ -308,6 +329,9 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // moved: the same hue at the same lightness on a pale panel is
     // the one chrome colour that stops being readable.
     unresolved: Rgba8::opaque(176, 46, 28),
+    // Deeper than the dark theme's by as much as the ground moved,
+    // for `unresolved`'s reason one field up.
+    datum: Rgba8::opaque(46, 96, 166),
     safety: Safety::Unchecked,
 };
 
@@ -456,6 +480,9 @@ const COLORBLIND_SAFE: Theme = Theme {
     // chrome is pale, and a light red on a pale panel is the one
     // chrome colour that stops being readable.
     unresolved: Rgba8::opaque(166, 54, 12),
+    // A dark teal: separated from this palette's pale ground by
+    // lightness, which is the channel every dichromacy keeps.
+    datum: Rgba8::opaque(0, 92, 92),
     safety: Safety::ColorblindSafe,
 };
 

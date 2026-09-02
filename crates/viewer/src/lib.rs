@@ -54,6 +54,7 @@ pub mod blend;
 pub mod bounds;
 pub mod camera;
 pub mod combine;
+pub mod datums;
 pub mod display;
 pub mod docio;
 pub mod evalseam;
@@ -81,6 +82,7 @@ mod gpu;
 
 pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
+pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
 // The two seam lanes are meant to be interchangeable, so they are named

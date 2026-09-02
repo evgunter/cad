@@ -54,6 +54,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, UnitDef, WrittenAngle, Writte
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
+use crate::datums;
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
 #[cfg(not(target_family = "wasm"))]
@@ -193,6 +194,20 @@ const GLYPH_UP: &str = "⬆";
 const GLYPH_DOWN: &str = "⬇";
 /// Marks a product root in the feature tree — see [`GLYPH_REMOVE`].
 const GLYPH_ROOT: &str = "»";
+
+/// **The picture's own size**, in metres: the diagonal of the scene's
+/// bounding box, which is what a datum is drawn relative to.
+///
+/// Zero for a scene with no geometry — an emptied document, or one
+/// holding only datums — and `datums::draws` turns that into its own
+/// fallback rather than this function inventing one. Two places would
+/// be two answers to "how big is nothing".
+fn scene_extent(scene: &SceneMesh) -> f64 {
+    let bounds = scene.bounds();
+    let span = |axis| bounds.max(axis) - bounds.min(axis);
+    let (x, y, z) = (span(bvh::Axis::X), span(bvh::Axis::Y), span(bvh::Axis::Z));
+    (x * x + y * y + z * z).sqrt()
+}
 
 /// **How big the tip marks in a profile preview are**, in sketch-plane
 /// metres: a fraction of the whole preview's extent.
@@ -1141,6 +1156,19 @@ pub struct ViewerApp {
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
+    /// **Whether the viewport draws the document's datums.**
+    ///
+    /// A VIEW setting and not a document one, and the line is the same
+    /// one `DisplayState`'s hide is on the other side of: which datums
+    /// exist is the recipe's business, and whether this window draws
+    /// them is this window's. It is not persisted for that reason
+    /// either — a preference file holds what a person chose about the
+    /// application, and this is what they chose about a glance.
+    ///
+    /// On by default: a feature nobody can see is a feature nobody
+    /// finds, and construction geometry is most wanted exactly when it
+    /// has just been authored.
+    show_datums: bool,
     /// A fit is owed as soon as the NEXT rebuilt scene lands — set by
     /// a successful `Open`, whose document arrives asynchronously, so
     /// fitting immediately would frame the outgoing picture.
@@ -1366,6 +1394,7 @@ impl ViewerApp {
             split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
+            show_datums: true,
             fit_on_scene: false,
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
@@ -2061,6 +2090,7 @@ impl eframe::App for ViewerApp {
                     delta_request: &mut delta_request,
                     features_content_height: &mut features_content_height,
                     split_dragged: &mut split_dragged,
+                    show_datums: &mut self.show_datums,
                 };
                 self.tree.ui(&mut behavior, ui);
             });
@@ -2168,6 +2198,9 @@ struct ViewerBehavior<'a> {
     features_content_height: &'a mut Option<f32>,
     /// Set when the user resized a tile themselves.
     split_dragged: &'a mut bool,
+    /// Whether the viewport draws datums ([`ViewerApp::show_datums`]);
+    /// the View pane's checkbox writes through it.
+    show_datums: &'a mut bool,
 }
 
 /// Land a fold: take the camera it reached, and either show the
@@ -2453,6 +2486,20 @@ impl ViewerBehavior<'_> {
         // the form; one that replayed but does not VALIDATE draws
         // anyway, which is the case where looking at it is the whole
         // point.
+        // **The document's construction geometry**, drawn before the
+        // preview so a form composing something over a datum reads on
+        // top of it. Sized against the scene's own extent
+        // (`datums::draws`), so a datum is the same size relative to
+        // the part whatever the part's scale is.
+        if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
+            for drawn in datums::draws(doc, evaluation, scene_extent(self.scene)) {
+                for point in drawn.segments {
+                    edges
+                        .datums
+                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
+                }
+            }
+        }
         if let Some(Ok(drawn)) = self.profile_preview {
             let plane = sketch::form_plane();
             // ONE size for every loop in the preview, from the whole
@@ -4582,6 +4629,15 @@ impl ViewerBehavior<'_> {
         }
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
+        ui.separator();
+        // **Datum visibility, and why it is a switch at all.**
+        // Construction geometry is drawn over the part, which is
+        // where it has to be for a plane to say what it cuts — and it
+        // is also in the way once a document has several. A view
+        // setting rather than a document one: which datums exist is
+        // the recipe's business, and whether this window draws them is
+        // this window's.
+        ui.checkbox(self.show_datums, "show datums");
         ui.separator();
         ui.label(format!(
             "camera yaw {:.1}°, pitch {:.1}°",
