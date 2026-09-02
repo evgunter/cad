@@ -881,6 +881,109 @@ Slate: CERT-M2 in implementation (block CERT-B4 slot 0); CERT-N2 next
 blinded tally adjudication (CERT-1×2, CERT-6×1, CERT-10×1) and the exit
 walk.
 
+### CERT-M2 — Track M's supertrait-bound unit (S213's split, D222, D223, the H-f census, S90-impl re-read) — MERGED
+
+PR 1559; spec `docs/CERT-M2-SPEC.md` (cert/orchestrator 1267e32c0); block
+CERT-B4 slot 0 (byte 123, fable at 3 → OPUS); ordinal 712 claimed at
+dispatch (main 22ccf0957); sample number at merge.
+
+**Mid-unit ruling.** The lane measured S213's split at nine files / twenty
+E0277s plus a gate-allowlist prerequisite and RECORDED it rather than took
+it; the orchestrator ruled to LAND it, widening the fence to the
+`bounds-allowlist.sh` file-list line, the ledger entry in
+`geom_core::real::bounds_allowlist`, and every site the tightened bound
+reaches (class (a) test → structural half / (b) generic caller → union
+bound / (c) mixed pass → stop; none fell in (c)). The lane's first branch
+carried its in-tree build directory in two pushed commits and was
+abandoned; the re-land on `cert/m2-supertrait-bound-v2` is the unit
+(`docs/prompts/implementer-discipline.md` gained the
+target-outside-the-worktree bullet, main 922eb5f1).
+
+Delivered head 81d131acc: tier 3 split into `validate_geometric_structural`
+(checks 1–6, 8, 9; `T: PropsQuadLane`), a private certified half (check 7;
+`T: Decide + CertifiedBounds`) and the composed door at the union bound —
+the certification duty now literal on the signature and ratified in the
+ledger; the `compile_fail,E0277` doctest honest per S216 (one error);
+D222's 36 `br` inlines a pure rename with `props.rs`'s fence drawn to
+Track M; D223 rewritten with a corrected premise (`ApproxSurface::certify`);
+H5's row carrying the three-trait census as CERT-M3's executable spec
+(EdgeNurbsLane splits free — already a closure parameter; PcurveFittedLane
+does not split — check 4 IS the certificate's envelope; ChartRegionLane
+splits only with a completeness contract for Evan); S90-impl re-read and
+still parked. **Two gate reds before review, neither in kernel code**:
+the render/k-lint lanes compile the EXCLUDED root `demos/tour`, where a
+twenty-first bound site lived (klein.rs:949 — fixed by the lane in
+d15d02000, class (b), all seven excluded roots then swept and built as the
+gate builds them); and d15d02000's draw at (interval, 1e-12) redded on a
+VERBS-TORAX fixture that was red on bare main at that point — the
+issue-1356 class again — repaired orchestrator-direct as PR 1563 (a
+per-band-honest re-pin, merged 1f98b8479) and ported as the merge
+8f5384515, the frozen review head. Method note amended twice pre-R1
+(cert/ab-state fae2dd0d9). Gate 33604292256 green, lane=both + eps=1e-12
+trailer-pinned.
+
+**The dual (ordinal 712, sample at the row)**: byte 131 parity 1 ⇒ R1
+FABLE + R2 OPUS, sequential; R1 ran across the 08:05Z container restart
+(resumed from its transcript). R1 NMAI (A-W-F 1/7/~12); R2 NMAI (3/6/4).
+Both UPHELD by execution: the two mixed passes byte-identical base vs
+head on both corpora and lanes; the compile_fail row honest; D222 a pure
+rename; the census verdicts (R1 deleted EdgeNurbsLane and got 0 E0277 plus
+exactly the validate.rs check-2 cost the body priced); the DL3 `[]` row
+loud. BILATERAL at differing severity: H5's landed count stale (22
+diagnostics / 11 files / ten Dual rows); the checks-8/9 gating of check 7
+unobservable on any in-tree fixture and unpinned (check 2 pre-empts in
+both passes — both arms tried to separate it and could not); the
+refusing-arm receipt undercounted; `props.rs:652`'s stale trait doc; S90's
+count a line count. **R1's UNILATERAL EXECUTED MAJOR — a v6 tally
+candidate**: check 7's CLOSED-FORM arm computes at a dual, so on seven
+reverted closed-form bodies the old door gave `Body<Dual64>` a real
+`NegativeVolume` VERDICT (and `validate_pseudomanifold`/`contact_marks`
+still do) while the structural half answers `Ok(())` — the split retired a
+verdict, not only the quadrature refusal, and the at-rest doors disagree
+at a dual; R2's item 3 saw only the DL3 witnesses. R2's unilateral
+inspected MAJOR: the structural half's bound is `PropsQuadLane` where
+H-R16 spells `Decide` (public lane-trait-bounded validate doors 2 → 4).
+R1's unilateral MINs: `validate.rs:2676`'s `datum_lo()` decides a torus
+tube — the ledger's "brackets never decide" clearance was grep-true and
+substance-false (S88's blind spot); S216 carried a "(landed)" annotation
+rule 3 forbids.
+
+**Orchestrator ruling on the MAJOR**: the structural half is NOT the +V
+judge at any scalar (H-R3's vocabulary); a `Decide`-only closed-form arm
+inside it was REJECTED as re-minting a mixed pass in the half whose
+property is having none. Fix pass IMPLEMENTER-INHERITED, 16 union items,
+head c2fbdfac0: the verdict fact stated at both doors and the module
+header and PINNED (`geometric_cube`'s
+`the_structural_half_does_not_judge_orientation_at_any_scalar`: f64
+composed → NegativeVolume, Dual64 structural → Ok, Dual64 pseudomanifold →
+NegativeVolume, on one inverted cube); the check-8/9 sentences amended in
+both directions and the ORDER pinned (`verbs_shell`'s composed-vs-battery
+row) since the widening is unobservable in-tree; H5's counts with their
+unit; the structural half's bound written into H5 as CERT-M3's inheritance
+(end state `Decide + Bounds + PcurveFittedLane` plus a home for
+`recertify_approx`, not `Decide`); the ledger disclosing `datum_lo()` with
+its argument; `contact_marks`' "exactly as validate_geometric would" and
+every `# Errors: As [validate_geometric*]` cross-reference swept; the
+refusing-arm receipt corrected (three methods per impl); S90's count
+re-classified (17 lines / 19 reads; a branch condition and a value read
+among them); 45 trait declarations with blind spot (i)'s live instance
+named (`demos/tour/src/scalar.rs:24`); `edge_nurbs::lane`'s visibility
+priced; two pasted paragraphs given one home; both reviewer probe suites
+adopted whole by merge with three adoption-owned lint edits. `DUAL-DESIGN.md:86`
+left for M10 and flagged on the PR with the at-rest disagreement.
+
+Gates: fix head c2fbdfac0 run 33629724144 green (lane=both, eps=1e-12,
+all 22 jobs); MERGED #1559 with this docs-only log entry riding (the
+merge commit is recorded in the A/B row, written main-direct at merge).
+
+Issues: none named by this unit. Filed: none new at merge — D210 was
+filed and withdrawn in-branch; H5 carries the census, the H-R16
+correction and CERT-M3's inheritance; the DL3 at-rest disagreement and
+`DUAL-DESIGN.md:86` are M10's, flagged on the PR. Slate: CERT-M3
+(slot 2 OPUS, `docs/CERT-M3-SPEC.md` — its spec is H5's census as landed
+here) dispatches from this merge; CERT-N2's close-out in flight; then
+the exit walk.
+
 ### CERT-N2 — Track N's H2 lane, the merge's residue (S99, S101, S102, S103, S116(b)) — MERGED
 
 PR 1558; spec `docs/CERT-N2-SPEC.md` (cert/orchestrator 1267e32c0); block
