@@ -3180,3 +3180,27 @@ VERBS-C5ARMS PR-1 review ordinal fixed at dispatch (2026-09-02,
 PR #1577 open — frozen head `d4e67f57a`): **ordinal 111** (VERBS
 band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
 Sample number AT MERGE in main's order. Row at merge.
+## INSTRUMENT NOTE — FABLE 5.1 RELEASE BOUNDARY (Evan, in-chat 2026-09-02)
+
+**Fable 5.1 was released 2026-09-01.** The exact identity (5.0 vs
+5.1) of fable-armed sessions dispatched a bit before or after
+that mark is NOT KNOWN — dispatches near the boundary may have
+landed on either. Fable rows from clearly after the mark onward
+must be ANALYZED SEPARATELY from those before; any readout whose
+window spans 2026-09-01 must say so and should report the two
+eras separately (the v5-discontinuity convention applies to the
+model axis exactly as it did to the instrument axis).
+
+Affected VERBS rows near the boundary, for the analysis agent's
+era assignment: the ordinal-107 R1 redispatch and ordinal-108 R2
+(both 2026-08-31, before, near-mark); the ordinal-110 R1 and the
+C5ARMS implementer (dispatched 2026-09-01, SPANNING the mark);
+the ordinal-111 R1 and the C5ARMS fix pass (2026-09-02, after,
+near-mark). Other programs' fable rows in the same window carry
+the same caveat.
+
+Also recorded, PENDING (not ratified): Evan is considering
+switching the implementer arm ratio from the v4 blocks'
+{opus,opus,opus,fable} (1:3) back to fable:opus 1:2. If ratified,
+it takes effect at the next block draw; already-drawn per-slot
+arms stand unless Evan says redraw.
