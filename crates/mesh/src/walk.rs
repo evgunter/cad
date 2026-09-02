@@ -497,6 +497,92 @@ pub(crate) struct UvPoint {
 
 const TAU: f64 = core::f64::consts::TAU;
 
+/// The ids that appear at two or more DISTINCT UV locations among
+/// `entries` — the "one mesh vertex, two parameter locations" state
+/// that both tessellation lanes have to reason about, with ONE home.
+///
+/// **"Distinct" means what SPADE means by it**, which is why this
+/// compares `f64`s and not their bits. Spade's vertex lookup is
+/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0` are
+/// ONE spade vertex and two bit patterns. A `to_bits` compare would
+/// report "apart" exactly where spade dedupes, which is an invariant
+/// restated in a spelling that disagrees with the module it is about.
+/// Two entries spade merges are one CDT vertex and cannot be fanned
+/// apart; two it keeps can.
+///
+/// Both callers used to carry their own copy of that rule against
+/// their own polygon type (`curved::identified_ids` over
+/// [`UvPoint`], `trimmed::id_repeats_apart` over `(u, v, id)`
+/// triples), one of them documenting itself AS a copy. The rule is
+/// spade's, not either lane's, so it lives once and both lanes hand it
+/// their entries.
+pub(crate) fn ids_at_two_uvs(
+    entries: impl IntoIterator<Item = (f64, f64, u32)>,
+) -> std::collections::HashSet<u32> {
+    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
+    let mut repeated: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for (u, v, id) in entries {
+        #[allow(clippy::float_cmp)]
+        if seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)) {
+            repeated.insert(id);
+        }
+    }
+    repeated
+}
+
+/// The undirected key of the edge `(a, b)`: endpoints ascending.
+///
+/// One home for the spelling every edge census in this crate uses —
+/// the two in [`mod@crate::tessellate`], the pole/seam one in
+/// [`crate::curved`] and [`crate::trimmed`], `planar`'s crossing
+/// bookkeeping and [`crate::validate::check_mesh`]'s manifoldness
+/// census. The censuses themselves are deliberately NOT unified: they
+/// ask different questions (which edges to count at all, what count is
+/// legal, whether winding is tracked), and folding them together would
+/// state a shared conclusion they do not share. What they do share is
+/// this key, and a key spelled six ways is six chances to spell it
+/// wrong.
+pub(crate) const fn edge_key(a: u32, b: u32) -> (u32, u32) {
+    if a < b { (a, b) } else { (b, a) }
+}
+
+/// The edge incident to an IDENTIFIED vertex that this patch uses more
+/// than twice, if any — the emitted form of #678's class, re-derived
+/// over the emission rather than argued from the grid, for whichever
+/// lane hands it a patch.
+///
+/// A fan edge around an identified vertex is interior to the patch and
+/// used twice, or on the patch boundary and used once with the
+/// neighbouring face supplying the other use. THREE or more uses in
+/// ONE patch means the collapse left something other than a fan, which
+/// is the non-manifold state; four is #678's own signature, and the
+/// threshold is at three because three is already the state — a row
+/// pins that, since `n > 3` is a mutant this census would otherwise
+/// survive.
+///
+/// An empty `identified` set means there is nothing to re-derive and
+/// the scan does not run at all: a wedge wall, an untrimmed patch or
+/// any face whose walk repeats no id pays one branch.
+#[cfg(debug_assertions)]
+pub(crate) fn overused_identified_edge_in(
+    identified: &std::collections::HashSet<u32>,
+    triangles: &[[u32; 3]],
+) -> Option<((u32, u32), usize)> {
+    if identified.is_empty() {
+        return None;
+    }
+    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+    for t in triangles {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            if identified.contains(&a) || identified.contains(&b) {
+                *uses.entry(edge_key(a, b)).or_insert(0) += 1;
+            }
+        }
+    }
+    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
+}
+
 /// `raw + 2πk` nearest `prev`.
 fn unwrap_near(raw: f64, prev: f64) -> f64 {
     raw + TAU * ((prev - raw) / TAU).round()
