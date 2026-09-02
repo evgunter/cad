@@ -181,19 +181,10 @@ logged pre-draw per the protocol.
   coordinated on the away channel — schema is contended ground);
   narrow the sealed verb-module signatures to bare state values so
   chain-state-consuming verbs are unwritable (lever arm + identity
-  data confined to emission-layer types). The same coordinated
-  bump CARRIES BOOL-11's deferred `ContinueTo` wire spelling (one
-  bump, both vocabulary changes — the lifting door's typed refusal
-  and its `NOT_IN_DOCUMENT` witness roster retire with it) and the
-  schema-machinery revision Evan rules on (in-chat, 2026-09-01: the
-  twelve `schema_version_is_current` equality pins RETIRE — their
-  stated purpose, catching a same-number bump that merges clean,
-  they cannot serve; the replacement is Evan's pick among a bump
-  ledger, cutting to one tag + one generic refusal row, or dropping
-  the hand-maintained version for a build-derived tag / the
-  deserializer's own typed rejection wrapped in the regenerate
-  recourse — a D6.3 revision, recorded here when picked). After
-  BOOL-8; BOOL-9's raw-door survey runs beside it.
+  data confined to emission-layer types). After BOOL-13 there is
+  no schema bump to coordinate: the wire vocabulary changes and the
+  corpus regenerates. After BOOL-13; BOOL-9's raw-door survey runs
+  beside it.
 - **BOOL-11 — the declared point-target continuation and the
   structural closer (M; under the Q1 third-round extension).** The
   variant declaring a leg the straight continuation landing on a
@@ -223,8 +214,35 @@ logged pre-draw per the protocol.
   the build; lily's section finally authors through the lattice in
   every rotation the loft pins, `RawLoop` and the second kernel
   dependency leave `demos/tour`, the named gap retires; BOOL-11's
-  parity-wall rows flip to the demonstration. After BOOL-11's merge;
-  before BOOL-9.
+  parity-wall rows flip to the demonstration. Carries BOOL-11's
+  deferred `ContinueTo` wire spelling (trivial once BOOL-13 has
+  landed — an additive vocabulary change; the lifting door's typed
+  refusal and its `NOT_IN_DOCUMENT` witness roster retire with it)
+  since the persisted tour document authors through it. After
+  BOOL-13; before BOOL-9.
+- **BOOL-13 — the schema demolition (S/M; ruled — Evan, in-chat,
+  2026-09-01, option C strong form).** Delete the hand-maintained
+  `SCHEMA_VERSION`, the version door and its `SchemaTooOld` family,
+  the ratified-empty migration chain, the twelve per-version
+  break-fixture test files and their `schema_version_is_current`
+  equality pins, and the bump-coordination convention. What stays:
+  ONE typed refusal — a file this build cannot read refuses with
+  the regenerate recourse — carried by the deserializer's own
+  rejection of unknown or missing vocabulary (the unit VERIFIES
+  that rejection is typed and name-carrying before leaning on it;
+  if it is not, the fallback is the one-tag-plus-one-generic-row
+  shape, reported before building) — so an additive change
+  invalidates no document and a breaking one names the field. The
+  persist module header rewrites to say, in as many words, that
+  schema breaks are not at all a problem because this is not
+  released yet, no document exists outside the repo, and every
+  checked-in document is a regenerable artifact; versioning is
+  Band-4 work for the first released file (DESIGN.md's roadmap
+  line, revised in the same ruling). Corpus regeneration through
+  the release tour build if the header format changes. Schema is
+  contended ground: announce on the away channel before landing
+  (in-flight bumps elsewhere conflict once — the last time). After
+  BOOL-11's merge; before BOOL-12.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
