@@ -1089,9 +1089,10 @@ pub trait PcurveFittedLane: Decide {
     /// the derivation and the certificate are the same static split —
     /// both need the C9 ring, both are absent at [`geom_core::Dual`] —
     /// and a mint that had to name two lane traits for one image would
-    /// carry the split twice. `edge_nurbs::EdgeNurbsLane` keeps its own
-    /// door for the ADOPT path, which certifies the same image with the
-    /// plane operand's limbs beside it.
+    /// carry the split twice. The plane × NURBS lane
+    /// ([`crate::plane_nurbs_limbs`]) keeps its own door for the ADOPT
+    /// path, which certifies the same image with the plane operand's
+    /// limbs beside it.
     ///
     /// # Errors
     ///

@@ -47,18 +47,21 @@
 //! wanders off the true foot path enlarges the bound it must pass.
 //! A wrong `P` cannot launder a wrong carrier: it can only refuse.
 //!
-//! # The static lane split
+//! # Which scalars may derive this certificate
 //!
 //! Limbs 2 and 3 are C9-ring bounds and the foot point is a bracket
-//! read, so the honest signature is `T: Decide + Bounds`
-//! (`geom_core::Bounds`'s compound-allowlist note, M6-2). The split is
-//! expressed as [`EdgeNurbsLane`] in the ratified
-//! [`crate::PcurveFittedLane`] / `topo::props::PropsQuadLane` shape:
-//! certified impls for `f64`, the telemetry probe and the interval
-//! scalar, a **refusing** impl for `geom_core::Dual` (which may not
-//! certify — D1, 2026-08-19; it carries the value channel's bracket
-//! and that is not the right to mint a C9-ring bound), and `Bounds`
-//! kept out of `topo`'s signatures.
+//! read, so the honest signature is
+//! `T: Decide + Bounds + CertifiedEnclosure`
+//! (`geom_core::Bounds`'s compound-allowlist note, M6-2), and
+//! [`plane_nurbs_limbs`] carries it. That bound is the whole split: it
+//! admits `f64`, the telemetry probe and the interval scalar, and it
+//! does not admit `geom_core::Dual`, which may not certify (D1,
+//! 2026-08-19 — it carries the value channel's bracket, and that is
+//! not the right to mint a C9-ring bound). A dual does not receive a
+//! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
+//! default signatures because the capability is injected at a separate
+//! door ([`crate::certify::NurbsLane`]) rather than raised into the
+//! shared machinery.
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -308,7 +311,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// image is EVIDENCE, and what makes it sound is that its consumer
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span (module docs).
 ///
-/// **Two consumers, one producer.** [`lane`] certifies the image as
+/// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
 /// part of the plane × NURBS edge certificate at ADOPT time;
 /// [`crate::PcurveFittedLane::general_image`] hands the same image to
 /// the pcurve mint, where it becomes a stored
@@ -319,7 +322,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// carry — so there is one producer and both call it.
 ///
 /// `per_sample` is a hook run at every schedule sample in order, with
-/// the sample index and its foot; it is where [`lane`] puts its
+/// the sample index and its foot; it is where [`plane_nurbs_limbs`] puts its
 /// transversality sweep, so that adding this second consumer did not
 /// move the order in which two refusals of the same run can fire. The
 /// mint passes a hook that does nothing.
@@ -340,7 +343,7 @@ where
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
     if wall.is_placeholder() {
-        // The same refusal [`lane`] states before it gets here, kept at
+        // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
         // the producer too: the mvfs placeholder is a mid-surgery "no
         // description yet" fact, and projecting onto it would return
         // feet of a surface that does not exist. `lane` still checks

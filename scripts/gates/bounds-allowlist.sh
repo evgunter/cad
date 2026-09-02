@@ -68,10 +68,16 @@
 # the narrowest possible extension of that same seam: it DELEGATES
 # to the already-listed `certify_rung3` door with a declared
 # carrier instead of a marched one, inheriting the door's
-# signature rather than widening anything. Its split is written in
-# the same shape — `EdgeNurbsLane` splits f64/Probe/Interval
-# (certified) from `Dual` (typed refusal) — and it is what keeps
-# `Bounds` out of `topo`'s signatures.
+# signature rather than widening anything, and it is what keeps
+# `Bounds` out of `topo`'s DEFAULT signatures.
+# geom-brep/src/certify.rs and topo/src/euler.rs are that same lane's
+# two DOORS (2026-09-02): its static split used to be a `Decide`
+# subtrait with a refusing `Dual` impl, and it is now the bound
+# `Decide + CertifiedBounds` written on the two impl blocks that name
+# the certified body. The necessity, the forced compound and what the
+# mixed passes take instead have ONE home: geom-core/src/real.rs, the
+# 2026-09-02 amendment to the M7-8 entry of the `Bounds` scope rule.
+# Not restated here; keep this a pointer.
 # topo/src/chart_region.rs is M9-2 PR-1's chart-region overlap
 # predicate (spec item 1; the PR 11 class, retroactive Evan
 # review per the self-merge convention): it simultaneously
@@ -299,7 +305,8 @@ gate() {
     | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
-    | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
+    | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs|certify)\.rs$' \
+    | gate_grep -vE '^crates/topo/src/euler\.rs$' \
     | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' \
     | gate_grep -vE '^crates/verbs/src/run\.rs$')
   if [ -n "$hits" ]; then

@@ -2243,10 +2243,11 @@ impl<T: Decide> Body<T> {
 ///
 /// A described NURBS operand in an `Intersection` certifies only
 /// through `geom_brep`'s injected lane, whose derivation needs a
-/// CERTIFYING scalar (`geom_brep::EdgeNurbsLane`'s static split; the
-/// lane fn's own bound is `Decide + Bounds + CertifiedEnclosure`, and
-/// since D1, 2026-08-19, it is that last term rather than `Bounds` that
-/// a dual fails). Raising the whole Euler surface to that bound would push it
+/// CERTIFYING scalar (`geom_brep::plane_nurbs_limbs`'s own bound is
+/// `Decide + Bounds + CertifiedEnclosure`, and since D1, 2026-08-19, it
+/// is that last term rather than `Bounds` that a dual fails, so a dual
+/// cannot write this door's call at all rather than being refused
+/// inside it). Raising the whole Euler surface to that bound would push it
 /// through hundreds of `T: Decide` signatures for a capability three
 /// of the four sealed scalars have unconditionally, so the lane is a
 /// SEPARATE DOOR onto the same shared machinery: identical

@@ -820,9 +820,9 @@ impl<T: Decide> EdgeCurve<T> {
 /// Limb 2 and limb 3 of the plane × NURBS certificate are C9-ring hull
 /// bounds and the foot point is a bracket read, so the honest
 /// derivation needs `T: Decide + Bounds + CertifiedEnclosure`
-/// ([`crate::EdgeNurbsLane`]'s static split — since #643 the ring door
-/// is `CertifiedEnclosure`, which is what a `Dual` lacks; it has had
-/// `Bounds` since D1, 2026-08-19). Raising `certify`'s own
+/// ([`crate::plane_nurbs_limbs`]'s own bound — since #643 the ring
+/// door is `CertifiedEnclosure`, which is what a `Dual` lacks; it has
+/// had `Bounds` since D1, 2026-08-19). Raising `certify`'s own
 /// bound would push `Bounds` through every `T: Decide` signature in
 /// `topo` — hundreds of them, for a capability three of the four
 /// sealed scalars have unconditionally. So the capability is

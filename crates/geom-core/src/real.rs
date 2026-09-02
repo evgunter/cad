@@ -725,13 +725,42 @@ pub mod bounds_allowlist {
     //! plane × NURBS declare-and-check edge lane and the narrowest possible
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
-    //! that door's signature rather than widening the rule's reach, and
-    //! splits in the ratified shape (`EdgeNurbsLane`, refusing at a dual). It
+    //! that door's signature rather than widening the rule's reach. It
     //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
     //! SEPARATE door whose own impl block carries the lane bound
     //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
     //! the shared machinery. Injection moves a bound onto a narrower
     //! signature; it does not remove one.
+    //!
+    //! **2026-09-02, amending the entry above rather than adding a row — the
+    //! lane's split is a BOUND, not a trait.** This lane's static split was
+    //! spelled as a `Decide` subtrait with three forwarding impls and a
+    //! refusing `Dual` one. The trait is deleted: the shared certified body
+    //! is the free function `geom_brep::plane_nurbs_limbs`, at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! exactly as before, and the two DOORS that name it carry
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
+    //! `geom_brep::certify`'s `certify_nurbs_lane`/`recertify_nurbs_lane`
+    //! impl block and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
+    //! files join this allowlist for that reason and no other; the
+    //! per-file scope consequence is real and is the price of writing the
+    //! obligation where a grep can read it, which is the whole point of
+    //! retiring the trait name. **The compound is forced rather than
+    //! preferred**: [`Decide`](crate::Decide) descends from `SpanLocate` and
+    //! [`Bounds`](super::Bounds) from [`Real`](super::Real), so no sole bound in
+    //! the tree spells "decides AND may certify" — the next tighter spelling
+    //! is not a weaker term but a missing one, and dropping either term stops
+    //! the door compiling. **What changed is the mechanism, not the
+    //! strictness**: a dual reached the trait and got
+    //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
+    //! the call, and the refusal variant is retired with the impl that raised
+    //! it. **What a mixed pass does instead** is take the lane as an
+    //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
+    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` the composed
+    //! certified entry fills and the structural half and the two lane-keeping
+    //! at-rest passes leave empty — the M7-8 class is then not re-derived
+    //! and, being outside those doors' rights, not reported either
+    //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Evan review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
