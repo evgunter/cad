@@ -119,28 +119,57 @@ macro_rules! nurbs_curve {
                 self.knots.domain()
             }
 
+            /// Construction from parts whose invariants are ALREADY
+            /// established — the door a structural map takes instead
+            /// of [`Self::new`], and the one place that says why
+            /// `new`'s check is redundant for it.
+            ///
+            /// The invariants are load-bearing for indexing (module
+            /// docs), so skipping the check needs an argument, and it
+            /// is this: `knots` and `weights` are a validated curve's
+            /// own, carried verbatim, and `control` is that curve's net
+            /// mapped POINTWISE — a map over a `Vec` cannot change its
+            /// length — so `control.len()` still equals
+            /// `knots.control_count()`, `weights.len()` still equals
+            /// `control.len()`, and every weight is still the positive
+            /// finite value `new` admitted. The `debug_assert` re-derives
+            /// the count agreement that argument rests on (D2 addendum
+            /// row 5: a bug detectable only by re-derivation).
+            fn from_validated_parts(
+                knots: KnotVector,
+                control: Vec<$Point<T>>,
+                weights: Vec<f64>,
+            ) -> Self {
+                debug_assert!(
+                    control.len() == knots.control_count() && weights.len() == control.len(),
+                    "from_validated_parts: a pointwise map changed a count \
+                     (control {}, knots want {}, weights {})",
+                    control.len(),
+                    knots.control_count(),
+                    weights.len()
+                );
+                Self { knots, control, weights }
+            }
+
             /// The same curve read at another scalar: `f` applied to
             /// every control coordinate, the knots and weights carried
             /// over verbatim — they are `f64` structure at every scalar
-            /// (module docs), so nothing about the knot–weight–count
-            /// invariants can change and no re-validation is run.
+            /// (module docs). Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
             ///
             /// A structural map, not an evaluation: exact whenever
             /// `f` is (`Real::from_f64`, `Dual::constant`), and then
-            /// the lifted curve evaluates to the source — bit for bit
-            /// in a `Dual`'s value channel, as a bracket of the source
-            /// at the interval scalar. Poison travels: a poisoned
-            /// control point lifts to `f(poison)`, which every scalar
-            /// embedding keeps poison, so the placeholder lifts to the
-            /// placeholder and a corrupt described net stays corrupt
-            /// and described (the crate docs' `all`-not-`any` rule is
-            /// preserved, never widened).
+            /// the lifted curve evaluates to the source. What the
+            /// placeholder and a poisoned net lift to is argued once,
+            /// in `crate::scalar_lift`'s module docs.
+            #[must_use]
             pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> $Curve<U> {
-                $Curve {
-                    knots: self.knots.clone(),
-                    control: self.control.iter().map(|p| p.map(&f)).collect(),
-                    weights: self.weights.clone(),
-                }
+                $Curve::from_validated_parts(
+                    self.knots.clone(),
+                    self.control.iter().map(|p| p.map(&f)).collect(),
+                    self.weights.clone(),
+                )
             }
 
             /// The point at `t`, evaluated **in the given span** — the
@@ -241,18 +270,37 @@ macro_rules! nurbs_curve {
                 )
             }
 
-            /// First derivative in the given span: an order-1 basis
-            /// pass and the `C′` correction — the same arithmetic
+            /// Point and first derivative at `t` in the given span from
+            /// ONE order-1 basis pass — the jet door for a consumer that
+            /// wants both (a quadrature rule integrating `P × P′`, say)
+            /// and would otherwise run [`Self::eval_in_span`] and
+            /// [`Self::deriv_in_span`] as two passes, or
+            /// [`Self::ders_in_span`] and discard `C″`.
+            ///
+            /// The point is [`Self::eval_in_span`]'s bit for bit (the
+            /// order-0 row of the derivative recursion is the same
+            /// recursion, same accumulation order, same division) and
+            /// the derivative is [`Self::deriv_in_span`]'s bit for bit
+            /// (it IS this, projected). Same totality contract: a span
+            /// this curve's knot vector does not admit yields an
+            /// all-poison pair.
+            pub fn ders1_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>) {
+                let Some(([$($c),+], w_hom)) = self.homogeneous::<2>(span, t) else {
+                    $(let $c = T::from_f64(f64::NAN);)+
+                    return (net::poison_point::<T, $Point<T>>(), $Vector::new($($c),+));
+                };
+                $(let $c = rational_corrections($c, w_hom);)+
+                ($Point::new($($c[0]),+), $Vector::new($($c[1]),+))
+            }
+
+            /// First derivative in the given span: the derivative half
+            /// of [`Self::ders1_in_span`] — an order-1 basis pass and
+            /// the `C′` correction, the same arithmetic
             /// [`Self::ders_in_span`]'s middle component runs, bit for
             /// bit, without the order-2 row that component would
             /// discard. Same totality contract.
             pub fn deriv_in_span(&self, span: Span, t: T) -> $Vector<T> {
-                let Some(([$($c),+], w_hom)) = self.homogeneous::<2>(span, t) else {
-                    $(let $c = T::from_f64(f64::NAN);)+
-                    return $Vector::new($($c),+);
-                };
-                $(let $c = rational_corrections($c, w_hom);)+
-                $Vector::new($($c[1]),+)
+                self.ders1_in_span(span, t).1
             }
 
             /// Second derivative in the given span (the last component
@@ -1149,9 +1197,13 @@ macro_rules! nurbs_curve {
             }
 
             /// The second derivative at `t` (contract as
-            /// [`Self::deriv`]): the last component of [`Self::ders`],
-            /// whose per-span pass computes nothing a second derivative
-            /// does not consume.
+            /// [`Self::deriv`]): the last component of [`Self::ders`].
+            /// Per span, that pass computes nothing a second derivative
+            /// does not consume; per CALL the point and first-derivative
+            /// hulls across the overlapped spans are surplus to it — a
+            /// parameter at a knot on an interval-natured scalar hulls
+            /// two spans, so this projection pays two extra
+            /// `enclosure_hull`s per channel there, and nowhere else.
             pub fn deriv2(&self, t: T) -> $Vector<T> {
                 self.ders(t).2
             }

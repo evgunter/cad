@@ -321,22 +321,57 @@ impl<T: Real> NurbsSurface<T> {
         (self.knots_u.control_count(), self.knots_v.control_count())
     }
 
+    /// Construction from parts whose invariants are ALREADY
+    /// established — the door a structural map takes instead of
+    /// [`Self::new`], and the one place that says why `new`'s check is
+    /// redundant for it: both knot vectors and the weights are a
+    /// validated surface's own, carried verbatim, and `control` is that
+    /// surface's net mapped POINTWISE, which cannot change its length —
+    /// so `control.len()` still equals `nu · nv`, `weights.len()` still
+    /// equals `control.len()`, and every weight is still the positive
+    /// finite value `new` admitted. The `debug_assert` re-derives the
+    /// count agreement (D2 addendum row 5).
+    fn from_validated_parts(
+        knots_u: KnotVector,
+        knots_v: KnotVector,
+        control: Vec<Point3<T>>,
+        weights: Vec<f64>,
+    ) -> Self {
+        debug_assert!(
+            control.len() == knots_u.control_count() * knots_v.control_count()
+                && weights.len() == control.len(),
+            "from_validated_parts: a pointwise map changed a count \
+             (control {}, knots want {}, weights {})",
+            control.len(),
+            knots_u.control_count() * knots_v.control_count(),
+            weights.len()
+        );
+        Self {
+            knots_u,
+            knots_v,
+            control,
+            weights,
+        }
+    }
+
     /// The same surface read at another scalar: `f` applied to every
     /// control coordinate, both knot vectors and the weights carried
-    /// over verbatim — `f64` structure at every scalar, so the
-    /// count–weight invariants cannot move and no re-validation is
-    /// run. The contract is [`NurbsCurve3::map_scalar`]'s one
-    /// dimension up: exact whenever `f` is, poison travels, the
-    /// placeholder lifts to the placeholder.
+    /// over verbatim — `f64` structure at every scalar. Construction
+    /// goes through [`Self::from_validated_parts`], which states why no
+    /// re-validation is run. The contract is
+    /// [`NurbsCurve3::map_scalar`]'s one dimension up: exact whenever
+    /// `f` is; what the placeholder and a poisoned net lift to is
+    /// argued once, in `crate::scalar_lift`'s module docs.
     ///
     /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
+    #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> NurbsSurface<U> {
-        NurbsSurface {
-            knots_u: self.knots_u.clone(),
-            knots_v: self.knots_v.clone(),
-            control: self.control.iter().map(|p| p.map(&f)).collect(),
-            weights: self.weights.clone(),
-        }
+        NurbsSurface::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control.iter().map(|p| p.map(&f)).collect(),
+            self.weights.clone(),
+        )
     }
 
     /// The [`SurfaceWindow`] for a span pair already validated against

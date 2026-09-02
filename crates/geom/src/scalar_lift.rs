@@ -3,11 +3,25 @@
 //!
 //! `DESIGN.md` makes "evaluate the same function with a different
 //! scalar type" the reason the geometry layer is generic over `T`, and
-//! this module is where a `Curve3<f64>` becomes a `Curve3<Dual64>` or a
-//! `Curve3<Interval>` — one exhaustive match per enum, the scalar
+//! this module holds the ENUM half of that: `Curve3::map_scalar` and
+//! `Surface::map_scalar`, one exhaustive match per enum, the scalar
 //! conversion as the parameter, so a caller never spells the variant
 //! ladder and a variant added to either enum fails to compile here
 //! rather than silently falling to a default arm.
+//!
+//! # Where the rest of the lift lives
+//!
+//! The enum arms delegate to their payloads, and each payload's lift
+//! sits beside its private fields because that is the only place that
+//! can construct it: [`NurbsCurve3::map_scalar`] (and `NurbsCurve2`'s)
+//! in `curves/nurbs.rs`, [`NurbsSurface::map_scalar`] in
+//! `surfaces/nurbs.rs`, [`SurfaceDescription::map_scalar`] and
+//! [`ApproxSurface::map_scalar`] in `surfaces/approx.rs` — each through
+//! a door that states why the payload's count invariants survive a
+//! pointwise map. The leaf maps are `geom_core`'s `Point2/3::map`,
+//! `Vec2/3::map`, `Mat3::map` and `Affine3::map`. One name, `map_scalar`
+//! on every geometry type and `map` on every leaf; a reader looking for
+//! "where does this crate lift X" finds it on X.
 //!
 //! # What a lift is, and is not
 //!
@@ -31,6 +45,8 @@
 //! after a lift would be a silent substitution, and the whole reason a
 //! lift exists is to evaluate the *same* geometry at another scalar.
 //!
+//! # The placeholder and the poisoned net (the one home of this argument)
+//!
 //! What the placeholder and a poisoned net lift to follows from the map
 //! being structural. The placeholder's every control point is
 //! all-poison, and every scalar embedding keeps poison (`from_f64(NaN)`
@@ -51,7 +67,7 @@ use crate::surfaces::Surface;
 #[cfg(doc)]
 use crate::curves::NurbsCurve3;
 #[cfg(doc)]
-use crate::surfaces::{ApproxSurface, NurbsSurface};
+use crate::surfaces::{ApproxSurface, NurbsSurface, SurfaceDescription};
 
 impl<T: Real> Curve3<T> {
     /// The same curve read at another scalar (module docs): analytic

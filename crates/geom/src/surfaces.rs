@@ -1080,6 +1080,110 @@ mod tests {
         }
     }
 
+    /// A described NURBS with the structure the arch sheet lacks:
+    /// degree (3, 2), `u` interior knots at multiplicities 1 and 2
+    /// (= p_u − 1), a `v` interior knot at multiplicity 1 (= p_v − 1), a
+    /// 7 × 4 net, weights spanning twelve orders of magnitude.
+    fn knotted_sheet() -> Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let cycle = [1.0, 1e6, 1e-6, 4.0, 3e5, 2e-5, 1.0];
+        let mut control = Vec::with_capacity(28);
+        let mut weights = Vec::with_capacity(28);
+        for iu in 0..7 {
+            for iv in 0..4 {
+                let (u, v) = (iu as f64, iv as f64);
+                control.push(Point3::new(
+                    u * 0.7 + 0.1 * v,
+                    (u * 0.9).sin() + v * 0.4,
+                    (v * 1.3).cos() - 0.2 * u,
+                ));
+                weights.push(cycle[(iu * 4 + iv) % 7]);
+            }
+        }
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    }
+
+    /// Every knot value and every nonempty span's midpoint of one knot
+    /// vector.
+    fn knot_and_span_params(kv: &geom_core::spline::KnotVector) -> Vec<f64> {
+        let knots = kv.knots();
+        let mut ps: Vec<f64> = knots.to_vec();
+        ps.extend(
+            knots
+                .windows(2)
+                .filter(|w| w[1] > w[0])
+                .map(|w| 0.5 * (w[0] + w[1])),
+        );
+        ps.sort_by(f64::total_cmp);
+        ps.dedup();
+        ps
+    }
+
+    /// The lift carries the STRUCTURE verbatim — both knot vectors and
+    /// every weight — and the lifted surface evaluates to the source at
+    /// every `(u, v)` drawn from knot values, span boundaries and span
+    /// midpoints in both directions. A lift that perturbs an interior
+    /// knot or a weight is red here and nowhere in the
+    /// placeholder-vs-payload rows above.
+    #[test]
+    fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
+        let s = knotted_sheet();
+        let Surface::Nurbs(source) = &s else {
+            panic!("fixture is a NURBS");
+        };
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        let Surface::Nurbs(lifted) = &sd else {
+            panic!("a described NURBS lifted to another variant");
+        };
+        assert_eq!(
+            lifted.knots_u(),
+            source.knots_u(),
+            "u-knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.knots_v(),
+            source.knots_v(),
+            "v-knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.weights(),
+            source.weights(),
+            "weights must be carried verbatim"
+        );
+        for u in knot_and_span_params(source.knots_u()) {
+            for v in knot_and_span_params(source.knots_v()) {
+                let p = sd.eval(Dual::variable(u), Dual::constant(v));
+                let q = s.eval(u, v);
+                let du = s.deriv_u(u, v);
+                for (name, lifted, source, tangent) in [
+                    ("x", p.x, q.x, du.x),
+                    ("y", p.y, q.y, du.y),
+                    ("z", p.z, q.z, du.z),
+                ] {
+                    assert_eq!(
+                        lifted.value.to_bits(),
+                        source.to_bits(),
+                        "(u, v) = ({u}, {v}): lifted {name} = {} vs source {source}",
+                        lifted.value
+                    );
+                    assert!(
+                        (lifted.deriv - tangent).abs() <= 1e-9 * (1.0 + tangent.abs()),
+                        "(u, v) = ({u}, {v}): lifted d{name} = {} vs source {tangent}",
+                        lifted.deriv
+                    );
+                }
+            }
+        }
+    }
+
     /// The placeholder lifts to the placeholder: a structural map keeps
     /// poison, so `is_placeholder` survives the lift at both scalars.
     #[test]
@@ -1268,6 +1372,60 @@ mod tests {
                 matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
                 "a described NURBS lifted to the placeholder"
             );
+        }
+
+        /// The interval half of the structure row: knot vectors and
+        /// weights verbatim, and the lifted enclosure brackets the
+        /// source at every knot-value / span-midpoint pair. The width
+        /// bound is a FIXTURE PIN (this net, these weights), not a
+        /// degradation guard: it measures the evaluator's cancellation
+        /// under extreme weights, not width the lift adds (none).
+        #[test]
+        fn knotted_nurbs_lift_carries_structure_verbatim_at_interval() {
+            let s = super::knotted_sheet();
+            let Surface::Nurbs(source) = &s else {
+                panic!("fixture is a NURBS");
+            };
+            let si = s.map_scalar(Interval::from_f64);
+            let Surface::Nurbs(lifted) = &si else {
+                panic!("a described NURBS lifted to another variant");
+            };
+            assert_eq!(
+                lifted.knots_u(),
+                source.knots_u(),
+                "u-knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.knots_v(),
+                source.knots_v(),
+                "v-knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.weights(),
+                source.weights(),
+                "weights must be carried verbatim"
+            );
+            for u in super::knot_and_span_params(source.knots_u()) {
+                for v in super::knot_and_span_params(source.knots_v()) {
+                    let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
+                    let q = s.eval(u, v);
+                    for (name, enclosure, source) in
+                        [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                    {
+                        assert!(
+                            contains(enclosure, source),
+                            "(u, v) = ({u}, {v}): lifted {name} = [{}, {}] must contain {source}",
+                            enclosure.lo(),
+                            enclosure.hi()
+                        );
+                        assert!(
+                            enclosure.hi() - enclosure.lo() <= 1e-8 * (1.0 + source.abs()),
+                            "(u, v) = ({u}, {v}): {name} width {} (fixture pin)",
+                            enclosure.hi() - enclosure.lo()
+                        );
+                    }
+                }
+            }
         }
 
         /// NaI in → NaI out, and the Nurbs placeholder poisons at

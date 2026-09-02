@@ -11,7 +11,11 @@ use geom::curves::Curve3;
 use geom::surfaces::Surface;
 use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
 use geom_core::spline::KnotVector;
-use geom_core::{Dual, Dual64, Point2, Point3, Real};
+use geom_core::{Dual, Dual64, Point2, Point3};
+// Lint conformance (lane edit): `Real` is only named by the
+// interval-gated rows below, so its import is gated the same way.
+#[cfg(feature = "interval")]
+use geom_core::Real;
 
 /// Degree 5, one interior knot at multiplicity 4 (= p − 1), weights
 /// spanning sixteen orders of magnitude.

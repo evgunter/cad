@@ -42,6 +42,7 @@ impl<T: Real> Point2<T> {
     /// coordinate, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
     /// `Dual::constant`).
+    #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Point2<U> {
         Point2::new(f(self.x), f(self.y))
     }
@@ -104,6 +105,7 @@ impl<T: Real> Point3<T> {
 
     /// The same point read at another scalar: `f` applied to each
     /// coordinate, in `x, y, z` order (see [`Point2::map`]).
+    #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Point3<U> {
         Point3::new(f(self.x), f(self.y), f(self.z))
     }

@@ -2066,8 +2066,9 @@ the call sits in the `Circle | Ellipse` arm and repeats an azimuthal frame,
 two `sin_cos` for one jet. **C-R6 does not reach it** even though it is the
 same crate: the surface side had a ratified `SurfaceJet` to project onto,
 and the curve enum has no `CurveJet` at all, so that work is minting a
-public type — a design element, C-R19 tier two — whose NURBS arm would
-project onto the payload's own jet door, `NurbsCurve3::ders`.
+public type — a design element, C-R19 tier two. (The NURBS payload's own
+jet doors, `NurbsCurve3::ders` and `ders1_in_span`, are what such an arm
+would have to read; whether it does is the design question.)
 
 **Two shapes on the surface side are noted and deliberately not fixed:**
 `SurfaceJet` lives in the NURBS arm's module though it is the enum-wide
@@ -7066,7 +7067,7 @@ three sub-lanes inside the track.
 | **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
 | **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
 | **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
-| **C24** | The analytic curve-side member of S32's discarded-jet class — `Curve3::deriv`/`deriv2` on the `Circle`/`Ellipse` arms each rebuild the azimuthal frame, and `topo/src/splitting/neighborhood.rs`'s conic arm calls both at one `t` for *"the base-endpoint jet"* (two `sin_cos` for one jet). The enum has no jet door: minting a `CurveJet` is a public type — a design element, C-R19 tier two — whose NURBS arm projects onto `NurbsCurve3::ders`. The `neighborhood.rs` call site is Track Q's | Track C |
+| **C24** | The analytic curve-side member of S32's discarded-jet class — `Curve3::deriv`/`deriv2` on the `Circle`/`Ellipse` arms each rebuild the azimuthal frame, and `topo/src/splitting/neighborhood.rs`'s conic arm calls both at one `t` for *"the base-endpoint jet"* (two `sin_cos` for one jet). The enum has no jet door: minting a `CurveJet` is a public type — a design element, C-R19 tier two (the NURBS payload's own jet doors, `NurbsCurve3::ders` / `ders1_in_span`, are what an arm would read; the design decides whether). The `neighborhood.rs` call site is Track Q's | Track C |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 

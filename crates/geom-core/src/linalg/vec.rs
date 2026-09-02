@@ -39,6 +39,7 @@ impl<T: Real> Vec2<T> {
     /// component, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
     /// `Dual::constant`).
+    #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec2<U> {
         Vec2::new(f(self.x), f(self.y))
     }
@@ -142,6 +143,7 @@ impl<T: Real> Vec3<T> {
 
     /// The same vector read at another scalar: `f` applied to each
     /// component, in `x, y, z` order (see [`Vec2::map`]).
+    #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec3<U> {
         Vec3::new(f(self.x), f(self.y), f(self.z))
     }

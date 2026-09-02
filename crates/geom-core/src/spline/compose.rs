@@ -295,14 +295,9 @@ fn insert_once_ring(
     coeffs: &mut Vec<RingInterval>,
     u: InteriorKnot,
 ) {
-    // `u` is strictly inside the domain by its type: it was minted by
-    // the `KnotVector` these raw knots were read from, and the caller's
-    // loop never touches either clamp run, so that domain is this
-    // list's domain at every step. That is what entitles the span
-    // search — total on all of `f64`, so it would answer an END span
-    // for an outside value and the insertion below would land inside a
-    // clamp run, a silently wrong decomposition — to be run without a
-    // guard here.
+    // Strictly interior by type plus privacy (`InteriorKnot`'s docs):
+    // the span search below is total and would answer an END span for
+    // an outside value, which is why it may only run on a proven one.
     let u = u.value();
     // Span k: knots[k] ≤ u < knots[k+1], the last copy's span, so
     // 0 < k < len − 1.

@@ -1010,6 +1010,122 @@ mod tests {
         );
     }
 
+    /// A described NURBS with the structure the quarter circle lacks:
+    /// degree 4, interior knots at multiplicities 1, 2 and 3 (= p − 1),
+    /// weights spanning twelve orders of magnitude.
+    fn knotted_curve() -> Curve3<f64> {
+        let knots = geom_core::spline::KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.5, 0.5, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.0, 1.0,
+            ],
+            4,
+        )
+        .unwrap();
+        let control: Vec<Point3<f64>> = (0..11)
+            .map(|i| {
+                let x = i as f64;
+                Point3::new(x * 0.5 - 2.0, (x * 0.8).sin() * 1.5, (x * 0.3).cos())
+            })
+            .collect();
+        let weights = vec![1.0, 1e6, 1e-6, 3.0, 2e5, 5e-5, 1.0, 1e4, 1e-4, 7.0, 1.0];
+        Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
+    }
+
+    /// Every knot value (so every span boundary) and every nonempty
+    /// span's midpoint of a NURBS curve.
+    fn knot_and_span_params(c: &Curve3<f64>) -> Vec<f64> {
+        let Curve3::Nurbs(n) = c else {
+            panic!("fixture is a NURBS");
+        };
+        let knots = n.knots().knots();
+        let mut ps: Vec<f64> = knots.to_vec();
+        ps.extend(
+            knots
+                .windows(2)
+                .filter(|w| w[1] > w[0])
+                .map(|w| 0.5 * (w[0] + w[1])),
+        );
+        ps.sort_by(f64::total_cmp);
+        ps.dedup();
+        ps
+    }
+
+    /// The lift carries the STRUCTURE verbatim — every knot, the degree,
+    /// every weight — and the lifted curve evaluates to the source at
+    /// every knot value, span boundary and span midpoint. A lift that
+    /// perturbs an interior knot or a weight is red here and nowhere in
+    /// the placeholder-vs-payload rows above.
+    #[test]
+    fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
+        let c = knotted_curve();
+        let Curve3::Nurbs(source) = &c else {
+            panic!("fixture is a NURBS");
+        };
+        let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
+        let Curve3::Nurbs(lifted) = &cd else {
+            panic!("a described NURBS lifted to another variant");
+        };
+        assert_eq!(
+            lifted.knots(),
+            source.knots(),
+            "knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.weights(),
+            source.weights(),
+            "weights must be carried verbatim"
+        );
+        for t in knot_and_span_params(&c) {
+            let p = cd.eval(Dual::variable(t));
+            let q = c.eval(t);
+            let d = c.deriv(t);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, d.x),
+                ("y", p.y, q.y, d.y),
+                ("z", p.z, q.z, d.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "t = {t}: lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-9 * (1.0 + tangent.abs()),
+                    "t = {t}: lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+    }
+
+    /// `ders1_in_span` is `eval_in_span` and `deriv_in_span` bit for
+    /// bit — one order-1 pass answering both — on the knotted fixture
+    /// at every knot value, span boundary and span midpoint.
+    #[test]
+    fn ders1_in_span_is_eval_and_deriv_bit_for_bit() {
+        let c = knotted_curve();
+        let Curve3::Nurbs(n) = &c else {
+            panic!("fixture is a NURBS");
+        };
+        for t in knot_and_span_params(&c) {
+            let span = n.knots().span_at(t);
+            let (p, d) = n.ders1_in_span(span, t);
+            let q = n.eval_in_span(span, t);
+            let e = n.deriv_in_span(span, t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
     #[test]
     fn poison_parameter_poisons_the_point() {
         let c = xy_circle(2.0);
@@ -1169,6 +1285,53 @@ mod tests {
                 matches!(&ci, Curve3::Nurbs(n) if !n.is_placeholder()),
                 "a described NURBS lifted to the placeholder"
             );
+        }
+
+        /// The interval half of the structure row: knots and weights
+        /// verbatim, and the lifted enclosure brackets the source at
+        /// every knot value, span boundary and span midpoint. The width
+        /// bound is a FIXTURE PIN (this net, these weights), not a
+        /// degradation guard: what it measures is the evaluator's
+        /// cancellation under extreme weights, not any width the lift
+        /// adds (the lift adds none — every bracket is a point).
+        #[test]
+        fn knotted_nurbs_lift_carries_structure_verbatim_at_interval() {
+            let c = super::knotted_curve();
+            let Curve3::Nurbs(source) = &c else {
+                panic!("fixture is a NURBS");
+            };
+            let ci = c.map_scalar(Interval::from_f64);
+            let Curve3::Nurbs(lifted) = &ci else {
+                panic!("a described NURBS lifted to another variant");
+            };
+            assert_eq!(
+                lifted.knots(),
+                source.knots(),
+                "knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.weights(),
+                source.weights(),
+                "weights must be carried verbatim"
+            );
+            for t in super::knot_and_span_params(&c) {
+                let p = ci.eval(Interval::from_f64(t));
+                let q = c.eval(t);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "t = {t}: lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() <= 1e-8 * (1.0 + source.abs()),
+                        "t = {t}: {name} width {} (fixture pin)",
+                        enclosure.hi() - enclosure.lo()
+                    );
+                }
+            }
         }
 
         /// `Dual<Interval>` instantiates cleanly and its derivative

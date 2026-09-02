@@ -4,7 +4,15 @@
 //! hit knot values and span boundaries. f64 only, so the dump probe
 //! compiles at the red-first commit too.
 
-#![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// Lint-header conformance (lane edit): `unreachable_pub` added — this
+// helper is a private module of the aggregated test binary.
+#![allow(
+    dead_code,
+    unreachable_pub,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic
+)]
 
 use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
 use geom_core::spline::KnotVector;

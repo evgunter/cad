@@ -9,8 +9,14 @@
 //!
 //! Runs in CI's interval lane (`--features interval`; the workspace's
 //! x86-64-v3 floor applies). Promotion adaptations (mechanical only):
-//! the standard test-lint allows below; everything else is verbatim.
-//! Placement rationale: see `review_m2_pr1.rs`.
+//! the standard test-lint allows below. One later edit is NOT
+//! mechanical and is the one exception to "verbatim": the reviewer's
+//! hand-written `Surface<f64> → Surface<Interval>` ladder and its
+//! `Dual<Interval>` re-spelling were retired for `Surface::map_scalar`,
+//! under the rule that a scalar-EMBEDDING helper carrying the
+//! `Nurbs(_) => nurbs_placeholder()` substitution is retired while a
+//! battery's independent DERIVATION stays. Every derivation in this
+//! file is untouched. Placement rationale: see `review_m2_pr1.rs`.
 #![cfg(feature = "interval")]
 #![allow(
     clippy::unwrap_used,

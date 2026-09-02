@@ -156,8 +156,12 @@ pub enum SurfaceDescription<T: Real> {
 
 impl<T: Real> SurfaceDescription<T> {
     /// The same description read at another scalar: the base through
-    /// [`NurbsSurface::map_scalar`], the distance through `f`. A
-    /// structural map, exact whenever `f` is.
+    /// [`NurbsSurface::map_scalar`] (whose own door states why the
+    /// net's invariants survive), the distance through `f`. A
+    /// structural map, exact whenever `f` is; this enum carries no
+    /// invariant of its own beyond its base's, so there is nothing
+    /// here for a check to re-establish.
+    #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> SurfaceDescription<U> {
         match self {
             SurfaceDescription::Offset { base, d } => SurfaceDescription::Offset {
@@ -282,14 +286,23 @@ impl<T: Real> ApproxSurface<T> {
     /// description and the fit through their own `map_scalar`s, the
     /// window, tolerance and certificate carried over verbatim.
     ///
-    /// **Not a second door.** The certificate is provenance, not
-    /// authority (type docs): it records what the construction run
-    /// measured about this geometry, and a structural map of that
-    /// geometry — exact for every scalar embedding, `Real::from_f64`
-    /// or `Dual::constant` — is the same geometry, so the record still
-    /// describes it. The validator re-derives against the description
-    /// on every call whatever scalar it reads, so a lift can neither
-    /// mint a claim nor launder one.
+    /// **Not a second door, and why `certify`'s work is not redone.**
+    /// This type's one invariant is "the certificate was produced by a
+    /// certifier run over this description and this fit". The
+    /// description and fit go through their own structural doors
+    /// ([`SurfaceDescription::map_scalar`], [`NurbsSurface::map_scalar`],
+    /// which state why the payload invariants survive), and a
+    /// structural map of the geometry — exact for every scalar
+    /// embedding, `Real::from_f64` or `Dual::constant` — is the same
+    /// geometry, so the certifier's record still describes what it was
+    /// run over. The certificate is provenance, not authority (type
+    /// docs): the validator re-derives against the description on every
+    /// call whatever scalar it reads, so a lift can neither mint a
+    /// claim nor launder one. The scalar this type can hold is
+    /// therefore no longer only the fit door's `f64`: a consumer that
+    /// argued "no other scalar can hold an `ApproxSurface`" now needs
+    /// the refusal it already has, not the premise.
+    #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ApproxSurface<U> {
         ApproxSurface {
             description: self.description.map_scalar(&f),

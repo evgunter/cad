@@ -308,6 +308,9 @@ fn n1r2_one_poisoned_point_lifts_to_a_described_poisoned_net() {
 
 /// The retired `ders_in_span` spelling, reconstructed verbatim from the
 /// removed lines of commit 7bf42740e (order-2 basis, inline corrections).
+// Lint conformance (lane edit): this is the RETIRED spelling kept
+// verbatim for the bit check, `x[k] = x[k] + …` included.
+#[allow(clippy::assign_op_pattern)]
 fn retired_ders_in_span(
     c: &NurbsCurve3<f64>,
     span: Span,
