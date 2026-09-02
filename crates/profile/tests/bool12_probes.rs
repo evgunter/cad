@@ -347,7 +347,7 @@ fn the_declared_arrival_is_banded_on_both_sides() {
     // miss and its lever in the payload.
     let refused = tilted_close(100.0 * k_eps, 1.0);
     match refused {
-        Err(PathError::SeamArrivalOffDirection { margin, arm }) => {
+        Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
             assert!(
                 (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),
                 "margin {margin} is not the authored miss {}",
@@ -359,13 +359,22 @@ fn the_declared_arrival_is_banded_on_both_sides() {
     }
 }
 
-/// **The lever is dimension-honest.** The threshold is on the
-/// DISPLACEMENT the misalignment opens at the seam, not on the angle, so
-/// holding the displacement fixed and changing the closing leg's length
-/// leaves the verdict alone — while the ANGLE those two rows carry
-/// differs by the length ratio. Without the lever the same source would
-/// compare a dimensionless sine against a length tolerance, which is a
-/// category error, and the verdict would swing with the leg.
+/// **The lever is dimension-honest, and this row FAILS without it.**
+/// The threshold is on the DISPLACEMENT the misalignment opens at the
+/// seam, not on the angle, so holding the displacement fixed and
+/// changing the closing leg's length leaves the verdict alone — while
+/// the ANGLE those rows carry differs by the length ratio.
+///
+/// The first two arms alone did NOT pin the lever: R2 proved by
+/// mutation that replacing both `Margin::levered(x, arm)` with
+/// `Margin::of(x)` left every shipped row green, because at arms 1 and
+/// 4 the levered and unlevered margins land on the same side of the
+/// band. What separates the two designs is an arm FAR from 1, and the
+/// third arm here is that separator: a 1000 m closing leg missing by
+/// `100·ε` of displacement subtends an angle of `0.1·ε`, which an
+/// unlevered check calls Zero and ACCEPTS. (R2's own row states the
+/// same separation from the falsification side; the degenerate-lever
+/// row separates it from the other end, where the arm is sub-ε.)
 #[test]
 fn the_levered_threshold_does_not_drift_with_leg_length() {
     let (eps, k_eps) = band();
@@ -376,7 +385,11 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
         );
         let refused = tilted_close(100.0 * k_eps, arm);
         match refused {
-            Err(PathError::SeamArrivalOffDirection { margin, arm: lever }) => {
+            Err(PathError::SeamArrivalOffDirection {
+                margin,
+                arm: lever,
+                ..
+            }) => {
                 assert!(
                     (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),
                     "arm {arm}: margin {margin}"
@@ -390,6 +403,25 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
             }
             other => panic!("arm {arm}: {other:?}"),
         }
+    }
+    // THE SEPARATOR. A displacement past ε_input on a very long leg is
+    // an angle far below ε. Levered, it refuses; unlevered, it closes —
+    // so this arm is what the lever buys, and dropping the lever reds
+    // exactly here.
+    let long = tilted_close(100.0 * eps, 1000.0);
+    match long {
+        Err(PathError::SeamArrivalOffDirection { margin, arm, .. }) => {
+            assert!(
+                (margin.abs() - 100.0 * eps).abs() <= 1e-2 * 100.0 * eps,
+                "margin {margin} is not the authored displacement"
+            );
+            assert!(
+                margin.abs() / arm < eps,
+                "the ANGLE is sub-eps by construction: {} ",
+                margin.abs() / arm
+            );
+        }
+        other => panic!("the long-arm miss must refuse: {other:?}"),
     }
 }
 

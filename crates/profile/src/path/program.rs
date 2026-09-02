@@ -126,6 +126,25 @@ pub enum Target<T: Real> {
     StartArriving(Arrival),
 }
 
+impl<T: Real> ArcData<T> {
+    /// The endpoint this spec names, where it names one (`Radius`,
+    /// `Sweep` and `ArcLen` complete against a state and carry none).
+    ///
+    /// A read-back door rather than a convenience: a census over the
+    /// mode x target matrix has to be able to ASK a spec what it
+    /// targets, and matching the three endpoint-full variants at every
+    /// such site is how a new mode goes missing from one of them.
+    #[must_use]
+    pub fn target(&self) -> Option<&Target<T>> {
+        match self {
+            ArcData::Bulge { target, .. }
+            | ArcData::Via { target, .. }
+            | ArcData::Center { target, .. } => Some(target),
+            ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => None,
+        }
+    }
+}
+
 /// Which arrival a closing step DECLARES at the seam (PATHS-DESIGN §6's
 /// revised PQ4 entry). One family, two members, ruled together.
 ///
@@ -1927,6 +1946,28 @@ enum Applied<T: Real> {
 
 type Applying<T> = Result<Applied<T>, ReplayErrorKind<T>>;
 
+/// **A declared seam ARRIVAL on an arc row that does not serve it.**
+/// One spelling for the whole class, in both return shapes the fused
+/// doors and the leg rows force apart.
+///
+/// The seam's arrival declaration rides the closing verbs' TARGET
+/// (PATHS-DESIGN §6's revised PQ4). The endpoint-full arc modes fix
+/// their own end direction from authored data, so declaring the arrival
+/// would author one fact twice — except on `Bulge`, where the
+/// declaration is a CHECK against the tangent the bulge already fixes
+/// and `do_arc_to_point` serves it. Everything else is a lattice
+/// violation: unrepresentable on the typed surface, a `Transition` at
+/// the wire.
+fn declared_arrival_not_on_this_row<T: Real, R>(
+    state: TipState,
+    verb: Verb,
+) -> Result<R, ReplayErrorKind<T>> {
+    Err(ReplayErrorKind::Transition {
+        state,
+        verb: Some(verb),
+    })
+}
+
 fn violation<T: Real>(state: TipState, verb: Verb) -> Applying<T> {
     Err(ReplayErrorKind::Transition {
         state,
@@ -1982,24 +2023,16 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     tol: Tol,
 ) -> Applying<T> {
     match spec {
-        // The seam ARRIVAL declaration is the closing verbs' target
-        // family (PATHS §6's revised PQ4). A sharp arc leg and every
-        // fused arrival fix their own end direction from authored
-        // bulge/via/centre data, so declaring the arrival there would
-        // author one fact twice: no typed spelling exists, and the wire
-        // pair is a lattice violation.
-        ArcData::Bulge {
-            target: Target::StartArriving(_),
-            ..
-        }
-        | ArcData::Via {
+        // See `declared_arrival_not_on_this_row`; `Bulge` is served
+        // by the two rows above.
+        ArcData::Via {
             target: Target::StartArriving(_),
             ..
         }
         | ArcData::Center {
             target: Target::StartArriving(_),
             ..
-        } => violation(state, Verb::ArcTo),
+        } => declared_arrival_not_on_this_row(state, Verb::ArcTo),
         ArcData::Bulge {
             target: Target::Point(q),
             b,
@@ -2010,6 +2043,23 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             target: Target::Start,
             b,
         } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
+        // The sharp arc seam with its arrival declared. `Straight` is
+        // not this verb's — an arc leg's arrival into a straight first
+        // side IS the G1 member — so it stays a lattice violation.
+        ArcData::Bulge {
+            target: Target::StartArriving(Arrival::Tangent),
+            b,
+        } => Ok(Applied::Closed(p.arc_to(
+            Bulge {
+                p: Start.arrives_tangent(),
+                b,
+            },
+            tol,
+        )?)),
+        ArcData::Bulge {
+            target: Target::StartArriving(Arrival::Straight),
+            ..
+        } => violation(state, Verb::ArcTo),
         ArcData::Via {
             q,
             target: Target::Point(t),
@@ -2102,12 +2152,7 @@ fn do_arrival<T: ArcCarrierScalar>(
     use super::family::ArrivalSpec;
     let core = open.core;
     match spec {
-        // The seam ARRIVAL declaration is the closing verbs' target
-        // family (PATHS §6's revised PQ4). A sharp arc leg and every
-        // fused arrival fix their own end direction from authored
-        // bulge/via/centre data, so declaring the arrival there would
-        // author one fact twice: no typed spelling exists, and the wire
-        // pair is a lattice violation.
+        // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
             target: Target::StartArriving(_),
             ..
@@ -2119,7 +2164,7 @@ fn do_arrival<T: ArcCarrierScalar>(
         | ArcData::Center {
             target: Target::StartArriving(_),
             ..
-        } => violation(state, verb),
+        } => declared_arrival_not_on_this_row(state, verb),
         ArcData::Center {
             c,
             winding,
@@ -2179,12 +2224,7 @@ fn do_fused_point<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
-        // The seam ARRIVAL declaration is the closing verbs' target
-        // family (PATHS §6's revised PQ4). A sharp arc leg and every
-        // fused arrival fix their own end direction from authored
-        // bulge/via/centre data, so declaring the arrival there would
-        // author one fact twice: no typed spelling exists, and the wire
-        // pair is a lattice violation.
+        // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
             target: Target::StartArriving(_),
             ..
@@ -2196,10 +2236,7 @@ fn do_fused_point<T: ArcCarrierScalar>(
         | ArcData::Center {
             target: Target::StartArriving(_),
             ..
-        } => Err(ReplayErrorKind::Transition {
-            state,
-            verb: Some(verb),
-        }),
+        } => declared_arrival_not_on_this_row(state, verb),
         ArcData::Bulge {
             target: Target::Point(q),
             b,
@@ -2245,12 +2282,7 @@ fn do_fused_leg_end<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
-        // The seam ARRIVAL declaration is the closing verbs' target
-        // family (PATHS §6's revised PQ4). A sharp arc leg and every
-        // fused arrival fix their own end direction from authored
-        // bulge/via/centre data, so declaring the arrival there would
-        // author one fact twice: no typed spelling exists, and the wire
-        // pair is a lattice violation.
+        // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
             target: Target::StartArriving(_),
             ..
@@ -2262,10 +2294,7 @@ fn do_fused_leg_end<T: ArcCarrierScalar>(
         | ArcData::Center {
             target: Target::StartArriving(_),
             ..
-        } => Err(ReplayErrorKind::Transition {
-            state,
-            verb: Some(verb),
-        }),
+        } => declared_arrival_not_on_this_row(state, verb),
         ArcData::Bulge {
             target: Target::Point(q),
             b,
@@ -2333,12 +2362,7 @@ fn do_fused_entry<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
-        // The seam ARRIVAL declaration is the closing verbs' target
-        // family (PATHS §6's revised PQ4). A sharp arc leg and every
-        // fused arrival fix their own end direction from authored
-        // bulge/via/centre data, so declaring the arrival there would
-        // author one fact twice: no typed spelling exists, and the wire
-        // pair is a lattice violation.
+        // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
             target: Target::StartArriving(_),
             ..
@@ -2350,10 +2374,7 @@ fn do_fused_entry<T: ArcCarrierScalar>(
         | ArcData::Center {
             target: Target::StartArriving(_),
             ..
-        } => Err(ReplayErrorKind::Transition {
-            state: TipState::Entry,
-            verb: Some(Verb::ArcFillet),
-        }),
+        } => declared_arrival_not_on_this_row(TipState::Entry, Verb::ArcFillet),
         ArcData::Center {
             c,
             winding,

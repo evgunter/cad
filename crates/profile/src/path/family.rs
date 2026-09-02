@@ -1495,7 +1495,26 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             target: Target::Start,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b, tol)
+        path.arc_to_start(spec.b, None, tol)
+    }
+}
+
+/// The SHARP arc seam with its arrival DECLARED. The bulge fixes the
+/// arc's end tangent, so nothing is overdetermined: the spec constructs
+/// and the target checks, exactly as on `tangent_arc_to`.
+///
+/// `Bulge` alone, and that is a scope statement rather than a rule —
+/// `Via` and `Center` fix an end tangent too and the same token would
+/// serve them. Their arms stay lattice violations until a unit takes
+/// them (PATHS-DESIGN §6 records it).
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesTangent> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Bulge {
+            target: Target::StartArriving(super::Arrival::Tangent),
+            b: spec.b,
+        }));
+        path.arc_to_start(spec.b, Some(super::Arrival::Tangent), tol)
     }
 }
 
@@ -1519,7 +1538,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             target: Target::Start,
         }));
         let bulge = path.arc_via_bulge(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(bulge, tol)
+        path.arc_to_start(bulge, None, tol)
     }
 }
 
@@ -1545,7 +1564,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             target: Target::Start,
         }));
         let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(bulge, tol)
+        path.arc_to_start(bulge, None, tol)
     }
 }
 
