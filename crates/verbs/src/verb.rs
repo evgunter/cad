@@ -13,7 +13,15 @@ use topo::EdgeKey;
 /// Closed, with no wildcard arm anywhere that matches on it (D3), so a
 /// variant added here breaks every commitment site at compile time
 /// rather than silently defaulting.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// **`PartialEq` but not `Eq`**, deliberately: `T` is a lane scalar and
+/// no scalar this workspace runs on is `Eq` — `f64` is not, `Dual` is
+/// not, and an interval's equality is not a total one either. A derived
+/// `Eq` bound would therefore be inert on every instantiation that
+/// exists, which is a promise no caller could ever cash. Comparison of
+/// verbs is structural and partial, exactly like comparison of the
+/// scalars inside them.
+#[derive(Clone, Debug, PartialEq)]
 pub enum Verb<T> {
     /// Constant-radius rolling-ball fillets on a set of the operand's
     /// edges.
@@ -74,13 +82,42 @@ impl<T> Verb<T> {
             Self::Chamfer { .. } => VerbKind::Chamfer,
         }
     }
+}
 
-    /// The operand edges this verb names, in the order it was built
-    /// with.
-    #[must_use]
-    pub fn edges(&self) -> &[EdgeKey] {
-        match self {
-            Self::Fillet { edges, .. } | Self::Chamfer { edges, .. } => edges,
+#[cfg(test)]
+mod all_census {
+    use super::VerbKind;
+
+    /// **[`VerbKind::ALL`] is the WHOLE vocabulary**, pinned against a
+    /// compile-time visit rather than reviewed.
+    ///
+    /// The precedent this list cites (`profile::Verb::ALL`) is
+    /// macro-generated and cannot drift; this one is hand-written, so it
+    /// needs the guard the macro would otherwise have been. The match
+    /// below is EXHAUSTIVE, so a variant added to the vocabulary makes
+    /// this file fail to compile until it is visited here — and every
+    /// arm names the same total, so visiting it means writing the new
+    /// count, which then reds until `ALL` has grown too.
+    ///
+    /// The no-repeats half is what makes the count a census: with every
+    /// entry distinct, a `len` equal to the number of variants means
+    /// `ALL` holds each of them exactly once.
+    #[test]
+    fn all_is_the_whole_vocabulary() {
+        let variants = match VerbKind::Fillet {
+            VerbKind::Fillet => 2,
+            VerbKind::Chamfer => 2,
+        };
+        for (i, kind) in VerbKind::ALL.iter().enumerate() {
+            assert!(
+                !VerbKind::ALL[..i].contains(kind),
+                "{kind:?} appears twice in VerbKind::ALL"
+            );
         }
+        assert_eq!(
+            VerbKind::ALL.len(),
+            variants,
+            "VerbKind::ALL has drifted from the vocabulary — the enum has {variants} variants"
+        );
     }
 }

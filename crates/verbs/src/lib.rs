@@ -1,6 +1,22 @@
-//! **The kernel's verb vocabulary** — one closed enum naming every
-//! operation a recipe door can invoke, with the run dispatch and the
-//! parameter→field flow that only the operation itself knows.
+//! **The kernel's verb vocabulary** — one closed enum naming the
+//! operations that have been migrated onto it, with the run dispatch and
+//! the parameter→field flow that only the operation itself knows.
+//!
+//! # What it is NOT, yet
+//!
+//! It is not "every operation a recipe door can invoke", and reading it
+//! that way would misjudge every later unit's cost. **Two verbs live
+//! here**: the fillet and the chamfer. Every other door — extrude,
+//! revolve, boolean, split, transform, pattern, loft, sweep, shell,
+//! measure — still runs the way it always did, and is reached by
+//! `editor-core`'s lowering calling its op crate directly. This crate
+//! is the SEAT the rest migrate onto (SEAT-5 and after), not a
+//! description of where they are.
+//!
+//! The design's cost claim is scoped the same way and is not
+//! demonstrated here: what this unit shows is that two verbs share one
+//! lowering, one correspondence and one tag function. Whether that
+//! reduces the price of the NEXT verb is measured at the next verb.
 //!
 //! # What lives here, and what may never
 //!

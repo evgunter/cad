@@ -91,6 +91,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/src/eval/mod.rs",
+        disposition: Shared, // node-tag-space census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

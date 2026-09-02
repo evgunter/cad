@@ -36,7 +36,9 @@ use std::sync::Arc;
 use sweep::blend::BlendKind;
 use sweep::blend::naming::BlendNaming;
 use topo::{Body, EdgeKey};
-use verbs::{Verb, VerbKind};
+use verbs::Verb;
+#[cfg(test)]
+use verbs::VerbKind;
 
 use crate::names::{self, NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId};
@@ -57,13 +59,32 @@ pub(crate) type Emitter<T> = fn(
 /// [`Verb`] and its result into a name table. Adding a field here is
 /// how a verb declares something the lowering must know; adding an
 /// arm to a match inside the lowering is not.
-pub(crate) struct BlendVerb {
-    /// Which kernel verb the node lowers to. This is the canonical
-    /// name, and the content tag is a function of it (`verb_content_tag`,
-    /// beside the memo machinery in [`mod@crate::eval`]).
-    pub(crate) kind: VerbKind,
+///
+/// # Every field is DIRECT per-instance data, deliberately
+///
+/// The first shape of this struct carried a `kind: VerbKind` and read
+/// the verb constructor and the emitter off it through two internal
+/// matches. That was a wart with a measurable cost: `kind` was typed at
+/// the WHOLE vocabulary while only two of its variants were ever legal
+/// here, so adding an unrelated `VerbKind::Shell` broke both matches
+/// inside this blend-only module and made a shell's author edit the
+/// blends' correspondence to say nothing about shells. A reviewer found
+/// it by adding that variant.
+///
+/// The constructor and the emitter are therefore FUNCTION POINTERS held
+/// per instance. Nothing in this module matches on a verb vocabulary
+/// any more, which is what makes it true that a future verb never has
+/// to open this file.
+pub(crate) struct BlendVerb<T: geom_core::Real> {
+    /// **Slot value + resolved selection → the kernel verb.** The one
+    /// place a document's evaluated size and canonical edge keys become
+    /// a [`Verb`] payload, per instance.
+    pub(crate) build: fn(Vec<EdgeKey>, T) -> Verb<T>,
+    /// This verb's naming emitter — see the module docs on what this
+    /// choice does and does not decide.
+    pub(crate) emitter: Emitter<T>,
     /// The label a SELECTION refusal carries. It is the kernel's blend
-    /// door label rather than [`Self::kind`] because the refusal it
+    /// door label rather than a [`VerbKind`] because the refusal it
     /// lands in is shared with the kernel's own
     /// (`NodeErrorKind::Blend`), and one vocabulary there is what keeps
     /// a refusal's verb from being rendered twice or differently.
@@ -77,45 +98,87 @@ pub(crate) struct BlendVerb {
     pub(crate) no_records: &'static str,
 }
 
+/// The fillet's kernel payload. A named function rather than a closure
+/// so it can be a plain `fn` pointer in the struct above.
+fn build_fillet<T>(edges: Vec<EdgeKey>, radius: T) -> Verb<T> {
+    Verb::Fillet { edges, radius }
+}
+
+/// The chamfer's kernel payload.
+fn build_chamfer<T>(edges: Vec<EdgeKey>, distance: T) -> Verb<T> {
+    Verb::Chamfer { edges, distance }
+}
+
 /// The fillet's correspondence.
-pub(crate) const FILLET: BlendVerb = BlendVerb {
-    kind: VerbKind::Fillet,
-    selection_label: BlendKind::Fillet,
-    size_slot: SlotId::Radius,
-    no_records: "the fillet returned a body with no birth records",
-};
+///
+/// A function rather than a `const` because the struct is generic in
+/// the lane scalar and a module-level const cannot be: the call is
+/// monomorphized and inlined, so this costs nothing at run time.
+pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
+    BlendVerb {
+        build: build_fillet,
+        emitter: names::name_fillet,
+        selection_label: BlendKind::Fillet,
+        size_slot: SlotId::Radius,
+        no_records: "the fillet returned a body with no birth records",
+    }
+}
 
 /// The chamfer's correspondence.
-pub(crate) const CHAMFER: BlendVerb = BlendVerb {
-    kind: VerbKind::Chamfer,
-    selection_label: BlendKind::Chamfer,
-    size_slot: SlotId::ChamferDistance,
-    no_records: "the chamfer returned a body with no birth records",
-};
+pub(crate) fn chamfer<T: geom_core::Real>() -> BlendVerb<T> {
+    BlendVerb {
+        build: build_chamfer,
+        emitter: names::name_chamfer,
+        selection_label: BlendKind::Chamfer,
+        size_slot: SlotId::ChamferDistance,
+        no_records: "the chamfer returned a body with no birth records",
+    }
+}
 
-impl BlendVerb {
-    /// **Slot value + resolved selection → the kernel verb.** The one
-    /// place a document's evaluated size and canonical edge keys become
-    /// a [`Verb`] payload.
-    pub(crate) fn verb<T>(&self, edges: Vec<EdgeKey>, size: T) -> Verb<T> {
-        match self.kind {
-            VerbKind::Fillet => Verb::Fillet {
-                edges,
-                radius: size,
-            },
-            VerbKind::Chamfer => Verb::Chamfer {
-                edges,
-                distance: size,
-            },
-        }
+/// **The canonical verb name of each blend node**, which is NOT a field
+/// above.
+///
+/// The vocabulary entry a blend node lowers to is read by exactly one
+/// consumer — the content tag beside the memo machinery
+/// (`verb_content_tag` in [`mod@crate::eval`]) — and it is read there
+/// from the `Node` variant directly. Carrying a copy here would be a
+/// second spelling of the same correspondence with nothing forcing the
+/// two to agree, so this module deliberately does not hold one; the
+/// tests below pin that the pair this module builds is the pair those
+/// tags name.
+#[cfg(test)]
+pub(crate) const BLEND_VERB_KINDS: [VerbKind; 2] = [VerbKind::Fillet, VerbKind::Chamfer];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The two correspondences build the two verbs their names claim —
+    /// the check the deleted `kind` match used to make structurally.
+    #[test]
+    fn each_correspondence_builds_its_own_verb() {
+        let f: Verb<f64> = (fillet::<f64>().build)(Vec::new(), 1.0);
+        let c: Verb<f64> = (chamfer::<f64>().build)(Vec::new(), 1.0);
+        assert_eq!(f.kind(), VerbKind::Fillet, "the fillet built a {f:?}");
+        assert_eq!(c.kind(), VerbKind::Chamfer, "the chamfer built a {c:?}");
+        assert_eq!(
+            [f.kind(), c.kind()],
+            BLEND_VERB_KINDS,
+            "the blend pair is no longer the pair this module claims"
+        );
     }
 
-    /// This verb's naming emitter — see the module docs on what this
-    /// choice does and does not decide.
-    pub(crate) fn emitter<T: geom_core::Real>(&self) -> Emitter<T> {
-        match self.kind {
-            VerbKind::Fillet => names::name_fillet,
-            VerbKind::Chamfer => names::name_chamfer,
-        }
+    /// The two differ in every literal a reader would expect them to,
+    /// so a copy-paste that left one behind fails here.
+    #[test]
+    fn the_two_correspondences_share_no_literal() {
+        let f = fillet::<f64>();
+        let c = chamfer::<f64>();
+        assert_ne!(f.size_slot, c.size_slot, "both verbs read one slot");
+        assert_ne!(
+            f.selection_label, c.selection_label,
+            "both verbs label refusals identically"
+        );
+        assert_ne!(f.no_records, c.no_records, "both verbs share one sentence");
     }
 }

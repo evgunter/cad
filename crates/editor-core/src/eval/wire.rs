@@ -152,7 +152,7 @@ where
         Node::Fillet {
             target, selection, ..
         } => wire_blend(
-            &crate::verbs::blend::FILLET,
+            &crate::verbs::blend::fillet(),
             id,
             *target,
             selection,
@@ -164,7 +164,7 @@ where
         Node::Chamfer {
             target, selection, ..
         } => wire_blend(
-            &crate::verbs::blend::CHAMFER,
+            &crate::verbs::blend::chamfer(),
             id,
             *target,
             selection,
@@ -875,7 +875,7 @@ fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
 // duplication rather than adding a duty.
 #[allow(clippy::too_many_arguments)]
 fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
-    verb: &crate::verbs::blend::BlendVerb,
+    verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
@@ -888,8 +888,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let size = need_scalar(vals, verb.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
-    let out = verb
-        .verb(edges, size)
+    let out = (verb.build)(edges, size)
         .run(&body, tol)
         .map_err(verb_refused)?;
     let rec = out
@@ -899,7 +898,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
             what: verb.no_records,
         }))?;
     let table =
-        verb.emitter()(id, target, &target_table, &out.body, rec).map_err(NodeErrorKind::Naming)?;
+        (verb.emitter)(id, target, &target_table, &out.body, rec).map_err(NodeErrorKind::Naming)?;
     let mut body = out.body;
     // The blend's own surfaces, curves and points are minted HERE
     // (D1/N6); the supports' pass-through descriptions keep the source

@@ -51,7 +51,9 @@
 //! `FromTarget` of an unrelated entity — and whether that misnaming
 //! got caught would depend on whether the real owner of the name
 //! happened to collide at insertion. That is luck, not a guarantee.
-//! Same posture as `wire_fillet`'s refusal of `naming: None`.
+//! Same posture as `wire_blend`'s refusal of `naming: None` (the one
+//! generic blend lowering, which `wire_fillet` and `wire_chamfer`
+//! collapsed onto).
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!

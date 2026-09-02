@@ -166,20 +166,46 @@ fn both_blends_evaluate_in_one_document() {
     );
 }
 
-/// FNV-1a 64 over a document's evaluated bodies and name tables — the
-/// channels a lowering change could move, in one number per document.
+/// FNV-1a 64 over a document's evaluated name tables and bodies —
+/// **every channel `wire_blend` writes**, in one number per document.
 ///
-/// The bodies are digested as POINT BITS plus every face's CARRIER, and
-/// the second half is load-bearing rather than thorough: a unit cube
-/// filleted at radius `r` and a unit cube chamfered at setback `r` have
-/// the same twenty-four vertex positions to the bit, and differ only in
-/// whether the faces between them are cylinders and spheres or planes.
-/// A points-only digest cannot tell this unit's two verbs apart at all
-/// — measured here before it was written down.
+/// # What this covers, and how that set was chosen
 ///
-/// Carriers enter through `Debug`, whose `f64` rendering is the
-/// shortest round-tripping decimal: a bijection with the bits for every
-/// finite value, `-0.0` included.
+/// Not "everything observable": the channels THIS lowering can move,
+/// enumerated off the lowering's own body. `wire_blend` writes exactly
+/// four things — the name table the emitter returns, the body the
+/// kernel verb returns, the provenance stamp `stamp_minted` applies to
+/// that body, and (on the refusal path) a typed error. The first three
+/// are here. The fourth is NOT, and that is a real hole, stated: a
+/// refusal payload's spelling and the verdict logs are outside this
+/// digest, so a change that only altered which `NodeErrorKind` came
+/// back would pass it. `both_blends_evaluate_in_one_document` covers
+/// only that the success path stays a success.
+///
+/// # Why each half is load-bearing, measured rather than assumed
+///
+/// - **Point bits alone are not enough.** A unit cube filleted at
+///   radius `r` and a unit cube chamfered at setback `r` have the same
+///   twenty-four vertex positions to the bit, differing only in whether
+///   the faces between them are cylinders and spheres or planes. A
+///   points-only digest gave the two documents ONE identical number and
+///   could not tell this unit's two verbs apart at all.
+/// - **Carriers alone are not enough either.** Face carriers were the
+///   first fix, and `stamp_minted` — the line that gives every surface,
+///   curve and point this blend mints its `GeomSource`, and the thing
+///   that makes a downstream reference into a blended body resolvable —
+///   could be DELETED from `wire_blend` with this digest and the whole
+///   891-row editor-core suite still green. So the three provenance
+///   source tables are fed here, and so are the edge curve carriers
+///   (faces reach surfaces; nothing reached the curve arena).
+///
+/// Deleting `stamp_minted` now fails this row. That is the red-first
+/// evidence for the sentence above, and it is why the constants below
+/// are this PR's own mint rather than the pre-change tree's.
+///
+/// Geometry and provenance enter through `Debug`, whose `f64` rendering
+/// is the shortest round-tripping decimal: a bijection with the bits
+/// for every finite value, `-0.0` included.
 fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut feed = |bytes: &[u8]| {
@@ -196,16 +222,38 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
         }
         feed(value.payload.kind_name().as_bytes());
         if let editor_core::ValuePayload::Body(body) = &value.payload {
-            for (_, p) in body.points() {
+            // Points: bits, then the provenance stamp on the same key.
+            for (key, p) in body.points() {
                 for c in [p.x, p.y, p.z] {
                     feed(&c.to_bits().to_be_bytes());
                 }
+                feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
             }
+            // Curves and surfaces: the arenas themselves plus their
+            // stamps. A face reaches its surface below, but nothing
+            // reached the curve arena before this, and neither arena's
+            // SOURCE was reachable at all.
+            for (key, curve) in body.curves() {
+                feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
+            }
+            for (key, surface) in body.surfaces() {
+                feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
+            }
+            // The topology's attachment to that geometry, both ways: a
+            // face's carrier and an edge's curve. A re-plumbing that
+            // kept every arena and re-pointed the topology at it moves
+            // these and nothing above.
             for (key, face) in body.faces() {
                 let surface = body
                     .get_surface(face.surface)
                     .expect("a face has a carrier");
                 feed(format!("{key:?}{surface:?}").as_bytes());
+            }
+            for (key, edge) in body.edges() {
+                let curve = body
+                    .get_curve_geom(edge.curve)
+                    .expect("an edge has a curve");
+                feed(format!("{key:?}{curve:?}").as_bytes());
             }
             feed(
                 format!(
@@ -236,8 +284,8 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0x9352_e7e3_8888_7e7f_u64),
-        ("die_chamfer", 0x172e_87f7_63ff_c90f),
+        ("die_fillet", 0xc88b_608e_e0eb_be22_u64),
+        ("die_chamfer", 0x0d1a_ec94_58b0_afd6),
     ] {
         let doc = corpus::documents()
             .into_iter()

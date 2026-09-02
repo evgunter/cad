@@ -163,3 +163,33 @@ impl<T> Verb<T> {
         self.kind().param_flow()
     }
 }
+
+#[cfg(test)]
+mod all_census {
+    use super::ScalarParam;
+
+    /// **[`ScalarParam::ALL`] is every scalar parameter**, on the same
+    /// compile-forced footing as `VerbKind::ALL`'s row and for a sharper
+    /// reason: the flow suite's exhaustiveness test is computed OVER
+    /// this list, so a parameter missing from it would make that test
+    /// pass by not looking rather than by holding — the exact failure
+    /// mode a census is supposed to remove.
+    #[test]
+    fn all_is_every_scalar_parameter() {
+        let variants = match ScalarParam::FilletRadius {
+            ScalarParam::FilletRadius => 2,
+            ScalarParam::ChamferDistance => 2,
+        };
+        for (i, param) in ScalarParam::ALL.iter().enumerate() {
+            assert!(
+                !ScalarParam::ALL[..i].contains(param),
+                "{param:?} appears twice in ScalarParam::ALL"
+            );
+        }
+        assert_eq!(
+            ScalarParam::ALL.len(),
+            variants,
+            "ScalarParam::ALL has drifted — the enum has {variants} variants"
+        );
+    }
+}

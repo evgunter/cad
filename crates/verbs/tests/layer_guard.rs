@@ -69,15 +69,28 @@ fn the_manifest_names_no_serde_dependency() {
 /// The names are the recipe layer's, one per thing the §0 line keeps
 /// above: an authored expression, a persisted name, a typed node id, a
 /// name table, and serde's own two derives.
+///
+/// **`Expr` is in the list because the module docs promise it**, and a
+/// promise the guard does not check is a promise a reader over-trusts:
+/// before this row existed a planted `pub enum Expr` sat in this
+/// crate's source and every guard stayed green. It is the weakest entry
+/// of the six and says so — it catches a LOCALLY DECLARED expression
+/// vocabulary, which is the failure this crate could actually commit.
+/// A real `editor_core::expr::Expr` arriving by import is impossible
+/// for a stronger reason that no scan supplies: `editor-core` is above
+/// this crate, so the import needs a dependency cycle cargo refuses to
+/// build. Both halves matter — the cycle argument covers the import,
+/// this row covers the re-declaration.
 #[test]
 fn no_document_layer_type_is_named_in_the_source() {
-    let forbidden: [String; 6] = [
+    let forbidden: [String; 7] = [
         ["Serial", "ize"].concat(),
         ["Deserial", "ize"].concat(),
         ["Stable", "Name"].concat(),
         ["Recipe", "NodeId"].concat(),
         ["Name", "Table"].concat(),
         ["editor", "_core"].concat(),
+        ["Ex", "pr"].concat(),
     ];
     let mut violations: Vec<String> = Vec::new();
     for (name, src) in SOURCES {
