@@ -99,8 +99,8 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
-//! RE-BLESSED THREE TIMES FOR A ROSTER CHANGE (the build-path
-//! re-derivation below is a fourth move of these numbers and a
+//! RE-BLESSED FOUR TIMES FOR A ROSTER CHANGE (the build-path
+//! re-derivation below is a separate move of these numbers and a
 //! different kind): this digest walks `corpus::documents()`, so a new
 //! document moves it by construction. Each re-blessing was MEASURED
 //! the same way, and the measurement is the procedure — remove the new
@@ -124,12 +124,21 @@
 //!   carried on `main` before the M10-2 merge, and the rows came back
 //!   GREEN against them rather than being compared by hand.
 //!
-//! The M10-2 measurement is the strongest of the three, for a reason
-//! worth stating: this roster minus `measured_web` IS main's roster,
-//! so the expected values were not re-derived for the occasion — they
-//! were already committed here by someone else. A measurement sink
-//! denotes no body, so it contributes no geometry to any pre-existing
-//! document, and that prediction is what the removal confirms.
+//! - SEAT-5 added `kiss_carry`, the corner-kiss assembly whose
+//!   boolean values carry non-empty surviving contacts. Removing it
+//!   alone returned `f64`/`probe` `6542ae63e161000c, e9e2cd7e8a6adda0`
+//!   and `interval` `91f196cc0b84faf6, b2fdb74116c51f32` — the
+//!   committed constants of the tree it landed on, and the rows came
+//!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
+//!   the finer way — every pre-existing per-document row unchanged.
+//!
+//! The M10-2 and SEAT-5 measurements are the strongest of the four,
+//! for a reason worth stating: in each, the roster minus the addition
+//! IS the prior tree's roster, so the expected values were not
+//! re-derived for the occasion — they were already committed here by
+//! someone else. A measurement sink denotes no body, so it contributes
+//! no geometry to any pre-existing document (the M10-2 prediction);
+//! the removal is what confirms each.
 //!
 //! The three numbers below are the same digest over the grown roster.
 //!
@@ -455,7 +464,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x6542_ae63_e161_000c, 0xe9e2_cd7e_8a6a_dda0),
+        (0x8769_278b_494d_64ca, 0xe106_0e5d_4166_5d46),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -482,7 +491,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x91f1_96cc_0b84_faf6, 0xb2fd_b741_16c5_1f32),
+        (0xebeb_7711_2bec_f970, 0xdd49_270b_7798_ab34),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -506,7 +515,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x6542_ae63_e161_000c, 0xe9e2_cd7e_8a6a_dda0),
+        (0x8769_278b_494d_64ca, 0xe106_0e5d_4166_5d46),
         "the corpus's Probe evaluation moved"
     );
 }

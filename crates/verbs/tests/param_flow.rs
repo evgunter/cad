@@ -29,10 +29,10 @@
 
 use std::collections::BTreeSet;
 
-use geom_core::Tol;
+use geom_core::{Affine3, Tol, Vec3};
 use sweep::blend::naming::BlendNaming;
-use topo::Body;
-use verbs::{RoleFamily, ScalarParam, Verb, VerbKind};
+use topo::{Body, BooleanDeclarations, BooleanOp, SweepStrategy};
+use verbs::{PairOut, RoleFamily, ScalarParam, Verb, VerbKind, VerbRecord};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -101,10 +101,13 @@ fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
 }
 
 fn record(verb: &Verb<f64>, operand: &Body<f64>) -> BlendNaming {
-    verb.run(operand, tol())
-        .expect("the fixture is inside the door")
-        .naming
-        .expect("the surgery always keeps records")
+    let out = verb
+        .run(operand, tol())
+        .expect("the fixture is inside the door");
+    let VerbRecord::Blend(naming) = out.record else {
+        panic!("a blend run produced another family's record");
+    };
+    naming.expect("the surgery always keeps records")
 }
 
 /// **The fillet's flow names only families it mints**, measured over
@@ -182,6 +185,45 @@ fn the_chamfers_flow_is_empty_beside_a_real_record() {
         rows[0].fields.is_empty(),
         "the setback reaches no stored field: the chamfer's carriers are planes"
     );
+}
+
+/// **The boolean's flow has no rows, and that is a claim beside a real
+/// record.** A crossing union is run and its birth record read back —
+/// non-trivial (the seam survives into it) — so "no scalar parameter
+/// lands in anything this record names" is a statement about an actual
+/// result rather than an untested constant. The boolean HAS no scalar
+/// parameters: its payload is the op selector and declared references
+/// (arena keys), so there is no `ScalarParam` to write a row for — the
+/// emptiness is one level up from the chamfer's (a scalar that reaches
+/// no field) and the census above is what proves nothing was skipped.
+#[test]
+fn the_booleans_flow_is_empty_beside_a_real_record() {
+    let a = sweep::test_support::cube(1.0, tol());
+    let map = Affine3::translation(Vec3::new(0.5, 0.5, 0.5));
+    let b = topo::transform_rigid(&a, &map, tol()).expect("a translation is rigid");
+    let out = Verb::Boolean {
+        op: BooleanOp::Union,
+        declare: BooleanDeclarations::none(),
+    }
+    .run_pair(&a, &b, SweepStrategy::Realized, tol())
+    .expect("the crossing union is inside the door");
+    let PairOut::Out(out) = out else {
+        panic!("the crossing union is a body");
+    };
+    let VerbRecord::Boolean { naming, .. } = out.record else {
+        panic!("a boolean run produced another family's record");
+    };
+    assert!(
+        !naming.seam_edges.is_empty(),
+        "the crossing union minted no seam; the fixture no longer exercises the record"
+    );
+
+    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+        assert!(
+            VerbKind::Boolean(op).param_flow().is_empty(),
+            "the boolean has no scalar parameters; a row appeared with nothing to declare"
+        );
+    }
 }
 
 /// A built verb's flow is its kind's — the payload does not enter it.

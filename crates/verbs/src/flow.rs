@@ -144,6 +144,20 @@ const CHAMFER_FLOW: &[ParamFlow] = &[ParamFlow {
     fields: &[],
 }];
 
+/// **The boolean has NO scalar parameters, so its flow has no rows —
+/// and the empty slice is the declaration, not an omission.** The
+/// payload is an operation selector and declared coincidence intents,
+/// which are REFERENCES (arena keys), not scalars: nothing a document
+/// slot evaluates ever lands in a field the boolean mints (its seam
+/// geometry is derived from the operands, not parameterized). The
+/// chamfer's row is empty at the `fields` level because its one scalar
+/// reaches nothing; the boolean is empty one level up because there is
+/// no scalar to write a row FOR — `ScalarParam` has no boolean
+/// variant, which is what keeps the exhaustiveness census true.
+/// `tests/param_flow.rs` asserts this emptiness beside a real boolean
+/// birth record, so it is a statement about a run.
+const BOOLEAN_FLOW: &[ParamFlow] = &[];
+
 impl VerbKind {
     /// This verb's parameter→field flow, one row per scalar parameter.
     #[must_use]
@@ -151,6 +165,7 @@ impl VerbKind {
         match self {
             Self::Fillet => FILLET_FLOW,
             Self::Chamfer => CHAMFER_FLOW,
+            Self::Boolean(_) => BOOLEAN_FLOW,
         }
     }
 }
@@ -189,7 +204,8 @@ mod all_census {
         assert_eq!(
             ScalarParam::ALL.len(),
             variants,
-            "ScalarParam::ALL has drifted — the enum has {variants} variants"
+            "ScalarParam::ALL has drifted — it holds {} entries, the enum has {variants} variants",
+            ScalarParam::ALL.len()
         );
     }
 }
