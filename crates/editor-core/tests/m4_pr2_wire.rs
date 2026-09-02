@@ -263,6 +263,59 @@ fn typed_refusal_doors() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
+    // Degenerate datum AXIS direction — the second role, pinned by its
+    // own string: one role reaching the door proves nothing about the
+    // other, and they are wired separately.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&axis) {
+        Some(NodeResult::Failed(e)) => assert!(matches!(
+            e.kind,
+            NodeErrorKind::DegenerateDirection {
+                role: "datum axis direction"
+            }
+        )),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // **A datum normal whose LENGTH overflows** — finite components,
+    // an infinite norm. It reaches the wire like any other datum (the
+    // expression layer refuses non-finite VALUES, and 1e200 is
+    // finite), and the kernel constructor's finiteness gate is what
+    // turns it into a typed refusal here. At the merge base of the
+    // unit that introduced that gate this same document PANICKED on a
+    // `debug_assert`, and without the gate it would build a datum
+    // whose normal is the ZERO vector and answer definite wrong signs.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, huge) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(1e200), scl(0.0), scl(0.0)],
+        }),
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&huge) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::NonFiniteDirection {
+                    role: "datum plane normal"
+                }
+            ),
+            "expected the non-finite refusal, got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
     // Non-positive pattern count.
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);

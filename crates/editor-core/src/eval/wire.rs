@@ -490,6 +490,7 @@ fn datum_unit<T: Decide>(
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
     UnitVec3::new(v, band).map_err(|e| match e {
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
+        UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
         UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
             predicate: DATUM_UNIT_NORM,
             source,

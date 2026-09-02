@@ -516,6 +516,15 @@ pub enum NodeErrorKind {
         /// Which vector, by role.
         role: &'static str,
     },
+    /// A direction-valued vector whose LENGTH is not a finite number:
+    /// components large enough to overflow the norm, or a poisoned
+    /// one. A separate fact from a zero length and a separate
+    /// recourse — the model is outside the range its own arithmetic
+    /// can measure, and the fix is scale, not direction.
+    NonFiniteDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
     /// The ambient tolerance could not form a classification band.
     Band(geom_core::BandError),
     /// A slot the wiring expected was absent from the node — a wiring
@@ -950,6 +959,12 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} direction has zero length")
             }
+            Self::NonFiniteDirection { role } => write!(
+                f,
+                "the {role} direction has no finite length — its components \
+                 overflow the norm, or one of them is not a number; scale \
+                 the geometry into the session's range"
+            ),
             Self::Band(e) => write!(
                 f,
                 "the ambient tolerance could not form a classification band: {e}"
