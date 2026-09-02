@@ -169,3 +169,22 @@ the NEW site datum_unit_norm (K-REPORT carrier row added; audit row
 declined by the honest-length argument) — the dual's scrutiny
 point. v6 dual dispatches on frozen head 12ca8295: parity byte 216 → **R1 opus + R2 fable**. Difficulty S was
 logged pre-draw. Full row recorded at merge.
+
+## SEAT-DV MERGED (2026-09-02, PR 1564) — issue 1527 closed
+
+The issue-1527 ruling is executed: DatumValue normals are
+unit-by-construction, and the dual earned its keep — the review
+found the overflow class the newtype's guarantee missed (norm
+overflow reads as maximally definite; the deleted tripwire had been
+catching exactly that input loudly), executed end to end including
+the merge-base panic reproduction. SEAT's FIRST tally candidate
+(unilateral, executed, one defect after dedup; coding at the
+blinded adjudication). The fix gated finiteness through the value
+channel with no Bounds ratification, and the fix pass's own sibling
+probe found the same class LIVE at unit() (Pattern directions —
+issue 1572, one line from closed). Issues 1570 (direction-family
+home) and 1572 filed. Full row: MODEL-AB-LOG SEATDV (ordinal 1004,
+sample #105 at merge).
+
+Next: SEAT-5 (the boolean migration onto Verb) on block SEAT-B2's
+next slot; SEAT-6 (ParamSource + the issue-1372 handoff) behind it.
