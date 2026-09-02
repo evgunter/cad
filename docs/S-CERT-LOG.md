@@ -718,3 +718,82 @@ Slate: the defect cluster is clear (CERT-1..10 all merged). Next the
 CERT-M/CERT-N track lanes (CERT-M1 in flight, CERT-N1 dispatching from
 this merge), the blinded tally adjudication (CERT-1×2, CERT-6×1,
 CERT-10×1), and the exit walk.
+
+### CERT-M1 — Track M's trait-ground rows (D221, H3+H4, H10+S211, D78) — MERGED
+
+PR 1533; spec `docs/CERT-M1-SPEC.md` (cert/orchestrator bacc06e2); block
+CERT-B3 slot 2 (byte 27, fable at 3 → OPUS); ordinal 709 claimed at
+dispatch (main 60cf4883a); sample number at merge. The first absorbed
+SMELL track: no kernel behaviour moves, so the two track questions and
+§D rule 5 carried the review.
+
+Delivered head ef27ed03a (six commits on 75e98361; +586/−546 over nine
+files). Its gate drew k-lint's probe+interval row and redded on a
+MAIN-SIDE breakage — two independent `display_unit` fixes (PRs 1523 and
+1526) had both merged and the file kept both lines — so the frozen review
+head 1318b6d10 is the delivered head plus one orchestrator-direct two-line
+dedupe port (fixed on main by PR 1534, a no-op since); disclosed in the
+amended method note (cert/ab-state da4e9eb1a). Gate 33572738826 green,
+both ε=1e-12 lanes trailer-pinned.
+
+Dual (v6, sequential; byte 112 parity 0 ⇒ R1 OPUS + R2 FABLE): R1 A-W-F
+1/8/6 — MAJOR by execution: `powi`'s derived ceiling used a normal-range
+relative bound while `WINDOWS[1] = (-1074, -960)` is entirely subnormal
+and ceiling-carrying, and `powi[n=-1]` measured 14 → 17 → 18 against 25
+across efforts, the one ceiling in the file with no stated margin; R2
+A-W-F 0/7/~8 (rubric 4/3/3/4/3) found the SAME substance by a probe at
+x = 2⁻¹⁰²⁴ (9 endpoint steps where the derivation entitles 6; "binade
+factor of 2" not the mechanism) and rated it MIN — severity divergence on
+converged substance again (the third unit), so NO clean unilateral
+executed MAJOR and no tally candidate; the pair's coding is deferred to
+the blinded adjudication. R2 re-took the 23-site sole-bound census
+independently (identical roster) and R1 did too (22 + the where-clause
+impl); both executed the bvh sentence's two halves by planting bounds.
+Bilateral: the H3 deviation argument wrong on both legs (a nested doc-only
+module needs no lib.rs line; the out-of-fence pointers name entries by
+label); S134's copysign→S1 handoff sentence vanished with the finding;
+the huge-window exclusion unargued (R1: the endpoint half; R2: the n>0
+half). R2-unilateral: the induction as written yields e(2) ≤ 3u, not the
+2u its own walk lists; the rule "No general projection helper exists, by
+this ruling" lost in the cut; the decoration-seam header still wrong
+(five crossings, enclose::ring pinned by nothing named); the doc's own
+deletion convention unmet (S85 still cited twice); S210 gained a
+line-numbered roster while the body claimed none. R1-unilateral: Track W's
+fence already covers geom-core/tests/, so the H10 filing was avoidable;
+the stale profile citations left in S88; `max_endpoint_steps: None`
+enforced by nothing; sweep 3 over-claimed.
+
+Fix pass (implementer-inherited, all 12 items taken, none declined): the
+derivation's DOMAIN stated and the subnormal arm scored per draw against
+`powi_subnormal_entitlement` (26 vs measured 9 at R2's corner; n=−1 now
+4.2× and no longer moves with the seed; tightest margin 3.0× at n=31);
+the induction rewritten to the recurrence the numbers come from, with the
+4·pad+1 conversion given one home; the huge window excluded by mechanism
+(five unary functions now score endpoints there); `Bound<T> = Scored |
+Divergent(&'static str)` on all five ceiling dimensions, no `None`
+anywhere; the ledger moved into `geom_core::real::bounds_allowlist`
+(the `Bounds` doc block 399 → 261 → 94 lines) with the lost rule and the
+`r1_dual_probes` back-pointer restored; the decoration-seam header naming
+all five crossings and what pins each; H10 CLOSED WITH THE INSTRUMENT —
+`crates/geom-core/tests/bounds_census.rs` pins the 23-site roster with a
+disposition per door under a one-line orchestrator fence widening (its
+`reader_census.rs` ledger line), planted `fn planted_probe<T: Bounds>`
+reds it; S1 carries the copysign handoff; whole-file citation sweep for
+the deleted findings 0 hits (two more re-aimed); both reviewer probe
+suites adopted with authorship preserved (cert/m1r1-probes,
+cert/m1r2-probes pushed). Then a clean main merge (58 files, none in
+fence). Final head 8fd550efc: run 33580836185 all green, both lanes at
+1e-12 by trailer.
+
+Filings landed on main by the orchestrator after merge (SMELL-SCAN):
+S89's three aliases — Track N (`spline/hull.rs:113-118` `bracket`),
+Track Q (`ssi/enclose.rs:192-197` `ring`), unowned `topo/src/props.rs:
+1166-1176` `br` (fence to be drawn; natural owner whoever takes S213);
+Track W's verbatim-fixture rides-along (three copies, incl.
+`props.rs::bracket_seam_tests`); Track K's two S211 residues
+(bounds-allowlist.sh header trim; the bvh allowlist/amendment
+reconciliation). The Track W instrument filing is WITHDRAWN — landed.
+
+Slate: CERT-N1 (PR 1536, ordinal 710) in its dual; then CERT-M2/M3 and
+CERT-N2/N3 under a new block, the blinded tally adjudication (CERT-1×2,
+CERT-6×1, CERT-10×1), and the exit walk.
