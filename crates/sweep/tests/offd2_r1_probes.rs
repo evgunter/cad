@@ -581,9 +581,22 @@ fn probe_late_err_leaves_body_untouched() {
     let before = format!("{work:?}");
     let e = topo::replace_face_offset(&mut work, cap, -0.05, FIT_TOL, band(), Tol::witness())
         .expect_err("plane x torus has no route arm");
+    // The PAIR is named, not just the variant. VERBS-TORAX retired the
+    // two rows that used to pin `(Plane, Torus)` by name (their bodies
+    // now hollow through the axial door), and this direct-door row is
+    // what is left holding the C5 table to its own `plane x torus`
+    // note — a table widening that quietly routed the pair would go
+    // green against a bare variant match.
     assert!(
-        matches!(e, topo::ReplaceFaceError::NeighborPairUnroutable { .. }),
-        "expected the C5 refusal, got {e}"
+        matches!(
+            e,
+            topo::ReplaceFaceError::NeighborPairUnroutable {
+                kind: geom_brep::SurfaceKind::Plane,
+                other_kind: geom_brep::SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "expected the C5 refusal naming plane x torus, got {e}"
     );
     assert_eq!(before, format!("{work:?}"), "body moved across a late Err");
 }

@@ -588,8 +588,9 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // — and diverge otherwise. `ReanchorOffCarrier` is what has been
     // refusing the difference rather than building it, and it stays
     // exactly where it was for every body neither branch takes — a
-    // torus wall, a cylinder skew to the body's own axis, a NURBS. The
-    // curved corners of a body of REVOLUTION are no longer among them:
+    // cylinder skew to the body's own axis, a NURBS. The curved
+    // corners of a body of REVOLUTION are no longer among them, its
+    // torus walls included:
     // `offset_charts_together` solves those in the meridian
     // half-plane, and the branch below picks it.
     let all_planar = cavity.faces().all(|(_, f)| {
