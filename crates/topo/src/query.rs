@@ -364,10 +364,9 @@ impl core::fmt::Display for UnitVec3Error {
                 "a direction vector decided to zero length, so it names no \
                  direction to normalize",
             ),
-            Self::Escalated(source) => write!(
-                f,
-                "a direction vector's length is indeterminate: {source}"
-            ),
+            Self::Escalated(source) => {
+                write!(f, "a direction vector's length is indeterminate: {source}")
+            }
         }
     }
 }
@@ -623,7 +622,9 @@ mod tests {
             Vec3::new(3e6, 4e6, 0.0),
             Vec3::new(3.0, 4.0, 12.0),
         ] {
-            let u = UnitVec3::new(v, band).expect("a vector with a length").get();
+            let u = UnitVec3::new(v, band)
+                .expect("a vector with a length")
+                .get();
             assert!(
                 (u.norm() - 1.0).abs() <= 1e-15,
                 "norm {} for {v:?}",
