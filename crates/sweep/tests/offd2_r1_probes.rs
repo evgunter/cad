@@ -594,6 +594,12 @@ fn probe_late_err_leaves_body_untouched() {
     // simultaneous axial door has no arm for a partial revolve's rim,
     // measured in `torax_axial`). Still an Err decided in the plan,
     // which is the property this probe holds: the body is untouched.
+    //
+    // The old row's OTHER job — holding the C5 table to its own
+    // `plane × torus` note, so a quiet widening would go green — is
+    // rehomed, not dropped: `intersect_table::route_inventory` pins
+    // `(Plane, Torus, Rung::Closed, true)` row by row, and reverting
+    // the flag reds it (verified in this unit's mutation pass).
     let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
         panic!("expected the reanchor refusal, got {e}");
     };
