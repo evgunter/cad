@@ -15,7 +15,8 @@ use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
     Body, BooleanDeclarations, BooleanResult, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
-    FacePairDeclaration, GeomSource, VfContact, VvContact,
+    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, UnitVec3, UnitVec3Error, VfContact,
+    VvContact,
 };
 
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
@@ -479,11 +480,28 @@ fn need_point3<T: Decide>(
     point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
+/// A slot's vector as a datum direction, through the kernel type's own
+/// constructor: the normalization and the two refusals live there, and
+/// this layer only names the ROLE the refusal is about.
+fn datum_unit<T: Decide>(
+    v: Vec3<T>,
+    role: &'static str,
+    band: Band,
+) -> Result<UnitVec3<T>, NodeErrorKind> {
+    UnitVec3::new(v, band).map_err(|e| match e {
+        UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
+        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
+            predicate: DATUM_UNIT_NORM,
+            source,
+        },
+    })
+}
+
 fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadResult<T> {
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
-            normal: unit(
+            normal: datum_unit(
                 need_vec3(vals, SlotId::Normal)?,
                 "datum plane normal",
                 band(tol)?,
@@ -491,7 +509,7 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
         },
         Datum::Axis { .. } => DatumValue::Axis {
             origin: need_point3(vals, SlotId::Origin)?,
-            dir: unit(
+            dir: datum_unit(
                 need_vec3(vals, SlotId::Direction)?,
                 "datum axis direction",
                 band(tol)?,
@@ -711,6 +729,7 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
             found: av.payload.kind_name(),
         });
     };
+    let dir = dir.get();
     // The kernel's RevolveAxis lives in SKETCH-PLANE coordinates: the
     // 3-D datum axis must lie in the profile's plane (decided; a
     // definite out-of-plane component is a typed refusal, spec D3's
@@ -1257,7 +1276,7 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     };
     let plane = SplitPlane {
         origin: *origin,
-        normal: *normal,
+        normal: normal.get(),
     };
     let result = split(&body, &plane, tol).map_err(NodeErrorKind::Split)?;
     // Pass-through descriptions keep their sources (the clone carried
@@ -1685,7 +1704,7 @@ fn stepped_map<T: Decide>(
             };
             SteppedOperands::Circular {
                 origin: *origin,
-                dir: *dir,
+                dir: dir.get(),
                 step: need_scalar(vals, SlotId::Step)?,
             }
         }

@@ -338,11 +338,13 @@ pub enum SplitSide<T: Decide> {
 // An evaluated datum (spec D3): geometry VALUES, not kernel entities,
 // which is why the type itself lives at the kernel query seat
 // (`topo::query`) — it is the resolved comparand the decided distance
-// predicate takes, and this layer's evaluation is what mints one
-// (normals/directions normalized; a degenerate, decided-zero-length
-// vector is a typed refusal). Re-exported at its historical home so
-// this crate's public surface is unchanged.
-pub use topo::query::DatumValue;
+// predicate takes, and this layer's evaluation is what mints one. Its
+// normals and axis directions are `UnitVec3`, whose constructor is
+// where a degenerate, decided-zero-length vector becomes a typed
+// refusal; this layer maps that refusal onto its own node error and
+// invents nothing. Re-exported at their historical home so this
+// crate's public surface is unchanged.
+pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
 
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
