@@ -2598,6 +2598,27 @@ The lane's three-ε sweep covered its new rows and `geom --lib` only —
 the consumer crates are handed to both arms as an item. Sample number
 at merge. Row at merge.
 
+CERT-M2 (PR #1559) ordinal FIXED AT DISPATCH (2026-09-02):
+**ordinal 712** (S-CERT band; block CERT-B4 slot 0, drawn byte 123 —
+fable at position 3, so this slot's implementer arm OPUS). v6 dual:
+slot byte 131, parity 1 ⇒ **R1 FABLE + R2 OPUS**; SEQUENTIAL on frozen
+`8f5384515` (run 33604292256 ALL GREEN, lane=both + eps=1e-12
+trailer-pinned per the issue-1356 practice). The frozen head is the
+delivered head 81d131acc plus TWO disclosed steps: d15d02000, the
+implementer lane's own fix of a twenty-first bound site in the excluded
+root `demos/tour` after the hosted gate found it (class (b), one
+bound); and the orchestrator's merge 8f5384515 of main plus the
+torax_interval per-band-honest re-pin (PR 1563, the issue-1356 class
+striking a VERBS-TORAX fixture on bare main at (interval, 1e-12)) —
+no unit code moved after d15d02000; method note amended twice pre-R1
+at cert/ab-state fae2dd0d9. Implementer difficulty M/L (logged at
+spec pre-draw, docs/CERT-M2-SPEC.md at 1267e32c0); the spec's
+S213-split was first measured-not-taken by the lane and then RULED to
+land by the orchestrator mid-unit (fence widened to the allowlist line
++ ledger + every reached site). May run CONCURRENTLY with CERT-N2's
+dual (ordinal 711), grounds file-disjoint. Sample number at merge. Row
+at merge.
+
 ## GAUTH program rows (docs/GAUTH-PLAN.md; band 900–999; blocks named GAUTH-B<n>)
 
 Opened 2026-08-31 (`docs/GAUTH-LOG.md`); single-orchestrator remote
