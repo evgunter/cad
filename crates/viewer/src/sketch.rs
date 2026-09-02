@@ -32,8 +32,9 @@
 //! picture instead of for the verdict.
 
 use pncad::document::{
-    Dimension, DimensionError, Expr, LoopProgram, ParamEnv, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId,
+    Datum, DatumValue, Dimension, DimensionError, Doc, Evaluation, Expr, LoopProgram, Node,
+    ParamEnv, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
+    ValuePayload, resolve_loops,
 };
 use pncad::geom_core::Tol;
 use pncad::profile::{
@@ -460,19 +461,49 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
 // The preview: what the loops being authored would actually draw
 // ------------------------------------------------------------------
 
-/// **The plane the add-profile form authors on.**
+/// **The placement a frame node landed on**, or `None` when the id
+/// names no node, names one that is not a frame, or names one whose
+/// evaluation did not land.
 ///
-/// The world XY plane, and one home for that fact: the form's commit
-/// and the form's preview have to place the loops the same way, and
-/// two `SketchPlane::xy()` calls are two places for that to stop
-/// being true.
+/// This replaces the form's world-XY constant. The form used to author
+/// on a fixed plane because there was nothing in a document to point
+/// at; there is now, so the plane the form draws on is READ from the
+/// frame the person picked — which is also the frame they can see in
+/// the viewport, which is the whole point of the datum being a node.
 ///
-/// It is fixed because placement on a picked face's frame is deferred
-/// — the interrogation vocabulary answers no "is this face planar"
-/// verdict for the door to gate on (issue #1374). A form that offered
-/// a plane it could not check would be offering a refusal.
-pub fn form_plane() -> SketchPlane<f64> {
-    SketchPlane::xy()
+/// It reads the LANDED value rather than resolving the frame's
+/// expressions again: this is a picture, the evaluation already
+/// produced the placement, and a second derivation is a second answer
+/// waiting to disagree with the first. (The kernel's own f64 read is a
+/// different question — see `wire::profile_plane_f64` — and is about
+/// structure selection, not about drawing.)
+pub fn frame_placement(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    frame: RecipeNodeId,
+) -> Option<SketchPlane<f64>> {
+    if !matches!(doc.node(frame), Some(Node::Datum(Datum::Frame { .. }))) {
+        return None;
+    }
+    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &evaluation.value(frame)?.payload
+    else {
+        return None;
+    };
+    Some(SketchPlane::from_frame(*origin, u.get(), v.get()))
+}
+
+/// **Every frame datum in the document, in document order** — what the
+/// add-profile form's plane picker offers.
+///
+/// Document order rather than sorted by id or by name: the feature
+/// tree lists nodes that way, so the picker and the tree name the
+/// document's frames in one order.
+pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    doc.order()
+        .iter()
+        .copied()
+        .filter(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::Frame { .. }))))
+        .collect()
 }
 
 /// **One drawn loop of a preview**: its polyline, and whether the
@@ -517,8 +548,21 @@ pub struct PreviewLoop {
 /// here knows where the sketch plane is; the caller places the points
 /// ([`SketchPlane::to_world`]) because the caller is the one drawing
 /// them.
-#[derive(Clone, Debug, Default, PartialEq)]
+// `Default` and `PartialEq` left the derive with the plane's arrival:
+// a `SketchPlane` has neither, an empty preview on an invented plane
+// would be a picture of nowhere, and two previews are compared by what
+// a test asks of them (their loops) rather than wholesale.
+#[derive(Clone, Debug)]
 pub struct ProfilePreview {
+    /// **The plane the polylines below were placed on**, carried so
+    /// the viewport draws them where the replay put them.
+    ///
+    /// Beside the drawing rather than looked up again by the drawer,
+    /// for the reason the retired `form_plane` constant existed: the
+    /// preview's placement and the picture's have to be one fact, and
+    /// two lookups of a frame that can move between them are two
+    /// places for that to stop being true.
+    pub plane: SketchPlane<f64>,
     /// One polyline per loop, in authoring order.
     pub loops: Vec<PreviewLoop>,
     /// What validation said about the replayed loops — `None` when it
@@ -673,17 +717,15 @@ pub fn preview(
         // program is built to be replayed and drawn, never committed.
         programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Dimension)?);
     }
-    let program = ProfileProgram {
-        plane,
-        loops: programs,
-    };
     // Literals only reach this door, so an empty environment binds
     // everything it can be asked about. It is passed rather than
-    // assumed because `resolve` is the document layer's one door and
-    // a form is not a special case of it.
+    // assumed because resolution is the document layer's one door and
+    // a form is not a special case of it. The LOOPS resolve, not a
+    // program: a preview has no plane node and does not need one — the
+    // plane it draws on arrives as a placement, from the frame the
+    // form is pointed at.
     let env = ParamEnv::default();
-    let resolved = program
-        .resolve(&env)
+    let resolved = resolve_loops(&programs, &env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
     let mut loops: Vec<ProfileLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut closed_flags: Vec<bool> = Vec::with_capacity(resolved.len());
@@ -754,6 +796,7 @@ pub fn preview(
         Profile::new(plane, loops).validate(tol).err()
     };
     Ok(ProfilePreview {
+        plane,
         loops: polylines,
         invalid,
     })
@@ -824,11 +867,8 @@ pub fn admits_at(
         };
         programs.push(lowered);
     }
-    let program = ProfileProgram {
-        plane: form_plane(),
-        loops: vec![LoopProgram::Chain(programs)],
-    };
-    let resolved: Vec<Vec<Step<f64>>> = match program.resolve(&ParamEnv::default()) {
+    let loops = [LoopProgram::Chain(programs)];
+    let resolved: Vec<Vec<Step<f64>>> = match resolve_loops(&loops, &ParamEnv::default()) {
         Ok(resolved) => resolved,
         // An expression that will not resolve is likewise not a
         // lattice question.

@@ -141,7 +141,13 @@ where
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(program, profile_pre, env.lane, tol)?,
+            wire_profile(
+                program,
+                profile_plane_f64(doc, program.plane, tol)?,
+                profile_pre,
+                env.lane,
+                tol,
+            )?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
@@ -513,6 +519,97 @@ fn datum_unit<T: Decide>(
     })
 }
 
+/// **The sketch plane a profile is drawn on, at f64** — the frame node
+/// its payload names, resolved and orthonormalized.
+///
+/// # Why f64 and not the frame's landed value
+///
+/// The placement feeds C6 STRUCTURE selection, which must be
+/// lane-identical: the same document has to select the same structure
+/// at `f64` and at the interval scalar, or the lift's two passes are
+/// deciding different questions. That is the rule the profile's own
+/// program already follows — `eval_node` resolves it "at f64 because
+/// it feeds C6 structure selection" — and the frame is now part of the
+/// same input, so it follows the same rule rather than a new one. The
+/// frame's LANDED value is at the lane scalar and is the right answer
+/// to a different question (what a reader sees, what a measure
+/// measures); reading it here would make structure lane-dependent.
+///
+/// So the frame is read twice, at two scalars, for two purposes —
+/// exactly as the profile's own program is, and not a second opinion
+/// about one question.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::WrongOperand`] when the reference does not name a
+/// frame — the door every operand's kind is checked at — and the
+/// frame's own two direction refusals through [`frame_axes`].
+pub(crate) fn profile_plane_f64(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    plane: RecipeNodeId,
+    tol: Tol,
+) -> Result<profile::SketchPlane<f64>, NodeErrorKind> {
+    let found = match doc.node(plane) {
+        None => {
+            return Err(NodeErrorKind::MissingInput { input: plane });
+        }
+        Some(Node::Datum(Datum::Frame { .. })) => None,
+        Some(_) => Some("not a datum frame"),
+    };
+    if let Some(found) = found {
+        return Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found,
+        });
+    }
+    let node = doc
+        .node(plane)
+        .ok_or(NodeErrorKind::MissingInput { input: plane })?;
+    let env = doc.param_env::<f64>();
+    let read = |family: fn(Axis3) -> SlotId| -> Result<Vec3<f64>, NodeErrorKind> {
+        let mut out = [0.0_f64; 3];
+        for axis in Axis3::ALL {
+            let slot = family(axis);
+            let expr = node.expr(slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
+            out[axis.index()] = crate::expr::eval(expr, &env)
+                .map_err(|source| NodeErrorKind::Expr { slot, source })?;
+        }
+        Ok(Vec3::new(out[0], out[1], out[2]))
+    };
+    let origin = read(SlotId::Origin)?;
+    let (u, v) = frame_axes(read(SlotId::U)?, read(SlotId::V)?, band(tol)?)?;
+    Ok(profile::SketchPlane::from_frame(
+        Point3::new(origin.x, origin.y, origin.z),
+        u.get(),
+        v.get(),
+    ))
+}
+
+/// **A frame's authored pair, made orthonormal** — the one spelling of
+/// it, and the one door its two refusals come out of.
+///
+/// Two callers need this and they must agree: the datum's own
+/// evaluation, which produces the [`DatumValue::Frame`] a reader sees,
+/// and the profile's f64 read of the frame it is drawn on. A second
+/// spelling would be two frames for one node, free to disagree about
+/// where a sketch's +x points.
+///
+/// `u` is normalized and KEPT; `v` yields its component along `u`.
+/// Gram-Schmidt states "these two span no plane" as a length, so a
+/// parallel pair refuses at the same decided door every other
+/// direction does, under the y axis's role, rather than under a
+/// predicate invented here.
+pub(crate) fn frame_axes<T: Decide>(
+    u_raw: Vec3<T>,
+    v_raw: Vec3<T>,
+    band: Band,
+) -> Result<(UnitVec3<T>, UnitVec3<T>), NodeErrorKind> {
+    let u = datum_unit(u_raw, "datum frame x axis", band)?;
+    let v_perp = v_raw - u.get() * v_raw.dot(u.get());
+    Ok((u, datum_unit(v_perp, "datum frame y axis", band)?))
+}
+
 fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadResult<T> {
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
@@ -547,14 +644,15 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
         // other order would silently rotate every profile drawn on the
         // frame when only v was edited.
         Datum::Frame { .. } => {
-            let band = band(tol)?;
-            let u = datum_unit(need_vec3(vals, SlotId::U)?, "datum frame x axis", band)?;
-            let v_raw = need_vec3(vals, SlotId::V)?;
-            let v_perp = v_raw - u.get() * v_raw.dot(u.get());
+            let (u, v) = frame_axes(
+                need_vec3(vals, SlotId::U)?,
+                need_vec3(vals, SlotId::V)?,
+                band(tol)?,
+            )?;
             DatumValue::Frame {
                 origin: need_point3(vals, SlotId::Origin)?,
                 u,
-                v: datum_unit(v_perp, "datum frame y axis", band)?,
+                v,
             }
         }
     }))
@@ -571,7 +669,7 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
 /// replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
-    program: &ProfileProgram,
+    plane: profile::SketchPlane<f64>,
     resolved: &[Vec<profile::Step<f64>>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
@@ -587,7 +685,7 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
         replay_records.push(record);
     }
-    let profile_f64 = profile::Profile::new(program.plane, loops);
+    let profile_f64 = profile::Profile::new(plane, loops);
     let (validated_f64, canonical) = profile_f64
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
@@ -628,6 +726,7 @@ pub(crate) fn prepare_profile(
 /// the record, so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
+    plane: profile::SketchPlane<f64>,
     lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
@@ -662,7 +761,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    let plane = profile::SketchPlane::new(anchor::embed_affine::<T>(&program.plane.placement));
+    let plane = profile::SketchPlane::new(anchor::embed_affine::<T>(&plane.placement));
     profile::Profile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
@@ -670,6 +769,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
+    plane: profile::SketchPlane<f64>,
     pre: Option<&ProfilePre>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -688,7 +788,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
             .validate(tol)
             .map_err(NodeErrorKind::Profile)?,
-        super::ProfileLift::Guided => lane_profile::<T>(program, lane, pre, tol)?,
+        super::ProfileLift::Guided => lane_profile::<T>(program, plane, lane, pre, tol)?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -2041,7 +2141,8 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // gate to be added to only one. Sharing the function is what makes
     // "the duplicate ladder did not fork" a fact about the code rather
     // than a claim about two diffs.
-    let pre = prepare_profile(program, &resolved, tol)?;
+    let plane = profile_plane_f64(doc, program.plane, tol)?;
+    let pre = prepare_profile(plane, &resolved, tol)?;
     // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
     // sweep's section stays f64 — the skinned surface's knots, degrees
     // and control bits must be identical in every lane, which is the
@@ -2050,7 +2151,7 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // parameter box the extrude ladder refuses to certify is refused
     // here as well, and by the same predicate.
     if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(program, lane, &pre, tol)?;
+        lane_profile::<T>(program, plane, lane, &pre, tol)?;
     }
     let place = pre.profile_f64.plane.placement;
     // The sections are the REPLAYED loops (program order — exactly

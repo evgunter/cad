@@ -1349,12 +1349,18 @@ fn rule_expr_mut<'a>(
 impl<P> Node<P> {
     /// The upstream node references — the recipe DAG's edges (spec
     /// D3). Deterministic order (field order).
-    pub fn inputs(&self) -> Vec<RecipeNodeId> {
+    ///
+    /// The payload bound is the profile's: its plane is a node, and
+    /// the reference lives in the payload, so answering this question
+    /// means asking the payload for it.
+    pub fn inputs(&self) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
         match self {
             // A leaf whose material crosses the document seam has no
             // DAG edge to offer (A3).
             Node::Datum(_)
-            | Node::Profile(_)
             | Node::Declare { .. }
             // A mate is a leaf: its references are NAMES, not edges
             // (A12's reading edges are recomputed, never stored here).
@@ -1373,6 +1379,13 @@ impl<P> Node<P> {
                 v.dedup();
                 v
             }
+            // **A profile is not a leaf any more**: it is drawn ON a
+            // frame node, and that is a DAG edge like any other. The
+            // reference lives in the payload (where the plane always
+            // did), so it is read through the payload trait — a
+            // payload with no plane, which is every `Doc<P>` test
+            // payload, still answers with no edge.
+            Node::Profile(p) => p.plane_input().into_iter().collect(),
             Node::Assertion { measure, .. } => vec![*measure],
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],

@@ -237,13 +237,13 @@ fn first_non_finite(
             return Some(site);
         }
     }
-    for (&id, node) in &snapshot.nodes {
-        if let Node::Profile(desc) = node
-            && let Some(index) = profile_non_finite(desc)
-        {
-            return Some(NonFiniteSite::Profile { node: id, index });
-        }
-    }
+    // A PROFILE is no longer walked here, and the two sites it used to
+    // reach are gone with it: its payload carried twelve raw
+    // sketch-plane floats, and now carries a frame NODE reference. Its
+    // remaining content is `Expr`s, which the expression construction
+    // door already refuses non-finite, and the frame's own components
+    // are `Expr`s under the same door. There is no float left for this
+    // walk to find.
     for (name, rec) in &snapshot.appearance {
         if let Some((key, path)) = record_non_finite(rec) {
             return Some(NonFiniteSite::Metadata {
@@ -309,17 +309,6 @@ fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(ParamName, Distrib
         })
 }
 
-/// Walks the program payload's RAW floats — exactly the 12 plane
-/// placement values (program arguments are `Expr`s, whose literals
-/// are finite by the construction door).
-fn profile_non_finite(program: &ProfileProgram) -> Option<usize> {
-    let a = &program.plane.placement;
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|v| [v.x, v.y, v.z])
-        .position(|f| !f.is_finite())
-}
-
 fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
     rec.metadata
         .iter()
@@ -330,9 +319,6 @@ fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
 /// is DATA — it has not necessarily been applied by this process).
 fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
     match edit {
-        DocEdit::InsertNode {
-            node: Node::Profile(program),
-        } => profile_non_finite(program).map(|index| NonFiniteSite::InsertedProfile { index }),
         DocEdit::SetDocParam { name, value } => param_site(name, value),
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its

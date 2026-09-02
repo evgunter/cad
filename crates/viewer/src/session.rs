@@ -42,7 +42,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
-use pncad::profile::SketchPlane;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
@@ -390,6 +389,8 @@ pub enum NodeKindWanted {
     Axis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
+    /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
+    Frame,
     /// A node whose value is ONE body — the combining seats' kind
     /// ([`combine::denotes_body`] carries the admissible set and why a
     /// split's sides and a pattern's instances are not in it).
@@ -412,6 +413,7 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
         NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
         NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
         NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
+        NodeKindWanted::Frame => matches!(held, Some(Node::Datum(Datum::Frame { .. }))),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
     }
 }
@@ -423,6 +425,7 @@ impl NodeKindWanted {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
             Self::Plane => "a plane datum",
+            Self::Frame => "a frame datum",
             Self::Body => "a body",
         }
     }
@@ -1199,8 +1202,20 @@ pub enum SessionOp {
     /// (the program's own placement struct — a snapshot, never a
     /// reference to the geometry it may have been derived from).
     AddProfile {
-        /// The sketch-plane placement the profile is authored on.
-        plane: SketchPlane<f64>,
+        /// **The frame node the profile is drawn on** — a PICK, not a
+        /// field.
+        ///
+        /// It was a `SketchPlane<f64>` the form filled in from a
+        /// world-XY constant. A profile's plane is a document node
+        /// now, so the form names one that already exists rather than
+        /// minting one on the side: one submit inserts one node, and
+        /// the frame a person drew on is the frame they can see in the
+        /// viewport and edit afterwards.
+        ///
+        /// A reference that does not name a `Datum::Frame` refuses
+        /// [`Refusal::WrongNodeKind`] at the door, like every other
+        /// pick.
+        plane: RecipeNodeId,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
@@ -2621,9 +2636,17 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        // The plane is a PICK now, so it is gated where every other
+        // pick is: at this door, by kind, before the edit. Without
+        // this the reference would reach evaluation and refuse there
+        // — a typed refusal either way, but one the person gets after
+        // the node lands rather than instead of it.
+        if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
+            return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram { plane, loops }),

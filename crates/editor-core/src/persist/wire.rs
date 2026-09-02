@@ -15,14 +15,14 @@
 //!   driver at evaluation (serde is transport, the driver is the door
 //!   — LIB-SWITCH §4h, the strict-door rule at the program layer).
 
-use geom_core::{Affine3, Mat3, Vec3};
-use profile::{ArcSweep, SketchPlane};
+use profile::ArcSweep;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
+use crate::node::RecipeNodeId;
 use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
@@ -156,17 +156,6 @@ impl<'de> Deserialize<'de> for Expr {
         wire.rebuild()
             .map_err(|e| D::Error::custom(format!("ill-dimensioned expression refused: {e}")))
     }
-}
-
-/// A sketch-plane placement: the affine frame's four columns
-/// (basis c0, c1, c2, then translation), each an exact (x, y, z).
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WirePlacement {
-    /// The linear part's columns.
-    basis: [[f64; 3]; 3],
-    /// The translation column.
-    origin: [f64; 3],
 }
 
 /// A structural travel-sense tag (`profile::ArcSweep`'s wire mirror;
@@ -559,27 +548,32 @@ enum WireLoopProgram {
     },
 }
 
-/// The profile payload's wire shape (module docs): placement + loop
-/// PROGRAMS. No derived value is on this wire — segments, bulges and
-/// joints are all replay products (V3: caches are not persisted).
+/// The profile payload's wire shape (module docs): the FRAME NODE it
+/// is drawn on + loop PROGRAMS. No derived value is on this wire —
+/// segments, bulges and joints are all replay products (V3: caches are
+/// not persisted).
+///
+/// **`plane` was four placement columns and is now a node id.** That
+/// is a BREAKING change to the format, which this format's one door
+/// handles by refusing typed: a document written before it names a
+/// `plane` object where this build expects a number, and
+/// `deny_unknown_fields` plus the shape mismatch put it on
+/// [`super::PersistError::Unreadable`] with the regenerate recourse.
+/// No migration, by the module header's ruling — nothing has shipped,
+/// and every checked-in document is regenerable.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireProfile {
-    /// The sketch plane placement.
-    plane: WirePlacement,
+    /// The frame datum node this profile is drawn on.
+    plane: RecipeNodeId,
     /// The loop programs: outer first, then holes, description order.
     loops: Vec<WireLoopProgram>,
 }
 
 impl Serialize for ProfileProgram {
     fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        let a = &self.plane.placement;
-        let col = |v: Vec3<f64>| [v.x, v.y, v.z];
         let wire = WireProfile {
-            plane: WirePlacement {
-                basis: [col(a.linear.c0), col(a.linear.c1), col(a.linear.c2)],
-                origin: col(a.translation),
-            },
+            plane: self.plane,
             loops: self
                 .loops
                 .iter()
@@ -612,15 +606,6 @@ impl Serialize for ProfileProgram {
 impl<'de> Deserialize<'de> for ProfileProgram {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireProfile::deserialize(de)?;
-        let v3 = |c: [f64; 3]| Vec3::new(c[0], c[1], c[2]);
-        let placement = Affine3::from_parts(
-            Mat3::from_cols(
-                v3(wire.plane.basis[0]),
-                v3(wire.plane.basis[1]),
-                v3(wire.plane.basis[2]),
-            ),
-            v3(wire.plane.origin),
-        );
         let loops = wire
             .loops
             .into_iter()
@@ -645,7 +630,7 @@ impl<'de> Deserialize<'de> for ProfileProgram {
             })
             .collect();
         Ok(ProfileProgram {
-            plane: SketchPlane::new(placement),
+            plane: wire.plane,
             loops,
         })
     }

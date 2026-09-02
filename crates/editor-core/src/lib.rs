@@ -128,7 +128,7 @@ pub use placement::Frame;
 pub use product::{Product, ProductError, product, product_named, product_recorded};
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedProgramError,
+    ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 pub use resolve::{

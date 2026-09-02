@@ -1658,7 +1658,14 @@ where
     // exactly the lane validation the op runs (the v1 logged surface).
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
-            match wire::prepare_profile(program, resolved, tol) {
+            // The frame the profile is drawn on, at f64 and from the
+            // DOCUMENT — `wire::profile_plane_f64` carries why that is
+            // the right scalar and the right source.
+            let plane = match wire::profile_plane_f64(doc, program.plane, tol) {
+                Ok(plane) => plane,
+                Err(kind) => return fail(kind),
+            };
+            match wire::prepare_profile(plane, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -1994,20 +2001,22 @@ where
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
-        Node::Profile(program) => {
+        Node::Profile(_) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
-            // as (tag, payload) tokens — plane placement floats, then
-            // per loop a LoopStart tag and per RESOLVED step the verb
+            // as (tag, payload) tokens — per loop a LoopStart tag and
+            // per RESOLVED step the verb
             // tag + structural tags + the resolved-at-f64 bit pattern
             // of each continuous arg (the same resolved-value
             // convention node slots use). Derived segment floats LEFT
             // the key (V3); display units never enter it (D7). Any
             // edit that can change segments changes the key: structure
             // via tags, Exprs and params via resolved bits, ε above.
-            for bits in crate::program::plane_key_bits(&program.plane) {
-                h.write_tag(2);
-                h.write_u64(bits);
-            }
+            // The plane's twelve placement floats LEFT this key when
+            // the plane became a node: it is an input now, so its own
+            // content key is already folded in above with every other
+            // upstream key, and writing it here too would be the same
+            // fact hashed twice — with the two copies free to disagree
+            // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
             // before keying); written defensively — no panic paths in
             // this crate — and the write_tag(0) marker keeps an
