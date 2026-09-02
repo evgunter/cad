@@ -423,7 +423,10 @@ pub fn union_refinements(vectors: &[&KnotVector]) -> Vec<Vec<f64>> {
                     .iter()
                     .find(|(k, _)| k.value() == knot.value())
                     .map_or(0, |(_, m)| *m);
-                add.extend(core::iter::repeat_n(knot.value(), want.saturating_sub(have)));
+                add.extend(core::iter::repeat_n(
+                    knot.value(),
+                    want.saturating_sub(have),
+                ));
             }
             add
         })
