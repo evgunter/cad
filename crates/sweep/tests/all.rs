@@ -326,6 +326,8 @@ mod verbs_arms2_arms;
 #[path = "verbs_arms2_bud.rs"]
 mod verbs_arms2_bud;
 
+#[path = "seat6_germ_channel.rs"]
+mod seat6_germ_channel;
 #[path = "verbs_arms3.rs"]
 mod verbs_arms3;
 #[path = "verbs_chamfer.rs"]

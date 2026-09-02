@@ -1285,7 +1285,7 @@ impl core::fmt::Display for BooleanError {
                  vertices, not one conic, so no point selects a branch. With unequal \
                  radii the locus is a space quartic and has no conic frame at all. Which \
                  holds is a radius-equality question, answered by the lowered \
-                 parameter-identity channel and never by the stored values: this pair's \
+                 parameter-identity channel and never inferred from values: this pair's \
                  evidence is {evidence:?} — Declared means the ellipse pair, verified \
                  against the geometry; None means no declaration exists and the pair \
                  routes the general rung with the question open. Recourse: a chord lane \

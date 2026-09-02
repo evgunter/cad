@@ -1996,7 +1996,6 @@ mod frame_dispatch_tests {
         );
     }
 
-
     /// **The intersecting-axes cylinder pair routes on the
     /// parameter-identity channel, and on nothing else.**
     ///

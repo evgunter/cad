@@ -255,6 +255,7 @@ pub fn field_source_evidence<T: Real>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::{Point3, Tol, Vec3};
 
@@ -432,5 +433,4 @@ mod tests {
             "the record outlived the surface it named"
         );
     }
-
 }

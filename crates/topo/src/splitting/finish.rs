@@ -811,6 +811,12 @@ pub(crate) fn carve<T: Decide>(
         .collect();
     for k in orphan_surfaces {
         body.surfaces.remove(k);
+        // The side tables are parallel to the arena, so a raw removal
+        // has to reach them or a re-minted key inherits a stranger's
+        // identity (`Body::remove_surface_if_orphaned`'s rule, which
+        // this sweep is the batch spelling of).
+        body.surface_sources.remove(k);
+        body.surface_field_sources.remove(k);
     }
     Ok(body)
 }

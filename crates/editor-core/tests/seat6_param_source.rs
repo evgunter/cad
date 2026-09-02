@@ -115,6 +115,19 @@ fn a_cylinder_face(body: &Body<f64>) -> FaceKey {
         .expect("a filleted cube carries twelve quarter-cylinder blends")
 }
 
+/// One spherical corner carrier of `body` — the fillet's octant, the
+/// second role the declared flow names.
+fn sphere_face(body: &Body<f64>) -> FaceKey {
+    topo::query::all_faces(body)
+        .into_iter()
+        .find(|&f| {
+            body.get_face(f)
+                .and_then(|fd| body.get_surface(fd.surface))
+                .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+        })
+        .expect("a filleted cube carries eight sphere octants")
+}
+
 /// The evidence between one cylinder carrier of each body.
 fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
     topo::field_source_evidence(
@@ -144,6 +157,29 @@ fn one_shared_radius_parameter_declares_across_two_bodies() {
         evidence(a, b),
         RadiusEvidence::Declared,
         "two carriers built from the same declared parameter must be declared-equal"
+    );
+    // The flow declares THREE roles, and the corner spheres are the
+    // second: the row that would go silent if the attach ever read only
+    // the first field of the declaration.
+    for body in [a, b] {
+        let corner = sphere_face(body);
+        let surface = body.get_face(corner).expect("a live face").surface;
+        assert!(
+            body.surface_field_source(surface, SurfaceField::SphereRadius)
+                .is_some(),
+            "the corner sphere's radius is a declared field of the fillet's flow"
+        );
+    }
+    assert_eq!(
+        topo::field_source_evidence(
+            a,
+            sphere_face(a),
+            b,
+            sphere_face(b),
+            SurfaceField::SphereRadius
+        ),
+        RadiusEvidence::Declared,
+        "the corner spheres share the same declared radius too"
     );
 }
 
@@ -240,13 +276,18 @@ fn equal_literals_declare_and_different_literals_do_not() {
     assert_eq!(evidence(a, c), RadiusEvidence::None);
 }
 
-/// **The chamfer's declaredly EMPTY flow is obeyed**: its setback
-/// positions planes and is stored in no field, so a chamfer node
-/// attaches nothing anywhere.
+/// **A chamfer node attaches nothing anywhere**, which is what its
+/// declaredly EMPTY flow says: the setback positions planes and is
+/// stored in no field.
 ///
-/// The row matters because the attach pass is generic over the flow: if
-/// it ever stamped "the size slot" on whatever the record named without
-/// consulting the declaration, this is what would catch it.
+/// **What this row can and cannot separate, stated.** The chamfer's
+/// carriers are planes, and a plane stores no scalar a parameter could
+/// land in — so an attach pass that ignored the declaration entirely
+/// would ALSO leave this body clean, and this row would still pass. It
+/// pins the OUTCOME, not the mechanism. The mechanism is pinned where
+/// it is observable: dropping a role from the fillet's declared flow
+/// reds the rows above, because that verb's carriers do store the
+/// field.
 #[test]
 fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
     let doc = ProfileDoc::empty(DocumentId::derive("seat6-chamfer"), Tol::witness());
@@ -272,10 +313,7 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
             distance: len(1.0),
         },
     );
-    let (doc, cut) = insert(
-        doc,
-        Node::chamfer(cube, param("r"), prism_edges(cube, 4)),
-    );
+    let (doc, cut) = insert(doc, Node::chamfer(cube, param("r"), prism_edges(cube, 4)));
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "chamfer document:\n{}", bad.join("\n"));
@@ -309,7 +347,10 @@ fn a_token_inverts_to_its_slot_address() {
     let at = param_source::invert(&doc, &token).expect("the token's slot is in this document");
     assert_eq!(at.node, blends[0], "the token names the fillet node's slot");
     assert_eq!(at.slot, SlotId::Radius);
-    assert!(at.path.is_empty(), "the whole slot expression, not a subtree");
+    assert!(
+        at.path.is_empty(),
+        "the whole slot expression, not a subtree"
+    );
 }
 
 /// **The records ride a rigid placement verbatim**, which is the
