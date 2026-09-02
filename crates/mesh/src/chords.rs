@@ -238,7 +238,7 @@ fn nurbs_chord_count(
                 })
                 .collect();
             let q1 = derivative_coeffs(kv, &coeffs);
-            let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+            let inner = kv.derivative_knot_slice().to_vec();
             let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
@@ -324,7 +324,7 @@ fn rational_carrier_m_bound(
     }
     let kv = refined.knots();
     let p = kv.degree(); // ≥ 2: the caller's degree gate ran first
-    let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+    let inner = kv.derivative_knot_slice().to_vec();
     let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,

@@ -622,3 +622,99 @@ recorded as the shared-home wish beside CERT-10's `TensorNet` — not taken;
 Slate: CERT-10 (PR 1403) is the last defect-cluster unit; then the
 CERT-M/CERT-N track lanes, the blinded tally adjudication (four standing
 candidates), and the exit walk.
+
+### CERT-10 — the patch-hull consolidation (issue 1006, under the Q2 ruling) — MERGED
+
+PR 1403; spec `docs/CERT-10-SPEC.md` (cert/orchestrator d90e7441); block
+CERT-B3 slot 1 (byte 27, fable at 3 → OPUS); ordinal 707 claimed at
+dispatch (main a063a6125); sample number at merge. Sequencing gate
+(CERT-5, CERT-7 merged) satisfied at dispatch.
+
+Delivered head a33926e5, eight commits in the spec's order: red-first rows
+and the cost harness; the `geom_core::spline::net::TensorNet` home (the
+1-D step as a parameter); the whole-face arm collapsed into the fold with
+the cost table taken BEFORE the shape was chosen (1.01–1.20×; an earlier
+flattering 0.65–0.80× reading disclosed and retired); issue 1322 as
+invited; the magnitude retirement (signed reading 0.77×/0.09× on the
+quarter cylinder's muu/muv, 8.4× fewer rational cells at δ_s=4e-3) with
+the tess-budget re-baseline attributed stage by stage against a merge-base
+sweep (57 columns main drift, 158 fold-tightened with zero grew,
+retirement zero on a corpus with no rational faces). One
+orchestrator-direct discipline fix before review: 21 pinned literals past
+f64's precision (f5ab8bab, each pair bit-identical; the lane's "clippy
+clean" line had skipped `-p mesh`). Frozen review head f5ab8bab; gate
+33426061935 green, both ε=1e-12 lanes trailer-pinned.
+
+Dual (v6, sequential; byte 242 parity 0 ⇒ R1 OPUS + R2 FABLE; R2
+interrupted once by a model rate limit and resumed on the same arm): R1
+A-W-F 1/2/~4 — the MAJOR by instrumentation: the PR body's "the fold
+removed an assembly per shipped face" is FALSE on the shipped path
+(`compute_chords` fills the whole-patch memo before the per-face dispatch;
+`NurbsCellGrid::patch` reads = 0; 2.00 assemblies/face before and after),
+so the fold's 1.14–1.20× was net. R2 A-W-F 0/3/2 judged the same give-back
+real BY INSPECTION — executed evidence adjudicated over inspection, so R1's
+MAJOR is UNILATERAL-EXECUTED: the program's fourth standing v6 tally
+candidate (coding deferred to the blinded adjudication). Both arms upheld
+the signed reading's soundness under ~198k-sample and ~2M-containment
+campaigns (zero violations) and independently found the same sub-ulp
+fact: on rational faces the signed reading encloses the refined-f64 net's
+surface (`s_vv` excludes true 0 at ~4e-15) — pre-existing, newly the only
+reading, its contract overstated. Bilateral: the fold property row's
+generator never reached interior multiplicity ≥ 2 (the C¹ gate
+load-bearing for coverage, stated nowhere); the inner-knot-slice five-site
+class unswept by a consolidation unit. R2-unilateral: `comp_nets`' stale
+"bridged rather than unified" doc assigning its residue to this very unit.
+
+Fix pass (implementer-inherited, all 11 union items taken, none declined):
+the give-back reproduced FALSE (4 faces, 8 assemblies, 0 patch reads) and
+then MADE TRUE by route (b) — the memo holds the cell table (`face_grid`)
+and the whole-patch bound is a reading of it; re-measured 1.00/face, now
+ASSERTED (`mesh::budget` counts assemblies, R1's probe promoted to a row;
+the planted regression reds it 8 vs 4); the enclosure-provenance section
+on `PatchCell` with every field pointing at it, the noise pins de-pinned
+to order-of-magnitude (6 of 256 quarter-cylinder cells at
+`[-4.1e-15, -3.4e-15]`, worst dust 4.250461e-15, cause the 16× insertion
+materialised in f64), `offset_meters`' inf-side door saying why reading
+them there is sound; the generator drawing multiplicities 1..=p−1 with a
+second coverage floor (2400 comparisons, 974 strict, 0 violations); the
+fill parameter DELETED — a step answering anything but n−1 poisons its
+whole line, reachability stated as measured (neither caller can trip it);
+`comp_nets`' doc de-staled both ways with the residue given an owner
+(issue 1532); the knot-slice class FOLDED, not re-deferred
+(`KnotVector::derivative_knot_slice` + raw twin, seven sites re-pointed,
+zero remaining tree-wide); the counterfactual-faithfulness row (exact
+digits on wavy and staggered_channels); both reviewer probe suites adopted
+with authorship preserved (cert/10r1-probes, cert/10r2-probes pushed).
+Then TWO main merges: the 598-commit one (S-MESH's MESH-4/5 comment-only
+on this unit's files; pass order unchanged, the fact item 1 turns on;
+baseline conflict taken as main's cut and re-cut on the merged tree),
+where main's newer tooling caught three things once each (map_entry,
+tess-lint against main's cut, the `folded_face_bound` citation) and this
+PR's gate found one main-side breakage (k-lint's sampled probe+interval
+row; ported here, fixed on main by PR 1526, a no-op since); and — after
+GitHub created NO workflow run for the push bb8747a94 — the 13-merge one
+to 7ee04c114, where CERT-8's landing REMOVED the `pcurve_cache` tensor
+site the sweep had listed as its one fenced sibling (deferral closed by
+someone else's merge, recorded) and PR 1506's tour trim left `lily.rs`
+untouched. Re-baseline re-derived against 7ee04c114: main's file ≡ main's
+behaviour, so every move is this branch's — 158 bound columns, 0 up, 0
+identity-column changes across 1306 rows; certificates 0 over δ, worst
+cert/δ 0.124994 unmoved; the finding-13 pinned row RE-DERIVED per the Q2
+ruling (lily_leaf_b 468 → 454, lily_leaf_c 414 → 384, derivation in the
+table; 12 `triangle_count` sites swept, only these two pin). The lane owned
+two verification-claim misses: the clippy line that skipped `-p mesh`, and
+"done" claimed without the doc gate or the tour release row (both redded
+later; both now in its pre-push set). Final head a4eb03aef: run
+33569749882, 21 success + 2 neutral (render drift, by convention) + 1
+skipped; both lanes at 1e-12 by trailer. One cosmetic residue: the second
+merge commit's message carries a stray CJK character ("disposition改"),
+unfixable under merge-only history.
+
+Issues: 1006 and 1322 closed at merge; filed: 1532 (the two recentring
+centres — a measured decision, given an owner). Not moved, by design:
+1320, 1321, 1368 (their instruments verified unmoved).
+
+Slate: the defect cluster is clear (CERT-1..10 all merged). Next the
+CERT-M/CERT-N track lanes (CERT-M1 in flight, CERT-N1 dispatching from
+this merge), the blinded tally adjudication (CERT-1×2, CERT-6×1,
+CERT-10×1), and the exit walk.

@@ -88,7 +88,7 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::sizing::{SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
+use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
 
@@ -406,7 +406,7 @@ fn entries_off_bbox(
     poly: &[UvPoint],
     levers: &[(f64, f64)],
     (u0, u1, v0, v1): (f64, f64, f64, f64),
-    eps: f64,
+    eps: Eps,
 ) -> Vec<(usize, f64)> {
     // An axis puts the entry ON the box when its own gap is noise in
     // metres, and an axis with no lever arm has no metric and puts it
@@ -529,7 +529,7 @@ fn require_swept_rectangle(
     poly: &[UvPoint],
     levers: &[(f64, f64)],
     bbox: (f64, f64, f64, f64),
-    eps: f64,
+    eps: Eps,
 ) -> Result<(), TessellateError> {
     let off = entries_off_bbox(poly, levers, bbox, eps);
     let Some(&(first, _)) = off.first() else {
@@ -816,8 +816,8 @@ mod tests {
 
     /// The run's kernel ε — the length this lane's band measures
     /// against, read from the same place `tessellate` reads it.
-    fn eps() -> f64 {
-        Tol::witness().get().eps
+    fn eps() -> Eps {
+        Eps::at(Tol::witness())
     }
 
     /// Unit lever arms for a synthetic polygon, so its UV units ARE
@@ -850,7 +850,7 @@ mod tests {
     /// router's own screens (`tessellate.rs`), so a face that survives
     /// them is a face `tessellate_curved` receives.
     fn curved_walks(body: &Body<f64>) -> Vec<Walked> {
-        let eps = Tol::witness().get().eps;
+        let eps = Eps::at(Tol::witness());
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
         for (vk, v) in body.vertices() {
@@ -1180,7 +1180,7 @@ mod tests {
     fn worst_entry_off_box(body: &Body<f64>) -> f64 {
         let mut worst: f64 = 0.0;
         for (_, poly, levers) in curved_walks(body) {
-            for (_, d) in entries_off_bbox(&poly, &levers, bbox(&poly), 0.0) {
+            for (_, d) in entries_off_bbox(&poly, &levers, bbox(&poly), Eps::exactly(0.0)) {
                 worst = worst.max(d);
             }
         }
@@ -1511,7 +1511,7 @@ mod tests {
         let b = bbox(&poly);
         let wobble = 4.0 - inside;
         assert!(
-            wobble > 0.0 && wobble < eps(),
+            wobble > 0.0 && eps().dominates(wobble),
             "fixture: {wobble} m must be a sub-eps nudge"
         );
 
@@ -1520,7 +1520,7 @@ mod tests {
         // ON the box at distance 0.0. Dropping those reproduces the
         // pre-band comparison exactly, and it sees the nudged entry:
         // one off-box vertex, at index 2, `wobble` metres out.
-        let exact: Vec<_> = entries_off_bbox(&poly, &levers, b, 0.0)
+        let exact: Vec<_> = entries_off_bbox(&poly, &levers, b, Eps::exactly(0.0))
             .into_iter()
             .filter(|&(_, d)| d > 0.0)
             .collect();
@@ -1677,7 +1677,7 @@ mod tests {
         // so this is metres.
         let ulp = f64::from_bits(4.0_f64.to_bits() + 1) - 4.0;
         assert!(
-            ulp < e && e < feature,
+            e.dominates(ulp) && e.separates(feature),
             "the band must sit strictly between an ulp of a UV coordinate ({ulp} m) \
              and a feature-sized notch ({feature} m); eps = {e}"
         );
