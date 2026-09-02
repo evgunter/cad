@@ -14,7 +14,12 @@
 //! polyline's ids is the same mark `tessellate`'s census calls
 //! `shared_below`, and anything at or above it is a patch's private
 //! interior grid point.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
 
 mod common;
 use common::*;
@@ -162,7 +167,13 @@ fn r2_scaffold_strut_body_through_tessellate() {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
     let e_ab = body
-        .mev_line(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0), tol)
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            pt(1.0, 0.0, 0.0),
+            tol,
+        )
         .unwrap();
     let strut = |he| MevSite::Fan { he1: he, he2: he };
     let e_bc = body
@@ -205,16 +216,28 @@ fn r2_scaffold_strut_body_through_tessellate() {
         .unwrap();
     body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), tol)
         .unwrap();
-    println!("R2-SCAF closed cube: validate_closed = {:?}", topo::validate_closed(&body).is_ok());
-    println!("R2-SCAF closed cube tessellate = {:?}", mesh::tessellate(&body, 0.1, tol).map(|m| m.patches.len()));
+    println!(
+        "R2-SCAF closed cube: validate_closed = {:?}",
+        topo::validate_closed(&body).is_ok()
+    );
+    println!(
+        "R2-SCAF closed cube tessellate = {:?}",
+        mesh::tessellate(&body, 0.1, tol).map(|m| m.patches.len())
+    );
 
     // Now the scaffolding strut: tier-1 legal, tier-2 invalid.
     let scaffold = body
         .mev_line(strut(e_ab.he_plus), pt(2.0, 0.0, 0.0), tol)
         .unwrap();
     let _ = scaffold;
-    println!("R2-SCAF with strut: validate      = {:?}", topo::validate(&body).is_ok());
-    println!("R2-SCAF with strut: validate_closed = {:?}", topo::validate_closed(&body).is_err());
+    println!(
+        "R2-SCAF with strut: validate      = {:?}",
+        topo::validate(&body).is_ok()
+    );
+    println!(
+        "R2-SCAF with strut: validate_closed = {:?}",
+        topo::validate_closed(&body).is_err()
+    );
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         mesh::tessellate(&body, 0.1, tol).map(|m| m.patches.len())
     }));
