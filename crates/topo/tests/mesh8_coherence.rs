@@ -395,10 +395,22 @@ fn two_carriers_for_one_rim_row_report_their_v_gap() {
     assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
     let rims = of_kind(&report.findings, is_rim_continuation);
     assert_eq!(rims.len(), 2, "one per face: {:?}", report.findings);
+    // The gap in CLOSED FORM, not through the leading-order relation
+    // that chose `c`: the two carriers state the same axial height and
+    // different radii, and a sphere reads a rim's v as `atan2(h, ρ)`.
+    // The inversion above is first-order and drifts a fraction of a
+    // percent by 1e-6, where `c` is millimetres; the row asserts the
+    // exact form and keeps the band only as the SCALE it was aimed at.
+    let exact = RIM_Z.atan2(rim_r()) - RIM_Z.atan2((rim_r() * rim_r() + c * c).sqrt());
+    assert!(
+        (0.5 * want..2.0 * want).contains(&exact.abs()),
+        "the offset was aimed at ~{want} m from the run's own band; the closed          form says {exact} rad"
+    );
     for f in &rims {
         assert!(
-            (f.metres - want).abs() < want * 1e-3,
-            "expected ~{want} m, got {} (gap {} rad of latitude, lever {} m)",
+            (f.metres - exact.abs()).abs() < exact.abs() * 1e-9,
+            "expected the closed form {} m, got {} (gap {} rad of latitude,              lever {} m)",
+            exact.abs(),
             f.metres,
             f.gap,
             f.lever
