@@ -32,9 +32,13 @@
 //!
 //! So both halves follow the view, and they are two decisions:
 //!
-//! - **The patch** is centred on the eye's own projection onto the
-//!   plane and sized to overflow the window ([`PATCH_COVER`]), so
-//!   panning cannot leave it and zooming out cannot shrink it away.
+//! - **The patch** is centred on what the camera is POINTED AT,
+//!   projected onto the plane, and sized to overflow the window
+//!   ([`PATCH_COVER`]) — so panning cannot leave it and zooming out
+//!   cannot shrink it away. The looked-at point rather than the eye's
+//!   own perpendicular foot: that foot is well defined and the wrong
+//!   point, because on a plane seen at a grazing angle it sits far
+//!   from where the camera is aimed ([`View::look_at`]).
 //! - **The pitch** snaps to a 1-2-5 ladder chosen so one cell spans
 //!   about [`TARGET_PITCH_PX`] pixels. Snapping is the half that is
 //!   easy to miss: a pitch varying CONTINUOUSLY with distance would
@@ -51,12 +55,18 @@
 //! off a moving window would slide as the eye moved.
 //!
 //! **Perspective makes one pitch a compromise**, stated rather than
-//! hidden. World-per-pixel grows with depth, so a plane seen at a
-//! grazing angle is denser at its far end than at its near one. The
-//! scale is taken at the datum's ORIGIN, and the error is in the safe
-//! direction: the far end is finer than asked for, never coarser, so
-//! no part of a drawn plane can open into a hole the target pitch was
-//! chosen to prevent.
+//! hidden, and the compromise is not one-sided. World-per-pixel grows
+//! with depth, so one pitch over a plane seen at an angle is finer
+//! than asked for beyond the scale point and COARSER than asked for
+//! nearer than it. The scale is taken where the camera is pointed,
+//! which puts the target pitch exactly where a reader is looking and
+//! spends the error on the parts of the plane they are not.
+//!
+//! So the claim this module makes is the bounded one and not the
+//! total one: no cell opens wide enough to swallow the window where
+//! the view is aimed. A plane raking away under the camera still has
+//! a near corner drawn coarser than [`TARGET_PITCH_PX`], and pointing
+//! at that corner is what re-scales it.
 //!
 //! # Lines, not a translucent quad
 //!
