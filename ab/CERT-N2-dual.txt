@@ -1,0 +1,163 @@
+CERT-N2 dual (v6), recorded BEFORE R1 dispatch, 2026-09-02
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+expected 711 — next free after CERT-N1's 710; take the next free
+ordinal at claim time and record which).
+slot byte 204 (od /dev/urandom, one byte), parity 0 => R1 OPUS + R2 FABLE
+(cross-model). Block CERT-B4 slot 1 (byte 123 => fable at 3): the
+implementer arm was OPUS.
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 5e96be0214cac8ed13bd8c9ba8356e24778d654d
+— the delivered head, nine commits on merge base d3633406d (main after
+the discipline-doc bullet; the lane merged main once mid-unit, 33
+commits, no interplay claimed), no orchestrator-direct commits past it
+at this writing (if the gate reds and a discipline fix is needed, this
+note is amended pre-R1 per its own rule and the frozen head restated).
+Dispatch CONDITIONAL on 5e96be021's gate concluding green on PR 1558
+(run 33598637118, both lanes at 1e-12 by trailer). CERT-M2's dual
+(expected ordinal 712) may run CONCURRENTLY on ITS unit; the two
+grounds are file-disjoint (M2: geom-core real/ring_interval/dual/
+interval/k_stats, topo props.rs/validate.rs; N2: geom/src and its
+tests, two lines in geom-core/tests/bounds_census.rs). R2 after R1
+with the IDENTICAL stored brief, isolated. Probe branches:
+cert/n2r1-probes, cert/n2r2-probes (local until close-out).
+Implementer difficulty M, ADV on S99 (logged at spec pre-draw,
+docs/CERT-N2-SPEC.md at 1267e32c0); impl ~316k tokens, 238 tool
+uses, ~181m wall by the usage counter, single lane, no restarts.
+Verification the lane disclosed: cargo test --workspace both lanes
+locally at the merged head; three-ε sweep on the new rows and geom
+--lib only (not on consumer crates). Unit shape for the reviewers'
+weighting: one kernel predicate WIDENS (S99) with a changed answer at
+24 out-of-fence call sites, five of which the lane traced only to the
+first decision on a poisoned quantity ("not to the bottom"); one
+private module rename and one private return-type change (S116(b));
+the rest is prose and pointers. Where a wrong answer is reachable:
+S99's consumers — class 7 (topo/src/census.rs face box) is FILED as
+S350 rather than fixed (out of fence), which the reviewers judge.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-N2 of the
+S-CERT program (repo evgunter/cad) — Track N's H2 lane, the merge's
+residue, the fourth absorbed SMELL-track unit. Review PR 1558 on its
+FROZEN head 5e96be0214cac8ed13bd8c9ba8356e24778d654d — do not review
+any later commit; if the branch has moved, say so and still review
+5e96be021.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-N2-SPEC.md — it fixes the rows
+S99 (ADV), S101, S102, S103, S116(b), the order, the fence and the
+landing convention; your target is whether each row is COMPLETELY
+closed and closed in the BEST way available, whether any fix mints a
+fresh instance of the defect it closes, and — above all for this
+unit — whether S99's widening is CORRECT and its BLAST RADIUS is
+honestly and completely derived), docs/SMELL-SCAN-2026-08.md at the
+MERGE BASE (git show d3633406d:docs/SMELL-SCAN-2026-08.md — Track
+N's H2 row, findings S99, S101, S102, S103, S116 as they stood BEFORE
+this PR deleted them), the repartition rules in that file (rule 1
+fence, rule 3 landing, rule 5 no fresh instance), the D2 addendum in
+docs/DESIGN.md, crates/geom/src/lib.rs's placeholder/poison
+discriminator and crates/geom/src/scalar_lift.rs (CERT-N1's poison
+argument, one home), then the PR 1558 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution beats
+inspection; every number is the PR body's claim, not a fact):
+1. S99 — THE WIDENING IS CORRECT AND ONE-DIRECTIONAL. Run
+   geom/tests/net_placeholder_width.rs and its interval twin at the
+   parent of the widening commit and confirm 3 red (default) and 5
+   red (interval), then green at the head. Then go past the
+   fixtures: the masquerade with poison in channel y or z only, in
+   two channels, in ONE point of many, at Dual<f64> with a finite
+   value and poisoned derivative (and the reverse), at Interval with
+   an EMPTY interval versus [NaN,NaN] versus [-inf,inf] in one
+   channel, and a 2-D net (NurbsCurve2) — is every one of these
+   "described" now, is the true all-poison placeholder still a
+   placeholder in every lane, and is is_poison the same notion in
+   both is_poison implementations the body names? Verify the
+   property row (the widened predicate implies the narrow one)
+   actually pins the direction on a battery that could fail.
+2. S99 — THE BLAST RADIUS, EXECUTED TO THE BOTTOM. The body traces
+   classes 4, 6, 9, 10, 11 only to the first decision on a poisoned
+   quantity and says so. You have the whole workspace: construct the
+   masquerade (three lines in the body) and DRIVE it through each
+   consumer class's PUBLIC door from a workspace test — pcurve
+   certification (pcurve_cache.rs:3274,3625), certify.rs's iso and
+   plane×NURBS lanes, validate.rs:2423's tier-3, replace_face.rs's
+   offset mint, pcurves.rs's mint routing, and also classes 1, 2, 3,
+   5, 8, 12 — and report what LEAVES each door: a typed refusal, a
+   panic, poison, or a FINITE NUMBER. Any finite number is a wrong
+   answer the body did not file. Pay particular attention to class 3
+   (pcurve_cache's stretch sup/inf: the body says Real::max
+   propagates NaN "by contract" — verify at f64 AND Interval, where
+   max of an empty/NaN interval may not be what the body assumes)
+   and class 7 (census.rs:1708, filed as S350): reproduce the
+   partially poisoned box and check whether a margin against it
+   actually decides a sign downstream.
+3. S99 — THE ROSTER IS COMPLETE. The roster is a grep for
+   is_placeholder(). Sweep for consumers that discriminate the two
+   states another way: matching Surface::Nurbs/Curve3::Nurbs and
+   testing evaluation for NaN, comparing against placeholder(),
+   reading control points directly, `is_nan` on a first coordinate,
+   any helper wrapping the predicate. Report every site the roster
+   misses and what it answers on the masquerade.
+4. S99 — the in-fence sweep hit list (single-channel reads standing
+   for all-channel claims): re-run the patterns at the head; verify
+   the one row left as a disjunction really is the weaker correct
+   claim; find the shapes the body says it could not match (helpers,
+   closures, geom/tests beyond the two suites).
+5. S101 — is the RESTORED pointer TRUE? Does step-import's
+   recognize::derivative_sup actually build a "/ w_min" upper bound,
+   and is nurbs.rs's w_max derivation actually the deliberate
+   opposite (re-derive both bounds)? Re-derive the sweep class from
+   commit 7aa0672a8's in-fence hunks and check the nine dispositions,
+   especially the "not restored, argued" one.
+6. S102/S103 — pointers, not copies: confirm nothing restates the
+   frame formula or the placement rule a second time (rule 5), that
+   the rule really is at nurbs_iso.rs:19-41 and reachable from both
+   pointers, and that the two halves' headers now agree.
+7. S116(b) — THE RENAME'S CITATION BILL. Grep the whole tree (src,
+   tests, docs, scripts, Python, workflows) for every spelling of the
+   old path and module (geom/src/projection.rs, crate::projection::,
+   geom::projection, `projection` as a module in geom) and verify
+   each is re-aimed, filed (S290), or a closed-track archive; the
+   body claims 8 re-aimed + 2 filed and invites you to check hard.
+   Verify the boxes/nurbs measurement (0 ambiguous sites) by your
+   own count. Verify AzimuthFrame: all ten call sites, the bitwise
+   row unchanged in what it asserts, no public signature moved (is
+   azimuth private? is frame pub(crate)?), and whether a
+   transposition is now really a compile error (try to write one).
+8. The two-line deviation in geom-core/tests/bounds_census.rs (Track
+   W): mechanical and minimal? Does the census still count what it
+   counted (re-run it; compare its roster before/after)?
+9. The SMELL-SCAN landing under rule 3: for H2 and each of S99, S101,
+   S102, S103, S116(b) — every STANDING RULE relocated before
+   deletion; S116's other members and roll-up untouched; the
+   citation sweep's "13 sites examined" re-counted; the three filed
+   rows S350, S351, S290 — correct owner block, numbers FREE (check
+   for collisions against every S-number in the file), wording honest
+   (S350 says "wrong answer" — is it one?). The body reports S116(a)
+   as describing code CERT-N1 removed — verify that claim against
+   net.rs at the head (is anything of the (a) member still live?).
+10. Rule 5 per row, as the body argues it; and Q3 (do the rows
+    exercise what they claim on constructed inputs?), Q7 (the
+    AzimuthFrame struct versus alternatives; the widened predicate's
+    spelling), Q8 (how much of the +505/−183 diff you read clause by
+    clause — say which files).
+11. The eps/lane posture: trailer premise vs scripts/ci-filter.py;
+    run geom + geom-core at all three bands in both lanes; AND run the
+    consumer crates the lane's three-ε sweep did not cover (topo,
+    geom-brep, mesh, step-export at least at one band, both lanes).
+
+RULES: work in your own worktree from the frozen head; do NOT push to
+cert/n2-merge-residue; put probes on your assigned probe branch (local
+commits; the orchestrator collects them); no GitHub writes of any
+kind; no Co-Authored-By; keep CARGO_TARGET_DIR OUTSIDE your worktree;
+serialize heavy builds through
+/home/user/cad/local-scripts/with-build-slot.sh -- <cmd>; foreground
+discipline (never wait on a background notifier — poll); check
+df -h / before big builds and clean your own target dir if free space
+nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
+NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
+severities, executed-vs-inspected marked per item, and the rubric
+scores per the style lane. Report <=150 lines.
