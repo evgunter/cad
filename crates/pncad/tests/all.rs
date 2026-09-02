@@ -1451,6 +1451,10 @@ impl Drop for WsDir {
 }
 
 /// A one-block document under the given derived-id label, saved.
+/// The extrude in a [`ws_doc`] part: its sketch frame, the profile
+/// drawn on it, then the body. A part-local name is minted by node 2.
+const WS_PART_BODY: pncad::document::RecipeNodeId = pncad::document::RecipeNodeId(2);
+
 fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(
@@ -1923,7 +1927,7 @@ fn asm_r2a_mated_assembly(
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Bottom)],
             }),
         }],
@@ -2059,12 +2063,12 @@ fn asm_r2b_child_crossing_probe() {
             class: ContactClass::Rest,
             outer: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Top)],
             },
             inner: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Bottom)],
             },
         }],
