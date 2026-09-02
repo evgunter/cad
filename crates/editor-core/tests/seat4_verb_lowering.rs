@@ -1,20 +1,24 @@
-//! **The blend pair moved onto the verb substrate and nothing
-//! observable moved with it.** These are the pins for that claim.
+//! **The migrated verbs moved onto the verb substrate and nothing
+//! observable moved with them.** These are the pins for that claim —
+//! the blend pair's first (SEAT-4), and the boolean's beside them on
+//! the same method (SEAT-5).
 //!
-//! The lowering the two blend nodes run through is now one generic
-//! function driven by a per-verb correspondence
-//! (`editor_core::verbs::blend`), the kernel doors are reached through
-//! `verbs::Verb::run`, and the content tag is a function of the kernel's
-//! name for the verb rather than a number written inline. Every one of
-//! those is a re-plumbing, and a re-plumbing's failure mode is a
-//! difference nobody looks for. So:
+//! The lowering the blend nodes run through is one generic function
+//! driven by a per-verb correspondence (`editor_core::verbs::blend`),
+//! the boolean runs through the two-operand lowering driven by its own
+//! (`editor_core::verbs::boolean`), the kernel doors are reached
+//! through the `verbs` run doors, and every migrated content tag is a
+//! function of the kernel's name for the verb rather than a number
+//! written inline. Every one of those is a re-plumbing, and a
+//! re-plumbing's failure mode is a difference nobody looks for. So:
 //!
 //! - **The wire format**: a document carrying BOTH blends saves, loads
 //!   and re-saves byte-identically, and the bytes carry the same schema
-//!   version they did before.
-//! - **The evaluation**: each existing blend document's body geometry
-//!   and name table digest to committed constants, per document, so a
-//!   red says WHICH document moved.
+//!   version they did before; a registered boolean document (declared
+//!   contact included) does the same.
+//! - **The evaluation**: each pinned document's body geometry and name
+//!   table digest to committed constants, per document, so a red says
+//!   WHICH document moved.
 //!
 //! # What already covers this, and what these rows add
 //!
@@ -23,10 +27,12 @@
 //! registry, and `lib_g16_corpus_name_digests` digests every document's
 //! name tables. Either would have caught a lowering that changed
 //! geometry or names — and being corpus-wide, neither says which
-//! document did it, and neither covers a document that carries both
-//! blends at once (the registry has one of each, in separate files).
-//! These rows are the per-document, both-verbs form. A red in both
-//! places is one fact; a red only here is a blend-specific one.
+//! document did it, neither covers a document that carries both
+//! blends at once (the registry has one of each, in separate files),
+//! and neither reaches a boolean value's non-body halves (the result
+//! classification and the surviving declared contacts, which the
+//! digest here feeds). These rows are the per-document form. A red in
+//! both places is one fact; a red only here is a migrated-verb one.
 //!
 //! # Why the digests are eps-independent
 //!
@@ -166,21 +172,27 @@ fn both_blends_evaluate_in_one_document() {
     );
 }
 
-/// FNV-1a 64 over a document's evaluated name tables and bodies —
-/// **every channel `wire_blend` writes**, in one number per document.
+/// FNV-1a 64 over a document's evaluated name tables and values —
+/// **every channel the migrated lowerings write**, in one number per
+/// document.
 ///
 /// # What this covers, and how that set was chosen
 ///
-/// Not "everything observable": the channels THIS lowering can move,
-/// enumerated off the lowering's own body. `wire_blend` writes exactly
-/// four things — the name table the emitter returns, the body the
-/// kernel verb returns, the provenance stamp `stamp_minted` applies to
-/// that body, and (on the refusal path) a typed error. The first three
-/// are here. The fourth is NOT, and that is a real hole, stated: a
-/// refusal payload's spelling and the verdict logs are outside this
-/// digest, so a change that only altered which `NodeErrorKind` came
-/// back would pass it. `both_blends_evaluate_in_one_document` covers
-/// only that the success path stays a success.
+/// Not "everything observable": the channels THESE lowerings can move,
+/// enumerated off the lowerings' own bodies. `wire_blend` writes
+/// exactly four things — the name table the emitter returns, the body
+/// the kernel verb returns, the provenance stamp `stamp_minted`
+/// applies to that body, and (on the refusal path) a typed error.
+/// `wire_boolean` writes the same first three plus the boolean VALUE's
+/// other halves — the result classification, the surviving declared
+/// contacts, and the typed empty success — and all of those are here
+/// too (the `Boolean` payload arm). The refusal path is NOT, and that
+/// is a real hole, stated: a refusal payload's spelling and the
+/// verdict logs are outside this digest, so a change that only altered
+/// which `NodeErrorKind` came back would pass it — the boolean's
+/// undeclared-contact menu lift included.
+/// `both_blends_evaluate_in_one_document` covers only that the success
+/// path stays a success.
 ///
 /// # Why each half is load-bearing, measured rather than assumed
 ///
@@ -222,51 +234,78 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
         }
         feed(value.payload.kind_name().as_bytes());
         if let editor_core::ValuePayload::Body(body) = &value.payload {
-            // Points: bits, then the provenance stamp on the same key.
-            for (key, p) in body.points() {
-                for c in [p.x, p.y, p.z] {
-                    feed(&c.to_bits().to_be_bytes());
+            feed_body(&mut feed, body);
+        } else if let editor_core::ValuePayload::Boolean(bv) = &value.payload {
+            // The boolean value's three halves — `wire_boolean` writes
+            // all of them: the stamped body, the result
+            // classification, and the surviving declared contacts (the
+            // tier-3′ currency downstream ops re-enter). A lowering
+            // that dropped the contact carry or misfiled the kind
+            // would move nothing in any body arena and EVERYTHING
+            // here. The typed empty is fed as its own token so a
+            // result that vanished cannot alias one that never ran.
+            match bv {
+                editor_core::BooleanValue::Body {
+                    body,
+                    kind,
+                    contacts,
+                } => {
+                    feed(format!("{kind:?}{contacts:?}").as_bytes());
+                    feed_body(&mut feed, body);
                 }
-                feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
+                editor_core::BooleanValue::Empty => feed(b"empty"),
             }
-            // Curves and surfaces: the arenas themselves plus their
-            // stamps. A face reaches its surface below, but nothing
-            // reached the curve arena before this, and neither arena's
-            // SOURCE was reachable at all.
-            for (key, curve) in body.curves() {
-                feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
-            }
-            for (key, surface) in body.surfaces() {
-                feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
-            }
-            // The topology's attachment to that geometry, both ways: a
-            // face's carrier and an edge's curve. A re-plumbing that
-            // kept every arena and re-pointed the topology at it moves
-            // these and nothing above.
-            for (key, face) in body.faces() {
-                let surface = body
-                    .get_surface(face.surface)
-                    .expect("a face has a carrier");
-                feed(format!("{key:?}{surface:?}").as_bytes());
-            }
-            for (key, edge) in body.edges() {
-                let curve = body
-                    .get_curve_geom(edge.curve)
-                    .expect("an edge has a curve");
-                feed(format!("{key:?}{curve:?}").as_bytes());
-            }
-            feed(
-                format!(
-                    "V{}E{}F{}",
-                    body.vertices().count(),
-                    body.edges().count(),
-                    body.faces().count()
-                )
-                .as_bytes(),
-            );
         }
     }
     h
+}
+
+/// The body half of [`digest`], byte-for-byte the SEAT-4 feed: points
+/// with their provenance stamps, the curve and surface arenas with
+/// theirs, the topology's attachment both ways, and the entity census.
+fn feed_body(feed: &mut impl FnMut(&[u8]), body: &topo::Body<f64>) {
+    // Points: bits, then the provenance stamp on the same key.
+    for (key, p) in body.points() {
+        for c in [p.x, p.y, p.z] {
+            feed(&c.to_bits().to_be_bytes());
+        }
+        feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
+    }
+    // Curves and surfaces: the arenas themselves plus their
+    // stamps. A face reaches its surface below, but nothing
+    // reached the curve arena before this, and neither arena's
+    // SOURCE was reachable at all.
+    for (key, curve) in body.curves() {
+        feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
+    }
+    for (key, surface) in body.surfaces() {
+        feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
+    }
+    // The topology's attachment to that geometry, both ways: a
+    // face's carrier and an edge's curve. A re-plumbing that
+    // kept every arena and re-pointed the topology at it moves
+    // these and nothing above.
+    for (key, face) in body.faces() {
+        let surface = body
+            .get_surface(face.surface)
+            .expect("a face has a carrier");
+        feed(format!("{key:?}{surface:?}").as_bytes());
+    }
+    for (key, edge) in body.edges() {
+        let curve = body
+            .get_curve_geom(edge.curve)
+            .expect("an edge has a curve");
+        feed(format!("{key:?}{curve:?}").as_bytes());
+    }
+    feed(
+        format!(
+            "V{}E{}F{}",
+            body.vertices().count(),
+            body.edges().count(),
+            body.faces().count()
+        )
+        .as_bytes(),
+    );
 }
 
 /// **The existing blend documents' evaluations are bit-identical**,
@@ -295,5 +334,67 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
         let got = digest(&ev);
         println!("seat4 {name}: {got:#018x}");
         assert_eq!(got, want, "{name}'s evaluation moved — body or name table");
+    }
+}
+
+/// **A registered boolean document's bytes survive the migration**:
+/// save → load → save reproduces the file exactly. The document is
+/// `crossing_slots` — two subtracts, one carrying a `Declare` operand —
+/// so the wire spelling under pin includes the boolean node's whole
+/// payload: the op, both operand edges and the declare edge. The
+/// corpus-wide round-trip covers the same bytes; this is the
+/// per-document form beside the digest row, so a red here names the
+/// boolean rather than the registry.
+#[test]
+fn a_boolean_document_round_trips_byte_identical() {
+    let doc = corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "crossing_slots")
+        .expect("the document is registered");
+    let snapshot = ProfileDoc::empty_derived("seat5_boolean_roundtrip", tol());
+    let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
+    let loaded = persist::load(&first, tol()).expect("its own bytes load back");
+    assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
+    let second =
+        persist::save(&loaded.snapshot, &loaded.edits, tol()).expect("the loaded document re-saves");
+    assert_eq!(
+        first, second,
+        "a boolean document does not round-trip byte-identically"
+    );
+}
+
+/// **The existing boolean documents' evaluations are bit-identical**
+/// through the two-operand verb lowering — the SEAT-4 differential
+/// method on the boolean's own channels.
+///
+/// The two documents split the semantics between them:
+/// `crossing_slots` runs subtract twice, once with a DECLARED rest
+/// contact (so `resolve_declarations`, the declared-contact carry and
+/// the tier-3′ record survive under pin) and once undeclared;
+/// `heat_sink` runs the union chain. The digest feeds the boolean
+/// value's kind and contacts beside the stamped body and the name
+/// table, so the constants cover exactly what `wire_boolean` writes.
+///
+/// The numbers were taken on this branch and re-taken on a PRE-CHANGE
+/// tree with this same file copied onto it — the whole suite passes
+/// unchanged there. That differential is what "nothing observable
+/// moved" means here; without it the constants would only say the
+/// branch agrees with itself.
+#[test]
+fn the_boolean_documents_evaluate_to_their_committed_digests() {
+    for (name, want) in [
+        ("crossing_slots", 0x7865_325e_8719_d6a0_u64),
+        ("heat_sink", 0x4c79_8719_cbc2_5c5a),
+    ] {
+        let doc = corpus::documents()
+            .into_iter()
+            .find(|d| d.name == name)
+            .expect("the document is registered");
+        let ev = corpus::eval::<f64>(&doc.doc);
+        let failures = corpus::failures(&ev);
+        assert!(failures.is_empty(), "{name} failed to evaluate: {failures:?}");
+        let got = digest(&ev);
+        println!("seat5 {name}: {got:#018x}");
+        assert_eq!(got, want, "{name}'s evaluation moved — body, value or name table");
     }
 }
