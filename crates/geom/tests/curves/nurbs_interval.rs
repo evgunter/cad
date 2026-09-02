@@ -118,15 +118,21 @@ fn poison_propagates_through_values() {
     let ni = n.map_scalar(Interval::from_f64);
     // Poisoned parameter (NaI).
     let p = ni.eval(Interval::from_f64(f64::NAN));
-    assert!(p.x.lo().is_nan() && p.x.hi().is_nan());
+    // Every channel, not the first: NaI in poisons the whole point.
+    assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
     // Poisoned control point at f64.
     let mut ctrl = n.control().to_vec();
     ctrl[3] = Point3::new(f64::NAN, 0.0, 0.0);
     let np = NurbsCurve3::new(n.knots().clone(), ctrl, n.weights().to_vec()).unwrap();
-    // A parameter whose span touches control index 3 poisons x.
-    assert!(np.eval(0.3).x.is_nan());
-    // A far-away span does not (locality of the basis).
-    assert!(!np.eval(0.9).x.is_nan());
+    // A parameter whose span touches control index 3 poisons the
+    // poisoned CHANNEL and leaves the others finite — the partial
+    // answer, stated as what it is rather than checked on x alone.
+    let near = np.eval(0.3);
+    assert!(near.x.is_nan() && near.y.is_finite() && near.z.is_finite());
+    // A far-away span does not (locality of the basis) — on every
+    // channel, so the claim cannot be met by a net poisoned elsewhere.
+    let far = np.eval(0.9);
+    assert!(far.x.is_finite() && far.y.is_finite() && far.z.is_finite());
 }
 
 /// `Dual<Interval>` instantiates and both channels contain the

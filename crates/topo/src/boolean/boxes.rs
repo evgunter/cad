@@ -2234,10 +2234,18 @@ mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
+        // `census.rs` counts FIVE, and two of them are not doors:
+        // the adopted CERT-N2 reviewer probes in its test module call
+        // `face_box` to execute what a partially poisoned control net
+        // answers there. The number is stated with that content rather
+        // than filtered, because this pin's protection is that an
+        // occurrence cannot arrive, leave or move unnoticed — which it
+        // still gives — while the module docs' DOOR list above stays a
+        // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
             ("boolean/ops.rs", 5),
             ("boolean/reduce.rs", 5),
-            ("census.rs", 3),
+            ("census.rs", 5),
             ("separation.rs", 2),
         ];
         const HOME: &str = "boolean/boxes.rs";

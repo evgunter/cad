@@ -203,3 +203,31 @@ fixing it with the new kiss_carry document (the carried-v-v Declare
 arm's first corpus exercise). v6 dual dispatches on frozen head
 c8d38257: parity byte 134 → **R1 opus + R2 fable**. Difficulty L was
 logged pre-draw. Full row recorded at merge.
+
+## SEAT-5 MERGED (2026-09-02, PR 1581)
+
+The boolean landed on the Verb substrate — the first two-operand verb,
+and the two substrate questions SEAT-4's review recorded are answered
+in code: the record channel is the closed per-family `VerbRecord`
+(compile-force made REAL at the fix — both consumers exhaustive after
+the dual's planted-variant proof that the shipped `let…else` shape was
+not delivering the claim), and the two-operand lowering stands beside
+`wire_blend` as its own body (tempered at fix to "a second lowering,
+not yet a second generic lowering" — both arms converged on the
+one-inhabitant honesty). The unit spanned a container restart: the
+first lane died mid-unit with the kernel migration and pin rows
+pushed; the continuation lane (same arm) falsified the dead lane's
+contact-carry red-first claim — the digest's contacts channel was fed
+but DEAD corpus-wide — and fixed it with the kiss_carry document. The
+dual then found the SAME class again in the same function (the
+typed-empty token, fed and dead), plus the compile-force gap: TWO
+tally candidates, both unilateral R1, both executed, the second
+carrying a class caveat (committed test code). The fix pinned the
+empty token live (disjoint-intersect fixture, red-first + reproduced
+on the extracted pre-change main) and carried the VerbArity payload
+types through the facade and Python censuses (two intermediate CI
+reds, both censuses working as designed). Full row: MODEL-AB-LOG
+SEAT5 (ordinal 1005, sample #109 at merge — corrected from #107, a concurrent-recorder collision ruled by main's merge order).
+
+Next: SEAT-6 (the ParamSource channel; the issue-1372 handoff note to
+VERBS rides the dispatch per the plan) on block SEAT-B2's next slot.

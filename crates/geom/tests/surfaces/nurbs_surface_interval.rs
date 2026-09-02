@@ -95,7 +95,8 @@ fn surface_poison_propagates() {
     let n = nurbs_cylinder();
     let ni = n.map_scalar(Interval::from_f64);
     let p = ni.eval(Interval::from_f64(f64::NAN), Interval::from_f64(1.0));
-    assert!(p.x.lo().is_nan());
+    // Every channel: "poisoned values" is the claim above.
+    assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
     let mut ctrl = n.control().to_vec();
     ctrl[6] = Point3::new(f64::NAN, ctrl[6].y, ctrl[6].z);
     let np = NurbsSurface::new(
@@ -106,7 +107,11 @@ fn surface_poison_propagates() {
     )
     .unwrap();
     // Index 6 is (iu = 3, iv = 0): active near u ∈ [0.25, 0.5], v low.
-    assert!(np.eval(0.3, 0.2).x.is_nan());
-    // Far cell unaffected (basis locality).
-    assert!(!np.eval(0.9, 2.9).x.is_nan());
+    // The poisoned CHANNEL poisons and the others stay finite — the
+    // partial answer named, not read on x alone.
+    let near = np.eval(0.3, 0.2);
+    assert!(near.x.is_nan() && near.y.is_finite() && near.z.is_finite());
+    // Far cell unaffected (basis locality), on every channel.
+    let far = np.eval(0.9, 2.9);
+    assert!(far.x.is_finite() && far.y.is_finite() && far.z.is_finite());
 }

@@ -2720,7 +2720,7 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Vec<ValidationError>
 /// ([`geom_brep::EdgeCurve::needs_nurbs_lane`] asks the question
 /// before the claim is made). Every other carrier class is
 /// re-certified identically either way.
-fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
+pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
