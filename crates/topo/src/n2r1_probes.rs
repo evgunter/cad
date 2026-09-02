@@ -102,15 +102,11 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     let tol = geom_core::Tol::witness();
     let run = |s: Surface<f64>| {
         let mut st = mvfs_state();
-        st.body.set_face_surface(st.face, FaceSurface::New(s)).unwrap();
+        st.body
+            .set_face_surface(st.face, FaceSurface::New(s))
+            .unwrap();
         let mut marks = slotmap::SecondaryMap::new();
-        crate::validate::tier3_local_checks_marked::<f64>(
-            &st.body,
-            &[],
-            band,
-            &mut marks,
-            tol,
-        )
+        crate::validate::tier3_local_checks_marked::<f64>(&st.body, &[], band, &mut marks, tol)
     };
     let with_placeholder = run(Surface::nurbs_placeholder());
     let with_masquerade = run(masquerading_surface());
@@ -121,10 +117,17 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
         "the placeholder is refused at rest"
     );
     let named = |v: &[crate::validate::ValidationError]| {
-        v.iter()
-            .any(|e| matches!(e, crate::validate::ValidationError::UncertifiableSurface { .. }))
+        v.iter().any(|e| {
+            matches!(
+                e,
+                crate::validate::ValidationError::UncertifiableSurface { .. }
+            )
+        })
     };
-    assert!(named(&with_placeholder), "the placeholder is refused at rest");
+    assert!(
+        named(&with_placeholder),
+        "the placeholder is refused at rest"
+    );
     assert!(
         !named(&with_masquerade),
         "PROBE: tier-3 check 1 no longer names the poisoned face at all — \

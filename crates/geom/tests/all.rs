@@ -108,12 +108,12 @@ mod curves_span_window_pairing;
 mod curves_split_at;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
+#[path = "n2r1_probes.rs"]
+mod n2r1_probes;
 #[path = "net_placeholder_width.rs"]
 mod net_placeholder_width;
 #[path = "net_placeholder_width_interval.rs"]
 mod net_placeholder_width_interval;
-#[path = "n2r1_probes.rs"]
-mod n2r1_probes;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]

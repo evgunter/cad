@@ -48,7 +48,9 @@ fn probe_every_partial_channel_pattern_is_described() {
 /// the answer directly.)
 #[test]
 fn probe_one_all_poison_point_of_five_is_described() {
-    let mut ctl: Vec<Point3<f64>> = (0..5).map(|i| Point3::new(f64::from(i), 1.0, 0.0)).collect();
+    let mut ctl: Vec<Point3<f64>> = (0..5)
+        .map(|i| Point3::new(f64::from(i), 1.0, 0.0))
+        .collect();
     ctl[2] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
     assert!(!curve_from(ctl).is_placeholder());
 }
@@ -106,7 +108,9 @@ fn probe_the_two_channel_payload_has_no_placeholder_state() {
     // Compiles only because NurbsCurve2 is constructible; the absence
     // of the door is the point and is checked by the suite above it
     // failing to compile when `NurbsCurve2::is_placeholder` is written.
-    let ctl: Vec<Point2<f64>> = (0..5).map(|i| Point2::new(f64::NAN, f64::from(i))).collect();
+    let ctl: Vec<Point2<f64>> = (0..5)
+        .map(|i| Point2::new(f64::NAN, f64::from(i)))
+        .collect();
     let _c = NurbsCurve2::new(knots5(), ctl, vec![1.0; 5]).unwrap();
 }
 
@@ -114,7 +118,11 @@ fn probe_the_two_channel_payload_has_no_placeholder_state() {
 /// what a consumer matching `Curve3::Nurbs` / `Surface::Nurbs` asks.
 #[test]
 fn probe_enum_doors_agree_on_every_partial_shape() {
-    let c = curve_from((0..5).map(|i| Point3::new(f64::from(i), f64::NAN, 1.0)).collect());
+    let c = curve_from(
+        (0..5)
+            .map(|i| Point3::new(f64::from(i), f64::NAN, 1.0))
+            .collect(),
+    );
     let e = Curve3::Nurbs(std::sync::Arc::new(c));
     assert!(matches!(&e, Curve3::Nurbs(n) if !n.is_placeholder()));
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -141,11 +149,7 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
         let ctl: Vec<Point3<f64>> = (0..5)
             .map(|i| {
                 let v = |bit: u8, fallback: f64| {
-                    if mask & bit != 0 {
-                        f64::NAN
-                    } else {
-                        fallback
-                    }
+                    if mask & bit != 0 { f64::NAN } else { fallback }
                 };
                 Point3::new(v(1, f64::from(i)), v(2, 1.0), v(4, 2.0))
             })
@@ -153,7 +157,10 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
         let c = curve_from(ctl);
         let narrow = c.control().iter().all(|p| p.x.is_poison());
         if c.is_placeholder() {
-            assert!(narrow, "mask {mask}: wide answered placeholder, narrow did not");
+            assert!(
+                narrow,
+                "mask {mask}: wide answered placeholder, narrow did not"
+            );
         }
         assert_eq!(
             c.is_placeholder(),
@@ -165,7 +172,7 @@ fn probe_wide_implies_narrow_over_every_channel_pattern() {
 
 #[cfg(feature = "interval")]
 mod interval {
-    use super::{knots5, Point3};
+    use super::{Point3, knots5};
     use geom::NurbsCurve3;
     use geom_core::{Interval, Real};
 
@@ -209,7 +216,13 @@ mod interval {
         let mixed = NurbsCurve3::new(
             knots5(),
             (0..5)
-                .map(|i| Point3::new(empty, Interval::from_f64(1.0), Interval::from_f64(f64::from(i))))
+                .map(|i| {
+                    Point3::new(
+                        empty,
+                        Interval::from_f64(1.0),
+                        Interval::from_f64(f64::from(i)),
+                    )
+                })
                 .collect(),
             vec![1.0; 5],
         )
