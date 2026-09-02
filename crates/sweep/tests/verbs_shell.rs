@@ -1245,7 +1245,13 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         let old_door = topo::contact_marks(&sealed, tol).expect_err("must refuse");
         let names = |v: &[topo::ValidationError]| -> Vec<String> {
             v.iter()
-                .map(|e| format!("{e:?}").split_whitespace().next().unwrap().to_string())
+                .map(|e| {
+                    format!("{e:?}")
+                        .split_whitespace()
+                        .next()
+                        .unwrap()
+                        .to_string()
+                })
                 .collect()
         };
         println!("R2PROBE {what}");
@@ -1312,7 +1318,10 @@ fn r2_probe_other_two_passes_dump() {
         corpus.push((what.into(), sealed));
     }
     for (name, b) in &corpus {
-        println!("R2DUMP {name} pseudomanifold {:?}", topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), tol));
+        println!(
+            "R2DUMP {name} pseudomanifold {:?}",
+            topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), tol)
+        );
         println!(
             "R2DUMP {name} contact_marks {:?}",
             topo::contact_marks(b, tol).map(|m| m.len())
