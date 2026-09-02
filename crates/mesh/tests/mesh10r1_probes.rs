@@ -312,8 +312,9 @@ fn r1_a_reparametrised_unsplit_edge_control() {
 #[test]
 fn r1_the_class_sweep_measured_over_the_curved_corpus() {
     let tol = Tol::witness();
-    let corpus: Vec<(&str, fn() -> Body<f64>)> = vec![
-        ("ball", ball as fn() -> Body<f64>),
+    type Make = fn() -> Body<f64>;
+    let corpus: Vec<(&str, Make)> = vec![
+        ("ball", ball as Make),
         ("cone", cone),
         ("washer", washer),
         ("wedge", wedge),

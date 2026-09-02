@@ -1702,12 +1702,15 @@ enum TorusEdge<'a, T: Real> {
     Arc(TorusArc<'a, T>),
 }
 
+/// A torus face's boundary as the consumers read it: its rims, and
+/// its meridians after the fold.
+type TorusParts<T> = (Vec<Rim<T>>, Vec<TorusMeridian<T>>);
+
 /// Classify a torus face's boundary into (rims, meridians) — the
 /// shared parse consumed by the flux closed form,
 /// [`boundary_material_sign`] and the shape door. Every edge is
 /// certified rim-or-meridian in loop order first; the arcs that carry
 /// one meridian are then folded into it.
-#[allow(clippy::type_complexity)]
 fn torus_boundary<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -1715,7 +1718,7 @@ fn torus_boundary<T: Decide>(
     minor: T,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<(Vec<Rim<T>>, Vec<TorusMeridian<T>>), PropsError> {
+) -> Result<TorusParts<T>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
@@ -1818,7 +1821,7 @@ fn fold_torus_meridians<T: Decide>(
     mut edges: Vec<TorusEdge<'_, T>>,
     minor: T,
     band: Band,
-) -> Result<(Vec<Rim<T>>, Vec<TorusMeridian<T>>), PropsError> {
+) -> Result<TorusParts<T>, PropsError> {
     fn same_edge<T: Real>(a: &TorusArc<'_, T>, b: &TorusArc<'_, T>) -> bool {
         a.edge.forward == b.edge.forward
             && matches!((a.edge.carrier_id, b.edge.carrier_id), (Some(x), Some(y)) if x == y)
