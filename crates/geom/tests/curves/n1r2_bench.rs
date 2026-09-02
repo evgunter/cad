@@ -8,8 +8,8 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use geom::NurbsCurve3;
-use geom_core::spline::KnotVector;
 use geom_core::Point3;
+use geom_core::spline::KnotVector;
 
 fn curve(p: usize, interior: usize) -> NurbsCurve3<f64> {
     let mut knots = vec![0.0; p + 1];
@@ -18,7 +18,9 @@ fn curve(p: usize, interior: usize) -> NurbsCurve3<f64> {
     }
     knots.extend(vec![1.0; p + 1]);
     let n = knots.len() - p - 1;
-    let control = (0..n).map(|i| Point3::new(i as f64, (i * i) as f64 * 0.1, -(i as f64))).collect();
+    let control = (0..n)
+        .map(|i| Point3::new(i as f64, (i * i) as f64 * 0.1, -(i as f64)))
+        .collect();
     let weights = (0..n).map(|i| 1.0 + 0.3 * (i % 3) as f64).collect();
     NurbsCurve3::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap()
 }

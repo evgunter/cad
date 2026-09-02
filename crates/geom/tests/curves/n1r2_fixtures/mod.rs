@@ -72,7 +72,10 @@ pub fn curves3() -> Vec<(&'static str, NurbsCurve3<f64>)> {
                 _ => 2e-4,
             })
             .collect();
-        out.push(("deg5_mult_to_4_extreme_w", NurbsCurve3::new(kv(&knots, p), control, weights).unwrap()));
+        out.push((
+            "deg5_mult_to_4_extreme_w",
+            NurbsCurve3::new(kv(&knots, p), control, weights).unwrap(),
+        ));
     }
 
     // (c) degree 7, one interior knot of multiplicity 6 (= p - 1), weight
@@ -86,8 +89,13 @@ pub fn curves3() -> Vec<(&'static str, NurbsCurve3<f64>)> {
         let control = (0..n)
             .map(|_| Point3::new(rng.coord(), rng.coord(), rng.coord()))
             .collect();
-        let weights = (0..n).map(|i| if i % 2 == 0 { 1e-4 } else { 1e4 }).collect();
-        out.push(("deg7_mult6_ratio_1e8", NurbsCurve3::new(kv(&knots, p), control, weights).unwrap()));
+        let weights = (0..n)
+            .map(|i| if i % 2 == 0 { 1e-4 } else { 1e4 })
+            .collect();
+        out.push((
+            "deg7_mult6_ratio_1e8",
+            NurbsCurve3::new(kv(&knots, p), control, weights).unwrap(),
+        ));
     }
 
     // (d) closed-shaped cubic: first control point == last.
@@ -100,7 +108,10 @@ pub fn curves3() -> Vec<(&'static str, NurbsCurve3<f64>)> {
         control[0] = first;
         control.push(first);
         let weights = vec![1.0, 2.0, 0.5, 1.0, 3.0, 0.7, 1.0];
-        out.push(("closed_cubic", NurbsCurve3::new(kv(&knots, 3), control, weights).unwrap()));
+        out.push((
+            "closed_cubic",
+            NurbsCurve3::new(kv(&knots, 3), control, weights).unwrap(),
+        ));
     }
 
     // (e) degree-1 polyline (every interior knot is a C0 corner).
@@ -129,9 +140,16 @@ pub fn curves2() -> Vec<(&'static str, NurbsCurve2<f64>)> {
     knots.extend([0.7; 3]);
     knots.extend([1.0; 5]);
     let n = knots.len() - p - 1;
-    let control = (0..n).map(|_| Point2::new(rng.coord(), rng.coord())).collect();
-    let weights = (0..n).map(|i| if i % 3 == 0 { 1e-5 } else { 1e3 }).collect();
-    vec![("deg4_2d_mult3", NurbsCurve2::new(kv(&knots, p), control, weights).unwrap())]
+    let control = (0..n)
+        .map(|_| Point2::new(rng.coord(), rng.coord()))
+        .collect();
+    let weights = (0..n)
+        .map(|i| if i % 3 == 0 { 1e-5 } else { 1e3 })
+        .collect();
+    vec![(
+        "deg4_2d_mult3",
+        NurbsCurve2::new(kv(&knots, p), control, weights).unwrap(),
+    )]
 }
 
 pub fn surfaces() -> Vec<(&'static str, NurbsSurface<f64>)> {
@@ -146,7 +164,11 @@ pub fn surfaces() -> Vec<(&'static str, NurbsSurface<f64>)> {
         let control = (0..nu * nv)
             .map(|k| {
                 let (i, j) = (k / nv, k % nv);
-                Point3::new(i as f64 + 0.3 * rng.coord(), j as f64 + 0.3 * rng.coord(), rng.coord())
+                Point3::new(
+                    i as f64 + 0.3 * rng.coord(),
+                    j as f64 + 0.3 * rng.coord(),
+                    rng.coord(),
+                )
             })
             .collect();
         let weights = (0..nu * nv)
@@ -157,7 +179,10 @@ pub fn surfaces() -> Vec<(&'static str, NurbsSurface<f64>)> {
                 _ => 7.0,
             })
             .collect();
-        out.push(("deg32_mult2_extreme_w", NurbsSurface::new(ku, kvv, control, weights).unwrap()));
+        out.push((
+            "deg32_mult2_extreme_w",
+            NurbsSurface::new(ku, kvv, control, weights).unwrap(),
+        ));
     }
     // (b) closed-shaped in u: first u-row == last u-row, degree (2, 1).
     {
@@ -171,7 +196,10 @@ pub fn surfaces() -> Vec<(&'static str, NurbsSurface<f64>)> {
             control[(nu - 1) * nv + j] = control[j];
         }
         let weights = vec![1.0, 1.0, 0.25, 0.25, 3.0, 3.0, 1.0, 1.0];
-        out.push(("closed_u_deg21", NurbsSurface::new(ku, kvv, control, weights).unwrap()));
+        out.push((
+            "closed_u_deg21",
+            NurbsSurface::new(ku, kvv, control, weights).unwrap(),
+        ));
     }
     out
 }

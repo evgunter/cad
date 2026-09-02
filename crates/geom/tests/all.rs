@@ -66,10 +66,6 @@ mod curves_lt_r1_probes;
 mod curves_m5_pr7_speed_meter;
 #[path = "curves/m8_14_long_turn_meter.rs"]
 mod curves_m8_14_long_turn_meter;
-#[path = "curves/nurbs_differential.rs"]
-mod curves_nurbs_differential;
-#[path = "curves/nurbs_interval.rs"]
-mod curves_nurbs_interval;
 #[path = "curves/n1r2_bench.rs"]
 mod curves_n1r2_bench;
 #[path = "curves/n1r2_dump.rs"]
@@ -78,6 +74,10 @@ mod curves_n1r2_dump;
 mod curves_n1r2_lift_probes;
 #[path = "curves/n1r2_lift_probes_interval.rs"]
 mod curves_n1r2_lift_probes_interval;
+#[path = "curves/nurbs_differential.rs"]
+mod curves_nurbs_differential;
+#[path = "curves/nurbs_interval.rs"]
+mod curves_nurbs_interval;
 #[path = "curves/param_near.rs"]
 mod curves_param_near;
 #[path = "curves/param_near_interval.rs"]

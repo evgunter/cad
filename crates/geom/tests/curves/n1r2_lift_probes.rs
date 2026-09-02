@@ -11,10 +11,12 @@ mod n1r2_fixtures;
 
 use std::sync::Arc;
 
-use geom::surfaces::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
+use geom::surfaces::{
+    ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec,
+};
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_core::spline::basis::ders_basis_funs;
 use geom_core::spline::Span;
+use geom_core::spline::basis::ders_basis_funs;
 use geom_core::{Dual, Dual64, Point3, Real, Vec3};
 use n1r2_fixtures::{curves2, curves3, params, surfaces};
 
@@ -29,7 +31,10 @@ fn n1r2_curve_dual_lift_evaluates_to_source_on_adversarial_nets() {
     for (name, c) in curves3() {
         let e = Curve3::Nurbs(Arc::new(c.clone()));
         let ed: Curve3<Dual64> = e.map_scalar(Dual::constant);
-        assert!(matches!(&ed, Curve3::Nurbs(n) if !n.is_placeholder()), "{name}");
+        assert!(
+            matches!(&ed, Curve3::Nurbs(n) if !n.is_placeholder()),
+            "{name}"
+        );
         for t in params(c.knots()) {
             let p = ed.eval(Dual::variable(t));
             let q = e.eval(t);
@@ -41,18 +46,28 @@ fn n1r2_curve_dual_lift_evaluates_to_source_on_adversarial_nets() {
             for (l, s) in [(p.x.deriv, d1.x), (p.y.deriv, d1.y), (p.z.deriv, d1.z)] {
                 let err = (l - s).abs() / (1.0 + s.abs());
                 worst_d1 = worst_d1.max(err);
-                assert!(close(l, s, 1e-8), "{name} t={t}: dual tangent {l} vs closed-form {s}");
+                assert!(
+                    close(l, s, 1e-8),
+                    "{name} t={t}: dual tangent {l} vs closed-form {s}"
+                );
             }
             // Second derivative: the dual of the closed-form first
             // derivative; its value channel is the f64 tangent bit for bit.
             let dd = ed.deriv(Dual::variable(t));
             for (l, s) in [(dd.x, d1.x), (dd.y, d1.y), (dd.z, d1.z)] {
-                assert_eq!(l.value.to_bits(), s.to_bits(), "{name} t={t}: deriv value bits");
+                assert_eq!(
+                    l.value.to_bits(),
+                    s.to_bits(),
+                    "{name} t={t}: deriv value bits"
+                );
             }
             for (l, s) in [(dd.x.deriv, d2.x), (dd.y.deriv, d2.y), (dd.z.deriv, d2.z)] {
                 let err = (l - s).abs() / (1.0 + s.abs());
                 worst_d2 = worst_d2.max(err);
-                assert!(close(l, s, 1e-7), "{name} t={t}: dual d2 {l} vs closed-form {s}");
+                assert!(
+                    close(l, s, 1e-7),
+                    "{name} t={t}: dual d2 {l} vs closed-form {s}"
+                );
             }
         }
         // Finite differences away from knots, as an independent oracle.
@@ -65,10 +80,17 @@ fn n1r2_curve_dual_lift_evaluates_to_source_on_adversarial_nets() {
             let h = 1e-6;
             let a = e.eval(t - h);
             let b = e.eval(t + h);
-            let fd = Vec3::new((b.x - a.x) / (2.0 * h), (b.y - a.y) / (2.0 * h), (b.z - a.z) / (2.0 * h));
+            let fd = Vec3::new(
+                (b.x - a.x) / (2.0 * h),
+                (b.y - a.y) / (2.0 * h),
+                (b.z - a.z) / (2.0 * h),
+            );
             let p = ed.eval(Dual::variable(t));
             for (l, s) in [(p.x.deriv, fd.x), (p.y.deriv, fd.y), (p.z.deriv, fd.z)] {
-                assert!(close(l, s, 1e-4), "{name} t={t}: dual tangent {l} vs FD {s}");
+                assert!(
+                    close(l, s, 1e-4),
+                    "{name} t={t}: dual tangent {l} vs FD {s}"
+                );
             }
         }
     }
@@ -85,8 +107,18 @@ fn n1r2_curve2_dual_lift_evaluates_to_source() {
             let d = c.deriv(t);
             assert_eq!(p.x.value.to_bits(), q.x.to_bits(), "{name} t={t}");
             assert_eq!(p.y.value.to_bits(), q.y.to_bits(), "{name} t={t}");
-            assert!(close(p.x.deriv, d.x, 1e-8), "{name} t={t}: {} vs {}", p.x.deriv, d.x);
-            assert!(close(p.y.deriv, d.y, 1e-8), "{name} t={t}: {} vs {}", p.y.deriv, d.y);
+            assert!(
+                close(p.x.deriv, d.x, 1e-8),
+                "{name} t={t}: {} vs {}",
+                p.x.deriv,
+                d.x
+            );
+            assert!(
+                close(p.y.deriv, d.y, 1e-8),
+                "{name} t={t}: {} vs {}",
+                p.y.deriv,
+                d.y
+            );
         }
         assert_eq!(cd.weights(), c.weights());
         assert_eq!(cd.knots().knots(), c.knots().knots());
@@ -98,7 +130,10 @@ fn n1r2_surface_dual_lift_evaluates_to_source_on_adversarial_nets() {
     for (name, s) in surfaces() {
         let e = Surface::Nurbs(Arc::new(s.clone()));
         let ed: Surface<Dual64> = e.map_scalar(Dual::constant);
-        assert!(matches!(&ed, Surface::Nurbs(n) if !n.is_placeholder()), "{name}");
+        assert!(
+            matches!(&ed, Surface::Nurbs(n) if !n.is_placeholder()),
+            "{name}"
+        );
         let us = params(s.knots_u());
         let vs = params(s.knots_v());
         for &u in &us {
@@ -108,8 +143,19 @@ fn n1r2_surface_dual_lift_evaluates_to_source_on_adversarial_nets() {
                 let pv = ed.eval(Dual::constant(u), Dual::variable(v));
                 let du = e.deriv_u(u, v);
                 let dv = e.deriv_v(u, v);
-                for (l, r) in [(pu.x, q.x), (pu.y, q.y), (pu.z, q.z), (pv.x, q.x), (pv.y, q.y), (pv.z, q.z)] {
-                    assert_eq!(l.value.to_bits(), r.to_bits(), "{name} ({u},{v}) value bits");
+                for (l, r) in [
+                    (pu.x, q.x),
+                    (pu.y, q.y),
+                    (pu.z, q.z),
+                    (pv.x, q.x),
+                    (pv.y, q.y),
+                    (pv.z, q.z),
+                ] {
+                    assert_eq!(
+                        l.value.to_bits(),
+                        r.to_bits(),
+                        "{name} ({u},{v}) value bits"
+                    );
                 }
                 for (l, r) in [(pu.x.deriv, du.x), (pu.y.deriv, du.y), (pu.z.deriv, du.z)] {
                     assert!(close(l, r, 1e-8), "{name} ({u},{v}) du {l} vs {r}");
@@ -121,7 +167,11 @@ fn n1r2_surface_dual_lift_evaluates_to_source_on_adversarial_nets() {
                 let n = e.normal(u, v);
                 let nd = ed.normal(Dual::constant(u), Dual::constant(v));
                 for (l, r) in [(nd.x, n.x), (nd.y, n.y), (nd.z, n.z)] {
-                    assert_eq!(l.value.to_bits(), r.to_bits(), "{name} ({u},{v}) normal bits");
+                    assert_eq!(
+                        l.value.to_bits(),
+                        r.to_bits(),
+                        "{name} ({u},{v}) normal bits"
+                    );
                 }
                 // Second derivatives via the dual of the first.
                 let duu = e.deriv_uu(u, v);
@@ -129,12 +179,24 @@ fn n1r2_surface_dual_lift_evaluates_to_source_on_adversarial_nets() {
                 let ddu = ed.deriv_u(Dual::variable(u), Dual::constant(v));
                 let ddv = ed.deriv_u(Dual::constant(u), Dual::variable(v));
                 for (l, r) in [(ddu.x, du.x), (ddu.y, du.y), (ddu.z, du.z)] {
-                    assert_eq!(l.value.to_bits(), r.to_bits(), "{name} ({u},{v}) du value bits");
+                    assert_eq!(
+                        l.value.to_bits(),
+                        r.to_bits(),
+                        "{name} ({u},{v}) du value bits"
+                    );
                 }
-                for (l, r) in [(ddu.x.deriv, duu.x), (ddu.y.deriv, duu.y), (ddu.z.deriv, duu.z)] {
+                for (l, r) in [
+                    (ddu.x.deriv, duu.x),
+                    (ddu.y.deriv, duu.y),
+                    (ddu.z.deriv, duu.z),
+                ] {
                     assert!(close(l, r, 1e-7), "{name} ({u},{v}) duu {l} vs {r}");
                 }
-                for (l, r) in [(ddv.x.deriv, duv.x), (ddv.y.deriv, duv.y), (ddv.z.deriv, duv.z)] {
+                for (l, r) in [
+                    (ddv.x.deriv, duv.x),
+                    (ddv.y.deriv, duv.y),
+                    (ddv.z.deriv, duv.z),
+                ] {
                     assert!(close(l, r, 1e-7), "{name} ({u},{v}) duv {l} vs {r}");
                 }
             }
@@ -156,7 +218,10 @@ fn n1r2_approx_lift_carries_record_and_evaluates_to_source() {
         rounds: 7,
     };
     let spec = SurfaceSpec {
-        description: SurfaceDescription::Offset { base: Arc::clone(&fit), d: 0.5 },
+        description: SurfaceDescription::Offset {
+            base: Arc::clone(&fit),
+            d: 0.5,
+        },
         fit: (*fit).clone(),
         window: ApproxWindow::of(&*fit),
         tolerance: 1e-7,
@@ -164,7 +229,9 @@ fn n1r2_approx_lift_carries_record_and_evaluates_to_source() {
     let approx = ApproxSurface::certify(spec, |_, _, _, _| Ok::<_, ()>(certificate)).unwrap();
     let s = Surface::Approx(Arc::new(approx));
     let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
-    let Surface::Approx(l) = &sd else { panic!("variant") };
+    let Surface::Approx(l) = &sd else {
+        panic!("variant")
+    };
     assert_eq!(format!("{:?}", l.certificate()), format!("{certificate:?}"));
     assert_eq!(l.tolerance(), 1e-7);
     let SurfaceDescription::Offset { base, d } = l.description();
@@ -201,13 +268,18 @@ fn n1r2_one_poisoned_point_lifts_to_a_described_poisoned_net() {
         2,
     )
     .unwrap();
-    let mut control: Vec<Point3<f64>> = (0..5).map(|i| Point3::new(i as f64, 1.0, -(i as f64))).collect();
+    let mut control: Vec<Point3<f64>> = (0..5)
+        .map(|i| Point3::new(i as f64, 1.0, -(i as f64)))
+        .collect();
     control[4] = Point3::new(f64::NAN, f64::NAN, f64::NAN);
     let c = NurbsCurve3::new(knots, control, vec![1.0, 2.0, 0.5, 1.0, 1.0]).unwrap();
     assert!(!c.is_placeholder());
     let e = Curve3::Nurbs(Arc::new(c.clone()));
     let ed = e.map_scalar(Dual::constant);
-    assert!(matches!(&ed, Curve3::Nurbs(n) if !n.is_placeholder()), "lift widened into the placeholder");
+    assert!(
+        matches!(&ed, Curve3::Nurbs(n) if !n.is_placeholder()),
+        "lift widened into the placeholder"
+    );
     // Where the poisoned point is outside the window: finite and identical.
     let p = ed.eval(Dual::variable(0.1));
     let q = e.eval(0.1);
@@ -236,7 +308,11 @@ fn n1r2_one_poisoned_point_lifts_to_a_described_poisoned_net() {
 
 /// The retired `ders_in_span` spelling, reconstructed verbatim from the
 /// removed lines of commit 7bf42740e (order-2 basis, inline corrections).
-fn retired_ders_in_span(c: &NurbsCurve3<f64>, span: Span, t: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
+fn retired_ders_in_span(
+    c: &NurbsCurve3<f64>,
+    span: Span,
+    t: f64,
+) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     let ders = ders_basis_funs(c.knots(), span, t, 2);
     let base = span.first_control();
     let mut x = [0.0f64; 3];
@@ -282,13 +358,27 @@ fn n1r2_c24_bit_identity_against_the_retired_spelling() {
                 let e1 = c.deriv_in_span(span, t);
                 let e2 = c.deriv2_in_span(span, t);
                 for (a, b) in [
-                    (op.x, p.x), (op.y, p.y), (op.z, p.z),
-                    (od1.x, d1.x), (od1.y, d1.y), (od1.z, d1.z),
-                    (od2.x, d2.x), (od2.y, d2.y), (od2.z, d2.z),
-                    (od1.x, e1.x), (od1.y, e1.y), (od1.z, e1.z),
-                    (od2.x, e2.x), (od2.y, e2.y), (od2.z, e2.z),
+                    (op.x, p.x),
+                    (op.y, p.y),
+                    (op.z, p.z),
+                    (od1.x, d1.x),
+                    (od1.y, d1.y),
+                    (od1.z, d1.z),
+                    (od2.x, d2.x),
+                    (od2.y, d2.y),
+                    (od2.z, d2.z),
+                    (od1.x, e1.x),
+                    (od1.y, e1.y),
+                    (od1.z, e1.z),
+                    (od2.x, e2.x),
+                    (od2.y, e2.y),
+                    (od2.z, e2.z),
                 ] {
-                    assert_eq!(a.to_bits(), b.to_bits(), "{name} t={t} span={idx}: {a} vs {b}");
+                    assert_eq!(
+                        a.to_bits(),
+                        b.to_bits(),
+                        "{name} t={t} span={idx}: {a} vs {b}"
+                    );
                     n += 1;
                 }
             }
