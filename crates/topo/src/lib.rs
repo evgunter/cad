@@ -303,8 +303,8 @@ pub use chart_region::{
     ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
 };
 pub use coherence::{
-    CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined,
-    examine_chart_coherence,
+    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
+    examine_chart_coherence, gap_is_noise,
 };
 pub use geom::Curve3;
 pub use geom::Surface;

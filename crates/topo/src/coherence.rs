@@ -39,12 +39,39 @@
 //!
 //! # What a finding is, and is not
 //!
-//! It is a MEASUREMENT, never a verdict about validity. The bodies
-//! these conditions fire on are bodies whose meshes and volumes may be
-//! perfectly correct — the two π-rad witnesses in tree (issue 723's
-//! imported half-cap, issue 1571's Euler-door body) both certify
-//! green through tier 3 and one of them meshes. Nothing here refuses,
-//! nothing here is a tier, and no consumer is required to react.
+//! It is a MEASUREMENT, never a verdict about validity, and in
+//! particular it is not a tier: a body can be tier-3 green and carry
+//! findings, or tier-3 refused and carry none. Both halves of that are
+//! in tree, on the two π-rad witnesses. Issue 723's imported half-cap
+//! (`step-import/tests/fixtures/halfcap/halfcap_eps7.step`) is tier-3
+//! GREEN and reports; issue 1571's Euler-door body is tier-3 REFUSED
+//! — twice for `ScaffoldAtRest` and once for `CurvedSenseInverted`,
+//! construction artefacts of how it is assembled, none of them the arc
+//! this examination is about — and reports the same half-turn anyway.
+//! Nothing here refuses, nothing here is a tier, and no consumer is
+//! required to react.
+//!
+//! # No shape door in front of it, and what that means
+//!
+//! `mesh` reaches its walk only through `props`' iso-rectangle door;
+//! this examination has no door at all, deliberately — a report that
+//! only looked at faces the tessellator already accepted could not
+//! report on the faces most likely to be defective. Two consequences
+//! a reader owes:
+//!
+//! - it reads faces the iso walk never walks, and states its
+//!   conditions about them. On such a face the conditions are still
+//!   well-defined (a carrier's midpoint azimuth against its own
+//!   endpoint's is a fact about any circle and any vertex), but they
+//!   are not statements about a mesh that exists — no lane consumed
+//!   those coordinates and none will;
+//! - the classification it reads them through is the WALK's
+//!   ([`crate::chart_iso`]), so on a face whose boundary is not a
+//!   chart iso curve the classification is a nearest-fit and a finding
+//!   may be measuring a premise the face never had. Where the carrier
+//!   is a conic or a spline that is visible — the loop is
+//!   [`Unexaminable::NonIsoCarrier`] — and where it is a line or a
+//!   circle that happens not to be iso, it is not.
 //!
 //! **Not covered by D9's byte-identity contract.** That contract is
 //! about the MESH: the same body at the same δ yields the same
@@ -53,51 +80,34 @@
 //! it. What this report has instead is its own determinism, stated at
 //! [`examine_chart_coherence`]: it is a pure function of (body, ε).
 //!
-//! # Where these conditions used to live
+//! # The ledger, and where the rest of it is
 //!
-//! In `mesh::walk`, as three `debug_assert!`s inside the boundary
-//! walk — a tessellator asserting about the quality of somebody else's
-//! coordinates, in a build profile that panicked on a file whose mesh
-//! was correct. They measure a fact about the BODY, so they are stated
-//! about the body, by a door whose whole output is the measurement.
-//! The ledger those assertions carried, both its arguments and its two
-//! traced witnesses, is kept below rather than dropped.
+//! **THE BAR IS SPATIAL, NOT ANGULAR, and one traced file is the whole
+//! argument for that.** `nist_ftc_09_asme1_rd.stp` states its hole
+//! generators' two endpoints non-co-azimuthally in the tenth digit:
+//! 21.4 pm perpendicular to the axis, which subtends 7.2e-9 rad at
+//! r = 2.9718e-3 m. In radians that is a large number on a small
+//! feature and a scale-free radian bar flagged it; in metres it is
+//! 21 pm, 1.6e6x inside that file's own ε, and nothing is reported.
+//! A fixed source-coordinate error subtends a LARGER angle on a
+//! SMALLER feature, so only the metres are comparable to ε.
 //!
-//! # The ledger, moved
+//! **The two π-rad witnesses**, both a meridian ARC crossing a pole
+//! mid-edge so the carrier's midpoint sits a half-turn from its own
+//! endpoint: issue 723's half-cap through import — the committed
+//! fixture above, whose offending endpoint is 1.0e-9 m from the axis,
+//! so the half-turn opens 3.14 nm and the report is band-shaped across
+//! the ε rows — and issue 1571's Euler-door body. Issue 1571 owns
+//! FIXING the arc premise; this door owns seeing it.
 //!
-//! **TRACED — the one real file that ever tripped one of these in
-//! tree**, kept because it is the argument for the bar's UNIT and not
-//! a census figure. `nist_ftc_09_asme1_rd.stp`'s hole generators state
-//! their two endpoints non-co-azimuthally:
-//!
-//! ```text
-//! p0 = (-3.1330000001, +0.0896, -4.2499999992) inch
-//! p1 = (-3.1330000000,  0.0,    -4.2500000000) inch
-//! ```
-//!
-//! The line runs along the hole axis and should hold x and z fixed;
-//! the file's ~10-digit coordinates differ in the last one. That is
-//! 21.4 pm PERPENDICULAR to the axis, subtending 7.2e-9 rad at
-//! r = 2.9718e-3 m — and a closure gap is half that spread, because
-//! one side of the comparison reads a vertex azimuth and the other the
-//! carrier midpoint's. In metres the invariant quantity shows: 21 pm,
-//! 1.6e6x inside that file's own ε, so nothing is reported. A
-//! scale-free radian constant (the bar this once was) flagged the
-//! 0.117-inch holes while passing the same physical error elsewhere.
-//!
-//! **The two π-rad witnesses**, both a meridian ARC that crosses a
-//! pole mid-edge, so the carrier's midpoint sits a half-turn from its
-//! own endpoint: issue 723's half-cap through import
-//! (`step-import/tests/fixtures/halfcap/halfcap_eps7.step`, whose
-//! offending endpoint is 1.0e-9 m from the axis, so the half-turn
-//! opens 3.14 nm of arc and the report is band-shaped across the ε
-//! rows), and issue 1571's Euler-door body, which the iso-rectangle
-//! shape door admits. Nothing else on source data has been seen above
-//! 3.6e-9 rad — and **nothing re-measures that**: no test in this repo
-//! examines the wild or FreeCAD corpora, so the input class these
-//! conditions are about is untested by construction and that sentence
-//! is a trace, not a census. Issue 1571 owns FIXING the arc premise;
-//! this door owns seeing it.
+//! **What nothing re-measures.** No test in this repo examines the
+//! wild or FreeCAD corpora, so the input class these conditions are
+//! about is untested by construction; "nothing else on source data has
+//! been seen above 3.6e-9 rad" is a trace, not a census. The rest of
+//! this deviation's history — what these conditions were before they
+//! were a report, and the ledger that justified them there — is in the
+//! PR that relocated them (issue 868) and in `docs/S-MESH-LOG.md`,
+//! not here.
 
 use geom_core::{Point3, Tol};
 
@@ -174,20 +184,31 @@ pub struct CoherenceFinding {
     /// The band this was judged against: `metres < eps` is float noise
     /// and is not reported at all, so every finding satisfies
     /// `metres >= eps`.
+    ///
+    /// **Per FINDING, not per report**, and the eight repeated bytes
+    /// are the price of the decision: a finding is a value that
+    /// travels — into a report, into a check arm, into a log line, on
+    /// its own — and `metres` read without the band it was judged
+    /// against is a number without a claim. Putting ε on the container
+    /// would make every finding depend on its container to mean
+    /// anything, which is the property this type is trying not to
+    /// have. Every finding of one call carries the same value, by
+    /// construction: [`examine_chart_coherence`] reads ε once.
     pub eps: f64,
 }
 
 /// Why one loop of a chart-bearing face was not examined.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unexaminable {
-    /// The loop's structure did not resolve — a stale key or a broken
-    /// half-edge cycle. Tier 1's business, named here rather than
-    /// dropped: this door reports coherence, and re-reporting a
-    /// structural defect in a second vocabulary would give it a second
-    /// home.
+    /// The loop's structure did not resolve. Tier 1's business, named
+    /// here rather than dropped: this door reports coherence, and
+    /// re-reporting a structural defect in a second vocabulary would
+    /// give it a second home.
     Corrupt {
-        /// What did not resolve.
-        what: &'static str,
+        /// Which read failed — a closed set, so a consumer can match
+        /// on it, rather than a `&'static str` a consumer can only
+        /// print.
+        at: StructureRead,
     },
     /// An edge of the loop carries construction scaffolding rather
     /// than a certified curve, so it states no coordinate to compare.
@@ -205,6 +226,34 @@ pub enum Unexaminable {
     },
 }
 
+/// Which structural read failed on a loop this door could not walk.
+///
+/// One variant per fallible arena read the traversal makes, in the
+/// order it makes them. A closed enum rather than a message: every
+/// one of these is a tier-1 defect with a name of its own over in
+/// [`crate::validate`], and a consumer routing this to that vocabulary
+/// needs to match, not to parse.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StructureRead {
+    /// The loop key does not resolve.
+    Loop,
+    /// The loop carries no cycle — construction scaffolding at rest.
+    EmptyLoop,
+    /// The half-edge cycle from the loop's first half-edge is broken.
+    Cycle,
+    /// A half-edge key in the cycle does not resolve.
+    HalfEdge,
+    /// A half-edge's edge key does not resolve.
+    Edge,
+    /// An edge's curve key does not resolve.
+    Curve,
+    /// A half-edge's mate does not resolve, so the traversal has no
+    /// end vertex.
+    Mate,
+    /// A junction vertex, or its point, does not resolve.
+    VertexPoint,
+}
+
 /// One loop the examination could not reach, and why.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Unexamined {
@@ -217,16 +266,27 @@ pub struct Unexamined {
 }
 
 /// What [`examine_chart_coherence`] found, and what it could not look
-/// at — the shape `editor_core`'s `ChecksReport` uses, for the same
-/// reason: a report that lists only its findings cannot be told apart
-/// from one that had nothing to look at.
+/// at.
+///
+/// Two lists rather than one, for the reason `editor_core`'s
+/// `ChecksReport` has two: a report that lists only its findings
+/// cannot be told apart from one that had nothing to look at.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CoherenceReport {
     /// Every finding, in the order described at
     /// [`examine_chart_coherence`].
     pub findings: Vec<CoherenceFinding>,
-    /// Every loop of a chart-bearing face that was skipped, in the
-    /// same traversal order.
+    /// Every loop of a chart-bearing face this door could not walk, in
+    /// the same traversal order.
+    ///
+    /// **Not `ChecksReport::skipped`, and the parallel is only in the
+    /// shape.** That field lists checks a CONFIGURATION turned off —
+    /// a choice, reversible by changing the configuration. This one
+    /// lists loops the DATA put out of reach: nothing a caller can set
+    /// makes them examinable, and each entry is a defect or a lane
+    /// boundary rather than a preference. A consumer that renders the
+    /// two the same way is telling its user something false about what
+    /// to do next.
     pub unexamined: Vec<Unexamined>,
 }
 
@@ -294,39 +354,35 @@ struct Trav {
 /// Reads one loop into the traversal list the conditions are stated
 /// over, or names why it could not be read.
 fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>, Unexaminable> {
-    let corrupt = |what| Unexaminable::Corrupt { what };
+    let corrupt = |at| Unexaminable::Corrupt { at };
     let point = |body: &Body<f64>, v: VertexKey| -> Option<Point3<f64>> {
         body.get_vertex(v)
             .and_then(|vx| body.get_point(vx.point))
             .copied()
     };
-    let lp = body
-        .get_loop(lk)
-        .ok_or(corrupt("loop key does not resolve"))?;
+    let lp = body.get_loop(lk).ok_or(corrupt(StructureRead::Loop))?;
     let LoopBoundary::Cycle { first } = lp.boundary else {
-        return Err(corrupt("empty loop (construction scaffolding at rest)"));
+        return Err(corrupt(StructureRead::EmptyLoop));
     };
     let cycle: Vec<HalfEdgeKey> = body
         .loop_cycle(first)
-        .ok_or(corrupt("broken half-edge cycle"))?;
+        .ok_or(corrupt(StructureRead::Cycle))?;
     let mut out = Vec::with_capacity(cycle.len());
     for hek in cycle {
         let he = body
             .get_half_edge(hek)
-            .ok_or(corrupt("half-edge key does not resolve"))?;
-        let edge = body
-            .get_edge(he.edge)
-            .ok_or(corrupt("edge key does not resolve"))?;
+            .ok_or(corrupt(StructureRead::HalfEdge))?;
+        let edge = body.get_edge(he.edge).ok_or(corrupt(StructureRead::Edge))?;
         let curve = body
             .get_curve_geom(edge.curve)
-            .ok_or(corrupt("curve key does not resolve"))?
+            .ok_or(corrupt(StructureRead::Curve))?
             .certified()
             .ok_or(Unexaminable::NullScaffoldEdge { edge: he.edge })?;
         let end = body
             .half_edge_end(hek)
-            .ok_or(corrupt("half-edge mate does not resolve"))?;
-        let start_p = point(body, he.start).ok_or(corrupt("vertex point does not resolve"))?;
-        let end_p = point(body, end).ok_or(corrupt("vertex point does not resolve"))?;
+            .ok_or(corrupt(StructureRead::Mate))?;
+        let start_p = point(body, he.start).ok_or(corrupt(StructureRead::VertexPoint))?;
+        let end_p = point(body, end).ok_or(corrupt(StructureRead::VertexPoint))?;
         let kind =
             classify_kind(chart, curve).ok_or(Unexaminable::NonIsoCarrier { edge: he.edge })?;
         out.push(Trav {
@@ -418,6 +474,7 @@ fn loop_findings(
 ) -> Vec<CoherenceFinding> {
     let starts = iso_side_starts(travs, chart, eps);
     let opens = openings(&starts);
+    let poles = chart.poles();
     let mut out = Vec::new();
     let mut push = |edge: EdgeKey, condition: CoherenceCondition, gap: f64, lever: f64| {
         if !gap_is_noise(gap, lever, eps) {
@@ -471,6 +528,29 @@ fn loop_findings(
         }
         if let TravKind::Meridian { u_raw } = t.kind {
             for (vertex, p) in [(t.start, t.start_p), (t.end, t.end_p)] {
+                // A POLE ENDPOINT IS EXEMPT, by the walk's own rule.
+                // Where a junction lies within ε of a chart pole the
+                // walk identifies it with that pole: it substitutes
+                // the pole's exact v and emits a fan, and it never
+                // reads the junction's azimuth at all — so there is
+                // no second account of u there for this condition to
+                // compare against. What `u_of` returns at such a point
+                // is an `atan2` of two quantities that are both noise;
+                // measuring a carrier against it reports the noise.
+                //
+                // The band is INCLUSIVE here because it is inclusive
+                // in the walk (`Eps::coincident`): the two doors must
+                // identify the same set of junctions with the same
+                // poles, or this report contradicts the mesh about
+                // which points have an azimuth. Measured cost of NOT
+                // exempting: at ε = 1e-12 a tilted-axis sphere of
+                // R ≳ 1.4 km puts its own pole vertex ~R·ulp off the
+                // analytic pole, a lever of ~1e-10 m against an
+                // arbitrary gap — a finding about float placement, on
+                // a body the walk meshes without a word.
+                if poles.iter().any(|&(pp, _)| (p - pp).norm() <= eps) {
+                    continue;
+                }
                 push(
                     t.edge,
                     CoherenceCondition::MeridianClosure { vertex },
@@ -543,7 +623,7 @@ pub fn examine_chart_coherence(body: &Body<f64>, tol: Tol) -> CoherenceReport {
                 face: fk,
                 r#loop: lk,
                 why: Unexaminable::Corrupt {
-                    what: "face surface key does not resolve",
+                    at: StructureRead::Loop,
                 },
             }));
             continue;

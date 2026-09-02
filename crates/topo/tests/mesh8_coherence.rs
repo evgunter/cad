@@ -22,11 +22,19 @@
 //! `eps ∈ {default, 1e-6, 1e-12}` matrix, and a literal offset states a
 //! claim about one of the three.
 //!
-//! **What no row here can be.** A sub-ε wobble is not constructible
-//! through these doors: an arc's span must certify, which puts a floor
-//! of order ε on the arc length and therefore on the gap a chord can
-//! open. The band's quiet side is pinned at the predicate instead, in
-//! `topo::coherence`'s own unit rows.
+//! **The band's quiet side, at the body level.** A sub-ε wobble IS
+//! constructible through these doors, and an earlier draft of this
+//! header said it was not. What is true is narrower and only about
+//! ONE shape: a CHORD's closure gap is half its own span, and a span
+//! must certify, so a chord cannot open an arbitrarily small gap. A
+//! MERIDIAN STATED AS A CIRCLE TILTED OUT OF THE MERIDIAN PLANE has no
+//! such floor — its span stays long while the tilt sets the gap — and
+//! `mesh/tests/mesh8r1_probes.rs`'s
+//! `a_tilted_meridian_circle_opens_a_closure_gap_of_any_size` is that
+//! row, quiet at 0.25 ε and reporting four findings at 4 ε on one
+//! body. The rim row below carries the same pin on its own axis; the
+//! band's exact EDGE stays at the predicate, since no body-level row
+//! can land a float there on purpose.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
@@ -57,6 +65,18 @@ fn rim_r() -> f64 {
 }
 
 /// **Issue 1571's body.** Returns it with the pole-crossing arc's key.
+///
+/// **A DECLARED COPY, not an accident.** The same builder stands in
+/// `mesh/tests/mesh7r1_probes.rs` (where the door and tessellate rows
+/// need it) and in the two adopted reviewer suites. One home was
+/// weighed and not taken: a `tests/` binary is a separate crate, so
+/// the only cross-crate door is `topo`'s `test_support`, which is
+/// feature-gated OFF for every crate but this one on purpose — opening
+/// it to `mesh` would put this crate's test vocabulary into `mesh`'s
+/// dependency graph to save a thirty-line constructor. The copies are
+/// pinned to each other by what they assert, not by prose: each states
+/// the same rim latitude and the same over-the-pole orientation, and a
+/// divergence shows up as a changed gap in the rows below.
 fn pole_crossing_half_cap() -> (Body<f64>, EdgeKey) {
     let tol = Tol::witness();
     let r = rim_r();
@@ -369,26 +389,41 @@ fn a_line_stated_off_axis_reports_its_closure_gap_at_both_ends() {
     }
 }
 
-/// **The rim-continuation condition**, on two carriers that are not
-/// the same circle — and its quiet side, where they are.
+/// **The rim-continuation condition**, at a quarter of a band and at
+/// 1024 of them: quiet on one side, four figures pinned on the other.
 ///
-/// The scale is derived from the band: the v-gap of a second
-/// horizontal circle through both vertices whose centre is `c` off the
-/// axis is `z̄·c²/(2r)` to leading order, so `c` is set from the metres
-/// wanted rather than the other way round. That the offset goes as the
-/// SQUARE ROOT of the gap is the reason this condition's witness cannot
-/// be a near-miss: the second carrier is off the sphere by ~`c`, which
-/// is `sqrt(ε R)`-sized while the gap is ε-sized.
+/// The scale is derived from the band at both ends: the v-gap of a
+/// second horizontal circle through both vertices whose centre is `c`
+/// off the axis is `z̄·c²/(2r)` to leading order, so `c` is set from
+/// the metres wanted rather than the other way round. That the offset
+/// goes as the SQUARE ROOT of the gap is the reason this condition's
+/// witness cannot be a near-miss on the surface: the second carrier is
+/// off the sphere by ~`c`, which is `sqrt(ε R)`-sized while the gap is
+/// ε-sized.
 #[test]
 fn two_carriers_for_one_rim_row_report_their_v_gap() {
     let tol = Tol::witness();
     let want = 1024.0 * tol.eps();
     let c = (want * 2.0 * rim_r() / RIM_Z).sqrt();
 
-    let quiet = topo::examine_chart_coherence(&two_circle_rim_cap(0.0), tol);
+    // The quiet side, with a gap that is NONZERO. `c = 0` makes the two
+    // carriers one circle and the gap identically zero, which is quiet
+    // for a reason that has nothing to do with the band — such a row
+    // cannot see a band that stopped comparing. This one opens a
+    // quarter of a band and must still be silent.
+    let c_quiet = (0.25 * tol.eps() * 2.0 * rim_r() / RIM_Z).sqrt();
+    let quiet = topo::examine_chart_coherence(&two_circle_rim_cap(c_quiet), tol);
+    let quiet_gap =
+        RIM_Z.atan2(rim_r()) - RIM_Z.atan2((rim_r() * rim_r() + c_quiet * c_quiet).sqrt());
+    assert!(
+        quiet_gap.abs() > 0.0 && quiet_gap.abs() < tol.eps(),
+        "the quiet row must open a real gap under the band, got {quiet_gap} rad \
+         against eps {}",
+        tol.eps()
+    );
     assert!(
         quiet.findings.is_empty() && quiet.unexamined.is_empty(),
-        "ONE circle carrying both sub-edges states one v: {quiet:?}"
+        "a quarter-band v gap is noise: {quiet:?}"
     );
 
     let report = topo::examine_chart_coherence(&two_circle_rim_cap(c), tol);
@@ -426,5 +461,306 @@ fn two_carriers_for_one_rim_row_report_their_v_gap() {
         0,
         "a rim row says nothing about any meridian: {:?}",
         report.findings
+    );
+}
+
+/// A cylinder patch whose ONE meridian side is carried by TWO edges:
+/// an exact axial line from `v1` up to a mid-height vertex, and a
+/// second line from there to a vertex `w` radians round the axis. The
+/// second sub-edge's chord midpoint sits at azimuth `w/2`, the run's
+/// opening column at `0`, and the gap the substitution discards is
+/// that difference at the junction's own lever arm.
+///
+/// Both vertices lie exactly on the cylinder and each carrier runs
+/// exactly between its own two, so nothing here is a mis-stated curve:
+/// the source simply states one iso side's two carriers off the axis
+/// they should share, which is `nist_ftc_09`'s defect one level up
+/// from [`chord_wobble`]'s.
+fn split_meridian_wobble(metres: f64) -> Body<f64> {
+    let tol = Tol::witness();
+    let rr = 0.05_f64;
+    // The continuation gap is w/2 at lever `rr`.
+    let w = 2.0 * metres / rr;
+    let on = |theta: f64, z: f64| p3(rr * theta.cos(), rr * theta.sin(), z);
+    let (v0, v1) = (on(0.0, 0.0), on(0.9, 0.0));
+    let mid = on(0.9, 0.5);
+    let top = on(0.9 + w, 1.0);
+    let tl = on(0.0, 1.0);
+    let rim = |z: f64, sense: f64| Curve3::Circle {
+        center: p3(0.0, 0.0, z),
+        axis: v3(0.0, 0.0, sense),
+        radius: rr,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(v0).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New(Surface::Cylinder {
+            origin: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: rr,
+            u_ref: v3(1.0, 0.0, 0.0),
+        }),
+    )
+    .unwrap();
+    let e0 = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            v1,
+            EdgeCurveSpec::arc_of_circle(rim(0.0, 1.0), 0.0, 0.9).unwrap(),
+            tol,
+        )
+        .unwrap();
+    let strut = |body: &mut Body<f64>, at, to, spec| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, to, spec, tol)
+            .unwrap()
+    };
+    let e1 = strut(
+        &mut body,
+        e0.he_minus,
+        mid,
+        EdgeCurveSpec::line_between(v1, mid),
+    );
+    let e2 = strut(
+        &mut body,
+        e1.he_minus,
+        top,
+        EdgeCurveSpec::line_between(mid, top),
+    );
+    // The far rim closes the u extent, so the meridian RUN is exactly
+    // the two sub-edges above: a third consecutive line would put the
+    // closing side in the same run and the condition would be about
+    // three carriers rather than two.
+    let e3 = strut(
+        &mut body,
+        e2.he_minus,
+        tl,
+        EdgeCurveSpec::arc_of_circle(rim(1.0, -1.0), -(0.9 + w), 0.0).unwrap(),
+    );
+    body.mef(
+        MefSite::Chords {
+            he1: e3.he_minus,
+            he2: e0.he_plus,
+        },
+        EdgeCurveSpec::line_between(tl, v0),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    body
+}
+
+/// **The continuation condition on the u axis**, at a quarter of a
+/// band and at 1024 of them — the synthetic the rim axis has had since
+/// this unit's first head and the meridian axis did not. Its absence
+/// was a gap in the spec's own deliverable 2(b), which asks for a
+/// continuation wobble on EACH axis; the π-rad witnesses cover the
+/// meridian axis at a half-turn and say nothing about the band.
+///
+/// Two edges of one meridian column: the second states its carrier `w`
+/// radians round from the first, and the gap the run's substitution
+/// discards is `w/2` at the junction's lever arm.
+#[test]
+fn two_carriers_for_one_meridian_column_report_their_u_gap() {
+    let tol = Tol::witness();
+
+    let quiet = topo::examine_chart_coherence(&split_meridian_wobble(0.25 * tol.eps()), tol);
+    assert!(quiet.unexamined.is_empty(), "{:?}", quiet.unexamined);
+    assert_eq!(
+        of_kind(&quiet.findings, is_meridian_continuation).len(),
+        0,
+        "a quarter-band column gap is noise: {:?}",
+        quiet.findings
+    );
+
+    let want = 1024.0 * tol.eps();
+    let report = topo::examine_chart_coherence(&split_meridian_wobble(want), tol);
+    assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
+    let columns = of_kind(&report.findings, is_meridian_continuation);
+    assert_eq!(columns.len(), 2, "one per face: {:?}", report.findings);
+    for f in &columns {
+        assert!(
+            (f.metres - want).abs() < want * 1e-3,
+            "expected ~{want} m of arc, got {} (gap {} rad, lever {} m)",
+            f.metres,
+            f.gap,
+            f.lever
+        );
+    }
+}
+
+/// A sphere LUNE about a TILTED axis: two meridian half-arcs from the
+/// north pole to the south pole, `theta` apart in u, with both pole
+/// vertices placed where the CARRIER puts them rather than where the
+/// frame states them — which is how any construction that follows a
+/// curve gets them, and which leaves each one a few ulps of `radius`
+/// off the analytic pole.
+fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
+    let tol = Tol::witness();
+    let raw = v3(0.3, 0.2, 1.0);
+    let axis = raw * (1.0 / raw.norm());
+    let x = v3(1.0, 0.0, 0.0);
+    let u0 = x - axis * axis.dot(x);
+    let u_ref = u0 * (1.0 / u0.norm());
+    let v_ref = axis.cross(u_ref);
+    let c = p3(0.0, 0.0, 0.0);
+    // A meridian circle at azimuth `az`, oriented so that its forward
+    // parameter runs south pole → equator → north pole.
+    let meridian = |az: f64| Curve3::Circle {
+        center: c,
+        axis: (u_ref * az.sin() - v_ref * az.cos()),
+        radius,
+        u_ref: (u_ref * az.cos() + v_ref * az.sin()),
+    };
+    // The return side, oriented north → south.
+    let back = |az: f64| Curve3::Circle {
+        center: c,
+        axis: (v_ref * az.cos() - u_ref * az.sin()),
+        radius,
+        u_ref: (u_ref * az.cos() + v_ref * az.sin()),
+    };
+    let (ta, tb) = (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2);
+    let m0 = meridian(0.0);
+    let (s, n) = (m0.eval(ta), m0.eval(tb));
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(s).ok()?;
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New(Surface::Sphere {
+            center: c,
+            radius,
+            axis,
+            u_ref,
+        }),
+    )
+    .ok()?;
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            n,
+            EdgeCurveSpec::arc_of_circle(m0, ta, tb)?,
+            tol,
+        )
+        .ok()?;
+    body.mef(
+        MefSite::Chords {
+            he1: e.he_minus,
+            he2: e.he_plus,
+        },
+        EdgeCurveSpec::arc_of_circle(back(theta), ta, tb)?,
+        FaceSurface::Inherit,
+        tol,
+    )
+    .ok()?;
+    Some(body)
+}
+
+/// **A POLE ENDPOINT IS EXEMPT from the closure condition, by the
+/// walk's own identification rule** — R1's NOTE-5, closed at the
+/// class rather than at the instance.
+///
+/// The note: at ε = 1e-12 a tilted-axis sphere of R ≳ 1.4 km reports a
+/// spurious closure finding at a pole vertex. Nothing is wrong with
+/// the body. Its pole vertex sits a few ulps of R off the analytic
+/// pole, which is a lever arm of ~1e-10 m; `u_of` at such a point is
+/// an `atan2` of two quantities that are both float noise, so the gap
+/// it produces is arbitrary; and an arbitrary gap on a nonzero lever
+/// clears any small enough band. Meanwhile the WALK identifies that
+/// junction with the pole, substitutes the pole's exact v and never
+/// reads its azimuth at all — so the report was contradicting the mesh
+/// about which points have an azimuth.
+///
+/// The exemption is the walk's rule, band included, and this row is
+/// its non-vacuity: the radius is derived from the run's own ε so the
+/// pole vertices land INSIDE the band at every row, and the largest
+/// un-exempted quantity among these azimuths is at least half a band —
+/// so what keeps the report silent is the exemption and not the band's
+/// own margin.
+#[test]
+fn a_pole_endpoint_is_not_measured_against_its_own_carrier() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    // A pole vertex lands ~3.2e-16·R off the analytic pole (the frame
+    // is a normalised tilt, so this is a few ulps of the radius). The
+    // two poles do not land at the same distance — the placement is
+    // float, not symmetric — so the aim is three quarters of a band,
+    // which puts BOTH inside with the spread this construction has.
+    let radius = 0.75 * eps / 3.2e-16;
+    let mut built = 0;
+    let mut widest: f64 = 0.0;
+    let mut inside = 0;
+    for theta in [0.5_f64, 1.0, 2.8, 3.0] {
+        let Some(body) = tilted_lune(radius, theta) else {
+            continue;
+        };
+        built += 1;
+        let report = topo::examine_chart_coherence(&body, tol);
+        assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
+        let chart = body
+            .faces()
+            .find_map(|(_, f)| body.get_surface(f.surface).and_then(topo::Chart::of))
+            .expect("a sphere face");
+        let poles = chart.poles();
+        for (_, face) in body.faces() {
+            let lp = body.get_loop(face.outer).expect("the outer loop");
+            let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+                panic!("a cycle")
+            };
+            for hek in body.loop_cycle(first).expect("the cycle") {
+                let he = body.get_half_edge(hek).expect("a half-edge");
+                let edge = body.get_edge(he.edge).expect("an edge");
+                let curve = body
+                    .get_curve_geom(edge.curve)
+                    .and_then(|g| g.certified())
+                    .expect("a carrier");
+                let p = *body
+                    .get_vertex(he.start)
+                    .and_then(|v| body.get_point(v.point))
+                    .expect("a junction point");
+                let near = poles
+                    .iter()
+                    .map(|&(pp, _)| (p - pp).norm())
+                    .fold(f64::INFINITY, f64::min);
+                if near > eps {
+                    // Outside the band the door measures it like any
+                    // other endpoint, which is the behaviour this row
+                    // is not about.
+                    continue;
+                }
+                inside += 1;
+                // The quantity the exemption suppresses, re-derived
+                // here from the same public forms the door uses.
+                let u_raw = topo::mid_azimuth(&chart, curve);
+                let d = u_raw - chart.u_of(p);
+                let gap = (d - core::f64::consts::TAU * (d / core::f64::consts::TAU).round()).abs();
+                widest = widest.max(gap * chart.radial(p));
+            }
+        }
+        assert!(
+            of_kind(&report.findings, is_closure).is_empty(),
+            "a pole endpoint carries no azimuth to measure against: {:?}",
+            report.findings
+        );
+    }
+    assert!(built >= 2, "the fixture must build; only {built} did");
+    assert!(inside >= 4, "only {inside} pole junctions were examined");
+    // NON-VACUITY, and its honest limit. The suppressed quantity is
+    // the same ORDER as the band on every row (0.2 … 1.0 of it across
+    // the three), and its size is ARBITRARY — the gap half of it is an
+    // `atan2` of two float-noise components, so which side of the band
+    // a given body lands on is a property of its coordinates and not
+    // of anything a reader could reason about. That is the whole
+    // argument for exempting rather than leaving it to the band: R1
+    // executed a case that crossed (a tilted-axis sphere of R ≳ 1.4 km
+    // at ε = 1e-12, reporting), and this construction sits beside it.
+    assert!(
+        widest >= 0.2 * eps,
+        "the suppressed quantity must be the band's own order, or this row is \
+         not about the exemption at all: widest {widest:e} against eps {eps:e}"
     );
 }
