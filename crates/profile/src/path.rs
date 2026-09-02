@@ -709,18 +709,6 @@ pub enum PathError<T: Real> {
         /// The degenerate lever, meters.
         arm: T,
     },
-    /// §4 item 4: the constructed junction joins two segments of the
-    /// SAME carrier (collinear line onto line, cocircular arc onto
-    /// arc) under a tangency declaration — carrier identity, not
-    /// tangency; refused exactly as #101's `same_carrier` rule. (The
-    /// post-fillet continuation is exempt by construction: it extends
-    /// one leg rather than minting a collinear neighbor.)
-    SameCarrierJunction {
-        /// The classified identity margin (center distance + radius
-        /// difference for circles; perpendicular offset for lines),
-        /// meters.
-        margin: T,
-    },
     /// **The declared point-target continuation's consistency
     /// refusal**: [`continue_to(target)`](PartialPath::continue_to)
     /// declares the leg to be the straight continuation of the run
@@ -1064,8 +1052,6 @@ pub enum PathErrorKind {
     SeamArrivalOffDirection,
     /// [`PathError::SeamArrivalLeverTooShort`].
     SeamArrivalLeverTooShort,
-    /// [`PathError::SameCarrierJunction`].
-    SameCarrierJunction,
     /// [`PathError::ContinuationTargetOffRay`].
     ContinuationTargetOffRay,
     /// [`PathError::NoCornerForFillet`].
@@ -1130,7 +1116,6 @@ impl<T: Real> PathError<T> {
             Self::SeamTangent { .. } => PathErrorKind::SeamTangent,
             Self::SeamArrivalOffDirection { .. } => PathErrorKind::SeamArrivalOffDirection,
             Self::SeamArrivalLeverTooShort { .. } => PathErrorKind::SeamArrivalLeverTooShort,
-            Self::SameCarrierJunction { .. } => PathErrorKind::SameCarrierJunction,
             Self::ContinuationTargetOffRay { .. } => PathErrorKind::ContinuationTargetOffRay,
             Self::NoCornerForFillet { .. } => PathErrorKind::NoCornerForFillet,
             Self::AnchorOutsideTrimmedExtent { .. } => PathErrorKind::AnchorOutsideTrimmedExtent,
@@ -1277,15 +1262,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  (.turn(delta)/.angle(theta)) and use line_to",
                 across = num(across),
                 along = num(along)
-            ),
-            Self::SameCarrierJunction { margin } => write!(
-                f,
-                "this junction joins two pieces of the SAME carrier (identity margin \
-                 {margin} m): carrier identity is not tangency — extend the leg \
-                 instead of minting a collinear/cocircular neighbor, or, where the extra \
-                 vertex is the point, subdivide the carrier structurally: line(len) off \
-                 the directed point, which declares nothing",
-                margin = num(margin)
             ),
             Self::NoCornerForFillet { reason, radius } => {
                 let what = match reason {
@@ -1910,15 +1886,6 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// Whether the joint at the current last vertex is already
-    /// declared (the zero-fit knife-edge bookkeeping).
-    fn last_declared(&self) -> bool {
-        match self.verts.len().checked_sub(1) {
-            Some(last) => self.tangent.last() == Some(&last),
-            None => false,
-        }
-    }
-
     /// Finishes the loop, returning it PAIRED with the program that
     /// produced it (see [`ClosedLoop`]).
     fn build(mut self) -> ClosedLoop<T> {
@@ -2069,11 +2036,6 @@ fn junction_check<T: Decide>(
 /// case in a materialized loop
 /// ([`crate::ProfileError::UndeclaredTangency`]).
 ///
-/// The chain reading its own PREVIOUS leg is a different thing and
-/// stays: `tangent_arc_geom` refuses a collinear target under a
-/// declared departure ([`PathError::SameCarrierJunction`]) because the
-/// incoming carrier is data the chain already holds.
-///
 /// The datum is `sin` of the turn — dimensionless — so comparing it
 /// against a LENGTH tolerance is a category error until an arm says
 /// what it displaces. It is LEVERED by the arriving leg's own arm, the
@@ -2143,24 +2105,6 @@ fn carriers_are_identical<T: Decide>(
     match decide("path_carrier_identity", Margin::of(margin), band) {
         Ok(Sign::Zero) => Ok(true),
         Ok(_) => Ok(false),
-        Err(source) => Err(PathError::Escalated { source }),
-    }
-}
-
-/// §4 item 4: refuses a declared continuation whose constructed
-/// carrier is the incoming carrier itself (cocircular arcs) — the
-/// `carrier_circles_identity` margin d + |Δr| on the linear band.
-fn refuse_identical_carriers<T: Decide>(
-    a: &ArcData<T>,
-    b: &ArcData<T>,
-    tol: Tol,
-) -> Result<(), PathError<T>> {
-    let band = linear_band(tol)?;
-    let d = (a.center - b.center).norm_squared().sqrt();
-    let margin = d + (a.radius - b.radius).abs();
-    match decide("path_carrier_identity", Margin::of(margin), band) {
-        Ok(Sign::Zero) => Err(PathError::SameCarrierJunction { margin }),
-        Ok(_) => Ok(()),
         Err(source) => Err(PathError::Escalated { source }),
     }
 }
@@ -2321,7 +2265,7 @@ impl<T: Decide> Core<T> {
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
         let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
-        self.emit_fillet_in(&trims, meta.extends_carrier, tol)?;
+        self.emit_fillet_in(&trims, meta.extends_carrier)?;
         match kind {
             ArrivalKind::Seam => {
                 // The fillet arc IS the closing segment; the entry
@@ -2463,15 +2407,6 @@ impl<T: Decide> Core<T> {
                 self.push_line(trims.t1)?;
                 self.declare_last();
             }
-        } else if self.last_declared() {
-            let adjacent = if meta.by_tangent {
-                meta.origin_incoming.as_ref().and_then(|inc| inc.carrier)
-            } else {
-                self.last_arc
-            };
-            if let Some(adj) = adjacent {
-                refuse_identical_carriers(&adj, &arc, tol)?;
-            }
         }
         // (6) the arc. Interior: emitted, its outgoing joint declared
         // (Positive fit: as the raw fillet; Zero fit: the
@@ -2521,7 +2456,6 @@ impl<T: Decide> Core<T> {
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
         merge: bool,
-        tol: Tol,
     ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
@@ -2545,10 +2479,6 @@ impl<T: Decide> Core<T> {
             if !(t.in_arc.is_none() && merge) {
                 self.declare_last();
             }
-        } else if self.last_declared()
-            && let Some(adj) = self.last_arc
-        {
-            refuse_identical_carriers(&adj, &t.arc, tol)?;
         }
         Ok(())
     }
@@ -3244,12 +3174,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        if self.tip.ang_by_tangent
-            && let Some(inc) = self.tip.pos.as_ref().and_then(|p| p.incoming.as_ref())
-            && inc.carrier.is_none()
-        {
-            return Err(PathError::SameCarrierJunction { margin: T::zero() });
-        }
         let tip = emit_straight_leg(&mut self.core, at, ang, len)?;
         Ok(in_state(self.core, tip))
     }
@@ -3306,36 +3230,29 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let u = ang.unit;
         let along = u.dot(d);
         let across = u.perp_dot(d);
+        // A target ON the departure line is not a carrier question —
+        // the 2026-09-02 ruling took those away — but it is still a
+        // GEOMETRY one, and only forward of the tip is it answerable:
+        // `delta` is `atan2(0, along)`, which is 0 ahead of the tip (a
+        // zero-bulge arc, the straight segment the declaration asks
+        // for) and π behind it, where the bulge `tan(delta/2)` is
+        // unbounded and no arc spans the chord. Gated here so the
+        // infinity cannot reach a segment.
+        let band = linear_band(tol)?;
+        if let Ok(Sign::Zero) = decide("path_collinear_target", Margin::of(across), band) {
+            match decide("path_leg_length", Margin::of(along), band) {
+                Ok(Sign::Positive) => {}
+                Ok(_) => {
+                    return Err(PathError::DegenerateArcChord {
+                        chord: d.norm_squared().sqrt(),
+                    });
+                }
+                Err(source) => return Err(PathError::Escalated { source }),
+            }
+        }
         let delta = across.atan2(along);
         let bulge = (delta / T::from_f64(2.0)).tan();
         let carrier = arc_carrier(at, p, bulge);
-        if self.tip.ang_by_tangent
-            && let Some(inc) = self.tip.pos.as_ref().and_then(|pd| pd.incoming.as_ref())
-        {
-            match &inc.carrier {
-                None => {
-                    let band = linear_band(tol)?;
-                    match decide("path_collinear_target", Margin::of(across), band) {
-                        Ok(Sign::Zero) => {
-                            // The closing and non-closing cases refuse
-                            // IDENTICALLY. A collinear target under a
-                            // declared tangency degenerates the arc onto
-                            // the incoming straight carrier, which is
-                            // carrier identity, and that fact does not
-                            // change because the target happens to be
-                            // `Start`. This used to fork to the
-                            // departure half of the close-only refusal —
-                            // the same second-naming the seam-wall
-                            // collapse removed everywhere else.
-                            return Err(PathError::SameCarrierJunction { margin: across });
-                        }
-                        Ok(_) => {}
-                        Err(source) => return Err(PathError::Escalated { source }),
-                    }
-                }
-                Some(prev) => refuse_identical_carriers(prev, &carrier, tol)?,
-            }
-        }
         let end_ang = Dir::from_angle(ang.ang + delta + delta);
         let chord = d.norm_squared().sqrt();
         Ok(TangentArcGeom {

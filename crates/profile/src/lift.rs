@@ -520,12 +520,15 @@ fn repair_same_carrier(
 }
 
 /// Is this refusal the "the incoming carrier just continues" fact?
+///
+/// One arm since the 2026-09-02 ruling: every zero-turn joint is a
+/// declared tangent joint, so the algebra no longer refuses carrier
+/// IDENTITY at all and `JunctionTangent` — the UNDECLARED zero-turn
+/// junction — is the whole of what this asks about.
 fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
     matches!(
         kind,
-        ReplayErrorKind::Path(
-            PathError::SameCarrierJunction { .. } | PathError::JunctionTangent { .. }
-        )
+        ReplayErrorKind::Path(PathError::JunctionTangent { .. })
     )
 }
 

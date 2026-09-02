@@ -449,10 +449,6 @@ pub enum ProfileError {
         second: SegmentRef,
         /// The joint's vertex index (input chain).
         joint: usize,
-        /// `true` if the adjacent segments share one carrier
-        /// (collinear/cocircular continuation — not a tangency);
-        /// `false` if their distinct carriers meet transversally.
-        same_carrier: bool,
     },
     /// A loop's area-per-perimeter width classified as zero: a sliver
     /// loop (unreachable for loops that passed simplicity — kept total).
@@ -556,27 +552,13 @@ impl fmt::Display for ProfileError {
                 first,
                 second,
                 joint,
-                same_carrier,
-            } => {
-                if *same_carrier {
-                    write!(
-                        f,
-                        "joint {joint} between {first} and {second} is declared tangent, \
-                         but the segments continue on one shared carrier \
-                         (collinear/cocircular) — continuation is not a tangency; remove \
-                         the declaration (declared tangency is verified, never trusted)"
-                    )
-                } else {
-                    write!(
-                        f,
-                        "joint {joint} between {first} and {second} is declared tangent, \
-                         but the carriers definitely meet transversally — remove the \
-                         declaration or make the tangency exact \
-                         (the PATHS .fillet(r) door computes it); declared tangency is \
-                         verified, never trusted"
-                    )
-                }
-            }
+            } => write!(
+                f,
+                "joint {joint} between {first} and {second} is declared tangent, but the \
+                 carriers definitely meet transversally — remove the declaration or make \
+                 the tangency exact (the PATHS .fillet(r) door computes it); declared \
+                 tangency is verified, never trusted"
+            ),
             Self::SliverLoop { loop_index } => write!(
                 f,
                 "loop {loop_index} has zero width at tolerance (sliver loop)"
@@ -1416,15 +1398,22 @@ fn judge_joints<T: Decide>(
                     ),
                 });
             }
-            (seg::JointClass::Transversal | seg::JointClass::SameCarrier, true) => {
+            (seg::JointClass::Transversal, true) => {
                 return Err(ProfileError::TangencyContradicted {
                     first,
                     second,
                     joint,
-                    same_carrier: class == seg::JointClass::SameCarrier,
                 });
             }
-            (seg::JointClass::Tangent, true)
+            // A declared joint whose two segments continue on ONE
+            // carrier is a declared TANGENT JOINT and nothing else
+            // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+            // declared tangent joint). The `same_carrier` arm that used
+            // to refuse it is retired: identity is a fact about the
+            // carriers, tangency is a fact about the directions, and the
+            // directions agree here.
+            (seg::JointClass::SameCarrier, true)
+            | (seg::JointClass::Tangent, true)
             | (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
         }
     }
