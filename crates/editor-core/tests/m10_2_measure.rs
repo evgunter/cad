@@ -769,10 +769,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     // And the assertion produces NO verdict at all: it is poisoned
     // through the DAG edge, never `Holds` over infinity.
     assert!(
-        matches!(
-            ev.nodes.get(&assertion),
-            Some(NodeResult::Poisoned { .. })
-        ),
+        matches!(ev.nodes.get(&assertion), Some(NodeResult::Poisoned { .. })),
         "no verdict may be reported over a non-finite measure, got {:?}",
         ev.nodes.get(&assertion)
     );
@@ -1143,10 +1140,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
         "the measure must fail for this probe to mean anything"
     );
     assert!(
-        matches!(
-            ev.nodes.get(&assertion),
-            Some(NodeResult::Poisoned { .. })
-        ),
+        matches!(ev.nodes.get(&assertion), Some(NodeResult::Poisoned { .. })),
         "the assertion must be poisoned, got {:?}",
         ev.nodes.get(&assertion)
     );

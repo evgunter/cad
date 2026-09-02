@@ -30,7 +30,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use pncad::profile::SketchPlane;
 use viewer::combine::{BooleanTool, PatternTool, SplitTool, TransformTool, denotes_body};
 use viewer::pick::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
@@ -59,10 +58,11 @@ fn session(tol: Tol) -> DocSession {
 /// A box of `size`, authored through the creation doors: one
 /// rectangle profile on world XY, one extrude.
 fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: size[0],
                 height: size[1],
@@ -234,10 +234,11 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let a = boxed(&mut session, A);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -1007,10 +1008,11 @@ fn every_tool_kind_is_listed_in_all() {
 fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
     let (mut session, body, _) = two_boxes(tol);
+    let sketch_frame = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane: sketch_frame,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1042,12 +1044,17 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         NodeKindWanted::Body => body,
         NodeKindWanted::Profile => profile,
         NodeKindWanted::Plane => plane,
+        NodeKindWanted::Frame => sketch_frame,
         NodeKindWanted::Axis => axis,
     };
     let wrong = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => profile,
         NodeKindWanted::Profile => body,
         NodeKindWanted::Plane => axis,
+        // A datum PLANE is the near miss a sketch frame has: it names
+        // the same surface and carries no spin, which is exactly the
+        // distinction the frame pick exists for.
+        NodeKindWanted::Frame => plane,
         NodeKindWanted::Axis => plane,
     };
 
@@ -1196,10 +1203,11 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
 
     // A profile is neither a body nor a plane, so the split tool has
     // no seat to steer it to.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1456,16 +1464,22 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
-    let (next, profile) = common::inserted(&doc, common::square(0.02), tol);
+    let (next, plane) = common::inserted(&doc, common::xy_frame(), tol);
+    doc = next;
+    let (next, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
+    doc = next;
+    // A parallel plane one centimetre up: its own frame, because it is
+    // its own plane.
+    let (next, lifted) = common::inserted(
+        &doc,
+        common::frame([0.0, 0.0, 0.01], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        tol,
+    );
     doc = next;
     let (next, profile_b) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                pncad::geom_core::Point3::new(0.0, 0.0, 0.01),
-                pncad::geom_core::Vec3::unit_x(),
-                pncad::geom_core::Vec3::unit_y(),
-            ),
+            plane: lifted,
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (0.02, 0.0), (0.02, 0.02), (0.0, 0.02)])
                     .expect("finite corners"),
@@ -1477,7 +1491,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
         }),
         tol,
@@ -1549,7 +1563,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 position: [common::len(0.0), common::len(0.0), common::len(0.0)],
             }),
         ),
-        ("profile", common::square(0.01)),
+        ("profile", common::square(plane, 0.01)),
         (
             "extrude",
             Node::Extrude {

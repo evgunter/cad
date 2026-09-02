@@ -244,10 +244,11 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
     let mut roots = Vec::new();
     for _ in 0..2 {
+        let plane = insert_node(&mut doc, common::xy_frame(), tol);
         let profile = insert_node(
             &mut doc,
             pncad::document::Node::Profile(pncad::document::ProfileProgram {
-                plane: pncad::prelude::SketchPlane::xy(),
+                plane,
                 loops: vec![
                     pncad::prelude::LoopProgram::polygon([
                         (0.0, 0.0),

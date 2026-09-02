@@ -25,7 +25,6 @@
 
 use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::profile::SketchPlane;
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
@@ -44,9 +43,25 @@ fn delta() -> DisplayTolerance {
 
 /// A square profile at an offset — this suite's own authoring helper,
 /// so the fixtures do not share the unit's.
-fn offset_square(x0: f64, y0: f64, side: f64) -> Node<ProfileProgram> {
+/// The world xy frame — this suite's own, like every other fixture
+/// here (a review suite derives what it needs independently).
+fn xy_frame() -> Node<ProfileProgram> {
+    let len = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
+    };
+    let scl = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
+    };
+    Node::Datum(pncad::document::Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+fn offset_square(plane: RecipeNodeId, x0: f64, y0: f64, side: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([
                 (x0, y0),
@@ -79,7 +94,8 @@ fn inserted(
 /// `[0,0.02]² × 0.01`, block B is `[0.1,0.14]×[0,0.04] × 0.02`.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
-    let (doc, pa) = inserted(&doc, offset_square(0.0, 0.0, 0.02), tol);
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, pa) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.02), tol);
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
@@ -88,7 +104,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, pb) = inserted(&doc, offset_square(0.1, 0.0, 0.04), tol);
+    let (doc, pb) = inserted(&doc, offset_square(plane, 0.1, 0.0, 0.04), tol);
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
@@ -453,7 +469,8 @@ fn deleting_the_owner_kills_the_standing_and_undo_revives_it() {
 fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-pattern", tol);
-    let (doc, profile) = inserted(&doc, offset_square(0.0, 0.0, 0.03), tol);
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {

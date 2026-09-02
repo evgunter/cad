@@ -35,7 +35,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
-use pncad::profile::SketchPlane;
 use pncad::quantity::{WrittenAngle, WrittenLength};
 use viewer::props;
 use viewer::revolvetool::RevolveTool;
@@ -80,10 +79,11 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
         name: "hollow-ring".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![
                 shape(&ProfileShape::Circle {
                     centre: [R, 0.0],
@@ -202,10 +202,11 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         },
     );
     // Rectangle profile → extrude: a 40 × 20 × 10 mm block.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.04,
                 height: 0.02,
@@ -264,10 +265,11 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
 fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![
                 shape(&ProfileShape::Rectangle {
                     width: 0.06,
@@ -302,10 +304,11 @@ fn new_document_derives_its_id_and_clears_the_session() {
     let mut session = session(tol);
     // Give the session things to clear: a selection, a hover, and —
     // via Save — a backing path and its directory resolver.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.02,
                 height: 0.01,
@@ -375,10 +378,11 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
     // Mid-gesture, every creation door refuses — and so does Open,
     // which shares NewDocument's policy (both replace the document a
     // drag is previewing against).
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -408,7 +412,7 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
             },
         },
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -520,10 +524,11 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
 fn the_rectangle_template_is_the_centred_polygon() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.04,
                 height: 0.02,
@@ -531,7 +536,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
         },
     );
     let want = Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
@@ -559,8 +564,9 @@ fn profile_refusals_are_typed_at_the_door() {
 
     // No loops: the profile layer's own refusal ("no loops — nothing
     // to sweep"), through the edit door.
+    let plane = common::xy_frame_in(&mut session);
     let empty = session.perform(SessionOp::AddProfile {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![],
     });
     assert!(
@@ -572,8 +578,9 @@ fn profile_refusals_are_typed_at_the_door() {
     // Degenerate loops — zero and negative radius — refuse the same
     // way; no rule about them is restated in the session.
     for radius in [0.0, -0.01] {
+        let plane = common::xy_frame_in(&mut session);
         let degenerate = session.perform(SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
@@ -626,6 +633,7 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             },
         },
     );
+    let plane = common::xy_frame_in(&mut session);
     let states = session.history().len();
     for op in [
         SessionOp::NewDocument {
@@ -642,7 +650,7 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             },
         },
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![],
         },
         SessionOp::AddExtrude {
@@ -666,10 +674,11 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
 fn extrude_and_revolve_require_their_node_kinds() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -772,10 +781,11 @@ fn extrude_and_revolve_require_their_node_kinds() {
 fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -869,10 +879,11 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
 fn a_dropped_profile_does_not_promote_the_axis() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -918,10 +929,11 @@ fn a_dropped_profile_does_not_promote_the_axis() {
         "one seat empty, no op"
     );
     // The next pick refills the PROFILE seat, not the axis.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RI,
@@ -948,10 +960,11 @@ fn a_dropped_profile_does_not_promote_the_axis() {
 fn reconcile_drops_both_picks_across_a_new_document() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -1008,10 +1021,11 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
     // the draft is canonical, the picker says how it is written.
     let extrude_distance = Expr::written_length(WrittenLength::canonical_in(0.01, mm.length))
         .expect("10 mm is a length");
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![
                 viewer::sketch::loop_program(
                     &ProfileShape::Circle {

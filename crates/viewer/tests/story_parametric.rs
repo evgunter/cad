@@ -38,7 +38,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
-use pncad::profile::SketchPlane;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
 use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
@@ -129,10 +128,11 @@ fn drum(
     radius_expr: &str,
     distance: f64,
 ) -> (RecipeNodeId, RecipeNodeId) {
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.

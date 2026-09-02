@@ -479,7 +479,7 @@ fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
 /// extrude's names, because a transform contributes no role segment.
 fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.02), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -780,7 +780,7 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
 fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-offer", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

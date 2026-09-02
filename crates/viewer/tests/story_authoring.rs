@@ -42,9 +42,8 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use pncad::profile::SketchPlane;
 use viewer::props::SlotValue;
 use viewer::session::{
     DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, SessionOp,
@@ -126,16 +125,28 @@ fn carved_volume(v_plinth: f64, drum_h: f64) -> f64 {
 
 // --- session helpers ------------------------------------------------
 
+/// The sketch frame at `origin`, spanned by world +x and +y — the
+/// plane a profile is drawn on, minted through the datum door.
+fn frame_at(session: &mut DocSession, origin: [f64; 3]) -> RecipeNodeId {
+    insert(
+        session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Frame {
+                origin: len3(origin),
+                u: scl3([1.0, 0.0, 0.0]),
+                v: scl3([0.0, 1.0, 0.0]),
+            },
+        },
+    )
+}
+
 /// A circle profile of `radius` on the plane `z` up the rook's axis.
 fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
+    let plane = frame_at(session, [0.0, 0.0, z]);
     insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
@@ -160,10 +171,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(session.history().len(), 1, "a fresh root, no edits yet");
 
     // ── The plinth: a square pad, then all twelve edges chamfered ───
+    let plane = common::xy_frame_in(&mut session);
     let plinth_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: PLINTH_SIDE,
                 height: PLINTH_SIDE,
@@ -281,14 +293,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // is the boolean's curved-sector frontier, issue 1455 — the module
     // docs carry the ruling), so its slots stay in the crossing-slots
     // class.
+    let plane = frame_at(&mut session, [0.0, 0.0, DRUM_Z]);
     let drum_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, DRUM_Z),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: DRUM_S,
                 height: DRUM_S,
@@ -322,14 +331,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crown: two crossing slots, the second the first cutter
     //    quarter-turned about the axis (one cutter body, consumed by
     //    both the subtract and the transform — the DAG's sharing) ────
+    let plane = frame_at(&mut session, [0.0, 0.0, CUT_Z]);
     let cutter_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, CUT_Z),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: CUT_W,
                 height: CUT_T,
@@ -398,14 +404,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             },
         },
     );
+    let plane = frame_at(&mut session, [0.010, 0.0, DRUM_Z + DRUM_H]);
     let block_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.010, 0.0, DRUM_Z + DRUM_H),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.006,
                 height: 0.006,

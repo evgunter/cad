@@ -1198,9 +1198,8 @@ pub enum SessionOp {
     /// non-nested pair all refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). The plane is frozen `f64` placement data
-    /// (the program's own placement struct — a snapshot, never a
-    /// reference to the geometry it may have been derived from).
+    /// the literal door). The plane is a REFERENCE to a frame node,
+    /// which the pick below spells out.
     AddProfile {
         /// **The frame node the profile is drawn on** — a PICK, not a
         /// field.

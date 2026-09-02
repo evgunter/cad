@@ -30,7 +30,6 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
-use pncad::profile::SketchPlane;
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator, ThreadEvaluator};
 use viewer::history::History;
@@ -48,9 +47,25 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
-fn rect(w: f64, h: f64) -> Node<ProfileProgram> {
+/// The world xy frame — this suite's own, like every other fixture
+/// here (a review suite derives what it needs independently).
+fn xy_frame() -> Node<ProfileProgram> {
+    let len = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
+    };
+    let scl = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
+    };
+    Node::Datum(pncad::document::Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+fn rect(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
         ],
@@ -87,7 +102,8 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     )
     .expect("the parameter declares")
     .doc;
-    let (doc, profile) = push(&doc, rect(0.03, 0.02), tol);
+    let (doc, plane) = push(&doc, xy_frame(), tol);
+    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
     let (doc, extrude) = push(
         &doc,
         Node::Extrude {
@@ -659,7 +675,8 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
 fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-broken", tol);
-    let (doc, profile) = push(&doc, rect(0.03, 0.02), tol);
+    let (doc, plane) = push(&doc, xy_frame(), tol);
+    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
     let (doc, bad) = push(
         &doc,
         Node::Extrude {
