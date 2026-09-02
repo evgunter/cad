@@ -76,7 +76,11 @@ fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 // ---- Documents ----
 
 /// An axis-aligned block part: `[x]×[y]` at `z0`, extruded `dz`. Its
-/// extrude is node 1, so the part's caps name through `RecipeNodeId(1)`.
+/// extrude is [`PART_BODY`], so the part's caps name through it.
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, p) = on_frame(
@@ -110,7 +114,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -742,7 +746,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     // A pattern of a non-instance body (an extrude patterned in the
     // same document): its copies stand on no instance — no member.
     let doc2 = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let extrude = RecipeNodeId(1);
+    let extrude = PART_BODY;
     let (doc2, body_pattern) = insert(
         doc2,
         Node::Pattern {
