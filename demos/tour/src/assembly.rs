@@ -1464,7 +1464,7 @@ fn post_pin_of(doc: &ProfileDoc, node: RecipeNodeId) -> pncad::document::Content
 
 // ---- The round trip ----
 
-/// Saves each assembly through the current schema, loads it back, and
+/// Saves each assembly through the persistence door, loads it back, and
 /// evaluates the loaded document: same census, same volume bits, same
 /// gate verdict. A document is a value on disk, or it is not a
 /// document.
@@ -1500,10 +1500,9 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
         );
     }
     println!(
-        "   [{label}] {} bytes through schema v{}: reloaded and re-evaluated identically \
-         ({} names, V bit-equal)",
+        "   [{label}] {} bytes through the persistence door: reloaded and re-evaluated \
+         identically ({} names, V bit-equal)",
         text.len(),
-        pncad::document::SCHEMA_VERSION,
         names.iter().count()
     );
 }

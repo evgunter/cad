@@ -9,7 +9,7 @@
 //! The acceptance stream — `NewDocument("hollow-ring")`, one profile
 //! of two concentric circle loops, an axis datum, a full-turn
 //! revolve — is asserted against the committed gallery fixture
-//! (`gallery_ring.v20.pncad`: the ring demo's document as the
+//! (`gallery_ring.pncad`: the ring demo's document as the
 //! exporter saved it, ε re-stamped per `common::gallery_ring_at`).
 //! The comparator is **`Doc::bit_eq`** — spec D7's replay-identity
 //! comparator, the strongest equality the document layer supports:
