@@ -105,6 +105,14 @@ fn probe_s350_a_margin_against_the_partial_box_clears_a_pair() {
 /// masquerade it reports nothing at all.
 #[test]
 fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
+    // Adoption note (orchestrator, at the merge with CERT-M2): the
+    // battery this probe calls gained a sixth argument in CERT-M2's
+    // split — check 7 handed in as a hook. The probe passes the empty
+    // hook, which is exactly `validate_geometric_structural`'s answer
+    // (the battery run without the +V check), so what it measures — check
+    // 1's silence on the masquerade — is unchanged. The public structural
+    // door cannot stand in here: the mvfs fixture fails an earlier tier
+    // there before check 1 is reached.
     let band = Band::new(1e-9, 1e-8).unwrap();
     let tol = geom_core::Tol::witness();
     let run = |s: Surface<f64>| {
@@ -113,7 +121,14 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             .set_face_surface(st.face, FaceSurface::New(s))
             .unwrap();
         let mut marks = slotmap::SecondaryMap::new();
-        crate::validate::tier3_local_checks_marked::<f64>(&st.body, &[], band, &mut marks, tol)
+        crate::validate::tier3_local_checks_marked::<f64>(
+            &st.body,
+            &[],
+            band,
+            &mut marks,
+            tol,
+            &|_, _, _| Vec::new(),
+        )
     };
     let with_placeholder = run(Surface::nurbs_placeholder());
     let with_masquerade = run(masquerading_surface());
