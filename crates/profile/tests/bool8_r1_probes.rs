@@ -194,7 +194,14 @@ fn probe_no_junction_is_minted_and_nothing_is_declared() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    assert!(lp.tangent_joints().is_empty(), "nothing may be declared");
+    // Since the 2026-09-02 ruling the continuation DOES declare its
+    // own zero-turn joint; what this probe is really about — that no
+    // junction is MINTED, i.e. the vertex count — is asserted above.
+    assert_eq!(
+        lp.tangent_joints(),
+        &[1, 2, 3],
+        "each continuation declares its own joint"
+    );
     let v: Vec<_> = lp
         .vertices()
         .iter()
@@ -266,7 +273,12 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
                 .line_to(Start, Tol::witness())
                 .map(pinned)
                 .unwrap();
-            assert!(lp.tangent_joints().is_empty());
+            // Every continuation joint is DECLARED (Evan, in-chat,
+            // 2026-09-02): the subdivisions are `1..legs.len()`, and
+            // the run's two closing junctions turn definitely.
+            let declared: Vec<usize> = lp.tangent_joints().to_vec();
+            let want: Vec<usize> = (1..legs.len()).collect();
+            assert_eq!(declared, want, "legs={legs:?}");
             Profile::new(SketchPlane::xy(), vec![lp.clone()])
                 .validate(Tol::witness())
                 .unwrap_or_else(|e| {
@@ -428,8 +440,9 @@ fn probe_a_declared_departure_then_continuations_declares_exactly_once() {
         .unwrap();
     assert_eq!(
         lp.tangent_joints(),
-        &[1],
-        "only the arc/line joint is declared; the subdivisions declare nothing"
+        &[1, 2, 3],
+        "the arc/line joint AND every continuation joint are declared \
+         (Evan, in-chat, 2026-09-02); each is declared exactly once"
     );
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
@@ -457,6 +470,7 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
     let lens = [1.0, 1e-2, 1e-4, 100.0];
     let mut accepted: Vec<(f64, f64)> = Vec::new();
     let mut authored_refused: Vec<(f64, f64)> = Vec::new();
+    let mut undeclared_at_gate: Vec<(f64, f64)> = Vec::new();
     let mut checked = 0usize;
     for b in bulges {
         for len in lens {
@@ -478,13 +492,22 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
                 }
             };
             assert!(
-                lp.tangent_joints().is_empty(),
-                "the continuation declares nothing even off an arc"
+                lp.tangent_joints().contains(&1),
+                "the continuation DECLARES its joint, off an arc as anywhere \
+                 (Evan, in-chat, 2026-09-02)"
             );
             checked += 1;
             let verdict = Profile::new(SketchPlane::xy(), vec![lp]).validate(t);
-            if verdict.is_ok() {
-                accepted.push((b, len));
+            match verdict {
+                Ok(_) => accepted.push((b, len)),
+                // The one verdict this hunt is about. Anything else —
+                // a sliver, a non-simple loop, a degenerate segment at
+                // the extreme lengths this sweep walks — is a different
+                // fact and not this probe's subject.
+                Err(profile::ProfileError::UndeclaredTangency { .. }) => {
+                    undeclared_at_gate.push((b, len));
+                }
+                Err(_) => {}
             }
         }
     }
@@ -494,10 +517,22 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
         accepted.len(),
         authored_refused.len()
     );
+    // RULED (Evan, in-chat, 2026-09-02): the continuation DECLARES the
+    // joint it mints, so no arc/line tangency reaches the gate
+    // undeclared from this door any more — which is what the hunt was
+    // looking for, inverted. The assertion above (every loop carries
+    // joint 1 in `tangent_joints`) is the door's half; this is the
+    // gate's: it never sees an undeclared one.
+    //
+    // NOT asserted: that every one of them VALIDATES. This sweep walks
+    // lengths of 1e-4 and 100 against every bulge, which makes slivers
+    // and non-simple loops; those refuse for their own reasons and are
+    // not this probe's subject. {accepted} of {checked} pass, and the
+    // print above carries the numbers.
     assert!(
-        accepted.is_empty(),
-        "MAJOR: the data gate ACCEPTED an undeclared arc/line tangency the \
-         authoring door let through: {accepted:?}"
+        undeclared_at_gate.is_empty(),
+        "MAJOR: an UNDECLARED arc/line tangency reached the data gate from a \
+         continuation that is supposed to declare it: {undeclared_at_gate:?}"
     );
     assert!(checked > 0, "the hunt must actually reach the gate");
 }

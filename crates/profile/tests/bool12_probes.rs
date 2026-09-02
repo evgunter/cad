@@ -131,8 +131,12 @@ fn the_d_shape_closes_with_the_declared_straight_arrival() {
         // carrier continues through it, and the #433 ruling says data
         // like that claims no tangency. The arc's two junctions are
         // corners.
+        // The seam is a DECLARED tangent joint, and so is the
+        // interior continuation the forward rotation mints (Evan,
+        // in-chat, 2026-09-02: every zero-turn joint is a declared
+        // tangent joint). The arc's two junctions turn.
         assert!(
-            closed.tangent_joints().is_empty(),
+            closed.tangent_joints().contains(&0),
             "{name}: {:?}",
             closed.tangent_joints()
         );
@@ -236,7 +240,6 @@ fn the_undeclared_stadium_seam_keeps_refusing() {
     );
     let msg = refused.unwrap_err().to_string();
     assert!(msg.contains("arrives_tangent"), "{msg}");
-    assert!(msg.contains("arrives_straight"), "{msg}");
 }
 
 /// The other direction round the same stadium — the caps swap roles, so
@@ -515,123 +518,73 @@ fn a_sharp_arc_seam_that_arrives_tangent_refuses_as_a_seam() {
     );
 }
 
-/// **The arrival token classifies the JOINT, not the leg** (Evan,
-/// in-chat, 2026-09-02). Every closing verb takes either token, and the
-/// two differ in exactly one observable: what joint 0 declares.
-///
-/// The four closers are walked on one shape whose seam really is a
-/// subdivision of a straight run, so `arrives_straight` is the true
-/// declaration and `arrives_tangent` is the false one — and the lattice
-/// accepts BOTH, because the direction check is the same and the seam
-/// may not consult the following carrier. What separates them is
-/// `tangent_joints`, and what refuses the false one is the DATA gate.
+/// **Every zero-turn joint is a declared tangent joint** (Evan,
+/// in-chat, 2026-09-02). There is ONE arrival token, every closing verb
+/// takes it, and it declares the seam's joint tangent; the continuation
+/// verbs declare the zero-turn joints they mint the same way. This row
+/// walks the four closers and asserts the declared SET each produces —
+/// which is the whole observable difference the declaration makes.
 #[test]
-fn the_arrival_token_classifies_the_joint_not_the_leg() {
+fn every_zero_turn_joint_is_a_declared_tangent_joint() {
     let t = Tol::witness();
-    // Straight closers, on the D-shape's two rotations.
+    // The D-shape: the seam joint (0) declared by the target, the
+    // interior subdivision (3) declared by `continue_to`.
     let straight = pinned(d_shape_forward(Closer::Declared).unwrap());
-    assert!(straight.tangent_joints().is_empty());
+    assert_eq!(straight.tangent_joints(), &[0, 3]);
     validate_ok(&straight);
 
-    let tangent = {
-        let p = Open
-            .at(p2(0.0, 0.0))
-            .angle(FRAC_PI_2, t)
-            .unwrap()
-            .line(2.0, t)
-            .unwrap()
-            .arc_to(
-                Bulge {
-                    p: p2(0.0, -2.0),
-                    b: 1.0,
-                },
-                t,
-            )
-            .unwrap()
-            .line_to(p2(0.0, -1.0), t)
-            .unwrap();
-        p.continue_to(Start.arrives_tangent(), t)
-            .expect("a straight closer may declare a G1 seam joint")
-    };
-    // Same geometry, same check, one difference: the flag.
-    assert_eq!(tangent.loop_.tangent_joints(), &[0]);
-    // ...and the DATA gate is what says the declaration is false here,
-    // because one carrier really does continue through this seam.
-    let verdict = Profile::new(SketchPlane::xy(), vec![tangent.loop_.clone()])
-        .validate(Tol::witness())
-        .err();
-    assert!(verdict.is_some(), "the gate owns materialized carriers");
-
-    // Arc closers, on the stadium: both tokens are representable, and
-    // again only the flag differs.
+    // The stadium: three departure tangencies plus the seam.
     let g1 = stadium(true).expect("the stadium's G1 seam");
-    // Three interior `.tangent()` joints plus the seam; as a SET,
-    // because `declare_seam_as` appends joint 0 last.
     assert!(g1.loop_.tangent_joints().contains(&0));
     assert_eq!(g1.loop_.tangent_joints().len(), 4);
-    let as_sub = Open
+
+    // The sharp arc closer takes the same token.
+    let sharp = Open
         .at(p2(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
-        .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .turn(FRAC_PI_2, t)
         .unwrap()
-        .tangent()
         .line(2.0, t)
         .unwrap()
-        .tangent()
-        .tangent_arc_to(Start.arrives_tangent(), t)
-        .expect("an arc closer may declare a SUBDIVISION seam joint");
-    // The three departure tangencies remain; the SEAM declares nothing.
-    assert!(!as_sub.loop_.tangent_joints().contains(&0));
-    assert_eq!(as_sub.loop_.tangent_joints().len(), 3);
+        .turn(FRAC_PI_2, t)
+        .unwrap()
+        .line(2.0, t)
+        .unwrap()
+        .turn(FRAC_PI_2, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .arc_to(
+            Bulge {
+                p: Start.arrives_tangent(),
+                b: 1.0,
+            },
+            t,
+        )
+        .expect("the sharp arc closer declares the seam joint");
+    assert!(sharp.loop_.tangent_joints().contains(&0));
 
-    // And the sharp arc closer, both ways.
-    let sharp = |arrival_tangent: bool| {
-        let p = Open
-            .at(p2(0.0, 0.0))
-            .angle(0.0, t)
-            .unwrap()
-            .line(2.0, t)
-            .unwrap()
-            .turn(FRAC_PI_2, t)
-            .unwrap()
-            .line(2.0, t)
-            .unwrap()
-            .turn(FRAC_PI_2, t)
-            .unwrap()
-            .line(2.0, t)
-            .unwrap()
-            .turn(FRAC_PI_2, t)
-            .unwrap()
-            .line(1.0, t)
-            .unwrap();
-        if arrival_tangent {
-            p.arc_to(
-                Bulge {
-                    p: Start.arrives_tangent(),
-                    b: 1.0,
-                },
-                t,
-            )
-        } else {
-            p.arc_to(
-                Bulge {
-                    p: Start.arrives_tangent(),
-                    b: 1.0,
-                },
-                t,
-            )
-        }
-    };
-    assert_eq!(sharp(true).expect("G1").loop_.tangent_joints(), &[0]);
-    assert!(
-        sharp(false)
-            .expect("subdivision")
-            .loop_
-            .tangent_joints()
-            .is_empty()
-    );
+    // A STRAIGHT leg declares it exactly as an arc does: what the token
+    // classifies is the joint, not the leg.
+    let by_line = Open
+        .at(p2(0.0, 0.0))
+        .angle(FRAC_PI_2, t)
+        .unwrap()
+        .line(2.0, t)
+        .unwrap()
+        .arc_to(
+            Bulge {
+                p: p2(0.0, -2.0),
+                b: 1.0,
+            },
+            t,
+        )
+        .unwrap()
+        .line_to(Start.arrives_tangent(), t)
+        .expect("a straight closer declares the seam joint");
+    assert_eq!(by_line.loop_.tangent_joints(), &[0]);
+    validate_ok(&by_line.loop_);
 }

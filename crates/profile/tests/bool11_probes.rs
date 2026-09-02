@@ -118,7 +118,9 @@ fn the_subdivided_square_closes_and_validates() {
             got.y
         );
     }
-    assert!(loop_.tangent_joints().is_empty());
+    // The four `continue_to` joints are DECLARED tangent joints since
+    // the 2026-09-02 ruling; the four corners turn.
+    assert_eq!(loop_.tangent_joints(), &[1, 3, 5, 7]);
     validate_ok(&loop_);
 }
 
@@ -354,13 +356,16 @@ fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
         .line_to(Start, t)
         .unwrap();
     let loop_ = pinned(closed);
-    let gate = Profile::new(SketchPlane::xy(), vec![loop_])
+    // RULED (Evan, in-chat, 2026-09-02): a continuation verb DECLARES
+    // the zero-turn joint it mints, so the arc/line tangency this row
+    // was written about is no longer undeclared and the data gate
+    // accepts it. BOOL-8's recorded carrier-blindness hole — the door
+    // could not see the arc carrier, so the gate had to catch it — is
+    // closed by the declaration rather than by a lookup.
+    assert!(loop_.tangent_joints().contains(&1));
+    Profile::new(SketchPlane::xy(), vec![loop_])
         .validate(Tol::witness())
-        .expect_err("an undeclared arc/line tangency must not pass the data gate");
-    assert!(
-        format!("{gate}").contains("tangen"),
-        "the data gate must name the tangency: {gate}"
-    );
+        .expect("the continuation declared the joint, so the gate accepts it");
 }
 
 /// **BOOL-8's measured residual, accepted.** The corner of lily's kite

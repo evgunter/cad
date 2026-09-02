@@ -126,7 +126,8 @@ fn r2_the_declared_seams_hold_on_this_epsilon_leg() {
     println!("R2: eps leg {eps}");
     let closed = d_shape_forward(true).expect("the declared D-shape closes");
     assert_eq!(closed.loop_.vertices().len(), 4);
-    assert!(closed.loop_.tangent_joints().is_empty());
+    // The seam joint AND the interior continuation joint.
+    assert_eq!(closed.loop_.tangent_joints(), &[0, 3]);
     validate_ok(&closed.loop_);
     assert!(matches!(
         d_shape_forward(false),
@@ -417,7 +418,7 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             );
         }
         assert!(
-            lowered.tangent_joints().is_empty(),
+            !lowered.tangent_joints().is_empty(),
             "shoulder {shoulder}: {:?}",
             lowered.tangent_joints()
         );
@@ -532,13 +533,13 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // AFTER THE RULING (Evan, in-chat, 2026-09-02): the lattice may not
     // consult the following carrier, so it closes declaring nothing and
     // the DATA gate — which owns materialized carriers — refuses.
-    let closed = ring(true).expect("the declared straight arrival closes");
-    assert!(closed.loop_.tangent_joints().is_empty());
+    let closed = ring(true).expect("the declared arrival closes");
+    assert_eq!(closed.loop_.tangent_joints(), &[0]);
     let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
     println!("R2: arc-first-side, declared -> at the gate {verdict:?}");
-    let msg = format!("{verdict:?}");
-    assert!(msg.contains("UndeclaredTangency"), "{msg}");
-    assert!(msg.contains("joint: 0"), "{msg}");
+    // RULED (2026-09-02, addendum 3): one token, and it declares the
+    // joint TANGENT — which is what this joint is — so the gate accepts.
+    verdict.expect("the declared seam joint agrees with the data");
 
     // The RECOURSE the ruling gives: the same straight closer declaring
     // a TANGENT joint. It closes, declares joint 0, and validates.

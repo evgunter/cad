@@ -211,19 +211,16 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     // `arrives_straight` says the seam is a SUBDIVISION joint, and the
     // lattice cannot see that the following carrier is an arc.
     let closed = fan(true).expect("the algebra accepts the declared straight arrival");
-    assert!(closed.loop_.tangent_joints().is_empty());
-    // ...and the DATA gate refuses the line-onto-arc tangency at joint
-    // 0: the data says two carriers meet where the declaration said one
-    // continued.
+    // RULED AGAIN (2026-09-02, addendum 3): there is ONE arrival token
+    // and it declares the seam's joint TANGENT, so a straight leg
+    // arriving G1 into an arc first side declares exactly the joint
+    // that is there. Joint 0 is declared and the DATA gate accepts —
+    // the finding's whole subject, an undeclared tangency reaching the
+    // gate, is gone because the declaration reaches it first.
+    assert_eq!(closed.loop_.tangent_joints(), &[0]);
     let verdict = validate(&closed);
     println!("R1: straight arrival into an arc first side -> {verdict:?}");
-    assert!(
-        matches!(
-            verdict,
-            Err(ProfileError::UndeclaredTangency { joint: 0, .. })
-        ),
-        "{verdict:?}"
-    );
+    verdict.expect("the declared seam joint is what the data says it is");
 
     // THE RECOURSE, and the ruling's own point: the same straight
     // closer declaring a TANGENT joint closes AND validates.

@@ -1834,9 +1834,12 @@ fn straight_continuation_subdivides_a_run_and_validates() {
         .map(|x| (x.pos().x, x.pos().y))
         .collect();
     assert_eq!(v, vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (4.0, 3.0)]);
-    assert!(
-        lp.tangent_joints().is_empty(),
-        "the subdivision declares nothing: {:?}",
+    // The subdivision DECLARES its own zero-turn joint (Evan, in-chat,
+    // 2026-09-02) — declaration by construction, as `.tangent()` is.
+    assert_eq!(
+        lp.tangent_joints(),
+        &[1],
+        "the subdivision declares its own joint: {:?}",
         lp.tangent_joints()
     );
     validate_ok(&lp);
@@ -1969,14 +1972,14 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    assert!(undeclared.tangent_joints().is_empty());
-    let refused = Profile::new(SketchPlane::xy(), vec![undeclared])
+    // RULED (2026-09-02): the continuation DECLARES the joint it
+    // mints, so what this row called "undeclared" is declared now and
+    // the data gate accepts it. The door still cannot see the carrier —
+    // it does not need to.
+    assert!(undeclared.tangent_joints().contains(&1));
+    Profile::new(SketchPlane::xy(), vec![undeclared])
         .validate(Tol::witness())
-        .unwrap_err();
-    assert!(
-        matches!(refused, profile::ProfileError::UndeclaredTangency { .. }),
-        "the data gate is where this lands: {refused:?}"
-    );
+        .expect("the continuation declared the joint");
     let declared = semicircle()
         .tangent()
         .line(1.0, Tol::witness())
@@ -2092,7 +2095,8 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
             .expect("the declared closer ends the run that crosses the seam"),
     );
     assert_eq!(closed.vertices().len(), 8);
-    assert!(closed.tangent_joints().is_empty());
+    // The subdivisions the run mints are declared joints now.
+    assert_eq!(closed.tangent_joints(), &[1, 3, 5, 7]);
     validate_ok(&closed);
     // Rotation 2 — seam at the subdivision vertex `mid(keel, right)`:
     // the closer departs the corner asserted above, and the SEAM
@@ -2135,7 +2139,9 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
             .expect("the declared arrival closes the seam at a subdivision vertex"),
     );
     assert_eq!(closed.vertices().len(), 8);
-    assert!(closed.tangent_joints().is_empty());
+    // The seam is a declared tangent joint (target) and the run's
+    // subdivisions are declared tangent joints (the continuation verbs).
+    assert_eq!(closed.tangent_joints(), &[2, 4, 6, 0]);
     validate_ok(&closed);
 }
 // ==================================================================
@@ -2209,14 +2215,15 @@ fn r2_probe_arc_continuations_never_pass_validate() {
         .line_to(Start, t)
         .map(pinned)
         .unwrap();
-    assert!(undeclared.tangent_joints().is_empty());
-    let refused = Profile::new(SketchPlane::xy(), vec![undeclared])
+    // RULED (2026-09-02): each continuation declares the joint it
+    // mints, so a CHAIN of them off an arc declares every one and the
+    // data gate accepts. The probe's subject — that the door cannot see
+    // the carrier — is unchanged; what moved is that it no longer has
+    // to, because the declaration travels with the verb.
+    assert_eq!(undeclared.tangent_joints(), &[1, 2]);
+    Profile::new(SketchPlane::xy(), vec![undeclared])
         .validate(t)
-        .unwrap_err();
-    assert!(
-        matches!(refused, profile::ProfileError::UndeclaredTangency { .. }),
-        "chained continuations off an arc must still land at the data gate: {refused:?}"
-    );
+        .expect("every continuation joint is declared");
 }
 
 /// PROBE 3 (claim 5): third-spelling search for the lily seam wall,
@@ -2268,13 +2275,20 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
             .line(half(keel, right), t)
             .unwrap()
     };
-    // (a) declared + tangent arc to Start: the seam itself is
-    // UNDECLARED, so it refuses as a seam (2026-09-02: identity is not
-    // a reason, an undeclared zero-turn seam is).
-    assert!(matches!(
-        at_m3().tangent().tangent_arc_to(Start, t),
-        Err(PathError::SeamTangent { .. })
-    ));
+    // (a) declared + tangent arc to Start: this one CLOSES now, and
+    // the probe records it rather than asserting the old wall. The
+    // target is collinear FORWARD of the declared departure, so the
+    // tangent arc degenerates to the straight segment the run wanted
+    // and its zero-turn joint is declared by the `.tangent()` — legal
+    // since 2026-09-02, where it used to refuse carrier identity. The
+    // seam at `right` is a corner, so nothing else objects. The probe's
+    // subject was the seam WALL, which BOOL-11 and BOOL-12 removed; this
+    // is one more spelling that now crosses it.
+    let spelling_a = at_m3().tangent().tangent_arc_to(Start, t);
+    assert!(
+        spelling_a.is_ok(),
+        "the degenerate tangent arc is the straight continuation: {spelling_a:?}"
+    );
     // (b) reversed traversal (right -> keel -> left -> ridge -> right):
     // the closer still departs a subdivision vertex.
     let db = keel - right;
@@ -2343,6 +2357,6 @@ fn r2_probe_bitwise_inheritance_is_transitive() {
         "the third endpoint rounds: bit-identical displacements are the \
          fixture's property, not the inheritance's"
     );
-    assert!(lp.tangent_joints().is_empty());
+    assert_eq!(lp.tangent_joints(), &[1, 2]);
     validate_ok(&lp);
 }
