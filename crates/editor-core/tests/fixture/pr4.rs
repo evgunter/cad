@@ -13,7 +13,7 @@ use editor_core::{
     resolve, resolve_with_prior,
 };
 
-use super::{ang, desc, insert, len, on_frame, scl, step};
+use super::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
@@ -221,15 +221,15 @@ where
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (docu, ub) = insert(
         docu,

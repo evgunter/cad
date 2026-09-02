@@ -11,10 +11,8 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
     evaluate,
 };
-use fixture::{ang, desc, insert, len, on_frame};
+use fixture::{ang, insert, len, on_frame};
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -182,14 +180,11 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
+            plane,
             loops: vec![meridian],
         }),
     );

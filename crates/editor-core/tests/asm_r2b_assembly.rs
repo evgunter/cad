@@ -38,7 +38,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, inline,
     product_recorded, split,
 };
-use fixture::{desc, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----

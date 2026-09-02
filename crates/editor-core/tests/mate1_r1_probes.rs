@@ -21,7 +21,7 @@ use editor_core::{
     PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
     StableName, clusters, content_pin, evaluate, solve_document,
 };
-use fixture::{desc, insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (mirrors the unit suite's stub resolver) ----

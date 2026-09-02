@@ -14,7 +14,7 @@ use editor_core::{
     NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum, apply, evaluate,
     load, save,
 };
-use fixture::{desc, insert, len, on_frame, xy_frame};
+use fixture::{insert, len, on_frame, xy_frame};
 use geom_core::Tol;
 
 /// A small valid document (profile + extrude + witness) and its save.

@@ -20,7 +20,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
     content_pin, evaluate, product_recorded, run_checks,
 };
-use fixture::{desc, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- store / eval plumbing (ASM-R2a's shape, as the unit's own suite) ----

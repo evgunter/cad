@@ -15,7 +15,7 @@ use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, declare_x_offset_flush, desc, insert, len, on_frame, scl};
+use fixture::{ang, declare_x_offset_flush, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {

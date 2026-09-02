@@ -18,7 +18,7 @@ use editor_core::{
     EntityKind, Node, PersistError, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg, StableName,
     load, save,
 };
-use fixture::{desc, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// A band trimline's name, on the support role `support`.

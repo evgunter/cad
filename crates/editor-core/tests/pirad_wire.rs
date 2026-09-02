@@ -18,7 +18,7 @@
 mod fixture;
 
 use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, RecipeNodeId, load, save};
-use fixture::{desc, insert, len, on_frame, scl};
+use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 
 /// A document whose recipe carries an angle literal AUTHORED in

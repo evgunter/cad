@@ -102,11 +102,7 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     // A parallel plane, so the two bodies never interact.
-    let tangent_plane = r.insert(frame(
-        [0.0, 0.0, 4.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ));
+    let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
         plane: tangent_plane,
         loops: vec![bracket],

@@ -26,7 +26,7 @@ use editor_core::{
     ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
-use fixture::{desc, insert, len, on_frame, square};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 use topo::ShellClassifyError;
 

@@ -15,7 +15,7 @@ mod corpus;
 mod fixture;
 
 use editor_core::{Expr, Frame, Node, PatternKind, load, save};
-use fixture::{desc, len, scl};
+use fixture::{len, scl};
 use geom_core::Tol;
 
 /// A document carrying a group node under EACH rule saves and reloads

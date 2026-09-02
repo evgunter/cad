@@ -22,7 +22,7 @@
 mod fixture;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
-use fixture::{desc, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// A profile + extrude save, the smallest body with a required field.

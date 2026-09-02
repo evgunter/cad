@@ -21,7 +21,7 @@ use editor_core::{
     PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
     content_pin, evaluate, load, product, save,
 };
-use fixture::{desc, insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The stub store (ASM-2A's, verbatim in behaviour) ----

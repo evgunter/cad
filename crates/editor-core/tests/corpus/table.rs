@@ -66,7 +66,7 @@ use editor_core::{
 };
 use topo::PlaneRelation;
 
-use super::super::fixture::{desc, len};
+use super::super::fixture::len;
 use super::{CorpusDoc, MassPin, Recorder};
 use geom_core::Tol;
 

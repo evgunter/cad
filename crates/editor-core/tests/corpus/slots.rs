@@ -28,7 +28,7 @@ use editor_core::{
     StableName,
 };
 
-use super::super::fixture::{desc, len};
+use super::super::fixture::len;
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap face name at `node`.

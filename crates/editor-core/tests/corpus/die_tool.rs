@@ -95,11 +95,7 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let ball_plane = r.insert(frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ));
+    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: ball_plane,
         loops: vec![half_disc_program()],

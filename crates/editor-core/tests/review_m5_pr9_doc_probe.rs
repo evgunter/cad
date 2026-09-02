@@ -20,8 +20,6 @@ use editor_core::{
     save,
 };
 use geom_core::Tol;
-use geom_core::{Affine3, Vec3};
-use profile::SketchPlane;
 
 struct Rec {
     doc: ProfileDoc,
@@ -44,6 +42,16 @@ impl Rec {
     }
 }
 
+/// A sketch frame node, from raw component triples.
+fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    let scl = |v: f64| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap();
+    Node::Datum(editor_core::Datum::Frame {
+        origin: origin.map(len),
+        u: u.map(scl),
+        v: v.map(scl),
+    })
+}
+
 fn len(v: f64) -> editor_core::Expr {
     editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()
 }
@@ -54,16 +62,9 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let mut r = Rec::new();
     let plate_loop =
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let plate_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        plane: plate_plane,
         loops: vec![plate_loop],
     }));
     let plate = r.insert(Node::Extrude {
@@ -74,8 +75,11 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     // (a)); this probe mirrors it so the closed-form volume row keeps
     // metering the SAME document shape.
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
+    // The boss is sketched a third of the way up the plate: its own
+    // plane, so its own frame.
+    let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3))),
+        plane: boss_plane,
         loops: vec![boss_loop],
     }));
     let boss = r.insert(Node::Extrude {

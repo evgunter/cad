@@ -12,7 +12,7 @@ use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
     PatternKind, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, desc, insert, len, on_frame, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{mass_properties, validate, validate_closed};
 

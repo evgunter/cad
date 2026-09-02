@@ -17,7 +17,7 @@ use editor_core::{
     ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
     header_document_id, load, save,
 };
-use fixture::{desc, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 /// The shared exemplar: a block (profile + extrude) and a document

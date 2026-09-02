@@ -9,18 +9,19 @@
 //! `NodeError`) needs the distinction, so this suite pins it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod fixture;
+
 use editor_core::{
     BooleanOp, CancelToken, Dimension, DocEdit, EvalOptions, Expr, LoopProgram, Node, NodeResult,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
 
-/// A square profile `[0,s]²` on the xy-plane, as a loop program.
-fn square(s: f64) -> Node<ProfileProgram> {
+/// A square profile `[0,s]²` on `plane`, as a loop program.
+fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(0.0), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
@@ -45,7 +46,10 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         *doc = applied.doc;
         applied.record.minted.unwrap()
     };
-    let outer_profile = insert(&mut doc, square(2.0));
+    // Both boxes are sketched on the same plane — that is the whole
+    // point of the row — so they name ONE frame between them.
+    let plane = insert(&mut doc, fixture::xy_frame());
+    let outer_profile = insert(&mut doc, square(plane, 2.0));
     let outer = insert(
         &mut doc,
         Node::Extrude {
@@ -53,7 +57,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: lit(2.0),
         },
     );
-    let inner_profile = insert(&mut doc, square(1.0));
+    let inner_profile = insert(&mut doc, square(plane, 1.0));
     let inner = insert(
         &mut doc,
         Node::Extrude {

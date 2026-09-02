@@ -13,7 +13,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, WitnessAge,
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
-use fixture::{desc, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {

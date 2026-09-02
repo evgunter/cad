@@ -27,7 +27,7 @@ use editor_core::{
     MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
     assemble, content_pin, evaluate, product_recorded,
 };
-use fixture::{desc, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- The stub store (ASM-2A/R2a's shape) ----

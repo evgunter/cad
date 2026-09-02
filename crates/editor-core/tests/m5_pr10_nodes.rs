@@ -20,7 +20,7 @@ use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
-use fixture::{desc, insert, on_frame};
+use fixture::{insert, on_frame};
 use geom_core::Tol;
 
 /// A Count literal — `Expr::count`, because `Expr::literal` REFUSES

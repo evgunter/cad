@@ -15,7 +15,7 @@ mod fixture;
 use editor_core::{
     CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
 };
-use fixture::{desc, insert, on_frame};
+use fixture::{insert, on_frame};
 use geom_core::Tol;
 
 #[test]
@@ -30,13 +30,8 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         (
             "rectangle path",
             vec![
-                editor_core::LoopProgram::polygon([
-                    (0.0, 0.0),
-                    (3.0, 0.0),
-                    (3.0, 2.0),
-                    (0.0, 2.0),
-                ])
-                .unwrap(),
+                editor_core::LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)])
+                    .unwrap(),
             ],
         ),
         (

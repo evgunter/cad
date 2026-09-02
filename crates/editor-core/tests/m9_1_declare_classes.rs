@@ -17,7 +17,7 @@ use editor_core::{
 
 mod fixture;
 
-use fixture::{desc, fname, insert, len, on_frame};
+use fixture::{fname, insert, len, on_frame};
 use geom_core::Tol;
 
 fn block(

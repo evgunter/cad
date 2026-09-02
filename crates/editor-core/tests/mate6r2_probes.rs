@@ -29,7 +29,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
     content_pin, evaluate, run_checks,
 };
-use fixture::{desc, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 #[derive(Debug, Default, Clone)]

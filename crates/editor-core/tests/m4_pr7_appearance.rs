@@ -12,7 +12,7 @@ use editor_core::{
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
     PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{DEPTH, desc, die, insert, len, on_frame, scl, square, step};
+use fixture::{DEPTH, die, insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {

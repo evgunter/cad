@@ -43,11 +43,7 @@ pub fn document() -> CorpusDoc {
     // deviation: the boss's export bits shift; geometry is the same
     // circle).
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
-    let boss_plane = r.insert(frame(
-        [0.0, 0.0, 0.3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ));
+    let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
         plane: boss_plane,
         loops: vec![boss_loop],

@@ -23,7 +23,7 @@ use editor_core::{
     BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
     PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
 };
-use fixture::{ang, desc, len, scl};
+use fixture::{ang, len, scl};
 
 use corpus::{body_of, documents, eval, failures};
 use geom_core::Tol;

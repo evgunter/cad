@@ -32,7 +32,7 @@ use editor_core::{
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SideVerdict,
     SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
-use fixture::{ang, desc, insert, len, on_frame, scl, step};
+use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {

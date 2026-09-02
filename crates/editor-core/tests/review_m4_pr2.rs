@@ -13,7 +13,7 @@ use editor_core::{
     Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
 use editor_core::{CapEnd, RoleSeg};
-use fixture::{ang, desc, die, insert, len, on_frame, scl, square, step};
+use fixture::{ang, die, insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 

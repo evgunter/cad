@@ -23,7 +23,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
     load, product, relative_freedom_components, save, solve_document,
 };
-use fixture::{desc, insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite

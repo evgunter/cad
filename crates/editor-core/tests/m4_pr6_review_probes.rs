@@ -265,7 +265,13 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so
     // they are on different planes and each names its own frame.
-    let f0 = push(&mut doc, DocEdit::InsertNode { node: frame_at(0.0) }).unwrap();
+    let f0 = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: frame_at(0.0),
+        },
+    )
+    .unwrap();
     let p0 = push(
         &mut doc,
         DocEdit::InsertNode {
@@ -283,7 +289,13 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     )
     .unwrap();
-    let f1 = push(&mut doc, DocEdit::InsertNode { node: frame_at(1.0) }).unwrap();
+    let f1 = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: frame_at(1.0),
+        },
+    )
+    .unwrap();
     let p1 = push(
         &mut doc,
         DocEdit::InsertNode {
@@ -314,7 +326,13 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     )
     .unwrap();
     // A doomed node for DeleteNode.
-    let f_doomed = push(&mut doc, DocEdit::InsertNode { node: frame_at(5.0) }).unwrap();
+    let f_doomed = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: frame_at(5.0),
+        },
+    )
+    .unwrap();
     let doomed = push(
         &mut doc,
         DocEdit::InsertNode {

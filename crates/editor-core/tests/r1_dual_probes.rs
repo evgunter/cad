@@ -46,7 +46,6 @@ use editor_core::{
 use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
 use fixture::{len, scl};
 use geom_core::{Bounds, Decide, Dual64, Tol};
-use profile::SketchPlane;
 use topo::Body;
 
 /// FNV-1a 64 over whatever is fed. Not a content key — a probe digest.

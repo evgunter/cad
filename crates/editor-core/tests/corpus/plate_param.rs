@@ -115,11 +115,7 @@ pub fn document() -> CorpusDoc {
     // plane sits strictly INSIDE the plate's slab and its footprint
     // crosses the plate's +x/+y walls transversally, so the union has
     // no coincident faces to refuse.
-    let tab_plane = r.insert(frame(
-        [0.0, 0.0, 0.125],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ));
+    let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tab_p = r.insert(Node::Profile(ProfileProgram {
         plane: tab_plane,
         loops: vec![

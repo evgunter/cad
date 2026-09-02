@@ -565,10 +565,7 @@ fn row3_uncut_param_reference_refuses() {
         },
     );
     let (doc, f2) = insert(doc, xy_frame());
-    let (doc, p2) = insert(
-        doc,
-        Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])),
-    );
+    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
     let (doc, e2) = insert(
         doc,
         Node::Extrude {

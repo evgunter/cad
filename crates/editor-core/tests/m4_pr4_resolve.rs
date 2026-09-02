@@ -24,7 +24,7 @@ use editor_core::{
     RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
     StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
-use fixture::{ang, desc, insert, len, on_frame, scl, step};
+use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file

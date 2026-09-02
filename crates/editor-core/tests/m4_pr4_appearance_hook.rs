@@ -19,7 +19,7 @@ use editor_core::{
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
-use fixture::{desc, insert, len, on_frame, scl, step};
+use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {

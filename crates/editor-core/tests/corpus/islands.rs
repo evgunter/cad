@@ -43,7 +43,7 @@
 
 use editor_core::{BooleanOp, Dimension, DocEdit, Expr, Node, RecipeNodeId, SlotId};
 
-use super::super::fixture::{desc, len};
+use super::super::fixture::len;
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A rectangle in the xy plane at height `z`, extruded `h`.

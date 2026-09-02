@@ -43,8 +43,12 @@ const EPS_NEW: &str = "1e-4";
 /// bulge 2e-6 (sagitta 1e-6 on the unit chord) — a single
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
-    let (doc, _) = insert(
+    let (doc, plane) = insert(
         ProfileDoc::empty_derived("m4_pr6_eps_diff", Tol::witness()),
+        fixture::xy_frame(),
+    );
+    let (doc, _) = insert(
+        doc,
         Node::Profile({
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the
@@ -58,7 +62,7 @@ fn thin_profile_doc() -> ProfileDoc {
                     Expr::literal(y, Dimension::Length).unwrap(),
                 ]
             };
-            let mut d = desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![]);
+            let mut d = desc(plane, vec![]);
             d.loops = vec![LoopProgram::Chain(vec![
                 ProgramStep::At(lpt(0.0, 0.0)),
                 ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),

@@ -228,11 +228,7 @@ pub fn document() -> CorpusDoc {
     }));
     // die_pips' half-disc: the bulge-1 semicircle closed on-axis.
     let half_disc = half_disc_program();
-    let ball_plane = r.insert(frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ));
+    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: ball_plane,
         loops: vec![half_disc],

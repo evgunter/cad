@@ -37,7 +37,7 @@ use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
     RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
-use fixture::{desc, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
 use mesh::Mesh;
 use test_utils::fuzz;

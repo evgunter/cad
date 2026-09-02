@@ -30,7 +30,7 @@ use editor_core::{
     Frame, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, UpdateError, content_pin,
     evaluate, load, mixed_pins, product, save, update_references,
 };
-use fixture::{desc, insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The versioned stub store ----

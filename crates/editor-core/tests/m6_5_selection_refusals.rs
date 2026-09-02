@@ -41,8 +41,11 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     for edit in [
         DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+        DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane: RecipeNodeId(0),
                 loops: vec![square],
             }),
         },
@@ -74,7 +77,6 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
 /// geometry). Returns the document and the subtract node.
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
-    use fixture::desc;
     use fixture::on_frame;
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
@@ -86,7 +88,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     };
     let square = vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]];
     let (d, bp) = on_frame(
-        &doc,
+        doc,
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -100,7 +102,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (d, up) = on_frame(
-        &d,
+        d,
         [0.0, 0.0, 1.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],

@@ -15,7 +15,7 @@ use editor_core::{
     PickTarget, ProfileDoc, Ray, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face,
     resolve,
 };
-use fixture::{desc, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
 use mesh::{FacePatch, Mesh};
 use topo::Body;

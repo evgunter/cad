@@ -48,7 +48,6 @@ use editor_core::{
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
-use profile::SketchPlane;
 use topo::{Body, CurveGeom};
 
 /// FNV-1a 64 (independent constants derivation: offset basis

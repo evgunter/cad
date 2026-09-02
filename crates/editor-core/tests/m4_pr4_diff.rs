@@ -20,7 +20,7 @@ use editor_core::{
     BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
     RunStatus, SlotId, diff_verdicts, evaluate,
 };
-use fixture::{ang, desc, insert, len, on_frame, scl, step};
+use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file

@@ -32,7 +32,7 @@ use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId,
 };
 
-use super::super::fixture::{ang, desc, len, scl};
+use super::super::fixture::{ang, len, scl};
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// The fin count the document starts at.

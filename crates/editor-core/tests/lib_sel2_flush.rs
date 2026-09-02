@@ -31,7 +31,7 @@ use editor_core::{
 };
 use topo::{PlaneRelation, mass_properties};
 
-use fixture::{desc, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {

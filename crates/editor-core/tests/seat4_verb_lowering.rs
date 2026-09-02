@@ -51,7 +51,6 @@ use editor_core::{
 };
 use fixture::{len, prism_edges};
 use geom_core::Tol;
-use profile::SketchPlane;
 
 fn tol() -> Tol {
     Tol::witness()

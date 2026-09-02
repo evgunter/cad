@@ -22,7 +22,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, EntityKind, EvalOptions, Node, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, ValuePayload, evaluate, load, save,
 };
-use fixture::{desc, insert, len, on_frame, wall};
+use fixture::{insert, len, on_frame, wall};
 use geom_core::Tol;
 
 fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {

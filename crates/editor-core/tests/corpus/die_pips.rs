@@ -126,11 +126,7 @@ pub fn document() -> CorpusDoc {
     let half_disc = half_disc_program();
     // u = +X, v = +Z: the sketch's revolve axis lands on the world
     // +Z axis, which is the face normal.
-    let ball_plane = r.insert(frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ));
+    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: ball_plane,
         loops: vec![half_disc],

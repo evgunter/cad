@@ -12,7 +12,7 @@ use editor_core::{
     HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide, ValuePayload,
     body_name, entity_name, evaluate, resolve,
 };
-use fixture::{ang, desc, die, insert, len, on_frame, scl};
+use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{Body, FaceKey};
 

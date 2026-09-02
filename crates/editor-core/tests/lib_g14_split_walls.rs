@@ -29,7 +29,7 @@ use editor_core::{
     StableName, evaluate, select, select_where,
 };
 
-use fixture::{desc, insert, len, on_frame, scl};
+use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {

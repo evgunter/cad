@@ -31,7 +31,7 @@ use editor_core::{
     CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, on_frame, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey};

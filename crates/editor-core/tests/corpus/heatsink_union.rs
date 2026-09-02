@@ -49,7 +49,7 @@
 
 use editor_core::{Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId};
 
-use super::super::fixture::{desc, len, scl};
+use super::super::fixture::{len, scl};
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// The fin count the document starts at (`heat_sink`'s).
