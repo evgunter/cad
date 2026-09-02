@@ -3030,3 +3030,18 @@ VERBS-8 per-slot line at dispatch: OPUS. Meanwhile C5-1 (ordinal
 111, sample #111) rides #1577 toward its merge; the RIMCAP and
 EXIT-WALK drafts sit in staging pending the C5ARMS/CYLSPH
 closures.
+## C5ARMS PR-1 MERGED (#1577, 2026-09-02) — ordinal-111 row (sample #111)
+
+The full arc closes: STOP at first dispatch → TORAX specced,
+implemented, dualed, merged as the enabler → resume → clean dual
+(no tally candidates) → fix pass (pt_tube_guard red-measured-
+first on the reviewer's exact threat pose; four stale sentences
+incl. the spiric misattribution; negative-station and non-unit-
+lever rows each red under its own mutant; counts re-measured
+with neither reviewer's number adopted blind) → merged. The
+(Plane,Torus) pair is Closed+implemented; the klein elbow rows
+wait on RIMCAP; #347's residue and the C5 table's remaining
+curved pairs are CYLSPH's (running) and the fenced families'.
+Lane swept. WAVE STATE: CYLSPH is the last implementation unit
+of the register scope; RIMCAP's sphere half and the exit-walk
+ratification follow it.
