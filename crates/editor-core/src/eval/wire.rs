@@ -14,7 +14,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
-    Body, BooleanDeclarations, BooleanResult, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
+    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
     DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, UnitVec3, UnitVec3Error, VfContact,
     VvContact,
 };
@@ -176,6 +176,7 @@ where
         ),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
         Node::Boolean { op, a, b, declare } => wire_boolean(
+            &crate::verbs::boolean::boolean(),
             id,
             *op,
             *a,
@@ -827,19 +828,24 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
 }
 
 /// **The verb dispatch's one refusal translation**: the kernel door
-/// attached the verb, `verbs::run` carried the refusal through
-/// unaltered, and this layer READS the verb off it rather than
+/// attached the verb, the `verbs` run door carried the refusal through
+/// unaltered, and this layer READS the family off it rather than
 /// re-deriving which door it called — one discrimination point per
 /// layer, and one site for it here so no two doors can drift.
 ///
-/// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a verb
-/// family whose refusal is not a blend's breaks here rather than
-/// arriving as one.
+/// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a
+/// verb family with a new refusal shape breaks here rather than
+/// arriving as another's. One boolean refusal does NOT come through
+/// this door: the undeclared-coincidence menu lift needs the operands'
+/// naming context, so [`refusal_menu`] intercepts it and delegates
+/// everything else here.
 fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
         }
+        verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
+        verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
     }
 }
 
@@ -925,14 +931,19 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let out = (verb.build)(edges, size)
         .run(&body, tol)
         .map_err(verb_refused)?;
-    let rec = out
-        .naming
-        .as_ref()
-        .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: verb.no_records,
-        }))?;
-    let table =
-        (verb.emitter)(id, target, &target_table, &out.body, rec).map_err(NodeErrorKind::Naming)?;
+    // The record channel is per-family; a blend's run produces the
+    // blend variant by construction, so the other family here is a
+    // kernel bug — refused typed, exactly like the `None` record below.
+    let verbs::VerbRecord::Blend(naming) = out.record else {
+        return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+            what: verb.foreign_record,
+        }));
+    };
+    let rec = naming.ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+        what: verb.no_records,
+    }))?;
+    let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
+        .map_err(NodeErrorKind::Naming)?;
     let mut body = out.body;
     // The blend's own surfaces, curves and points are minted HERE
     // (D1/N6); the supports' pass-through descriptions keep the source
@@ -1329,8 +1340,18 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
 // `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
+//
+// The TWO-OPERAND generic lowering, beside `wire_blend`'s one-operand
+// shape rather than folded into it: the boolean's document semantics
+// have more upstairs than a blend's — two operand tables, the
+// `declare` input's N5 resolution, the declared-contact carry into the
+// boolean VALUE, and the typed empty success — and a lowering generic
+// over operand COUNT would trade those typed shapes for runtime arity.
+// The correspondence (`crate::verbs::boolean`) supplies what varies
+// per pair verb: the verb constructor and the naming emitter.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
 fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
@@ -1344,7 +1365,9 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // F5 threading (M4 PR 5): the Declare input's name pairs resolve
     // through the OPERANDS' name tables into the kernel's declared
     // coincidence data. Resolution failures are the N5 typed errors —
-    // no silent drop, no best-effort gluing.
+    // no silent drop, no best-effort gluing. This stays upstairs: it
+    // is the document's semantics (names, freezes, refusal payloads),
+    // and the kernel verb receives only the lowered arena-key form.
     let mut kernel_decls = BooleanDeclarations::none();
     if let Some(d) = declare {
         let dv = value_of(results, d)?;
@@ -1361,20 +1384,34 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
-    match topo::boolean_op_with(op, &body_a, &body_b, &kernel_decls, boolean_sweep, tol)
+    match (verb.build)(op, kernel_decls)
+        .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(|err| refusal_menu(results, a, b, err))?
     {
-        BooleanResult::Empty => Ok(OpOut::plain(
+        verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
             names::empty(),
         )),
-        BooleanResult::Body(bb) => {
+        verbs::PairOut::Out(out) => {
+            // Per-family record channel; the other family from a
+            // boolean run is a kernel bug, refused typed
+            // (`wire_blend`'s clause, mirrored).
+            let verbs::VerbRecord::Boolean {
+                kind,
+                contacts,
+                naming,
+            } = out.record
+            else {
+                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: verb.foreign_record,
+                }));
+            };
             let a_table = Arc::clone(&value_of(results, a)?.name_table);
             let b_table = Arc::clone(&value_of(results, b)?.name_table);
-            let table = names::name_boolean(
+            let table = (verb.emitter)(
                 id,
-                &bb.body,
-                &bb.naming,
+                &out.body,
+                &naming,
                 &names::OperandCtx {
                     node: a,
                     table: &a_table,
@@ -1388,15 +1425,15 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
-            let mut body = bb.body;
+            let mut body = out.body;
             // Seam chords / minted descriptions get THIS node's
             // sources; everything carried keeps its own (D1).
             stamp_minted(&mut body, id);
             Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: Arc::new(body),
-                    kind: bb.kind,
-                    contacts: Arc::new(bb.contacts),
+                    kind,
+                    contacts: Arc::new(contacts),
                 }),
                 table,
             ))
@@ -1418,19 +1455,24 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// invariant break (`vocabulary_coverage_is_total` pins coverage),
 /// not an authoring state — the plain `Boolean` wrapping is
 /// preserved: the boolean's refusal is never masked by its own menu.
+///
+/// The menu is the ONE translation that needs the operands' naming
+/// context, so it happens here, before the shared translation: every
+/// other refusal a boolean run can carry falls through to
+/// [`verb_refused`], the same door every verb's refusal goes through.
 fn refusal_menu<T: Decide>(
     results: &Results<T>,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    err: topo::BooleanError,
+    err: verbs::VerbError,
 ) -> NodeErrorKind {
-    let topo::BooleanError::UndeclaredCoincidence {
+    let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
         diag,
         pair,
         relation,
-    } = err
+    }) = err
     else {
-        return NodeErrorKind::Boolean(err);
+        return verb_refused(err);
     };
     // The finding's contract orders the pair (a-side, b-side); the
     // raise sites order it by discovery. Relation is orientation-

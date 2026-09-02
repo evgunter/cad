@@ -19,3 +19,4 @@
 //! [`SlotId`]: crate::node::SlotId
 
 pub(crate) mod blend;
+pub(crate) mod boolean;
