@@ -685,7 +685,15 @@ fn remap_node(
     };
     let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
     Ok(match node {
-        Node::Datum(_) | Node::Profile(_) => node.clone(),
+        Node::Datum(_) => node.clone(),
+        // A profile's PLANE is an input like any other: it crosses the
+        // cut with the profile or the remap misses loudly. (Before the
+        // sketch frame became a node this arm cloned, because a
+        // profile referenced nothing.)
+        Node::Profile(p) => Node::Profile(ProfileProgram {
+            plane: id(p.plane)?,
+            loops: p.loops.clone(),
+        }),
         Node::Extrude { profile, distance } => Node::Extrude {
             profile: id(*profile)?,
             distance: distance.clone(),

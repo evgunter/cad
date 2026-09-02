@@ -112,7 +112,12 @@ fn block(
     )
 }
 
-/// A one-block part document: `[0,1]³`. Its extrude is node 1.
+/// The extrude in a one-`block` part document. A block is three
+/// nodes now — the sketch frame, the profile drawn on it, then the
+/// extrude — so the body a part-local name is minted by is node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
+/// A one-block part document: `[0,1]³`. Its extrude is [`PART_BODY`].
 fn cube_part(label: &str) -> ProfileDoc {
     let (doc, _) = block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -153,7 +158,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -813,11 +818,10 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         },
         Tol::witness(),
     );
-    // The part-local name of the cube's top cap: profile is node 0,
-    // extrude node 1.
+    // The part-local name of the cube's top cap.
     let inner = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
+        node: PART_BODY,
         path: vec![RoleSeg::Cap(CapEnd::Top)],
     };
     let record = editor_core::InterfaceRecord {
@@ -896,7 +900,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     );
     let inner = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
+        node: PART_BODY,
         path: vec![RoleSeg::Cap(CapEnd::Top)],
     };
     let record = editor_core::InterfaceRecord {
@@ -1117,7 +1121,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     );
     let inner = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
+        node: PART_BODY,
         path: vec![RoleSeg::Cap(CapEnd::Top)],
     };
     let record = editor_core::InterfaceRecord {
