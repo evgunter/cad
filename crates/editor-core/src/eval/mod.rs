@@ -342,8 +342,11 @@ pub enum SplitSide<T: Decide> {
 // normals and axis directions are `UnitVec3`, whose constructor is
 // where a degenerate, decided-zero-length vector becomes a typed
 // refusal; this layer maps that refusal onto its own node error and
-// invents nothing. Re-exported at their historical home so this
-// crate's public surface is unchanged.
+// invents nothing. `DatumValue` is re-exported at its historical home,
+// so no consumer's path to it moved — but the surface GREW: the two
+// `UnitVec3` names are new here, and they are not optional decoration.
+// A consumer cannot build a datum, or read a normal back out of one,
+// without naming the type that carries the invariant.
 pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
 
 /// A node's typed failure: the wrapped cause plus the node it happened

@@ -364,10 +364,17 @@ def audit_gap_ids():
 #:   `Value.datum` answers, and `UnitVec3` — the type that makes a
 #:   datum's normal unit, so that an unnormalized one has no spelling
 #:   in Rust either — is what `Datum.direction` answers, as the plain
-#:   triple it always was; its constructor's refusal crosses the way
-#:   every other typed refusal does, as the `degenerate_direction` tag
-#:   on `EvaluationError.kind` (Python builds datums through
+#:   triple it always was; its constructor's refusals cross the way
+#:   every other typed refusal does, as tags on `EvaluationError.kind`
+#:   (Python builds datums through
 #:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
+#:   Three tags carry them, and all three are Python-visible:
+#:   `degenerate_direction` for a zero-length direction,
+#:   `non_finite_direction` for one whose length overflows the norm or
+#:   is not a number, and `escalated` — whose `predicate` payload reads
+#:   `datum_unit_norm` for a datum, the kernel constructor's funnel
+#:   name, where the same field reads `eval_direction_norm` for the
+#:   directions the evaluation layer owns.
 #:   `NodeValue` IS `Value` and
 #:   `ValuePayload`'s discriminant is `Value.kind`; `NodeErrorKind`'s
 #:   tag is `EvaluationError.kind`;

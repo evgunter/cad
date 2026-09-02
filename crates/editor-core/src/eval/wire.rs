@@ -438,9 +438,23 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 }
 
 /// Normalizes a direction-valued vector; decided-zero length refuses,
-/// in-band indeterminacy escalates (all through the one door). Shared
-/// with the mate solve's derived-offset derivation, so a direction is
-/// decided under the same predicate wherever it is read.
+/// in-band indeterminacy escalates.
+///
+/// **Two doors, not one, and the split is a crate boundary.** This one
+/// carries the directions this layer OWNS — a transform's rotation
+/// axis, a linear pattern's direction — under
+/// `eval_direction_norm`. A datum's normal or axis direction is
+/// normalized by the kernel type that holds it
+/// ([`topo::UnitVec3::new`], under [`DATUM_UNIT_NORM`]) because that
+/// invariant belongs to the type and not to the caller: `DatumValue`
+/// has no unnormalized spelling, so there is nowhere for this door to
+/// stand in that path. MATE-1 collapsed `mate_pattern_direction_norm`
+/// into this door and that collapse HOLDS — the mate solve still
+/// derives its offsets through this function, so a direction this
+/// layer owns is decided under one predicate wherever it is read. What
+/// is no longer true is the wider reading: the workspace decides
+/// direction length under TWO names now, split by which layer owns the
+/// value. `mate/solve.rs` reads both roads (issue 1570).
 pub(crate) fn unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
@@ -1630,7 +1644,11 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// The resolved operands of a stepped placement rule: what the rule's
 /// math consumes once every slot or expression is evaluated and every
-/// direction is unit (through [`unit()`]'s decided normalization).
+/// direction is unit. The two rules get there by different roads: a
+/// LINEAR rule's direction is a slot this layer normalizes through
+/// [`unit()`], while a CIRCULAR rule's axis arrives already unit out of
+/// a datum's `UnitVec3` — the kernel type's constructor did it, and
+/// `.get()` only reads it back.
 pub(crate) enum SteppedOperands<T: geom_core::Real> {
     /// A linear rule: unit direction, spacing per step.
     Linear {
@@ -1643,7 +1661,8 @@ pub(crate) enum SteppedOperands<T: geom_core::Real> {
     Circular {
         /// A point on the rotation axis.
         origin: Point3<T>,
-        /// The axis direction, already unit.
+        /// The axis direction, unit because it came out of the datum's
+        /// `UnitVec3` — no door here re-decides it.
         dir: Vec3<T>,
         /// The rotation angle per step.
         step: T,

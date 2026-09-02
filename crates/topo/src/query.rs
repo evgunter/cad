@@ -30,11 +30,20 @@
 //!   [`Margin`] door, and a typed indeterminate on an in-band
 //!   comparand. It participates in the K census exactly like any
 //!   kernel site (SELECT-DESIGN GS-Q1: the naming convention does the
-//!   separating, not a second funnel). The datum it measures against
-//!   carries the module's OTHER decision, one layer earlier:
-//!   [`UnitVec3::new`] ([`DATUM_UNIT_NORM`]) decides that a direction
-//!   has a length before normalizing it, which is what lets the
-//!   distance door be arithmetic all the way down.
+//!   separating, not a second funnel).
+//!
+//!   **The `sel_*` convention covers the SELECTOR sites, and this
+//!   module has one that is not a selector site.** The datum a
+//!   selection is measured against carries a decision of its own, one
+//!   layer earlier: [`UnitVec3::new`] ([`DATUM_UNIT_NORM`], no `sel_`
+//!   prefix) decides that a direction has a finite, nonzero length
+//!   before normalizing it. It is deliberately outside the convention
+//!   — it decides nothing about a candidate and answers no selection
+//!   question; it is a constructor refusing a value the type cannot
+//!   hold, and a `sel_` name on it would tell a census reader it
+//!   belongs to a selector margin population it is not part of. What
+//!   it buys the door above is that [`datum_distance`] is arithmetic
+//!   all the way down.
 //!
 //! # Where an entity IS, for the decided door
 //!
@@ -48,10 +57,15 @@
 //! ([`readback::face_pose`](crate::readback::face_pose)) — and the
 //! read-back refusals travel with those doors (a NURBS face has no
 //! canonical frame, so it refuses rather than being silently dropped).
-//! Datum-node resolution — a recipe reference becoming a
+//! Datum-node RESOLUTION — a recipe reference becoming a
 //! [`DatumValue`] — stays in the document layer; this seat takes the
-//! resolved value. Stable names themselves never appear below the G1
-//! line, which is the point.
+//! resolved value. One half of what used to be up there came down with
+//! the type: the document layer no longer normalizes a datum's
+//! direction by hand, because [`UnitVec3`] admits no unnormalized
+//! spelling, so the normalization and its typed refusal are HERE and
+//! the document layer maps that refusal onto its own node error.
+//! Stable names themselves never appear below the G1 line, which is
+//! the point.
 
 use geom::Curve3;
 use geom_brep::SurfaceKind;
@@ -401,6 +415,24 @@ impl core::fmt::Display for UnitVec3Error {
 
 impl std::error::Error for UnitVec3Error {}
 
+/// **Is `x` a finite number at this scalar?** — asked through the
+/// value channel every [`Real`] has, with no bracket read and no
+/// threshold invented.
+///
+/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
+/// are the scalar's poison. So the self-difference IS the question,
+/// which is why the equal-operands lint is allowed here and nowhere
+/// near it. An enclosure answers YES however wide it is (a finite
+/// interval's self-difference is a finite interval around zero, and an
+/// enclosure whose upper end overflowed still contains its truth) —
+/// the honest scope: this catches the point scalars, which is where an
+/// infinite length turns into a definite wrong answer.
+fn is_finite_length<T: Real>(x: T) -> bool {
+    #[allow(clippy::eq_op)]
+    let residual = x - x;
+    !residual.is_poison()
+}
+
 impl<T: Real> UnitVec3<T> {
     /// The direction itself, unit.
     #[must_use]
@@ -442,8 +474,7 @@ impl<T: Decide> UnitVec3<T> {
         // `norm3` below recomputes this same value (`Vec3::norm` is
         // deterministic), so the gate and the margin are the one
         // length; it is spelled twice rather than reached into.
-        let len = v.norm();
-        if (len - len).is_poison() {
+        if !is_finite_length(v.norm()) {
             return Err(UnitVec3Error::NonFiniteLength);
         }
         match decide(DATUM_UNIT_NORM, Margin::norm3(v), band) {
