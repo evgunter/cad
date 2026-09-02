@@ -1,17 +1,24 @@
 //! The tensor-product NURBS surface — the [`crate::surfaces::Surface::Nurbs`]
 //! payload (M5 PR 3).
 //!
-//! Data model, evaluation contract, and fixed-association rules are
-//! the curve module's, lifted to the tensor product (see
-//! [`crate::curves::nurbs`]; the conventions are
-//! stated once there and once here — clamped-v1 per direction, f64
-//! structure, positive weights, span contract with documented
-//! polynomial-extension garbage-out). A [`SurfaceWindow`] pairs two
-//! validated spans with the layout that flattens them, but it carries
-//! no borrow of the surface it was minted from, so each `*_in_span`
-//! core asks [`NurbsSurface::admits`] and answers a window this
-//! surface does not admit with all-poison rather than an
-//! out-of-bounds index.
+//! Data model, evaluation contract and fixed-association rules are
+//! stated once, in [`crate::curves::nurbs`], and hold here **per
+//! direction** — that lifting is the whole of what this module
+//! inherits, and re-spelling any of it here is the second copy the
+//! two halves' merge existed to remove. What follows is the surface's
+//! own: the grid layout, the direction-mapped knot algebra, and the
+//! window. A [`SurfaceWindow`] pairs two validated spans with the
+//! layout that flattens them, but it carries no borrow of the surface
+//! it was minted from, so each `*_in_span` core asks
+//! [`NurbsSurface::admits`] and answers a window this surface does not
+//! admit with all-poison rather than an out-of-bounds index.
+//!
+//! # The one door that does not belong here
+//!
+//! Iso-curve extraction — turning a row of this control net into a
+//! curve for an **edge** to carry — is the EdgeDescription layer's,
+//! under a placement rule stated and argued in `geom-brep`'s
+//! `nurbs_iso` module docs. Read it before adding such a door here.
 //!
 //! # Grid layout (binding)
 //!

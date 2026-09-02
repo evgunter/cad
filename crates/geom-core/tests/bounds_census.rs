@@ -70,7 +70,8 @@ enum Why {
     /// The read SELECTS among constructions whose classification is
     /// value-channel-decided and whose selected quantity is locally
     /// constant — DL5(b). The condition is load-bearing: this is the
-    /// class `geom::projection`'s `mid` freeze (#874) sits outside.
+    /// class `geom::projection_policy`'s `mid` freeze (#874) sits
+    /// outside.
     Selection(&'static str),
     /// A blanket or per-scalar `impl` whose bound is the door itself
     /// rather than a consumer of it.
@@ -168,7 +169,7 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom/src/projection.rs",
+        path: "crates/geom/src/projection_policy.rs",
         subject: "mid",
         why: Selection(
             "the freeze site itself, and the home of the locally-constant condition DL5(b) \

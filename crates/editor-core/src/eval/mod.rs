@@ -349,6 +349,13 @@ pub enum SplitSide<T: Decide> {
 // without naming the type that carries the invariant.
 pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
 
+// `NodeErrorKind::VerbArity` carries the kernel's verb name and
+// declared-arity types in a pub payload, so both cross with it — the
+// discriminant-crosses-with-the-refusal rule the pncad prelude writes
+// at its `BlendKind` row. Without these a consumer could match the
+// variant but never name what it caught.
+pub use verbs::{Arity, VerbKind};
+
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
 /// [`NodeErrorKind::Expr`] — the PR 1 `NonFiniteResult` obligation).
@@ -536,6 +543,18 @@ pub enum NodeErrorKind {
     MissingSlot {
         /// The absent slot.
         slot: SlotId,
+    },
+    /// A verb run door was handed a different operand count than the
+    /// verb declares — [`NodeErrorKind::MissingSlot`]'s class: a
+    /// wiring bug surfaced typed (unreachable while the per-verb
+    /// correspondences and the run doors agree; no panic paths in this
+    /// crate).
+    VerbArity {
+        /// The verb whose door refused.
+        verb: verbs::VerbKind,
+        /// The operand count the door was handed; the declared count
+        /// is `verb.arity()`.
+        given: verbs::Arity,
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
@@ -977,6 +996,17 @@ impl core::fmt::Display for NodeErrorKind {
                     f,
                     "internal: the wiring expected slot {slot:?}, which is absent"
                 )
+            }
+            // The sentence is single-homed at the run doors' own
+            // refusal (`verbs::VerbError::Arity`); this arm re-wraps
+            // the same fields and forwards its Display, so the two
+            // layers cannot drift apart.
+            Self::VerbArity { verb, given } => {
+                let refusal = verbs::VerbError::Arity {
+                    verb: *verb,
+                    given: *given,
+                };
+                write!(f, "internal: {refusal}")
             }
             Self::Escalated { predicate, source } => write!(
                 f,
@@ -1781,15 +1811,24 @@ where
 /// EXISTING tag must never be reused for a new meaning, which is the
 /// rule this whole tag space runs on.
 ///
-/// It takes the fieldless [`verbs::VerbKind`] rather than a
+/// It takes the payload-free [`verbs::VerbKind`] rather than a
 /// `&Verb<T>` because a content key is computed BEFORE the node's
 /// selection has resolved to arena keys or its slot to a scalar: at
 /// this point in evaluation there is no verb value to match on, only
 /// the verb's name — which is exactly what the tag is a function of.
+/// The boolean's NAME carries its op (`VerbKind::Boolean(op)`): union,
+/// intersect and subtract are three operations sharing one payload
+/// shape, and this tag space has kept them apart since v1, so the
+/// three rows below are three names — not payload leaking into the
+/// tag, and not a new structural word in the key (the op feeds nothing
+/// elsewhere, exactly as before).
 fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
     match kind {
         verbs::VerbKind::Fillet => 17,
         verbs::VerbKind::Chamfer => 24,
+        verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
+        verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
+        verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
     }
 }
 
@@ -1885,11 +1924,11 @@ where
         Node::Extrude { .. } => 5,
         Node::Revolve { .. } => 6,
         Node::Split { .. } => 7,
-        Node::Boolean { op, .. } => match op {
-            crate::node::BooleanOp::Union => 8,
-            crate::node::BooleanOp::Intersect => 9,
-            crate::node::BooleanOp::Subtract => 10,
-        },
+        // The numbers are not written here: a migrated verb's tag is a
+        // function of the KERNEL's name for it, and the boolean's name
+        // carries its op (`VerbKind::Boolean(op)` — the three
+        // regularized ops are three names in the vocabulary).
+        Node::Boolean { op, .. } => verb_content_tag(verbs::VerbKind::Boolean(*op)),
         Node::Transform { .. } => 11,
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
@@ -1934,6 +1973,12 @@ where
         // process-internal, so the renumber costs nothing on disk.
         Node::Measure { .. } => 25,
         Node::Assertion { .. } => 26,
+        // The sketch frame. Tags APPEND — the frame does NOT share the
+        // plane's tag 1 even though it is the same surface plus a
+        // spin: two data whose keys collide serve each other's
+        // geometry out of the memo, and a frame and a plane evaluate
+        // to different payloads.
+        Node::Datum(Datum::Frame { .. }) => 27,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2948,6 +2993,18 @@ mod verb_content_tag_tests {
     fn verb_content_tags_are_the_committed_numbers() {
         assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
         assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+        assert_eq!(
+            verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
+            8
+        );
+        assert_eq!(
+            verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Intersect)),
+            9
+        );
+        assert_eq!(
+            verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract)),
+            10
+        );
     }
 
     /// No two verbs share a tag — the property `verb_tag`'s injectivity
@@ -3019,9 +3076,16 @@ mod verb_content_tag_tests {
                     continue;
                 }
             }
+            // A vocabulary row is matched by its VARIANT token (the
+            // name up to any payload parenthesis): the boolean's arm
+            // is written `VerbKind::Boolean(*op)` and covers all three
+            // op rows, so each of them is resolved through the real
+            // function for that one source line.
             for kind in verbs::VerbKind::ALL {
-                if code.contains(&format!("VerbKind::{kind:?}")) {
-                    tags.push((verb_content_tag(*kind), format!("{kind:?}")));
+                let name = format!("{kind:?}");
+                let token = name.split('(').next().expect("split yields a first piece");
+                if code.contains(&format!("VerbKind::{token}")) {
+                    tags.push((verb_content_tag(*kind), name));
                 }
             }
         }

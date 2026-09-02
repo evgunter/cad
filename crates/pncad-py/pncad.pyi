@@ -1848,6 +1848,10 @@ class Datum:
     def origin(self) -> tuple[Length, Length, Length]: ...
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
+    @property
+    def axes(
+        self,
+    ) -> Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]: ...
 
 class Measurement:
     """A `Measure` node's evaluated quantity: the value with the F1

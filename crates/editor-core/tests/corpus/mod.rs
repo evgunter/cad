@@ -54,6 +54,7 @@ pub mod die_tool;
 pub mod heatsink;
 pub mod heatsink_union;
 pub mod islands;
+pub mod kiss_carry;
 pub mod loft_prism;
 pub mod measured_web;
 pub mod plate_param;
@@ -194,6 +195,14 @@ pub fn documents() -> Vec<CorpusDoc> {
         // tour's three fillets the document leaves out.
         die_composed_tour::document(),
         plate_param::document(),
+        // `kiss_carry` (SEAT-5): the one corpus boolean whose result
+        // carries NON-EMPTY surviving contacts — the discovered
+        // corner kiss, then the same record re-entered by name through
+        // a Declare (the carried v-v arm of `resolve_declarations`,
+        // reached nowhere else in the corpus). Registered so a pin can
+        // tell a lowering that carries the tier-3′ records from one
+        // that drops them.
+        kiss_carry::document(),
     ]
 }
 
@@ -335,6 +344,12 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
         Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
+        // NOT a listed sub-kind, for `PlacedUnion::Circular`'s reason
+        // above: no corpus document authors a frame yet — nothing
+        // consumes one — and a listed-but-uncovered sub-kind fails the
+        // tally. It is exercised directly in `m4_pr2_frame.rs`, and it
+        // joins this list when a profile takes a frame as its plane.
+        Node::Datum(Datum::Frame { .. }) => Vec::new(),
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",

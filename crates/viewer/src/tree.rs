@@ -41,7 +41,7 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId};
+use pncad::document::{Datum, Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId};
 
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,6 +117,14 @@ pub struct TreeRow {
 /// The kind name of a recipe node — the node vocabulary's own
 /// spelling, one arm per variant so a new node type cannot fall into a
 /// wildcard and draw as something it is not.
+///
+/// **The datum FLAVOURS are named apart** (`Datum plane`, not
+/// `Datum`), which is the same rule one level down: a plane and a
+/// frame are the same surface differing only in whether the spin about
+/// the normal is pinned, so a tree that called both "Datum" would ask
+/// a reader to tell them apart by clicking. The whole name is the
+/// vocabulary's, not a prose gloss — this string is also what the
+/// delete confirmation and the kind census say.
 pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
@@ -127,7 +135,10 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
         Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(_) => "Datum",
+        Node::Datum(Datum::Plane { .. }) => "Datum plane",
+        Node::Datum(Datum::Frame { .. }) => "Datum frame",
+        Node::Datum(Datum::Axis { .. }) => "Datum axis",
+        Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",

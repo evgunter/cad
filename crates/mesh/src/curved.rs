@@ -450,8 +450,9 @@ fn require_iso_rectangle_face(
 /// axis' gap is converted to metres by its own lever arm
 /// ([`Chart::radial`] for u — the point's distance from the axis — and
 /// [`Chart::v_lever`] for v) and banded by [`crate::walk::gap_is_noise`],
-/// the crate's ONE ε band, which the walk's three detectors also
-/// call — one spelling, so the two halves of the rule cannot drift.
+/// the crate's ONE ε band and now its only caller: the three
+/// input-quality detectors that used to share the spelling are stated
+/// from the body instead (`topo::coherence`, issue 868).
 /// The band admits ulp wobble on a straight side and nothing else: a
 /// genuine re-entrant corner (a keyway, a milled flat) is a FEATURE
 /// width off the box, six or more orders of magnitude outside ε.
