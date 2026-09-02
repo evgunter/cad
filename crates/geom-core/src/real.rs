@@ -423,13 +423,16 @@ pub trait Real:
 }
 
 /// Bracket extraction off a scalar — deliberately a separate trait, never
-/// folded into [`Real`], and **not** the certification door. Carrying a
-/// bracket is not permission to certify: that door is
-/// [`CertifiedEnclosure`], which [`Dual`](crate::Dual) does not implement
-/// and this trait, since the D1 ruling of 2026-08-19, does. [`Real`] omits
-/// bound extraction so evaluation code cannot silently collapse an
-/// interval to a number (see the [module docs](self)); this trait is the
-/// separate door those docs promised.
+/// folded into [`Real`], and **not** the certification door.
+///
+/// Carrying a bracket is not permission to certify. Since the D1 ruling of
+/// 2026-08-19 a [`Dual`](crate::Dual) implements this trait, and it still
+/// does not implement [`CertifiedEnclosure`], which is the certification
+/// door; the two questions have separate traits so that a caller has to
+/// say which one it is asking. [`Real`] omits bracket extraction
+/// altogether, so evaluation code cannot silently collapse an interval to
+/// a number (see the [module docs](self)); this trait is the separate door
+/// those docs promised.
 ///
 /// # The scope rule (M0 L7, under the evaluation-code discipline)
 ///
@@ -443,13 +446,18 @@ pub trait Real:
 /// form is what that gate greps for.
 ///
 /// **Brackets never decide**, and that is checked before any necessity
-/// argument below is weighed. Every topology-determining branch stays a
+/// argument is weighed. Every topology-determining branch stays a
 /// [`Decide`](crate::predicate::Decide) call site — a trilean, with its
 /// in-band arm — while a bracket may prune a candidate set, drive a
 /// subdivision, or be reported. A parameter that needs a bracket in order
 /// to decide something OUTSIDE the trilean is not a weak seam candidate,
 /// it is the escape hatch itself, and no demonstration of necessity
 /// redeems it: such a candidate is refused rather than weighed.
+///
+/// **The ratified exceptions have their own home**, [`bounds_allowlist`]:
+/// one entry per seam, with the necessity argument that earned it. It
+/// lives beside this trait rather than inside this doc because it is the
+/// part that grows — see that module's own header.
 ///
 /// # Semantics
 ///
@@ -476,6 +484,7 @@ pub trait Real:
 /// `residual ≤ ε` certification loudly (`NaN ≤ ε` is false under every
 /// comparison direction — the D4 ¶2 fail-loud path): certification treats
 /// such a bracket as failed, never as data.
+///
 /// # The two shapes that are not decisions (#990, ratified 2026-08-27)
 ///
 /// A door outside the seams has no non-metered spelling for *request
@@ -497,6 +506,9 @@ pub trait Real:
 ///    decision surface at one remove, so the honest spelling outside a seam
 ///    is the variant name plus the run's threshold. A door that wants to
 ///    echo a derived margin is asking to be a seam, ratified individually.
+///    **No general projection helper exists, by this ruling** — a
+///    `fn margin_of<T: Bounds>(…) -> f64` for everyone's payloads is
+///    precisely what was asked for and refused.
 ///
 /// For genuine decisions nothing changes: the metered predicate layer is
 /// the only spelling — it IS the "definite sign or indeterminate" trilean,
@@ -515,177 +527,6 @@ pub trait Real:
 /// terminal grant of an EXISTENCE or overlap claim from boxes would be the
 /// violation. The two #990 shapes never reach this rule: neither branches
 /// on a bracket, so neither is a terminal grant at all.
-///
-/// # The compound-bound allowlist
-///
-/// **The ledger of ratified seams, and the only part of this doc that
-/// grows**: one entry per ratification, appended here, so the rule and the
-/// contract above stay the first thing a reader meets.
-///
-/// **What the rule is FOR**, in Evan's words: the gate exists "to avoid
-/// the dangerous pattern when not necessary, so if it is necessary it's
-/// fine". The rule is not a budget on how many seams may exist, and an
-/// extension is not earned by RESEMBLING one already listed. What a
-/// candidate owes is a demonstration of **necessity**, and the
-/// demonstration is the ratifiable artifact: it must name the **weakest**
-/// bound that works and show the next tighter one FAILING. An argument
-/// that a bound *suffices* is not the argument this rule asks for.
-/// `scripts/gates/bounds-allowlist.sh` holds the file list and points here
-/// for the reasons rather than restating them.
-///
-/// **2026-07-29 (M5 PR 8) — the driver amendment.** Spatial-index /
-/// candidate-pruning DRIVER code — the C10 `bvh` crate and the certified
-/// box constructors beside their invariants — and the boolean-sweep +
-/// evaluation-service seams that feed it may write `T: Decide + Bounds`:
-/// that code is simultaneously decision code (`Decide`) and the
-/// subdivision driver (`Bounds`), so the sole-bound form is unsatisfiable
-/// there. `topo::separation` — LIB-PLACEDUNION's placement certificate —
-/// falls under this entry rather than a new one: a certified box
-/// constructor beside its invariants plus a query driver over the C10
-/// tree, deciding no topology.
-///
-/// `Separation::of`, `Separation::certify` and `image` carry **no**
-/// [`CertifiedEnclosure`], and their box NON-overlap answer is a GRANT
-/// (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
-/// `topo::graft_disjoint_all_keyed` asserts nothing about its operands,
-/// #382). They are instantiable at `Dual64` and at `Dual<Interval>`, and
-/// sound there **by delegation**: a dual's box endpoints are its value
-/// channel's, bit-identically the plain-`T` run's (D9), so a dual run's
-/// certificate is the base scalar's. **Whether they should carry
-/// [`CertifiedEnclosure`] anyway: answered NO, and the CALLER decides it,
-/// not the door** — the one production caller,
-/// `editor_core::eval::wire::wire_placed_union`, sits beneath
-/// `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
-/// non-certifying and which a [`CertifiedBounds`] bound here would reach
-/// by propagation. **Doors tighten; passes keep their lanes.** (The
-/// NON-generic return type is not the discriminator; the M9-2 entry
-/// states it. Whether an answer is *wrong* at a dual is a third question,
-/// homed at `geom::projection`'s `mid`, #874.)
-///
-/// **M5 PR 11 (Evan's lane-split ruling) — `topo::props`'s
-/// certified-quadrature plumbing**, which decides (its `props_quad_*`
-/// funnel margins) and reads brackets into the C9 ring. Its split from
-/// scalars that may not certify is STATIC and stands on two things:
-/// `PropsQuadLane`'s explicit per-scalar impls are the only entry and the
-/// dual impl instantiates none of it, and the `quad_lane::*` signatures
-/// carry [`CertifiedEnclosure`] as a third term, which no `Dual` has.
-///
-/// **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
-/// precedent; retroactive Evan review per the self-merge convention) — the
-/// edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
-/// decides (its six `fillet3_*` funnel margins) and CONSUMES ENCLOSURES —
-/// a support's sup-normal-curvature hull through `curvature_lever_arm`, a
-/// blend's setback bound off the analytic arm — reporting each offending
-/// margin as an `f64` payload, which is a bracket read. Since
-/// VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
-/// written inside these same three files deliberately, so the
-/// ratification covers the shared lane rather than a fourth file.
-///
-/// It is the one allowlisted seam with **no refusing lane**, and the
-/// written reason it needs none is the delegation rule below: every
-/// predicate's `Ok`/`Err` in those files comes from a `decide(...)` call,
-/// every `Bounds` read is a typed-error payload or a selection —
-/// including the two that feed a classification or a mutation rather than
-/// sitting after one (`battery.rs` → `chain_g1`, `surgery.rs` →
-/// `body.split_edge`), sound by value-channel delegation — and nothing
-/// there mints a certificate object. A lane whose refusing side would be
-/// empty is dead code, not a guard.
-///
-/// **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
-/// lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
-/// feeds an error payload or report, or (b) selects among constructions
-/// whose classification is value-channel-decided AND whose selected
-/// quantity is locally constant in the parameters — sound by value-part
-/// delegation: a dual's bracket is its value channel's, so the read's
-/// branch is the base scalar's branch. The locally-constant condition is
-/// load-bearing, not decoration: a frozen `f64` choice is tangent-sound
-/// only while the chosen quantity cannot move with a seed, and
-/// `geom::projection`'s `mid` freeze (issue 874's class) is the live
-/// counterexample shape when it is not. A read that MINTS a certificate
-/// object or feeds a [`CertifiedEnclosure`] consumer is never exempt: it
-/// needs a refusing lane in the `PropsQuadLane` shape, and admitting one
-/// without a lane would be a ratified REVERSAL of DL5 on its own
-/// evidence — not an entry this rule can grow.
-///
-/// **M6-2 (under the PR 11/PR 12 precedent; retroactive Evan review) — the
-/// SSI rung-3 certificate**: `geom_brep::ssi` (the `certify_rung3` door),
-/// `geom_brep::ssi::certify` (the three limbs) and
-/// `geom_brep::pcurve_cache`'s fitted lane, deciding (its `ssi_on_locus`,
-/// `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
-/// and consuming C9-ring enclosures (limb 2 a control-hull bound, limb 3 a
-/// box-chain enclosure). Its refusing side is **not** empty:
-/// `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
-/// interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
-/// really validating and really not holding a fitted cache.
-/// `geom_brep::ssi::enclose` is deliberately absent: the ring machinery
-/// decides nothing and takes the sole bound the rule already allows.
-///
-/// **M7-8 (under Evan's #264 ruling) — `geom_brep::edge_nurbs`**, the
-/// plane × NURBS declare-and-check edge lane and the narrowest possible
-/// extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
-/// door with a **declared** carrier instead of a marched one, inheriting
-/// that door's signature rather than widening the rule's reach, and
-/// splits in the ratified shape (`EdgeNurbsLane`, refusing at a dual). It
-/// is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
-/// SEPARATE door whose own impl block carries the lane bound
-/// (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
-/// the shared machinery. Injection moves a bound onto a narrower
-/// signature; it does not remove one.
-///
-/// **M9-2 PR-1 (under the PR 11 precedent; retroactive Evan review) —
-/// `topo::chart_region`**, the chart-region overlap predicate: it decides
-/// (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
-/// through the bracket — the spec-mandated C6 inventory gate (a `Harmonic`
-/// trig channel is straight only when its bracket is a point at exactly
-/// `0.0`; the `props.rs` rectangle-trim read) plus the
-/// bit-identical-region fast path — so a sole-bound form is unsatisfiable.
-///
-/// **The door and the lane guard different things, and both are needed.**
-/// The door's bound is `Decide + `[`CertifiedBounds`], which no `Dual`
-/// satisfies, so the predicate is uninstantiable at one however it is
-/// reached — including from outside the crate, where the lane is never
-/// consulted. `ChartRegionLane`'s refusing `Dual` impl is not redundant
-/// with that: it is what lets the census, a MIXED pass, decline this one
-/// arm and keep going, which no bound on a whole function can express.
-/// The tightening replaced an audit rather than a wrong answer, and
-/// **the discriminator is that nothing generic calls this door** — which
-/// is why `topo::separation`, whose caller is a mixed pass, was not
-/// tightened.
-///
-/// **2026-08-29 (ratified by Evan in conversation) — `editor_core::checks`,
-/// the advisory-check registry**, the **second production caller** of
-/// `topo::separation`. Its bound is `Decide + `[`CertifiedBounds`],
-/// **not** `Decide + `[`Bounds`]: nothing generic calls `run_checks` (its
-/// callers are the viewer at a concrete `f64`, the tour, and tests), so by
-/// the M9-2 discriminator it falls on the tighten side and the tighter
-/// bound builds the workspace with zero errors. It clears "brackets never
-/// decide" first — no `lo`/`hi` call appears in the file, and its
-/// bracket-derived verdicts (`SolidSeparation::certify`'s, and
-/// `classify_shells`' through the `props_quad_*` funnel) decide only
-/// whether a FINDING is emitted: the resident REPORTS and never gates
-/// (DS6). One consequence crosses a unit boundary and is recorded here: no
-/// `Dual` implements [`CertifiedEnclosure`], so `editor_core::run_checks`
-/// is no longer callable at one — DL1 holding one door further out, since
-/// the registry's separation resident GRANTS a certificate.
-///
-/// **What a future row owes instead of citing this one.** Two negative
-/// results carried its first draft and neither reaches the question: that
-/// `topo::PropsQuadLane` does not imply [`Bounds`] (true, checked by
-/// deleting the term), and that a `PropsQuadLane`-style lane would have an
-/// empty refusing side since D1 (also true). Both establish that SOME
-/// bracket bound is needed, never that the WEAK one is.
-///
-/// **Not an extension — a spelling.** The pair
-/// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
-/// spelled [`CertifiedBounds`] and is a **sole** bound by construction,
-/// outside the rule's class rather than carved out of it: the rule catches
-/// an evaluation or decision parameter that has also been handed bracket
-/// extraction, and both halves of that pair are bracket-side doors. Adding
-/// [`Decide`](crate::predicate::Decide) to it is a compound bound again
-/// and needs ratification, which the gate enforces: its matcher is shaped
-/// by the trait NAME, so it reads `Decide + CertifiedBounds` as compound
-/// in either operand order, and a **sole** [`CertifiedBounds`] does not
-/// fire.
 pub trait Bounds: Real {
     /// The infimum of the bracket the scalar carries — the value itself
     /// where the bracket is a point, NaN where the value is poison.
@@ -706,6 +547,202 @@ impl Bounds for f64 {
     fn hi(self) -> f64 {
         self
     }
+}
+
+pub mod bounds_allowlist {
+    //! The ratified compound-bound seams, one entry per ratification.
+    //!
+    //! **A module and not a section of [`Bounds`](super::Bounds)'s own doc, because this is
+    //! the part that GROWS.** The rule, the contract and the two standing
+    //! rulings above are finished text; this ledger gains an entry every time
+    //! a seam is ratified, and while it sat inside the trait's doc block that
+    //! growth pushed the rule further from the top on every landing — which
+    //! is the shape the finding behind this move was about. Here it can grow
+    //! without moving anything a reader is looking for, and it is still in
+    //! `real.rs`: every pointer into it names an entry by its ruling's LABEL
+    //! and DATE (`scripts/gates/bounds-allowlist.sh`'s header, `topo`'s
+    //! `boolean/reduce.rs`, `chart_region.rs`, `separation.rs`), and a label
+    //! survives a move that a line number would not.
+    //!
+    //! Nothing here is a separate rule from [`Bounds`](super::Bounds)'s: the scope rule, the
+    //! *brackets never decide* clause and the necessity standard are stated
+    //! there and are what this ledger's entries are ratified AGAINST.
+    //!
+    //! Every seam ratified to write a compound bracket bound, in the
+    //! order they were ratified, each with the necessity argument that
+    //! earned it. **New entries are appended here**, and nothing checks
+    //! that — it is a convention kept by hand, like the entries
+    //! themselves; what the module buys is that keeping it costs the
+    //! rule above nothing.
+    //!
+    //! **What the rule is FOR**, in Evan's words: the gate exists "to avoid
+    //! the dangerous pattern when not necessary, so if it is necessary it's
+    //! fine". The rule is not a budget on how many seams may exist, and an
+    //! extension is not earned by RESEMBLING one already listed. What a
+    //! candidate owes is a demonstration of **necessity**, and the
+    //! demonstration is the ratifiable artifact: it must name the **weakest**
+    //! bound that works and show the next tighter one FAILING. An argument
+    //! that a bound *suffices* is not the argument this rule asks for.
+    //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
+    //! for the reasons rather than restating them.
+    //!
+    //! **2026-07-29 (M5 PR 8) — the driver amendment.** Spatial-index /
+    //! candidate-pruning DRIVER code — the C10 `bvh` crate and the certified
+    //! box constructors beside their invariants — and the boolean-sweep +
+    //! evaluation-service seams that feed it may write `T: Decide + Bounds`:
+    //! that code is simultaneously decision code (`Decide`) and the
+    //! subdivision driver (`Bounds`), so the sole-bound form is unsatisfiable
+    //! there. `topo::separation` — LIB-PLACEDUNION's placement certificate —
+    //! falls under this entry rather than a new one: a certified box
+    //! constructor beside its invariants plus a query driver over the C10
+    //! tree, deciding no topology.
+    //!
+    //! `Separation::of`, `Separation::certify` and `image` carry **no**
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
+    //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
+    //! `topo::graft_disjoint_all_keyed` asserts nothing about its operands,
+    //! #382). They are instantiable at `Dual64` and at `Dual<Interval>`, and
+    //! sound there **by delegation**: a dual's box endpoints are its value
+    //! channel's, bit-identically the plain-`T` run's (D9), so a dual run's
+    //! certificate is the base scalar's. **Whether they should carry
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure) anyway: answered NO, and the CALLER decides it,
+    //! not the door** — the one production caller,
+    //! `editor_core::eval::wire::wire_placed_union`, sits beneath
+    //! `evaluate<T>`, a MIXED pass whose node kinds are overwhelmingly
+    //! non-certifying and which a [`CertifiedBounds`](super::CertifiedBounds) bound here would reach
+    //! by propagation. **Doors tighten; passes keep their lanes.** (The
+    //! NON-generic return type is not the discriminator; the M9-2 entry
+    //! states it. Whether an answer is *wrong* at a dual is a third question,
+    //! homed at `geom::projection`'s `mid`, #874.)
+    //!
+    //! **M5 PR 11 (Evan's lane-split ruling) — `topo::props`'s
+    //! certified-quadrature plumbing**, which decides (its `props_quad_*`
+    //! funnel margins) and reads brackets into the C9 ring. Its split from
+    //! scalars that may not certify is STATIC and stands on two things:
+    //! `PropsQuadLane`'s explicit per-scalar impls are the only entry and the
+    //! dual impl instantiates none of it, and the `quad_lane::*` signatures
+    //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
+    //!
+    //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
+    //! precedent; retroactive Evan review per the self-merge convention) — the
+    //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
+    //! decides (its six `fillet3_*` funnel margins) and CONSUMES ENCLOSURES —
+    //! a support's sup-normal-curvature hull through `curvature_lever_arm`, a
+    //! blend's setback bound off the analytic arm — reporting each offending
+    //! margin as an `f64` payload, which is a bracket read. Since
+    //! VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
+    //! written inside these same three files deliberately, so the
+    //! ratification covers the shared lane rather than a fourth file.
+    //!
+    //! It is the one allowlisted seam with **no refusing lane**, and the
+    //! written reason it needs none is the delegation rule below: every
+    //! predicate's `Ok`/`Err` in those files comes from a `decide(...)` call,
+    //! every `Bounds` read is a typed-error payload or a selection —
+    //! including the two that feed a classification or a mutation rather than
+    //! sitting after one (`battery.rs` → `chain_g1`, `surgery.rs` →
+    //! `body.split_edge`), sound by value-channel delegation — and nothing
+    //! there mints a certificate object. A lane whose refusing side would be
+    //! empty is dead code, not a guard.
+    //!
+    //! **The delegation rule (DUAL-DESIGN DL5) — the standing criterion for a
+    //! lane-less `Bounds` seam.** A `Bounds` read is lane-exempt when it (a)
+    //! feeds an error payload or report, or (b) selects among constructions
+    //! whose classification is value-channel-decided AND whose selected
+    //! quantity is locally constant in the parameters — sound by value-part
+    //! delegation: a dual's bracket is its value channel's, so the read's
+    //! branch is the base scalar's branch. The locally-constant condition is
+    //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
+    //! only while the chosen quantity cannot move with a seed, and
+    //! `geom::projection`'s `mid` freeze (issue 874's class) is the live
+    //! counterexample shape when it is not. A read that MINTS a certificate
+    //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
+    //! needs a refusing lane in the `PropsQuadLane` shape, and admitting one
+    //! without a lane would be a ratified REVERSAL of DL5 on its own
+    //! evidence — not an entry this rule can grow.
+    //!
+    //! **M6-2 (under the PR 11/PR 12 precedent; retroactive Evan review) — the
+    //! SSI rung-3 certificate**: `geom_brep::ssi` (the `certify_rung3` door),
+    //! `geom_brep::ssi::certify` (the three limbs) and
+    //! `geom_brep::pcurve_cache`'s fitted lane, deciding (its `ssi_on_locus`,
+    //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
+    //! and consuming C9-ring enclosures (limb 2 a control-hull bound, limb 3 a
+    //! box-chain enclosure). Its refusing side is **not** empty:
+    //! `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
+    //! interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
+    //! really validating and really not holding a fitted cache.
+    //! `geom_brep::ssi::enclose` is deliberately absent: the ring machinery
+    //! decides nothing and takes the sole bound the rule already allows.
+    //!
+    //! **M7-8 (under Evan's #264 ruling) — `geom_brep::edge_nurbs`**, the
+    //! plane × NURBS declare-and-check edge lane and the narrowest possible
+    //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
+    //! door with a **declared** carrier instead of a marched one, inheriting
+    //! that door's signature rather than widening the rule's reach, and
+    //! splits in the ratified shape (`EdgeNurbsLane`, refusing at a dual). It
+    //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
+    //! SEPARATE door whose own impl block carries the lane bound
+    //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
+    //! the shared machinery. Injection moves a bound onto a narrower
+    //! signature; it does not remove one.
+    //!
+    //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Evan review) —
+    //! `topo::chart_region`**, the chart-region overlap predicate: it decides
+    //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
+    //! through the bracket — the spec-mandated C6 inventory gate (a `Harmonic`
+    //! trig channel is straight only when its bracket is a point at exactly
+    //! `0.0`; the `props.rs` rectangle-trim read) plus the
+    //! bit-identical-region fast path — so a sole-bound form is unsatisfiable.
+    //!
+    //! **The door and the lane guard different things, and both are needed.**
+    //! The door's bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds), which no `Dual`
+    //! satisfies, so the predicate is uninstantiable at one however it is
+    //! reached — including from outside the crate, where the lane is never
+    //! consulted. `ChartRegionLane`'s refusing `Dual` impl is not redundant
+    //! with that: it is what lets the census, a MIXED pass, decline this one
+    //! arm and keep going, which no bound on a whole function can express.
+    //! The tightening replaced an audit rather than a wrong answer, and
+    //! **the discriminator is that nothing generic calls this door** — which
+    //! is why `topo::separation`, whose caller is a mixed pass, was not
+    //! tightened.
+    //!
+    //! **2026-08-29 (ratified by Evan in conversation) — `editor_core::checks`,
+    //! the advisory-check registry**, the **second production caller** of
+    //! `topo::separation`. Its bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds),
+    //! **not** `Decide + `[`Bounds`](super::Bounds): nothing generic calls `run_checks` (its
+    //! callers are the viewer at a concrete `f64`, the tour, and tests), so by
+    //! the M9-2 discriminator it falls on the tighten side and the tighter
+    //! bound builds the workspace with zero errors. It clears "brackets never
+    //! decide" first — no `lo`/`hi` call appears in the file, and its
+    //! bracket-derived verdicts (`SolidSeparation::certify`'s, and
+    //! `classify_shells`' through the `props_quad_*` funnel) decide only
+    //! whether a FINDING is emitted: the resident REPORTS and never gates
+    //! (DS6). One consequence crosses a unit boundary and is recorded here: no
+    //! `Dual` implements [`CertifiedEnclosure`](super::CertifiedEnclosure), so `editor_core::run_checks`
+    //! is no longer callable at one — DL1 holding one door further out, since
+    //! the registry's separation resident GRANTS a certificate. The suite
+    //! that pins it is `editor-core/tests/r1_dual_probes.rs`, whose
+    //! end-to-end rows build the dual body and the closure that would reach
+    //! the registry and record that the call cannot be written; that is the
+    //! only shape in which an unwritable call can be checked.
+    //!
+    //! **What a future row owes instead of citing this one.** Two negative
+    //! results carried its first draft and neither reaches the question: that
+    //! `topo::PropsQuadLane` does not imply [`Bounds`](super::Bounds) (true, checked by
+    //! deleting the term), and that a `PropsQuadLane`-style lane would have an
+    //! empty refusing side since D1 (also true). Both establish that SOME
+    //! bracket bound is needed, never that the WEAK one is.
+    //!
+    //! **Not an extension — a spelling.** The pair
+    //! `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
+    //! spelled [`CertifiedBounds`](super::CertifiedBounds) and is a **sole** bound by construction,
+    //! outside the rule's class rather than carved out of it: the rule catches
+    //! an evaluation or decision parameter that has also been handed bracket
+    //! extraction, and both halves of that pair are bracket-side doors. Adding
+    //! [`Decide`](crate::predicate::Decide) to it is a compound bound again
+    //! and needs ratification, which the gate enforces: its matcher is shaped
+    //! by the trait NAME, so it reads `Decide + CertifiedBounds` as compound
+    //! in either operand order, and a **sole** [`CertifiedBounds`](super::CertifiedBounds) does not
+    //! fire.
 }
 
 /// **Bracket access without the `Real` obligation** — the certification

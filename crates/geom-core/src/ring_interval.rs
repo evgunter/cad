@@ -71,8 +71,7 @@
 //! even powers of zero-straddling quantities from acquiring a spurious
 //! negative lower bound — the bug class that cost M2 three separate
 //! occurrences, and that ci.yml's "interval-square powi(2) allowlist"
-//! step gates over every `crates/*/src` tree — which is its whole reach:
-//! the backend crate and the test trees are outside it.
+//! step gates over `crates/*/src`, and only there.
 //!
 //! # Determinism (D9)
 //!

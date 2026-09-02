@@ -60,21 +60,16 @@
 //! spatial-index driver code — ratified 2026-07-29, see geom-core
 //! `real.rs`, Bounds scope rule.
 //!
-//! **No CI grep watches these reads, and that is worth knowing rather
-//! than assuming otherwise.** They are SOLE `T: Bounds` bounds
-//! (`Aabb::from_points`), which is the form the scope rule prescribes and
-//! the form `scripts/gates/bounds-allowlist.sh` deliberately does not
-//! fire on — a sole bracket bound is its planted must-not-fire case,
-//! because firing on it would red every certification file in the tree.
-//! So this crate appears nowhere in that gate's filters and cannot be
-//! added to them; a new sole-bound door here is invisible to CI, and the
-//! ratification above is what licenses these reads, not an instrument.
+//! **`bounds-allowlist.sh` does not watch these reads**: they are SOLE
+//! `T: Bounds` bounds, which is that gate's planted must-not-fire case,
+//! so this crate is in none of its filters and cannot be. What watches
+//! the sole form is `geom-core/tests/bounds_census.rs`, whose roster
+//! carries `Aabb::from_points` with its disposition.
 //!
-//! What the gate does see here is the COMPOUND form: `crates/bvh/` is not
-//! on its file allowlist, so a `T: Decide + Bounds` written in this crate
-//! fires today. The 2026-07-29 amendment names this crate, but that
-//! ratification lives in the rule and not in the allowlist — writing a
-//! compound bound here means adding the file to the gate first.
+//! The gate does see the COMPOUND form here, and `crates/bvh/` is not on
+//! its allowlist, so a `T: Decide + Bounds` in this crate fires today —
+//! the 2026-07-29 amendment names the crate, but a ratification in the
+//! rule is not one in the allowlist.
 //!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!

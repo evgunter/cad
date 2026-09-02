@@ -368,6 +368,15 @@ wanted LGPL off the default path. OQ8's sign-off adds *"doubling as the
 seed of the eventual inari replacement"*, which #127 discharged three
 days later by a different route.
 
+**Handed to this finding, 2026-09-02, from a closed neighbour**:
+`copysign`'s placement inside a consumer
+(`crates/geom-core/src/interval.rs:356`, re-derive against the tree) is
+Tier 1 and belongs here rather than with the interval backend's
+one-directional residue, which is what the finding it arrived from was
+about. It was recorded there as a fact rather than a decision — that
+`copysign` is on the `Real` surface but not in the backend `src` — and
+the placement question is still open.
+
 ## S2. `T: Real` genericity costs friction everywhere and monomorphizes at one-and-a-half types
 
 - **Where**: `crates/editor-core/src/eval/mod.rs:865`,
@@ -4133,22 +4142,24 @@ in-tree. The eviction itself is pinned by `compile_fail,E0277` rows in
 collected — and `S216` is why those rows demonstrate the eviction without
 guarding it.
 
-**This work grew `real.rs`'s `Bounds` block**: what the block now carries
+**This work grew `real.rs`'s `Bounds` block**: what the block carries
 includes an open question of the rule's own (#643's `separation` half)
 answered in the rule, and corrections to two entries that had become
 false. A doc block that may not grow to answer a question posed inside it
-is not a doc block — the growth that is a defect is the UNDIRECTED kind,
-and the block now has a place for each sort: the rule and the contract
-first, then the ledger of ratified seams, which is the part that grows.
+is not a doc block; the growth that is a defect is the UNDIRECTED kind.
+The rule and the contract are the trait's doc, and the ledger of ratified
+seams — the part that grows — is `geom_core::real::bounds_allowlist`.
 
 ### Handed off, not taken
 
 - **Open, no row** (`crates/profile/`, Track V's territory):
   `fillet_select.rs::nearest_joint`
-  (`:169`) is the sole-bound door. **The finding's `:98` is a doc line,
-  not a door** — re-derive against the tree. `path/arc_fillet.rs:361`'s
+  (`:179`) is the sole-bound door. **The finding's `:98` is a doc line,
+  not a door** — re-derive against the tree. `path/arc_fillet.rs:379`'s
   `map_refusal<T: Bounds>` is a second sole-bound door the finding does
-  not name; the rest of that file is the ratified `Decide + Bounds` seam.
+  not name (both citations re-derived 2026-09-02, from `:169` and `:361`;
+  `crates/geom-core/tests/bounds_census.rs` keys the roster on the SYMBOL
+  for this reason); the rest of that file is the ratified `Decide + Bounds` seam.
 - **`crates/geom-brep/`** (Track Q's `ssi*` ground; no row names these):
   `ssi.rs:218`'s `impl<T: Bounds> TubeScale<T>` — **the finding's `:1187`
   is `certify_rung3`'s doc, and `certify_rung3` is shut at a dual by its
@@ -4164,9 +4175,10 @@ first, then the ledger of ratified seams, which is the part that grows.
   `chart_region_overlap`. Not a sole-bound site, and not S210's subject.
 - **`crates/bvh/`** (Track M's ground since the repartition): `aabb.rs:87`'s
   `Aabb::from_points<T: Bounds>` — a payload read, sound by delegation,
-  and the one door every `geom` box constructor funnels into. That crate's
-  module header now states which instrument watches these reads, which is
-  none.
+  and the one door every `geom` box constructor funnels into. No CI grep
+  watches this crate's `Bounds` reads: the sole form is the allowlist
+  gate's planted must-not-fire case, so `crates/bvh/` cannot be added to
+  its filters, and the crate's module header says so.
 
 ## S89. The one-home fix for the ring crossing minted three local aliases
 
@@ -5999,22 +6011,27 @@ seam whose third term is missing*, which the scope rule already tracks by
 name and which the gate does see. Two different holes; conflating them
 makes the census unbuildable.
 
-**What is not censused, and what a walk is worth.** S88 covers
-`geom-core` (no generic door; one blanket impl, above) and `geom` (five
-modules). Enumerated but handed off rather than taken:
-`geom-brep/src/ssi.rs:218`, `ssi/certify.rs:{271,277,289}`;
-`profile/src/{fillet_select.rs:179, path/arc_fillet.rs:379}` (citations
-re-derived 2026-09-01, from `:169`/`:361`); `bvh/src/aabb.rs:87`. The
-crates nobody had walked have now been walked once, over `crates/*/src`
-with comments and literals blanked, and it found **six more private
-doors, all in `topo`** — `boolean/boxes.rs:{262,284,291}`
-(`bracket_point`, `bracket_span`, `bracket_vector`) and
-`chart_region.rs:{532,2156,2275}` (`definite_diag`, `exact_pair`,
-`exact_zero`) — with none at all in `sweep/`, `editor-core/`, `mesh/` or
-`step-*`. **That walk is a snapshot and nothing re-derives it**, which is
-this row's whole subject: the next such door is invisible the day it is
-written, and the doors that matter are the ones nobody would think to
-look for, since they never mention a dual.
+**What is censused, and by what.** S88 covers `geom-core` (no generic
+door; one blanket impl, above) and `geom` (five modules). Enumerated but
+handed off rather than taken: `geom-brep/src/ssi.rs`,
+`ssi/certify.rs`'s three private helpers;
+`profile/src/{fillet_select.rs, path/arc_fillet.rs}`;
+`bvh/src/aabb.rs`. **The whole-tree walk those handoffs implied now
+exists and is executable**: `crates/geom-core/tests/bounds_census.rs`
+walks every `crates/*/src` through the shared source reader and pins the
+roster with a disposition per door, keyed on the SYMBOL rather than on a
+line number. Taking it found six doors nobody had walked for, all
+private and all in `topo` — the box brackets under `boolean/` and the
+three exact-structure reads in `chart_region.rs` — and none at all in
+`sweep/`, `editor-core/`, `mesh/` or `step-*`.
+
+**What that does NOT close, which is why this row stands.** The roster is
+a textual walk, so it cannot see a bound reached by a supertrait
+obligation (the gate's KNOWN GAP 2, and `S213`'s subject), a renamed
+import, an `impl Bounds` in argument position, or a bound a macro
+assembles; the suite states each of those at its own site. The doors that
+matter are still the ones nobody would think to look for, since they
+never mention a dual.
 
 **What would close it, and what it costs.** Not a bigger regex — the
 gate's own KNOWN GAPs 1–4 are the proof, and a sole-bound matcher has a
@@ -7020,7 +7037,6 @@ three sub-lanes inside the track.
 | # | What | Was |
 |---|---|---|
 | **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12) | Track H |
-| **H10** | A rule with no instrument (S210): `real.rs`'s `Bounds` scope rule governs the sole-`T: Bounds` class, and neither the allowlist gate nor any in-fence test can see it — the gate plants the sole form as its must-not-fire case, and a source-walking guard in this fence needs a ledger line in `crates/test-utils/tests/reader_census.rs`, which is Track W's. The gate-side half is Track K's `D68`/`D103` and is not this row | Track H |
 | **S213** | `topo::validate_geometric` carries the `Bounds` obligation by SUPERTRAIT (`PropsQuadLane: … + geom_brep::EdgeNurbsLane`), which is `bounds-allowlist.sh`'s KNOWN GAP 2 — a certification bound no instrument counts. **Not a doc edit**: the `real.rs` sentence that misdescribed the attach door beside it is corrected; this half is the bound itself | unrowed |
 | **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** | Track H |
 
@@ -7778,8 +7794,9 @@ Count: S59 (the ruling swept to two gates, not the third, in the same
 directory), S60 (`volume_pad` fixed, `area_pad` twelve lines away not),
 S63 (same), S68 (`split_edge`'s discards ten lines below the same diff's
 `unreachable!` conversions), S74 (markers deleted at the copy sites), S80,
-S84, S85 (`Enclosure` and `CertifiedEnclosure` corrected, `Bounds`'
-headline not), S101 (the sweep deleted the fact rather than re-aiming
+S84, the `Bounds` headline (`Enclosure` and `CertifiedEnclosure`
+corrected by the same sweep, the trait D1 demoted out of the role left
+saying it), S101 (the sweep deleted the fact rather than re-aiming
 the pointer), S102, S110(b), S114(f), S116(m). (`S110` has since
 closed, with #1329; the citation is to what it recorded, which is how
 every closed number in this list reads.)
@@ -7948,7 +7965,8 @@ edit `docs/prompts/reviewer-style-lane.md`):
 ## C25. Documentation growth is still the default response to a finding
 
 C5 measured this in the first scan; it has not turned. Measured this
-round: `real.rs`'s `Bounds` block 156 → 234 lines (S85);
+round: `real.rs`'s `Bounds` block 156 → 234 lines, and 399 by the time a
+lane took it;
 `crates/mesh/src/curved.rs` 243 → 712 production lines, 60% comments,
 with ~180 doc lines over ~55 lines of guard code (S116g);
 `SAFE_ASPECT`'s doc ~20 → ~50 lines while the constant did not move

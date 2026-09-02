@@ -10,7 +10,8 @@
 
 mod common;
 
-use common::{Tightness, assert_contains, gen_interval, steps, to_inari};
+use common::Bound::Divergent;
+use common::{Ceiling, Tightness, assert_contains, gen_interval, steps, to_inari};
 use interval_transcendentals::DInterval;
 use test_utils::fuzz;
 
@@ -31,11 +32,33 @@ fn probe_huge_window_split_by_sign() {
         }
         let mine = x.powi(n);
         let oracle = to_inari(&x).powi(n);
-        assert_contains(&format!("powi huge case {i} x={x:?} n={n}"), &mine, &oracle, false);
+        assert_contains(
+            &format!("powi huge case {i} x={x:?} n={n}"),
+            &mine,
+            &oracle,
+            false,
+        );
         if n > 0 { &mut pos } else { &mut neg }.record(&mine, &oracle);
     }
-    pos.report("powi[huge-window, n>0]", None);
-    neg.report("powi[huge-window, n<0]", None);
+    // Lane edit, noted at the site: `Tightness::report` now takes a
+    // `Ceiling` whose every dimension is scored or names its divergence
+    // (the fix pass's item 4), so this probe's two printer-only reports
+    // are spelled that way. The probe's question, its draws and its
+    // numbers are unchanged.
+    pos.report("powi[huge-window, n>0]", probe_printer());
+    neg.report("powi[huge-window, n<0]", probe_printer());
+}
+
+/// A ceiling that asserts nothing: this file asks questions, and its two
+/// accumulators are reported to be read, not to gate.
+fn probe_printer() -> Ceiling {
+    Ceiling {
+        max_ratio: Divergent("probe: printer only"),
+        min_ratio_fraction: Divergent("probe: printer only"),
+        max_steps_when_oracle_exact: Divergent("probe: printer only"),
+        max_endpoint_steps: Divergent("probe: printer only"),
+        unbounded_when_oracle_bounded: Divergent("probe: printer only"),
+    }
 }
 
 #[test]
@@ -59,7 +82,10 @@ fn probe_subnormal_reciprocal_corner() {
             // `mine_unbounded_oracle_bounded` class of `Tightness`.
             println!(
                 "PROBE n=-1 x=2^-1024+{k}steps: MINE UNBOUNDED [{:e},{:e}] vs oracle [{:e},{:e}]",
-                mine.lo(), mine.hi(), iv.inf(), iv.sup()
+                mine.lo(),
+                mine.hi(),
+                iv.inf(),
+                iv.sup()
             );
             continue;
         }
@@ -67,7 +93,10 @@ fn probe_subnormal_reciprocal_corner() {
         let ratio = (mine.hi() - mine.lo()) / iv.wid();
         println!(
             "PROBE n=-1 x=2^-1024+{k}steps: mine=[{:e},{:e}] oracle=[{:e},{:e}] lo_steps={lo_steps} hi_steps={hi_steps} ratio={ratio}",
-            mine.lo(), mine.hi(), iv.inf(), iv.sup()
+            mine.lo(),
+            mine.hi(),
+            iv.inf(),
+            iv.sup()
         );
     }
 }

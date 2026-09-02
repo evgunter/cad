@@ -117,11 +117,15 @@ pub fn dec_of(d: inari::Decoration) -> Decoration {
 /// the accumulator from a printer into a guard; passing `None` to
 /// [`Tightness::report`] leaves it a printer, and the caller owes a
 /// reason at the call site.
+///
+/// **Every dimension is either scored or names its divergence**
+/// ([`Bound`]): there is no spelling of "this one is not checked" that
+/// does not say why, in the type, at the call site.
 #[cfg(feature = "oracle-inari")]
 pub struct Ceiling {
     /// Upper bound on the worst width ratio vs the correctly-rounded
     /// oracle, over the samples where a ratio is meaningful.
-    pub max_ratio: f64,
+    pub max_ratio: Bound<f64>,
     /// Anti-vacuity: the least fraction of `total` that must yield a
     /// comparable ratio. Without this the ceiling is defeated by the
     /// degradation it exists to catch — an operation that regressed to
@@ -138,7 +142,7 @@ pub struct Ceiling {
     /// a `record` that started dropping them. Demonstrated: skewing
     /// `gen_interval` to 90% unbounded draws reds `add` at n=2 989 and
     /// `tan` at n=24 486.
-    pub min_ratio_fraction: f64,
+    pub min_ratio_fraction: Bound<f64>,
     /// Upper bound, in representable steps, on OUR width for the class
     /// the ratio cannot score: the oracle proved the value exact
     /// (`wid() == 0`) and we padded anyway. The ratio there is infinite
@@ -146,7 +150,7 @@ pub struct Ceiling {
     /// outward pad — so the honest bound is absolute, not relative, and
     /// it is the one class where a width blow-up would otherwise be
     /// invisible to both instruments.
-    pub max_steps_when_oracle_exact: i128,
+    pub max_steps_when_oracle_exact: Bound<i128>,
     /// Upper bound, in representable steps, on how far EACH of our
     /// endpoints may sit outside the correctly-rounded one.
     ///
@@ -162,33 +166,72 @@ pub struct Ceiling {
     /// **Why #786 declined it, and what answers that.** The stated
     /// reason was that extremum capture, huge-argument degradation and
     /// pole/branch-cut refusals all make a per-endpoint bound fire on
-    /// sound output — so what was owed was a bound that excludes those
-    /// paths from the INPUT rather than from the output. Both exclusions
-    /// exist in the tree now and neither is new here: the refusals leave
-    /// an UNBOUNDED endpoint, and this field is scored only on the class
-    /// where both enclosures are bounded and non-empty; and false
-    /// extremum capture — the sound-but-wide answer — has its onset at
-    /// `|x| ≈ 2^32`, twenty-four binades above where the
-    /// ceiling-carrying windows stop (`certify.rs`'s `WINDOWS`). A TRUE
-    /// capture is not a divergence at all: both sides return the
-    /// extremum. The accumulator that carries the huge window carries no
-    /// `Ceiling`, here as for the ratio.
-    ///
-    /// **`None` scores the ratio and not the endpoints**, for a class
-    /// whose endpoints are deliberately NOT the correctly-rounded ones —
-    /// the caller owes the divergence by name at the call site. It is not
-    /// a way to quiet a red: an excursion that is not a documented
-    /// divergence is exactly what this field exists to report.
+    /// sound output. Each is excluded by its own mechanism rather than
+    /// by a window index: the refusals leave an UNBOUNDED endpoint,
+    /// which is outside the scored class by construction (see
+    /// [`Tightness::record`], which buckets on the ORACLE's width and is
+    /// safe there because the converse class is held at zero by
+    /// `unbounded_when_oracle_bounded`); false extremum capture has its
+    /// onset at `|x| ≈ 2^32` and names itself as a [`Bound::Divergent`]
+    /// on the accumulators that can reach it; and `atan2`'s
+    /// origin-containing box is split off by an input predicate.
     ///
     /// **Measured at effort 8** (2.4M draws per unary function): 4 steps
     /// for every transcendental and 5 for `atan2` against an allowance of
-    /// 8; 1 step for `+ − × ÷ sqrt` against 4; and 1 to 75 for `powi`
-    /// across its exponents against its exponent-dependent allowance. One
-    /// class exceeds any fixed number and is `None`: `atan2` over an
-    /// origin-containing box, whose `[-π, π]` hull sits 9.2e18 steps from
-    /// the oracle's quadrant-tight endpoints (semantics-diffs D4) while
-    /// its width ratio stays at 4.
-    pub max_endpoint_steps: Option<i128>,
+    /// 8; 1 step for `+ − × ÷ sqrt` against 4; and 1 to 74 for `powi`
+    /// across its exponents against its exponent-dependent allowance.
+    pub max_endpoint_steps: Bound<i128>,
+    /// How many draws may return an UNBOUNDED enclosure where the
+    /// oracle's is bounded — `Scored(0)` everywhere the class is
+    /// unreachable, which is everywhere the generator's own margins say
+    /// so (see [`Tightness::mine_unbounded_oracle_bounded`], which
+    /// carries the two sound classes and the measure that keeps them out
+    /// of the everyday windows).
+    ///
+    /// It is a `Bound` for the same reason the others are: `tan`'s honest
+    /// pole refusal IS reachable in the huge window, so an accumulator
+    /// that includes it must say which divergence it is admitting rather
+    /// than carry no ceiling at all.
+    pub unbounded_when_oracle_bounded: Bound<u64>,
+}
+
+/// One dimension of a [`Ceiling`]: a number to assert, or the documented
+/// divergence that makes the number meaningless here.
+///
+/// **Why a variant rather than an `Option`.** The obligation "a caller
+/// that does not score a dimension owes the reason at the call site" was
+/// prose, and prose is not enforced: every `report(.., None)` in this
+/// file's history satisfied it by omission. `Divergent` moves the
+/// obligation into the type — the reason is a required field of the only
+/// spelling that skips the assert, and it is printed on the census line,
+/// so a reader of a green run sees which dimensions were not scored and
+/// why.
+///
+/// It is **not** a way to quiet a red. An excursion that is not one of
+/// the crate's documented divergences (`docs/semantics-diffs.md`) is
+/// exactly what these fields exist to report; a `Divergent` whose reason
+/// is not such a divergence is a bug in the guard, not a disposition.
+#[cfg(feature = "oracle-inari")]
+pub enum Bound<T> {
+    Scored(T),
+    Divergent(&'static str),
+}
+
+#[cfg(feature = "oracle-inari")]
+impl<T: Copy> Bound<T> {
+    fn scored(&self) -> Option<T> {
+        match self {
+            Bound::Scored(v) => Some(*v),
+            Bound::Divergent(_) => None,
+        }
+    }
+
+    fn why(&self) -> &'static str {
+        match self {
+            Bound::Scored(_) => "",
+            Bound::Divergent(reason) => reason,
+        }
+    }
 }
 
 /// Tightness accumulator. Every drawn case lands in exactly one bucket,
@@ -343,7 +386,8 @@ impl Tightness {
     /// **Widening a ceiling-carrying window's `emax` past 30 would
     /// produce a red on a sound enclosure**; that is the constraint, and
     /// it lives with the windows too.
-    pub fn report(&mut self, label: &str, ceiling: Option<Ceiling>) {
+    pub fn report(&mut self, label: &str, ceiling: Ceiling) {
+        let c = &ceiling;
         self.ratios.sort_unstable_by(f64::total_cmp);
         let n = self.ratios.len();
         let (mean, p50, p99, worst) = if n == 0 {
@@ -357,13 +401,23 @@ impl Tightness {
                 self.ratios[n - 1],
             )
         };
+        // The ratio line is printed only where a ratio exists: a class
+        // that scores none (`powi` at `n = 0`, whose answer is the point
+        // one) used to print `mean=NaN p50=NaN p99=NaN`, which reads as a
+        // broken accumulator rather than as the thing the row pins.
+        let ratios = if n == 0 {
+            format!("n=0 (no width ratio in this class: {})", c.max_ratio.why())
+        } else {
+            format!(
+                "n={n}/{} mean={mean:.6} p50={p50:.6} p99={p99:.6} max={worst:.6} wider={:.3}%",
+                self.total,
+                100.0 * self.mine_wider_cases as f64 / self.total as f64,
+            )
+        };
         println!(
-            "TIGHTNESS {label}: n={n}/{} mean={mean:.6} p50={p50:.6} p99={p99:.6} \
-             max={worst:.6} wider={:.3}% | empty={} oracle_unbounded={} \
+            "TIGHTNESS {label}: {ratios} | empty={} oracle_unbounded={} \
              MINE_UNBOUNDED={} oracle_exact={} (worst {} steps) \
-             endpoints={} (worst {} steps)",
-            self.total,
-            100.0 * self.mine_wider_cases as f64 / self.total as f64,
+             endpoints={} (worst {} steps){}",
             self.empty_cases,
             self.oracle_unbounded,
             self.mine_unbounded_oracle_bounded,
@@ -371,22 +425,22 @@ impl Tightness {
             self.worst_steps_when_oracle_exact,
             self.endpoint_cases,
             self.worst_endpoint_steps,
+            unscored(c),
         );
-        let Some(c) = ceiling else {
-            return;
-        };
-        assert_eq!(
-            self.mine_unbounded_oracle_bounded, 0,
+        assert!(
+            c.unbounded_when_oracle_bounded
+                .scored()
+                .is_none_or(|allowed| self.mine_unbounded_oracle_bounded <= allowed),
             "{label}: {} draws returned an UNBOUNDED enclosure where the oracle's \
              was bounded. That is the widest a result can get, and a ratio cannot \
              say so — which is why it is counted. If this fired because the \
              GENERATOR changed, read the two sound classes documented on this \
              field first: a near-pole-but-pole-free trig draw, or an \
              overflow-padded endpoint, is sound here and belongs in an \
-             accumulator with no ceiling.",
+             accumulator that names the divergence.",
             self.mine_unbounded_oracle_bounded
         );
-        let floor = c.min_ratio_fraction * self.total as f64;
+        let floor = c.min_ratio_fraction.scored().unwrap_or(0.0) * self.total as f64;
         assert!(
             n as f64 >= floor,
             "{label}: only n={n} of {} draws produced a comparable ratio, below \
@@ -396,16 +450,19 @@ impl Tightness {
             self.total
         );
         assert!(
-            self.worst_steps_when_oracle_exact <= c.max_steps_when_oracle_exact,
+            c.max_steps_when_oracle_exact
+                .scored()
+                .is_none_or(|allowed| self.worst_steps_when_oracle_exact <= allowed),
             "{label}: on the {} draws the oracle proved EXACT, our widest \
              enclosure was {} representable steps; the contract allows {}. This \
              is the class a width ratio cannot score, so it is scored absolutely.",
             self.oracle_exact,
             self.worst_steps_when_oracle_exact,
-            c.max_steps_when_oracle_exact
+            c.max_steps_when_oracle_exact.scored().unwrap_or_default()
         );
         assert!(
             c.max_endpoint_steps
+                .scored()
                 .is_none_or(|allowed| self.worst_endpoint_steps <= allowed),
             "{label}: one of our endpoints sat {} representable steps outside the \
              correctly-rounded one, over {} draws where both enclosures were \
@@ -415,17 +472,37 @@ impl Tightness {
              above as covering it.",
             self.worst_endpoint_steps,
             self.endpoint_cases,
-            c.max_endpoint_steps.unwrap_or_default()
+            c.max_endpoint_steps.scored().unwrap_or_default()
         );
         assert!(
-            worst <= c.max_ratio,
+            c.max_ratio.scored().is_none_or(|allowed| worst <= allowed),
             "TIGHTNESS CEILING EXCEEDED for {label}: worst width ratio {worst} vs \
              oracle exceeds {} over n={n} samples. The enclosure got wider; find \
              out why before touching this number, and if the new width is right, \
              re-derive the ceiling rather than restoring the old one.",
-            c.max_ratio
+            c.max_ratio.scored().unwrap_or_default()
         );
     }
+}
+
+/// The unscored dimensions of a [`Ceiling`] and their reasons, for the
+/// census line — so a green run says which halves of the bound were not
+/// checked here, in the same place it says what was measured.
+#[cfg(feature = "oracle-inari")]
+fn unscored(c: &Ceiling) -> String {
+    let mut out = String::new();
+    for (name, why) in [
+        ("ratio", c.max_ratio.why()),
+        ("ratio-floor", c.min_ratio_fraction.why()),
+        ("oracle-exact-steps", c.max_steps_when_oracle_exact.why()),
+        ("endpoint-steps", c.max_endpoint_steps.why()),
+        ("mine-unbounded", c.unbounded_when_oracle_bounded.why()),
+    ] {
+        if !why.is_empty() {
+            out.push_str(&format!(" | UNSCORED {name}: {why}"));
+        }
+    }
+    out
 }
 
 /// The containment core: the oracle's enclosure (which contains truth)
