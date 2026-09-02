@@ -5,6 +5,7 @@
 //! `tessellate`) and by `curved`'s in-crate rows (through the walk
 //! itself), so the bodies both sides measure are one definition. Uses
 //! nothing from `mesh`, which is what lets one file compile in both.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
