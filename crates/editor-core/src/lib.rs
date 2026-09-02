@@ -50,6 +50,7 @@ pub mod refactor;
 pub mod resolve;
 pub mod roots;
 pub mod update;
+mod verbs;
 pub mod witness;
 
 pub use analysis::{
