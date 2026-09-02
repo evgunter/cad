@@ -258,6 +258,15 @@ pub fn boundary_material_sign<T: Decide>(
 /// `NotIsoRectangle` from here carries the `what` the flux lane would
 /// report for the same face.
 ///
+/// **It inherits the extent derivations' limitations, and says so.**
+/// The door decides shape from rim structure against the extremes
+/// each kind derives; where a derivation mis-reads the extent, the
+/// answer is a false "not at an extreme", not a shape verdict. The
+/// torus is the known case (issue 1562): its extent is the FIRST
+/// meridian's stored span, so a meridian carried by two edges — a
+/// split seam — reads half the extent and refuses a face that is a
+/// rectangle. The flux lane refuses that face by the same name.
+///
 /// **A rimless sphere band is a chart rectangle and PASSES.** A lune
 /// between two meridians is `[u0, u1] × [−π/2, π/2]` whatever
 /// `u1 − u0` is; the predicate is vacuous on it (no rim to place) and

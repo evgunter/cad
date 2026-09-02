@@ -1560,7 +1560,10 @@ mod tests {
     /// extreme" — `topo::mass_properties` refuses the same body by the
     /// same name. The door is props' predicate and is not softened
     /// here; the limitation is props' extent derivation and is filed
-    /// against it. Splitting a RIM is fine on both sides.
+    /// against it as issue 1562 — its fix returns these totals to
+    /// (254, 4), and `tests/iso_rectangle_door.rs` pins the limitation
+    /// itself so the flip is visible. Splitting a RIM is fine on both
+    /// sides.
     const TOTAL_REFUSED: usize = 8;
 
     /// **The premise, swept.** Every curved face this build can put in

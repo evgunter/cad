@@ -116,3 +116,63 @@ fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
         "the flux lane refuses the same face for its own Δu = π premise"
     );
 }
+
+/// **Issue 1562's LIMITATION, pinned — not a desired behaviour.** A
+/// donut whose seam meridian (a minor circle) is split in two is still
+/// a chart rectangle, and the walk meshed it before the door ran; but
+/// props' torus arm takes the face's `v`-extent from the FIRST
+/// meridian's stored span (`props::curved::torus_ends`), so a meridian
+/// carried by two edges reads half the extent and the far rim is "not
+/// at an extreme". The door reports what props reports —
+/// `topo::mass_properties` refuses the same body by the same name — and
+/// is not softened for it. The fix to props flips this row and returns
+/// `curved`'s issue-653 sweep from (250 meshed, 8 refused) to (254, 4).
+/// A split RIM is fine on both sides, which is what makes this an
+/// extent limitation and not a shape verdict.
+#[test]
+fn a_split_seam_donut_pins_issue_1562s_torus_extent_limitation() {
+    let tol = Tol::witness();
+    let mut body = donut();
+    // The first edge of the donut is one torus face's seam meridian: a
+    // minor circle, radius 0.5, spanning 0..π.
+    let (seam, edge) = body.edges().next().unwrap();
+    let curve = body
+        .get_curve_geom(edge.curve)
+        .unwrap()
+        .certified()
+        .unwrap();
+    assert!(
+        matches!(curve.carrier(), geom::Curve3::Circle { radius, .. } if (*radius - 0.5).abs() < 1e-12),
+        "the fixture's first edge is the seam minor circle"
+    );
+    let (t0, t1) = curve.params();
+    body.split_edge(seam, t0 + 0.5 * (t1 - t0), tol)
+        .expect("splitting the seam meridian");
+    let got = mesh::tessellate(&body, 0.1, tol).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(TessellateError::UnsupportedCurvedShape {
+                source: PropsError::NotIsoRectangle {
+                    what: "props_rim_level"
+                },
+                ..
+            })
+        ),
+        "issue 1562: the split-seam donut refuses at the door by props' torus extent \
+         limitation; got {got:?}. If this now MESHES, props has fixed its extent \
+         derivation — delete this row and return the issue-653 sweep's totals to (254, 4)"
+    );
+    assert!(
+        matches!(
+            topo::mass_properties(&body, tol),
+            Err(topo::MassPropsError::Face {
+                source: PropsError::NotIsoRectangle {
+                    what: "props_rim_level"
+                },
+                ..
+            })
+        ),
+        "the same body, the same name, through mass_properties"
+    );
+}
