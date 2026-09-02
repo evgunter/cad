@@ -370,10 +370,15 @@ pub enum ReplaceFaceError<T: Real> {
         gap: T,
     },
     /// **The axial door's kind gate**: a face wears a surface that is
-    /// not a plane, cylinder, cone or sphere. The axial reduction reads
-    /// each surface as a line or a circle in the meridian half-plane,
-    /// and a torus or a NURBS is neither — such bodies keep the
-    /// per-chart door and the refusal it gives them.
+    /// not a plane, cylinder, cone, sphere or TORUS. The axial reduction
+    /// reads each surface as a line or a circle in the meridian
+    /// half-plane, and a NURBS or a fitted chart is neither — such
+    /// bodies keep the per-chart door and the refusal it gives them.
+    ///
+    /// A coaxial torus IS one of the kinds: its meridian is the circle
+    /// centred `(R, h_c)`, the sphere's circle centred `(0, h_c)` with
+    /// one more number. An off-axis torus refuses at the axis gate
+    /// below, not here.
     TogetherAxialUnsupported {
         /// The face.
         face: FaceKey,
@@ -382,8 +387,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The axial door's axis gate**: a face's surface is one of the
     /// door's kinds but is not a surface of revolution about the body's
-    /// axis — a cylinder skew to it, a sphere centred off it, a plane
-    /// cutting it obliquely. The meridian reduction has no coordinates
+    /// axis — a cylinder skew to it, a sphere or torus centred off it, a
+    /// plane cutting it obliquely. The meridian reduction has no coordinates
     /// for such a corner, so it refuses rather than solving in a frame
     /// the geometry does not live in.
     TogetherNotAxial {
