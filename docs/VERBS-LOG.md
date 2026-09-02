@@ -2956,3 +2956,18 @@ RE-DISPATCHED (same unit, same fable arm per the standing
 VERBS-7 slot-4 assignment; elbow rows re-scoped to the measured
 capability record; the barrel/teapot rows now assert SUCCESS
 against TORAX's pinned closed forms).
+## ORDINAL 111 CLAIMED — C5ARMS PR-1 dual (2026-09-02)
+
+The resumed unit delivered with NO STOP: plane_torus_section
+(MeridianCircles / the demanded ConcentricCircles /
+TangentCircle-as-classification-data / Empty; five pt_* trileans;
+DegenerateTorus guard; spiric and Villarceau named in the general
+rung refusals); the (Plane,Torus) table arm flips Closed +
+implemented; the opening measurement found the elbow ALREADY at
+the rim door (TogetherAxialCorner — the C5 gate no longer its
+blocker) and the barrel/teapot hollows SUCCEED flag-independent
+(TORAX's axial door never consults route); the direct door moved
+exactly one refusal deeper under the scratch flip (the
+ReanchorOffCarrier family at 0.83mm, re-pinned as row 4's
+replacement); refusal-text instance 7 recorded spec-directed.
+Dual claim to main at dispatch; parity per the draw line.

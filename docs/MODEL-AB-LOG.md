@@ -2919,3 +2919,7 @@ VERBS-TORAX review ordinal fixed at dispatch (2026-09-01, PR
 band; the #1095 shape, tiny docs PR to main at dispatch). v6
 DUAL, parity byte 105 ⇒ R1 FABLE + R2 OPUS, concurrent, briefs
 symmetric. Sample number AT MERGE in main's order. Row at merge.
+VERBS-C5ARMS PR-1 review ordinal fixed at dispatch (2026-09-02,
+PR #1577 open — frozen head `d4e67f57a`): **ordinal 111** (VERBS
+band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
+Sample number AT MERGE in main's order. Row at merge.
