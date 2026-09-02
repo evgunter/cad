@@ -177,66 +177,85 @@ fn every_suite_file_is_aggregated() {
 /// # What the tokens are, per file
 ///
 /// Roles, not line numbers: lines move, so every citation in this
-/// crate's ε inventory names a target instead. A **hand-off** passes
-/// `eps` on; a **terminal read** compares or adds it.
+/// crate's ε inventory names a target instead. A **carrier** passes
+/// the band on (a parameter, a field, a hand-off); a **terminal read**
+/// is one of `Eps`'s four operations, and the operation column is
+/// the inventory.
 ///
-/// - **`tessellate.rs` — 3.** ε ENTERS the crate here and nowhere
-///   else: `Tol::witness().get().eps` (two tokens on one line) and the
-///   `Tol` field initialiser.
-/// - **`sizing.rs` — 1.** The `Tol::eps` field declaration. This
-///   module computes every step and count in the crate and reads ε in
-///   none of them.
-/// - **`curved.rs` — 6.** Two hand-offs out of `Tol`
-///   (`walk::loop_polygon`, `require_swept_rectangle`), two `eps`
-///   parameters, one hand-off to `entries_off_bbox`, and
+/// - **`tessellate.rs` — 2 carriers, no reads.** ε ENTERS the crate
+///   here and nowhere else: `Eps::at(tol)` bound to a local, and the
+///   `SizingTols` field initialiser. 1 + 1 = 2.
+/// - **`sizing.rs` — 2 carriers, no reads.** The `SizingTols::eps`
+///   field declaration and the `tol.eps()` inside `Eps::at` — the
+///   crate's ONE raw read of `Tol::eps()`, which is the seam and is
+///   pinned here so a second one moves this number. The four
+///   operations are DEFINED in this file and called in none of it, so
+///   its read column is empty; a definition is not a read. 1 + 1 = 2.
+/// - **`curved.rs` — 6 carriers, no reads.** Two hand-offs out of
+///   `SizingTols` (`walk::loop_polygon`, `require_swept_rectangle`),
+///   two `eps` parameters, one hand-off to `entries_off_bbox`, and
 ///   `entries_off_bbox`'s own single `gap_is_noise` call — the banded
 ///   swept-rectangle domain guard, which REFUSES a face and moves no
-///   coordinate. 2 + 2 + 1 + 1 = 6. It was **7** until #887 gave the
-///   guard a degenerate-lever arm and the two axes' calls became one
-///   closure applied twice; the read's KIND did not change, and the
-///   guard is still ONE of the four `gap_is_noise` call sites below.
-/// - **`trimmed.rs` — 1.** `d / (bound + tol.eps)` in the deviation
-///   probe. **Not a bar**: ε is a continuous addend in a denominator,
-///   so it scales `worst_ratio` — a `pub` measurement field — at every
-///   call, monotonically. The block is absent from a default build
-///   (`budget` feature). Counted after a cut since #887, which gave
-///   the file its first test module; the total did not move, because
-///   that module reads no ε.
-/// - **`walk.rs` — 14.** **Four** `eps` parameters (`gap_is_noise`,
-///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
-///   hand-offs (`closing_column`'s and `loop_polygon`'s two
-///   `gap_is_noise` calls, `loop_polygon`'s calls to
-///   `iso_side_starts` and `closing_column`), and **five** terminal
-///   reads: `gap_is_noise`'s `gap * lever < eps` (one predicate, four
-///   call sites — the domain guard above plus three `debug_assert`
-///   detectors that gate nothing), `iso_side_starts`' `radial > eps`,
-///   `pole_index`'s `norm() <= eps` (the pole-membership find — the
-///   ONE home both `pole_v` and the issue-896 guard consume),
-///   `loop_polygon`'s `coincident_declared` closure, whose `d <= eps`
-///   asks whether two DECLARED vertices of one loop are the same
-///   point, and the issue-896 guard's own `gap <= eps`, asking
-///   whether a junction × pole pair the classification passes over
-///   coincides.
-///   4 + 5 + 5 = 14.
+///   coordinate. 2 + 2 + 1 + 1 = 6. The guard's terminal read is
+///   `gap_is_noise`'s, counted in `walk.rs`: this file hands the band
+///   to a predicate rather than comparing against it, which is why it
+///   carries six carriers and no operation.
+/// - **`trimmed.rs` — 1 carrier, 1 `pad`.** `d / tol.eps.pad(bound)`
+///   in the deviation probe. **Not a bar**: ε is a continuous addend
+///   in a denominator, so it scales `worst_ratio` — a `pub`
+///   measurement field — at every call, monotonically. The block is
+///   absent from a default build (`budget` feature). The one token and
+///   the one call are the same expression.
+/// - **`walk.rs` — 14 carriers, 5 reads (1 `separates`, 3
+///   `coincident`, 1 `dominates`).** **Four** `eps` parameters
+///   (`gap_is_noise`, `closing_column`, `iso_side_starts`,
+///   `loop_polygon`), **five** hand-offs (`closing_column`'s and
+///   `loop_polygon`'s two `gap_is_noise` calls, `loop_polygon`'s calls
+///   to `iso_side_starts` and `closing_column`), and **five** terminal
+///   reads: `gap_is_noise`'s `dominates(gap * lever)` (one predicate,
+///   four call sites — the domain guard above plus three
+///   `debug_assert` detectors that gate nothing), `iso_side_starts`'
+///   `separates(radial)`, `pole_index`'s `coincident(norm)` (the
+///   pole-membership find — the ONE home both `pole_v` and the
+///   issue-896 guard consume), `loop_polygon`'s
+///   `coincident_declared` closure, whose `coincident(d)` asks
+///   whether two DECLARED vertices of one loop are the same point,
+///   and the issue-896 guard's own `coincident(gap)`, asking whether
+///   a junction × pole pair the classification passes over coincides.
+///   4 + 5 + 5 = 14 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
-///   It was **12** until `coincident_declared` landed and **13**
-///   until the issue-896 guard did. Both new reads **gate nothing
-///   and move no coordinate**: each is the condition of a
-///   `debug_assert` (D2 addendum row 5), so its only effect is to
-///   panic. Each CAPTURES `eps` rather than taking it as a
-///   parameter, which is why only the terminal-read term moved.
+/// Nine carrier sites and **six terminal reads across the crate** —
+/// `walk.rs`'s five plus `trimmed.rs`'s `pad`, which is the whole of
+/// the read column and sums to the same six the operation totals do
+/// (1 `separates` + 3 `coincident` + 1 `dominates` + 1 `pad`).
 ///
-/// Nine consumer sites, six terminal reads across the crate. **The
-/// per-file totals above are pinned; every other number in this doc is
-/// hand-written and is not.** They are checkable — each file's
-/// breakdown sums to its pinned total, which is the arithmetic a
+/// # Why the operation column is the pin that matters
+///
+/// The carrier column is a token walk and always was. The operation
+/// column is not: `Eps` holds its band in a private field with no
+/// accessor, so **a `mesh` read of ε is one of these four calls or it
+/// does not compile**. What that leaves for a textual row is the one
+/// thing the type cannot forbid — a raw f64 re-extracted through a new
+/// accessor on `Eps` itself, or a second `Tol::eps()`. The second is
+/// the easy half: it spells `eps`, so it moves the carrier count of
+/// whichever file writes it, and `sizing.rs` is pinned at 2 because
+/// the seam lives there. The first is hole 1 below, which states
+/// which column catches it, having planted it.
+/// A read that ports to no operation
+/// would have to be recorded at its site with the reason; there is no
+/// such read in the crate today, and the read column being exactly
+/// the crate's terminal-read count is the statement of that.
+///
+/// **The per-file totals above are pinned; every other number in this
+/// doc is hand-written and is not.** They are checkable — each file's
+/// breakdown sums to its pinned totals, which is the arithmetic a
 /// reader can run and the reason it is written that way. An earlier
 /// draft of `walk.rs`'s line said *"three parameters, four hand-offs
 /// and three terminal reads"* and summed to 10 against a pinned 12: a
 /// hand-written narrative that did not add up, in the doc of the pin
 /// that replaced a hand-written list for going stale.
 ///
-/// **That has now happened twice.** #887 moved `curved.rs` from 7 to
+/// **That has happened twice.** #887 moved `curved.rs` from 7 to
 /// 6, re-pinned the total, and left this doc's breakdown of it summing
 /// to the old number — the pin stayed GREEN while its own account of
 /// what it counted went false, which is the failure mode the pin
@@ -247,15 +266,39 @@ fn every_suite_file_is_aggregated() {
 ///
 /// # What this cannot match, and it is a work order
 ///
-/// 1. **A read that does not spell `eps`.** `Tol::witness().get().eps`
-///    bound to another name, or ε reached through a helper that
-///    already applied it, is invisible here. The mechanism that would
-///    close that is a TYPE — ε as a newtype whose only operations are
-///    named — and it spans `walk`, `curved`'s guard bodies, `trimmed`,
-///    `tessellate` and `sizing` at once. Filed as **issue #881**.
-/// 2. **Which KIND of read it is.** This row reds when the inventory
-///    moves; it cannot say whether the new read refuses, classifies or
-///    scales. That judgement is the reader's, at the site.
+/// 1. **A read that does not spell `eps` — retired as a hole, and it
+///    was closed by a MECHANISM rather than by this row.** ε bound to
+///    another name is now an `Eps`, and an `Eps` has no accessor, so
+///    a read of it is one of the four operations the second column
+///    counts. The way back out is a raw accessor written on `Eps`
+///    itself, and both of its halves are pinned: the accessor UNUSED
+///    is dead code and reds the lint gate, and USED it must name the
+///    band at its call site, which moves that file's carrier count —
+///    while a raw comparison put where an operation stood moves the
+///    read count down. Measured, not asserted: planting
+///    `if d <= eps.raw()` over `loop_polygon`'s `coincident` call reds
+///    this row on `walk.rs`'s read column (`[1, 3, 1, 0]` →
+///    `[1, 2, 1, 0]`). What that plant also showed is that the CARRIER
+///    column does not see the accessor's own body — `fn raw(self) ->
+///    f64` in `sizing.rs` spells no `eps` — which is why the READ
+///    column, not the carrier column, is this row's load-bearing half.
+///    **The residue is UFCS**: `Eps::coincident(band, x)`, with the
+///    band held under a name that is not `eps`, is a real read that
+///    neither column sees — the read column matches `.coincident(`
+///    with a leading dot, and the carrier column matches the
+///    identifier `eps`. Nothing in the crate is written that way and
+///    nothing checks that it stays so; it is recorded here because a
+///    bypass hunt should start from the known gap rather than from
+///    scratch. Widening the read column to the bare method name would
+///    fire on this row's own prose, which is the trade not taken.
+/// 2. **Which KIND of read it is — no longer the reader's alone.** The
+///    operation column says whether a read separates, identifies,
+///    dominates or pads, because the caller had to pick one to
+///    compile. What it still cannot say is whether the KIND CHOSEN is
+///    the right one: `coincident` where `dominates` was meant differs
+///    only at the band edge, and no count can see that. That judgement
+///    is the reader's, at the site, and `Eps`'s own rows pin the
+///    edges it turns on.
 /// 3. **The test half of each file** — deliberately, because a test
 ///    that reads ε is not a place ε reaches the mesh. **The cut is
 ///    crude and its failure modes are not symmetric.** It is the first
@@ -301,16 +344,19 @@ fn every_suite_file_is_aggregated() {
 #[test]
 #[allow(clippy::expect_used)]
 fn the_eps_inventory_is_pinned() {
-    const PINNED: [(&str, usize); 5] = [
-        ("curved.rs", 6),
-        ("sizing.rs", 1),
-        ("tessellate.rs", 3),
-        ("trimmed.rs", 1),
-        ("walk.rs", 14),
+    // The four operations, in the order the read column reports them.
+    const OPS: [&str; 4] = ["separates", "coincident", "dominates", "pad"];
+    // (file, ε CARRIER tokens, one READ count per op above).
+    const PINNED: [(&str, usize, [usize; 4]); 5] = [
+        ("curved.rs", 6, [0, 0, 0, 0]),
+        ("sizing.rs", 2, [0, 0, 0, 0]),
+        ("tessellate.rs", 2, [0, 0, 0, 0]),
+        ("trimmed.rs", 1, [0, 0, 0, 1]),
+        ("walk.rs", 14, [1, 3, 1, 0]),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let needle = concat!("e", "ps");
-    let mut found: Vec<(String, usize)> = Vec::new();
+    let mut found: Vec<(String, usize, [usize; 4])> = Vec::new();
     for path in test_utils::source::rust_sources(&src) {
         let name = path
             .strip_prefix(&src)
@@ -331,8 +377,8 @@ fn the_eps_inventory_is_pinned() {
             .collect::<Vec<_>>()
             .join("\n");
         // Identifier occurrences, not substrings: `steps` and
-        // `grid_steps` are not ε reads and outnumber the real ones.
-        let reads = prod
+        // `grid_steps` are not ε carriers and outnumber the real ones.
+        let carriers = prod
             .match_indices(needle)
             .filter(|(i, _)| {
                 let before = prod[..*i].chars().next_back();
@@ -341,20 +387,42 @@ fn the_eps_inventory_is_pinned() {
                 !ident(before) && !ident(after)
             })
             .count();
-        if reads > 0 || PINNED.iter().any(|(pinned, _)| *pinned == name) {
-            found.push((name, reads));
+        // CALLS, not definitions: the leading `.` is what separates
+        // `eps.coincident(d)` from `fn coincident(` in `sizing.rs`,
+        // and it is why the file that DEFINES the four operations
+        // reports none of them. Prose cannot reach this either — the
+        // walk is over `code_only`, and `dominates` is a word this
+        // crate's comments use.
+        let reads = OPS.map(|op| prod.matches(&format!(".{op}(")).count());
+        if carriers > 0
+            || reads.iter().any(|n| *n > 0)
+            || PINNED.iter().any(|(pinned, _, _)| *pinned == name)
+        {
+            found.push((name, carriers, reads));
         }
     }
     found.sort();
-    let pinned: Vec<(String, usize)> = PINNED
+    let pinned: Vec<(String, usize, [usize; 4])> = PINNED
         .iter()
-        .map(|(path, reads)| ((*path).to_string(), *reads))
+        .map(|(path, carriers, reads)| ((*path).to_string(), *carriers, *reads))
         .collect();
     assert_eq!(
         found, pinned,
-        "the ε inventory moved. That is not a failure to silence: a read was added, \
-         removed or renamed, and `sizing::SizingTols`'s ledger plus this row's per-file \
-         breakdown both owe an update. Classify the new read at its site — does it \
-         REFUSE, CLASSIFY, or SCALE a number? — then re-pin."
+        "the ε inventory moved. That is not a failure to silence. A moved CARRIER \
+         count means the band reaches a new place, or a raw f64 was extracted from \
+         `Eps` — `sizing::SizingTols`'s ledger and this row's per-file breakdown both \
+         owe an update. A moved READ count means a terminal read was added, removed \
+         or re-kinded: the operation the caller picked IS its classification, so \
+         check the band edge is the one that read wants (`Eps`'s own rows pin the \
+         edges), then re-pin."
+    );
+    // The crate's terminal reads and its named operations are the same
+    // six things, which is the whole claim: `Eps`'s methods ARE the
+    // inventory. Stated as a total so the per-file rows above cannot
+    // drift from the sentence in this row's docs.
+    let total: usize = found.iter().flat_map(|(_, _, r)| r.iter()).sum();
+    assert_eq!(
+        total, 6,
+        "the crate has six terminal ε reads; the operation columns must sum to them"
     );
 }

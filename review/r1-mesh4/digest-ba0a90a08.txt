@@ -1,0 +1,945 @@
+== band default mesh ==
+test errors::absurdly_fine_delta_overflows_typed ... ok
+test errors::infinite_delta_is_refused ... ok
+test errors::negative_delta_is_refused ... ok
+test errors::nurbs_surface_is_refused ... ok
+test errors::poisoned_delta_is_refused ... ok
+test errors::tessellate_error_display_names_its_content_not_its_struct ... ok
+test errors::zero_delta_is_refused ... ok
+test every_suite_file_is_aggregated ... ok
+test exact_vs_mesh::exact_volume_delta_consistent_with_mesh ... ok
+test fitted_refusals::a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk ... ok
+test genus::donut_faces_share_one_torus_surface ... ok
+test genus::donut_tessellates_the_torus ... ok
+test genus::washer_tessellates_full_period_patches ... ok
+test issue111_az_needle::survives_az_counter_hole_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_counter_through_rederived_frame_deterministic ... ok
+test issue111_az_needle::survives_az_plain_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_stencil_tessellates_watertight ... ok
+test issue1362_band_placement::a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin ... ok
+test issue1362_band_placement::the_band_survives_every_placement_ratio_the_doors_admit ... ok
+test issue303_signed_volume_recentring::huge_offset_volume_through_public_oracle ... ok
+test issue303_signed_volume_recentring::translation_invariance_1e3_1e6 ... ok
+test issue555_subfloor_cap::ringed_and_concentric_charts_no_longer_refuse_sub_floor ... ok
+test issue555_subfloor_cap::subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta ... ok
+test issue555_subfloor_cap::the_slit_annulus_cap_survives_the_written_zero ... ok
+test issue555_subfloor_cap::the_written_zero_keeps_the_rebuild_bit_identical ... ok
+test issue685_nu1_sizing::an_apex_free_single_column_cone_patch_is_the_same_strip ... ok
+test issue685_nu1_sizing::the_pi6_cone_wedge_is_pinned_at_the_measured_deltas ... ok
+test issue896_pole_guard::a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars ... ok
+test issue896_pole_guard::the_nearest_admitted_rim_meshes_watertight_with_the_guard_quiet ... ok
+test m5_pr11_trimmed::missing_pcurve_caches_refuse_typed ... ok
+test m5_pr11_trimmed::shared_edges_consume_one_chord_set ... ok
+test m5_pr11_trimmed::tilted_halves_tessellate_watertight_across_the_delta_schedule ... ok
+test m5_pr11_trimmed::trimmed_lane_is_bit_deterministic ... ok
+test m5_s10_face_sense::tessellation_follows_the_band_sense ... ok
+test m5_s11_concave_sense::hole_plate_tessellates_watertight_and_converges ... ok
+test m5_s11_concave_sense::notched_body_tessellates_watertight_and_converges ... ok
+test m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise ... ok
+test m7_nurbs_trimmed::loft_prism_tessellates_watertight_and_volume_sane ... ok
+test m7_nurbs_trimmed::nurbs_tessellation_is_deterministic ... ok
+test m7_nurbs_trimmed::swept_elbow_tessellates_watertight_and_volume_sane ... ok
+test newell_probes::position_noise_subfloor_class_is_closed ... ok
+test newell_probes::probe_a_anchor_antipodal_to_far ... ok
+test newell_probes::probe_b_far_tie_determinism ... ok
+test newell_probes::probe_c_needle_extent_ratio ... ok
+test newell_probes::probe_d_huge_offset_tiny_face ... ok
+test newell_probes::probe_e2_collinear_midpoint_on_diagonal ... ok
+test newell_probes::probe_e_noise_scale_sweep ... ok
+test newell_probes::probe_slit_washer_rebuild ... ok
+test prisms::holed_prism_tessellates_with_rings ... ok
+test prisms::l_prism_tessellates_exactly ... ok
+test prisms::rounded_prism_tessellates_cylinder_patches ... ok
+test probe_review::z1_fixtures_still_tessellate_with_the_falsifier_gated_out ... ok
+test probe_review::z2_detached_pcurve_refuses_typed ... ok
+test probe_review::z3_fine_nurbs_vs_coarse_planar_neighbor_watertight ... ok
+test probe_review::z5_positions_hash_stamp ... ok
+test profile_overrides::dev_profile_still_optimizes_spade_and_mesh ... ok
+test profile_overrides::scanner_fires_on_planted_violations ... ok
+test r1_probe_bool_route::r1_probe_boolean_near_tangent_pole_cut ... ok
+test r1_probe_hash::r1_probe_corpus_hashes ... ok
+test r1_probes_issue1362::r1_hunts_a_near_origin_input_where_the_anchor_flips_a_column ... ok
+test r1_probes_issue1362::r1_looks_for_an_end_to_end_fixture_that_clears_the_door_and_fails_the_fold ... ok
+test r1_probes_issue1362::r1_reproduces_the_direction_drift_table ... ok
+test r1_probes_issue1362::r1_reproduces_the_whole_two_pi_branch_flip ... ok
+test r1_probes_issue1362::r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit ... ok
+test r1_probes_issue1362::r1_the_unwrap_near_tie_is_a_real_two_pi_cliff ... ok
+test r1_probes_issue1362::r1_the_wrap_makes_the_fold_anchor_independent_for_any_point_list ... ok
+test r1_probes_issue303::r1_bbox_extremes ... ok
+test r1_probes_issue303::r1_dyadic_box_hides_defect ... ok
+test r1_probes_issue303::r1_e2e_l_prism_near_far ... ok
+test r1_probes_issue303::r1_open_mesh_answer_changed ... ok
+test r2_bool_door::r2_bool_door_near_pole ... ok
+test r2_bytes::r2_byte_stability_report ... ok
+test r2_cert9_probes::p1_open_mesh_answer_changed_by_the_recentring ... ok
+test r2_cert9_probes::p2_dyadic_box_hides_the_prefix_defect ... ok
+test r2_cert9_probes::p3_anchor_arithmetic_at_extreme_placements ... ok
+test r2_cert9_probes::p4_e2e_l_shaped_body_near_and_far ... ok
+test r2_cert9_probes::p5_sweep_placeholder ... ok
+test r2_cert9_probes::p6_reproduce_the_huge_offset_red_digit ... ok
+test r2_cert9_probes::p7_early_return_swallows_a_corrupt_mesh ... ok
+test r2_mesh1_probes::r2_e2e_placed_ball_volume_is_the_balls ... ok
+test r2_mesh1_probes::r2_ordinary_placements_agree_between_anchors ... ok
+test r2_mesh1_probes::r2_the_branch_flip_reproduces ... ok
+test r2_mesh1_probes::r2_the_drift_table_reproduces ... ok
+test r2_mesh2_probes::r2_a_ring_vertex_on_the_anchor_far_diagonal_still_refuses ... ok
+test r2_mesh2_probes::r2_annular_cap_with_subfloor_noise ... ok
+test r2_mesh2_probes::r2_e2e_nonconvex_cap_at_subfloor_noise ... ok
+test r2_mesh2_probes::r2_slit_annulus_at_several_proportions ... ok
+test r2_mesh2_probes::r2_what_mitigate_underflow_actually_snaps ... ok
+test r2_split_door::r2_split_door_near_pole ... ok
+test review_m2_pr6_cert_oracle::survives_backref_integrity_and_patch_separability ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_many_band_dome ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_megaphone_and_silo ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_mirror_nappe_cones ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_near_pole_cap_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_stock_bodies_coarse_and_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_tall_thin_cylinder ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_accepts_valid_tetrahedron ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_degenerate_sliver ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_double_collapsed_fan_fallout ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_duplicated_triangle ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_flipped_winding ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_index_out_of_range ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_open_fan ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_t_junction ... ok
+test review_m2_pr6_checkmesh_audit::survives_concentric_slit_annuli ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_segments_shared_by_both_wall_sides ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_weld_no_bitwise_duplicate_positions ... ok
+test review_m2_pr6_checkmesh_audit::survives_washer_at_very_coarse_delta ... ok
+test review_m2_pr6_determinism::print_dump_hashes ... ignored
+test review_m2_pr6_determinism::survives_byte_identical_rebuild_across_bodies ... ok
+test review_m2_pr6_determinism::survives_canonically_equal_profile_constructions ... ok
+test review_m2_pr6_determinism::survives_delta_sweep_at_fixed_eps_monotone_sane ... ok
+test review_m2_pr6_determinism::survives_eps_row_bitwise_independence ... ok
+test review_m2_pr6_determinism::survives_near_axis_vertex_arc_endpoint ... ok
+test review_m2_pr6_errors::survives_certificate_exceeded_unreachable_over_body_sweep ... ok
+test review_m2_pr6_errors::survives_delta_fine_but_sane_still_tessellates ... ok
+test review_m2_pr6_errors::survives_denormal_delta_typed_overflow_on_curved_bodies ... ok
+test review_m2_pr6_errors::survives_negative_zero_delta_refused ... ok
+test review_m2_pr6_errors::survives_self_intersecting_profile_never_reaches_spade ... ok
+test review_m2_pr6_errors::survives_torus_wedge_outside_pole_window ... ok
+test review_m2_pr6_walk_shapes::survives_axis_touching_wedge_angles ... ok
+test review_m2_pr6_walk_shapes::survives_cone_wedges_apex_junctions_below_three_half_pi ... ok
+test review_m2_pr6_walk_shapes::survives_many_segment_dome_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_mirror_nappe_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap ... ok
+test review_m2_pr6_walk_shapes::survives_outward_shell_assumption_via_public_api ... ok
+test review_m2_pr6_walk_shapes::survives_sphere_wedges_pole_to_pole_bands ... ok
+test review_m2_pr6_walk_shapes::survives_wedge_angles_near_pi_and_extremes ... ok
+test review_m3_pr1_mesh::tessellate_refuses_null_scaffold_typed ... ok
+test revolves::apex_wedges_never_size_to_a_single_azimuth_column ... ok
+test revolves::ball_pole_fan_structure ... ok
+test revolves::ball_tessellates_with_pole_fans ... ok
+test revolves::cone_tessellates_with_apex_fan ... ok
+test revolves::sphere_pole_faces_are_floored_too_though_they_never_needed_it ... ok
+test the_eps_inventory_is_pinned ... ok
+test wedge::axis_wedge_tessellates_with_axis_edge ... ok
+test wedge::wedge_tessellates_theta_patches ... ok
+HASH ball d=0.004: pos abd949e1f0f023c8 tri e5e63930653de8ca bnd d289e21642b48625
+HASH ball d=0.1: pos 632c7ec394b6bb32 tri 044b7ed6a04acd6d bnd d56485739c843265
+HASH band d=0.004: pos 6dba3e61d225a9ae tri b6fd5938c2faceec bnd 4b757b107e6000d2
+HASH band d=0.1: pos 9b4a37c7341e285e tri 8ca10c331113ac1d bnd 1e97bef0009c68a4
+HASH cone d=0.004: pos 2947bcfefdf10578 tri fc5f2a65a0f9f9ce bnd 4d3c26ca8197fce5
+HASH cone d=0.1: pos e8c95312d52cbb57 tri 50eaf23aa9c391e1 bnd 309c39753f35f9a5
+Z5 HASH f7558e2f9419047e positions=1486
+ball d=0.004 n=1508 t=3012 => d1fb7a63858a53ab
+ball d=0.02 n=312 t=620 => b99bceb598e7265f
+ball d=0.1 n=60 t=116 => a66436e99ebc255a
+band_0.1 d=0.004 n=1194 t=2388 => b53f07717a45b634
+band_0.1 d=0.02 n=257 t=514 => d977f692caed161a
+band_0.1 d=0.1 n=66 t=132 => b2cdd73a17bf0d57
+cone d=0.004 n=580 t=1156 => 04018d3ae76684c8
+cone d=0.02 n=114 t=224 => 1ac6f4ccc83faf44
+cone d=0.1 n=28 t=52 => 23bb3a1389a0bfab
+donut d=0.004 n=178084 t=356168 => 82c6a3bb72d989b4
+donut d=0.02 n=35910 t=71820 => b7a7825f9157ae8d
+donut d=0.1 n=7310 t=14620 => b1eafcc6d5e6c1de
+l_prism d=0.004 n=12 t=20 => f251e5deaf001749
+l_prism d=0.02 n=12 t=20 => f251e5deaf001749
+l_prism d=0.1 n=12 t=20 => f251e5deaf001749
+sphere_wedge d=0.004 n=509 t=1014 => 86d137d3310549cf
+sphere_wedge d=0.02 n=108 t=212 => 0b2d953e0c9ebb92
+sphere_wedge d=0.1 n=25 t=46 => f5b772da75cf7572
+washer d=0.004 n=242 t=484 => dfcbf449aeea78b9
+washer d=0.02 n=110 t=220 => 071de27223388b25
+washer d=0.1 n=50 t=100 => 875cbafc3b1ffc25
+test result: ok. 136 passed; 0 failed; 1 ignored
+== band default poleguard ==
+test poleguard::a_junction_inside_the_pole_band_cannot_enter_through_the_import_door ... ok
+test poleguard::the_halfcap_eps7_witness_is_band_shaped ... ok
+test poleguard::the_span_route_argument_assumes_k_above_two_pi ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored
+== band default budget ==
+test budget_meter::a_disarmed_meter_records_nothing ... ok
+test budget_meter::arming_the_meter_does_not_change_the_mesh ... ok
+test budget_meter::every_nurbs_face_is_measured_once_and_by_key ... ok
+test budget_meter::the_deviation_pass_samples_and_stays_under_its_certificates ... ok
+test errors::absurdly_fine_delta_overflows_typed ... ok
+test errors::infinite_delta_is_refused ... ok
+test errors::negative_delta_is_refused ... ok
+test errors::nurbs_surface_is_refused ... ok
+test errors::poisoned_delta_is_refused ... ok
+test errors::tessellate_error_display_names_its_content_not_its_struct ... ok
+test errors::zero_delta_is_refused ... ok
+test every_suite_file_is_aggregated ... ok
+test exact_vs_mesh::exact_volume_delta_consistent_with_mesh ... ok
+test fitted_refusals::a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk ... ok
+test genus::donut_faces_share_one_torus_surface ... ok
+test genus::donut_tessellates_the_torus ... ok
+test genus::washer_tessellates_full_period_patches ... ok
+test issue111_az_needle::survives_az_counter_hole_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_counter_through_rederived_frame_deterministic ... ok
+test issue111_az_needle::survives_az_plain_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_stencil_tessellates_watertight ... ok
+test issue1362_band_placement::a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin ... ok
+test issue1362_band_placement::the_band_survives_every_placement_ratio_the_doors_admit ... ok
+test issue303_signed_volume_recentring::huge_offset_volume_through_public_oracle ... ok
+test issue303_signed_volume_recentring::translation_invariance_1e3_1e6 ... ok
+test issue555_subfloor_cap::ringed_and_concentric_charts_no_longer_refuse_sub_floor ... ok
+test issue555_subfloor_cap::subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta ... ok
+test issue555_subfloor_cap::the_slit_annulus_cap_survives_the_written_zero ... ok
+test issue555_subfloor_cap::the_written_zero_keeps_the_rebuild_bit_identical ... ok
+test issue685_nu1_sizing::an_apex_free_single_column_cone_patch_is_the_same_strip ... ok
+test issue685_nu1_sizing::the_pi6_cone_wedge_is_pinned_at_the_measured_deltas ... ok
+test issue896_pole_guard::a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars ... ok
+test issue896_pole_guard::the_nearest_admitted_rim_meshes_watertight_with_the_guard_quiet ... ok
+test m5_pr11_trimmed::missing_pcurve_caches_refuse_typed ... ok
+test m5_pr11_trimmed::shared_edges_consume_one_chord_set ... ok
+test m5_pr11_trimmed::tilted_halves_tessellate_watertight_across_the_delta_schedule ... ok
+test m5_pr11_trimmed::trimmed_lane_is_bit_deterministic ... ok
+test m5_s10_face_sense::tessellation_follows_the_band_sense ... ok
+test m5_s11_concave_sense::hole_plate_tessellates_watertight_and_converges ... ok
+test m5_s11_concave_sense::notched_body_tessellates_watertight_and_converges ... ok
+test m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise ... ok
+test m7_nurbs_trimmed::loft_prism_tessellates_watertight_and_volume_sane ... ok
+test m7_nurbs_trimmed::nurbs_tessellation_is_deterministic ... ok
+test m7_nurbs_trimmed::swept_elbow_tessellates_watertight_and_volume_sane ... ok
+test newell_probes::position_noise_subfloor_class_is_closed ... ok
+test newell_probes::probe_a_anchor_antipodal_to_far ... ok
+test newell_probes::probe_b_far_tie_determinism ... ok
+test newell_probes::probe_c_needle_extent_ratio ... ok
+test newell_probes::probe_d_huge_offset_tiny_face ... ok
+test newell_probes::probe_e2_collinear_midpoint_on_diagonal ... ok
+test newell_probes::probe_e_noise_scale_sweep ... ok
+test newell_probes::probe_slit_washer_rebuild ... ok
+test prisms::holed_prism_tessellates_with_rings ... ok
+test prisms::l_prism_tessellates_exactly ... ok
+test prisms::rounded_prism_tessellates_cylinder_patches ... ok
+test probe_review::z1_per_triangle_certificate_falsification ... ok
+test probe_review::z2_detached_pcurve_refuses_typed ... ok
+test probe_review::z3_fine_nurbs_vs_coarse_planar_neighbor_watertight ... ok
+test probe_review::z5_positions_hash_stamp ... ok
+test profile_overrides::dev_profile_still_optimizes_spade_and_mesh ... ok
+test profile_overrides::scanner_fires_on_planted_violations ... ok
+test r1_probe_bool_route::r1_probe_boolean_near_tangent_pole_cut ... ok
+test r1_probe_hash::r1_probe_corpus_hashes ... ok
+test r1_probes_issue1362::r1_hunts_a_near_origin_input_where_the_anchor_flips_a_column ... ok
+test r1_probes_issue1362::r1_looks_for_an_end_to_end_fixture_that_clears_the_door_and_fails_the_fold ... ok
+test r1_probes_issue1362::r1_reproduces_the_direction_drift_table ... ok
+test r1_probes_issue1362::r1_reproduces_the_whole_two_pi_branch_flip ... ok
+test r1_probes_issue1362::r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit ... ok
+test r1_probes_issue1362::r1_the_unwrap_near_tie_is_a_real_two_pi_cliff ... ok
+test r1_probes_issue1362::r1_the_wrap_makes_the_fold_anchor_independent_for_any_point_list ... ok
+test r1_probes_issue303::r1_bbox_extremes ... ok
+test r1_probes_issue303::r1_dyadic_box_hides_defect ... ok
+test r1_probes_issue303::r1_e2e_l_prism_near_far ... ok
+test r1_probes_issue303::r1_open_mesh_answer_changed ... ok
+test r2_bool_door::r2_bool_door_near_pole ... ok
+test r2_bytes::r2_byte_stability_report ... ok
+test r2_cert9_probes::p1_open_mesh_answer_changed_by_the_recentring ... ok
+test r2_cert9_probes::p2_dyadic_box_hides_the_prefix_defect ... ok
+test r2_cert9_probes::p3_anchor_arithmetic_at_extreme_placements ... ok
+test r2_cert9_probes::p4_e2e_l_shaped_body_near_and_far ... ok
+test r2_cert9_probes::p5_sweep_placeholder ... ok
+test r2_cert9_probes::p6_reproduce_the_huge_offset_red_digit ... ok
+test r2_cert9_probes::p7_early_return_swallows_a_corrupt_mesh ... ok
+test r2_mesh1_probes::r2_e2e_placed_ball_volume_is_the_balls ... ok
+test r2_mesh1_probes::r2_ordinary_placements_agree_between_anchors ... ok
+test r2_mesh1_probes::r2_the_branch_flip_reproduces ... ok
+test r2_mesh1_probes::r2_the_drift_table_reproduces ... ok
+test r2_mesh2_probes::r2_a_ring_vertex_on_the_anchor_far_diagonal_still_refuses ... ok
+test r2_mesh2_probes::r2_annular_cap_with_subfloor_noise ... ok
+test r2_mesh2_probes::r2_e2e_nonconvex_cap_at_subfloor_noise ... ok
+test r2_mesh2_probes::r2_slit_annulus_at_several_proportions ... ok
+test r2_mesh2_probes::r2_what_mitigate_underflow_actually_snaps ... ok
+test r2_split_door::r2_split_door_near_pole ... ok
+test review_m2_pr6_cert_oracle::survives_backref_integrity_and_patch_separability ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_many_band_dome ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_megaphone_and_silo ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_mirror_nappe_cones ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_near_pole_cap_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_stock_bodies_coarse_and_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_tall_thin_cylinder ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_accepts_valid_tetrahedron ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_degenerate_sliver ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_double_collapsed_fan_fallout ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_duplicated_triangle ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_flipped_winding ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_index_out_of_range ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_open_fan ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_t_junction ... ok
+test review_m2_pr6_checkmesh_audit::survives_concentric_slit_annuli ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_segments_shared_by_both_wall_sides ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_weld_no_bitwise_duplicate_positions ... ok
+test review_m2_pr6_checkmesh_audit::survives_washer_at_very_coarse_delta ... ok
+test review_m2_pr6_determinism::print_dump_hashes ... ignored
+test review_m2_pr6_determinism::survives_byte_identical_rebuild_across_bodies ... ok
+test review_m2_pr6_determinism::survives_canonically_equal_profile_constructions ... ok
+test review_m2_pr6_determinism::survives_delta_sweep_at_fixed_eps_monotone_sane ... ok
+test review_m2_pr6_determinism::survives_eps_row_bitwise_independence ... ok
+test review_m2_pr6_determinism::survives_near_axis_vertex_arc_endpoint ... ok
+test review_m2_pr6_errors::survives_certificate_exceeded_unreachable_over_body_sweep ... ok
+test review_m2_pr6_errors::survives_delta_fine_but_sane_still_tessellates ... ok
+test review_m2_pr6_errors::survives_denormal_delta_typed_overflow_on_curved_bodies ... ok
+test review_m2_pr6_errors::survives_negative_zero_delta_refused ... ok
+test review_m2_pr6_errors::survives_self_intersecting_profile_never_reaches_spade ... ok
+test review_m2_pr6_errors::survives_torus_wedge_outside_pole_window ... ok
+test review_m2_pr6_walk_shapes::survives_axis_touching_wedge_angles ... ok
+test review_m2_pr6_walk_shapes::survives_cone_wedges_apex_junctions_below_three_half_pi ... ok
+test review_m2_pr6_walk_shapes::survives_many_segment_dome_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_mirror_nappe_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap ... ok
+test review_m2_pr6_walk_shapes::survives_outward_shell_assumption_via_public_api ... ok
+test review_m2_pr6_walk_shapes::survives_sphere_wedges_pole_to_pole_bands ... ok
+test review_m2_pr6_walk_shapes::survives_wedge_angles_near_pi_and_extremes ... ok
+test review_m3_pr1_mesh::tessellate_refuses_null_scaffold_typed ... ok
+test revolves::apex_wedges_never_size_to_a_single_azimuth_column ... ok
+test revolves::ball_pole_fan_structure ... ok
+test revolves::ball_tessellates_with_pole_fans ... ok
+test revolves::cone_tessellates_with_apex_fan ... ok
+test revolves::sphere_pole_faces_are_floored_too_though_they_never_needed_it ... ok
+test the_eps_inventory_is_pinned ... ok
+test wedge::axis_wedge_tessellates_with_axis_edge ... ok
+test wedge::wedge_tessellates_theta_patches ... ok
+test result: ok. 140 passed; 0 failed; 1 ignored
+== band 1e-6 mesh ==
+test errors::absurdly_fine_delta_overflows_typed ... ok
+test errors::infinite_delta_is_refused ... ok
+test errors::negative_delta_is_refused ... ok
+test errors::nurbs_surface_is_refused ... ok
+test errors::poisoned_delta_is_refused ... ok
+test errors::tessellate_error_display_names_its_content_not_its_struct ... ok
+test errors::zero_delta_is_refused ... ok
+test every_suite_file_is_aggregated ... ok
+test exact_vs_mesh::exact_volume_delta_consistent_with_mesh ... ok
+test fitted_refusals::a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk ... ok
+test genus::donut_faces_share_one_torus_surface ... ok
+test genus::donut_tessellates_the_torus ... ok
+test genus::washer_tessellates_full_period_patches ... ok
+test issue111_az_needle::survives_az_counter_hole_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_counter_through_rederived_frame_deterministic ... ok
+test issue111_az_needle::survives_az_plain_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_stencil_tessellates_watertight ... ok
+test issue1362_band_placement::a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin ... ok
+test issue1362_band_placement::the_band_survives_every_placement_ratio_the_doors_admit ... ok
+test issue303_signed_volume_recentring::huge_offset_volume_through_public_oracle ... ok
+test issue303_signed_volume_recentring::translation_invariance_1e3_1e6 ... ok
+test issue555_subfloor_cap::ringed_and_concentric_charts_no_longer_refuse_sub_floor ... ok
+test issue555_subfloor_cap::subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta ... ok
+test issue555_subfloor_cap::the_slit_annulus_cap_survives_the_written_zero ... ok
+test issue555_subfloor_cap::the_written_zero_keeps_the_rebuild_bit_identical ... ok
+test issue685_nu1_sizing::an_apex_free_single_column_cone_patch_is_the_same_strip ... ok
+test issue685_nu1_sizing::the_pi6_cone_wedge_is_pinned_at_the_measured_deltas ... ok
+test issue896_pole_guard::a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars ... ok
+test issue896_pole_guard::the_nearest_admitted_rim_meshes_watertight_with_the_guard_quiet ... ok
+test m5_pr11_trimmed::missing_pcurve_caches_refuse_typed ... ok
+test m5_pr11_trimmed::shared_edges_consume_one_chord_set ... ok
+test m5_pr11_trimmed::tilted_halves_tessellate_watertight_across_the_delta_schedule ... ok
+test m5_pr11_trimmed::trimmed_lane_is_bit_deterministic ... ok
+test m5_s10_face_sense::tessellation_follows_the_band_sense ... ok
+test m5_s11_concave_sense::hole_plate_tessellates_watertight_and_converges ... ok
+test m5_s11_concave_sense::notched_body_tessellates_watertight_and_converges ... ok
+test m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise ... ok
+test m7_nurbs_trimmed::loft_prism_tessellates_watertight_and_volume_sane ... ok
+test m7_nurbs_trimmed::nurbs_tessellation_is_deterministic ... ok
+test m7_nurbs_trimmed::swept_elbow_tessellates_watertight_and_volume_sane ... ok
+test newell_probes::position_noise_subfloor_class_is_closed ... ok
+test newell_probes::probe_a_anchor_antipodal_to_far ... ok
+test newell_probes::probe_b_far_tie_determinism ... ok
+test newell_probes::probe_c_needle_extent_ratio ... ok
+test newell_probes::probe_d_huge_offset_tiny_face ... ok
+test newell_probes::probe_e2_collinear_midpoint_on_diagonal ... ok
+test newell_probes::probe_e_noise_scale_sweep ... ok
+test newell_probes::probe_slit_washer_rebuild ... ok
+test prisms::holed_prism_tessellates_with_rings ... ok
+test prisms::l_prism_tessellates_exactly ... ok
+test prisms::rounded_prism_tessellates_cylinder_patches ... ok
+test probe_review::z1_fixtures_still_tessellate_with_the_falsifier_gated_out ... ok
+test probe_review::z2_detached_pcurve_refuses_typed ... ok
+test probe_review::z3_fine_nurbs_vs_coarse_planar_neighbor_watertight ... ok
+test probe_review::z5_positions_hash_stamp ... ok
+test profile_overrides::dev_profile_still_optimizes_spade_and_mesh ... ok
+test profile_overrides::scanner_fires_on_planted_violations ... ok
+test r1_probe_bool_route::r1_probe_boolean_near_tangent_pole_cut ... ok
+test r1_probe_hash::r1_probe_corpus_hashes ... ok
+test r1_probes_issue1362::r1_hunts_a_near_origin_input_where_the_anchor_flips_a_column ... ok
+test r1_probes_issue1362::r1_looks_for_an_end_to_end_fixture_that_clears_the_door_and_fails_the_fold ... ok
+test r1_probes_issue1362::r1_reproduces_the_direction_drift_table ... ok
+test r1_probes_issue1362::r1_reproduces_the_whole_two_pi_branch_flip ... ok
+test r1_probes_issue1362::r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit ... ok
+test r1_probes_issue1362::r1_the_unwrap_near_tie_is_a_real_two_pi_cliff ... ok
+test r1_probes_issue1362::r1_the_wrap_makes_the_fold_anchor_independent_for_any_point_list ... ok
+test r1_probes_issue303::r1_bbox_extremes ... ok
+test r1_probes_issue303::r1_dyadic_box_hides_defect ... ok
+test r1_probes_issue303::r1_e2e_l_prism_near_far ... ok
+test r1_probes_issue303::r1_open_mesh_answer_changed ... ok
+test r2_bool_door::r2_bool_door_near_pole ... ok
+test r2_bytes::r2_byte_stability_report ... ok
+test r2_cert9_probes::p1_open_mesh_answer_changed_by_the_recentring ... ok
+test r2_cert9_probes::p2_dyadic_box_hides_the_prefix_defect ... ok
+test r2_cert9_probes::p3_anchor_arithmetic_at_extreme_placements ... ok
+test r2_cert9_probes::p4_e2e_l_shaped_body_near_and_far ... ok
+test r2_cert9_probes::p5_sweep_placeholder ... ok
+test r2_cert9_probes::p6_reproduce_the_huge_offset_red_digit ... ok
+test r2_cert9_probes::p7_early_return_swallows_a_corrupt_mesh ... ok
+test r2_mesh1_probes::r2_e2e_placed_ball_volume_is_the_balls ... ok
+test r2_mesh1_probes::r2_ordinary_placements_agree_between_anchors ... ok
+test r2_mesh1_probes::r2_the_branch_flip_reproduces ... ok
+test r2_mesh1_probes::r2_the_drift_table_reproduces ... ok
+test r2_mesh2_probes::r2_a_ring_vertex_on_the_anchor_far_diagonal_still_refuses ... ok
+test r2_mesh2_probes::r2_annular_cap_with_subfloor_noise ... ok
+test r2_mesh2_probes::r2_e2e_nonconvex_cap_at_subfloor_noise ... ok
+test r2_mesh2_probes::r2_slit_annulus_at_several_proportions ... ok
+test r2_mesh2_probes::r2_what_mitigate_underflow_actually_snaps ... ok
+test r2_split_door::r2_split_door_near_pole ... ok
+test review_m2_pr6_cert_oracle::survives_backref_integrity_and_patch_separability ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_many_band_dome ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_megaphone_and_silo ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_mirror_nappe_cones ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_near_pole_cap_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_stock_bodies_coarse_and_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_tall_thin_cylinder ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_accepts_valid_tetrahedron ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_degenerate_sliver ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_double_collapsed_fan_fallout ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_duplicated_triangle ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_flipped_winding ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_index_out_of_range ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_open_fan ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_t_junction ... ok
+test review_m2_pr6_checkmesh_audit::survives_concentric_slit_annuli ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_segments_shared_by_both_wall_sides ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_weld_no_bitwise_duplicate_positions ... ok
+test review_m2_pr6_checkmesh_audit::survives_washer_at_very_coarse_delta ... ok
+test review_m2_pr6_determinism::print_dump_hashes ... ignored
+test review_m2_pr6_determinism::survives_byte_identical_rebuild_across_bodies ... ok
+test review_m2_pr6_determinism::survives_canonically_equal_profile_constructions ... ok
+test review_m2_pr6_determinism::survives_delta_sweep_at_fixed_eps_monotone_sane ... ok
+test review_m2_pr6_determinism::survives_eps_row_bitwise_independence ... ok
+test review_m2_pr6_determinism::survives_near_axis_vertex_arc_endpoint ... ok
+test review_m2_pr6_errors::survives_certificate_exceeded_unreachable_over_body_sweep ... ok
+test review_m2_pr6_errors::survives_delta_fine_but_sane_still_tessellates ... ok
+test review_m2_pr6_errors::survives_denormal_delta_typed_overflow_on_curved_bodies ... ok
+test review_m2_pr6_errors::survives_negative_zero_delta_refused ... ok
+test review_m2_pr6_errors::survives_self_intersecting_profile_never_reaches_spade ... ok
+test review_m2_pr6_errors::survives_torus_wedge_outside_pole_window ... ok
+test review_m2_pr6_walk_shapes::survives_axis_touching_wedge_angles ... ok
+test review_m2_pr6_walk_shapes::survives_cone_wedges_apex_junctions_below_three_half_pi ... ok
+test review_m2_pr6_walk_shapes::survives_many_segment_dome_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_mirror_nappe_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap ... ok
+test review_m2_pr6_walk_shapes::survives_outward_shell_assumption_via_public_api ... ok
+test review_m2_pr6_walk_shapes::survives_sphere_wedges_pole_to_pole_bands ... ok
+test review_m2_pr6_walk_shapes::survives_wedge_angles_near_pi_and_extremes ... ok
+test review_m3_pr1_mesh::tessellate_refuses_null_scaffold_typed ... ok
+test revolves::apex_wedges_never_size_to_a_single_azimuth_column ... ok
+test revolves::ball_pole_fan_structure ... ok
+test revolves::ball_tessellates_with_pole_fans ... ok
+test revolves::cone_tessellates_with_apex_fan ... ok
+test revolves::sphere_pole_faces_are_floored_too_though_they_never_needed_it ... ok
+test the_eps_inventory_is_pinned ... ok
+test wedge::axis_wedge_tessellates_with_axis_edge ... ok
+test wedge::wedge_tessellates_theta_patches ... ok
+HASH ball d=0.004: pos abd949e1f0f023c8 tri e5e63930653de8ca bnd d289e21642b48625
+HASH ball d=0.1: pos 632c7ec394b6bb32 tri 044b7ed6a04acd6d bnd d56485739c843265
+HASH band d=0.004: pos 6dba3e61d225a9ae tri b6fd5938c2faceec bnd 4b757b107e6000d2
+HASH band d=0.1: pos 9b4a37c7341e285e tri 8ca10c331113ac1d bnd 1e97bef0009c68a4
+HASH cone d=0.004: pos 2947bcfefdf10578 tri fc5f2a65a0f9f9ce bnd 4d3c26ca8197fce5
+HASH cone d=0.1: pos e8c95312d52cbb57 tri 50eaf23aa9c391e1 bnd 309c39753f35f9a5
+Z5 HASH f7558e2f9419047e positions=1486
+ball d=0.004 n=1508 t=3012 => d1fb7a63858a53ab
+ball d=0.02 n=312 t=620 => b99bceb598e7265f
+ball d=0.1 n=60 t=116 => a66436e99ebc255a
+band_0.1 d=0.004 n=1194 t=2388 => b53f07717a45b634
+band_0.1 d=0.02 n=257 t=514 => d977f692caed161a
+band_0.1 d=0.1 n=66 t=132 => b2cdd73a17bf0d57
+cone d=0.004 n=580 t=1156 => 04018d3ae76684c8
+cone d=0.02 n=114 t=224 => 1ac6f4ccc83faf44
+cone d=0.1 n=28 t=52 => 23bb3a1389a0bfab
+donut d=0.004 n=178084 t=356168 => 82c6a3bb72d989b4
+donut d=0.02 n=35910 t=71820 => b7a7825f9157ae8d
+donut d=0.1 n=7310 t=14620 => b1eafcc6d5e6c1de
+l_prism d=0.004 n=12 t=20 => f251e5deaf001749
+l_prism d=0.02 n=12 t=20 => f251e5deaf001749
+l_prism d=0.1 n=12 t=20 => f251e5deaf001749
+sphere_wedge d=0.004 n=509 t=1014 => 86d137d3310549cf
+sphere_wedge d=0.02 n=108 t=212 => 0b2d953e0c9ebb92
+sphere_wedge d=0.1 n=25 t=46 => f5b772da75cf7572
+washer d=0.004 n=242 t=484 => dfcbf449aeea78b9
+washer d=0.02 n=110 t=220 => 071de27223388b25
+washer d=0.1 n=50 t=100 => 875cbafc3b1ffc25
+test result: ok. 136 passed; 0 failed; 1 ignored
+== band 1e-6 poleguard ==
+test poleguard::a_junction_inside_the_pole_band_cannot_enter_through_the_import_door ... ok
+test poleguard::the_halfcap_eps7_witness_is_band_shaped ... ok
+test poleguard::the_span_route_argument_assumes_k_above_two_pi ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored
+== band 1e-6 budget ==
+test budget_meter::a_disarmed_meter_records_nothing ... ok
+test budget_meter::arming_the_meter_does_not_change_the_mesh ... ok
+test budget_meter::every_nurbs_face_is_measured_once_and_by_key ... ok
+test budget_meter::the_deviation_pass_samples_and_stays_under_its_certificates ... ok
+test errors::absurdly_fine_delta_overflows_typed ... ok
+test errors::infinite_delta_is_refused ... ok
+test errors::negative_delta_is_refused ... ok
+test errors::nurbs_surface_is_refused ... ok
+test errors::poisoned_delta_is_refused ... ok
+test errors::tessellate_error_display_names_its_content_not_its_struct ... ok
+test errors::zero_delta_is_refused ... ok
+test every_suite_file_is_aggregated ... ok
+test exact_vs_mesh::exact_volume_delta_consistent_with_mesh ... ok
+test fitted_refusals::a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk ... ok
+test genus::donut_faces_share_one_torus_surface ... ok
+test genus::donut_tessellates_the_torus ... ok
+test genus::washer_tessellates_full_period_patches ... ok
+test issue111_az_needle::survives_az_counter_hole_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_counter_through_rederived_frame_deterministic ... ok
+test issue111_az_needle::survives_az_plain_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_stencil_tessellates_watertight ... ok
+test issue1362_band_placement::a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin ... ok
+test issue1362_band_placement::the_band_survives_every_placement_ratio_the_doors_admit ... ok
+test issue303_signed_volume_recentring::huge_offset_volume_through_public_oracle ... ok
+test issue303_signed_volume_recentring::translation_invariance_1e3_1e6 ... ok
+test issue555_subfloor_cap::ringed_and_concentric_charts_no_longer_refuse_sub_floor ... ok
+test issue555_subfloor_cap::subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta ... ok
+test issue555_subfloor_cap::the_slit_annulus_cap_survives_the_written_zero ... ok
+test issue555_subfloor_cap::the_written_zero_keeps_the_rebuild_bit_identical ... ok
+test issue685_nu1_sizing::an_apex_free_single_column_cone_patch_is_the_same_strip ... ok
+test issue685_nu1_sizing::the_pi6_cone_wedge_is_pinned_at_the_measured_deltas ... ok
+test issue896_pole_guard::a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars ... ok
+test issue896_pole_guard::the_nearest_admitted_rim_meshes_watertight_with_the_guard_quiet ... ok
+test m5_pr11_trimmed::missing_pcurve_caches_refuse_typed ... ok
+test m5_pr11_trimmed::shared_edges_consume_one_chord_set ... ok
+test m5_pr11_trimmed::tilted_halves_tessellate_watertight_across_the_delta_schedule ... ok
+test m5_pr11_trimmed::trimmed_lane_is_bit_deterministic ... ok
+test m5_s10_face_sense::tessellation_follows_the_band_sense ... ok
+test m5_s11_concave_sense::hole_plate_tessellates_watertight_and_converges ... ok
+test m5_s11_concave_sense::notched_body_tessellates_watertight_and_converges ... ok
+test m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise ... ok
+test m7_nurbs_trimmed::loft_prism_tessellates_watertight_and_volume_sane ... ok
+test m7_nurbs_trimmed::nurbs_tessellation_is_deterministic ... ok
+test m7_nurbs_trimmed::swept_elbow_tessellates_watertight_and_volume_sane ... ok
+test newell_probes::position_noise_subfloor_class_is_closed ... ok
+test newell_probes::probe_a_anchor_antipodal_to_far ... ok
+test newell_probes::probe_b_far_tie_determinism ... ok
+test newell_probes::probe_c_needle_extent_ratio ... ok
+test newell_probes::probe_d_huge_offset_tiny_face ... ok
+test newell_probes::probe_e2_collinear_midpoint_on_diagonal ... ok
+test newell_probes::probe_e_noise_scale_sweep ... ok
+test newell_probes::probe_slit_washer_rebuild ... ok
+test prisms::holed_prism_tessellates_with_rings ... ok
+test prisms::l_prism_tessellates_exactly ... ok
+test prisms::rounded_prism_tessellates_cylinder_patches ... ok
+test probe_review::z1_per_triangle_certificate_falsification ... ok
+test probe_review::z2_detached_pcurve_refuses_typed ... ok
+test probe_review::z3_fine_nurbs_vs_coarse_planar_neighbor_watertight ... ok
+test probe_review::z5_positions_hash_stamp ... ok
+test profile_overrides::dev_profile_still_optimizes_spade_and_mesh ... ok
+test profile_overrides::scanner_fires_on_planted_violations ... ok
+test r1_probe_bool_route::r1_probe_boolean_near_tangent_pole_cut ... ok
+test r1_probe_hash::r1_probe_corpus_hashes ... ok
+test r1_probes_issue1362::r1_hunts_a_near_origin_input_where_the_anchor_flips_a_column ... ok
+test r1_probes_issue1362::r1_looks_for_an_end_to_end_fixture_that_clears_the_door_and_fails_the_fold ... ok
+test r1_probes_issue1362::r1_reproduces_the_direction_drift_table ... ok
+test r1_probes_issue1362::r1_reproduces_the_whole_two_pi_branch_flip ... ok
+test r1_probes_issue1362::r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit ... ok
+test r1_probes_issue1362::r1_the_unwrap_near_tie_is_a_real_two_pi_cliff ... ok
+test r1_probes_issue1362::r1_the_wrap_makes_the_fold_anchor_independent_for_any_point_list ... ok
+test r1_probes_issue303::r1_bbox_extremes ... ok
+test r1_probes_issue303::r1_dyadic_box_hides_defect ... ok
+test r1_probes_issue303::r1_e2e_l_prism_near_far ... ok
+test r1_probes_issue303::r1_open_mesh_answer_changed ... ok
+test r2_bool_door::r2_bool_door_near_pole ... ok
+test r2_bytes::r2_byte_stability_report ... ok
+test r2_cert9_probes::p1_open_mesh_answer_changed_by_the_recentring ... ok
+test r2_cert9_probes::p2_dyadic_box_hides_the_prefix_defect ... ok
+test r2_cert9_probes::p3_anchor_arithmetic_at_extreme_placements ... ok
+test r2_cert9_probes::p4_e2e_l_shaped_body_near_and_far ... ok
+test r2_cert9_probes::p5_sweep_placeholder ... ok
+test r2_cert9_probes::p6_reproduce_the_huge_offset_red_digit ... ok
+test r2_cert9_probes::p7_early_return_swallows_a_corrupt_mesh ... ok
+test r2_mesh1_probes::r2_e2e_placed_ball_volume_is_the_balls ... ok
+test r2_mesh1_probes::r2_ordinary_placements_agree_between_anchors ... ok
+test r2_mesh1_probes::r2_the_branch_flip_reproduces ... ok
+test r2_mesh1_probes::r2_the_drift_table_reproduces ... ok
+test r2_mesh2_probes::r2_a_ring_vertex_on_the_anchor_far_diagonal_still_refuses ... ok
+test r2_mesh2_probes::r2_annular_cap_with_subfloor_noise ... ok
+test r2_mesh2_probes::r2_e2e_nonconvex_cap_at_subfloor_noise ... ok
+test r2_mesh2_probes::r2_slit_annulus_at_several_proportions ... ok
+test r2_mesh2_probes::r2_what_mitigate_underflow_actually_snaps ... ok
+test r2_split_door::r2_split_door_near_pole ... ok
+test review_m2_pr6_cert_oracle::survives_backref_integrity_and_patch_separability ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_many_band_dome ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_megaphone_and_silo ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_mirror_nappe_cones ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_near_pole_cap_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_stock_bodies_coarse_and_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_tall_thin_cylinder ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_accepts_valid_tetrahedron ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_degenerate_sliver ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_double_collapsed_fan_fallout ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_duplicated_triangle ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_flipped_winding ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_index_out_of_range ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_open_fan ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_t_junction ... ok
+test review_m2_pr6_checkmesh_audit::survives_concentric_slit_annuli ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_segments_shared_by_both_wall_sides ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_weld_no_bitwise_duplicate_positions ... ok
+test review_m2_pr6_checkmesh_audit::survives_washer_at_very_coarse_delta ... ok
+test review_m2_pr6_determinism::print_dump_hashes ... ignored
+test review_m2_pr6_determinism::survives_byte_identical_rebuild_across_bodies ... ok
+test review_m2_pr6_determinism::survives_canonically_equal_profile_constructions ... ok
+test review_m2_pr6_determinism::survives_delta_sweep_at_fixed_eps_monotone_sane ... ok
+test review_m2_pr6_determinism::survives_eps_row_bitwise_independence ... ok
+test review_m2_pr6_determinism::survives_near_axis_vertex_arc_endpoint ... ok
+test review_m2_pr6_errors::survives_certificate_exceeded_unreachable_over_body_sweep ... ok
+test review_m2_pr6_errors::survives_delta_fine_but_sane_still_tessellates ... ok
+test review_m2_pr6_errors::survives_denormal_delta_typed_overflow_on_curved_bodies ... ok
+test review_m2_pr6_errors::survives_negative_zero_delta_refused ... ok
+test review_m2_pr6_errors::survives_self_intersecting_profile_never_reaches_spade ... ok
+test review_m2_pr6_errors::survives_torus_wedge_outside_pole_window ... ok
+test review_m2_pr6_walk_shapes::survives_axis_touching_wedge_angles ... ok
+test review_m2_pr6_walk_shapes::survives_cone_wedges_apex_junctions_below_three_half_pi ... ok
+test review_m2_pr6_walk_shapes::survives_many_segment_dome_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_mirror_nappe_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap ... ok
+test review_m2_pr6_walk_shapes::survives_outward_shell_assumption_via_public_api ... ok
+test review_m2_pr6_walk_shapes::survives_sphere_wedges_pole_to_pole_bands ... ok
+test review_m2_pr6_walk_shapes::survives_wedge_angles_near_pi_and_extremes ... ok
+test review_m3_pr1_mesh::tessellate_refuses_null_scaffold_typed ... ok
+test revolves::apex_wedges_never_size_to_a_single_azimuth_column ... ok
+test revolves::ball_pole_fan_structure ... ok
+test revolves::ball_tessellates_with_pole_fans ... ok
+test revolves::cone_tessellates_with_apex_fan ... ok
+test revolves::sphere_pole_faces_are_floored_too_though_they_never_needed_it ... ok
+test the_eps_inventory_is_pinned ... ok
+test wedge::axis_wedge_tessellates_with_axis_edge ... ok
+test wedge::wedge_tessellates_theta_patches ... ok
+test result: ok. 140 passed; 0 failed; 1 ignored
+== band 1e-12 mesh ==
+test errors::absurdly_fine_delta_overflows_typed ... ok
+test errors::infinite_delta_is_refused ... ok
+test errors::negative_delta_is_refused ... ok
+test errors::nurbs_surface_is_refused ... ok
+test errors::poisoned_delta_is_refused ... ok
+test errors::tessellate_error_display_names_its_content_not_its_struct ... ok
+test errors::zero_delta_is_refused ... ok
+test every_suite_file_is_aggregated ... ok
+test exact_vs_mesh::exact_volume_delta_consistent_with_mesh ... ok
+test fitted_refusals::a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk ... ok
+test genus::donut_faces_share_one_torus_surface ... ok
+test genus::donut_tessellates_the_torus ... ok
+test genus::washer_tessellates_full_period_patches ... ok
+test issue111_az_needle::survives_az_counter_hole_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_counter_through_rederived_frame_deterministic ... ok
+test issue111_az_needle::survives_az_plain_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_stencil_tessellates_watertight ... ok
+test issue1362_band_placement::a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin ... ok
+test issue1362_band_placement::the_band_survives_every_placement_ratio_the_doors_admit ... ok
+test issue303_signed_volume_recentring::huge_offset_volume_through_public_oracle ... ok
+test issue303_signed_volume_recentring::translation_invariance_1e3_1e6 ... ok
+test issue555_subfloor_cap::ringed_and_concentric_charts_no_longer_refuse_sub_floor ... ok
+test issue555_subfloor_cap::subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta ... ok
+test issue555_subfloor_cap::the_slit_annulus_cap_survives_the_written_zero ... ok
+test issue555_subfloor_cap::the_written_zero_keeps_the_rebuild_bit_identical ... ok
+test issue685_nu1_sizing::an_apex_free_single_column_cone_patch_is_the_same_strip ... ok
+test issue685_nu1_sizing::the_pi6_cone_wedge_is_pinned_at_the_measured_deltas ... ok
+test issue896_pole_guard::a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars ... ok
+test issue896_pole_guard::the_nearest_admitted_rim_meshes_watertight_with_the_guard_quiet ... ok
+test m5_pr11_trimmed::missing_pcurve_caches_refuse_typed ... ok
+test m5_pr11_trimmed::shared_edges_consume_one_chord_set ... ok
+test m5_pr11_trimmed::tilted_halves_tessellate_watertight_across_the_delta_schedule ... ok
+test m5_pr11_trimmed::trimmed_lane_is_bit_deterministic ... ok
+test m5_s10_face_sense::tessellation_follows_the_band_sense ... ok
+test m5_s11_concave_sense::hole_plate_tessellates_watertight_and_converges ... ok
+test m5_s11_concave_sense::notched_body_tessellates_watertight_and_converges ... ok
+test m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise ... ok
+test m7_nurbs_trimmed::loft_prism_tessellates_watertight_and_volume_sane ... ok
+test m7_nurbs_trimmed::nurbs_tessellation_is_deterministic ... ok
+test m7_nurbs_trimmed::swept_elbow_tessellates_watertight_and_volume_sane ... ok
+test newell_probes::position_noise_subfloor_class_is_closed ... ok
+test newell_probes::probe_a_anchor_antipodal_to_far ... ok
+test newell_probes::probe_b_far_tie_determinism ... ok
+test newell_probes::probe_c_needle_extent_ratio ... ok
+test newell_probes::probe_d_huge_offset_tiny_face ... ok
+test newell_probes::probe_e2_collinear_midpoint_on_diagonal ... ok
+test newell_probes::probe_e_noise_scale_sweep ... ok
+test newell_probes::probe_slit_washer_rebuild ... ok
+test prisms::holed_prism_tessellates_with_rings ... ok
+test prisms::l_prism_tessellates_exactly ... ok
+test prisms::rounded_prism_tessellates_cylinder_patches ... ok
+test probe_review::z1_fixtures_still_tessellate_with_the_falsifier_gated_out ... ok
+test probe_review::z2_detached_pcurve_refuses_typed ... ok
+test probe_review::z3_fine_nurbs_vs_coarse_planar_neighbor_watertight ... ok
+test probe_review::z5_positions_hash_stamp ... ok
+test profile_overrides::dev_profile_still_optimizes_spade_and_mesh ... ok
+test profile_overrides::scanner_fires_on_planted_violations ... ok
+test r1_probe_bool_route::r1_probe_boolean_near_tangent_pole_cut ... ok
+test r1_probe_hash::r1_probe_corpus_hashes ... ok
+test r1_probes_issue1362::r1_hunts_a_near_origin_input_where_the_anchor_flips_a_column ... ok
+test r1_probes_issue1362::r1_looks_for_an_end_to_end_fixture_that_clears_the_door_and_fails_the_fold ... ok
+test r1_probes_issue1362::r1_reproduces_the_direction_drift_table ... ok
+test r1_probes_issue1362::r1_reproduces_the_whole_two_pi_branch_flip ... ok
+test r1_probes_issue1362::r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit ... ok
+test r1_probes_issue1362::r1_the_unwrap_near_tie_is_a_real_two_pi_cliff ... ok
+test r1_probes_issue1362::r1_the_wrap_makes_the_fold_anchor_independent_for_any_point_list ... ok
+test r1_probes_issue303::r1_bbox_extremes ... ok
+test r1_probes_issue303::r1_dyadic_box_hides_defect ... ok
+test r1_probes_issue303::r1_e2e_l_prism_near_far ... ok
+test r1_probes_issue303::r1_open_mesh_answer_changed ... ok
+test r2_bool_door::r2_bool_door_near_pole ... ok
+test r2_bytes::r2_byte_stability_report ... ok
+test r2_cert9_probes::p1_open_mesh_answer_changed_by_the_recentring ... ok
+test r2_cert9_probes::p2_dyadic_box_hides_the_prefix_defect ... ok
+test r2_cert9_probes::p3_anchor_arithmetic_at_extreme_placements ... ok
+test r2_cert9_probes::p4_e2e_l_shaped_body_near_and_far ... ok
+test r2_cert9_probes::p5_sweep_placeholder ... ok
+test r2_cert9_probes::p6_reproduce_the_huge_offset_red_digit ... ok
+test r2_cert9_probes::p7_early_return_swallows_a_corrupt_mesh ... ok
+test r2_mesh1_probes::r2_e2e_placed_ball_volume_is_the_balls ... ok
+test r2_mesh1_probes::r2_ordinary_placements_agree_between_anchors ... ok
+test r2_mesh1_probes::r2_the_branch_flip_reproduces ... ok
+test r2_mesh1_probes::r2_the_drift_table_reproduces ... ok
+test r2_mesh2_probes::r2_a_ring_vertex_on_the_anchor_far_diagonal_still_refuses ... ok
+test r2_mesh2_probes::r2_annular_cap_with_subfloor_noise ... ok
+test r2_mesh2_probes::r2_e2e_nonconvex_cap_at_subfloor_noise ... ok
+test r2_mesh2_probes::r2_slit_annulus_at_several_proportions ... ok
+test r2_mesh2_probes::r2_what_mitigate_underflow_actually_snaps ... ok
+test r2_split_door::r2_split_door_near_pole ... ok
+test review_m2_pr6_cert_oracle::survives_backref_integrity_and_patch_separability ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_many_band_dome ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_megaphone_and_silo ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_mirror_nappe_cones ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_near_pole_cap_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_stock_bodies_coarse_and_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_tall_thin_cylinder ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_accepts_valid_tetrahedron ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_degenerate_sliver ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_double_collapsed_fan_fallout ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_duplicated_triangle ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_flipped_winding ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_index_out_of_range ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_open_fan ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_t_junction ... ok
+test review_m2_pr6_checkmesh_audit::survives_concentric_slit_annuli ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_segments_shared_by_both_wall_sides ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_weld_no_bitwise_duplicate_positions ... ok
+test review_m2_pr6_checkmesh_audit::survives_washer_at_very_coarse_delta ... ok
+test review_m2_pr6_determinism::print_dump_hashes ... ignored
+test review_m2_pr6_determinism::survives_byte_identical_rebuild_across_bodies ... ok
+test review_m2_pr6_determinism::survives_canonically_equal_profile_constructions ... ok
+test review_m2_pr6_determinism::survives_delta_sweep_at_fixed_eps_monotone_sane ... ok
+test review_m2_pr6_determinism::survives_eps_row_bitwise_independence ... ok
+test review_m2_pr6_determinism::survives_near_axis_vertex_arc_endpoint ... ok
+test review_m2_pr6_errors::survives_certificate_exceeded_unreachable_over_body_sweep ... ok
+test review_m2_pr6_errors::survives_delta_fine_but_sane_still_tessellates ... ok
+test review_m2_pr6_errors::survives_denormal_delta_typed_overflow_on_curved_bodies ... ok
+test review_m2_pr6_errors::survives_negative_zero_delta_refused ... ok
+test review_m2_pr6_errors::survives_self_intersecting_profile_never_reaches_spade ... ok
+test review_m2_pr6_errors::survives_torus_wedge_outside_pole_window ... ok
+test review_m2_pr6_walk_shapes::survives_axis_touching_wedge_angles ... ok
+test review_m2_pr6_walk_shapes::survives_cone_wedges_apex_junctions_below_three_half_pi ... ok
+test review_m2_pr6_walk_shapes::survives_many_segment_dome_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_mirror_nappe_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap ... ok
+test review_m2_pr6_walk_shapes::survives_outward_shell_assumption_via_public_api ... ok
+test review_m2_pr6_walk_shapes::survives_sphere_wedges_pole_to_pole_bands ... ok
+test review_m2_pr6_walk_shapes::survives_wedge_angles_near_pi_and_extremes ... ok
+test review_m3_pr1_mesh::tessellate_refuses_null_scaffold_typed ... ok
+test revolves::apex_wedges_never_size_to_a_single_azimuth_column ... ok
+test revolves::ball_pole_fan_structure ... ok
+test revolves::ball_tessellates_with_pole_fans ... ok
+test revolves::cone_tessellates_with_apex_fan ... ok
+test revolves::sphere_pole_faces_are_floored_too_though_they_never_needed_it ... ok
+test the_eps_inventory_is_pinned ... ok
+test wedge::axis_wedge_tessellates_with_axis_edge ... ok
+test wedge::wedge_tessellates_theta_patches ... ok
+HASH ball d=0.004: pos abd949e1f0f023c8 tri e5e63930653de8ca bnd d289e21642b48625
+HASH ball d=0.1: pos 632c7ec394b6bb32 tri 044b7ed6a04acd6d bnd d56485739c843265
+HASH band d=0.004: pos 6dba3e61d225a9ae tri b6fd5938c2faceec bnd 4b757b107e6000d2
+HASH band d=0.1: pos 9b4a37c7341e285e tri 8ca10c331113ac1d bnd 1e97bef0009c68a4
+HASH cone d=0.004: pos 2947bcfefdf10578 tri fc5f2a65a0f9f9ce bnd 4d3c26ca8197fce5
+HASH cone d=0.1: pos e8c95312d52cbb57 tri 50eaf23aa9c391e1 bnd 309c39753f35f9a5
+Z5 HASH f7558e2f9419047e positions=1486
+ball d=0.004 n=1508 t=3012 => d1fb7a63858a53ab
+ball d=0.02 n=312 t=620 => b99bceb598e7265f
+ball d=0.1 n=60 t=116 => a66436e99ebc255a
+band_0.1 d=0.004 n=1194 t=2388 => b53f07717a45b634
+band_0.1 d=0.02 n=257 t=514 => d977f692caed161a
+band_0.1 d=0.1 n=66 t=132 => b2cdd73a17bf0d57
+cone d=0.004 n=580 t=1156 => 04018d3ae76684c8
+cone d=0.02 n=114 t=224 => 1ac6f4ccc83faf44
+cone d=0.1 n=28 t=52 => 23bb3a1389a0bfab
+donut d=0.004 n=178084 t=356168 => 82c6a3bb72d989b4
+donut d=0.02 n=35910 t=71820 => b7a7825f9157ae8d
+donut d=0.1 n=7310 t=14620 => b1eafcc6d5e6c1de
+l_prism d=0.004 n=12 t=20 => f251e5deaf001749
+l_prism d=0.02 n=12 t=20 => f251e5deaf001749
+l_prism d=0.1 n=12 t=20 => f251e5deaf001749
+sphere_wedge d=0.004 n=509 t=1014 => 86d137d3310549cf
+sphere_wedge d=0.02 n=108 t=212 => 0b2d953e0c9ebb92
+sphere_wedge d=0.1 n=25 t=46 => f5b772da75cf7572
+washer d=0.004 n=242 t=484 => dfcbf449aeea78b9
+washer d=0.02 n=110 t=220 => 071de27223388b25
+washer d=0.1 n=50 t=100 => 875cbafc3b1ffc25
+test result: ok. 136 passed; 0 failed; 1 ignored
+== band 1e-12 poleguard ==
+test poleguard::a_junction_inside_the_pole_band_cannot_enter_through_the_import_door ... ok
+test poleguard::the_halfcap_eps7_witness_is_band_shaped ... ok
+test poleguard::the_span_route_argument_assumes_k_above_two_pi ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored
+== band 1e-12 budget ==
+test budget_meter::a_disarmed_meter_records_nothing ... ok
+test budget_meter::arming_the_meter_does_not_change_the_mesh ... ok
+test budget_meter::every_nurbs_face_is_measured_once_and_by_key ... ok
+test budget_meter::the_deviation_pass_samples_and_stays_under_its_certificates ... ok
+test errors::absurdly_fine_delta_overflows_typed ... ok
+test errors::infinite_delta_is_refused ... ok
+test errors::negative_delta_is_refused ... ok
+test errors::nurbs_surface_is_refused ... ok
+test errors::poisoned_delta_is_refused ... ok
+test errors::tessellate_error_display_names_its_content_not_its_struct ... ok
+test errors::zero_delta_is_refused ... ok
+test every_suite_file_is_aggregated ... ok
+test exact_vs_mesh::exact_volume_delta_consistent_with_mesh ... ok
+test fitted_refusals::a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk ... ok
+test genus::donut_faces_share_one_torus_surface ... ok
+test genus::donut_tessellates_the_torus ... ok
+test genus::washer_tessellates_full_period_patches ... ok
+test issue111_az_needle::survives_az_counter_hole_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_counter_through_rederived_frame_deterministic ... ok
+test issue111_az_needle::survives_az_plain_tessellates_watertight ... ok
+test issue111_az_needle::survives_az_stencil_tessellates_watertight ... ok
+test issue1362_band_placement::a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin ... ok
+test issue1362_band_placement::the_band_survives_every_placement_ratio_the_doors_admit ... ok
+test issue303_signed_volume_recentring::huge_offset_volume_through_public_oracle ... ok
+test issue303_signed_volume_recentring::translation_invariance_1e3_1e6 ... ok
+test issue555_subfloor_cap::ringed_and_concentric_charts_no_longer_refuse_sub_floor ... ok
+test issue555_subfloor_cap::subfloor_far_point_v_no_longer_refuses_at_any_noise_scale_or_delta ... ok
+test issue555_subfloor_cap::the_slit_annulus_cap_survives_the_written_zero ... ok
+test issue555_subfloor_cap::the_written_zero_keeps_the_rebuild_bit_identical ... ok
+test issue685_nu1_sizing::an_apex_free_single_column_cone_patch_is_the_same_strip ... ok
+test issue685_nu1_sizing::the_pi6_cone_wedge_is_pinned_at_the_measured_deltas ... ok
+test issue896_pole_guard::a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars ... ok
+test issue896_pole_guard::the_nearest_admitted_rim_meshes_watertight_with_the_guard_quiet ... ok
+test m5_pr11_trimmed::missing_pcurve_caches_refuse_typed ... ok
+test m5_pr11_trimmed::shared_edges_consume_one_chord_set ... ok
+test m5_pr11_trimmed::tilted_halves_tessellate_watertight_across_the_delta_schedule ... ok
+test m5_pr11_trimmed::trimmed_lane_is_bit_deterministic ... ok
+test m5_s10_face_sense::tessellation_follows_the_band_sense ... ok
+test m5_s11_concave_sense::hole_plate_tessellates_watertight_and_converges ... ok
+test m5_s11_concave_sense::notched_body_tessellates_watertight_and_converges ... ok
+test m7_nurbs_trimmed::delta_pair_measured_deviation_is_dominated_by_the_promise ... ok
+test m7_nurbs_trimmed::loft_prism_tessellates_watertight_and_volume_sane ... ok
+test m7_nurbs_trimmed::nurbs_tessellation_is_deterministic ... ok
+test m7_nurbs_trimmed::swept_elbow_tessellates_watertight_and_volume_sane ... ok
+test newell_probes::position_noise_subfloor_class_is_closed ... ok
+test newell_probes::probe_a_anchor_antipodal_to_far ... ok
+test newell_probes::probe_b_far_tie_determinism ... ok
+test newell_probes::probe_c_needle_extent_ratio ... ok
+test newell_probes::probe_d_huge_offset_tiny_face ... ok
+test newell_probes::probe_e2_collinear_midpoint_on_diagonal ... ok
+test newell_probes::probe_e_noise_scale_sweep ... ok
+test newell_probes::probe_slit_washer_rebuild ... ok
+test prisms::holed_prism_tessellates_with_rings ... ok
+test prisms::l_prism_tessellates_exactly ... ok
+test prisms::rounded_prism_tessellates_cylinder_patches ... ok
+test probe_review::z1_per_triangle_certificate_falsification ... ok
+test probe_review::z2_detached_pcurve_refuses_typed ... ok
+test probe_review::z3_fine_nurbs_vs_coarse_planar_neighbor_watertight ... ok
+test probe_review::z5_positions_hash_stamp ... ok
+test profile_overrides::dev_profile_still_optimizes_spade_and_mesh ... ok
+test profile_overrides::scanner_fires_on_planted_violations ... ok
+test r1_probe_bool_route::r1_probe_boolean_near_tangent_pole_cut ... ok
+test r1_probe_hash::r1_probe_corpus_hashes ... ok
+test r1_probes_issue1362::r1_hunts_a_near_origin_input_where_the_anchor_flips_a_column ... ok
+test r1_probes_issue1362::r1_looks_for_an_end_to_end_fixture_that_clears_the_door_and_fails_the_fold ... ok
+test r1_probes_issue1362::r1_reproduces_the_direction_drift_table ... ok
+test r1_probes_issue1362::r1_reproduces_the_whole_two_pi_branch_flip ... ok
+test r1_probes_issue1362::r1_the_ball_tessellates_honestly_at_every_placement_the_doors_admit ... ok
+test r1_probes_issue1362::r1_the_unwrap_near_tie_is_a_real_two_pi_cliff ... ok
+test r1_probes_issue1362::r1_the_wrap_makes_the_fold_anchor_independent_for_any_point_list ... ok
+test r1_probes_issue303::r1_bbox_extremes ... ok
+test r1_probes_issue303::r1_dyadic_box_hides_defect ... ok
+test r1_probes_issue303::r1_e2e_l_prism_near_far ... ok
+test r1_probes_issue303::r1_open_mesh_answer_changed ... ok
+test r2_bool_door::r2_bool_door_near_pole ... ok
+test r2_bytes::r2_byte_stability_report ... ok
+test r2_cert9_probes::p1_open_mesh_answer_changed_by_the_recentring ... ok
+test r2_cert9_probes::p2_dyadic_box_hides_the_prefix_defect ... ok
+test r2_cert9_probes::p3_anchor_arithmetic_at_extreme_placements ... ok
+test r2_cert9_probes::p4_e2e_l_shaped_body_near_and_far ... ok
+test r2_cert9_probes::p5_sweep_placeholder ... ok
+test r2_cert9_probes::p6_reproduce_the_huge_offset_red_digit ... ok
+test r2_cert9_probes::p7_early_return_swallows_a_corrupt_mesh ... ok
+test r2_mesh1_probes::r2_e2e_placed_ball_volume_is_the_balls ... ok
+test r2_mesh1_probes::r2_ordinary_placements_agree_between_anchors ... ok
+test r2_mesh1_probes::r2_the_branch_flip_reproduces ... ok
+test r2_mesh1_probes::r2_the_drift_table_reproduces ... ok
+test r2_mesh2_probes::r2_a_ring_vertex_on_the_anchor_far_diagonal_still_refuses ... ok
+test r2_mesh2_probes::r2_annular_cap_with_subfloor_noise ... ok
+test r2_mesh2_probes::r2_e2e_nonconvex_cap_at_subfloor_noise ... ok
+test r2_mesh2_probes::r2_slit_annulus_at_several_proportions ... ok
+test r2_mesh2_probes::r2_what_mitigate_underflow_actually_snaps ... ok
+test r2_split_door::r2_split_door_near_pole ... ok
+test review_m2_pr6_cert_oracle::survives_backref_integrity_and_patch_separability ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_many_band_dome ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_megaphone_and_silo ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_mirror_nappe_cones ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_near_pole_cap_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_stock_bodies_coarse_and_fine ... ok
+test review_m2_pr6_cert_oracle::survives_chordal_hunt_tall_thin_cylinder ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_accepts_valid_tetrahedron ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_degenerate_sliver ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_double_collapsed_fan_fallout ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_duplicated_triangle ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_flipped_winding ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_index_out_of_range ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_open_fan ... ok
+test review_m2_pr6_checkmesh_audit::survives_checkmesh_rejects_t_junction ... ok
+test review_m2_pr6_checkmesh_audit::survives_concentric_slit_annuli ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_segments_shared_by_both_wall_sides ... ok
+test review_m2_pr6_checkmesh_audit::survives_seam_weld_no_bitwise_duplicate_positions ... ok
+test review_m2_pr6_checkmesh_audit::survives_washer_at_very_coarse_delta ... ok
+test review_m2_pr6_determinism::print_dump_hashes ... ignored
+test review_m2_pr6_determinism::survives_byte_identical_rebuild_across_bodies ... ok
+test review_m2_pr6_determinism::survives_canonically_equal_profile_constructions ... ok
+test review_m2_pr6_determinism::survives_delta_sweep_at_fixed_eps_monotone_sane ... ok
+test review_m2_pr6_determinism::survives_eps_row_bitwise_independence ... ok
+test review_m2_pr6_determinism::survives_near_axis_vertex_arc_endpoint ... ok
+test review_m2_pr6_errors::survives_certificate_exceeded_unreachable_over_body_sweep ... ok
+test review_m2_pr6_errors::survives_delta_fine_but_sane_still_tessellates ... ok
+test review_m2_pr6_errors::survives_denormal_delta_typed_overflow_on_curved_bodies ... ok
+test review_m2_pr6_errors::survives_negative_zero_delta_refused ... ok
+test review_m2_pr6_errors::survives_self_intersecting_profile_never_reaches_spade ... ok
+test review_m2_pr6_errors::survives_torus_wedge_outside_pole_window ... ok
+test review_m2_pr6_walk_shapes::survives_axis_touching_wedge_angles ... ok
+test review_m2_pr6_walk_shapes::survives_cone_wedges_apex_junctions_below_three_half_pi ... ok
+test review_m2_pr6_walk_shapes::survives_many_segment_dome_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_mirror_nappe_wedges ... ok
+test review_m2_pr6_walk_shapes::survives_near_full_wedge_pole_junction_unwrap ... ok
+test review_m2_pr6_walk_shapes::survives_outward_shell_assumption_via_public_api ... ok
+test review_m2_pr6_walk_shapes::survives_sphere_wedges_pole_to_pole_bands ... ok
+test review_m2_pr6_walk_shapes::survives_wedge_angles_near_pi_and_extremes ... ok
+test review_m3_pr1_mesh::tessellate_refuses_null_scaffold_typed ... ok
+test revolves::apex_wedges_never_size_to_a_single_azimuth_column ... ok
+test revolves::ball_pole_fan_structure ... ok
+test revolves::ball_tessellates_with_pole_fans ... ok
+test revolves::cone_tessellates_with_apex_fan ... ok
+test revolves::sphere_pole_faces_are_floored_too_though_they_never_needed_it ... ok
+test the_eps_inventory_is_pinned ... ok
+test wedge::axis_wedge_tessellates_with_axis_edge ... ok
+test wedge::wedge_tessellates_theta_patches ... ok
+test result: ok. 140 passed; 0 failed; 1 ignored
