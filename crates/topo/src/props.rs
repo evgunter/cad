@@ -29,8 +29,11 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_brep::props::{
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
+};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use slotmap::Key;
 
 use crate::body::Body;
 use crate::boolean::ContactRecords;
@@ -397,8 +400,10 @@ fn face_flux<T: Decide>(
     })
 }
 
-/// Flatten one loop's half-edge cycle into key-free [`LoopEdge`]s
-/// (traversal order; vertex tags are loop-local first-seen indices),
+/// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
+/// order; vertex tags are loop-local first-seen indices; each edge's
+/// carrier identity is the root of its split lineage, minted from this
+/// body's own keys and comparable only within this flattening),
 /// alongside the half-edge keys walked (the PR 11 quadrature lane
 /// reads stored pcurve caches through them).
 ///
@@ -456,6 +461,17 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
+            // A lineage that cycles is one a graft aliased (issue 1597:
+            // records are copied with their source keys, which in the
+            // destination chain into strangers); the flattening then
+            // stamps NO identity, so no two such edges are ever folded
+            // into one — the fold declines rather than trusting a
+            // record it cannot read, and a split meridian on such a
+            // body refuses at the far rim as it did before any fold.
+            carrier_id: body
+                .split_root(he.edge, |_| false)
+                .ok()
+                .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
             forward: he_key == edge.he_plus,

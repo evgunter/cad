@@ -329,7 +329,7 @@ pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
     ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
 };
-pub use provenance::Provenance;
+pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.

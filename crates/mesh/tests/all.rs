@@ -74,6 +74,14 @@ mod m5_s10_face_sense;
 mod m5_s11_concave_sense;
 #[path = "m7_nurbs_trimmed.rs"]
 mod m7_nurbs_trimmed;
+#[path = "mesh10r1_digest.rs"]
+mod mesh10r1_digest;
+#[path = "mesh10r1_probes.rs"]
+mod mesh10r1_probes;
+#[path = "mesh10r2_digest.rs"]
+mod mesh10r2_digest;
+#[path = "mesh10r2_probes.rs"]
+mod mesh10r2_probes;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
 #[path = "mesh8_corpus_coherence.rs"]

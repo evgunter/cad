@@ -295,6 +295,7 @@ which is what actually moves the number.
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial, gap, coplanar) | lengths / sin×extent / common-perpendicular | m | OK |
 | intersect.rs:1000/1006/1043 | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent; sin×rim r | m | OK |
+| intersect.rs:1480/1484/1498/1504/1535/1544 | pt_tube_guard / ring_guard / axis_in_plane / axis_plane_gap / axis_normal / cap_gap | r; R−r; sin×extent; centre-plane gap; sin×R; r−station depth | m | OK — with the axis_in_plane lever CONDITION on record: just inside the Zero band the raw sine reaches ε/extent, so the minted meridian circles sit off their own PLANE by up to r·ε/extent (27ε measured at extent = 0.01; the torus residual stays machine-zero). Cannot bite with a real operand: extent ≥ R + r for any plane that reaches the torus, so the planarity error stays under ε |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |

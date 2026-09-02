@@ -348,3 +348,42 @@ head's only.
 Slate next: MESH-10 (issue 1562) dispatched from this merge (MESH-B3
 slot 2; the block is exhausted — MESH-11 draws MESH-B4); MESH-11 (issue
 1571) after it; MESH-9 stays parked on its trigger.
+
+## MESH-10 merged (2026-09-02) — issue 1562 closed; the torus reads the whole meridian
+
+PR 1595 at head b3314bfca plus this row (run 33674151153 green;
+lane interval, ε default, both drawn). `torus_parse` folds the pieces
+of a split meridian into the one meridian they carry before the span
+is read, keyed on split lineage — `Provenance::SplitEdge` chased to
+the root edge and stamped on `LoopEdge` by `topo::props::loop_edges`
+— never on value coincidence; every consumer flips through the one
+parse with zero ulps and the issue-653 sweep returns to (254, 4).
+
+**The dual (ordinal 1208, sample #112 — the row on the branch as its
+last commit, per the reaffirmed rule)**: R1 not mergeable on one
+executed MAJOR, R2 mergeable after MINORs; the same substance at split
+severity, so no tally candidate; pair COUNTS. The reviews' product:
+the fold ASSUMED the pieces partition the parent's parametrisation and
+enforced nothing, and three public calls could make it sum a span past
+the certification bound into a silent doubled volume where the base
+refused. The fix pass makes the fold enforce what it assumed —
+contiguity at the exact-order band, one direction, the reconstructed
+span re-decided against the per-edge winding invariant — refusing where
+the sphere arm clamps, with the class stated at one home.
+
+**Seam entries.** (1) Boolean `combine.rs` copies every provenance
+record verbatim across a graft, so lineage chases alias source-arena
+keys and `union` on a split-seam operand is order-dependent (typed
+refusal one way): issue 1597, found by R2, MEASURED by the fix pass —
+forwarding `SplitEdge` across the graft breaks the names lane's
+`chase_b`, which needs the verbatim key of an ancestor that died
+before the graft; the graft stays verbatim, the row pins the finding,
+a dead-ancestor bridge on `GraftMap` is the fix. (2) The class sweep
+measured wedge/rounded_prism moving one ulp in area under ANY edge
+split — planar summation order, not this unit's; a standing fact now
+in the sweep table. (3) `Body::split_root` is typed and its cycle arm
+fired on real assembly products through 1597's aliasing.
+
+Slate next: MESH-11 (issue 1571) dispatches from this merge and draws
+MESH-B4; MESH-9 stays parked; issues 1587/1588/1597 are the
+cross-program seams left open.

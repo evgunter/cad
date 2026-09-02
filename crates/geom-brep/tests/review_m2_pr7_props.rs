@@ -234,33 +234,33 @@ fn rim_edge(
         // Antiparallel carrier: eval(t) sits at azimuth −t, so the
         // carrier interval [−u1, −u0] covers the same arc; traversal
         // +u is the DECREASING-t direction (forward = !up).
-        LoopEdge {
-            carrier: Curve3::Circle {
+        LoopEdge::hand_built(
+            Curve3::Circle {
                 center,
                 axis: -axis,
                 radius,
                 u_ref,
             },
-            t0: -u1,
-            t1: -u0,
-            forward: !up,
-            start: tags.0,
-            end: tags.1,
-        }
+            -u1,
+            -u0,
+            !up,
+            tags.0,
+            tags.1,
+        )
     } else {
-        LoopEdge {
-            carrier: Curve3::Circle {
+        LoopEdge::hand_built(
+            Curve3::Circle {
                 center,
                 axis,
                 radius,
                 u_ref,
             },
-            t0: u0,
-            t1: u1,
-            forward: up,
-            start: tags.0,
-            end: tags.1,
-        }
+            u0,
+            u1,
+            up,
+            tags.0,
+            tags.1,
+        )
     }
 }
 
@@ -358,15 +358,8 @@ fn meridian_edge(
         }
         _ => panic!("meridian_edge: unsupported"),
     };
-    LoopEdge {
-        carrier,
-        t0,
-        t1,
-        forward: up,
-        // `tags` are already traversal-order (start, end).
-        start: tags.0,
-        end: tags.1,
-    }
+    // `tags` are already traversal-order (start, end).
+    LoopEdge::hand_built(carrier, t0, t1, up, tags.0, tags.1)
 }
 
 fn check_patch(what: &str, s: &Surface<f64>, rect: [f64; 4], sigma: f64, flip_rims: bool) {
@@ -537,35 +530,35 @@ fn torus_patch_matches_oracle_arbitrary_minor_intervals() {
 fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
     let d = b - a;
     let len = d.norm();
-    LoopEdge {
-        carrier: Curve3::Line {
+    LoopEdge::hand_built(
+        Curve3::Line {
             origin: a,
             dir: d * (1.0 / len),
         },
-        t0: 0.0,
-        t1: len,
-        forward: true,
-        start: 0,
-        end: 0,
-    }
+        0.0,
+        len,
+        true,
+        0,
+        0,
+    )
 }
 
 /// Full circle in the z = h plane as a single self-loop edge, CCW
 /// (+z) when `ccw`.
 fn circle_loop(cx: f64, cy: f64, h: f64, r: f64, ccw: bool) -> Vec<LoopEdge<f64>> {
-    vec![LoopEdge {
-        carrier: Curve3::Circle {
+    vec![LoopEdge::hand_built(
+        Curve3::Circle {
             center: Point3::new(cx, cy, h),
             axis: Vec3::new(0.0, 0.0, 1.0),
             radius: r,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
-        t0: 0.0,
-        t1: TAU,
-        forward: ccw,
-        start: 0,
-        end: 0,
-    }]
+        0.0,
+        TAU,
+        ccw,
+        0,
+        0,
+    )]
 }
 
 #[test]
@@ -595,8 +588,8 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
     let r = 1.5;
     let (t0, t1) = (0.25, 0.25 + 1.5 * PI);
     let c = Point3::new(0.4, -0.2, 0.0);
-    let arc = LoopEdge {
-        carrier: Curve3::Circle {
+    let arc = LoopEdge::hand_built(
+        Curve3::Circle {
             center: c,
             axis: Vec3::new(0.0, 0.0, 1.0),
             radius: r,
@@ -604,10 +597,10 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
         },
         t0,
         t1,
-        forward: true,
-        start: 0,
-        end: 1,
-    };
+        true,
+        0,
+        1,
+    );
     let a = arc.carrier.eval(t1);
     let b = arc.carrier.eval(t0);
     let closing = line_edge(a, b);
@@ -703,14 +696,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
         "zero-extent face must refuse"
     );
     // (g) Nurbs carrier.
-    let e = LoopEdge {
-        carrier: Curve3::nurbs_placeholder(),
-        t0: 0.0,
-        t1: 1.0,
-        forward: true,
-        start: 0,
-        end: 1,
-    };
+    let e = LoopEdge::hand_built(Curve3::nurbs_placeholder(), 0.0, 1.0, true, 0, 1);
     assert!(matches!(
         curved_face(&s, &[e], 1.0, b),
         Err(PropsError::Unimplemented)
@@ -738,18 +724,20 @@ fn off_surface_boundaries_must_refuse_typed() {
     };
     // Full-period rims at v = 0 and v = 1, the top rim's center
     // off-axis by 0.4 — that circle is nowhere on the cylinder.
-    let rim = |z: f64, off: f64, fwd: bool, tag: u32| LoopEdge {
-        carrier: Curve3::Circle {
-            center: Point3::new(off, 0.0, z),
-            axis,
-            radius: 1.0,
-            u_ref,
-        },
-        t0: 0.0,
-        t1: TAU,
-        forward: fwd,
-        start: tag,
-        end: tag,
+    let rim = |z: f64, off: f64, fwd: bool, tag: u32| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: Point3::new(off, 0.0, z),
+                axis,
+                radius: 1.0,
+                u_ref,
+            },
+            0.0,
+            TAU,
+            fwd,
+            tag,
+            tag,
+        )
     };
     let edges = vec![rim(0.0, 0.0, true, 0), rim(1.0, 0.4, false, 1)];
     assert!(

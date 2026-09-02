@@ -259,14 +259,20 @@ pub fn boundary_material_sign<T: Decide>(
 /// whose walk assumes each edge stays on one iso curve — `mesh`'s —
 /// still inherits that premise rather than receiving it from here.
 ///
-/// **It inherits the extent derivations' limitations, and says so.**
-/// The door decides shape from rim structure against the extremes
-/// each kind derives; where a derivation mis-reads the extent, the
-/// answer is a false "not at an extreme", not a shape verdict. The
-/// torus is the known case (issue 1562): its extent is the FIRST
-/// meridian's stored span, so a meridian carried by two edges — a
-/// split seam — reads half the extent and refuses a face that is a
-/// rectangle. The flux lane refuses that face by the same name.
+/// **It inherits the extent derivations, and says so.** The door
+/// decides shape from rim structure against the extremes each kind
+/// derives; where a derivation mis-read the extent, the answer would
+/// be a false "not at an extreme", not a shape verdict. Each kind
+/// derives its extremes from spans certification bounded per edge:
+/// the linear kinds' are `min_max` over endpoint levels, the sphere's
+/// fold each arc's pole extremes in, and the torus's is its anchor
+/// meridian's whole stored span — the pieces of a split edge folded
+/// into that meridian first, under the same per-edge invariants
+/// re-decided on the span the fold reconstructs
+/// ([`fold_torus_meridians`]). What no derivation sees is a meridian
+/// an importer states as several edges on one curve entity: those
+/// carry no split lineage, stay several meridians, and the torus
+/// refuses the far rim by `props_rim_level`.
 ///
 /// **A rimless sphere band is a chart rectangle and PASSES.** A lune
 /// between two meridians is `[u0, u1] × [−π/2, π/2]` whatever
@@ -367,9 +373,10 @@ fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Resu
 /// the prologue every torus consumer runs before deciding anything —
 /// the flux lane, [`boundary_material_sign`] and
 /// [`require_iso_rectangle`] — in one place, so the refusal names and
-/// their order are one. The anchor is the FIRST meridian the parse
-/// met; the extent it carries is that one edge's stored span, which is
-/// the issue-1562 limitation every consumer inherits alike.
+/// their order are one. The anchor is the FIRST meridian in loop
+/// order after [`torus_boundary`] has folded the pieces of a split
+/// edge into the meridian they carry, so its span is the meridian's
+/// whole span however many edges carry it.
 struct TorusParse<T: Real> {
     rims: Vec<Rim<T>>,
     anchor: TorusMeridian<T>,
@@ -1416,7 +1423,10 @@ fn sphere_meridian_span_levels<T: Decide>(
     // past `dt = 2π` and would EXCLUDE directions a multi-wrap span
     // covers (executed: a 3π span read the north pole `Negative` and
     // the face measured half its area). The clamp makes the test
-    // total over every positive stored span.
+    // total over every positive stored span — and it is a clamp only
+    // because this is ONE edge's span, which certification bounded; a
+    // span reconstructed across edges is decided, not clamped
+    // (`fold_chain`, the class statement).
     let (_, c_edge) = (dt * half).min(T::pi()).sin_cos();
     let (sdt, cdt) = dt.sin_cos();
     for (ps, pc, extreme) in [(sa, ca, r0), (-sa, -ca, -r0)] {
@@ -1664,8 +1674,11 @@ fn torus<T: Decide>(
     Ok(FaceContribution { flux, area })
 }
 
-/// A torus minor-circle boundary edge (iso-`u` meridian): its carrier
-/// frame, stored parameter span, and traversal-start anchor.
+/// A torus minor-circle boundary meridian (iso-`u`) as the parse
+/// consumes it: its carrier frame, the parameter span the meridian
+/// covers on that carrier, and the anchor at the interval's `t0` end.
+/// One meridian is carried by one edge, or by the pieces of one split
+/// edge folded back into it ([`fold_torus_meridians`]).
 struct TorusMeridian<T: Real> {
     n_c: Vec3<T>,
     c_c: Point3<T>,
@@ -1674,10 +1687,30 @@ struct TorusMeridian<T: Real> {
     anchor_tag: u32,
 }
 
+/// One meridian ARC as one boundary edge carries it — the fold's
+/// input: the edge itself, plus the two facts about its carrier the
+/// classification certified (the minor circle's axis and centre).
+struct TorusArc<'a, T: Real> {
+    edge: &'a LoopEdge<T>,
+    n_c: Vec3<T>,
+    c_c: Point3<T>,
+}
+
+/// A torus boundary edge classified, in loop order, before the fold.
+enum TorusEdge<'a, T: Real> {
+    Rim(Rim<T>),
+    Arc(TorusArc<'a, T>),
+}
+
+/// A torus face's boundary as the consumers read it: its rims, and
+/// its meridians after the fold.
+type TorusParts<T> = (Vec<Rim<T>>, Vec<TorusMeridian<T>>);
+
 /// Classify a torus face's boundary into (rims, meridians) — the
-/// shared parse consumed by both the flux closed form and
-/// [`boundary_material_sign`].
-#[allow(clippy::type_complexity)]
+/// shared parse consumed by the flux closed form,
+/// [`boundary_material_sign`] and the shape door. Every edge is
+/// certified rim-or-meridian in loop order first; the arcs that carry
+/// one meridian are then folded into it.
 fn torus_boundary<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -1685,9 +1718,8 @@ fn torus_boundary<T: Decide>(
     minor: T,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<(Vec<Rim<T>>, Vec<TorusMeridian<T>>), PropsError> {
-    let mut rims: Vec<Rim<T>> = Vec::new();
-    let mut meridians: Vec<TorusMeridian<T>> = Vec::new();
+) -> Result<TorusParts<T>, PropsError> {
+    let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -1719,14 +1751,14 @@ fn torus_boundary<T: Decide>(
                     band,
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
-                rims.push(Rim {
+                classified.push(TorusEdge::Rim(Rim {
                     d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless minor-angle direction pair.
                     level: RimLevel::Unit(sin_v, cos_v),
                     tags: (e.start, e.end),
-                });
+                }));
             }
             Sign::Zero => {
                 let w = c_c - center;
@@ -1748,17 +1780,198 @@ fn torus_boundary<T: Decide>(
                     Margin::of(n_c.dot(w - axis * h)),
                     band,
                 )?;
-                meridians.push(TorusMeridian {
-                    n_c,
-                    c_c,
-                    dt: e.t1 - e.t0,
-                    anchor: e.p0(),
-                    anchor_tag: e.tag_at_t0(),
+                classified.push(TorusEdge::Arc(TorusArc { edge: e, n_c, c_c }));
+            }
+        }
+    }
+    fold_torus_meridians(classified, minor, band)
+}
+
+/// Fold the arcs that carry ONE meridian into it; rims pass through
+/// in loop order.
+///
+/// Two loop-adjacent arcs are pieces of one meridian iff they carry
+/// equal [`CarrierId`](super::CarrierId)s — pieces of one original edge, whose split
+/// children keep its carrier and partition its interval — and are
+/// traversed the same way. Identity is the whole membership test:
+/// `None` matches nothing, and two arcs from distinct edges stay two
+/// meridians however their stored circles compare as values (two
+/// carriers meeting at a vertex are a corner, never a subdivision, and
+/// the door then refuses the far rim as it always did). A meridian an
+/// importer states as several edges on one curve entity carries no
+/// split lineage and does not fold here.
+///
+/// **What the identity asserts is then enforced, not assumed**
+/// ([`fold_chain`]): the pieces must MEET — adjacent pieces' intervals
+/// abut exactly, `a.t1 == b.t0` in the traversal direction, which is a
+/// structural fact of the split (one `t` is both children's boundary)
+/// decided at the exact-order band rather than inferred at ε — and the
+/// interval they assemble must be one certification could have
+/// admitted. A loop of arcs that all continue one another (one closed
+/// minor circle in pieces, no rim) has no chain boundary and refuses
+/// by one name whatever rotation it arrives in; every other loop is
+/// walked from an edge no chain continues into, so no chain is cut.
+///
+/// The folded interval is `[lowest t0, highest t1]` over the chain —
+/// on one parametrisation, the original edge's own stored interval,
+/// bitwise, whatever the split fractions — and the anchor is the arc
+/// at its `t0` end, so a meridian carried by one edge folds to exactly
+/// the record that edge produces alone.
+fn fold_torus_meridians<T: Decide>(
+    mut edges: Vec<TorusEdge<'_, T>>,
+    minor: T,
+    band: Band,
+) -> Result<TorusParts<T>, PropsError> {
+    fn same_edge<T: Real>(a: &TorusArc<'_, T>, b: &TorusArc<'_, T>) -> bool {
+        a.edge.forward == b.edge.forward
+            && matches!((a.edge.carrier_id, b.edge.carrier_id), (Some(x), Some(y)) if x == y)
+    }
+    let n = edges.len();
+    if n == 0 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let Some(start) = (0..n).find(|&i| match (&edges[(i + n - 1) % n], &edges[i]) {
+        (TorusEdge::Arc(a), TorusEdge::Arc(b)) => !same_edge(a, b),
+        _ => true,
+    }) else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "torus meridian pieces close a loop with no rim",
+        });
+    };
+    edges.rotate_left(start);
+    let mut rims = Vec::new();
+    let mut meridians = Vec::new();
+    let mut chain: Vec<TorusArc<'_, T>> = Vec::new();
+    for e in edges {
+        match e {
+            TorusEdge::Rim(r) => {
+                if !chain.is_empty() {
+                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
+                }
+                rims.push(r);
+            }
+            TorusEdge::Arc(a) => {
+                if chain.last().is_some_and(|last| !same_edge(last, &a)) {
+                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
+                }
+                chain.push(a);
+            }
+        }
+    }
+    if !chain.is_empty() {
+        meridians.push(fold_chain(chain, minor, band)?);
+    }
+    Ok((rims, meridians))
+}
+
+/// The exact-order band: the open interior `(min-subnormal,
+/// 2·min-subnormal)` contains no representable `f64`, so a decision
+/// against it is exact and total at `f64` — `Zero` means bit-level
+/// coincidence — and at the interval scalar an enclosure straddling
+/// the hairline escalates honestly. Profile's canonical-form band and
+/// the split join's ordering decide against the same constants.
+fn exact_band() -> Band {
+    match Band::new(f64::from_bits(1), f64::from_bits(2)) {
+        Ok(band) => band,
+        // Two finite, ordered, positive constants: a `BandError` from
+        // them is a kernel bug, not a state (D2 addendum row 4).
+        Err(_) => unreachable!("the exact-order band's constants are valid by construction"),
+    }
+}
+
+/// One chain of arcs — non-empty, loop-consecutive, one identity, one
+/// traversal direction — as the meridian they carry. Traversal runs up
+/// the parametrisation on a forward chain and down it on a reversed
+/// one, so the `t0` end is the first arc or the last.
+///
+/// **Spans across edges are decided, never clamped — the class
+/// statement, at its one home.** Certification bounds every EDGE's
+/// stored span (`interval_span_forward`, `interval_span_winding`:
+/// `0 < Δt ≤ τ`), and every per-edge span read in this module rests
+/// on that bound — the sphere arm's pole fold saturates its membership
+/// edge at a half-turn, a clamp that is total only because no
+/// certified edge exceeds one period. A span this fold reconstructs
+/// ACROSS edges was certified by nobody: a public door
+/// (`set_edge_curve`) can restate one piece's interval on its own
+/// carrier — shifted by a period, the identical arc, every piece
+/// certifying — and the assembled interval then spans more than a
+/// period, which `sin`/`cos` would silently fold back onto the
+/// extremes and every consumer would answer for, twice over. So a
+/// chain of two or more pieces re-decides three things, and refuses
+/// typed on any of them, naming the decide — the pieces do not
+/// partition one certified interval:
+///
+/// * `props_meridian_pieces_meet` — adjacent intervals abut exactly
+///   (the exact-order band; a sub-ε shift is still not the split's
+///   own `t`, and is refused, not absorbed);
+/// * `props_meridian_pieces_forward` — the assembled span is definitely
+///   positive, as certification requires of one edge;
+/// * `props_meridian_pieces_winding` — it does not definitely exceed a
+///   period, certification's winding bound, at the same band and lever.
+///
+/// A single edge is its own certified interval and re-decides nothing.
+fn fold_chain<T: Decide>(
+    chain: Vec<TorusArc<'_, T>>,
+    minor: T,
+    band: Band,
+) -> Result<TorusMeridian<T>, PropsError> {
+    let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
+        unreachable!("a torus meridian chain is folded only when non-empty")
+    };
+    let forward = first.edge.forward;
+    let pieces = chain.len() > 1;
+    if pieces {
+        let exact = exact_band();
+        for pair in chain.windows(2) {
+            let (a, b) = (pair[0].edge, pair[1].edge);
+            let gap = if forward { b.t0 - a.t1 } else { a.t0 - b.t1 };
+            if classify(
+                "props_meridian_pieces_meet",
+                Margin::levered(gap, minor),
+                exact,
+            )? != Sign::Zero
+            {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "props_meridian_pieces_meet",
                 });
             }
         }
     }
-    Ok((rims, meridians))
+    let (lo, hi) = if forward {
+        (first, last)
+    } else {
+        (last, first)
+    };
+    let dt = hi.edge.t1 - lo.edge.t0;
+    if pieces {
+        if classify(
+            "props_meridian_pieces_forward",
+            Margin::levered(dt, minor),
+            band,
+        )? != Sign::Positive
+        {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_pieces_forward",
+            });
+        }
+        if classify(
+            "props_meridian_pieces_winding",
+            Margin::levered(T::tau() - dt, minor),
+            band,
+        )? == Sign::Negative
+        {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_pieces_winding",
+            });
+        }
+    }
+    Ok(TorusMeridian {
+        n_c: lo.n_c,
+        c_c: lo.c_c,
+        dt,
+        anchor: lo.edge.p0(),
+        anchor_tag: lo.edge.tag_at_t0(),
+    })
 }
 
 /// Chart orientation of the anchor meridian: `v` winds right-handed
