@@ -206,7 +206,7 @@ fn scene_extent(scene: &SceneMesh) -> f64 {
     let bounds = scene.bounds();
     let span = |axis| bounds.max(axis) - bounds.min(axis);
     let (x, y, z) = (span(bvh::Axis::X), span(bvh::Axis::Y), span(bvh::Axis::Z));
-    (x * x + y * y + z * z).sqrt()
+    (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
 }
 
 /// **How big the tip marks in a profile preview are**, in sketch-plane

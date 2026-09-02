@@ -292,7 +292,7 @@ fn cross(a: Vec3<f64>, b: Vec3<f64>) -> Vec3<f64> {
 /// `1/√3` — and it is here rather than an assertion because a datum
 /// nobody can see is a better failure than a panic in a paint path.
 fn unit(v: Vec3<f64>) -> Vec3<f64> {
-    let len = (v.x * v.x + v.y * v.y + v.z * v.z).sqrt();
+    let len = (v.x.powi(2) + v.y.powi(2) + v.z.powi(2)).sqrt();
     if len > 0.0 {
         Vec3::new(v.x / len, v.y / len, v.z / len)
     } else {

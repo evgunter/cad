@@ -50,7 +50,7 @@ fn reach(segments: &[[f64; 3]], centre: [f64; 3]) -> f64 {
         .iter()
         .map(|p| {
             let (dx, dy, dz) = (p[0] - centre[0], p[1] - centre[1], p[2] - centre[2]);
-            (dx * dx + dy * dy + dz * dz).sqrt()
+            (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt()
         })
         .fold(0.0_f64, f64::max)
 }
