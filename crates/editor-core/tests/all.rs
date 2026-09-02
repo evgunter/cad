@@ -144,6 +144,8 @@ mod m4_pr1_paths;
 mod m4_pr2_eval;
 #[path = "m4_pr2_eval_interval.rs"]
 mod m4_pr2_eval_interval;
+#[path = "m4_pr2_frame.rs"]
+mod m4_pr2_frame;
 #[path = "m4_pr2_wire.rs"]
 mod m4_pr2_wire;
 #[path = "m4_pr3_names.rs"]

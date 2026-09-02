@@ -271,6 +271,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(12);
                         d.p3(position);
                     }
+                    ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+                        d.u64(23);
+                        d.p3(origin);
+                        d.v3(&u.get());
+                        d.v3(&v.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {

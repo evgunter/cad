@@ -362,6 +362,16 @@ struct Drafts {
     datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
     datum_direction: [f64; 3],
+    /// The FRAME form's two in-plane axes, sketch +x then +y
+    /// (unitless; ignored by every other kind).
+    ///
+    /// Their own fields rather than a reuse of `datum_direction`,
+    /// because a form's default has to mean something: a plane opens
+    /// facing +z, and a frame opens as the world xy frame — which the
+    /// same buffer cannot say twice.
+    datum_u: [f64; 3],
+    /// The frame form's sketch +y axis.
+    datum_v: [f64; 3],
     /// **The unit every creation form's LENGTH field is written in.**
     ///
     /// ONE choice for all the forms, not one per form. The panel's
@@ -473,6 +483,8 @@ impl Default for Drafts {
             datum_kind: DatumKind::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
+            datum_u: [1.0, 0.0, 0.0],
+            datum_v: [0.0, 1.0, 0.0],
             length_unit: quantity::M,
             angle_unit: quantity::PI,
             profile_shape: None,
@@ -691,12 +703,19 @@ enum DatumKind {
     Axis,
     /// A point datum.
     Point,
+    /// A sketch frame — an oriented plane.
+    Frame,
 }
 
 impl DatumKind {
     /// Every kind with its radio label, in form order.
-    const ALL: [(Self, &'static str); 3] = [
+    ///
+    /// The frame sits next to the plane because that is the choice a
+    /// reader is actually making: the same surface, with or without a
+    /// stated direction on it.
+    const ALL: [(Self, &'static str); 4] = [
         (Self::Plane, "plane"),
+        (Self::Frame, "frame"),
         (Self::Axis, "axis"),
         (Self::Point, "point"),
     ];
@@ -3262,7 +3281,7 @@ impl ViewerBehavior<'_> {
                 ui,
                 match kind {
                     DatumKind::Point => "position",
-                    DatumKind::Plane | DatumKind::Axis => "origin",
+                    DatumKind::Plane | DatumKind::Axis | DatumKind::Frame => "origin",
                 },
                 self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
@@ -3283,6 +3302,16 @@ impl ViewerBehavior<'_> {
                 UNIT_DRAG_SPEED,
                 &mut self.drafts.datum_direction,
             ),
+            DatumKind::Frame => {
+                vec3_row(ui, "x axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_u);
+                vec3_row(ui, "y axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_v);
+                // What the form does to the y axis before it becomes a
+                // datum, said where it is being typed: a reader who
+                // enters a y that is not square to x gets a frame that
+                // is, and a silent correction is the kind a person
+                // discovers by measuring the model.
+                ui.label("y is squared against x; the normal is x × y");
+            }
             DatumKind::Point => {}
         }
         if ui.button("Add datum").clicked() {
@@ -3300,6 +3329,11 @@ impl ViewerBehavior<'_> {
                         direction: scalars(self.drafts.datum_direction)?,
                     },
                     DatumKind::Point => DatumSpec::Point { position: origin },
+                    DatumKind::Frame => DatumSpec::Frame {
+                        origin,
+                        u: scalars(self.drafts.datum_u)?,
+                        v: scalars(self.drafts.datum_v)?,
+                    },
                 })
             })();
             match datum {

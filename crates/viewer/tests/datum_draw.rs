@@ -96,6 +96,14 @@ fn point(position: [f64; 3]) -> Node<ProfileProgram> {
     })
 }
 
+fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    Node::Datum(Datum::Frame {
+        origin: len3(origin),
+        u: scl3(u),
+        v: scl3(v),
+    })
+}
+
 /// **Each of the three kinds draws, and says which it is.**
 ///
 /// In document order, so what a reader sees in the viewport is
@@ -124,6 +132,104 @@ fn every_datum_kind_draws_in_document_order() {
             doc.node(d.node).is_some(),
             "a drawing names a node the document does not have",
         );
+    }
+}
+
+/// **A frame's grid is ruled on the FRAME's axes, not on a display
+/// convention.**
+///
+/// This is the row that makes the frame worth drawing at all. Two
+/// frames on one surface, turned a quarter turn from each other, are
+/// the same plane to `Datum::Plane` and to [`datums::basis`] — which
+/// picks in-plane directions off the normal alone, so it hands both of
+/// them the SAME pair. If the frame drew through that convention, the
+/// two pictures would be identical and the drawing would be hiding the
+/// only thing the datum carries.
+///
+/// The claim is checked where it is falsifiable: a frame turned 30°
+/// (not a multiple of the quarter turn a square grid is symmetric
+/// under) rules lines along its own axes, so every drawn direction is
+/// parallel to one of them.
+#[test]
+fn a_frames_grid_follows_its_own_axes() {
+    let (cos, sin) = (30.0_f64.to_radians().cos(), 30.0_f64.to_radians().sin());
+    let (doc, tol) = evaluated(vec![frame(
+        [0.0, 0.0, 0.0],
+        [cos, sin, 0.0],
+        [-sin, cos, 0.0],
+    )]);
+    let drawn = draws(&doc, tol, [0.0, -0.15, 0.1]);
+    assert_eq!(drawn.len(), 1);
+    assert_eq!(drawn[0].kind, DatumKind::Frame);
+    // The two arms are the LAST two pairs; every pair before them is a
+    // grid line. Both sets are checked, for different claims: a grid
+    // line runs ALONG one of the axes, and an arm runs along one from
+    // the origin.
+    let segments = &drawn[0].segments;
+    assert!(segments.len() >= 6, "{} positions", segments.len());
+    let mut along_u = 0;
+    let mut along_v = 0;
+    let mut along_n = 0;
+    for pair in segments.chunks_exact(2) {
+        let d = [
+            pair[1][0] - pair[0][0],
+            pair[1][1] - pair[0][1],
+            pair[1][2] - pair[0][2],
+        ];
+        let n = (d[0].powi(2) + d[1].powi(2) + d[2].powi(2)).sqrt();
+        assert!(n > 0.0, "a zero-length segment");
+        let unit = [d[0] / n, d[1] / n, d[2] / n];
+        let on_u = (unit[0] * cos + unit[1] * sin).abs();
+        let on_v = (unit[0] * -sin + unit[1] * cos).abs();
+        if on_u > 1.0 - 1.0e-9 {
+            along_u += 1;
+        } else if on_v > 1.0 - 1.0e-9 {
+            along_v += 1;
+        } else if unit[2].abs() > 1.0 - 1.0e-9 {
+            along_n += 1;
+        } else {
+            panic!("a segment runs {unit:?}, along none of the frame's axes or its normal");
+        }
+    }
+    assert!(along_u > 0 && along_v > 0, "{along_u} / {along_v}");
+    // The third line of the triad: a frame says which side is up as
+    // well as which way it is turned, so a reader can see which way an
+    // extrude off it will go.
+    assert_eq!(along_n, 1, "one normal tick, not {along_n}");
+}
+
+/// **The two arms are unequal, so the drawing says which axis is x.**
+///
+/// A grid is symmetric under a quarter turn, so a frame drawn with two
+/// arms of one length would name the PAIR of directions without naming
+/// which of them the sketch's x is — and that is the difference
+/// between a frame and the plane it lies in.
+#[test]
+fn a_frames_arms_name_which_axis_is_x() {
+    let (doc, tol) = evaluated(vec![frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+    )]);
+    let segments = &draws(&doc, tol, [0.0, -0.15, 0.1])[0].segments;
+    let arms = &segments[segments.len() - 4..];
+    let length = |pair: &[[f64; 3]]| {
+        let d = [
+            pair[1][0] - pair[0][0],
+            pair[1][1] - pair[0][1],
+            pair[1][2] - pair[0][2],
+        ];
+        (d[0].powi(2) + d[1].powi(2) + d[2].powi(2)).sqrt()
+    };
+    let (x_arm, y_arm) = (length(&arms[0..2]), length(&arms[2..4]));
+    assert!(
+        x_arm > y_arm * 1.2,
+        "the x arm ({x_arm:e} m) has to read as longer than the y one          ({y_arm:e} m) or the picture is symmetric under a quarter turn",
+    );
+    // Both start AT the origin: an arm is a mark on the datum, so it
+    // says where the datum is as well as which way it is turned.
+    for pair in arms.chunks_exact(2) {
+        assert!(reach(&[pair[0]], [0.0, 0.0, 0.0]) < 1.0e-12, "{pair:?}");
     }
 }
 

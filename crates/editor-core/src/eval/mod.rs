@@ -1973,6 +1973,12 @@ where
         // process-internal, so the renumber costs nothing on disk.
         Node::Measure { .. } => 25,
         Node::Assertion { .. } => 26,
+        // The sketch frame. Tags APPEND — the frame does NOT share the
+        // plane's tag 1 even though it is the same surface plus a
+        // spin: two data whose keys collide serve each other's
+        // geometry out of the memo, and a frame and a plane evaluate
+        // to different payloads.
+        Node::Datum(Datum::Frame { .. }) => 27,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);

@@ -233,6 +233,18 @@ const AXIS_COVER: f64 = 1.4;
 /// How long the tick across each end of a drawn axis is, in pixels.
 const AXIS_TICK_PX: f64 = 18.0;
 
+/// How long a frame's sketch-+x arm is, in PIXELS — the mark that says
+/// which way the frame is turned, screen-sized for the reason the
+/// plane's normal tick is.
+const FRAME_ARM_PX: f64 = 46.0;
+
+/// How long the sketch-+y arm is as a fraction of the +x one.
+///
+/// The two arms are drawn UNEQUAL on purpose: a grid is symmetric
+/// under a quarter turn, so two arms of one length would say which
+/// pair of directions the axes are without saying which of them is x.
+const FRAME_Y_ARM_FRACTION: f64 = 0.62;
+
 /// How long each arm of a drawn point's cross is, in pixels.
 ///
 /// A point has no extent, so this is purely an annotation's size and
@@ -246,6 +258,9 @@ const POINT_ARM_PX: f64 = 14.0;
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
     Plane,
+    /// A frame: a plane's grid ruled on the frame's own axes, plus an
+    /// arm along each of them.
+    Frame,
     /// An axis: one segment, with a tick across each end.
     Axis,
     /// A point: three short arms crossing at the position.
@@ -257,6 +272,7 @@ impl DatumKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Plane => "plane",
+            Self::Frame => "frame",
             Self::Axis => "axis",
             Self::Point => "point",
         }
@@ -327,6 +343,11 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
             kind: DatumKind::Point,
             segments: point_segments(*position, view),
         },
+        DatumValue::Frame { origin, u, v } => DatumDraw {
+            node,
+            kind: DatumKind::Frame,
+            segments: frame_segments(*origin, u.get(), v.get(), view),
+        },
     }
 }
 
@@ -341,6 +362,46 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
 /// plane rather than a rectangle somebody placed.
 fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let (u, v) = basis(normal);
+    grid(origin, u, v, normal, view)
+}
+
+/// **A frame's grid, ruled along the frame's OWN axes**, plus an arm
+/// along each of them.
+///
+/// A frame drawn exactly like a plane would be a drawing that lies: the
+/// two differ by precisely the spin about the normal, so a grid ruled
+/// on a display convention (which is what [`basis`] is) would show the
+/// same picture for every rotation of the same frame. Here the ruling
+/// IS the datum — a reader can see which way sketch +x points by
+/// looking at the lines — and the two arms name which of the two
+/// directions is which, since a grid alone is symmetric under a quarter
+/// turn.
+fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
+    let mut out = grid(origin, u, v, cross(u, v), view);
+    let arm = view.metres_per_pixel_at(origin) * FRAME_ARM_PX;
+    let o = [origin.x, origin.y, origin.z];
+    for (dir, len) in [(u, arm), (v, arm * FRAME_Y_ARM_FRACTION)] {
+        out.extend([
+            o,
+            [
+                origin.x + dir.x * len,
+                origin.y + dir.y * len,
+                origin.z + dir.z * len,
+            ],
+        ]);
+    }
+    out
+}
+
+/// The gridded patch the two plane-like datums share, ruled along
+/// `u`/`v` and ticked along `normal`.
+fn grid(
+    origin: Point3<f64>,
+    u: Vec3<f64>,
+    v: Vec3<f64>,
+    normal: Vec3<f64>,
+    view: View,
+) -> Vec<[f64; 3]> {
     // What the camera is looking at, dropped onto the plane, in the
     // plane's own coordinates.
     let to_target = Vec3::new(
