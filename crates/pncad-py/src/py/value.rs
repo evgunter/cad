@@ -498,16 +498,22 @@ impl Value {
     /// The datum this value denotes.
     fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
         match &self.payload {
-            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => Ok(Datum {
-                kind: "plane",
-                origin: lengths(*origin),
-                direction: Some((normal.x, normal.y, normal.z)),
-            }),
-            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => Ok(Datum {
-                kind: "axis",
-                origin: lengths(*origin),
-                direction: Some((dir.x, dir.y, dir.z)),
-            }),
+            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => {
+                let n = normal.get();
+                Ok(Datum {
+                    kind: "plane",
+                    origin: lengths(*origin),
+                    direction: Some((n.x, n.y, n.z)),
+                })
+            }
+            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => {
+                let v = dir.get();
+                Ok(Datum {
+                    kind: "axis",
+                    origin: lengths(*origin),
+                    direction: Some((v.x, v.y, v.z)),
+                })
+            }
             d::ValuePayload::Datum(d::DatumValue::Point { position }) => Ok(Datum {
                 kind: "point",
                 origin: lengths(*position),

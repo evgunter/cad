@@ -338,11 +338,16 @@ pub enum SplitSide<T: Decide> {
 // An evaluated datum (spec D3): geometry VALUES, not kernel entities,
 // which is why the type itself lives at the kernel query seat
 // (`topo::query`) — it is the resolved comparand the decided distance
-// predicate takes, and this layer's evaluation is what mints one
-// (normals/directions normalized; a degenerate, decided-zero-length
-// vector is a typed refusal). Re-exported at its historical home so
-// this crate's public surface is unchanged.
-pub use topo::query::DatumValue;
+// predicate takes, and this layer's evaluation is what mints one. Its
+// normals and axis directions are `UnitVec3`, whose constructor is
+// where a degenerate, decided-zero-length vector becomes a typed
+// refusal; this layer maps that refusal onto its own node error and
+// invents nothing. `DatumValue` is re-exported at its historical home,
+// so no consumer's path to it moved — but the surface GREW: the two
+// `UnitVec3` names are new here, and they are not optional decoration.
+// A consumer cannot build a datum, or read a normal back out of one,
+// without naming the type that carries the invariant.
+pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
 
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
@@ -511,6 +516,15 @@ pub enum NodeErrorKind {
     /// A direction-valued vector decided to zero length (datum
     /// normal/direction, transform rotation axis, pattern direction).
     DegenerateDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
+    /// A direction-valued vector whose LENGTH is not a finite number:
+    /// components large enough to overflow the norm, or a poisoned
+    /// one. A separate fact from a zero length and a separate
+    /// recourse — the model is outside the range its own arithmetic
+    /// can measure, and the fix is scale, not direction.
+    NonFiniteDirection {
         /// Which vector, by role.
         role: &'static str,
     },
@@ -948,6 +962,12 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} direction has zero length")
             }
+            Self::NonFiniteDirection { role } => write!(
+                f,
+                "the {role} direction has no finite length — its components \
+                 overflow the norm, or one of them is not a number; scale \
+                 the geometry into the session's range"
+            ),
             Self::Band(e) => write!(
                 f,
                 "the ambient tolerance could not form a classification band: {e}"

@@ -84,7 +84,7 @@ pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_or
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
-    NodeValue, PartFault, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeValue, PartFault, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,

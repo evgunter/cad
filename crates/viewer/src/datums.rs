@@ -162,12 +162,12 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, extent: f64) -> DatumDr
         DatumValue::Plane { origin, normal } => DatumDraw {
             node,
             kind: DatumKind::Plane,
-            segments: plane_segments(*origin, *normal, extent),
+            segments: plane_segments(*origin, normal.get(), extent),
         },
         DatumValue::Axis { origin, dir } => DatumDraw {
             node,
             kind: DatumKind::Axis,
-            segments: axis_segments(*origin, *dir, extent),
+            segments: axis_segments(*origin, dir.get(), extent),
         },
         DatumValue::Point { position } => DatumDraw {
             node,
@@ -256,9 +256,8 @@ fn point_segments(position: Point3<f64>, extent: f64) -> Vec<[f64; 3]> {
 
 /// **Two unit vectors spanning the plane `n` is normal to.**
 ///
-/// `n` arrives normalized — `DatumValue` states that as its contract,
-/// and the evaluator refuses a degenerate direction before one of
-/// these values exists — so this only has to choose a direction, not
+/// `n` arrives normalized — it comes out of a `UnitVec3`, which has no
+/// unnormalized spelling — so this only has to choose a direction, not
 /// rescue one. The seed is whichever world axis `n` is least aligned
 /// with, which is what keeps the cross product away from zero: a
 /// vector cannot be nearly parallel to the axis it has its smallest

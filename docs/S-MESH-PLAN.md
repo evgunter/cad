@@ -196,6 +196,30 @@ logged pre-draw per the protocol.
   loudly. The two candidate fixes (rim chords snap up to a multiple
   of `patch_nuc`; rim-adjacent band raised to the rim's chord count)
   stay recorded in the issue; built on first demand.
+- **MESH-10 — issue 1562, the torus extent from a split seam (S; filed
+  from MESH-7's D9 finding).** `props::curved::torus_ends` reads the
+  face's v-extent from the FIRST meridian's stored span, so a meridian
+  carried by two edges (a split seam) refuses `NotIsoRectangle
+  props_rim_level` on a genuine chart rectangle — at the door and at
+  `mass_properties` alike. Fold consecutive meridian arcs on one
+  carrier before reading the extent (or take it from the rims, the
+  linear kinds' move now that CERT-1 fixed the sphere's); MESH-7's
+  reverse red-first row flips and the issue-653 sweep returns to
+  (254, 4). `props/curved.rs` is Track R ground; closed-form extent,
+  so it rides its own unit rather than a fix pass.
+- **MESH-11 — issue 1571, the walk's arc premise (M; filed from
+  MESH-7's review).** The iso-curve premise is still inherited: props
+  certifies each edge's CARRIER, not that the traversed ARC stays on
+  one chart meridian, so a pole-crossing great-circle arc passes the
+  shape door and the walk meshes it non-watertight with debug
+  assertions off. Either the walk verifies the arc premise (monotone,
+  pole-free parameter span, decided at the band, refusing typed) or
+  the door does (props certifying arc span — which also serves
+  `mass_properties`, whose L-shaped complement returns volume 0.0 on
+  a closed sphere, the same probe's props-side finding). A row per
+  direction; `walk.rs:803`'s ledger already names the two π-rad
+  witnesses. After MESH-8; the door/walk split is the unit's first
+  recorded question.
 - **MESH-R — the remaining Track R rows as track lanes** after the
   defect cluster clears, sequenced by the track's own table: S28,
   S236 (its `tools/` half is Track K's row, per the cell), S237,

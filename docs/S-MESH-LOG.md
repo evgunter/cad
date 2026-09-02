@@ -264,3 +264,39 @@ PR was the orchestrator's error, symmetric across both reviews.
 
 Slate next: MESH-7 (#727/#726) draws MESH-B3 (MESH-B2 exhausted);
 MESH-8 holds the corrected halfcap witness.
+
+## MESH-7 merged (2026-09-02) — issues 727 and 726 closed; explicit iso-rectangle doors
+
+PR 1565 at head 5ea2a87d1 (gate 33621048246 green; lane=both asked,
+ε 1e-6 drawn). Under the Q3 ruling `mesh` now cites props' shape
+predicate before the walk through a public, flux-free door, and the
+spatial check keeps only the walk-consistency question; the 12-row
+door census records who leaned on whom and who still does (tier-3
+check 7: redundant for `mesh`, load-bearing for import, the editor
+checks, pncad and the tour). The oblique-lens qualification at
+`walk::iso_side_starts` is closed AS WORDED, and the review made the
+unit say exactly that much and no more: the walk's arc premise is
+still inherited (issue 1571 — a pole-crossing great-circle arc passes
+the door, which certifies carriers, not arcs). D9 held to the byte
+across two builds and three ε rows, and the one body class that
+meshed on main and refuses now is a props extent defect (issue 1562,
+the split-seam donut), pinned as a limitation rather than softened.
+
+**The dual (ordinal 1206, sample #106 — row in this docs PR after the
+merge)**: R1 one unilateral EXECUTED MAJOR — the PR's central
+"premise established" claim falsified by a constructed body — the
+pair's tally candidate; R2 mergeable with MINORs, independently
+re-deriving the digest and the finding. Pair COUNTS. The union fix
+pass retracted the claim at four sites, factored the torus prologue
+the door had copied (C11's own mechanism, caught by R2), replaced a
+cross-crate `unreachable!` with a narrowed error type, and
+demonstrated the zero-width slit it had only argued.
+
+SMELL §D row C11 retired with this record. Slate grows by two units
+from the unit's own findings: MESH-10 (issue 1562, S) and MESH-11
+(issue 1571, M), both after MESH-8. Residues on issue 727 at close:
+the boolean's frontier door and volume backstop (S-BOOL's), and
+import's at-rest promise on tier 3.
+
+Slate next: MESH-8 (#868, the coherence-detector relocation) draws
+MESH-B3 slot 1.

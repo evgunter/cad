@@ -288,6 +288,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
+        NodeErrorKind::NonFiniteDirection { .. } => "non_finite_direction",
         NodeErrorKind::Band { .. } => "band",
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
         NodeErrorKind::Escalated { .. } => "escalated",
@@ -566,6 +567,8 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
+        TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
+        TessellateError::Band { .. } => "tolerance_band_unformable",
     }
 }
 
