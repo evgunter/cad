@@ -154,12 +154,33 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
 /// reach of an undeclared chart pole. At 1e-6 the vertex is
 /// identified with the pole and the body TESSELLATES WATERTIGHT,
 /// guard quiet — the identified half the guard deliberately does not
-/// assert, live in tree. At 1e-9 and 1e-12 the vertex clears the
-/// band and the pole-crossing meridian arc panics `closing_column`'s
-/// S22 detector instead (the walk's one-azimuth-per-meridian model;
-/// a pre-existing limitation, MESH-8-adjacent, reported on the PR).
-/// MESH-8 inherits this three-band shape, not the earlier
-/// "panics at every ε" report.
+/// assert, live in tree.
+///
+/// At 1e-9 and 1e-12 the vertex clears the band, and the file's
+/// pole-crossing meridian arc — the walk's one-azimuth-per-meridian
+/// model meeting an arc that lies on two chart meridians — shows up
+/// TWICE, in the two places that own the two halves of it:
+///
+/// - `mesh::tessellate` REFUSES the face typed
+///   (`CertificateExceeded`), because the chord certificate cannot
+///   be met on a face whose UV polygon the arc premise breaks. It is a
+///   refusal, not a panic and not a wrong mesh.
+/// - `topo::examine_chart_coherence` REPORTS the arc, naming the
+///   half-turn: the carrier's mid-parameter azimuth against its own
+///   endpoint (`MeridianClosure`), and the file's two sub-edges of
+///   that one meridian column against each other
+///   (`MeridianContinuation`). Both at this vertex's own lever arm —
+///   1.0e-9 m from the axis, so a half-turn there opens 3.14 nm of
+///   arc, which is over the band at 1e-9 and 1e-12 and UNDER it at
+///   1e-6. That is the same three-band shape this row already had,
+///   measured by the door that measures rather than by an assertion
+///   that panics.
+///
+/// Until issue 868 the second half was `walk::closing_column`'s
+/// `debug_assert` — a tessellator asserting about the quality of a
+/// file's coordinates, which panicked a debug build on a body whose
+/// mesh was fine wherever it had one. Issue 1571 still owns FIXING
+/// the arc premise; this row owns seeing it.
 #[test]
 fn the_halfcap_eps7_witness_is_band_shaped() {
     let eps = Tol::witness().get().eps;
@@ -206,30 +227,55 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         mesh::tessellate(&body, 1.0e-3, Tol::witness())
     }));
     std::panic::set_hook(hook);
+    let out = out.unwrap_or_else(|_| {
+        panic!("at eps {eps:e} the witness must not panic — nothing here asserts")
+    });
+    let report = topo::examine_chart_coherence(&body, Tol::witness());
+    assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
     if (0.99e-6..=1.01e-6).contains(&eps) {
-        let mesh = out
-            .unwrap_or_else(|_| panic!("at eps {eps:e} the witness must not panic"))
-            .expect("tessellates");
+        let mesh = out.expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight");
         assert!(
             nearest <= eps,
             "the vertex is inside this band, on the identified half"
         );
-    } else if (0.99e-9..=1.01e-9).contains(&eps) || (0.99e-12..=1.01e-12).contains(&eps) {
-        let msg = match out {
-            Err(payload) => payload
-                .downcast_ref::<String>()
-                .cloned()
-                .unwrap_or_default(),
-            Ok(r) => panic!(
-                "at eps {eps:e} the S22 detector fires; got {:?}",
-                r.map(|m| m.positions.len())
-            ),
-        };
         assert!(
-            msg.contains("closing meridian's carrier-midpoint azimuth"),
-            "the panic is closing_column's S22 detector; got: {msg}"
+            report.findings.is_empty(),
+            "a half-turn at a lever arm of {nearest:e} m opens {:e} m of arc, which              this band calls noise: {:?}",
+            core::f64::consts::PI * nearest,
+            report.findings
         );
+    } else if (0.99e-9..=1.01e-9).contains(&eps) || (0.99e-12..=1.01e-12).contains(&eps) {
+        let err = out.expect_err("the arc premise breaks the chord certificate");
+        assert!(
+            matches!(err, mesh::TessellateError::CertificateExceeded { .. }),
+            "a typed refusal, not a panic and not a mesh; got {err:?}"
+        );
+        let kinds: Vec<_> = report.findings.iter().map(|f| f.condition).collect();
+        assert!(
+            kinds
+                .iter()
+                .any(|c| matches!(c, topo::CoherenceCondition::MeridianClosure { .. })),
+            "the arc's carrier sits a half-turn from its own endpoint: {kinds:?}"
+        );
+        assert!(
+            kinds
+                .iter()
+                .any(|c| matches!(c, topo::CoherenceCondition::MeridianContinuation { .. })),
+            "and the file's two sub-edges of that column disagree by the same              half-turn: {kinds:?}"
+        );
+        for f in &report.findings {
+            assert!(
+                (f.gap - core::f64::consts::PI).abs() < 1e-12,
+                "a half-turn, got {} rad",
+                f.gap
+            );
+            assert!(
+                f.metres >= eps,
+                "every finding clears its own band: {} m over {eps:e}",
+                f.metres
+            );
+        }
     }
     // Other ambient bands: the import-Pass and vertex-distance
     // assertions above still ran; the walk outcome is unpinned there.
