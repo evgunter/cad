@@ -6,10 +6,11 @@
 //!   `f64::MAX`. This file reaches it — under the run tolerance the
 //!   binary was started with, so the row states which side of that it
 //!   is on rather than asserting one;
-//! * the issue-1562 refusal is pinned in the unit at ONE split of ONE
-//!   edge. The matrix below splits **every** edge of the donut at both
-//!   of the issue-653 sweep's patterns, so "the four new refusals are
-//!   exactly the seam meridians" is measured rather than asserted;
+//! * the split-seam donut is pinned in `iso_rectangle_door` at ONE
+//!   split of ONE edge. The matrix below splits **every** edge of the
+//!   donut at both of the issue-653 sweep's patterns, so "every split
+//!   of the donut meshes and measures as the donut" is measured
+//!   rather than asserted;
 //! * the witness bodies are offered as *valid input, lane not built*
 //!   (D2 addendum row 2). This asks `topo::validate` whether they are
 //!   in fact valid, and where the tier gate stands on them;
@@ -63,18 +64,23 @@ fn the_band_arm_is_a_property_of_the_run_not_of_the_body() {
     }
 }
 
-/// **The issue-1562 refusal, over the whole edge × pattern matrix.**
-/// The unit pins one split of edge 0; the issue-653 sweep's totals
-/// moved by four. This walks every edge of the donut at both of the
-/// sweep's patterns and prints the verdict, so the claim "the four new
-/// refusals are exactly the seam-meridian splits (edges 0 and 1, both
-/// patterns)" is a measurement.
+/// **Every split of the donut, over the whole edge × pattern matrix.**
+/// `iso_rectangle_door` pins one split of the seam; this walks every
+/// edge of the donut — the two seam meridians and the two rims — at
+/// both of the issue-653 sweep's patterns and prints the verdict, so
+/// "a split seam meridian is folded back into its meridian and a
+/// split rim was always fine" is a measurement over the matrix: every
+/// configuration meshes, and measures the donut's volume bitwise.
 #[test]
-fn the_new_refusals_are_exactly_the_two_seam_meridians() {
+fn every_donut_split_meshes_and_measures_as_the_donut() {
     let tol = Tol::witness();
     let patterns: [&[f64]; 2] = [&[0.5], &[0.3129, 0.15645]];
     let n_edges = donut().edges().count();
-    let mut refused = Vec::new();
+    let v0 = topo::mass_properties(&donut(), tol)
+        .unwrap()
+        .volume
+        .to_bits();
+    let mut wrong = Vec::new();
     for i in 0..n_edges {
         for (pi, fracs) in patterns.iter().enumerate() {
             let mut body = donut();
@@ -93,22 +99,16 @@ fn the_new_refusals_are_exactly_the_two_seam_meridians() {
                 body.split_edge(ek, t0 + f * (t1 - t0), tol).unwrap();
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
-            println!("edge {i} (r = {radius}), pattern {pi}: {got:?}");
-            if let Err(TessellateError::UnsupportedCurvedShape { source, .. }) = &got {
-                refused.push((i, pi, format!("{source:?}")));
+            let vol = topo::mass_properties(&body, tol).map(|m| m.volume);
+            println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
+            if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {
+                wrong.push((i, pi, format!("{got:?} / {vol:?}")));
             }
         }
     }
-    assert_eq!(
-        refused.iter().map(|(i, p, _)| (*i, *p)).collect::<Vec<_>>(),
-        vec![(0, 0), (0, 1), (1, 0), (1, 1)],
-        "exactly the two minor (seam meridian) circles, at both patterns: {refused:?}"
-    );
     assert!(
-        refused
-            .iter()
-            .all(|(_, _, w)| w.contains("props_rim_level")),
-        "all four by props_rim_level: {refused:?}"
+        wrong.is_empty(),
+        "every edge at both patterns meshes and measures the donut's volume bitwise: {wrong:?}"
     );
 }
 
