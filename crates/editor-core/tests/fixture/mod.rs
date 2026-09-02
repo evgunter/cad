@@ -22,8 +22,6 @@ use editor_core::{
     StableName,
 };
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
@@ -55,22 +53,50 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
 /// frame (LIB-SWITCH §4i: the corpus's polygon choke point — under v4
 /// each loop is a chain program, `At(p0), LineTo(p1), …,
 /// LineTo(Start)`, the VQ5 expansion at literal points).
-pub fn desc(
-    origin: [f64; 3],
-    u: [f64; 3],
-    v: [f64; 3],
-    loops: Vec<Vec<(f64, f64)>>,
-) -> ProfileProgram {
-    let plane = SketchPlane::from_frame(
-        Point3::new(origin[0], origin[1], origin[2]),
-        Vec3::new(u[0], u[1], u[2]),
-        Vec3::new(v[0], v[1], v[2]),
-    );
+/// The frame datum a profile is drawn on, as a node to insert.
+///
+/// The components `desc` used to bake into a `SketchPlane` are the
+/// frame's own slots now, spelled the same way round: an origin and
+/// the two directions sketch +x and +y point.
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    Node::Datum(editor_core::Datum::Frame {
+        origin: origin.map(len),
+        u: u.map(scl),
+        v: v.map(scl),
+    })
+}
+
+/// A profile program on `plane`, from polygon corner lists.
+///
+/// It takes the frame's NODE rather than an origin and two vectors: a
+/// profile's plane is a document node, so the caller inserts the frame
+/// (with [`frame`]) and hands this the id. Two nodes where there was
+/// one, which is the shape of the document now — a sketch names the
+/// frame it is drawn on.
+pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram {
     let loops = loops
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram { plane, loops }
+}
+
+/// **A frame and a profile on it, inserted in that order** — the whole
+/// of what a `desc(origin, u, v, loops)` call used to be, so a call
+/// site that only wants "a square on the xy plane" stays one line.
+///
+/// Returns the doc and the PROFILE's id: the frame is scaffolding at
+/// almost every call site, and one that needs its id has both nodes'
+/// doors ([`frame`] and [`desc`]) to reach for instead.
+pub fn on_frame(
+    doc: ProfileDoc,
+    origin: [f64; 3],
+    u: [f64; 3],
+    v: [f64; 3],
+    loops: Vec<Vec<(f64, f64)>>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(origin, u, v));
+    insert(doc, Node::Profile(desc(plane, loops)))
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
@@ -209,10 +235,9 @@ pub fn die() -> Die {
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
+    let cube_frame = r.insert(frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cube_profile = r.insert(Node::Profile(desc(
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
+        cube_frame,
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     )));
     let cube = r.insert(Node::Extrude {
@@ -225,7 +250,11 @@ pub fn die() -> Die {
     // distance).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let prof = r.insert(Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])));
+        let face_frame = r.insert(frame(o, u, v));
+        let prof = r.insert(Node::Profile(desc(
+            face_frame,
+            vec![square(0.0, 0.0, 0.125)],
+        )));
         let ext = r.insert(Node::Extrude {
             profile: prof,
             distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
