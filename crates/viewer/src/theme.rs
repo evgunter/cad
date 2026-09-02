@@ -323,9 +323,9 @@ const LIGHT_NEUTRAL: Theme = Theme {
 ///
 /// 1. **The marks separate on LIGHTNESS first.** Lightness is the one
 ///    channel every dichromacy keeps, so the four marks sit on a
-///    ladder — probe darkest, then hover, then the body itself, then
-///    focus and selection at the top — and hue is the second signal,
-///    not the first.
+///    ladder — probe darkest, then hover, then focus, then the body
+///    itself, with selection at the top — and hue is the second
+///    signal, not the first.
 /// 2. **Focus and selection are separated by LIGHTNESS, not by hue.**
 ///    The neutral themes make them one relation at two scales, which
 ///    is the better design when it can be afforded; here it cannot.
@@ -351,13 +351,52 @@ const LIGHT_NEUTRAL: Theme = Theme {
 ///    part back — measurably, and monotonically.
 ///
 /// 5. **The ground is LIGHT, and so is the chrome with it.** The
-///    ladder puts two of its four marks BELOW the body — a deep blue
-///    hover and a near-black probe — so those two are what a dark
-///    ground takes away. The bar decides it rather than taste: no
-///    dark ground clears it at all (an off-black lands 0.0118 from
-///    the shaded probe), while a near-white one clears it twice
-///    over. A palette whose marks run downward needs a ground above
-///    all of them.
+///    ladder puts three of its four marks BELOW the body — a deep
+///    blue hover, a dark probe and a dimming focus — so those are
+///    what a dark ground takes away. The bar decides it rather than
+///    taste: no dark ground clears it at all (an off-black lands
+///    0.0118 from the shaded probe), while a near-white one clears
+///    it twice over. A palette whose marks run downward needs a
+///    ground above all of them.
+///
+/// # Two contrasts, and the one this palette used to spend
+///
+/// A palette answers two different questions, and they pull against
+/// each other here. **State contrast** is how far apart the four
+/// marks are — what the claim is about, and what `tests/theme.rs`
+/// measures. **Shape contrast** is how much lightness the shading
+/// term has to work with between an unlit and a fully lit face,
+/// which is what makes a part look like a solid rather than a
+/// silhouette.
+///
+/// The first version of this palette bought the first with the
+/// second, and the price was larger than it looked. A body at
+/// sRGB 120 spans OKLab lightness 0.426 to 0.570 under this ambient
+/// floor — a span of 0.143, against `LIGHT_NEUTRAL`'s 0.201 — so the
+/// part read both dark and flat beside the palette sitting next to it
+/// in the same menu, on the same near-white ground. Nothing was wrong
+/// with it by the check, and it was still the wrong trade: a viewer
+/// who needs the marks told apart needs to see the SHAPE at least as
+/// much as anyone else does.
+///
+/// The body is therefore sRGB 190, which spans 0.600 to 0.801 — the
+/// same 0.201 the light neutral theme has, so shape reads the same in
+/// both. **What it cost is stated rather than hidden**: the worst
+/// pair falls from 0.0873 to 0.0739, which is 23% above the
+/// `MIN_SEPARATION` bar where it used to be 45% above it, and the
+/// binding pair moves from body/hover to body/selection. The palette
+/// still clears the bar by about the quarter its headroom is
+/// documented as.
+///
+/// The other consequence is that **focus is now a DIMMING**. Above a
+/// body this light there is no room left: the selection owns the top
+/// rung and the near-white ground owns everything above that, and a
+/// search over pale focus tints at this body tops out at 0.0598 —
+/// under the bar. So focus moved to the other side of the body, and
+/// what marks "the extent of what the side panel is editing" is a
+/// step down rather than a step up. It stays the quietest mark in the
+/// palette (0.35, the lowest strength here by half) precisely so it
+/// reads as a quiet emphasis and not as something greyed out.
 ///
 /// The `unresolved` colour is NOT part of the claim: it tints no
 /// geometry, and every badge that uses it carries its own words
@@ -366,10 +405,13 @@ const LIGHT_NEUTRAL: Theme = Theme {
 const COLORBLIND_SAFE: Theme = Theme {
     name: "colorblind-safe",
     polarity: Polarity::Light,
-    // Darker than the neutral themes' near-white, and that is what
-    // makes the ladder fit: a mid body leaves range both above and
-    // below it for four marks to occupy.
-    body: Rgba8::opaque(120, 119, 117),
+    // A near-neutral light grey, a shade under the neutral themes'
+    // body. The ladder still fits — one mark above it, three below —
+    // and this is the lightness at which shading has the same range
+    // to describe a solid with that `LIGHT_NEUTRAL` gives it. Going
+    // further is what the check refuses: at sRGB 200 the worst pair
+    // is 0.0583, under the bar.
+    body: Rgba8::opaque(190, 190, 188),
     ambient: 0.42,
     // The light themes' ground: the ladder's top rung is a light
     // amber, and that is the nearest swatch to it — everything else
@@ -390,16 +432,25 @@ const COLORBLIND_SAFE: Theme = Theme {
     // The bottom rung, and the darkest thing on screen. G3 asks that
     // a probed placement be unmistakable; under every vision type in
     // scope, what makes it so is that nothing else is this dark.
+    // Over the lighter body it composites to sRGB 96 rather than to
+    // near-black, and it is still the bottom rung by a clear margin:
+    // the pair it binds against is hover, at 0.0759.
     probe: Mark {
         tint: Rgba8::opaque(16, 10, 26),
         strength: 0.78,
     },
-    // Pale and cool at the lowest strength in the palette: still the
-    // quietest mark, but a full rung below the selection rather than
-    // beside it.
+    // **A dimming, not a lightening** — the one place this palette
+    // parts company with the neutral themes' idea of a focus, and the
+    // reason is measured rather than chosen: above a body this light
+    // the selection and the near-white ground leave no room, and the
+    // best pale focus available here lands at 0.0598, under the bar.
+    // Dark and cool at the lowest strength in the palette by half, so
+    // it stays the quietest mark in the vocabulary: over the body it
+    // composites to sRGB 157 against the body's 190, which is a quiet
+    // emphasis rather than something switched off.
     focus: Mark {
-        tint: Rgba8::opaque(214, 224, 238),
-        strength: 0.38,
+        tint: Rgba8::opaque(18, 20, 30),
+        strength: 0.35,
     },
     // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
     // chrome is pale, and a light red on a pale panel is the one

@@ -231,6 +231,42 @@ fn an_unclaimed_theme_is_not_held_to_the_bar() {
     );
 }
 
+/// **A claimed palette shows SHAPE as well as an unclaimed one
+/// does.**
+///
+/// The safety check measures how far apart the marks are — state
+/// contrast — and a palette can pass it while being a poor thing to
+/// look at a solid on, which is exactly what happened: the claimed
+/// theme's first body was sRGB 120, and the shading term had 0.143 of
+/// OKLab lightness to describe a part with where the light neutral
+/// theme had 0.201. The part read dark and flat beside a palette in
+/// the same menu, on the same ground.
+///
+/// So the two contrasts are both held, and this is the second one. It
+/// is stated as a RELATION to `light-neutral` rather than as an
+/// absolute number because that is the comparison a user actually
+/// makes — the two themes are one menu apart — and because an
+/// absolute floor would go stale the moment either palette's ambient
+/// term moved.
+#[test]
+fn a_claimed_theme_has_as_much_shading_range_as_the_light_neutral_one() {
+    let reference = Theme::by_name("light-neutral").expect("registered");
+    let bar = cvd::shading_range(&reference);
+    for theme in Theme::ALL
+        .iter()
+        .filter(|theme| theme.safety == Safety::ColorblindSafe)
+    {
+        let span = cvd::shading_range(theme);
+        assert!(
+            span >= bar * 0.95,
+            "{}: {span:.4} of lightness between an unlit and a lit face, against \
+             light-neutral's {bar:.4} — a palette this flat reads as a silhouette, \
+             whatever its marks do",
+            theme.name,
+        );
+    }
+}
+
 /// The simulation, and the rows that check the oracle before the
 /// oracle is used to check anything else.
 ///
@@ -351,6 +387,26 @@ mod cvd {
             // `None` happened to stay first in that list.
             Safety::Unchecked => &[None],
         }
+    }
+
+    /// **How much lightness the shading term has to work with** on a
+    /// theme's own body: the OKLab distance between an unlit face
+    /// (the ambient floor) and a fully lit one.
+    ///
+    /// Lightness alone, not the full OKLab distance, because scaling
+    /// a colour by the shading term moves it almost entirely along
+    /// that axis — and because it is lightness that a reader resolves
+    /// a facet by.
+    pub(super) fn shading_range(theme: &Theme) -> f64 {
+        let body = linear(theme.body);
+        let at = |shade: f64| {
+            oklab(Color::new(
+                f64::from(body[0]) * shade,
+                f64::from(body[1]) * shade,
+                f64::from(body[2]) * shade,
+            ))[0]
+        };
+        at(1.0) - at(f64::from(theme.ambient))
     }
 
     /// The closest a theme's GROUND comes to any of its swatches,
