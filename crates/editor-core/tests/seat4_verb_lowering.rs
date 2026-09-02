@@ -387,13 +387,13 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// row (the other two constants stand, re-measured); deleting the
 /// `stamp_minted` write reds the suite at `crossing_slots` already.
 ///
-/// The first two numbers were taken on this branch and re-taken on a
-/// PRE-CHANGE tree with this same file copied onto it — the whole
-/// suite passes unchanged there (`kiss_carry` is this unit's own
-/// document, so its row is a fresh mint on the same differential
-/// tree, not a pre-change reproduction). That differential is what
-/// "nothing observable moved" means here; without it the constants
-/// would only say the branch agrees with itself.
+/// All three numbers were taken on this branch and re-taken on a
+/// PRE-CHANGE tree (extracted main, with this file and the
+/// `kiss_carry` corpus files copied onto it) — the whole suite passes
+/// unchanged there, `kiss_carry`'s row included, since the document
+/// authors through doors the migration did not add. That differential
+/// is what "nothing observable moved" means here; without it the
+/// constants would only say the branch agrees with itself.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
