@@ -2971,3 +2971,47 @@ exactly one refusal deeper under the scratch flip (the
 ReanchorOffCarrier family at 0.83mm, re-pinned as row 4's
 replacement); refusal-text instance 7 recorded spec-directed.
 Dual claim to main at dispatch; parity per the draw line.
+## ORDINAL 111 RETURNED AND ADJUDICATED (2026-09-02)
+
+R1 (fable) 0 MAJ / 4 MIN, 5/4/4.5, APPROVE. R2 (opus) 2 MAJ /
+7 MIN, 4/4/3, APPROVE WITH FIXES. The geometry held BOTH arms'
+independent re-derivations (pure-python implicit-residual checks
+≤2.2e-15 across 200 random configurations; R2 ran 10/10 aimed
+mutations each caught by its own row; R1 6/6 + three SURVIVING
+mutants). The tangency was attacked specifically for the
+SPHSPH-class operand-order defect — none exists (orientation-
+invariant by construction, both signed branches exercised).
+
+- PRINCIPAL, BILATERAL severity-split (R2 MAJ-1 = R1 MINOR-4,
+  adjudicated to R2's reading): pt_ring_guard decides Margin::of
+  (R−r) ONLY — the documented convention is R>r>0, and R2's
+  probes walked the named threat through it (r=−0.3 mints
+  MeridianCircles{radius:−0.3}; r=0 mints a zero-radius circle
+  and a spurious TangentCircle; R<0 transposes the ±m centres).
+  The fix is one predicate (min(r, R−r) or a second trilean).
+  No tally candidate (mentioned by both).
+- R2 MAJ-2 (unilateral but DOC-CLASS — recorded, excluded from
+  the tally by 3b): four in-repo sentences still assert the
+  table declines the pair post-flip, one of them the doc of the
+  row the PR cites as opening measurement #1 (which ALSO
+  misattributes the rim carrier — the rim is spiric, which the
+  shipped arm refuses; the sentence was wrong before the flip
+  and false after). The PR's own memory instance 7 is about
+  exactly this failure mode.
+- R1-only MIN: the negative-station blind spot (an h.abs()
+  mutant survives — every fixture sits at h>0); the identity
+  levers (extent=1.0 at all 25 call sites, delevering survives).
+- R2-only MIN: the five in-band rows do not pin diag.predicate
+  (the file's own precedent does); pt_axis_in_plane's returned
+  circles leave their own plane by r/extent×ε just inside Zero
+  (measured 27×eps at extent=0.01 — cannot bite with a real
+  operand, condition now owed to the audit row); the sibling
+  (Cylinder,Torus) note went stale in the same edit; 'consumers
+  refuse typed' has no refuser (zero production callers); two
+  counts wrong (27+5 vs measured 27+4; 116 vs 132); 'the gated
+  point' against CI's own ASKED-FOR-NOT-DRAWN line; the retired
+  by-name pin's widening-guard job not rehomed.
+
+NO TALLY CANDIDATES — tally 1/8, candidates still 5 pending the
+blinded coding. Pair COUNTS. Union fix pass out (fable,
+implementer-inherited).
