@@ -87,3 +87,8 @@ sweep = { path = "../sweep", features = ["test-support"] }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# R2 REVIEW PROBE (MESH-6 / PR 1545), additive and review-only.
+[[test]]
+name = "r2_mesh6_probes"
+path = "tests/r2_mesh6_probes.rs"
