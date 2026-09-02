@@ -15,19 +15,17 @@ use editor_core::{
     ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
-use fixture::{desc, insert, len};
+use fixture::{desc, insert, len, on_frame};
 use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
     let doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, _) = insert(
         doc,

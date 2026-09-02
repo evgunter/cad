@@ -35,7 +35,7 @@ use editor_core::{
     CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, desc, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
 
@@ -131,22 +131,20 @@ fn the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus() {
 /// `mouth`) and the wall ABOVE it (`mouth` → `top`).
 fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r1_probe_lantern", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (0.2, 0.0),
-                (0.6, 0.0),
-                (0.6, 0.3),
-                mouth,
-                top,
-                (0.35, 1.2),
-                (0.2, 1.2),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.2, 0.0),
+            (0.6, 0.0),
+            (0.6, 0.3),
+            mouth,
+            top,
+            (0.35, 1.2),
+            (0.2, 1.2),
+        ]],
     );
     let (doc, axis) = insert(
         doc,
@@ -323,14 +321,12 @@ fn the_host_role_moves_when_a_parameter_edit_makes_a_support_planar() {
 #[test]
 fn the_top_cap_can_lie_below_the_bottom_cap() {
     let doc = ProfileDoc::empty_derived("blend5_r1_probe_caps", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, block) = insert(
         doc,

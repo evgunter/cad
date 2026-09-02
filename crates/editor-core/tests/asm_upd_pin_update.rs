@@ -30,7 +30,7 @@ use editor_core::{
     Frame, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, UpdateError, content_pin,
     evaluate, load, mixed_pins, product, save, update_references,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{desc, insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The versioned stub store ----
@@ -93,14 +93,12 @@ fn run_warm(doc: &ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Ev
 /// identity — which is exactly what "two versions of a part" means.
 fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(id, Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, side / 2.0)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, side / 2.0)],
     );
     let (doc, _) = insert(
         doc,
@@ -221,14 +219,12 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     let v2 = content_pin(&part_version(id, 2.0), Tol::witness()).expect("pin");
     let (doc, ids) = assembly("asm-upd-r1c-asm", &[DocRef { id, pin: v1 }]);
     // A live NON-instance node to aim at.
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
 
     // Same pin: a semantically empty edit refuses rather than records.

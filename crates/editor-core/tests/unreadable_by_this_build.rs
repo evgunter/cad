@@ -28,21 +28,19 @@
 mod fixture;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
-use fixture::{desc, insert, len};
+use fixture::{desc, insert, len, on_frame};
 use geom_core::Tol;
 
 /// A profile and an extrude: the smallest recipe with a node whose
 /// payload has a required field.
 fn small() -> String {
     let doc = ProfileDoc::empty_derived("unreadable-by-this-build", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, _) = insert(
         doc,

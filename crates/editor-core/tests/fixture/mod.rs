@@ -149,6 +149,23 @@ impl Recorder {
     pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         self.push(DocEdit::InsertNode { node }).expect("minted id")
     }
+
+    /// **A frame and a profile drawn on it**, returning the PROFILE's
+    /// id — [`on_frame`]'s shape for a recorder.
+    ///
+    /// It exists so a call site that wants "a square on this plane"
+    /// stays one line now that saying so takes two nodes. A site that
+    /// needs the frame's own id inserts the two itself.
+    pub fn profile(
+        &mut self,
+        origin: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        loops: Vec<Vec<(f64, f64)>>,
+    ) -> RecipeNodeId {
+        let plane = self.insert(frame(origin, u, v));
+        self.insert(Node::Profile(desc(plane, loops)))
+    }
 }
 
 /// The authored die and the ids the tests address.
@@ -235,11 +252,12 @@ pub fn die() -> Die {
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
-    let cube_frame = r.insert(frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let cube_profile = r.insert(Node::Profile(desc(
-        cube_frame,
+    let cube_profile = r.profile(
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-    )));
+    );
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(2.0),
@@ -250,11 +268,7 @@ pub fn die() -> Die {
     // distance).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let face_frame = r.insert(frame(o, u, v));
-        let prof = r.insert(Node::Profile(desc(
-            face_frame,
-            vec![square(0.0, 0.0, 0.125)],
-        )));
+        let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
             distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),

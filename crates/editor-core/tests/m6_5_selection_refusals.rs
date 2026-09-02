@@ -75,6 +75,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
     use fixture::desc;
+    use fixture::on_frame;
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
@@ -84,14 +85,12 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         (a.doc, id)
     };
     let square = vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]];
-    let (d, bp) = insert(
+    let (d, bp) = on_frame(
         &doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            square,
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        square,
     );
     let (d, ua) = insert(
         &d,
@@ -100,23 +99,21 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             distance: len(4.0),
         },
     );
-    let (d, up) = insert(
+    let (d, up) = on_frame(
         &d,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (d, ub) = insert(
         &d,

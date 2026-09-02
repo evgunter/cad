@@ -26,7 +26,7 @@ use editor_core::{
     ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
-use fixture::{desc, insert, len, square};
+use fixture::{desc, insert, len, on_frame, square};
 use geom_core::Tol;
 use topo::ShellClassifyError;
 
@@ -43,14 +43,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// An extruded square: half-width `h` centered at `(cx, 0)` on the
 /// z = `z0` plane, extruded `dz` up.
 fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, h)],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, h)],
     );
     insert(
         doc,

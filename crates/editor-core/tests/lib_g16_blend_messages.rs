@@ -30,14 +30,12 @@ use geom_core::Tol;
 
 fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("g16-r2-msg", Tol::witness());
-    let (doc, profile) = fixture::insert(
+    let (doc, profile) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, cube) = fixture::insert(
         doc,

@@ -23,7 +23,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
     load, product, relative_freedom_components, save, solve_document,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{desc, insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -70,14 +70,12 @@ impl PartResolver for StubStore {
 /// A one-solid part: a unit square extruded 1 tall.
 fn part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     let (doc, _) = insert(
         doc,

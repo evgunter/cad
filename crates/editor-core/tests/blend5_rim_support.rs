@@ -40,7 +40,7 @@ use editor_core::{
     CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, desc, insert, len, on_frame, scl};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey, SurfaceKey};
@@ -68,20 +68,18 @@ const MOUTH: u32 = 2;
 /// surface kind, so a kind cannot tell them apart at all.
 fn lantern() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_rim_support", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (0.2, 0.0),
-                (1.0, 0.0),
-                (0.8, 0.6),
-                (0.35, 0.75),
-                (0.2, 0.75),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.2, 0.0),
+            (1.0, 0.0),
+            (0.8, 0.6),
+            (0.35, 0.75),
+            (0.2, 0.75),
+        ]],
     );
     let (doc, axis) = insert(
         doc,
@@ -350,20 +348,18 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
     // Both ends on the axis, so every wall is a pair of half-bands and
     // every rim a pair of arcs (BLEND-1's lantern shape).
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (0.0, 0.0),
-                (1.0, 0.0),
-                (0.8, 0.6),
-                (0.2, 1.2),
-                (0.0, 1.2),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (0.8, 0.6),
+            (0.2, 1.2),
+            (0.0, 1.2),
+        ]],
     );
     let (doc, axis) = insert(
         doc,

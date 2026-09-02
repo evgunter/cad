@@ -22,7 +22,7 @@ use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, EntityKind, EvalOptions, Node, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, ValuePayload, evaluate, load, save,
 };
-use fixture::{desc, insert, len, wall};
+use fixture::{desc, insert, len, on_frame, wall};
 use geom_core::Tol;
 
 fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
@@ -35,14 +35,12 @@ fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 
 /// An axis-aligned (0..2)² block at height z0, extruded dz.
 fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     insert(
         doc,

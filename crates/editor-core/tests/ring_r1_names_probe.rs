@@ -14,7 +14,7 @@ use editor_core::{
     CancelToken, Datum, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node,
     ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len};
+use fixture::{ang, desc, insert, len, on_frame};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -58,19 +58,17 @@ fn pv(l: u32, v: u32) -> ProfileVertexRef {
 #[test]
 fn full_wire_holed_revolve_names_totally() {
     let doc = ProfileDoc::empty_derived("ring_r1_names_probe", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![
-                // Outer touches the axis along its left edge (wire
-                // case); the hole is strictly off-axis.
-                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)],
-                vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
-            ],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![
+            // Outer touches the axis along its left edge (wire
+            // case); the hole is strictly off-axis.
+            vec![(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)],
+            vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
+        ],
     );
     let (doc, axis) = insert(
         doc,

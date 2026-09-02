@@ -20,7 +20,7 @@ use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
-use fixture::{desc, insert};
+use fixture::{desc, insert, on_frame};
 use geom_core::Tol;
 
 /// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
@@ -268,14 +268,12 @@ fn mismatched_sections_refuse_before_the_frontier() {
     let (d, a) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
     // A triangle where the other section is a quad: no correspondence.
-    let (d, b) = insert(
+    let (d, b) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (1.0, 1.0)]],
     );
     doc = d;
     let (doc, loft) = insert(

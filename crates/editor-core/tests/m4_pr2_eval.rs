@@ -234,14 +234,12 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     use editor_core::{BooleanOp, Node};
     // A 1×1×1 cube inside a 3×3×3 cube: inner ∖ outer = ∅.
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
-    let (doc, small_p) = fixture::insert(
+    let (doc, small_p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
     );
     let (doc, small) = fixture::insert(
         doc,
@@ -250,14 +248,12 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
             distance: len(1.0),
         },
     );
-    let (doc, big_p) = fixture::insert(
+    let (doc, big_p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, -1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
-        )),
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
     );
     let (doc, big) = fixture::insert(
         doc,
@@ -304,14 +300,12 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 fn split_evaluates_both_parts_role_tagged() {
     use editor_core::{Datum, DatumValue, Node, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
-    let (doc, prof) = fixture::insert(
+    let (doc, prof) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let (doc, cube) = fixture::insert(
         doc,

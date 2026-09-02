@@ -12,7 +12,7 @@ use editor_core::{
     HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide, ValuePayload,
     body_name, entity_name, evaluate, resolve,
 };
-use fixture::{ang, desc, die, insert, len, scl};
+use fixture::{ang, desc, die, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{Body, FaceKey};
 
@@ -129,14 +129,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
     // (instances).
     let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
     let (doc, a) = {
-        let (doc, p) = insert(
+        let (doc, p) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-            )),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         );
         insert(
             doc,
@@ -147,14 +145,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         )
     };
     let (doc, b) = {
-        let (doc, p) = insert(
+        let (doc, p) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.5, 0.0), (1.5, 0.0), (1.5, 1.0), (0.5, 1.0)]],
-            )),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.5, 0.0), (1.5, 0.0), (1.5, 1.0), (0.5, 1.0)]],
         );
         insert(
             doc,
@@ -190,14 +186,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
-    let (doc, rp) = insert(
+    let (doc, rp) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 3.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-        )),
+        [0.0, 3.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
     let (doc, axis) = insert(
         doc,
@@ -242,14 +236,12 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
 fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     // Failed / poisoned doors.
     let doc = ProfileDoc::empty_derived("m4_pr4_hit", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, ext) = insert(
         doc,

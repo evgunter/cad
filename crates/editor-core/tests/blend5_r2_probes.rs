@@ -31,7 +31,7 @@ use editor_core::{
     CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, desc, insert, len, on_frame, scl};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
@@ -50,14 +50,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// stay one-line diffs against the reviewed fixture.
 fn lantern_with(profile_pts: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r2_probes", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![profile_pts],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![profile_pts],
     );
     let (doc, axis) = insert(
         doc,

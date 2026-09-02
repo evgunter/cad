@@ -32,7 +32,7 @@ use editor_core::{
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SideVerdict,
     SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
-use fixture::{ang, desc, insert, len, scl, step};
+use fixture::{ang, desc, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -52,14 +52,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -86,21 +84,19 @@ fn band_cut() -> BandCut {
     // The band profile on z = -0.5, extruded 2.0 (full pierce).
     // Lower boundary: (-2.5,1.0) → (2.0,1.0) → (4.5,0.8);
     // upper boundary: (-2.5,1.1) → (2.0,1.1) → (4.5,0.9).
-    let (doc, bp) = insert(
+    let (doc, bp) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, -0.5],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (-2.5, 1.0),
-                (2.0, 1.0),
-                (4.5, 0.8),
-                (4.5, 0.9),
-                (2.0, 1.1),
-                (-2.5, 1.1),
-            ]],
-        )),
+        [0.0, 0.0, -0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (-2.5, 1.0),
+            (2.0, 1.0),
+            (4.5, 0.8),
+            (4.5, 0.9),
+            (2.0, 1.1),
+            (-2.5, 1.1),
+        ]],
     );
     let (doc, band) = insert(
         doc,

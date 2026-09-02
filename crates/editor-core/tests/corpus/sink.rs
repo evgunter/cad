@@ -73,12 +73,12 @@ pub fn document() -> CorpusDoc {
 
     // A profile extruded by h · sin(π/2) — param + trig coverage, and
     // the SetExpression target (the `sin` subtree is child 1).
-    let profile = r.insert(Node::Profile(desc(
+    let profile = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let h = Expr::param(ParamName::new("h"), Dimension::Length);
     let dist =
         Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
@@ -93,12 +93,12 @@ pub fn document() -> CorpusDoc {
     // shape `declare_x_offset_flush` declares. (A pure face-to-face
     // touch at x = 1 would be a REST contact, which the join stage
     // still refuses — the tracked envelope entry, not corpus fodder.)
-    let profile_b = r.insert(Node::Profile(desc(
+    let profile_b = r.profile(
         [0.5, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let block_b = r.insert(Node::Extrude {
         profile: profile_b,
         distance: len(1.25),
@@ -156,12 +156,12 @@ pub fn document() -> CorpusDoc {
     });
 
     // A revolve off the shared axis.
-    let rev_profile = r.insert(Node::Profile(desc(
+    let rev_profile = r.profile(
         [-2.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
+    );
     r.insert(Node::Revolve {
         profile: rev_profile,
         axis,

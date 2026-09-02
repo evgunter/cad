@@ -21,7 +21,7 @@ use editor_core::{
     PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
     content_pin, evaluate, load, product, save,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{desc, insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The stub store (ASM-2A's, verbatim in behaviour) ----
@@ -74,14 +74,12 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 /// A one-solid part: a unit square extruded 1 tall, centered at `cx`.
 fn part(label: &str, cx: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, 0.5)],
     );
     let (doc, _) = insert(
         doc,

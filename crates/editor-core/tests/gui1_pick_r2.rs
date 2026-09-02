@@ -33,7 +33,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
     RecipeNodeId, ValuePayload, pick_face,
 };
-use fixture::{desc, insert, len};
+use fixture::{desc, insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
 use mesh::Mesh;
 use test_utils::{fuzz, vacuity::Exposure};
@@ -61,14 +61,12 @@ fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
 /// A `w × w × h` box with its lower corner at `(ox, oy, 0)`, as one
 /// extrude node appended to `doc`.
 fn box_node(doc: ProfileDoc, ox: f64, oy: f64, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(ox, oy), (ox + w, oy), (ox + w, oy + w), (ox, oy + w)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(ox, oy), (ox + w, oy), (ox + w, oy + w), (ox, oy + w)]],
     );
     insert(
         doc,

@@ -23,12 +23,12 @@ use geom_core::Tol;
 #[test]
 fn both_rules_round_trip() {
     let mut r = corpus::Recorder::new();
-    let p = r.insert(Node::Profile(desc(
+    let p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),

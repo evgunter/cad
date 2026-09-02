@@ -25,7 +25,7 @@ use editor_core::{
     MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
     ResolveFault, RoleSeg, StableName, assemble, clusters, content_pin, evaluate, solve_document,
 };
-use fixture::{desc, insert, len, scl, step};
+use fixture::{desc, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the stub resolver, as in the sibling suites) ----
@@ -79,14 +79,12 @@ fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// extrude is node 1, so the part's caps name through `RecipeNodeId(1)`.
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     let (doc, _) = insert(
         doc,

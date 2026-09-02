@@ -18,7 +18,7 @@ use editor_core::{
     EntityKind, Node, PersistError, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg, StableName,
     load, save,
 };
-use fixture::{desc, insert, len};
+use fixture::{desc, insert, len, on_frame};
 use geom_core::Tol;
 
 /// A band trimline's name, on the support role `support`.
@@ -46,14 +46,12 @@ fn trim_name(support: RimSupport) -> StableName {
 /// Nothing here is evaluated: these rows are about the WIRE.
 fn both_roles() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("blend5-schema-v18", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, block) = insert(
         doc,

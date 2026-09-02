@@ -20,7 +20,7 @@ use editor_core::{
     BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
     RunStatus, SlotId, diff_verdicts, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl, step};
+use fixture::{ang, desc, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -46,14 +46,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,

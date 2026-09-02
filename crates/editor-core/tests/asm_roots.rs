@@ -20,7 +20,7 @@ use editor_core::{
     ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, RootFault, SnapshotError,
     content_pin, evaluate, load, save,
 };
-use fixture::{desc, insert, len, scl, square, step};
+use fixture::{desc, insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -35,14 +35,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 
 /// A unit square profile centered at `cx` on the z = 0 plane.
 fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, 0.5)],
     );
     let (doc, extrude) = insert(
         doc,

@@ -11,7 +11,7 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
     evaluate,
 };
-use fixture::{ang, desc, insert, len};
+use fixture::{ang, desc, insert, len, on_frame};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
@@ -56,19 +56,17 @@ fn pv(l: u32, v: u32) -> ProfileVertexRef {
 
 /// A unit-square profile + extrude prelude (xy plane).
 fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (x0, 0.0),
-                (x0 + side, 0.0),
-                (x0 + side, side),
-                (x0, side),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (x0, 0.0),
+            (x0 + side, 0.0),
+            (x0 + side, side),
+            (x0, side),
+        ]],
     );
     insert(
         doc,
@@ -151,10 +149,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
 /// Profile on the xy plane (the y datum axis lies in it).
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, p) = insert(
-        doc,
-        Node::Profile(desc([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts])),
-    );
+    let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
     let (doc, axis) = insert(
         doc,
         Node::Datum(Datum::Axis {
@@ -343,17 +338,15 @@ fn full_holed_revolve_names_the_cavity_loop() {
     // loop: bands, full rims, seam meridians, meridian vertices, all
     // under loop index 1.
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![
-                vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
-                vec![(1.25, 0.25), (1.75, 0.25), (1.75, 0.75), (1.25, 0.75)],
-            ],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![
+            vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+            vec![(1.25, 0.25), (1.75, 0.25), (1.75, 0.75), (1.25, 0.75)],
+        ],
     );
     let (doc, axis) = insert(
         doc,

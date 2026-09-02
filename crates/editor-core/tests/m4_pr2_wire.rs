@@ -12,7 +12,7 @@ use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
     PatternKind, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, desc, insert, len, on_frame, scl};
 use geom_core::Tol;
 use topo::{mass_properties, validate, validate_closed};
 
@@ -29,19 +29,17 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// A unit-square profile `[x0,x0+1]×[y0,y0+1]` on the xy plane plus
 /// its extrude, as a two-node prelude.
 fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (x0, y0),
-                (x0 + 1.0, y0),
-                (x0 + 1.0, y0 + 1.0),
-                (x0, y0 + 1.0),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (x0, y0),
+            (x0 + 1.0, y0),
+            (x0 + 1.0, y0 + 1.0),
+            (x0, y0 + 1.0),
+        ]],
     );
     insert(
         doc,
@@ -66,14 +64,12 @@ fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNod
 fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     // Unit square touching the axis: full revolve → cylinder r=1 h=1.
-    let (doc, prof) = insert(
+    let (doc, prof) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, axis) = y_axis(doc, 0.0);
     let (doc, rev) = insert(
@@ -97,14 +93,12 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
 #[test]
 fn revolve_axis_out_of_plane_is_a_typed_refusal() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
-    let (doc, prof) = insert(
+    let (doc, prof) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
     );
     let (doc, axis) = y_axis(doc, 1.0); // origin OFF the sketch plane
     let (doc, rev) = insert(

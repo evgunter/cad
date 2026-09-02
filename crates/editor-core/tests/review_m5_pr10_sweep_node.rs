@@ -15,7 +15,7 @@ mod fixture;
 use editor_core::{
     CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
 };
-use fixture::{desc, insert};
+use fixture::{desc, insert, on_frame};
 use geom_core::Tol;
 
 #[test]
@@ -49,14 +49,12 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
     ];
     for (name, path_desc) in paths {
         let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
-        let (d, profile) = insert(
+        let (d, profile) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-            )),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         );
         doc = d;
         let (d, path) = insert(doc, Node::Profile(path_desc));
@@ -113,14 +111,12 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
 #[test]
 fn review_recipe_doors_precede_the_sweep_frontier() {
     let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
-    let (d, profile) = insert(
+    let (d, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     doc = d;
     let (d, datum) = insert(
