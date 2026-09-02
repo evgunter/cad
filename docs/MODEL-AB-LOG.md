@@ -3127,6 +3127,18 @@ the merge follows the away-channel window after the dual. Sample
 number at merge; row in the docs PR after the merge (the no-append-on-
 branch mechanics).
 
+MESH-7 (PR #1565) ordinal FIXED AT DISPATCH (2026-09-02):
+**ordinal 1206** (S-MESH band 1200–1299). v6 dual: parity byte **19**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `446315851`
+(run 33608367531 verified at dispatch: head SHA matches, 22 checks —
+20 success + 2 skipped; gate point lane=both ASKED by trailer × eps
+1e-6 DRAWN; the first PR head red on `python suite` alone — a
+feature-gated exhaustive match the workspace check does not build —
+fixed, disclosed), R2 isolated from R1, briefs symmetric, no
+relaxations granted. Implementer difficulty M (pre-logged at the spec,
+pre-draw). Sample number at merge; row in the docs PR after the merge.
+
+
 BOOL-11 REVIEWS DELIVERED + ROW (2026-09-01/02; CONCURRENT on frozen
 0d285cd3f per the fixed-at-dispatch record above; fix pass
 IMPLEMENTER-INHERITED via agent resume, plus one ruled addendum).
