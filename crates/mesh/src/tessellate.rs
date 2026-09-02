@@ -47,7 +47,10 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     let eps = Eps::at(tol);
     // Props' decision band, built once at operation entry as
     // `Band::linear` prescribes; the curved lane's shape door is its
-    // only consumer (`SizingTols::band`).
+    // only consumer (`SizingTols::band`). Eager on purpose: a run whose
+    // ε cannot form a band refuses every body alike, the all-planar
+    // ones included, rather than meshing until the first curved face
+    // (`TessellateError::Band` says why).
     let band = Band::linear(tol).map_err(|error| TessellateError::Band { error })?;
     let delta_s = sizing_target(chordal);
 
@@ -193,8 +196,13 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // Re-derive it here, over the only ids two faces can share — the
     // chord segments of the body's own edges — and over nothing else.
     //
-    // WHY NOT `check_mesh`, which is already the oracle for exactly
-    // this: it was the first candidate and it was MEASURED against
+    // WHY NOT `check_mesh`, which is the oracle for the non-manifold
+    // shape of this class (though not for every shape a collapsed walk
+    // produces: a face whose polygon collapses onto one rim level
+    // emits NO triangles, its chord segments are used by no face, and
+    // `check_mesh` passes the empty patch — the oblique lens with
+    // debug assertions off; this census is what sees it): it was the
+    // first candidate and it was MEASURED against
     // this one, both switched into one binary on the tour corpus, at
     // all three ε rows and the byte instrument's three deltas.
     //

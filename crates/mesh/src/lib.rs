@@ -271,7 +271,12 @@ pub mod walk;
 /// on — one definition, shared with the integration suite through
 /// `tests/common/witness_bodies.rs` (its header says why it uses
 /// nothing from this crate). Test-only: in-crate rows reach the walk
-/// itself on these bodies, the suite reaches the public door.
+/// itself on these bodies, the suite reaches the public door. The
+/// trade: a `tests/` file mounted into `src` is unusual and a reader
+/// finds it only through this line; the alternatives were a second
+/// copy of the builders (the duplication a style lane raises) or a
+/// dev-only feature exposing the walk to `tests/` (public surface for
+/// a test's convenience). The mount costs one path attribute.
 #[cfg(test)]
 #[path = "../tests/common/witness_bodies.rs"]
 #[allow(dead_code, unreachable_pub)]

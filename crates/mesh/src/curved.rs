@@ -116,7 +116,7 @@ use std::collections::HashMap;
 use geom::Surface;
 use geom_core::{Band, Point3};
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
-use topo::props::MassPropsError;
+use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
@@ -142,10 +142,14 @@ pub(crate) fn tessellate_curved(
     }
     // THE SHAPE DOOR, before the walk (module docs, question 1): props'
     // rim-structure predicate decides whether this face's domain is an
-    // iso-rectangle at all. Everything the walk then does — and
-    // `iso_side_starts`' collapse of same-kind runs in particular —
-    // assumes every boundary edge is an iso curve of the chart, which
-    // is exactly what the door's per-kind classification certifies.
+    // iso-rectangle at all, and refuses every edge whose CARRIER is not
+    // a rim or a meridian carrier of this surface. Everything the walk
+    // then does — `iso_side_starts`' collapse of same-kind runs in
+    // particular — assumes more: that each traversed ARC stays on one
+    // iso curve of the chart. The door does not certify that (a
+    // great-circle arc may cross a pole mid-edge and pass — issue
+    // 1571), so that premise remains inherited, as `walk`'s header
+    // says; what the door closes is the non-iso-carrier instance.
     require_iso_rectangle_face(body, fk, face.outer, surface, tol.band)?;
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
@@ -399,6 +403,13 @@ pub(crate) fn tessellate_curved(
 /// An empty loop is reported by this lane's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
 /// would otherwise call it corruption.
+///
+/// Four `require_*` spellings meet at this door — props'
+/// `require_iso_rectangle` and `require_rims_at_extremes`, this fn and
+/// [`require_swept_rectangle`] — and the shared prefix is the point:
+/// each is a typed precondition answering `Result<(), E>` with nothing
+/// computed, the props two on the face's rim structure, the mesh two
+/// on the face and on the walk. The suffix names the question.
 fn require_iso_rectangle_face(
     body: &Body<f64>,
     fk: FaceKey,
@@ -412,16 +423,14 @@ fn require_iso_rectangle_face(
     if matches!(lp.boundary, topo::LoopBoundary::Empty { .. }) {
         return Err(TessellateError::EmptyLoop { face: fk });
     }
+    // `loop_edges` reports exactly the two states a flatten can reach,
+    // in its own type, so this match is exhaustive over them and a
+    // third arm minted in `topo` is a compile error here — D2 row 0
+    // across the crate boundary, in place of an `unreachable!` over
+    // arms the flatten never produced.
     let (outer, _half_edges) = topo::props::loop_edges(body, lk).map_err(|e| match e {
-        MassPropsError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
-        MassPropsError::Corrupt { what } => TessellateError::MissingEntity { what },
-        MassPropsError::Band { .. }
-        | MassPropsError::Face { .. }
-        | MassPropsError::RingOnCurvedFace { .. } => unreachable!(
-            "topo::props::loop_edges flattens one loop and mints only its two \
-             resolution arms (Corrupt, NullScaffoldEdge); the band, per-face and \
-             ring arms belong to mass_properties, which this door never calls: {e:?}"
-        ),
+        LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
+        LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
     })?;
     geom_brep::props::require_iso_rectangle(surface, &outer, band)
         .map_err(|source| TessellateError::UnsupportedCurvedShape { face: fk, source })
@@ -614,20 +623,27 @@ fn entries_off_bbox(
 /// that has to change is [`require_iso_rectangle_face`]'s call in
 /// [`tessellate_curved`], and it is in `mesh`.
 ///
-/// **The `walk::iso_side_starts` collapse cannot defeat it any more.**
-/// That collapse merges consecutive same-kind traversals onto one
-/// coordinate on the premise that every boundary edge is an iso curve
-/// of the chart; an obliquely cut SPHERE broke the premise — two
-/// tilted plane sections both classify `Rim`, merge onto one `v`, and
-/// the polygon IS its own bounding rectangle — and this check admitted
-/// it (executed: the collapsed lens walked to one `v`, passed here,
-/// and meshed to a patch the S65 cross-face census caught —
+/// **The `walk::iso_side_starts` collapse on two non-iso CARRIERS
+/// cannot defeat it any more; the collapse on a non-iso ARC still
+/// can.** That collapse merges consecutive same-kind traversals onto
+/// one coordinate on the premise that every boundary edge is an iso
+/// curve of the chart. Two tilted plane sections of a SPHERE both
+/// classify `Rim`, merge onto one `v`, and the polygon IS its own
+/// bounding rectangle — this check admitted it (executed: the
+/// collapsed lens walked to one `v`, passed here; with assertions on
+/// the S65 cross-face census panicked, with them off `tessellate`
+/// returned an `Ok` EMPTY mesh that `check_mesh` passes —
 /// `tests::the_lens_walk_collapses_onto_one_rim_level_and_the_spatial_
 /// check_admits_it`). The shape door refuses that face on
-/// `props_rim_axis_parallel` before the walk runs, and its per-edge
-/// classification is what establishes the premise the collapse needs;
-/// the qualification once recorded at `walk::iso_side_starts` is
-/// closed there, with the witness.
+/// `props_rim_axis_parallel` before the walk runs, on every kind
+/// (structural: per-edge CARRIER certification — a torus Villarceau
+/// lens refuses `props_rim_fit`). It does NOT certify that a traversed
+/// arc stays on one chart meridian: a great-circle arc crossing a pole
+/// passes the door and reaches this walk, where `mid_azimuth` reads
+/// the pole's `u` and the closing column disagrees by π (issue 1571,
+/// pinned in `tests/iso_rectangle_door.rs`). The qualification at
+/// `walk::iso_side_starts` is closed as worded; the premise it
+/// instanced stays inherited, and `walk`'s header says so.
 ///
 /// **A measured constant in this crate is re-derivable from the tree,
 /// or it says it is not.** The band's own doc ([`entries_off_bbox`])
@@ -1563,7 +1579,10 @@ mod tests {
     /// against it as issue 1562 — its fix returns these totals to
     /// (254, 4), and `tests/iso_rectangle_door.rs` pins the limitation
     /// itself so the flip is visible. Splitting a RIM is fine on both
-    /// sides.
+    /// sides. Reach: `split_edge` on a torus seam directly, or a blend
+    /// whose surgery splits a torus meridian (`sweep::blend::surgery`
+    /// splits seam and meridian edges in production; whether one lands
+    /// on a torus is unmeasured), then `tessellate`.
     const TOTAL_REFUSED: usize = 8;
 
     /// **The premise, swept.** Every curved face this build can put in
@@ -2355,12 +2374,13 @@ mod tests {
     /// and IS its own bounding box, and the spatial check ADMITS it —
     /// the severity flip the qualification recorded, measured here
     /// rather than argued. (Run through `tessellate` with the door
-    /// removed, that walk meshed to a patch the S65 cross-face census
-    /// caught as non-watertight; with debug assertions off it would
-    /// have returned `Ok` on a wrong mesh.) The shape door refuses the
-    /// same face on rim structure before the walk runs, which is what
-    /// closes the qualification: the premise the collapse needs is
-    /// certified per edge by props, not inherited.
+    /// removed and debug assertions on, the S65 cross-face census
+    /// panicked on that walk; with them off `tessellate` returned an
+    /// `Ok` EMPTY mesh — 12 positions, two patches of 0 triangles —
+    /// which `check_mesh` PASSES.) The shape door refuses the same
+    /// face on its rims' CARRIERS before the walk runs, which closes
+    /// the qualification as worded; it does not establish the walk's
+    /// arc premise (issue 1571), and this row does not claim it does.
     #[test]
     fn the_lens_walk_collapses_onto_one_rim_level_and_the_spatial_check_admits_it() {
         let (body, face) = crate::witness_bodies::oblique_lens();

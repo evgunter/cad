@@ -88,9 +88,19 @@ use geom_core::{Band, Tol};
 ///
 /// The band is a length in metres, in a private field, and the four
 /// methods below are the only operations on it — so **a `mesh` read of
-/// ε is one of the four or it does not compile**, and the crate's ε
-/// inventory IS those methods, which is what `mesh/tests/all.rs`'s
-/// `the_eps_inventory_is_pinned` counts.
+/// ε through this type is one of the four or it does not compile**,
+/// and the crate's ε inventory IS those methods, which is what
+/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned` counts.
+///
+/// **The bound of that claim.** ε also reaches `mesh` as
+/// [`SizingTols::band`] — props' `Band`, ε AND K, minted from the same
+/// `Tol` — and leaves it unread: `mesh` hands it to
+/// `geom_brep::props::require_iso_rectangle` and decides nothing
+/// against it. The inventory pin counts `eps` identifier carriers and
+/// the four method reads per file; it does not count `band`, `Band`
+/// or K, so a decision written against the band in this crate would
+/// be a bypass the pin cannot see. None exists; the field's doc is the
+/// obligation.
 ///
 /// **The scalar is not sealed in, and the honest bound is narrower
 /// than "no way back".** [`Display`](core::fmt::Display) emits a

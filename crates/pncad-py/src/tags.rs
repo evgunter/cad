@@ -566,7 +566,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
-        TessellateError::Band { .. } => "band",
+        TessellateError::Band { .. } => "tolerance_band_unformable",
     }
 }
 

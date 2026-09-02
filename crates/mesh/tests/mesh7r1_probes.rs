@@ -498,3 +498,42 @@ fn report_band_arm_under_the_runs_eps() {
     println!("PROBE band arm reached: {is_band}");
 }
 // R1-DOOR-ONLY-END
+
+/// **Issue 1571's LIMITATION, pinned — not a desired behaviour.** The
+/// half-cap's one meridian edge is a great-circle ARC that crosses the
+/// north pole mid-edge. Props certifies the CARRIER (a great circle,
+/// `props_meridian_great`) and folds the pole into the extent, so the
+/// door admits both faces and `mass_properties` answers (0.0 for this
+/// two-face body — the props-side finding on the issue; 4π/3 for the
+/// three-face split); the walk's premise — each traversed arc on ONE chart meridian
+/// — does not hold for that edge, `mid_azimuth` reads the pole's `u`,
+/// and the closing column disagrees by π: at δ = 0.5 the
+/// `closing_column` debug assertion fires (recorded, not asserted here
+/// — a `debug_assert` is not a contract to pin a `should_panic` on),
+/// and at δ = 0.1 the face refuses `CertificateExceeded`; with debug
+/// assertions off the δ = 0.5 walk returns an `Ok` NON-watertight mesh.
+/// The door does not establish the arc premise and this row says so;
+/// the fix (arc-span verification in the walk or in props) flips it.
+#[test]
+fn a_pole_crossing_arc_pins_issue_1571s_inherited_premise() {
+    let (body, cap, rest) = pole_crossing_half_cap();
+    let tol = Tol::witness();
+    assert_eq!(door_verdict(&body, cap), Ok(()));
+    assert_eq!(door_verdict(&body, rest), Ok(()));
+    // Props ANSWERS for this body — the point is that nothing on the
+    // props side refuses the pole-crossing arc. What it answers is the
+    // issue's props-side finding: on this two-face body the complement
+    // face is an L in the chart that the door and the closed form both
+    // accept, and the volume comes back 0.0 for a closed unit sphere
+    // (the three-face split measures the exact 4π/3 — the rows above
+    // print both). Recorded on issue 1571, not asserted beyond `Ok`.
+    let mp = topo::mass_properties(&body, tol).expect("props answers for the pole-crossing body");
+    println!("PIN 1571 two-face volume: {}", mp.volume);
+    let got = mesh::tessellate(&body, 0.1, tol).map(|_| ());
+    assert!(
+        matches!(got, Err(TessellateError::CertificateExceeded { .. })),
+        "issue 1571: the door admitted a face whose arc leaves its chart meridian, and the \
+         walk that follows cannot certify it; got {got:?}. If this now MESHES watertight, the \
+         arc premise has been verified somewhere — delete this row and close the issue"
+    );
+}

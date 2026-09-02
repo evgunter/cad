@@ -65,6 +65,36 @@ pub struct MassProperties<T: Real> {
     pub area_pad: f64,
 }
 
+/// The two states flattening one loop into [`LoopEdge`]s can reach —
+/// [`loop_edges`]' own error, absorbed into [`MassPropsError`] by
+/// `From` on this crate's path and matched exactly by the other
+/// consumer (`mesh`'s shape door).
+#[derive(Clone, Debug, PartialEq)]
+pub enum LoopEdgesError {
+    /// A loop is empty or a referenced key fails to resolve —
+    /// tier-1/tier-2 scaffolding or corruption; the structural
+    /// validators own the diagnosis, this is the fail-loud surface.
+    Corrupt {
+        /// What failed to resolve (static description).
+        what: &'static str,
+    },
+    /// An edge is M3 null-edge scaffolding (no carrier by type): the
+    /// body is mid-surgery.
+    NullScaffoldEdge {
+        /// The scaffolding edge.
+        edge: crate::entity::EdgeKey,
+    },
+}
+
+impl From<LoopEdgesError> for MassPropsError {
+    fn from(e: LoopEdgesError) -> Self {
+        match e {
+            LoopEdgesError::Corrupt { what } => MassPropsError::Corrupt { what },
+            LoopEdgesError::NullScaffoldEdge { edge } => MassPropsError::NullScaffoldEdge { edge },
+        }
+    }
+}
+
 /// Typed failure of [`mass_properties`] (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum MassPropsError {
@@ -347,13 +377,17 @@ fn face_flux<T: Decide>(
 /// Public because `mesh` is its second consumer: the curved lane hands
 /// a face's outer loop to `geom_brep::props`' iso-rectangle door before
 /// walking it, and this is the same half-edge cycle that walk reads —
-/// one flattening, not two.
+/// one flattening, not two. Its error type is its own
+/// ([`LoopEdgesError`]) so that a consumer across the crate boundary
+/// matches exactly the two states a flatten can reach, and a third
+/// arm added here is a compile error there rather than an
+/// `unreachable!`.
 #[allow(clippy::type_complexity)]
 pub fn loop_edges<T: Decide>(
     body: &Body<T>,
     lk: LoopKey,
-) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), MassPropsError> {
-    let corrupt = |what| MassPropsError::Corrupt { what };
+) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
+    let corrupt = |what| LoopEdgesError::Corrupt { what };
     let Some(loop_) = body.loops.get(lk) else {
         return Err(corrupt("loop key does not resolve"));
     };
@@ -386,7 +420,7 @@ pub fn loop_edges<T: Decide>(
             return Err(corrupt("curve key does not resolve"));
         };
         let Some(curve) = entry.certified() else {
-            return Err(MassPropsError::NullScaffoldEdge { edge: he.edge });
+            return Err(LoopEdgesError::NullScaffoldEdge { edge: he.edge });
         };
         let Some(end) = body.half_edge_end(he_key) else {
             return Err(corrupt("half-edge mate does not resolve"));

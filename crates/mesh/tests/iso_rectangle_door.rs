@@ -30,7 +30,7 @@
 
 mod common;
 
-use common::witness_bodies::{keyway, oblique_lens};
+use common::witness_bodies::{keyway, oblique_lens, slit};
 use common::*;
 use geom::Surface;
 use geom_brep::props::PropsError;
@@ -175,4 +175,46 @@ fn a_split_seam_donut_pins_issue_1562s_torus_extent_limitation() {
         ),
         "the same body, the same name, through mass_properties"
     );
+}
+
+/// **The zero-width slit — the case the walk-consistency check keeps,
+/// demonstrated rather than argued.** Every rim at an extreme and
+/// every carrier a rim circle or an axial line, so the shape door says
+/// `Ok`; the walk then carries the slit's tip half a metre inside the
+/// polygon's own box, and the spatial check refuses it by that
+/// feature-sized distance — `UnsupportedCurvedDomain`, the payload
+/// naming the tip. This is the "feature-sized distance on a face the
+/// door admitted" the variant's doc describes.
+#[test]
+fn a_zero_width_slit_passes_the_door_and_trips_the_spatial_check_feature_sized() {
+    let (body, face) = slit();
+    let f = body.get_face(face).unwrap();
+    let (outer, _) = topo::props::loop_edges(&body, f.outer).unwrap();
+    let surface = body.get_surface(f.surface).unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    assert_eq!(
+        geom_brep::props::require_iso_rectangle(surface, &outer, band),
+        Ok(()),
+        "every rim of the slit face is at an extreme; the door cannot see a slit"
+    );
+    let got = mesh::tessellate(&body, 0.05, Tol::witness()).map(|_| ());
+    match got {
+        Err(TessellateError::UnsupportedCurvedDomain {
+            face: fk,
+            first_uv: (u, v),
+            max_distance,
+            ..
+        }) => {
+            assert_eq!(fk, face);
+            assert!(
+                (u - 0.75).abs() < 1e-9 && (v - 0.5).abs() < 1e-9,
+                "the first off-box entry is the slit's tip; got ({u}, {v})"
+            );
+            assert!(
+                (max_distance - 0.5).abs() < 1e-9,
+                "the tip sits 0.5 m inside the box (v gap 0.5 at lever 1 m); got {max_distance}"
+            );
+        }
+        other => panic!("the slit must refuse at the walk-consistency check; got {other:?}"),
+    }
 }

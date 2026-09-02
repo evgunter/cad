@@ -192,12 +192,7 @@ pub fn boundary_material_sign<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (rims, meridians) =
-                torus_boundary(center, axis, major_radius, minor_radius, outer, band)?;
-            let m0 = meridians.first().ok_or(PropsError::NotIsoRectangle {
-                what: "torus face without a meridian",
-            })?;
-            let orient = torus_meridian_orient(m0, center, axis, minor_radius, band)?;
+            let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
             // The premise, on this arm too. The torus reads its side
             // from ONE corner — the anchor meridian's chart orientation
             // and the rim sharing that meridian's `t0` vertex — and a
@@ -208,17 +203,11 @@ pub fn boundary_material_sign<T: Decide>(
             // L-shaped domain the meridian at the notch is flanked by
             // two rims of the same `d_u`, the cancellation fails, and
             // the six rotations of one edge cycle answer +,+,−,−,+,+.
-            let (s0, c0, s1, c1) = torus_ends(m0, center, axis, major_radius, minor_radius, orient);
-            require_rims_at_extremes(
-                &rims,
-                (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
-                torus_arms(major_radius, minor_radius),
-                band,
-            )?;
-            let rim_a = torus_anchor_rim(&rims, m0)?;
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)?;
+            let rim_a = torus_anchor_rim(&p.rims, &p.anchor)?;
             Ok(MaterialSign::Encoded(sign_mul(
                 rim_a.d_u_sign,
-                orient.flip(),
+                p.orient.flip(),
             )))
         }
         // As `curved_face`: no closed-form rim inventory for a spline
@@ -241,11 +230,13 @@ pub fn boundary_material_sign<T: Decide>(
 /// silently vanishing.
 ///
 /// **What it decides, per kind.** The boundary parse certifies every
-/// edge as a rim (a coaxial iso-`v` circle, incident on the surface) or
-/// a meridian (an axial line, a generator through the apex, a great
-/// circle through the poles, a minor circle in an axial plane) — an
-/// edge that is neither refuses there, which is what establishes that
-/// the loop is iso-bounded at all — and the predicate then requires
+/// edge's CARRIER as a rim (a coaxial iso-`v` circle, incident on the
+/// surface) or a meridian carrier (an axial line, a generator through
+/// the apex, a great circle through the poles, a minor circle in an
+/// axial plane) — a carrier that is neither refuses there, on every
+/// kind (an oblique sphere section on `props_rim_axis_parallel`, a
+/// torus Villarceau circle on `props_rim_fit`) — and the predicate
+/// then requires
 /// every rim to sit at one of the face's two extreme levels: the
 /// cylinder's, cone's and sphere's from `min_max` over every level the
 /// parse touched (the sphere's with each meridian arc's span-derived
@@ -257,6 +248,16 @@ pub fn boundary_material_sign<T: Decide>(
 /// `props_meridian_*` incidences, `props_rim_level`), so a
 /// `NotIsoRectangle` from here carries the `what` the flux lane would
 /// report for the same face.
+///
+/// **Carrier membership is not arc membership, and this door does not
+/// decide the latter** (issue 1571). A certified meridian CARRIER can
+/// carry an arc that leaves one chart meridian: a great circle
+/// contains both poles, so a sphere meridian arc may cross a pole
+/// mid-edge, where the chart's `u` jumps by π. The parse folds that
+/// pole into the face's extent (the closed form is right about the
+/// area) and says nothing about the arc's chart image; a consumer
+/// whose walk assumes each edge stays on one iso curve — `mesh`'s —
+/// still inherits that premise rather than receiving it from here.
 ///
 /// **It inherits the extent derivations' limitations, and says so.**
 /// The door decides shape from rim structure against the extremes
@@ -276,6 +277,15 @@ pub fn boundary_material_sign<T: Decide>(
 /// integrate and which says nothing about the shape. Two questions,
 /// two homes: a consumer of this door meshes a partial sphere wedge,
 /// the flux lane finds its volume uncomputable, and both are right.
+///
+/// **A zero-extent face PASSES too.** Two rims at one level joined by
+/// zero-length meridians have every rim at an extreme (`lo == hi`);
+/// the flux lane refuses `DegenerateFace` at its own `require_extent`
+/// first. Extent is not a shape question — a degenerate rectangle is a
+/// rectangle — so this door does not ask it: a consumer that cannot
+/// mesh a zero-area face refuses it on its own terms (the walk's and
+/// the CDT's), and one that can is not told otherwise by a shape
+/// predicate. Pinned beside the lune in `tests/r2_mesh7_door_probes`.
 ///
 /// **A plane is not its question.** A planar face's loop is arbitrary
 /// by design (rings, polygons, splines); asked anyway, this refuses
@@ -335,19 +345,8 @@ pub fn require_iso_rectangle<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (rims, meridians) =
-                torus_boundary(center, axis, major_radius, minor_radius, outer, band)?;
-            let m0 = meridians.first().ok_or(PropsError::NotIsoRectangle {
-                what: "torus face without a meridian",
-            })?;
-            let orient = torus_meridian_orient(m0, center, axis, minor_radius, band)?;
-            let (s0, c0, s1, c1) = torus_ends(m0, center, axis, major_radius, minor_radius, orient);
-            require_rims_at_extremes(
-                &rims,
-                (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
-                torus_arms(major_radius, minor_radius),
-                band,
-            )
+            let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band).map(|_| ())
         }
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
@@ -362,6 +361,64 @@ pub fn require_iso_rectangle<T: Decide>(
 fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
     require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)
+}
+
+/// A torus face's parse with the anchor meridian's chart orientation:
+/// the prologue every torus consumer runs before deciding anything —
+/// the flux lane, [`boundary_material_sign`] and
+/// [`require_iso_rectangle`] — in one place, so the refusal names and
+/// their order are one. The anchor is the FIRST meridian the parse
+/// met; the extent it carries is that one edge's stored span, which is
+/// the issue-1562 limitation every consumer inherits alike.
+struct TorusParse<T: Real> {
+    rims: Vec<Rim<T>>,
+    anchor: TorusMeridian<T>,
+    orient: Sign,
+}
+
+fn torus_parse<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<TorusParse<T>, PropsError> {
+    let (rims, mut meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
+    if meridians.is_empty() {
+        return Err(PropsError::NotIsoRectangle {
+            what: "torus face without a meridian",
+        });
+    }
+    let anchor = meridians.swap_remove(0);
+    let orient = torus_meridian_orient(&anchor, center, axis, minor, band)?;
+    Ok(TorusParse {
+        rims,
+        anchor,
+        orient,
+    })
+}
+
+/// The torus's two extreme minor angles from the anchor meridian's
+/// stored span ([`torus_ends`]) with the iso-rectangle premise decided
+/// against them — one call for the three torus consumers. Returns the
+/// ends as `(s0, c0, s1, c1)` for the flux arm's closed form.
+fn torus_rims_at_extremes<T: Decide>(
+    p: &TorusParse<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    band: Band,
+) -> Result<(T, T, T, T), PropsError> {
+    let (s0, c0, s1, c1) = torus_ends(&p.anchor, center, axis, major, minor, p.orient);
+    require_rims_at_extremes(
+        &p.rims,
+        (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
+        torus_arms(major, minor),
+        band,
+    )?;
+    Ok((s0, c0, s1, c1))
 }
 
 // ---------------------------------------------------------------------
@@ -1581,32 +1638,20 @@ fn torus<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let (rims, meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
-    let Some(m0) = meridians.first() else {
-        return Err(PropsError::NotIsoRectangle {
-            what: "torus face without a meridian",
-        });
-    };
-    let orient = torus_meridian_orient(m0, center, axis, minor, band)?;
-    require_extent(Margin::levered(m0.dt, minor), band)?;
-    let dv = m0.dt;
-    let (s0, c0, s1, c1) = torus_ends(m0, center, axis, major, minor, orient);
+    let p = torus_parse(center, axis, major, minor, edges, band)?;
+    require_extent(Margin::levered(p.anchor.dt, minor), band)?;
+    let dv = p.anchor.dt;
     // The iso-rectangle premise (S58/#649) — the SAME predicate the
     // other three kinds run, which is where it came from: this arm was
     // the only one #649's adversarial probe could not break, and
     // generalising it is the fix.
     let arms = torus_arms(major, minor);
-    require_rims_at_extremes(
-        &rims,
-        (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
-        arms,
-        band,
-    )?;
-    let du = du_of_rims(&rims, arms, band)?;
+    let (s0, c0, s1, c1) = torus_rims_at_extremes(&p, center, axis, major, minor, band)?;
+    let du = du_of_rims(&p.rims, arms, band)?;
     // s_f: the rim topologically adjacent to the anchor endpoint; the
     // interior sweeps from it in the `dv/dt = −orient` direction.
-    let rim_a = torus_anchor_rim(&rims, m0)?;
-    let s_f = t_sign::<T>(sign_mul(rim_a.d_u_sign, orient.flip()));
+    let rim_a = torus_anchor_rim(&p.rims, &p.anchor)?;
+    let s_f = t_sign::<T>(sign_mul(rim_a.d_u_sign, p.orient.flip()));
     let half = T::from_f64(0.5);
     let area = minor * du * (major * dv + minor * (s1 - s0));
     let k = minor

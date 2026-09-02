@@ -188,3 +188,75 @@ pub fn oblique_lens() -> (Body<f64>, FaceKey) {
     .unwrap();
     (body, seed.face)
 }
+
+/// **The zero-width slit**: the cylinder rectangle `[0, 1.5] × [0, 1]`
+/// with a spur edge from the bottom rim's midpoint `(0.75, 0)` up one
+/// column to `(0.75, 0.5)`, traversed up and back down by the one
+/// loop. Every rim sits at an extreme, every edge's carrier is a rim
+/// circle or an axial line, so the shape door admits it — and the
+/// walk's polygon carries the slit's tip a feature width inside its own
+/// box, which is the case the walk-consistency check keeps. Returns
+/// the body and the slit face.
+pub fn slit() -> (Body<f64>, FaceKey) {
+    let tol = Tol::witness();
+    let on = |u: f64, v: f64| p3(u.cos(), u.sin(), v);
+    let rim = |v: f64, axis_z: f64| Curve3::Circle {
+        center: p3(0.0, 0.0, v),
+        axis: v3(0.0, 0.0, axis_z),
+        radius: 1.0,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let line = EdgeCurveSpec::line_between;
+    let (v0, v1, v3_, v2, v7, tip) = (
+        on(0.0, 0.0),
+        on(0.75, 0.0),
+        on(1.5, 0.0),
+        on(1.5, 1.0),
+        on(0.0, 1.0),
+        on(0.75, 0.5),
+    );
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(v0).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New(Surface::Cylinder {
+            origin: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: v3(1.0, 0.0, 0.0),
+        }),
+    )
+    .unwrap();
+    let e01 = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            v1,
+            arc(rim(0.0, 1.0), 0.0, 0.75),
+            tol,
+        )
+        .unwrap();
+    let strut = |body: &mut Body<f64>, at, to, spec| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, to, spec, tol)
+            .unwrap()
+    };
+    let e13 = strut(&mut body, e01.he_minus, v3_, arc(rim(0.0, 1.0), 0.75, 1.5));
+    let e32 = strut(&mut body, e13.he_minus, v2, line(v3_, v2));
+    let e27 = strut(&mut body, e32.he_minus, v7, arc(rim(1.0, -1.0), -1.5, 0.0));
+    body.mef(
+        MefSite::Chords {
+            he1: e27.he_minus,
+            he2: e01.he_plus,
+        },
+        line(v7, v0),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    // The spur, inside the seed face's loop: `e13.he_plus` starts at
+    // the bottom rim's midpoint and is the only half-edge of that loop
+    // to do so, so the spur's two half-edges are spliced before it.
+    strut(&mut body, e13.he_plus, tip, line(v1, tip));
+    (body, seed.face)
+}

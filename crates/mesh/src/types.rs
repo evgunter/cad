@@ -283,6 +283,14 @@ pub enum TessellateError {
     /// and the lane that would mesh it is the one that would measure
     /// it, the certified-quadrature lane. An `Escalated` source is the
     /// same refusal one band-width away (D4: escalate, never guess).
+    ///
+    /// Naming: this arm is the SHAPE question and
+    /// [`Self::UnsupportedCurvedDomain`] the WALK question, though
+    /// "domain" would read as the shape. The older arm keeps its name
+    /// because it is public API with a stable python tag
+    /// (`unsupported_curved_domain`) and pinned rows in three crates;
+    /// renaming it would move all of that for a word. The two docs
+    /// carry the distinction instead.
     UnsupportedCurvedShape {
         /// The offending face.
         face: FaceKey,
@@ -294,6 +302,17 @@ pub enum TessellateError {
     /// statement about the body (the twin of
     /// `topo::MassPropsError::Band`), surfaced typed because the shape
     /// door decides against that band.
+    ///
+    /// Reachable only from the environment: ε within a factor K of
+    /// `f64::MAX` (`CAD_TOLERANCE_EPS`), and then on EVERY body, the
+    /// empty one included, because the band is minted once at
+    /// operation entry (its documented calling convention) rather
+    /// than on the first curved face. Minting lazily would let an
+    /// all-planar body mesh under an ε no predicate could decide with,
+    /// and make the refusal depend on face order; a run configured
+    /// past `f64` is refused before it meshes anything, uniformly.
+    /// Kept as a typed arm because `Band::linear` is fallible by
+    /// contract and `Tol` promises only a finite positive ε.
     Band {
         /// The band construction failure.
         error: geom_core::BandError,

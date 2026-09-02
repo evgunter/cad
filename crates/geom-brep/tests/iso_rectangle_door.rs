@@ -204,8 +204,10 @@ fn a_plane_is_refused_typed_not_answered() {
         normal: v3(0.0, 0.0, 1.0),
         u_ref: v3(1.0, 0.0, 0.0),
     };
-    assert!(matches!(
+    assert_eq!(
         require_iso_rectangle(&plane, &[], band()),
-        Err(PropsError::NotIsoRectangle { .. })
-    ));
+        Err(PropsError::NotIsoRectangle {
+            what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
+        })
+    );
 }
