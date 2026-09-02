@@ -312,7 +312,7 @@ impl<T: SpanLocate> Curve3<T> {
                 radius,
                 u_ref,
             } => {
-                let (radial, _) = azimuth::frame(*axis, *u_ref, t);
+                let radial = azimuth::frame(*axis, *u_ref, t).radial;
                 *center + radial * *radius
             }
             Curve3::Ellipse {
@@ -349,7 +349,7 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (_, tangential) = azimuth::frame(*axis, *u_ref, t);
+                let tangential = azimuth::frame(*axis, *u_ref, t).tangential;
                 tangential * *radius
             }
             Curve3::Ellipse {

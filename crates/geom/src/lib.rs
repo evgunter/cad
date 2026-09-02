@@ -105,7 +105,7 @@
 mod azimuth;
 pub mod curves;
 mod net;
-mod projection;
+mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
 
@@ -117,7 +117,7 @@ pub use curves::{
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.
-pub use projection::{
+pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{

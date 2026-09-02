@@ -16,6 +16,13 @@
 //! Neither door performs a combination on the caller's behalf that the
 //! caller's own doc comment does not spell out — the association
 //! orders are D9-fixed per arm and stay where they are read.
+//!
+//! [`frame`] answers an [`AzimuthFrame`] rather than a pair, and the
+//! reason is the arms: they ask for the radial alone, for the
+//! tangential alone, and for both, so a positional result has to be
+//! destructured three ways — and a transposed destructure of two
+//! same-typed vectors compiles, runs, and moves geometry. Named
+//! fields make that spelling not exist.
 
 use geom_core::{Real, Vec3};
 
@@ -25,12 +32,26 @@ pub(crate) fn basis<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> ((T, T), Ve
     ((u.sin_cos()), axis.cross(u_ref))
 }
 
-/// The azimuthal frame at angle `u`: `(radial, tangential)` =
-/// `(u_ref·c + v_ref·s, u_ref·(−s) + v_ref·c)` from one `sin_cos`
-/// call, associations exactly as written (D9).
-pub(crate) fn frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> (Vec3<T>, Vec3<T>) {
+/// The azimuthal frame at one angle: the unit vector at that azimuth
+/// and its derivative. Two `Vec3<T>` of the same type, told apart by
+/// name and not by position (module docs).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AzimuthFrame<T: Real> {
+    /// `u_ref·c + v_ref·s` — the unit vector at azimuth `u`.
+    pub radial: Vec3<T>,
+    /// `u_ref·(−s) + v_ref·c` — its derivative in `u`.
+    pub tangential: Vec3<T>,
+}
+
+/// The azimuthal frame at angle `u`, from one `sin_cos` call, with the
+/// associations exactly as written (D9); the two formulas are on
+/// [`AzimuthFrame`]'s fields.
+pub(crate) fn frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> AzimuthFrame<T> {
     let ((s, c), v_ref) = basis(axis, u_ref, u);
-    (u_ref * c + v_ref * s, u_ref * (-s) + v_ref * c)
+    AzimuthFrame {
+        radial: u_ref * c + v_ref * s,
+        tangential: u_ref * (-s) + v_ref * c,
+    }
 }
 
 #[cfg(test)]
@@ -59,16 +80,17 @@ mod tests {
     /// by an ulp. Generic bodies only ever see the trait method; this
     /// row must too, or it measures the dispatch rather than the frame.
     ///
-    /// **What it does NOT pin: the call sites.** A caller that
-    /// destructured [`frame`] the wrong way round — taking the radial
-    /// where the tangential belongs — compiles, and this row still
-    /// passes. That case is caught, but only INDIRECTLY: by the
-    /// derivative-vs-dual rows in `tests/curves/nurbs_differential.rs`,
-    /// the hand-computed partials and finite-difference oracles in
-    /// `tests/surfaces/review_m2_pr1.rs`, and the locus/periodicity
-    /// property rows on each enum. Stated here so that thinning any of
-    /// those suites is a visible loss of this refactor's site-level
-    /// guard rather than an invisible one.
+    /// **What it does not have to pin: the transposed call site.**
+    /// Taking the radial where the tangential belongs is not a
+    /// spelling any more — [`frame`] answers named fields, so the
+    /// swap is a type error at the site rather than geometry that
+    /// moves silently and is caught only indirectly, downstream, by
+    /// the derivative-vs-dual rows in
+    /// `tests/curves/nurbs_differential.rs`, the hand-computed
+    /// partials in `tests/surfaces/review_m2_pr1.rs` and the
+    /// locus/periodicity property rows on each enum. Those suites are
+    /// still this body's downstream evidence; they are no longer its
+    /// only guard against a transposition.
     #[test]
     fn both_doors_are_bitwise_the_documented_formula() {
         let axis = Vec3::new(0.31, -0.72, 0.61).normalize();
@@ -88,10 +110,10 @@ mod tests {
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let (radial, tangential) = frame(axis, u_ref, u);
-            assert_eq!(bits(radial), bits(u_ref * c + v_ref * s), "radial at {u}");
+            let f = frame(axis, u_ref, u);
+            assert_eq!(bits(f.radial), bits(u_ref * c + v_ref * s), "radial at {u}");
             assert_eq!(
-                bits(tangential),
+                bits(f.tangential),
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
             );
