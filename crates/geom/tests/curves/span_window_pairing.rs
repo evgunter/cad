@@ -183,9 +183,18 @@ fn a_span_from_a_longer_vector_is_refused_by_a_shorter_curve() {
         "a refused span must poison, not answer: {p:?}"
     );
     let (c, d1, d2) = curve.ders_in_span(span, 0.75);
-    assert!(c.x.is_nan() && d1.x.is_nan() && d2.x.is_nan());
-    assert!(curve.deriv_in_span(span, 0.75).x.is_nan());
-    assert!(curve.deriv2_in_span(span, 0.75).x.is_nan());
+    // Every channel: a refused span answers ALL-poison, and a
+    // first-channel read would pass on a partially poisoned answer.
+    assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
+    for v in [d1, d2] {
+        assert!(v.x.is_nan() && v.y.is_nan() && v.z.is_nan());
+    }
+    for v in [
+        curve.deriv_in_span(span, 0.75),
+        curve.deriv2_in_span(span, 0.75),
+    ] {
+        assert!(v.x.is_nan() && v.y.is_nan() && v.z.is_nan());
+    }
 
     // LAST, deliberately. This one is an assertion about the guard, so
     // deleting the compare reds it tautologically and it is evidence of
@@ -243,7 +252,8 @@ fn a_lower_degree_span_is_refused_although_its_index_and_span_are_valid() {
 
     let p = curve.eval_in_span(span, 0.5);
     assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "{p:?}");
-    assert!(curve.ders_in_span(span, 0.5).0.x.is_nan());
+    let c0 = curve.ders_in_span(span, 0.5).0;
+    assert!(c0.x.is_nan() && c0.y.is_nan() && c0.z.is_nan());
 
     // LAST, for the reason given in the row above: this is an assertion
     // about the guard, not about what the guard prevents.
@@ -287,7 +297,8 @@ fn a_span_empty_in_this_curve_is_refused_although_it_is_in_range() {
         p.x.is_nan() && p.y.is_nan() && p.z.is_nan(),
         "an empty span must poison, not answer: {p:?}"
     );
-    assert!(c.ders_in_span(span, t).0.x.is_nan());
+    let c0 = c.ders_in_span(span, t).0;
+    assert!(c0.x.is_nan() && c0.y.is_nan() && c0.z.is_nan());
 
     // The two assertions above do NOT discriminate, and saying so is
     // the point: at this door an empty span yields NaN coordinates with
@@ -386,7 +397,12 @@ fn no_cross_vector_pairing_panics_and_every_outcome_occurs() {
                         by_empty += 1;
                     }
                     assert!(
-                        pt.x.is_nan() && d1.x.is_nan(),
+                        pt.x.is_nan()
+                            && pt.y.is_nan()
+                            && pt.z.is_nan()
+                            && d1.x.is_nan()
+                            && d1.y.is_nan()
+                            && d1.z.is_nan(),
                         "a refused pairing answered instead of poisoning"
                     );
                     // The discriminating one. At the curve door an

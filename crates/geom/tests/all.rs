@@ -70,6 +70,8 @@ mod curves_m8_14_long_turn_meter;
 mod curves_n1r1_c24_dump;
 // Lane registration (aggregation guard): the R1 meter probe was pushed
 // without a `#[path]` line.
+#[path = "cert_n2r2_probes.rs"]
+mod cert_n2r2_probes;
 #[path = "curves/n1r1_c24_meter.rs"]
 mod curves_n1r1_c24_meter;
 #[path = "curves/n1r1_lift_probes.rs"]
@@ -108,6 +110,12 @@ mod curves_span_window_pairing;
 mod curves_split_at;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
+#[path = "n2r1_probes.rs"]
+mod n2r1_probes;
+#[path = "net_placeholder_width.rs"]
+mod net_placeholder_width;
+#[path = "net_placeholder_width_interval.rs"]
+mod net_placeholder_width_interval;
 
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]

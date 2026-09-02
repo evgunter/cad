@@ -4008,7 +4008,7 @@ meaningful, and the disposition.
 | `NurbsSurface::project` | as the curve half, in two parameters | → **issue #874** + docs |
 | `NurbsSurface::project_seed` | as the curve half | **fine** |
 | `NurbsSurface::project_from_seed` | as `project` | → **issue #874** + docs |
-| `projection::mid` (`pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
+| `projection_policy::mid` (`pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
 
 **"Fine, because —" is the disposition for seven of the twelve rows, and
 the reason is one reason.** The box constructors' bracket read is a
@@ -4083,7 +4083,7 @@ axis that actually separates them from `project` is **locally-constant
 selection versus smoothly-varying implicit function**: a span index is
 piecewise constant, so freezing it loses nothing; `t*(p)` is a smooth
 implicit function of the input, so freezing it drops `dt*/dp`. That is
-the framing #875 ships, at `projection::mid` and in one clause at
+the framing #875 ships, at `projection_policy::mid` and in one clause at
 `impl Bounds for Dual`.
 
 ### What enforces it afterwards: nothing, and that is by design
@@ -4107,7 +4107,7 @@ three dispositions that issue lists, taken structurally.
 
 **`project_seed` and the box constructors are deliberately NOT tightened** —
 the census table above gives each its verdict and its reason, and
-`geom/src/projection.rs`'s `mid` carries the rule they share. **The bound
+`geom/src/projection_policy.rs`'s `mid` carries the rule they share. **The bound
 follows the defect, not the class of the bound**, so a door whose freeze costs
 no derivative keeps the sole bracket bound even though its signature looks
 identical to one that tightened.
@@ -4116,7 +4116,8 @@ identical to one that tightened.
 difference at `f64` — the numbers a #874 fix must reproduce — and records what
 `Dual64` reported as prose, because that half can no longer be executed
 in-tree. The eviction itself is pinned by `compile_fail,E0277` rows in
-`geom/src/projection.rs`'s module docs, which is where a doctest is actually
+`geom/src/projection_policy.rs`'s module docs, which is where a doctest is
+actually
 collected — and `S216` is why those rows demonstrate the eviction without
 guarding it.
 
@@ -4290,86 +4291,6 @@ error docs point back at `crate::splitting::split` and
 `crate::splitting::plane_section`. The two modules it cites as precedent
 import nothing from either lane, so the analogy is doing work the
 dependency graph does not support. S5's shape, one indirection later.
-
-**Verdict:**
-
-## S99. `net::is_placeholder` tests one channel while the crate doc promises all of them
-
-The hoisted predicate (`crates/geom/src/net.rs:142`) is
-`control.iter().all(|p| p.channel(0).is_poison())` — every point, but
-only channel 0. `crates/geom/src/lib.rs:71-78`, directly above it, says
-the discriminator is that *"a placeholder's every control point is
-all-poison"*, and that a described net carrying poison *"must fail
-loudly as such … never masquerade as the benign placeholder"*. A
-described net whose every control point has a poisoned `x` and finite
-`y`/`z` is precisely that masquerade, and it now reads as the benign
-placeholder at ~25 consumer sites (`step-export/src/writer.rs:44`,
-`topo/src/props.rs:660`, `mesh/src/trimmed.rs:186`,
-`geom-brep/src/certify.rs:999`, …).
-
-The single-channel form was inherited from the surface half; the
-crate-merge dedup moved it into a helper that has `CHANNELS` and
-`channel(d)` in scope and did not widen it. This is the one place the
-merge picked a half's behaviour and landed it under a doc describing the
-other half's.
-
-**Verdict:**
-
-## S101. The merge's prose sweep deleted a cross-reference instead of re-aiming it
-
-The pre-merge text at `crates/geom/src/curves/nurbs.rs:684-687` read
-*"(The opposite choice — dividing by the min-weight floor, as
-`geom_surfaces::recognize`'s conic-derivative work does — is the
-direction for an UPPER bound…)"*. The sweep removed the clause, leaving
-the claim without its precedent. The pointer was **already** mis-aimed —
-there is no `recognize` module in `geom-surfaces`; the actual site is
-`crates/step-import/src/recognize.rs:422`, which builds exactly the
-`/ w_min` upper bound the sentence contrasts against. A sweep whose
-stated job was "every stale crate name" resolved a stale *name* by
-deleting the *fact*, and the only record that these two bounds are
-deliberate opposites is gone.
-
-Look for the same shape at every other site that sweep touched: the
-pattern it matched was the identifier, and the identifier is what the
-sentence was hanging on. The same sweep also left *"the geometry
-**crates**"* standing at `crates/geom/src/curves/boxes.rs:8` and
-`surfaces/boxes.rs:4` while correcting the manifest comment
-(`Cargo.toml:26`) to the singular — it saw the argument and fixed only
-the instance carrying a literal crate name.
-
-**Verdict:**
-
-## S102. Two more copy-sites in `geom` that the merge's whole justification was about
-
-- `crates/geom/src/surfaces/nurbs.rs:4-11`: *"Data model, evaluation
-  contract, and fixed-association rules are the curve module's … the
-  conventions are **stated once there and once here**."* A copy-site
-  declaring itself, in the crate whose justification was that the two
-  halves stated one thing twice. The crate-doc hoist took the
-  *enum-level* conventions and left the *payload-level* ones duplicated.
-- `crates/geom/src/surfaces.rs:26-30`: a bullet titled *"The shared
-  helper"* spelling the `radial`/`tangential` formula, kept verbatim,
-  never naming the thing it calls the shared helper. The helper moved to
-  `crate::azimuth` and is now shared with the *curve* half too — the
-  merge's whole point. `azimuth.rs:1-20` claims to be the single home;
-  `curves.rs` carries no matching paragraph, so the two halves' headers
-  now disagree about who documents the frame.
-
-**Verdict:**
-
-## S103. The iso-curve placement rule now lives only in the code that already obeys it
-
-The merge deleted the acyclicity sentence that had been enforcing
-"iso-curve extraction belongs to the EdgeGeometry layer" and restated
-the rule as 23 lines of prose at
-`crates/geom-brep/src/nurbs_iso.rs:19-41` — honestly, including the
-admission that *"nothing stops this module moving down except the rule
-itself"*. But the restatement is in `geom-brep`, and the code that would
-violate it is in `geom`. Nothing in `geom/src/lib.rs`,
-`geom/src/surfaces.rs` or `geom/src/surfaces/nurbs.rs` mentions it, so
-the person who adds the next extractor next to the payload — the exact
-move the rule forbids, and the one the merge made structurally possible
-— will not encounter it.
 
 **Verdict:**
 
@@ -4634,15 +4555,6 @@ see §C.
   that they are *"unguardable by construction"*. The `unreachable`
   family is deliberately outside the panic ban, so this is taste, not
   policy — but it is a hazard the abstraction introduced.
-- (b) `crates/geom/src/` now has three modules named `projection`, two
-  named `boxes` and two named `nurbs`; inside `surfaces/projection.rs`
-  the line `use crate::projection::{…}` and the module's own name refer
-  to different things. And `azimuth::frame` returns
-  `(radial, tangential)` — both `Vec3<T>`, so a transposed destructure
-  compiles silently, which `azimuth.rs:64-80` says and points at
-  indirect coverage — while the overwhelming majority of call sites take
-  `(radial, _)` or `(_, tangential)`. The header's two-door rationale
-  does not match what the arms need, which is three shapes.
 - (c) `crates/topo/src/sector_face.rs:118-123` — three things in one
   crate are named `sector_face`, and the shared module's doc concedes
   the collision in advance (*"so `sector_face` in prose means one thing
@@ -4738,13 +4650,6 @@ see §C.
   payloads are ignored. So the `set_edge_curve(e, spec)` that
   `split_site`'s doc justifies at length is not checked by the property
   it was written for; delete it and the roundtrip still passes.
-- (s) `crates/geom/tests/surfaces/m5_pr7_surface_projection.rs:224-228`
-  and `crates/geom/tests/curves/projection.rs:219` — both new overflow
-  rows are built around *"Finite inputs throughout"*, which is the
-  load-bearing half of the claim; the surface row checks
-  `p.x.is_finite() && p.z.is_finite()` and skips `y`, the coordinate
-  that actually varies across the fixture, and the curve row checks `x`
-  alone.
 - (u) Residue: `crates/sweep/tests/m5_pr12_refusals.rs:518` has a
   leftover `let p = Point3::new(0.0,0.0,0.0); let _ = p;`.
   `interval-transcendentals`' `2^-960` vs the literature's `~2^-969` is
@@ -5882,7 +5787,8 @@ target is never collected.** H-g verified it empirically — it planted a
 deliberately-failing `compile_fail` block in
 `crates/geom/tests/dual_foot_tangent.rs` and `cargo test --doc -p geom`
 reported **zero** rows from the file. That is why #886 sites its
-compile-fail rows in `geom/src/projection.rs`, where rustdoc runs them.
+compile-fail rows in `geom/src/projection_policy.rs`, where rustdoc runs
+them.
 
 **This is `D113`'s root cause with a second and worse consequence, which
 `D113` does not draw.** `D113` already records that *"`cargo doc` builds
@@ -6190,7 +6096,7 @@ rows, which is where it should be read from: the lane wrote *"a mistyped
 path reds rather than passes"* in a PR body, and that sentence was false
 about every `compile_fail` row in the repo.
 
-**The measurement.** Two rows planted in `crates/geom/src/projection.rs`
+**The measurement.** Two rows planted in `crates/geom/src/projection_policy.rs`
 on toolchain 1.97.0:
 
 | annotation | what it actually emits |
@@ -6263,7 +6169,7 @@ them more or less likely to.
 
 **The hit list, so the next lane does not re-derive it**:
 `profile/src/path.rs` (16), `quantity/src/units.rs` (8),
-`topo/src/entity.rs` (3), `geom/src/projection.rs` (2),
+`topo/src/entity.rs` (3), `geom/src/projection_policy.rs` (2),
 `topo/src/review_m0_pr7.rs` (2), and one each in
 `editor-core/src/eval/memo.rs`, `geom-core/src/dual.rs`,
 `profile/src/lib.rs`, `topo/src/body.rs` and `topo/src/chart_region.rs`.
@@ -6977,6 +6883,7 @@ per-unit by the orchestrator, never taken from here by resemblance.
 
 | # | What | Was |
 |---|---|---|
+| **S290** | **Two prose citations name a `geom` module that no longer exists (filed by CERT-N2).** `geom-core/src/dual.rs:792` and `real.rs:616,656` cite `geom::projection`'s `mid` (issue 874's class). `geom/src/` had three modules named `projection`; the private one holds the shared §6.1 policy rather than an implementation, and closing `S116(b)` renamed it `projection_policy`. `mid` itself did not move — only the module path — so this is one word in three sentences | CERT-N2, filed |
 | **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12). **`H-f`'s census of the other three lane traits is DONE and is CERT-M3's specification** (CERT-M2's PR body, per trait: where the certified sub-operation sits, what the pass hands back without it, whether the certified half is already a parameter, which absence spelling it carries, and a verdict). **And the ruling's own price is falsified, measured rather than argued** —
 the correction `CERT-M3` inherits, relocated here because the finding that
 held it has landed. `H-R16` prices the three-function split at *"exactly one
@@ -7017,7 +6924,6 @@ public-surface addition in `geom-brep`, not a deletion. That is the whole
 of the cost and it is smaller than the trait it removes, but "free" should
 not read as "no diff outside the trait". Its three verdicts: `EdgeNurbsLane` **splits free and is already split** — `geom_brep::NurbsLane` is a `&dyn Fn` injected at the door and `EdgeCurve::certify` already IS the structural half, so the trait's whole remaining job is naming `T::plane_nurbs_limbs`; `PcurveFittedLane` **does not split** — its certified half CONSTITUTES the pass's product (`run_fitted_checks` check 4 is where the `PcurveCertificate` comes from, and its `envelope` field IS `ssi.hull_sup`), so a structural half hands back a weaker object, not less information; `ChartRegionLane` **splits only with a new contract** — the census's conformal face-pair arm goes silent without it, which is a completeness claim nothing in the tree states. **CERT-M3 also inherits a bound to narrow.** `H-R16` spells the structural half `T: Decide`; it landed as `T: PropsQuadLane`, because checks 1-6 still dispatch through the trait — check 2's `recertify_nurbs_lane` (the `EdgeNurbsLane` half), check 1's `recertify_approx` and `datum_lo`, and check 8's `validate_pcurves` (the `PcurveFittedLane` half). After the `EdgeNurbsLane` split the `EdgeNurbsLane` term goes; what still holds the bound up is `recertify_approx`/`datum_lo` (`PropsQuadLane`'s own methods, and `datum_lo` is a `Bounds` read behind a name) and `PcurveFittedLane`, which the census says does not split. So the honest end state for the structural half is `Decide + Bounds + PcurveFittedLane` plus a home for `recertify_approx` — not `Decide`, and saying so is part of the row. **The sweep this census rests on, re-derived at the same base**: 45 trait declarations under `crates/*/src` by the stated pattern (`Sealed` appears twice, in `geom-core/src/spline/locate.rs` and `profile/src/path.rs`), of which the certification-carrying names are the four lane traits plus `AtRestPolicy`, `ArcCarrierScalar` and `EvalScalar`. Its first blind spot — a cargo root outside the workspace, which no gate and no `--workspace` clippy compiles — **has a live instance, and a taker should start there**: `demos/tour/src/scalar.rs:24`'s `trait Scalar: Decide + Bounds + ContentBits + AtRestPolicy + Send + Sync + Copy + 'static` is a compound-`Bounds` bundle with two impls, invisible to every instrument in the tree | Track H |
 | **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** **Re-read against the tree 2026-09-02, as a measurement and not an unparking** — three things moved and one did not. (i) The blocker STANDS: `sweep::blend::fillet_edges` is still reachable from `editor_core::eval::evaluate`, through `eval::wire::run_op`'s `T: Decide + ContentBits + Bounds + Send + Sync + AtRestPolicy + AxisScalar` to `wire_fillet`, and that set admits `Dual`, so #883's twelve red jobs still reduce to that one `E0277`. (ii) The pass is still mixed, and the split still sits where H-g put it: the geometry builder holds ZERO bracket reads at `T: Real`. (iii) **Every #883-era citation needs re-aiming**: the module is `crates/sweep/src/blend/`, not `sweep/src/fillet/`, and the builder is `blend/arms.rs`, not `blend.rs`. (iv) **H-g's bracket-read count of 14 no longer holds, and the unit matters**: 17 LINES carry a bracket read, 19 READS in all — `battery.rs` 11 lines / 12 reads, `build.rs` 3 / 3, `surgery.rs` 3 / 4, `arms.rs` (the geometry builder) 0. The classification also needs correcting rather than repeating: they are NOT all typed-error payloads. In `battery.rs` nine are error-payload fields (`margin`/`radius`/`gap`/`arm`), `:1235` is a BRANCH CONDITION comparing two bracket lows (`d0.min(d1).lo() == d0.lo()`, a junction-end pick) and `:1289` is a value read feeding an f64 quantity; `build.rs` is one `partial_cmp` datum gate plus two payloads; `surgery.rs`'s four are representation-datum selections, each with its argument written at the site. So the population is payloads plus SELECTIONS, and a taker owes a per-read classification rather than either count | Track H |
-
 ## Track N — `geom`, and the spline and linalg substrate
 
 **Fence:** `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}`.
@@ -7026,7 +6932,6 @@ not read as "no diff outside the trait". Its three verdicts: `EdgeNurbsLane` **s
 | # | What | Was |
 |---|---|---|
 | **D244** | **`S89`'s first alias, filed by CERT-M1**: `crates/geom-core/src/spline/hull.rs:113-118`'s private `fn bracket<E: CertifiedEnclosure>` is `RingInterval::from_certified` under another name, with an eight-line restatement of the door's rule above it. Inline it at its call sites and delete the restatement; the rule's one home is `from_certified`'s own doc, which (since CERT-M1) carries no caller census either. `geom-core/tests/decoration_seam.rs`'s header names this crossing; keep that sentence true when the alias goes | CERT-M1 (PR 1533), filed |
-| **H2** | One merge's residue, five findings, and it wants ONE lane — `S99`, `S101`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
 | **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
 | **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
 | **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
@@ -7040,6 +6945,8 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 
 | # | What | Was |
 |---|---|---|
+| **S330** | **Tier-3 check 1 turns a refusal into SILENCE on a described net carrying poison (filed by CERT-N2; found by the dual review, executed).** `validate.rs:2423`'s surface match has an arm for the `Nurbs` placeholder (`UncertifiableSurface`) and **no arm for a described `Nurbs`** — it falls to `_ => {}`. Before `S99` closed, a net poisoned in one channel read as the placeholder and got the refusal; it now reads as described and check 1 says **nothing at all about the surface**. The door still refuses the body, but through check 2's pcurve and edge re-certification (`DescriptionNotAdjacent`, `MapResidual` escalations, `LoopNotClosed`) — a different question, answered by accident. What the tier-3 surface check owes is a described-NURBS arm that certifies, or refuses, rather than an empty catch-all. Construct: a body whose face carries `NurbsSurface::new` over control points with every `x` poisoned (`geom/tests/net_placeholder_width.rs` mints the payload) | CERT-N2, filed |
+| **S331** | **`validate_pcurves` answers a clean bill on a body whose mint just failed (filed by CERT-N2; found by the dual review, executed).** `topo/src/pcurves.rs:1602` returns an empty error list for a body where `mint_pcurves` refused a face and `clear_face_caches` removed its caches — absence of a cache is not a claim (`validate_pcurves`' own rule), so zero errors is the correct *letter* and a vacuous green through a **public** door: a caller that validates after a failed mint is told the pcurves are fine. The question is whether at-rest validation should distinguish *no cache because this class is uncovered* from *no cache because minting refused*. **Fence note**: `topo/src/pcurves.rs` is named by neither this track's file list nor Track Q's, so this row draws the fence rather than assuming one — it is placed here, beside `validate.rs`, because the question is what at-rest validation may claim; the pcurve certification machinery it consults is Q's `pcurve_cache.rs` | CERT-N2, filed |
 | **D50** | `Live`'s unforgeability is guarded by nothing the repo runs — a `compile_fail` doctest cannot name a `pub(crate)` type, so the test that would try the forge cannot be written where the claim is | Track E |
 | **D20** | D5's +46% on the `seqgen` lane is real and, after #722 excluded the candidate it was charged to, unattributed. **Closes on an attribution off hosted CI — a number, or a written finding that it is inherent** | Track E |
 | **S69** | `kfmrh`'s shell-fusion form is outside the fuzz catalog, and the `Ledger` counts solids, so it cannot notice | unrowed |
@@ -7064,6 +6971,8 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 
 | # | What | Was |
 |---|---|---|
+| **S350** | **A described control net carrying poison gets a PARTIALLY poisoned answer, and the finite lanes still decide (filed by CERT-N2; a wrong answer, not a style row).** The class has two members and one of them is fixed: a net poisoned in one channel folds to a box (or a min/max hull) that is poison on that axis and FINITE on the others, and every consumer of it tests axes independently. **Member 1, FIXED in `geom` by CERT-N2** — `geom::surfaces::boxes::nurbs_surface_aabb` and its curve twin now screen on poison ANYWHERE and answer the poison box, which repairs `topo/src/boolean/boxes.rs:879`'s `FaceBoxRule::ControlNet` arm (and through it `boolean/ops.rs:1677,1760,1916` and `separation.rs:161,416`) with no edit on this track's ground, because they all call that door. **Member 2, OPEN and this row** — `topo/src/census.rs:1708`'s `ControlNet` arm folds `min`/`max` over the net itself and answers `Some((lo, hi))`. The consequence is not merely that a sign gets decided: the census's own margin ladder reads the finite axes, marks the pair *cleared*, and does **not** push `CensusUndecidable` — so a partially poisoned box CLEARS an interference pair in the **permissive** direction, and the far-containment arm goes silent. `census.rs:1694-1722`'s 29-line comment argues, for the placeholder, that folding poison would give a box that is *"neither a claim nor a refusal"* and answers `None`; the guard it argues behind is `is_placeholder`, which reads every channel since `S99` closed, so the fold now takes the masquerade the comment was written to keep out. The arm wants its own poison test — `geom`'s `net::any_poison` is the question a box asks, and its docs carry why it is wider than the state discriminator. Construct the net with `NurbsSurface::new` over control points whose every `x` is NaN; `geom/tests/net_placeholder_width.rs` mints one and executes the box half | CERT-N2, filed |
+| **S351** | **`nurbs_iso`'s placement rule is now cited from two places in `geom` (filed by CERT-N2; pointer-only, and deliberately not made here).** Closing `S103` put pointers where the next extractor would be written — `geom/src/lib.rs`'s crate doc and `geom/src/surfaces/nurbs.rs`'s header — with the rule and its whole argument left at their one home, this track's `geom-brep/src/nurbs_iso.rs`. Nothing needs changing today. What the row buys is that a move or a rewrite of those lines re-aims two citations in another crate instead of silently orphaning them | CERT-N2, filed |
 | **D290** | **`edge_nurbs.rs`'s `on_carrier_domain` (`:568–581`) is two operations spelled as one (filed by CERT-N1)**: a knot RESCALE to `[t0, t1]` (structure, `f64`) and a scalar lift of the control net through `from_f64`, pushed back through `NurbsCurve2::new(..).ok()` so a count error that cannot occur is swallowed into `None` alongside the knot validation that can. Split it: rescale the knots as a `KnotVector` operation at `f64`, then `NurbsCurve2::map_scalar(T::from_f64)`; the `.ok()` then covers only the knot door | CERT-N1 (PR 1536), filed |
 | **D289** | **`S89`'s second alias, filed by CERT-M1**: `crates/geom-brep/src/ssi/enclose.rs:192-197`'s private `fn ring<T: CertifiedEnclosure>` is `RingInterval::from_certified` under another name — inline it, delete the restatement (it shares a verbatim sentence with the `spline/hull.rs` copy, which is the finding's point). This crossing is pinned by NO row the decoration-seam header names (CERT-M1's fix pass says so); add the pin with the inlining | CERT-M1 (PR 1533), filed |
 | **G9** | Two operand gates with different admitted kind sets and a doc that describes only one (S95), plus `chord_join`'s placement argument contradicted by its own imports from `splitting/` (S96). **Both sides of the old Track C fence are inside this track now** | Track G |

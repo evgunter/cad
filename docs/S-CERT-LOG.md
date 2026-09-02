@@ -983,3 +983,86 @@ correction and CERT-M3's inheritance; the DL3 at-rest disagreement and
 (slot 2 OPUS, `docs/CERT-M3-SPEC.md` — its spec is H5's census as landed
 here) dispatches from this merge; CERT-N2's close-out in flight; then
 the exit walk.
+
+### CERT-N2 — Track N's H2 lane, the merge's residue (S99, S101, S102, S103, S116(b)) — MERGED
+
+PR 1558; spec `docs/CERT-N2-SPEC.md` (cert/orchestrator 1267e32c0); block
+CERT-B4 slot 1 (byte 123, fable at 3 → OPUS); ordinal 711 claimed at
+dispatch (main b966bd3bc); sample number at merge.
+
+Delivered and frozen head 5e96be021 (nine commits on merge base d3633406d;
++505/−183 over 22 files, all in fence plus two mechanical path lines in
+`geom-core/tests/bounds_census.rs` and the SMELL-SCAN landing). S99
+red-first: 3 rows red (default) and 5 (interval) on the narrow predicate,
+green after `is_placeholder` reads every channel of every point; the
+direction pinned as a property (the widened predicate implies the narrow
+one). The blast radius re-derived as a 13-row consumer table with one
+finite answer filed loudly (S350: `census.rs`'s face-box fold answers a
+partially poisoned box). S101 restored with a function-level pointer;
+S102/S103 as pointers; S116(b) decided by measurement (the private policy
+module renamed `projection_policy`; `azimuth::frame` returns a named
+struct). Gate 33598637118 green, lane=both + eps=1e-12 trailer-pinned.
+
+**The dual (ordinal 711, sample at the row)**: byte 204 parity 0 ⇒ R1 OPUS
++ R2 FABLE, sequential on the frozen head; R2 ran across the 08:05Z
+container restart (resumed from its transcript). R1 NMAI (A-W-F 5/2/2);
+R2 A-W-F 3/4/4. Both UPHELD the widening by execution (masquerade
+batteries at f64/Dual/Interval; `Dual::is_poison` is value-channel only;
+Interval's poison is NaI ∨ empty, so its placeholder set is wider in kind;
+`[-inf, inf]` is not poison). BILATERAL at differing severity: the roster
+dropped `props.rs:1349` (the mass-properties quadrature lane, the finding's
+own cited site — executed: typed `QuadratureUnsupported`); class 9 wrong as
+written (R1: tier-3 check 1 goes SILENT on the masquerade, the placeholder's
+`UncertifiableSurface` gone; R2: the door still refuses through check 2's
+escalations); the rename's citation bill short by four live SMELL-SCAN
+sites plus `projection::mid` paths; S350 understated (R1 ran the census's
+margin ladder: the partial box CLEARS an interference pair; R2 saw the far
+containment arm go silent). UNILATERAL EXECUTED MAJORs on BOTH arms — four
+v6 tally candidates, coding deferred to the blinded adjudication: R1's
+in-fence single-channel sweep undischarged (`surfaces.rs:1451` beside its
+widened curve twin; ~12 `geom/tests` sites) and the "a transposition cannot
+compile" claim false (field-swapped destructure and struct literal both
+compile); R2's second S350-class member IN FENCE (`nurbs_surface_aabb`
+yields a box poisoned on one axis and `Aabb::overlaps` PRUNES on the finite
+axes — reachable from the boolean lane, which never read `is_placeholder`)
+and S101's class swept from the wrong commit (7aa0672a8 vs 0a9f16c73, the
+crate merge). Severity divergence on the converged substances is
+calibration data.
+
+Fix pass IMPLEMENTER-INHERITED, 17 union items: all 17 items taken, none declined (head 896492194; the
+orchestrator's merge of main d66b3e5be atop it — a test-module-list
+union in `geom-brep/tests/all.rs` — is also the CI kick, GitHub having
+created no run for the lane's push). The in-fence AABB doors
+(`nurbs_surface_aabb`/`nurbs_curve_aabb`) now screen through one
+`net::any_poison` helper and answer the poison box — red-first, both
+lanes (1/2 rows), repairing `boolean/boxes.rs` and its five call sites
+with no edit on Q's ground; S350 widened to the class (both members,
+the permissive-clear mechanism, the 29-line census comment);
+`azimuth::frame` returns `Radial<T>`/`Tangential<T>` newtypes (a
+swapped construction is E0308 both ways, compiled; the one residue no
+newtype closes — a renaming destructure unwrapped on the spot — named
+at the site); the roster's missing class added with its executed
+refusal; class 9 rewritten both halves and check 1's silence filed
+(Track P S330); `validate_pcurves`' vacuous green filed (P S331); nine
+further single-channel sites widened across `geom/src` and its tests
+and S116(s) closed with them; the citation bill paid in full (17 sites:
+14 re-aimed, 3 filed as S290 — the head commit's undercount recorded,
+unamendable under merge-only history); S101's class re-derived from
+0a9f16c73 by normalising its 176 deleted doc lines (exactly two facts
+lost, both this unit's rows); the row-0 reason corrected (`placeholder()`
+is a struct literal); the discriminator doc says WHICH poison and how
+wide, executed in both suites; both reviewer probe suites adopted whole
+(8 files, 3 adoption annotations, the `face_box` inventory pin updated
+in place with its content); the discipline set and three-ε sweep re-run
+on the merged head (82 main commits; the only overlap doc-only).
+
+Gates: fix head d66b3e5be run 33630759321 green (lane=both, eps=1e-12
+trailer-pinned); MERGED #1558 (merge commit recorded in the A/B row)
+with this docs-only log entry riding.
+
+Filed: S330 and S331 (Track P), S350 widened to the class and S351
+(Track Q), S290 (Track M) — all landed in the PR's own SMELL-SCAN edit
+under rule 3; H2 and its five findings deleted, S116's (b) and (s)
+members deleted, Track N's table now S235, D31, D98, D244, C24. Slate: CERT-N3 (slot 3
+FABLE, `docs/CERT-N3-SPEC.md`) dispatches from this merge; CERT-M2's fix
+pass in flight; then the exit walk.

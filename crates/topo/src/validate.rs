@@ -2654,7 +2654,7 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Vec<ValidationError>
 /// says which of the two it meant. The empty closure is
 /// [`validate_geometric_structural`]'s answer and is not a refusal —
 /// it is the battery run without a check that caller does not make.
-fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
+pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
