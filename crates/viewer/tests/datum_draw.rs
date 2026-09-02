@@ -233,33 +233,67 @@ fn the_grid_pitch_steps_rather_than_sliding() {
     }
 }
 
-/// **A grid line passes through the datum's origin**, whatever the
-/// eye is doing.
+/// **The ruling sits on ONE LATTICE, wherever the camera looks.**
 ///
-/// The patch follows the view, so its centre moves; the RULING does
-/// not. Lines are laid at multiples of the pitch from the origin, so
-/// one of them is the origin itself — which is what stops the grid
-/// sliding under the cursor as the camera pans.
+/// The patch follows the view, so its centre moves; the ruling must
+/// not. Lines are laid at multiples of the pitch measured from the
+/// datum's ORIGIN, so panning slides the window over a fixed lattice
+/// instead of dragging the lattice along — which is what stops the
+/// grid swimming under the cursor.
+///
+/// Stated as "every drawn line's coordinate is a multiple of the
+/// pitch" rather than "a line passes through the origin", because the
+/// second is only true while the origin is inside the patch: look a
+/// metre away and the origin is simply not on screen. The lattice
+/// claim holds everywhere and is the one the design actually makes.
 #[test]
 fn the_ruling_is_anchored_on_the_origin_not_on_the_view() {
     let origin = [0.0, 0.0, 0.0];
     let (doc, tol) = evaluated(vec![plane(origin, [0.0, 0.0, 1.0])]);
-    for eye in [[0.0, 0.0, 0.1], [0.03, -0.02, 0.1], [-0.05, 0.04, 0.2]] {
-        let segments = &draws(&doc, tol, eye)[0].segments;
-        // A line through the origin is one whose two ends share a
-        // zero coordinate on the axis it does not run along.
-        let through = segments.chunks_exact(2).any(|pair| {
-            (pair[0][0].abs() < 1.0e-12 && pair[1][0].abs() < 1.0e-12)
-                || (pair[0][1].abs() < 1.0e-12 && pair[1][1].abs() < 1.0e-12)
-        });
-        assert!(
-            through,
-            "from {eye:?} no grid line passes through the origin"
+    // Offsets deliberately incommensurate with any 1-2-5 pitch: a
+    // ruling dragged along by the view would land on multiples of the
+    // pitch PLUS one of these, and none of them divides.
+    for look_at in [
+        [0.0, 0.0, 0.0],
+        [0.0173, 0.0311, 0.0],
+        [-0.1137, 0.0719, 0.0],
+        [0.9431, -1.3177, 0.0],
+    ] {
+        let eye = [look_at[0], look_at[1] - 0.15, 0.1];
+        let view = view_at(eye, look_at);
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
         );
+        let segments = &datums::draws(&doc, &evaluation, view)[0].segments;
+        // The pitch this view asks for: the plane is z = 0 and the
+        // looked-at point is on it, so the patch centre IS `look_at`.
+        let per_pixel = view.metres_per_pixel_at_one_metre * reach(&[look_at], eye);
+        let pitch = grid_pitch(per_pixel);
+        // The last pair is the normal tick, which is anchored on the
+        // origin by construction and says nothing about the ruling.
+        for pair in segments[..segments.len() - 2].chunks_exact(2) {
+            // Whichever coordinate the line holds constant is the one
+            // the lattice indexes.
+            let held = if (pair[0][0] - pair[1][0]).abs() < 1.0e-12 {
+                pair[0][0]
+            } else {
+                pair[0][1]
+            };
+            let index = held / pitch;
+            assert!(
+                (index - index.round()).abs() < 1.0e-6,
+                "looking at {look_at:?}, a line sits at {held:e} m — \
+                 {index} pitches from the origin, not a whole number",
+            );
+        }
     }
 }
 
-/// **A plane says which way it faces**/// **A plane says which way it faces**, and the tick that says so
+/// **A plane says which way it faces**, and the tick that says so
 /// leaves the plane.
 ///
 /// The one asymmetry in a plane's drawing: everything else is in the
