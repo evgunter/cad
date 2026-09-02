@@ -146,4 +146,29 @@ mod tests {
             );
         }
     }
+
+    /// CERT-N2 R1 reviewer probe, adopted with its **expectation
+    /// updated by the fix pass**, which is the record of what moved.
+    /// As the reviewer wrote it the row asserted that a transposition
+    /// still COMPILES — true then, because both fields were `Vec3<T>`,
+    /// and the falsification of the claim that they could not be
+    /// exchanged. Since [`Radial`] and [`Tangential`] are distinct
+    /// types the struct-literal swap no longer compiles at all (the
+    /// two arms of it are E0308 in both directions, which is why they
+    /// cannot be written here). What SURVIVES the newtypes is the
+    /// half the module docs now name out loud: a destructure that
+    /// renames the fields and unwraps them on the spot still compiles,
+    /// because after `.0` both are vectors again.
+    #[test]
+    fn probe_the_renaming_destructure_is_the_residue_the_types_do_not_close() {
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let u_ref = Vec3::new(1.0, 0.0, 0.0);
+        let f = frame(axis, u_ref, 0.3f64);
+        let AzimuthFrame {
+            radial: tangential,
+            tangential: radial,
+        } = frame(axis, u_ref, 0.3f64);
+        assert_eq!(radial.0.x, f.tangential.0.x);
+        assert_eq!(tangential.0.x, f.radial.0.x);
+    }
 }
