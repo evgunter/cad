@@ -480,7 +480,7 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
 }
 
 #[test]
-fn tangent_line_close_refuses_always() {
+fn the_seam_tangent_close_refuses_always() {
     // The seam junction of a straight closer within the tangent band:
     // the closing line arrives at Start along the entry departure —
     // the PQ4 mid-side seam, refused with the two structural
@@ -496,7 +496,7 @@ fn tangent_line_close_refuses_always() {
         .line_to(p2(-2.0, 0.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness());
-    assert!(matches!(refused, Err(PathError::TangentLineClose { .. })));
+    assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
 }
 
 #[test]
@@ -1993,7 +1993,7 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
 /// - **Rotation 1 — seam at a CORNER.** The closer departs the run's
 ///   subdivision vertex, so the junction in band is the CLOSER'S OWN
 ///   departure. Undeclared, that still refuses
-///   (`TangentLineClose { site: Departure }`): `line_to(Start)` computed
+///   (now an ordinary `JunctionTangent`): `line_to(Start)` computed
 ///   a direction and found it collinear, and reading intent off that is
 ///   the inference the ladder refuses. DECLARED, it closes —
 ///   `continue_to(Start)` takes the departing point's own ray and
@@ -2002,15 +2002,27 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
 ///   departs the corner asserted below, and the junction in band is the
 ///   SEAM'S. That is a mid-carrier seam, PQ4, and no spelling of the
 ///   closing leg moves it: `line_to(Start)` refuses
-///   `TangentLineClose { site: Seam }`, and the declared closer does
+///   `SeamTangent`, and the declared closer does
 ///   not apply at all — the leg departs a CORNER here, so `Start` is
 ///   off its ray and the verb refuses that first.
 ///
 /// The premise both rotations rest on — that the tip `right` is a
 /// DEFINITE corner — is measured here rather than argued, because it is
 /// what makes each rotation have exactly ONE in-band junction. The site
-/// tag is what turns "different mechanisms" from a property of the
-/// fixture into a property of the refusal.
+/// The two mechanisms are separable at the REFUSAL rather than only
+/// through the fixture that provoked each — which was BOOL-8's ask —
+/// and they are separable by TYPE: `JunctionTangent` for a departure,
+/// `SeamTangent` for a seam. That is strictly better than the payload
+/// tag an earlier draft used. A tag has to be read and can be ignored
+/// by a `{ .. }` pattern; two types cannot be confused by a caller,
+/// cannot be matched by accident, and let each refusal carry only the
+/// payload its own recourse needs.
+///
+/// The departure half is an ORDINARY refusal now, and deliberately so:
+/// a tangent departure on a closing leg is geometrically identical to
+/// one mid-chain, and since the declared closer landed the recourse is
+/// identical too — so a close-only second name for it was uniformity
+/// debt, against PATHS' rule that `Start` goes through ordinary verbs.
 #[test]
 fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     let right = p2(1.0, 0.0);
@@ -2060,10 +2072,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     };
     assert!(matches!(
         at_m3().line_to(Start, t),
-        Err(PathError::TangentLineClose {
-            site: profile::CloseSite::Departure,
-            ..
-        })
+        Err(PathError::JunctionTangent { .. })
     ));
     let closed = pinned(
         at_m3()
@@ -2087,10 +2096,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     let back_at_keel = || side(side(side(round(), right, ridge), ridge, left), left, keel);
     assert!(matches!(
         back_at_keel().line_to(Start, t),
-        Err(PathError::TangentLineClose {
-            site: profile::CloseSite::Seam,
-            ..
-        })
+        Err(PathError::SeamTangent { .. })
     ));
     // The declared closer does not even APPLY here, and that is the
     // sharper half: in this rotation the closing leg departs a corner,
@@ -2195,7 +2201,7 @@ fn r2_probe_arc_continuations_never_pass_validate() {
 /// is that nothing in the undeclared alphabet does, which is what makes
 /// the declaration load-bearing rather than decorative.)
 ///  (a) `.tangent()` + tangent arc to Start — degenerates onto the
-///      carrier (TangentLineClose);
+///      carrier (SameCarrierJunction);
 ///  (b) the REVERSED traversal — same alternation, same wall;
 ///  (c) continuing `line(half)` to land exactly ON Start's
 ///      coordinates — a directed point, not a closure; the zero-length
@@ -2239,7 +2245,7 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
     // (a) declared + tangent arc to Start: degenerate onto the carrier.
     assert!(matches!(
         at_m3().tangent().tangent_arc_to(Start, t),
-        Err(PathError::TangentLineClose { .. })
+        Err(PathError::SameCarrierJunction { .. })
     ));
     // (b) reversed traversal (right -> keel -> left -> ridge -> right):
     // the closer still departs a subdivision vertex.
@@ -2259,7 +2265,7 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
         .unwrap();
     assert!(matches!(
         rev_at_last_mid.line_to(Start, t),
-        Err(PathError::TangentLineClose { .. })
+        Err(PathError::JunctionTangent { .. })
     ));
     // (c) the continuation lands ON Start's coordinates but mints a
     // directed point, not a closure; the leftover closer is

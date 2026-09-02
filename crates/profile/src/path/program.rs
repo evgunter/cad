@@ -928,10 +928,12 @@ transition_table! {
             /// Closing runs the SEAM check unchanged: the junction between
             /// this leg and the entry's own departure is the loop's, and PQ4
             /// still wants a corner there
-            /// ([`PathError::TangentLineClose`] with
-            /// [`CloseSite::Seam`](crate::path::CloseSite::Seam) when it is
-            /// not one). What the closer removes is the DEPARTURE half of the
-            /// old wall, which is the half a rotation could never fix.
+            /// ([`PathError::SeamTangent`] when it is not one — a refusal
+            /// only a seam can produce). What the closer removes is the
+            /// DEPARTURE half of the old wall, which is the half a rotation
+            /// could never fix; that half is now an ordinary
+            /// [`PathError::JunctionTangent`], the same refusal any other
+            /// departure gets.
             ///
             /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
             /// point this authors a line tangent to that arc and declares

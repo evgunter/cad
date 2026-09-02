@@ -807,7 +807,7 @@ typestate, and it retires:
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
 | `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
-| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, so PQ4 still wants a corner there. |
+| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, so PQ4 still wants a corner there, refusing `SeamTangent` when it is not one. The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
 | `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
@@ -972,8 +972,8 @@ remains (BOOL-9), and #433 closes when it lands.
 2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
 BOOL-8 shipped it spells INTERIOR subdivisions only, and a straight run
 crossing the SEAM was unauthorable in either rotation: with the seam at
-a corner the closer departs the run's subdivision vertex
-(`TangentLineClose`), and with the seam at that subdivision vertex the
+a corner the closer departs the run's subdivision vertex (a tangent
+DEPARTURE), and with the seam at that subdivision vertex the
 seam's own junction is the straight one, which PQ4 (§6, no mid-carrier
 seam) refuses by construction. What forced the choice is the strict
 corner/subdivision ALTERNATION that one subdivision per side produces:
@@ -1052,8 +1052,23 @@ place a hair is not allowed. And the CLOSER mints no vertex at all —
 **What the closer did NOT move, measured.** It ends the DEPARTURE half
 of the wall and leaves PQ4's half exactly where it was, and the two are
 now separable at the refusal rather than only through the fixture that
-provoked them: `TangentLineClose` carries a `site`, `Departure` or
-`Seam`. Re-running BOOL-8's exhaustive hunt with the declared closer in
+provoked them — and separable by TYPE, not by a payload tag. A tangent
+DEPARTURE on a closing leg refuses `JunctionTangent`, exactly as any
+other departure does; a tangent SEAM refuses `SeamTangent`, a refusal
+only a seam can produce.
+
+That is a correction to how this first landed (ruled 2026-09-01). The
+first version gave one refusal a `site: Departure | Seam` payload, which
+kept a close-only second name for a departure — and a tangent departure
+on a closing leg is geometrically identical to one mid-chain, with an
+identical recourse now that the declared closer exists (spell it
+structurally). A second name for the same fact is uniformity debt
+against this document's own rule that `Start` goes through ORDINARY
+verbs, and it predated the program: it is the original lattice's
+`line_close: bool`, from when the recourses really did differ. Two types
+also beat a tag on the merits — a tag must be read and a `{ .. }`
+pattern can ignore it, whereas types cannot be confused by a caller, and
+each refusal now carries only the payload its own recourse needs. Re-running BOOL-8's exhaustive hunt with the declared closer in
 the alphabet (64 rings — both lily section widths, both ends of the
 shoulder parameter, every starting vertex, both directions) closes 32
 of them where the undeclared closer still closes zero. Every closure is

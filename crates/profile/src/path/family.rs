@@ -136,9 +136,9 @@ use super::arc_fillet::{self, ArcCarrierScalar, carrier_tangent};
 use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
-    ArcData as SegArc, CloseSite, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng,
-    NoPos, Open, PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming,
-    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band,
+    ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
+    PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming, carriers_are_identical,
+    in_state, junction_check, leg_end_tip, linear_band,
 };
 
 // ------------------------------------------------------------------
@@ -344,7 +344,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
                 }),
             },
             start_ang,
-            Some(CloseSite::Seam),
+            true,
             tol,
         )?;
     } else {
@@ -359,7 +359,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
                 carrier: Some(trims.arc),
             },
             start_ang,
-            Some(CloseSite::Seam),
+            true,
             tol,
         )?;
     }
@@ -1400,7 +1400,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // (`point_arc_open`) is where seeding lives.
         match spec.incoming(DirectedPoint { at, dir: inc.ang }, tol)? {
             FusedIncoming::Anchored((centre, winding, start, anchor)) => {
-                junction_check(&inc, start, None, tol)?;
+                junction_check(&inc, start, false, tol)?;
                 open_arc(
                     &mut self.core,
                     PendingArc {

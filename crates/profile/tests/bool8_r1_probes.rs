@@ -840,7 +840,7 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
 
 /// Reproduce the two measured seam refusals of the UNDECLARED closer
 /// and PRINT the actual error values, so the quoted
-/// `TangentLineClose { margin: -7.85e-17 }` stays checked rather than
+/// the quoted margin -7.85e-17 stays checked rather than
 /// taken — and so the claim that the two rotations refuse for two
 /// different reasons is now readable off the payload, which carries
 /// the site (`Departure` in A, `Seam` in B).
@@ -858,29 +858,20 @@ fn probe_reproduce_the_measured_seam_wall_in_both_rotations() {
     let err_b = author_to_the_closer(&ring_b, t);
     println!("probe: rotation B (seam at a subdivision) -> {err_b:?}");
     assert!(
-        matches!(
-            err_a,
-            Some(PathError::TangentLineClose {
-                site: profile::CloseSite::Departure,
-                ..
-            })
-        ),
-        "rotation A must refuse at the closer's DEPARTURE, got {err_a:?}"
+        matches!(err_a, Some(PathError::JunctionTangent { .. })),
+        "rotation A must refuse at the closer's DEPARTURE — as an ORDINARY \
+         departure refusal, the same one a mid-chain tangent departure gets, \
+         got {err_a:?}"
     );
     assert!(
-        matches!(
-            err_b,
-            Some(PathError::TangentLineClose {
-                site: profile::CloseSite::Seam,
-                ..
-            })
-        ),
-        "rotation B must refuse at the SEAM, got {err_b:?}"
+        matches!(err_b, Some(PathError::SeamTangent { .. })),
+        "rotation B must refuse at the SEAM, and `SeamTangent` is a refusal \
+         only a seam can produce, got {err_b:?}"
     );
 }
 
 /// The PR body quotes a measured margin,
-/// `TangentLineClose { margin: -7.85e-17 }`, for the seam wall. Its
+/// a tangent-band refusal at margin -7.85e-17, for the seam wall. Its
 /// fixture is not the real lily section but the suite's stand-in kite
 /// (`right`/`ridge`/`left`/`keel` at 1, 1.5, 1). Reproduce THAT number
 /// against THAT fixture, so the quoted figure is checked rather than
@@ -903,8 +894,12 @@ fn probe_reproduce_the_quoted_margin_on_the_suites_own_fixture() {
     let rot: Vec<Point2<f64>> = (0..8).map(|j| ring[(1 + j) % 8]).collect();
     let err_b = author_to_the_closer(&rot, t);
     println!("probe: PR-fixture rotation B margin -> {err_b:?}");
-    assert!(matches!(err, Some(PathError::TangentLineClose { .. })));
-    assert!(matches!(err_b, Some(PathError::TangentLineClose { .. })));
+    // Rotation A is the closer's DEPARTURE, rotation B is the SEAM, and
+    // since the seam wall's departure half collapsed they are different
+    // TYPES rather than one type carrying a site tag — so this pins them
+    // by type and no payload needs reading.
+    assert!(matches!(err, Some(PathError::JunctionTangent { .. })));
+    assert!(matches!(err_b, Some(PathError::SeamTangent { .. })));
 }
 
 fn author_to_the_closer(ring: &[Point2<f64>], t: Tol) -> Option<PathError<f64>> {

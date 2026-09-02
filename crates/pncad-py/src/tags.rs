@@ -58,7 +58,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
-        PathErrorKind::TangentLineClose => "tangent_line_close",
+        PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SameCarrierJunction => "same_carrier_junction",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",

@@ -769,9 +769,7 @@ FAMILIES = {
 #: interior behind `FlushFinding` (`DeclaredContact`, `ContactVerdict`,
 #: `ContactRefusal`, `FlushEvidence`, `ContactRecords`,
 #: `BooleanDeclarations`), the fillet's coincidence band
-#: (`Band`, `BandError`, built from the run's epsilon), the closing
-#: verbs' refusal-site tag (`CloseSite` — Python receives the KIND, not
-#: the payload behind it), and
+#: (`Band`, `BandError`, built from the run's epsilon), and
 #: `ContentBits` — a TRAIT, and Python has no way to spell one.
 #:
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
@@ -935,11 +933,6 @@ NOT_BOUND = {
     "UnitSym": SHAPE,
     "PartialPath": SHAPE,
     "PathNoCornerReason": SHAPE,
-    # WHICH of a closing verb's two junction checks refused: a refusal
-    # PAYLOAD field. Python receives path refusals as tagged
-    # exceptions, and the tag is the kind — the payload data behind it
-    # never crosses, exactly as the fillet's coincidence band does not.
-    "CloseSite": INTERIOR,
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,

@@ -131,7 +131,7 @@ pub use path::program::{
     replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, CloseSite, ContinueTarget, LineTarget, Open,
+    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, ContinueTarget, LineTarget, Open,
     PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep,
     TangentArcTarget, Via, circle, circle_split,
 };

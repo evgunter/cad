@@ -24,7 +24,7 @@ mod common;
 
 use common::pinned;
 use geom_core::{Point2, Tol};
-use profile::{CloseSite, ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
+use profile::{ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -420,7 +420,7 @@ fn lilys_measured_corner_miss_is_deep_inside_the_band() {
 /// seam at the second of them. The closing leg then departs the first
 /// subdivision (a continuation, so the verb applies and the on-ray
 /// check passes) and lands on a seam whose own junction is straight.
-/// `TangentLineClose { site: Seam }`, from the verb that ended the
+/// `SeamTangent`, from the verb that ended the
 /// other half — which is exactly the point of naming the site.
 #[test]
 fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
@@ -452,9 +452,7 @@ fn a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam() {
         .unwrap()
         .continue_to(Start, t);
     match attempt {
-        Err(PathError::TangentLineClose { site, .. }) => {
-            assert_eq!(site, CloseSite::Seam);
-        }
+        Err(PathError::SeamTangent { .. }) => {}
         other => panic!("a mid-carrier seam must refuse as the SEAM: {other:?}"),
     }
 }
