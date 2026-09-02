@@ -64,7 +64,11 @@ fn route_inventory() {
         // M5 S13 retired this arm: the closed-form Circle
         // (plane_sphere_section — the die-pips join lane's row).
         (Plane, Sphere, Rung::Closed, true),
-        (Plane, Torus, Rung::General, false),
+        // VERBS-C5ARMS retired this arm's exact-degenerate half: the
+        // meridian and concentric closed-form Circles
+        // (plane_torus_section); tilted configurations still route to
+        // the general rung, named at the arm's refusal.
+        (Plane, Torus, Rung::Closed, true),
         // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
         // PR 7 plus the tensor-composite sup bound for limb 2.
         (Plane, Nurbs, Rung::General, true),
@@ -768,6 +772,57 @@ mod interval {
             }
         }
     }
+
+    /// Both plane×torus closed forms run at `T = Interval` UNCHANGED —
+    /// no lane fork, because the form is `atan2`-free and
+    /// branch-cut-free by construction — and every circle's residual
+    /// enclosures contain zero against BOTH surfaces.
+    #[test]
+    fn plane_torus_residuals_enclose_zero_at_interval() {
+        use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
+        let tor: Surface<Interval> = Surface::Torus {
+            center: ip(Point3::new(1.0, 2.0, 3.0)),
+            axis: iv(Vec3::unit_y()),
+            major_radius: Interval::from_f64(0.75),
+            minor_radius: Interval::from_f64(0.3),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        // The axis-containing plane (generic in-xz normal) and the
+        // axis-normal plane inside the tube — the f64 rows' twins.
+        let meridian: Surface<Interval> = Surface::Plane {
+            origin: ip(Point3::new(1.0, 2.0, 3.0)),
+            normal: iv(Vec3::new(0.6, 0.0, 0.8)),
+            u_ref: iv(Vec3::new(-0.8, 0.0, 0.6)),
+        };
+        let cap: Surface<Interval> = Surface::Plane {
+            origin: ip(Point3::new(1.0, 2.18, 3.0)),
+            normal: iv(Vec3::unit_y()),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let m = plane_torus_section(&meridian, &tor, Interval::one(), band()).unwrap();
+        let PlaneTorusSection::MeridianCircles { c1, c2 } = m else {
+            panic!("expected the meridian circles, got {m:?}");
+        };
+        let s = plane_torus_section(&cap, &tor, Interval::one(), band()).unwrap();
+        let PlaneTorusSection::ConcentricCircles { c1: k1, c2: k2 } = s else {
+            panic!("expected the concentric circles, got {s:?}");
+        };
+        for (plane, c) in [(&meridian, &c1), (&meridian, &c2), (&cap, &k1), (&cap, &k2)] {
+            for t in [0.0, 0.9, 2.2, -2.8, 5.1] {
+                let p = c.eval(Interval::from_f64(t));
+                for (name, s) in [("plane", plane), ("torus", &tor)] {
+                    let r = implicit_residual(s, p);
+                    assert!(
+                        r.lo() <= 0.0 && 0.0 <= r.hi(),
+                        "{name} residual at {t}: [{}, {}]",
+                        r.lo(),
+                        r.hi()
+                    );
+                    assert!(r.hi() - r.lo() < 1e-12, "{name} width at {t}");
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1118,4 +1173,452 @@ fn sphere_sphere_carrier_trilean_trio() {
         let err = sphere_sphere_section(a, b, band()).expect_err("wrong lane");
         assert!(matches!(err, SectionError::WrongLane { .. }));
     }
+}
+
+// ---------------------------------------------------------------------
+// plane × torus (VERBS-C5ARMS PR-1)
+// ---------------------------------------------------------------------
+
+/// A y-axis ring torus, deliberately off the origin.
+fn torus_y(big_r: f64, r: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: Point3::new(1.0, 2.0, 3.0),
+        axis: Vec3::unit_y(),
+        major_radius: big_r,
+        minor_radius: r,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// An axis-CONTAINING plane cuts the two meridian circles — radius `r`,
+/// centres `c ± m·R`, carrier axis the plane normal, `u_ref` the torus
+/// axis — and the residual is identically zero in ℝ against BOTH
+/// surfaces. The containing plane is deliberately NOT a chart plane:
+/// its normal is a generic in-`xz` direction through the centre.
+#[test]
+fn plane_torus_meridian_cut_is_two_exact_circles_zero_residual() {
+    use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
+    let (big_r, r) = (0.75, 0.3);
+    let tor = torus_y(big_r, r);
+    // Normal in the xz-plane (⊥ the axis), plane through the centre —
+    // the plane q offset along its own in-plane directions changes
+    // nothing, and the origin is deliberately off the centre.
+    let n = Vec3::new(0.6, 0.0, 0.8);
+    let m = n.cross(Vec3::unit_y()).normalize();
+    let plane = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0) + m * 0.4 + Vec3::unit_y() * 0.2,
+        normal: n,
+        u_ref: m,
+    };
+    let s = plane_torus_section(&plane, &tor, 1.0, band()).unwrap();
+    let PlaneTorusSection::MeridianCircles { c1, c2 } = s else {
+        panic!("expected the meridian circles, got {s:?}");
+    };
+    let centre = Point3::new(1.0, 2.0, 3.0);
+    for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
+        let Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *c
+        else {
+            panic!("{which}: carrier is a circle");
+        };
+        assert!((radius - r).abs() < 1e-15, "{which}: minor radius");
+        assert!(
+            (center - (centre + m * (sign * big_r))).norm() < 1e-15,
+            "{which}: centre at c ± m·R"
+        );
+        assert!(axis.dot(n) > 0.999_999_999, "{which}: axis is the normal");
+        assert!(
+            u_ref.dot(Vec3::unit_y()) > 0.999_999_999,
+            "{which}: u_ref is the torus axis"
+        );
+        for k in 0..17 {
+            let p = c.eval(0.37 * k as f64);
+            assert!(
+                implicit_residual(&plane, p).abs() < 1e-13,
+                "{which}: plane residual at sample {k}"
+            );
+            assert!(
+                implicit_residual(&tor, p).abs() < 1e-13,
+                "{which}: torus residual at sample {k}"
+            );
+        }
+    }
+}
+
+/// An axis-NORMAL plane inside the tube cuts the two concentric
+/// circles — radii `R ± √(r² − h²)`, common centre on the axis at the
+/// station — and the residual is identically zero in ℝ against BOTH
+/// surfaces.
+#[test]
+fn plane_torus_axis_normal_cut_is_two_concentric_circles_zero_residual() {
+    use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
+    let (big_r, r, h) = (0.75, 0.3, 0.18);
+    let tor = torus_y(big_r, r);
+    let plane = Surface::Plane {
+        // Origin deliberately off the axis; only the station along the
+        // normal matters.
+        origin: Point3::new(4.0, 2.0 + h, -1.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let s = plane_torus_section(&plane, &tor, 1.0, band()).unwrap();
+    let PlaneTorusSection::ConcentricCircles { c1, c2 } = s else {
+        panic!("expected the concentric circles, got {s:?}");
+    };
+    let w = (r * r - h * h).sqrt();
+    let centre = Point3::new(1.0, 2.0 + h, 3.0);
+    for (which, c, want_r) in [("outer", &c1, big_r + w), ("inner", &c2, big_r - w)] {
+        let Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *c
+        else {
+            panic!("{which}: carrier is a circle");
+        };
+        assert!((radius - want_r).abs() < 1e-15, "{which}: radius R ± w");
+        assert!(
+            (center - centre).norm() < 1e-15,
+            "{which}: centre on the axis at the station"
+        );
+        assert!(
+            axis.dot(Vec3::unit_y()) > 0.999_999_999,
+            "{which}: axis is the torus axis"
+        );
+        assert!(
+            u_ref.dot(Vec3::unit_x()) > 0.999_999_999,
+            "{which}: u_ref is the torus seam"
+        );
+        for k in 0..17 {
+            let p = c.eval(0.37 * k as f64);
+            assert!(
+                implicit_residual(&plane, p).abs() < 1e-13,
+                "{which}: plane residual at sample {k}"
+            );
+            assert!(
+                implicit_residual(&tor, p).abs() < 1e-13,
+                "{which}: torus residual at sample {k}"
+            );
+        }
+    }
+}
+
+/// The `pt_cap_gap` trilean trio on the axis-normal lane: definite cut
+/// (two circles) / exact tangency (ONE circle of radius `R` —
+/// classification data, C7 lineage, never a carrier) / definite empty —
+/// and the in-band twin escalates typed (F6), the two-tolerance pair on
+/// one named predicate.
+#[test]
+fn plane_torus_cap_gap_trilean_trio() {
+    use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
+    let (big_r, r) = (0.75, 0.3);
+    let tor = torus_y(big_r, r);
+    let plane_at = |h: f64| Surface::Plane {
+        origin: Point3::new(1.0, 2.0 + h, 3.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    // Definite cut.
+    assert!(matches!(
+        plane_torus_section(&plane_at(0.2), &tor, 1.0, band()).unwrap(),
+        PlaneTorusSection::ConcentricCircles { .. }
+    ));
+    // Exact tangency: the tube's top circle, radius exactly R.
+    let s = plane_torus_section(&plane_at(r), &tor, 1.0, band()).unwrap();
+    let PlaneTorusSection::TangentCircle(c) = s else {
+        panic!("expected the tangency circle, got {s:?}");
+    };
+    let Curve3::Circle { radius, center, .. } = c else {
+        panic!("carrier is a circle");
+    };
+    assert!((radius - big_r).abs() < 1e-15);
+    assert!((center - Point3::new(1.0, 2.0 + r, 3.0)).norm() < 1e-15);
+    // The tangency circle IS on the torus (residual zero) — it is
+    // refused as a carrier for transversality, not for accuracy.
+    for k in 0..9 {
+        let p = c.eval(0.7 * k as f64);
+        assert!(implicit_residual(&tor, p).abs() < 1e-13);
+    }
+    // Definite empty (both sides).
+    for h in [r + 0.1, -(r + 0.1)] {
+        assert!(matches!(
+            plane_torus_section(&plane_at(h), &tor, 1.0, band()).unwrap(),
+            PlaneTorusSection::Empty
+        ));
+    }
+    // In-band: |h| = r + 3ε — neither tangent nor clear; escalated,
+    // naming the predicate (the :919 precedent).
+    let err = plane_torus_section(&plane_at(r + 3.0 * eps()), &tor, 1.0, band())
+        .expect_err("in-band cap gap must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pt_cap_gap"));
+}
+
+/// The two general-rung refusals are DIFFERENT decisions and both are
+/// named: an axis-parallel plane OFF the axis (a spiric section — the
+/// gap trilean's definite arm) and generic tilt (naming the Villarceau
+/// bitangent case as deliberately unclassified). The in-band twins of
+/// both routing trileans escalate typed (F6).
+#[test]
+fn plane_torus_tilted_and_offset_route_to_rung_3() {
+    use geom_brep::intersect::plane_torus_section;
+    let tor = torus_y(0.75, 0.3);
+    // Axis-parallel, off the axis by 0.1 m.
+    let off = Surface::Plane {
+        origin: Point3::new(1.1, 2.0, 3.0),
+        normal: Vec3::unit_x(),
+        u_ref: Vec3::unit_y(),
+    };
+    let err = plane_torus_section(&off, &tor, 1.0, band()).expect_err("offset plane");
+    let SectionError::RoutesToGeneralRung { pair, why } = err else {
+        panic!("expected the routing refusal, got {err:?}");
+    };
+    assert_eq!(pair, "plane×torus");
+    assert!(
+        why.contains("spiric"),
+        "the offset refusal names the locus: {why}"
+    );
+    // Generic tilt — the Villarceau band's own angle family included.
+    let n = Vec3::new(0.6, 0.8, 0.0);
+    let tilted = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: n,
+        u_ref: Vec3::new(0.8, -0.6, 0.0),
+    };
+    let err = plane_torus_section(&tilted, &tor, 1.0, band()).expect_err("tilted plane");
+    let SectionError::RoutesToGeneralRung { why, .. } = err else {
+        panic!("expected the routing refusal, got {err:?}");
+    };
+    assert!(
+        why.contains("Villarceau"),
+        "the tilt refusal names the deliberately unclassified case: {why}"
+    );
+    // In-band on `pt_axis_in_plane`: axis 3ε off in-plane (sine at
+    // extent 1).
+    let s = 3.0 * eps();
+    let almost_in_plane = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+        u_ref: Vec3::unit_z(),
+    };
+    let err = plane_torus_section(&almost_in_plane, &tor, 1.0, band())
+        .expect_err("in-band axis angle must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pt_axis_in_plane"));
+    // In-band on `pt_axis_plane_gap`: axis-parallel plane 3ε off
+    // containing.
+    let near_containing = Surface::Plane {
+        origin: Point3::new(1.0 + s, 2.0, 3.0),
+        normal: Vec3::unit_x(),
+        u_ref: Vec3::unit_y(),
+    };
+    let err = plane_torus_section(&near_containing, &tor, 1.0, band())
+        .expect_err("in-band containment gap must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pt_axis_plane_gap"));
+    // In-band on `pt_axis_normal`: normal 3ε/R of a radian off the
+    // axis (sine levered at R = 0.75 ⇒ margin 3ε).
+    let t = 3.0 * eps() / 0.75;
+    let almost_normal = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::new(t, (1.0 - t * t).sqrt(), 0.0),
+        u_ref: Vec3::unit_z(),
+    };
+    let err = plane_torus_section(&almost_normal, &tor, 1.0, band())
+        .expect_err("in-band axis-normal sine must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pt_axis_normal"));
+}
+
+/// The ring guard: a spindle torus (`r ≥ R`, hand-minted — no kernel
+/// door builds one, which is exactly why the guard exists) refuses
+/// typed before any classification, in every configuration; its
+/// in-band twin (`R − r` at 3ε) escalates. Wrong-lane kinds refuse
+/// typed, both sides.
+#[test]
+fn plane_torus_ring_guard_and_wrong_lane() {
+    use geom_brep::intersect::plane_torus_section;
+    let plane = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let spindle = torus_y(0.3, 0.75);
+    let err = plane_torus_section(&plane, &spindle, 1.0, band()).expect_err("spindle");
+    assert!(matches!(err, SectionError::DegenerateTorus), "got {err:?}");
+    let horn = torus_y(0.3, 0.3);
+    let err = plane_torus_section(&plane, &horn, 1.0, band()).expect_err("horn");
+    assert!(matches!(err, SectionError::DegenerateTorus), "got {err:?}");
+    let near_horn = torus_y(0.3 + 3.0 * eps(), 0.3);
+    let err = plane_torus_section(&plane, &near_horn, 1.0, band())
+        .expect_err("in-band ring margin must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pt_ring_guard"));
+    // Wrong-lane kinds refuse typed, both sides.
+    let tor = torus_y(0.75, 0.3);
+    for (a, b) in [(&tor, &tor), (&plane, &plane)] {
+        let err = plane_torus_section(a, b, 1.0, band()).expect_err("wrong lane");
+        assert!(matches!(err, SectionError::WrongLane { .. }));
+    }
+}
+
+/// The ring convention `R > r > 0` is TWO inequalities, and the review
+/// walked the three poses `R − r` alone waves through: a negative
+/// minor radius (`r = −0.3` against `R = 0.75` has `R − r = 1.05`,
+/// definitely Positive — the unguarded arm minted
+/// `MeridianCircles { radius: −0.3 }`), a zero minor radius
+/// (zero-radius meridian circles, and a spurious `TangentCircle` at
+/// the cap), and a doubly-negative pair (`R = −0.75, r = −0.9`:
+/// `R − r = 0.15` — the unguarded arm transposed the `±m` centres).
+/// `pt_tube_guard` (margin `r`, metres) refuses all three typed
+/// ([`SectionError::DegenerateTorus`]) before any classification, in
+/// every configuration; its in-band twin escalates naming itself.
+#[test]
+fn plane_torus_tube_guard_refuses_nonpositive_minor_radius() {
+    use geom_brep::intersect::plane_torus_section;
+    let meridian = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::new(0.6, 0.0, 0.8),
+        u_ref: Vec3::new(-0.8, 0.0, 0.6),
+    };
+    let cap = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (what, tor, plane) in [
+        ("r < 0, meridian pose", torus_y(0.75, -0.3), &meridian),
+        ("r < 0, cap pose", torus_y(0.75, -0.3), &cap),
+        ("r = 0, cap pose", torus_y(0.75, 0.0), &cap),
+        ("R < 0 and r < 0", torus_y(-0.75, -0.9), &meridian),
+    ] {
+        let err = plane_torus_section(plane, &tor, 1.0, band()).expect_err(what);
+        assert!(
+            matches!(err, SectionError::DegenerateTorus),
+            "{what}: got {err:?}"
+        );
+    }
+    // In-band twin: `r` at 3ε — neither a tube nor definitely not one.
+    let err = plane_torus_section(&cap, &torus_y(0.75, 3.0 * eps()), 1.0, band())
+        .expect_err("in-band tube radius must escalate");
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pt_tube_guard"));
+}
+
+/// Every axis-normal fixture above sits at `h > 0`, which left the
+/// station's SIGN unexercised: an `h.abs()` mutant at the centre
+/// computation (`c + a·h`) survived the whole suite (R1). These are
+/// the negative-station twins — a concentric cut and the tangency at
+/// `h < 0` — pinning the common centre BELOW the torus centre, with
+/// the residuals re-checked against the plane that actually cut.
+#[test]
+fn plane_torus_negative_station_pins_the_centre_sign() {
+    use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
+    let (big_r, r, h) = (0.75, 0.3, -0.18);
+    let tor = torus_y(big_r, r);
+    let plane_at = |h: f64| Surface::Plane {
+        origin: Point3::new(1.0, 2.0 + h, 3.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let s = plane_torus_section(&plane_at(h), &tor, 1.0, band()).unwrap();
+    let PlaneTorusSection::ConcentricCircles { c1, c2 } = s else {
+        panic!("expected the concentric circles, got {s:?}");
+    };
+    let centre = Point3::new(1.0, 2.0 + h, 3.0);
+    let w = (r * r - h * h).sqrt();
+    for (which, c, want_r) in [("outer", &c1, big_r + w), ("inner", &c2, big_r - w)] {
+        let Curve3::Circle { center, radius, .. } = *c else {
+            panic!("{which}: carrier is a circle");
+        };
+        assert!((radius - want_r).abs() < 1e-15, "{which}: radius R ± w");
+        assert!(
+            (center - centre).norm() < 1e-15,
+            "{which}: centre BELOW the torus centre — the station keeps its sign"
+        );
+        for k in 0..9 {
+            let p = c.eval(0.7 * k as f64);
+            assert!(
+                implicit_residual(&plane_at(h), p).abs() < 1e-13,
+                "{which}: plane residual at sample {k}"
+            );
+            assert!(
+                implicit_residual(&tor, p).abs() < 1e-13,
+                "{which}: torus residual at sample {k}"
+            );
+        }
+    }
+    // The tangency at `h = −r`: the tube's BOTTOM circle.
+    let s = plane_torus_section(&plane_at(-r), &tor, 1.0, band()).unwrap();
+    let PlaneTorusSection::TangentCircle(c) = s else {
+        panic!("expected the tangency circle, got {s:?}");
+    };
+    let Curve3::Circle { center, radius, .. } = c else {
+        panic!("carrier is a circle");
+    };
+    assert!((radius - big_r).abs() < 1e-15);
+    assert!(
+        (center - Point3::new(1.0, 2.0 - r, 3.0)).norm() < 1e-15,
+        "the bottom tangency's centre keeps the station's sign"
+    );
+}
+
+/// The two levered predicates at a lever arm ≠ 1 (R1: every
+/// `intersect_table` call site passed `extent = 1`, so delevering
+/// `Margin::levered(x, arm)` to `Margin::of(x)` survived the suite).
+/// A raw sine of 3ε is IN BAND at lever 1 — both rows below sit there
+/// deliberately, so a delevered mutant escalates exactly where the
+/// levered predicate decides Zero and classifies.
+#[test]
+fn plane_torus_levers_are_live_at_non_unit_arms() {
+    use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
+    let s = 3.0 * eps();
+    // `pt_axis_in_plane` at extent 0.01: levered margin 0.03ε ⇒ Zero,
+    // and the meridian classification proceeds. Delevered, the raw 3ε
+    // sine is in band and would escalate. (This row is also the lever
+    // CONDITION's own pose — see the caveat at the decide site: the
+    // minted circles here sit off their own plane by ~r·sinθ, which is
+    // why no plane residual is asserted.)
+    let tor = torus_y(0.75, 0.3);
+    let almost_in_plane = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+        u_ref: Vec3::unit_z(),
+    };
+    let m = plane_torus_section(&almost_in_plane, &tor, 0.01, band()).unwrap();
+    assert!(
+        matches!(m, PlaneTorusSection::MeridianCircles { .. }),
+        "extent 0.01 puts a 3ε sine inside Zero: got {m:?}"
+    );
+    // `pt_axis_normal` — its arm is `R`, not the extent — at R = 0.2:
+    // levered margin 0.6ε ⇒ Zero, and the cap classification proceeds.
+    // Delevered, the raw 3ε sine would escalate.
+    let small = torus_y(0.2, 0.05);
+    let almost_normal = Surface::Plane {
+        origin: Point3::new(1.0, 2.0, 3.0),
+        normal: Vec3::new(s, (1.0 - s * s).sqrt(), 0.0),
+        u_ref: Vec3::unit_z(),
+    };
+    let c = plane_torus_section(&almost_normal, &small, 1.0, band()).unwrap();
+    assert!(
+        matches!(c, PlaneTorusSection::ConcentricCircles { .. }),
+        "R = 0.2 puts a 3ε sine inside Zero: got {c:?}"
+    );
 }
