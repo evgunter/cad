@@ -378,7 +378,7 @@ which is what actually moves the number.
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
-| pcurves.rs:631–641 / :1027 / :1273 | pcurve_loop_continuity / closure(_height) | Δu(rad)×`azimuth_arm`; Δv×`v_meter` | m on every ANALYTIC chart, and on a PLANE chart (its u/v ARE metres, so the `_ => 1` arm is exactly right); the `v_meter` fallbacks are 1 only where no polar arm exists | m | OK, except the NURBS chart: `azimuth_arm`'s `_ => 1` and the `v_meter` `unwrap_or_else(T::one)` fallbacks under-state a NURBS chart's stretch. FLAGGED as a cross-crate residue (an honest arm needs geom-brep's `nurbs_stretch_bounds`), tracked by issue #501 — not a `decide_flagged` site |
+| pcurves.rs:976 (`azimuth_arm`) / :1086 (`v_meter`) | pcurve_loop_continuity / closure(_height) | Δu×`azimuth_arm`; Δv×`v_meter` | m on every chart kind. The AZIMUTH charts take their local lever (r, r·cos v, R+r·cos v, v·sin α) and the sphere/torus second channel its polar radius; a PLANE answers exactly 1 on both channels because its u/v ARE metres; a SPLINE chart (`Nurbs`/`Approx`, and the same for a placeholder's absent net) answers `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)` — the chart's own metre stretch | m | OK. Both channels of the spline arm are metred through the exported sup bound; sup is the conservative side at both callers, which make ESCAPE claims (`pcurve_loop_continuity` asks whether a joint gap keeps the loop closed, `pcurve_loop_pole_joint` whether a lever is collapsed), so an over-stated arm refuses and never certifies. Not a `decide_flagged` site |
 | pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
@@ -419,12 +419,13 @@ which is what actually moves the number.
 > which is now the split sweep alone.
 
 | ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_segment | a closed segment's own length — the degeneracy gate, through the `Margin::norm2` door | m | OK (split off `chart_region_boundary` by #712, with the door corrected from `Margin::of` in the same pass) |
-| ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_boundary/side/advance | the point_in_loop rows on METRED chart coordinates (exact arms only: plane 1, cylinder r): distances; m²/m advance. Since #712 these decide in the SAME shared walk as the 3-D rows, under their own names. The 3-D `point_in_loop_arm` row is derived away — a fixed 2-D schedule member is in-plane by construction, so no projected-length predicate exists | m | OK (new in M9-2) |
+| ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_boundary/side/advance | the point_in_loop rows on METRED chart coordinates (plane 1 and cylinder r exactly; every other kind's certified INF arm, `chart_region_arm_inf`): distances; m²/m advance. Since #712 these decide in the SAME shared walk as the 3-D rows, under their own names. The 3-D `point_in_loop_arm` row is derived away — a fixed 2-D schedule member is in-plane by construction, so no projected-length predicate exists | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_parallel / collinear_offset | segment-pair 2×2 determinant / offset determinant over one segment's length — the perpendicular height across that segment's line | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_cross_span | crossing fraction (dimensionless) × its own segment's length — the crossing point's clearance from a segment endpoint | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_collinear_overlap | shared-span length of collinear segments (difference of metre projections) | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_cross_order | same-edge crossing-pair advance-fraction difference (dimensionless) × the edge's own length — the crossing points' separation along the boundary (the clip walk's order certificate, union fix U2) | m | OK (new in M9-2 fix pass) |
 | chart_region.rs (M9-2) | chart_region_orientation / chart_region_area | signed loop shoelace 2A (m²) / perimeter — the loop's (resp. intersection region's) mean width, through the same `Margin::over_lever` door as `split_section_area` two dimensions up (separate accumulators — the reasons are at `chart_region.rs`'s area margin) | m | OK (new in M9-2) |
+| chart_region.rs | chart_region_arm_inf | a chart lever arm — metres per chart unit, gated as a length (the collapsed-arm idiom, `pcurve_interval_meter`'s shape) | m | OK. The arm is a certified LOWER stretch bound (`certified_arms`), which is the side a positive-extent claim needs: an over-stated arm would inflate the metred region and certify a sliver, so the sup bounds (`geom_brep::chart_stretch_sup`) are deliberately not reachable from this lane. Definite-positive walks on; a collapsed arm is `ArmUnbounded`; an in-band arm escalates |
 | chart_region.rs (M9-2) | chart_region_seam_span | azimuth-span excess over one period (rad) × the chart's azimuth arm r | m | OK (new in M9-2) |
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the 1 m verification arm (carrier_pair_relation's own) | m | OK (new in M9-2 PR-2) |
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
@@ -593,7 +594,7 @@ Flagged, NOT fixed here (dispositions):
   In-band amplitudes take the meridian arm as a D9 tie-break, the
   discarded drift carried by check 4's envelope in metres.
 - **F6** pcurve chart arms — **RETIRED**. M6-3 closed most of it
-  (`chart_arms` answers (r, r) for spheres and (R+r, r) for tori, and
+  (`chart_stretch_sup` answers (r, r) for spheres and (R+r, r) for tori, and
   `pcurves.rs::azimuth_arm` is the LOCAL lever — r·cos v etc., zero at
   poles/apex, which the walk exploits). The residue closed with F7:
   `param_rate` answers a NURBS carrier's certified speed lower bound,
@@ -602,12 +603,14 @@ Flagged, NOT fixed here (dispositions):
   gated as a length (`pcurve_interval_meter`, the collapsed-arm
   idiom); and the fitted lane's azimuth headroom takes
   `chart_arms_at`'s lever, so the cone's arm is `v_sup·sin α` from the
-  check's own boxes rather than 1. What remains is NOT this family:
-  `pcurves.rs::azimuth_arm`'s non-plane `_ => 1` fallback (:644) and
-  the `v_meter` fallbacks (:1027, :1273) are cross-crate — an honest
-  arm needs geom-brep's `nurbs_stretch_bounds` from topo — and carry
-  issue #501. The Plane case there is OK, not flagged:
-  a plane chart's u/v ARE metres, so 1 is exactly right.
+  check's own boxes rather than 1. The last residue — the spline
+  charts' `1` at `pcurves.rs::azimuth_arm` and at the two `v_meter`
+  fallbacks — is closed too: `geom_brep::chart_stretch_sup` is the
+  exported sup-side bound, `topo` meters both channels through it,
+  and a spline chart's arms are now the net's own stretch rather
+  than a default. The Plane case there was never flagged and did not
+  move: a plane chart's u/v ARE metres, so 1 is exactly right, and
+  the exported bound answers exactly 1 for it.
 - **F7** `nurbs_span_meter` (certify.rs:1164) — **RETIRED**. The gate
   is a LENGTH: the net's knot-domain extent metered through the
   certified speed lower bound, a lower bound on its arc length. That

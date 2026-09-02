@@ -96,7 +96,9 @@
 //! documented slack there, unchanged).
 
 use geom_core::ring_interval::RingInterval;
+use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::hull::{derivative_coeffs, span_hull};
+use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, Margin, Sign};
 
@@ -662,7 +664,7 @@ fn deriv_kv(kv: &KnotVector) -> Option<KnotVector> {
     if kv.degree() < 2 {
         return None;
     }
-    let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+    let inner = kv.derivative_knot_slice().to_vec();
     KnotVector::clamped(inner, kv.degree() - 1).ok()
 }
 
@@ -1082,7 +1084,8 @@ fn bspline_eval_ring_in_span(
 }
 
 /// One (possibly derivative-exhausted) tensor grid of a vector
-/// channel triple, row-major `iu·nv + iv` — the 2-D counterpart of
+/// channel triple, three [`TensorNet`]s over one shared extent — the
+/// 2-D counterpart of
 /// [`DerivLadder`]'s levels: a [`Dir::Const`] direction holds
 /// per-span constants, and a grid that differentiates to nothing at
 /// all is `Option<PatchGrid> = None`, read as identically zero — sound
@@ -1094,23 +1097,29 @@ struct PatchGrid {
     dv: Dir,
     nu: usize,
     nv: usize,
-    ch: [Vec<RingInterval>; 3],
+    ch: [TensorNet; 3],
 }
 impl PatchGrid {
     /// The base grid from a bracketed control net.
     fn base(kv_u: &KnotVector, kv_v: &KnotVector, control: &[RVec3]) -> Self {
-        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
-        for c in control {
-            for (k, chan) in ch.iter_mut().enumerate() {
-                chan.push(c[k]);
-            }
-        }
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
         Self {
             du: Dir::Kv(kv_u.clone()),
             dv: Dir::Kv(kv_v.clone()),
-            nu: kv_u.control_count(),
-            nv: kv_v.control_count(),
-            ch,
+            nu,
+            nv,
+            // Entrywise off the row-major control net, so a net that
+            // does not fill the declared extent poisons the SLOTS it
+            // does not reach rather than the whole grid: a shape this
+            // grid cannot index is one caller's error, not a reason to
+            // refuse every hull the other cells could have answered.
+            ch: core::array::from_fn(|k| {
+                TensorNet::from_fn(nu, nv, |i, j| {
+                    control
+                        .get(i * nv + j)
+                        .map_or_else(RingInterval::poison, |c| c[k])
+                })
+            }),
         }
     }
 
@@ -1118,7 +1127,7 @@ impl PatchGrid {
     /// vector while the degree allows, the per-span-constant remnant
     /// at degree 0.
     fn deriv_dir(kv: &KnotVector) -> Dir {
-        let inner = kv.knots()[1..kv.knots().len() - 1].to_vec();
+        let inner = kv.derivative_knot_slice().to_vec();
         match deriv_kv(kv) {
             Some(k) => Dir::Kv(k),
             // Degree ≥ 2 with an unrepresentable derivative structure
@@ -1151,7 +1160,7 @@ impl PatchGrid {
             // per-span constant at degree 1.
             Dir::Raw { knots, degree } => {
                 let (knots, degree) = (knots.clone(), *degree);
-                let inner = knots[1..knots.len() - 1].to_vec();
+                let inner = derivative_knot_slice(&knots).to_vec();
                 let next = if degree >= 2 {
                     Dir::Raw {
                         knots: inner,
@@ -1167,21 +1176,13 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
-        for (k, chan) in ch.iter_mut().enumerate() {
-            let mut grid = vec![RingInterval::zero(); (self.nu - 1) * self.nv];
-            for j in 0..self.nv {
-                let col: Vec<RingInterval> =
-                    (0..self.nu).map(|i| self.ch[k][i * self.nv + j]).collect();
-                let d = take(&col);
-                for (i, q) in d.iter().enumerate() {
-                    if let Some(slot) = grid.get_mut(i * self.nv + j) {
-                        *slot = *q;
-                    }
-                }
-            }
-            *chan = grid;
-        }
+        // A step that does not answer `nu - 1` coefficients poisons its
+        // line (`TensorNet::diff_u`). Unreachable from here and kept as
+        // a guard: `raw_deriv` answers `n - 1` for every degree >= 1,
+        // which `Dir`'s own construction guarantees, and it fills a
+        // DEGENERATE (empty) span with an explicit zero itself rather
+        // than by returning fewer coefficients.
+        let ch = core::array::from_fn(|k| self.ch[k].diff_u(&take));
         Some(Self {
             du: next_dir,
             dv: self.dv.clone(),
@@ -1206,7 +1207,7 @@ impl PatchGrid {
             }
             Dir::Raw { knots, degree } => {
                 let (knots, degree) = (knots.clone(), *degree);
-                let inner = knots[1..knots.len() - 1].to_vec();
+                let inner = derivative_knot_slice(&knots).to_vec();
                 let next = if degree >= 2 {
                     Dir::Raw {
                         knots: inner,
@@ -1222,15 +1223,8 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        let mut ch = [Vec::new(), Vec::new(), Vec::new()];
-        for (k, chan) in ch.iter_mut().enumerate() {
-            let mut grid = Vec::with_capacity(self.nu * (self.nv - 1));
-            for i in 0..self.nu {
-                let row = &self.ch[k][i * self.nv..(i + 1) * self.nv];
-                grid.extend(take(row));
-            }
-            *chan = grid;
-        }
+        // Poison on a wrong-length step, per [`PatchGrid::deriv_u`].
+        let ch = core::array::from_fn(|k| self.ch[k].diff_v(&take));
         Some(Self {
             du: self.du.clone(),
             dv: next_dir,
@@ -1298,7 +1292,7 @@ impl PatchGrid {
     /// Collapses one channel: v first (per u-row), then u.
     fn channel(&self, k: usize, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
         let rows: Vec<RingInterval> = (0..self.nu)
-            .map(|i| Self::collapse_1d(&self.dv, &self.ch[k][i * self.nv..(i + 1) * self.nv], v))
+            .map(|i| Self::collapse_1d(&self.dv, self.ch[k].row(i), v))
             .collect();
         Self::collapse_1d(&self.du, &rows, u)
     }
@@ -1315,14 +1309,8 @@ impl PatchGrid {
     /// per-cell `nu`-fold de Boor into a per-column one.
     fn slice_u(&self, u: Collapse<'_>) -> [Vec<RingInterval>; 3] {
         core::array::from_fn(|k| {
-            let mut col = vec![RingInterval::zero(); self.nu];
             (0..self.nv)
-                .map(|j| {
-                    for (i, c) in col.iter_mut().enumerate() {
-                        *c = self.ch[k][i * self.nv + j];
-                    }
-                    Self::collapse_1d(&self.du, &col, u)
-                })
+                .map(|j| Self::collapse_1d(&self.du, &self.ch[k].column(j), u))
                 .collect()
         })
     }
@@ -2519,9 +2507,13 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// range, with its own sliver guard. The two differ in what else they
 /// must carry (this one owes the coarse hull blocks their containment;
 /// that one does not) and unifying them is Track R's consolidation
-/// ground (C-m/D30, gated behind #723), not this lane's. Whoever takes
-/// it should also fold the `inner`-knot-slice expression, which is
-/// copied verbatim five times across three crates.
+/// ground (C-m/D30, gated behind #723), not this lane's.
+///
+/// (The `inner`-knot-slice expression this note used to hand along
+/// with it is folded: it is
+/// [`geom_core::spline::KnotVector::derivative_knot_slice`] and its
+/// raw-slice twin, and every site in `geom-brep` and `mesh` calls
+/// them.)
 fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     // MANDATORY cuts: the rectangle's own ends and every interior
     // knot. These carry the whole smoothness invariant — a knot that

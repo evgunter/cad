@@ -23,16 +23,13 @@ use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::query;
 use topo::{Body, EdgeKey};
 
 /// The cube side, meters.
 const L: f64 = 1.0;
 /// The blend size (radius or setback), meters.
 const D: f64 = 0.1;
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// The four edges of the cube's top face — a CLOSED chain whose
 /// square junctions are not tangent-continuous.
@@ -53,7 +50,10 @@ fn top_loop(body: &Body<f64>) -> Vec<EdgeKey> {
                 .is_some_and(|p| p.z > L - 1e-9)
         })
     };
-    let picked: Vec<EdgeKey> = all_edges(body).into_iter().filter(|e| at_top(*e)).collect();
+    let picked: Vec<EdgeKey> = query::all_edges(body)
+        .into_iter()
+        .filter(|e| at_top(*e))
+        .collect();
     assert_eq!(picked.len(), 4, "a cube has four top-rim edges");
     picked
 }
@@ -124,7 +124,7 @@ fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
 #[test]
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
@@ -159,7 +159,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_chain_break() {
 #[test]
 fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let err = fillet_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
@@ -174,7 +174,7 @@ fn a_fillet_caller_reads_the_fillet_verb_once_over_the_same_shared_arm() {
 #[test]
 fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
     let cyl = cylinder(0.5, 1.0);
-    let edges = all_edges(&cyl);
+    let edges = query::all_edges(&cyl);
     let err = chamfer_edges(&cyl, &edges, D, Tol::witness())
         .expect_err("a curved support has no ruled strip");
     assert!(
@@ -192,7 +192,7 @@ fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
 #[test]
 fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let t = Tol::witness();
 
     // Invalid input, checked at the door: a nonpositive setback.
@@ -245,7 +245,7 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
 #[test]
 fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let t = Tol::witness();
 
     let refused = chamfer_edges(&body, &edges, 0.55, t)
@@ -311,7 +311,7 @@ fn a_chamfer_on_a_two_solid_body_refuses_the_body_frontier_as_the_chamfer() {
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
         .expect("a disjoint graft");
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(
@@ -328,7 +328,7 @@ fn a_chamfer_on_a_two_solid_body_refuses_the_body_frontier_as_the_chamfer() {
 #[test]
 fn a_chamfer_escalation_speaks_as_the_chamfer() {
     let body = cube(L, Tol::witness());
-    let edges = all_edges(&body);
+    let edges = query::all_edges(&body);
     let eps = Tol::witness().get().eps;
     // gap 1.0, two setbacks: margin = 1.0 − 2d = 5·eps, inside the band.
     let d = 0.5 - 2.5 * eps;

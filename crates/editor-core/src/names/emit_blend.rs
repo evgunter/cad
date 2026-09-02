@@ -350,12 +350,6 @@ mod tie_tests {
         out
     }
 
-    /// Every edge of the cube, in arena order — the whole-body request
-    /// `die_fillet` authors, which the assembly's front door admits.
-    fn all_edges(body: &Body<f64>) -> Vec<topo::EdgeKey> {
-        body.edges().map(|(k, _)| k).collect()
-    }
-
     /// **A planted upstream tie flows through the deferral** — the
     /// #708 row, executed rather than described.
     ///
@@ -372,7 +366,7 @@ mod tie_tests {
     #[test]
     fn a_planted_upstream_tie_reaches_the_output_table_as_a_tie() {
         let (body, table) = cube();
-        let edges = all_edges(&body);
+        let edges = topo::query::all_edges(&body);
         let (a, b) = (edges[0], edges[1]);
         let planted = with_tie(
             &table,

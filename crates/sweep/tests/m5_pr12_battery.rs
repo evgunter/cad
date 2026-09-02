@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_brep::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::RawLoop;
@@ -18,6 +19,7 @@ use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
@@ -110,28 +112,17 @@ fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
 /// The edges of `body` whose two support faces are a plane and a
 /// sphere — the pip rim.
 fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges()
-        .filter(|(_, e)| {
-            let kinds: Vec<&'static str> = [e.he_plus, e.he_minus]
-                .iter()
-                .filter_map(|he| {
-                    let h = body.get_half_edge(*he)?;
-                    let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
-                    Some(match body.get_surface(f.surface)? {
-                        geom::Surface::Plane { .. } => "plane",
-                        geom::Surface::Sphere { .. } => "sphere",
-                        _ => "other",
-                    })
-                })
-                .collect();
-            kinds.contains(&"plane") && kinds.contains(&"sphere")
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
+            query::edge_adjacent_matches(
+                body,
+                k,
+                SurfaceKindSet::just(SurfaceKind::Plane),
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+            )
         })
-        .map(|(k, _)| k)
         .collect()
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
 }
 
 // ---------------------------------------------------------------------
@@ -149,7 +140,7 @@ fn the_battery_passes_on_a_box_at_a_fitting_radius() {
     let body = boxy(1.0, 1.0, 1.0);
     let req = BlendRequest {
         body: &body,
-        edges: all_edges(&body),
+        edges: query::all_edges(&body),
         size: 0.2,
     };
     let verdict = run_battery(&req, band()).expect("the box at r = 0.2 is a valid fillet request");
@@ -244,7 +235,7 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     let body = boxy(1.0, 1.0, 1.0);
     let req = BlendRequest {
         body: &body,
-        edges: all_edges(&body),
+        edges: query::all_edges(&body),
         size: 0.6,
     };
     match run_battery(&req, band()) {
@@ -268,7 +259,7 @@ fn p2_face_clearance_passes_just_under_the_half_side() {
     let body = boxy(1.0, 1.0, 1.0);
     let req = BlendRequest {
         body: &body,
-        edges: all_edges(&body),
+        edges: query::all_edges(&body),
         size: 0.45,
     };
     run_battery(&req, band()).expect("0.45 still leaves 0.1 m of face");

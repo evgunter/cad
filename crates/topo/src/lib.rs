@@ -172,6 +172,7 @@ pub mod offset_together;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
+pub mod query;
 pub(crate) mod ray_parity;
 pub mod readback;
 pub mod replace_face;
@@ -317,6 +318,12 @@ pub use props::{
     ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
 };
 pub use provenance::Provenance;
+// The query VOCABULARY rides at the root like every other type;
+// the query DOORS (materializers, predicates) keep their module
+// identity, like `readback`'s.
+pub use query::{
+    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DatumValue, SEL_DATUM_DISTANCE, SurfaceKindSet,
+};
 pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;

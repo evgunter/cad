@@ -382,6 +382,15 @@ mod tests {
     /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
     ///   Not a normal multiply, and the only read whose consumer is a
     ///   curved carrier.
+    /// - `census.rs` — two, the crossing rung's side test
+    ///   (`ee_cross_backed`): the declared pair's two `±1`s handed to
+    ///   `geom_brep::classify_material_pairing`, exactly as check 4's
+    ///   material arm below hands them — the same lemma, read at a
+    ///   boundary crossing between bodies rather than edge-locally
+    ///   within one. It cannot take the door for check 4's reason:
+    ///   the question is the PAIR of material sides at one point on a
+    ///   shared carrier, and the sign belongs beside the gradient the
+    ///   sense algebra computes.
     /// - `validate.rs` — three, all in tier 3. Check 6's outward
     ///   normal, where the sense bit is read as a claim to be
     ///   falsified rather than honored; and check 4's material arm,
@@ -431,11 +440,12 @@ mod tests {
     ///    recites them.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
-        const PINNED: [(&str, usize); 9] = [
+        const PINNED: [(&str, usize); 10] = [
             ("boolean/join.rs", 1),
             ("boolean/mod.rs", 1),
             ("boolean/rest.rs", 1),
             ("boolean/solid_contain.rs", 2),
+            ("census.rs", 2),
             ("entity.rs", 1),
             ("face_normal.rs", 0),
             ("merge_faces.rs", 3),
