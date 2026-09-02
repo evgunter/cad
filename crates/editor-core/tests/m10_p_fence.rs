@@ -99,6 +99,30 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
+//! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
+//! measured by the removal procedure below — which is why it is written
+//! out here rather than folded in with the roster moves.
+//!
+//! A profile's sketch plane became a document node, so every corpus
+//! document gained frame nodes and every node after the first was
+//! renumbered. This digest feeds `id.0` into the hash, so it moves for
+//! EVERY document by construction, and no subtraction of documents
+//! restores the old number: there is no version of `documents()` that
+//! reproduces it. `lib_g16_corpus_name_digests` — the finer instrument
+//! this header sends a reader to — moved on every row for the same
+//! reason, so it cannot separate the two either.
+//!
+//! What stands behind the new number is the corpus's GEOMETRIC
+//! evidence, which is independent of ids and did not move:
+//! `m4_pr8_corpus::exact_mass_pins_hold` holds every document's exact
+//! volume and area, `m5_pr8_bvh_diff` holds realized-vs-idealized bit
+//! equality, `m5_pr11_corpus_curved` and `cert_m2r1_corpus` hold their
+//! own, and the persistence round trip replays every document. Those
+//! were green across this change without being touched. So the claim
+//! this number carries is unchanged — no outcome flipped and no point
+//! of any body moved — and what moved is the numbering the digest also
+//! hashes.
+//!
 //! RE-BLESSED FOUR TIMES FOR A ROSTER CHANGE (the build-path
 //! re-derivation below is a separate move of these numbers and a
 //! different kind): this digest walks `corpus::documents()`, so a new
@@ -464,7 +488,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x8769_278b_494d_64ca, 0xe106_0e5d_4166_5d46),
+        (0xa735_80f4_96bb_8582, 0xbadf_6ab5_6003_36e6),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -515,7 +539,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x8769_278b_494d_64ca, 0xe106_0e5d_4166_5d46),
+        (0xa735_80f4_96bb_8582, 0xbadf_6ab5_6003_36e6),
         "the corpus's Probe evaluation moved"
     );
 }

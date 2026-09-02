@@ -1001,6 +1001,8 @@ fn edit_back_restores_bit_identical_bodies() {
         fp0,
         "edit-back must restore the ORIGINAL bits (memo through a stale prior)"
     );
-    // Reverted transform + final subtract recompute; the rest reuses.
-    assert_eq!((e2.recomputed, e2.reused), (2, 75));
+    // Reverted transform + final subtract recompute; the rest reuses —
+    // the die's seven sketch frames among them, since a slot edit on a
+    // transform does not touch a plane.
+    assert_eq!((e2.recomputed, e2.reused), (2, 82));
 }

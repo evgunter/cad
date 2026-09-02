@@ -17,7 +17,7 @@ use editor_core::{
     ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
     header_document_id, load, save,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::{desc, insert, len, on_frame, step};
 use geom_core::Tol;
 
 /// The shared exemplar: a block (profile + extrude) and a document
@@ -400,12 +400,16 @@ fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
     let nodes_before = doc.len();
     let before = content_pin(&doc, Tol::witness()).unwrap();
-    let (with_extra, extra) = on_frame(
+    // One node in, one node out: the profile alone, on a frame the
+    // document already carries, so the delete restores the count.
+    // The exemplar's own frame: node 0, ahead of its profile.
+    let plane = doc.order()[0];
+    let (with_extra, extra) = insert(
         doc,
-        [0.0, 0.0, 2.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        Node::Profile(desc(
+            plane,
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
     );
     let (undone, _) = step(with_extra, DocEdit::DeleteNode { id: extra });
     assert_eq!(undone.len(), nodes_before, "the node itself is gone");
