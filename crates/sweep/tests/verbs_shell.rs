@@ -596,12 +596,21 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// constraint between them: the cap fixes an azimuth, not a `(ρ, h)`.
 /// The door says exactly that, and this row pins the sentence.
 ///
-/// **This is not a torus gap.** `torax_axial` measures the same refusal
-/// on a SPHERE lune — the identical body with its profile circle slid
-/// onto the axis — where the moved rim section is still a circle and
-/// the door still cannot carry it, because that circle's centre is off
-/// the axis and the latitude mint has no arm for one. What is missing
-/// is the partial revolve's RIM, for every curved wall.
+/// **This is not a torus gap — and it is not every curved wall's gap
+/// either.** A partial revolve whose wall is a CYLINDER hollows today:
+/// `sf2b_axial`'s quarter-turn wedge is that body, and its rim vertex
+/// carries TWO profile constraints (the cylinder's line and the cap's)
+/// with the meridian plane supplying only the azimuth. What is missing
+/// is the rim of a wall whose PROFILE CONSTRAINT IS A CIRCLE — a
+/// sphere or a torus, where the closed profile is the whole wall and
+/// the rim vertex has one constraint. `torax_axial` measures the
+/// SPHERE half on a lune, and it refuses at a DIFFERENT door: the
+/// lune's corners DO solve, through the axis-pole arm where `ρ = 0` is
+/// a geometric fact rather than a carried datum, and what refuses is
+/// the rim EDGE — `TogetherEdgeDisagreement`, gap exactly the wall
+/// thickness — because the moved rim circle's centre is off the axis
+/// and the latitude mint has no arm for one. Circle-profile walls, two
+/// doors.
 ///
 /// **What would retire it**, concretely, is two things and the torus
 /// needs both: a carried datum for the wall chart's own `v`-seam (the

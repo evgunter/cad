@@ -1139,11 +1139,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              #1081 made the offsets SIMULTANEOUS: every corner is solved against all \
              the surfaces meeting it at once, planar corners by a 3×3 solve (PR-2a) \
              and a body of revolution's in its own meridian half-plane (PR-2b), where \
-             a plane is a line, a cylinder is a line, a cone is a line and a sphere is \
-             a circle. So the shoulders are gone: foot cylinder, ONE spherical zone, \
-             mouth. The frontier moved rather than vanished, and wall 1 has moved with \
-             it — push the belly's arc centre OFF the axis and the wall is a TORUS, for \
-             which the C5 table has no closed-form arm at all (`tests/verbs_teapot.rs` \
+             a plane is a line, a cylinder is a line, a cone is a line, a sphere is \
+             a circle centred ON the axis and a TORUS is that same circle centred one \
+             number off it. So the shoulders are gone: foot cylinder, ONE spherical \
+             zone, mouth. WALL 1 WAS RE-PLANTED ONE STEP OUT AND IS NOW RETIRED IN \
+             TURN: it pushed the belly's arc centre OFF the axis, making the wall a \
+             torus the meridian reduction did not know, so the body fell to the \
+             per-chart loop and the C5 table refused its plane x torus pair. The \
+             reduction knows the kind now, that pot hollows, and the probe above \
+             asserts the hollow instead of pinning a refusal — nothing here widened \
+             `intersect::route` (`tests/verbs_teapot.rs` \
              carries the junction table, the tangency discriminator and the sweep's \
              blind spot). THE MOUTH IS \
              OPEN, AND THAT WAS THE SCENE'S SECOND FINDING BEFORE IT WAS FIXED: \

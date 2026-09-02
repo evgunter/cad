@@ -8,13 +8,29 @@
 //! against it. The refused-form gap each fixture used to produce is
 //! quoted beside it, so a row says what changed as well as what is.
 //!
-//! The last rows are the boundary, measured on BOTH kinds: a rim whose
-//! two moved surfaces are a wall and a meridian plane that has just
-//! stopped containing the axis is a section this door cannot carry —
-//! for a torus it is a quartic (spiric) curve, and even for the SPHERE,
-//! where it is still a circle, the mint has no arm for one centred off
-//! the axis. So the partial revolve's rim is not a torus gap; it is a
-//! rim capability that does not exist yet for any curved wall.
+//! The last rows are the boundary, measured on BOTH kinds — and the
+//! scope is narrower than "curved walls". It is walls whose PROFILE
+//! CONSTRAINT IS A CIRCLE. A partial revolve whose wall is a CYLINDER
+//! hollows today: `sf2b_axial`'s quarter-turn wedge is exactly that
+//! body, and its rim vertex carries TWO profile constraints (the
+//! cylinder's line and the cap's), with the meridian plane supplying
+//! only the azimuth. A sphere or torus wall whose profile is the whole
+//! closed circle carries ONE — and the two fixtures below then refuse
+//! at two DIFFERENT doors:
+//!
+//! - the klein elbow (torus wall, no second profile surface at the rim
+//!   vertex at all) refuses `TogetherAxialCorner`, "one profile
+//!   constraint meets here…", and the section that rim would need is a
+//!   quartic (spiric) curve;
+//! - the sphere lune's CORNERS do solve, through the axis-pole arm
+//!   where `ρ = 0` is a geometric fact rather than a carried datum;
+//!   what refuses is the rim EDGE — `TogetherEdgeDisagreement`, whose
+//!   gap is exactly the wall thickness — because the moved rim circle
+//!   is centred off the axis and the mint has no arm for one.
+//!
+//! So the partial revolve's rim is not a torus gap, and it is not
+//! every curved wall's gap either: it is a circle-profile wall's, at
+//! two doors.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,6 +53,30 @@ const FIT_TOL: f64 = 1e-6;
 /// The wall thickness every accepting row here hollows by — the tour's
 /// own.
 const T: f64 = 1.0 / 128.0;
+
+/// **How far the transcript's refused-form gaps and this file's
+/// re-derivations may differ, and why one bound covers both.**
+///
+/// The two quoted numbers are the DOOR's own — the `gap` payload the
+/// per-chart re-anchor produced through its whole evaluation chain,
+/// copied out of the C5ARMS STOP transcript. The rows re-derive them
+/// from the closed form as `5/64 − ‖·‖`, which is a shorter chain, so
+/// they agree as REAL NUMBERS and not bit-for-bit, and the residue is
+/// per-operand. MEASURED at this head:
+///
+/// | fixture | re-derived | transcript | ulps | relative |
+/// |---|---|---|---|---|
+/// | barrel | `6.09730892739932e-3` | `6.0973089273993215e-3` | 2 | `−2.85e-16` |
+/// | teapot | `4.422022405807788e-3` | `4.422022405807807e-3` | 22 | `−4.32e-15` |
+///
+/// **`hypot` is not the cause**, which an earlier note here claimed: a
+/// bare `√(x² + y²)` on these two operand pairs returns the SAME BITS
+/// as `hypot` — checked, both fixtures, `3f78f97de6fd1660` and
+/// `3f721cd399d78bf0`. What differs is the length of the chain the
+/// door took to the same real number. One bound, set a factor of two
+/// above the larger measured residue, therefore replaces the two
+/// unexplained per-row tolerances this file used to carry.
+const GAP_REL: f64 = 1e-14;
 
 /// Revolved about the `y` axis through the origin, so a vertex's axial
 /// coordinates are `(hypot(x, z), y)`.
@@ -211,13 +251,8 @@ fn torax_the_torus_barrel_corners_solve_in_closed_form() {
     has_corner(&out, rho, 15.0 / 128.0, "the barrel's mouth junction");
 
     let gap = 5.0 / 64.0 - (3.0f64 / 64.0 - 6.0 / 64.0).hypot(1.0 / 128.0 - 1.0 / 16.0);
-    // The transcript's number, quoted rather than re-derived. The
-    // closed form and the door's own evaluation order agree to `2e-16`
-    // RELATIVE and not bit-for-bit: `hypot` and the door's 2-D norm
-    // associate their three operations differently, which is a fact
-    // about the two spellings and not about the geometry.
     assert!(
-        (gap - 6.0973089273993215e-3).abs() <= 1e-15 * gap,
+        (gap - 6.0973089273993215e-3).abs() <= GAP_REL * gap,
         "the C5ARMS STOP transcript's barrel gap, got {gap}"
     );
 }
@@ -254,7 +289,7 @@ fn torax_the_teapot_belly_corners_solve_in_closed_form() {
     let gap =
         5.0 / 64.0 - (3.0f64 / 64.0 - 7.0 / 64.0).hypot(8.0 / 64.0 - 1.0 / 128.0 - 5.0 / 64.0);
     assert!(
-        (gap - 4.422022405807807e-3).abs() <= 1e-14 * gap,
+        (gap - 4.422022405807807e-3).abs() <= GAP_REL * gap,
         "the C5ARMS STOP transcript's teapot gap, got {gap}"
     );
 }
@@ -297,13 +332,31 @@ fn torax_every_torus_corner_lies_on_its_own_moved_surfaces() {
 /// commute: the same body posed by a rigid motion hollows to the same
 /// points, compared in the posed frame so no inverse is invented.
 ///
-/// The door canonicalizes its axis point to the world origin's foot, so
-/// a re-pose is exactly the case that would catch a coordinate leaking
-/// into the arithmetic.
+/// **The pose carries a TRANSLATION, and that is the point of it.** The
+/// door canonicalizes its axis point to the axis line's own foot at the
+/// world origin (`offset_axial`'s `axial_frame`), and a rotation ABOUT
+/// THE ORIGIN leaves that foot at the origin — every station is
+/// unchanged and the canonicalization is never asked to do anything. So
+/// the anchor here is `(1/4, −1/2, 1/8)`, dyadic and off the axis: the
+/// posed body's axis line misses the world origin, its foot is a
+/// computed point, and every station is a different number from the
+/// unposed body's.
+///
+/// The comparison is a BIJECTION, not a subset with a matching length —
+/// a solve that collapsed two corners onto one point and invented a
+/// third elsewhere would pass a subset check with the right count. Each
+/// wanted point consumes its nearest unused match, and the pool must
+/// empty. MEASURED at this head: worst matched distance `2.9e-17` m on
+/// the barrel, `2.1e-17` m on the belly — sub-ulp at these coordinates,
+/// so the bound is the file's own tightest (`1e-15`) rather than the
+/// `1e-12` this row was first written with.
 #[test]
 fn torax_the_torus_corners_survive_a_rigid_re_pose() {
-    let map =
-        Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.7);
+    let map = Affine3::rotation_about_axis(
+        Point3::new(0.25, -0.5, 0.125),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.7,
+    );
     for (what, body) in [
         ("the torus barrel", torus_barrel()),
         ("the teapot's torus belly", torus_belly()),
@@ -318,32 +371,103 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             .vertices()
             .map(|(_, v)| *posed_after.get_point(v.point).expect("point"))
             .collect();
-        let got: Vec<Point3<f64>> = hollow_after
+        let mut pool: Vec<Point3<f64>> = hollow_after
             .vertices()
             .map(|(_, v)| *hollow_after.get_point(v.point).expect("point"))
             .collect();
-        assert_eq!(want.len(), got.len(), "{what}: vertex count under re-pose");
+        assert_eq!(want.len(), pool.len(), "{what}: vertex count under re-pose");
         for w in &want {
+            let (i, d) = pool
+                .iter()
+                .enumerate()
+                .map(|(i, g)| (i, (*g - *w).norm()))
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .expect("the pool is non-empty while wanted points remain");
             assert!(
-                got.iter().any(|g| (*g - *w).norm() <= 1e-12),
-                "{what}: hollow-then-pose has {w:?}, pose-then-hollow does not"
+                d <= 1e-15,
+                "{what}: hollow-then-pose has {w:?}; the nearest unmatched \
+                 pose-then-hollow point is {d} m away"
             );
+            pool.remove(i);
         }
+        assert!(
+            pool.is_empty(),
+            "{what}: the match is not a bijection — {} pose-then-hollow points \
+             are unclaimed",
+            pool.len()
+        );
     }
 }
 
-/// **The planted red: a request the torus arm must refuse rather than
-/// build.** A wall thicker than the tube leaves no minor radius at all,
-/// and the arm this unit added must not carry that past the mint's own
-/// floor into a corner solve on a surface that does not exist.
+/// **The operand gate, named — and named as NOT this arm's floor.** A
+/// wall thicker than the tube is refused before any torus arithmetic
+/// happens: `shell`'s `wall_clearance` sees the two planar caps facing
+/// each other across `1/8` m of material while two walls need `3/16`,
+/// and says so. That gate is KIND-AGNOSTIC — a box of the same height
+/// refuses identically — so this row is a check that the operand door
+/// still fires and still names both numbers, and it is deliberately
+/// NOT evidence about the torus arm. The arm's own floor is the row
+/// below.
 #[test]
 fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
     let e = topo::shell(&torus_barrel(), 6.0 / 64.0, FIT_TOL, tol())
         .expect_err("a wall thicker than the tube has no cavity");
     println!("[torax] the over-thick wall refuses: {e}");
+    let ShellError::WallClearance {
+        gap,
+        needed,
+        face,
+        other,
+    } = e
+    else {
+        panic!("the over-thick wall is the operand clearance gate's, got {e}");
+    };
+    assert_ne!(face, other, "the gate names two distinct faces");
     assert!(
-        !matches!(e, ShellError::Corrupt { .. }),
-        "the refusal must be typed and about the geometry, got {e}"
+        (gap - 0.125).abs() <= 1e-15 && (needed - 0.1875).abs() <= 1e-15,
+        "the caps stand 1/8 m apart and two walls of 6/64 need 3/16, got \
+         gap {gap} needed {needed}"
+    );
+}
+
+/// **The torus arm's OWN floor: the ring closing.** An inward wall on
+/// these waisted fixtures moves the minor radius OUT, so the ring
+/// convention `R > r > 0` is what eventually stops them — not the
+/// operand's clearance gate, which has decades of room left. The mint
+/// refuses [`geom_brep::OffsetError::TorusRing`], and this row brackets
+/// the floor rather than asserting one side of it: `1/128` hollows,
+/// `2/128` does not, and the realized minor radius the refusal echoes
+/// is the tube's own major radius `R = 12/128`.
+///
+/// **This row is the one that is sensitive to the arm.** The refusal is
+/// only reachable BECAUSE the axial door now takes a torus body: with
+/// the `(Torus, Torus)` arm removed from `classify`, `is_axial` answers
+/// `false`, `shell` falls to the per-chart loop, and the C5 table's
+/// `NeighborPairUnroutable(Plane, Torus)` is what comes back instead —
+/// measured, not assumed. Nothing else in this suite refuses through
+/// the mint.
+#[test]
+fn torax_the_torus_arms_floor_is_the_ring_closing() {
+    // Below the floor: the same fixture the closed-form rows use.
+    hollowed("the torus barrel at t = 1/128", &torus_barrel());
+
+    // At it. `r + t` reaches `R`, so the offset tube would swallow its
+    // own hole.
+    let e = topo::shell(&torus_barrel(), 2.0 / 128.0, FIT_TOL, tol())
+        .expect_err("an offset tube that reaches the major radius has no ring left");
+    println!("[torax] the closed ring refuses: {e:?}");
+    let ShellError::Face { error, .. } = e else {
+        panic!("not the offset door's refusal: {e}");
+    };
+    let topo::ReplaceFaceError::Offset { error, .. } = *error else {
+        panic!("the ring floor is the surface mint's, not a corner's: {error}");
+    };
+    let geom_brep::OffsetError::TorusRing { realized_minor } = error else {
+        panic!("the mint must name the ring convention, got {error}");
+    };
+    assert!(
+        (realized_minor - 12.0 / 128.0).abs() <= 1e-15,
+        "the realized minor radius reaches R = 12/128 exactly, got {realized_minor}"
     );
 }
 
@@ -428,19 +552,29 @@ fn torax_the_partial_revolve_rim_has_one_profile_constraint() {
     );
 }
 
-/// **The SPHERE lune refuses the same rim, so the gap is not the torus
-/// kind's.**
+/// **The SPHERE lune refuses the same RIM at a DIFFERENT door**, so the
+/// gap is a circle-profile wall's rather than the torus kind's.
 ///
-/// A quarter revolve of a half-disc whose diameter lies on the axis:
-/// a sphere wall, two meridian caps, poles on the axis — the elbow's
-/// shape with the profile circle slid onto it. Its rim section after
-/// the offset IS a circle, and the door still cannot carry it, because
-/// that circle's centre is off the axis and the latitude mint has no
-/// arm for one. The refusal is measured here so that "the partial
-/// revolve's rim" is documented as a rim capability nobody has built
-/// rather than as something the torus arm failed to reach.
+/// A quarter revolve of a half-disc whose diameter lies on the axis: a
+/// sphere wall, two meridian caps, poles on the axis — the elbow's
+/// shape with the profile circle slid onto it.
+///
+/// **Its CORNERS solve.** The rim arc ends on the axis poles, where
+/// `ρ = 0` is a geometric fact and the pole arm answers without any
+/// carried datum, so the elbow's `TogetherAxialCorner` never fires
+/// here. What refuses is the rim EDGE: the moved rim section IS a
+/// circle, but its centre is off the axis and the latitude mint has no
+/// arm for one, so the edge's two ends are solved a wall thickness
+/// apart and `TogetherEdgeDisagreement` says so — this row asserts that
+/// gap is the thickness itself and not some other number.
+///
+/// Measured here so that "the partial revolve's rim" is documented as a
+/// capability with TWO unbuilt doors, one per kind, rather than as
+/// something the torus arm failed to reach — and so that the scope is
+/// not read as "every curved wall", which `sf2b_axial`'s
+/// cylinder-walled quarter-turn wedge disproves by hollowing.
 #[test]
-fn torax_the_sphere_lune_refuses_the_same_rim() {
+fn torax_the_sphere_lune_refuses_the_rim_at_the_other_door() {
     let r = 0.3_f64;
     let lune = {
         let profile = Profile::new(
@@ -475,12 +609,17 @@ fn torax_the_sphere_lune_refuses_the_same_rim() {
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
     };
+    let topo::ReplaceFaceError::TogetherEdgeDisagreement { gap, .. } = *error else {
+        panic!(
+            "the sphere lune's rim refuses at the EDGE its two moved surfaces disagree \
+             about — its corners solve at the poles — got {error}"
+        );
+    };
+    // And the disagreement is exactly the wall, not some other length:
+    // the moved rim circle is the unmoved one translated inward by `t`,
+    // so the far end misses the carrier by the whole thickness.
     assert!(
-        matches!(
-            *error,
-            topo::ReplaceFaceError::TogetherEdgeDisagreement { .. }
-        ),
-        "the sphere lune's rim refuses at the edge its two moved surfaces disagree about, \
-         got {error}"
+        (gap - 0.05).abs() <= 1e-15,
+        "the gap is the wall thickness itself, got {gap}"
     );
 }

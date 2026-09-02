@@ -526,8 +526,8 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 // ---------------------------------------------------------------------
 
 /// **Is this a body this door can take?** Structural and cheap: every
-/// surface is a plane, cylinder, cone or sphere, the curved ones share
-/// one axis LINE, and every plane is normal to it or contains it.
+/// surface is a plane, cylinder, cone, sphere or TORUS, the curved ones
+/// share one axis LINE, and every plane is normal to it or contains it.
 ///
 /// `shell` reads this to pick its branch, so a body outside it keeps
 /// exactly the posture it had.
@@ -543,8 +543,11 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// per-chart door — whose refusal would then name a carrier rather than
 /// the undecided geometry that actually stopped it. So the escalation
 /// is returned typed and the caller refuses with it. Every other
-/// verdict — a torus, a skew cylinder, an all-planar body with no axis
-/// at all — is a definite `false` and stays one.
+/// verdict — a NURBS or fitted wall, a skew cylinder, a torus whose own
+/// axis is NOT the body's, an all-planar body with no axis at all — is
+/// a definite `false` and stays one. A COAXIAL torus is no longer one
+/// of them: it is inside the roster this door takes, and the table at
+/// the top of this module carries its meridian circle.
 ///
 /// **The band is not reachable from any operand this workspace's sweeps
 /// build, and that is measured rather than assumed.** Every margin this
