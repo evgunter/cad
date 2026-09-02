@@ -153,6 +153,39 @@ pub struct KnotVector {
     degree: usize,
 }
 
+/// A knot value **proven strictly interior** to the domain of the
+/// [`KnotVector`] that minted it — the values knot insertion may be
+/// asked to insert, as a type rather than as a precondition a caller
+/// promises in prose.
+///
+/// Its field is private and its only constructors are
+/// [`KnotVector::interior_knot_runs`] (the vector's own interior values,
+/// interior by the construction invariant) and
+/// [`KnotVector::interior_knot`] (the one filter for a value supplied
+/// from outside), so an end value, an out-of-domain value or a NaN is
+/// not a representable insertion point.
+///
+/// **What the type proves, and what privacy proves.** Like [`Span`], it
+/// carries no borrow of its vector: a knot interior to vector A handed
+/// to vector B's raw list IS representable, so the type alone does not
+/// make the insertion guard unnecessary. What does is the type PLUS the
+/// privacy of the one consumer: `compose::insert_once_ring` is a
+/// private function whose only caller mints every `InteriorKnot` from
+/// the very `KnotVector` it read the raw list from, and mutates that
+/// list without touching either clamp run — so the domain the knot was
+/// minted against is the list's domain at every step. The type is
+/// therefore crate-private until a second consumer exists; a public
+/// one would need the pairing argument `Span` carries.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct InteriorKnot(f64);
+
+impl InteriorKnot {
+    /// The knot value.
+    pub(crate) fn value(self) -> f64 {
+        self.0
+    }
+}
+
 /// A span index **proven** in range and nonempty for the knot vector it
 /// was drawn from, carrying the control-point window it selects.
 ///
@@ -543,11 +576,32 @@ impl KnotVector {
     /// **strictly inside** [`KnotVector::domain`] (the end runs are
     /// exact, so no interior knot equals either end value).
     pub fn interior_knots(&self) -> impl DoubleEndedIterator<Item = (f64, usize)> + Clone + '_ {
+        self.interior_knot_runs().map(|(k, m)| (k.value(), m))
+    }
+
+    /// [`KnotVector::interior_knots`] with each value carried as the
+    /// [`InteriorKnot`] it is — the typed form, and the one the
+    /// untyped form is defined over. The strictly-interior fact is
+    /// this vector's construction invariant, so the items are minted
+    /// without a check.
+    pub(crate) fn interior_knot_runs(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (InteriorKnot, usize)> + Clone + '_ {
         let p = self.degree;
         // Slicing justified: len ≥ 2(degree + 1) gives
         // degree + 1 ≤ len − degree − 1, so the range is valid for
         // every knot vector — empty exactly when there is one span.
-        runs_in(&self.knots[p + 1..self.knots.len() - p - 1])
+        runs_in(&self.knots[p + 1..self.knots.len() - p - 1]).map(|(v, m)| (InteriorKnot(v), m))
+    }
+
+    /// `u` as an [`InteriorKnot`] of this vector — strictly inside
+    /// [`KnotVector::domain`] — or `None`. **The one filter** for a
+    /// value that did not come from the vector itself: an extra break
+    /// a caller wants inserted goes through here, and NaN is refused
+    /// because `u > lo` is false for it.
+    pub(crate) fn interior_knot(&self, u: f64) -> Option<InteriorKnot> {
+        let (lo, hi) = self.domain();
+        (u > lo && u < hi).then_some(InteriorKnot(u))
     }
 
     /// Every knot run, **including the two clamps**, as

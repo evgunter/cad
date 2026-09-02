@@ -2067,17 +2067,17 @@ it only makes the six locally-argued rules legible as six.
   `crates/geom/tests/surfaces/s32_jet_projection.rs` (the pin)
 - **Confidence**: sure
 
-**The class's curve-side member is filed, not fixed** — §D row **C24**.
-`Curve3::deriv`/`deriv2` are the identical shape one file over, and
-`topo/src/splitting/neighborhood.rs` calls both at the same `t` under a
-comment naming the result *"the base-endpoint jet"*. That call site is the
-**analytic** member of the class, not the NURBS one — it sits in the
-`Circle | Ellipse` arm and repeats an azimuthal frame, while the arm above
-routes `Curve3::Nurbs` elsewhere entirely; C24 carries both members
-separately, and says which is which. **C-R6 does not reach it** even though it
-is the same crate: the surface side had a ratified `SurfaceJet` to project
-onto, and the curve side has no `CurveJet` at all, so that work is minting a
-public type — a design element, C-R19 tier two.
+**The class's analytic curve-side member is filed, not fixed** — §D row
+**C24**. `Curve3::deriv`/`deriv2` are the identical shape one file over on
+the analytic arms, and `topo/src/splitting/neighborhood.rs` calls both at
+the same `t` under a comment naming the result *"the base-endpoint jet"* —
+the call sits in the `Circle | Ellipse` arm and repeats an azimuthal frame,
+two `sin_cos` for one jet. **C-R6 does not reach it** even though it is the
+same crate: the surface side had a ratified `SurfaceJet` to project onto,
+and the curve enum has no `CurveJet` at all, so that work is minting a
+public type — a design element, C-R19 tier two. (The NURBS payload's own
+jet doors, `NurbsCurve3::ders` and `ders1_in_span`, are what such an arm
+would have to read; whether it does is the design question.)
 
 **Two shapes on the surface side are noted and deliberately not fixed:**
 `SurfaceJet` lives in the NURBS arm's module though it is the enum-wide
@@ -2099,28 +2099,6 @@ only two any production path walks, `metric_floor` being the sole production
 caller of any of the rest and asking for the jet. Recorded because it will
 decide a future question and nobody will re-measure it cheaply; it is not a
 mandate to delete them.
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
-
-## S33. Neither geometry enum can lift itself to another scalar
-
-- **Where**: `crates/geom/src/curves.rs:818`, `:908`,
-  `crates/geom/src/surfaces.rs:653`, `:1057`,
-  `crates/sweep/src/skin.rs:774` — paths re-anchored by #705's crate
-  merge; the finding is unchanged
-- **Confidence**: sure
-
-`DESIGN.md` makes "evaluate the same function with a different scalar
-type" the reason the geometry layer is generic over `T`, but `Curve3<T>`
-and `Surface<T>` have no `map_scalar`/`lift`. Every place needing
-`Curve3<f64> → Curve3<Dual64>` or `→ Curve3<Interval>` writes its own
-per-variant ladder: twice inside `geom/src/curves.rs` alone (the
-dual and interval versions differing only in the scalar conversion),
-twice again in `geom/src/surfaces.rs`, and roughly ten more across `topo`,
-`mesh` and test modules, plus one production copy in `sweep`. Each must
-be kept exhaustive by hand as variants are added, and each silently maps
-`Nurbs(_)` to the placeholder rather than lifting the payload.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -4335,26 +4313,6 @@ crate-merge dedup moved it into a helper that has `CHANNELS` and
 `channel(d)` in scope and did not widen it. This is the one place the
 merge picked a half's behaviour and landed it under a doc describing the
 other half's.
-
-**Verdict:**
-
-## S100. `scalar_lift` is named for the job it explicitly declines to do
-
-S33's ~14 hand-written per-variant ladders are the thing called "scalar
-lift" everywhere else in this programme;
-`crates/geom/src/scalar_lift.rs:1` deduplicates only the four leaf
-point/vec converters and says so in its header (*"the per-variant
-*ladders* … stay where they are"*). The result is a module whose name is
-the concept and whose contents are not, in the same crate as four
-surviving ladders (`curves.rs:818`, `:908`, `surfaces.rs:653`, `:1057`),
-each still spelling `Nurbs(_) => nurbs_placeholder()` — the exact silent
-substitution S33 named.
-
-The merge also put two spellings of one operation side by side that were
-previously in different crates: `lift_to_dual` (curves) vs `lift_dual`
-(surfaces), plus two unrelated `lift` functions. A reader looking for
-"where does this crate lift a `Surface<f64>` to `Interval`" will open
-`scalar_lift.rs` and not find it.
 
 **Verdict:**
 
@@ -7050,15 +7008,11 @@ three sub-lanes inside the track.
 | # | What | Was |
 |---|---|---|
 | **D244** | **`S89`'s first alias, filed by CERT-M1**: `crates/geom-core/src/spline/hull.rs:113-118`'s private `fn bracket<E: CertifiedEnclosure>` is `RingInterval::from_certified` under another name, with an eight-line restatement of the door's rule above it. Inline it at its call sites and delete the restatement; the rule's one home is `from_certified`'s own doc, which (since CERT-M1) carries no caller census either. `geom-core/tests/decoration_seam.rs`'s header names this crossing; keep that sentence true when the alias goes | CERT-M1 (PR 1533), filed |
-| **H2** | One merge's residue, six findings, and it wants ONE lane — `S99`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
+| **H2** | One merge's residue, five findings, and it wants ONE lane — `S99`, `S101`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
 | **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
 | **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
 | **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
-| **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
-| **D240** | Neither geometry enum can lift itself to another scalar (`S33`) — `Curve3<T>` and `Surface<T>` have no `map_scalar`/`lift`, so every caller writes its own per-variant ladder: four in `geom/src/{curves,surfaces}.rs` and roughly ten more across `topo`, `mesh` and test modules. Each is kept exhaustive by hand and each silently maps `Nurbs(_)` to the placeholder rather than lifting the payload. **The one production copy outside this fence, `sweep/src/skin.rs:774`, is Track T's `D320`** | unrowed |
-| **D241** | `geom/src/scalar_lift.rs` is named for the job it declines to do (`S100`) — it deduplicates the four leaf point/vec converters and says in its own header that the per-variant ladders stay where they are, in the same crate as four surviving ladders. `lift_to_dual` (curves) and `lift_dual` (surfaces) sit beside two unrelated `lift` functions. **`D240` is the work; this row is the name, and they want one lane** | unrowed |
-| **D242** | **`ControlPoint::channel`'s two `unreachable!` arms are row 0's own *yes* side** (`D96`'s small-domain pair, re-homed by Track T's `T-c` when that row's in-fence members were disposed; citations re-derived 2026-08-31 — `crates/geom/src/net.rs:63` and `:88`, which read `:64`/`:86` when `D96` was written). The trait is `pub(crate)` with two impls and two call sites, one of them already `for d in 0..P::CHANNELS`, so a `channels()` iterator deletes both arms with **no public API change**. The trait's own rustdoc states the precondition it cannot carry — *"`d >= CHANNELS` is a caller bug, not an input"* — which is the newtype argument written as prose | `D96`, via `T-c` |
-| **D243** | **`insert_once_ring`'s interior-knot guard announces a caller precondition a type could carry** (`D96`'s third small-domain member, re-homed by `T-c`; citation re-derived 2026-08-31 — `crates/geom-core/src/spline/compose.rs:315`, which read `:314`). `if !(u > knots[p] && u < knots[knots.len() - p - 1]) { unreachable!(…) }`, where the site's own comment says the only caller draws `u` either from `interior_knots` — strictly interior by the `KnotVector` invariant — or from extras it filters to the open domain. That is an `InteriorKnot` newtype spelled as a comment. **Row 0's question here is the propagation and not the arm**: the newtype reaches the filter and the caller, not only this function | `D96`, via `T-c` |
+| **C24** | The analytic curve-side member of S32's discarded-jet class — `Curve3::deriv`/`deriv2` on the `Circle`/`Ellipse` arms each rebuild the azimuthal frame, and `topo/src/splitting/neighborhood.rs`'s conic arm calls both at one `t` for *"the base-endpoint jet"* (two `sin_cos` for one jet). The enum has no jet door: minting a `CurveJet` is a public type — a design element, C-R19 tier two (the NURBS payload's own jet doors, `NurbsCurve3::ders` / `ders1_in_span`, are what an arm would read; the design decides whether). The `neighborhood.rs` call site is Track Q's | Track C |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -7152,7 +7106,7 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | **D322** | **`crates/sweep/src/blend/surgery.rs:1712`'s `pub fn ring_clearance` is production API with no production caller** (`S111(b)`, re-homed by `D124`; verified standing 2026-08-31 against the renamed tree). Its only caller outside the module is `crates/sweep/tests/m6_surgery.rs:447`, and its own doc says so — *"Public for exactly that trio"*. Every other item in that file is `pub(super)` or private. **The remedy already exists in this crate**: `S111(b)`'s own text names the `feature = "test-support"` gate, and `crates/sweep/src/test_support.rs` is now the cross-crate home for exactly this shape, so the conversion is a visibility change plus a re-export rather than a new mechanism. **Blocked while a BLEND lane is live in `blend/`** (T-R1's class; the live one is BLEND-4, PR #1360, which edits this very file — `T-R7`) | `S111(b)`, via `D124` |
 | **D323** | **`blend::naming::Retired` still has no face channel** (`S111(d)`, re-homed by `D124`; verified standing). `crates/sweep/src/blend/naming.rs:115` carries `edges` and `vertices` only, so the one thing the record exists to catch — a source entity destroyed without a record — is structurally uncatchable for faces, which is `S15`'s hole unchanged. **What is new since the finding was written** is that the consumer now argues the hole away rather than leaving it silent: `crates/editor-core/src/names/emit_blend.rs:259-262` says *"Faces are never retired — a support shrinks, it does not die"*. So the row is a decision, not a patch: either that argument is the answer and belongs at `Retired` itself, or it is not and the channel is owed. **Cheaper taken with `D324`** — same file, same subject. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S111(d)`, via `D124` |
 | **D324** | **`naming.rs`'s *"What consumes these rows"* header is false about its one consumer** (`S112(a)`, re-homed by `D124`; verified standing, and the rename moved the name it cites). `crates/sweep/src/blend/naming.rs:38-40` says `editor-core`'s `names::emit_blend` *"reads every field EXCEPT [`Retired`]"*; `crates/editor-core/src/names/emit_blend.rs:242-243,259-260` builds `retired_e`/`retired_v` out of `rec.dead` and consults them on every row. **Sharper than the finding recorded**: the consuming site cites *"(module docs)"* straight back at the paragraph that denies it, so the two halves of one claim contradict each other across the crate boundary and each points at the other as its authority. One paragraph, and it is the same file as `D323`. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S112(a)`, via `D124` |
-| **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
+| **D320** | `sweep/src/skin.rs:760`'s `lift_surface` — the one production copy of the scalar lift outside `geom/` (citation re-derived 2026-09-02; the `:774` it was filed at is now a section comment). It rebuilds the control net by hand and goes back through `NurbsSurface::new`, so it returns a `Result` whose error is unreachable for a surface that already validated, and `sweep/src/loft.rs:348` maps that error into `LoftError::Skin(SkinError::Structure)`. `NurbsSurface::map_scalar(T::from_f64)` is the infallible, exact lift the payload now carries: the function, its `Result`, the `loft.rs` mapping and the four `sweep/tests/` callers' `.expect("lifts")` go with it | Track N, filed |
 | **D325** | **The corner fusion's `first_arc` is this fence's last `EmptyChain`-shaped arm** (`D96`'s ninth in-fence member, re-homed when `T-c` disposed of the other eight). `crates/sweep/src/blend/surgery.rs` holds `let Some(arc) = first_arc else { unreachable!(…) }` in the corner fusion, and its proof — *a corner's incidence list holds at least the link that discovered it* — is already a fact of the TYPE one level up: `CornerLinks::first` returns a link rather than an `Option`. **Row 0's answer is therefore yes**, and the cost is what put it outside `T-c`: `CornerLinks::sorted` hands back a `Vec`, so carrying the non-emptiness into the arc loop means a seeded return — `(first, rest)`, the shape `CornerLinks` already has in its own fields — plus hoisting a forty-line mutation body that holds `&mut Body`, across the three `sorted` call sites. **Cheaper taken with any lane that opens the corner fusion for another reason** | `D96`, via `T-c` |
 
 ## Track U — the exchange surface and the bindings
