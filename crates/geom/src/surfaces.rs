@@ -911,8 +911,9 @@ mod tests {
             }
         }
 
-        /// Periodicity in u at the value level (the honest statement —
-        /// see the crate docs; never bitwise).
+        /// Periodicity in u at the value level (the honest statement is
+        /// the crate docs' bit-identity policy for periodicity; never
+        /// bitwise).
         #[test]
         fn azimuthal_periodicity_value_level(
             u in -3.0..3.0f64,

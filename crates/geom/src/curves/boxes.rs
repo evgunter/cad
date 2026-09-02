@@ -13,7 +13,7 @@
 //!
 //! These land now and are consumed later (the planar boolean consumes
 //! only vertex-extent boxes in PR 8); they live HERE, not in the `bvh`
-//! crate, so the tree stays below the geometry crates (PR 7's SSI
+//! crate, so the tree stays below the geometry crate (PR 7's SSI
 //! subdivision duty inside them must be able to consume it — see
 //! `bvh`'s crate docs) and each constructor sits next to the invariant
 //! it cites.

@@ -1,7 +1,7 @@
 //! Certified-conservative [`Aabb`] constructors for surface carriers
 //! (C10, M5 PR 8) — the surface-side sibling of [`crate::curves::boxes`]
 //! (its module docs carry the placement rationale: the `bvh` crate
-//! stays below the geometry crates; constructors sit next to the
+//! stays below the geometry crate; constructors sit next to the
 //! invariants they cite — and the containment contract, including why
 //! a box's docs must not price its own looseness). Certified-box
 //! driver code — a **sole**-bound [`Bounds`] seam under the 2026-07-29
