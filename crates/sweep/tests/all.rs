@@ -468,3 +468,7 @@ mod r1_p2_probes;
 mod bool1_r2_probes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;
+#[path = "cert_m2r1_passes.rs"]
+mod cert_m2r1_passes;
+#[path = "cert_m2r1_head.rs"]
+mod cert_m2r1_head;
