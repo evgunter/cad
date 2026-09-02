@@ -151,3 +151,7 @@ fn every_suite_file_is_aggregated() {
         found.len()
     );
 }
+
+// ---- CERT-N2 R2 reviewer probes (not for merge) ----
+#[path = "cert_n2r2_consumer_probes.rs"]
+mod cert_n2r2_consumer_probes;

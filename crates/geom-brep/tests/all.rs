@@ -211,3 +211,9 @@ mod r2_cert6_probes;
 
 #[path = "cert6_gauge_rows.rs"]
 mod cert6_gauge_rows;
+
+// ---- CERT-N2 R2 reviewer probes (not for merge) ----
+#[path = "cert_n2r2_class3_probes.rs"]
+mod cert_n2r2_class3_probes;
+#[path = "cert_n2r2_class56_probes.rs"]
+mod cert_n2r2_class56_probes;
