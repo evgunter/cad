@@ -30,7 +30,11 @@
 //!   [`Margin`] door, and a typed indeterminate on an in-band
 //!   comparand. It participates in the K census exactly like any
 //!   kernel site (SELECT-DESIGN GS-Q1: the naming convention does the
-//!   separating, not a second funnel).
+//!   separating, not a second funnel). The datum it measures against
+//!   carries the module's OTHER decision, one layer earlier:
+//!   [`UnitVec3::new`] ([`DATUM_UNIT_NORM`]) decides that a direction
+//!   has a length before normalizing it, which is what lets the
+//!   distance door be arithmetic all the way down.
 //!
 //! # Where an entity IS, for the decided door
 //!
@@ -316,7 +320,9 @@ pub fn edge_adjacent_matches<T: Real>(
 }
 
 // ---------------------------------------------------------------
-// The DECIDED door: one funnel site, an honest Margin, a typed
+// The DECIDED door and the type it measures against: two funnel
+// sites — the datum's own unit-direction constructor, and the
+// distance-sign door — each with an honest Margin and a typed
 // indeterminate.
 // ---------------------------------------------------------------
 
@@ -348,8 +354,8 @@ pub const DATUM_UNIT_NORM: &str = "datum_unit_norm";
 /// ¶3): both arms are facts about the input, never a lane to swallow.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnitVec3Error {
-    /// The vector's length decided to zero: there is no direction to
-    /// normalize, and inventing one would be invention.
+    /// The vector's length decided to zero: it names no direction, and
+    /// picking one for it would be invention (spec D3).
     Degenerate,
     /// The length decision landed in the ambiguity band — at the
     /// interval scalar, an enclosure that straddles "has a direction"
