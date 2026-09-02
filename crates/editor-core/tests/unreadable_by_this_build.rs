@@ -100,7 +100,10 @@ fn a_missing_required_field_refuses_naming_it() {
     let (header, mut v) = split(&small());
     let node = extrude_mut(&mut v);
     let removed = node["Extrude"].as_object_mut().unwrap().remove("distance");
-    assert!(removed.is_some(), "the fixture's extrude carries `distance`");
+    assert!(
+        removed.is_some(),
+        "the fixture's extrude carries `distance`"
+    );
     let mutated = join(&header, &v);
     match load(&mutated, Tol::witness()) {
         Err(err @ PersistError::Unreadable { .. }) => {
@@ -149,7 +152,14 @@ const OLDER_SHAPED: &str = concat!(
 
 #[test]
 fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
-    for newer in ["Mate", "Measure", "Assertion", "Chamfer", "PlacedUnion", "InstantiatePart"] {
+    for newer in [
+        "Mate",
+        "Measure",
+        "Assertion",
+        "Chamfer",
+        "PlacedUnion",
+        "InstantiatePart",
+    ] {
         assert!(
             !OLDER_SHAPED.contains(&format!("\"{newer}\"")),
             "the frozen document must predate `{newer}` for this row to mean anything"
@@ -157,7 +167,11 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     }
     match load(OLDER_SHAPED, Tol::witness()) {
         Ok(loaded) => {
-            assert_eq!(loaded.doc.order().len(), 2, "profile and extrude, as written");
+            assert_eq!(
+                loaded.doc.order().len(),
+                2,
+                "profile and extrude, as written"
+            );
         }
         // The frozen bytes record the ε they were written at; under
         // another CI ε row the document parsed, validated and replayed

@@ -12,8 +12,8 @@ mod fixture;
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
     EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum,
-    apply, evaluate, load, save,
+    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
+    evaluate, load, save,
 };
 use fixture::{desc, insert, len};
 use geom_core::Tol;

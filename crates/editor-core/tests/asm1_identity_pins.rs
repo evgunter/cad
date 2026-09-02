@@ -14,8 +14,8 @@ mod fixture;
 
 use editor_core::{
     Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
-    ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg,
-    StableName, WitnessDatum, content_pin, header_document_id, load, save,
+    ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
+    header_document_id, load, save,
 };
 use fixture::{desc, insert, len, step};
 use geom_core::Tol;

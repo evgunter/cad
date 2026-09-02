@@ -762,7 +762,6 @@ fn row7_instantiate_and_placement_round_trip() {
         text,
         "byte-stable"
     );
-
 }
 
 /// Row 7 (validator half) — a file whose placement names a

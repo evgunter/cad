@@ -11,8 +11,8 @@ mod fixture;
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, MetaValue, Node, NodeErrorKind,
-    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum,
-    apply, evaluate, load, save,
+    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum, apply, evaluate,
+    load, save,
 };
 use fixture::{desc, insert, len};
 use geom_core::Tol;

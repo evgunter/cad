@@ -19,7 +19,10 @@ use editor_core::{
 use geom_core::Tol;
 
 fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-distribution-wire"), Tol::witness());
+    let mut doc = ProfileDoc::empty(
+        DocumentId::derive("m10-1-distribution-wire"),
+        Tol::witness(),
+    );
     for (name, value) in params {
         doc = apply(
             &doc,

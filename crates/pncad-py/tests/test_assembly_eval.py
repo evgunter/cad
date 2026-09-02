@@ -18,7 +18,7 @@ THE CORPUS AND ITS PROVENANCE
 own authoring functions (`demos/tour/src/assembly.rs`), so the oracle
 below is the oracle the Rust side already asserts on this model and
 not a second one invented here. Four documents: the `post` and `shelf`
-parts, the flat-pack `layout` (one post instance patterned four ways
+parts, the flat-pack `layout` (one post instance patterned two ways
 plus the shelf) and the mated `stand` (two posts, a shelf, two mates).
 A store names its files by identity, so `MANIFEST` carries the label
 each identity was derived from.
@@ -33,7 +33,7 @@ WHAT KEEPS THE CORPUS HONEST, AND WHAT DOES NOT
 `test_the_corpus_still_matches_the_scene_it_came_from` reads the five
 BASE dimension constants out of `assembly.rs` and checks them, and
 `test_the_patterned_posts_sit_where_the_scene_places_them` pins where
-the layout actually puts its four posts. Between them a numeric or
+the layout actually puts its two posts. Between them a numeric or
 placement drift in the tour goes red here. Three things they do NOT
 catch, named rather than summarised, because the first draft of this
 header disclosed only the first:
@@ -106,10 +106,12 @@ SHELF_VOLUME = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 
 # The layout's declared PLACEMENTS, which no volume can see: the post
 # is laid on its side (rotated -pi/2 about +y, so POST_HEIGHT runs
-# along x and POST_SECTION along y and z) and patterned four times
-# along +y at this spacing.
+# along x and POST_SECTION along y and z), set FLAT_PACK_GAP along +x
+# so the flat-pack sits beside the assembled bench, and patterned two
+# times along +y at this spacing.
+FLAT_PACK_GAP = 1.4
 PATTERN_SPACING = 0.2
-PATTERN_COUNT = 4
+PATTERN_COUNT = 2
 
 
 def manifest():
@@ -207,13 +209,13 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
 
     def test_the_layout_evaluates_through_the_store(self):
         """The tour's flat-pack oracle, reproduced: one post instance
-        patterned four ways, plus the shelf."""
+        patterned PATTERN_COUNT ways, plus the shelf."""
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(evaluation), {})
         instance, pattern, shelf = evaluation.order()
         self.assertVolumes(volumes(evaluation, instance), [POST_VOLUME])
-        self.assertVolumes(volumes(evaluation, pattern), [POST_VOLUME] * 4)
+        self.assertVolumes(volumes(evaluation, pattern), [POST_VOLUME] * PATTERN_COUNT)
         self.assertVolumes(volumes(evaluation, shelf), [SHELF_VOLUME])
 
     def test_the_stand_evaluates_through_the_store(self):
@@ -578,6 +580,7 @@ class TestTheCorpusIsTheToursOwn(unittest.TestCase):
     def test_the_corpus_still_matches_the_scene_it_came_from(self):
         source = SCENE.read_text(encoding="utf-8")
         for name, value in [
+            ("FLAT_PACK_GAP", FLAT_PACK_GAP),
             ("POST_SECTION", POST_SECTION),
             ("POST_HEIGHT", POST_HEIGHT),
             ("SHELF_LENGTH", SHELF_LENGTH),
@@ -630,11 +633,11 @@ class TestTheCorpusIsTheToursOwn(unittest.TestCase):
                 self.assertEqual(
                     found,
                     (
-                        (0.0, round(POST_HEIGHT, 9)),
+                        (round(FLAT_PACK_GAP, 9), round(FLAT_PACK_GAP + POST_HEIGHT, 9)),
                         (round(y0, 9), round(y0 + POST_SECTION, 9)),
                         (0.0, round(POST_SECTION, 9)),
                     ),
-                    "the post lies on its side, stepped along +y",
+                    "the post lies on its side beside the bench, stepped along +y",
                 )
 
     def test_the_store_holds_exactly_the_four_documents_the_manifest_names(self):

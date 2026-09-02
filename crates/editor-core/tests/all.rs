@@ -214,16 +214,16 @@ mod m5_pr8_bvh_diff;
 mod m5_s1_rest_declare;
 #[path = "m6_5_downstream.rs"]
 mod m6_5_downstream;
-#[path = "m6_5_selection_wire.rs"]
-mod m6_5_selection_wire;
 #[path = "m6_5_selection_refusals.rs"]
 mod m6_5_selection_refusals;
+#[path = "m6_5_selection_wire.rs"]
+mod m6_5_selection_wire;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
-#[path = "m9_1_declare_classes.rs"]
-mod m9_1_declare_classes;
 #[path = "m9_1_declaration_wire.rs"]
 mod m9_1_declaration_wire;
+#[path = "m9_1_declare_classes.rs"]
+mod m9_1_declare_classes;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
