@@ -63,7 +63,7 @@ use crate::net;
 const RATIONAL_METER_SPLITS: usize = 16;
 
 macro_rules! nurbs_curve {
-    ($Curve:ident, $Point:ident, $Vector:ident, $($c:ident),+) => {
+    ($Curve:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
         /// A validated NURBS curve (module docs: data model, evaluation
         /// contract, fixed association orders). Immutable after
         /// construction; every knot-algebra operation returns a new
@@ -180,22 +180,22 @@ macro_rules! nurbs_curve {
                 $Point::new($($c / w_acc),+)
             }
 
-            /// Point, first, and second derivative at `t` in the given
-            /// span — one homogeneous pass (orders 0..=2 of the basis),
-            /// then the rational corrections, exactly as written:
-            /// `C = N⁰/w⁰`, `C′ = (N¹ − C·w¹)/w⁰`,
-            /// `C″ = (N² − C·w² − C′·w¹·2)/w⁰`.
-            /// Same totality contract as [`Self::eval_in_span`]: a span
-            /// this curve's knot vector does not admit yields an
-            /// all-poison triple.
-            pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                // The pairing check, as in [`Self::eval_in_span`].
+            /// The homogeneous accumulators through order `N − 1` —
+            /// per coordinate channel `A⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ·xⱼ` and the
+            /// weight channel `w⁽ᵏ⁾ = Σⱼ N⁽ᵏ⁾ⱼ·wⱼ`, `k < N` — from
+            /// one basis pass of order `N − 1`. `None` for a span this
+            /// curve's knot vector does not admit (the pairing check of
+            /// [`Self::eval_in_span`], asked before any indexing).
+            ///
+            /// The one homogeneous pass every derivative evaluator
+            /// reads; the ORDER is the caller's, so a first derivative
+            /// runs an order-1 basis and never computes the order-2
+            /// row it would discard.
+            fn homogeneous<const N: usize>(&self, span: Span, t: T) -> Option<([[T; N]; $dim], [T; N])> {
                 if !self.knots.admits(span) {
-                    $(let $c = T::from_f64(f64::NAN);)+
-                    let poison = $Vector::new($($c),+);
-                    return (net::poison_point::<T, $Point<T>>(), poison, poison);
+                    return None;
                 }
-                let ders = spline::basis::ders_basis_funs(&self.knots, span, t, 2);
+                let ders = spline::basis::ders_basis_funs(&self.knots, span, t, N - 1);
                 // Indexed off the window base, exactly as
                 // [`Self::eval_in_span`]. A `zip` against a window slice
                 // would be the wrong shape here: `ders`' row length and
@@ -204,8 +204,8 @@ macro_rules! nurbs_curve {
                 // silently dropping control points where indexing
                 // panics.
                 let base = span.first_control();
-                $(let mut $c = [T::zero(), T::zero(), T::zero()];)+
-                let mut w_hom = [T::zero(), T::zero(), T::zero()];
+                $(let mut $c = [T::zero(); N];)+
+                let mut w_hom = [T::zero(); N];
                 for (k, row) in ders.iter().enumerate() {
                     for (j, nkj) in row.iter().enumerate() {
                         let i = base + j;
@@ -215,29 +215,51 @@ macro_rules! nurbs_curve {
                         w_hom[k] = w_hom[k] + cw;
                     }
                 }
-                let two = T::from_f64(2.0);
-                $(let $c = {
-                    let hom = $c;
-                    let c0 = hom[0] / w_hom[0];
-                    let c1 = (hom[1] - c0 * w_hom[1]) / w_hom[0];
-                    let c2 = (hom[2] - c0 * w_hom[2] - c1 * w_hom[1] * two) / w_hom[0];
-                    (c0, c1, c2)
-                };)+
+                Some(([$($c),+], w_hom))
+            }
+
+            /// Point, first, and second derivative at `t` in the given
+            /// span — one homogeneous pass (orders 0..=2 of the basis),
+            /// then the rational corrections
+            /// ([`rational_corrections`]), exactly as written:
+            /// `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
+            /// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`.
+            /// Same totality contract as [`Self::eval_in_span`]: a span
+            /// this curve's knot vector does not admit yields an
+            /// all-poison triple.
+            pub fn ders_in_span(&self, span: Span, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
+                let Some(([$($c),+], w_hom)) = self.homogeneous::<3>(span, t) else {
+                    $(let $c = T::from_f64(f64::NAN);)+
+                    let poison = $Vector::new($($c),+);
+                    return (net::poison_point::<T, $Point<T>>(), poison, poison);
+                };
+                $(let $c = rational_corrections($c, w_hom);)+
                 (
-                    $Point::new($($c.0),+),
-                    $Vector::new($($c.1),+),
-                    $Vector::new($($c.2),+),
+                    $Point::new($($c[0]),+),
+                    $Vector::new($($c[1]),+),
+                    $Vector::new($($c[2]),+),
                 )
             }
 
-            /// First derivative in the given span (the middle component
-            /// of [`Self::ders_in_span`]).
+            /// First derivative in the given span: an order-1 basis
+            /// pass and the `C′` correction — the same arithmetic
+            /// [`Self::ders_in_span`]'s middle component runs, bit for
+            /// bit, without the order-2 row that component would
+            /// discard. Same totality contract.
             pub fn deriv_in_span(&self, span: Span, t: T) -> $Vector<T> {
-                self.ders_in_span(span, t).1
+                let Some(([$($c),+], w_hom)) = self.homogeneous::<2>(span, t) else {
+                    $(let $c = T::from_f64(f64::NAN);)+
+                    return $Vector::new($($c),+);
+                };
+                $(let $c = rational_corrections($c, w_hom);)+
+                $Vector::new($($c[1]),+)
             }
 
             /// Second derivative in the given span (the last component
-            /// of [`Self::ders_in_span`]).
+            /// of [`Self::ders_in_span`] — `C″`'s correction consumes
+            /// `C` and `C′`, so nothing the pass computes is surplus to
+            /// it; the point and first derivative are only not
+            /// returned).
             pub fn deriv2_in_span(&self, span: Span, t: T) -> $Vector<T> {
                 self.ders_in_span(span, t).2
             }
@@ -1101,30 +1123,83 @@ macro_rules! nurbs_curve {
                 acc
             }
 
-            /// The second derivative at `t` (contract as
-            /// [`Self::deriv`]).
-            pub fn deriv2(&self, t: T) -> $Vector<T> {
+            /// Point, first and second derivative at `t` — the jet a
+            /// consumer that wants more than one of them computes ONCE
+            /// (span selection as [`Self::eval`]; each component hulled
+            /// channel-independently across the overlapped spans, so
+            /// every component is exactly what its own evaluator
+            /// answers).
+            pub fn ders(&self, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
                 let spans = t.locate_spans(&self.knots);
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
-                let mut acc = self.deriv2_in_span(spans.first, t);
+                let (mut p, mut d1, mut d2) = self.ders_in_span(spans.first, t);
                 for s in (spans.first.index() + 1)..=spans.last.index() {
                     // Empty-span skip: see `eval`'s note.
                     // The emptiness check and the span's validation are
                     // now the same operation.
                     let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.deriv2_in_span(span, t);
-                    acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
+                    let (q, q1, q2) = self.ders_in_span(span, t);
+                    p = $Point::new($(p.$c.enclosure_hull(q.$c)),+);
+                    d1 = $Vector::new($(d1.$c.enclosure_hull(q1.$c)),+);
+                    d2 = $Vector::new($(d2.$c.enclosure_hull(q2.$c)),+);
                 }
-                acc
+                (p, d1, d2)
+            }
+
+            /// The second derivative at `t` (contract as
+            /// [`Self::deriv`]): the last component of [`Self::ders`],
+            /// whose per-span pass computes nothing a second derivative
+            /// does not consume.
+            pub fn deriv2(&self, t: T) -> $Vector<T> {
+                self.ders(t).2
             }
         }
     };
 }
 
-nurbs_curve!(NurbsCurve2, Point2, Vec2, x, y);
-nurbs_curve!(NurbsCurve3, Point3, Vec3, x, y, z);
+nurbs_curve!(NurbsCurve2, Point2, Vec2, 2, x, y);
+nurbs_curve!(NurbsCurve3, Point3, Vec3, 3, x, y, z);
+
+/// The rational corrections through order `N − 1`, from one channel's
+/// homogeneous accumulators `a[k] = A⁽ᵏ⁾` and the weight channel
+/// `w[k] = w⁽ᵏ⁾` (The NURBS Book Eq. 4.8, Leibniz form):
+/// `C⁽ᵏ⁾ = (A⁽ᵏ⁾ − Σᵢ₌ₖ..₁ C(k, i)·w⁽ⁱ⁾·C⁽ᵏ⁻ⁱ⁾) / w⁽⁰⁾`.
+///
+/// **The one spelling** of the correction every curve evaluator runs,
+/// at whatever order it asked the basis for. Fixed association (D9):
+/// the terms are subtracted in DESCENDING `i`, each formed as
+/// `C⁽ᵏ⁻ⁱ⁾ · w⁽ⁱ⁾ · C(k, i)` in that order, and the binomial factor is
+/// applied only when it is not `1` — so through order 2 this is, bit
+/// for bit, `C = A⁰/w⁰`, `C′ = (A¹ − C·w¹)/w⁰`,
+/// `C″ = (A² − C·w² − C′·w¹·2)/w⁰`. The binomials are `f64`
+/// structure, exact for every order this is asked for.
+fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N] {
+    let mut c = [T::zero(); N];
+    for k in 0..N {
+        let mut acc = a[k];
+        for i in (1..=k).rev() {
+            let term = c[k - i] * w[i];
+            let binom = binomial(k, i);
+            acc = acc
+                - if binom == 1.0 {
+                    term
+                } else {
+                    term * T::from_f64(binom)
+                };
+        }
+        c[k] = acc / w[0];
+    }
+    c
+}
+
+/// `C(k, i)` as exact `f64` structure (the multiplicative form, exact
+/// while every intermediate product is below 2⁵³ — every order a curve
+/// evaluator asks for is far inside that).
+fn binomial(k: usize, i: usize) -> f64 {
+    (0..i).fold(1.0, |acc, j| acc * (k - j) as f64 / (j + 1) as f64)
+}
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// The control coordinates lifted to ring points — the data-in
