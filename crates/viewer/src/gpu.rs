@@ -375,7 +375,7 @@ impl ViewportRenderer {
     pub(crate) fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("viewer_scene_shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source().into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source(target_format).into()),
         });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("viewer_scene_uniforms_layout"),
@@ -1147,8 +1147,35 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
 /// (`IdMap::NOTHING` is still mirrored as `0u`/`!= 0u` in the source
 /// below — pre-existing, and pinned by the fact that the clear value
 /// is hardcoded 0 on both sides.)
-fn shader_source() -> String {
+fn shader_source(target_format: wgpu::TextureFormat) -> String {
     SHADER
+        .replace(
+            "{{ENCODE_SRGB}}",
+            // **The one place the pipeline's output boundary is
+            // decided.** `egui-wgpu` asks the surface for a NON-sRGB
+            // framebuffer on purpose (`preferred_framebuffer_format`
+            // takes `Rgba8Unorm`/`Bgra8Unorm` before anything else,
+            // because egui blends in gamma space), so what this pass
+            // writes is displayed as an sRGB code with no encode
+            // applied. It shades in LINEAR — `theme::linear` is what
+            // feeds the uniforms — so every colour reached the screen
+            // one gamma step too dark: measured on the light neutral
+            // palette, a fully lit face came out at sRGB 142 where the
+            // palette says 197, and an unlit one landed exactly at the
+            // raw ambient fraction.
+            //
+            // The encode therefore happens HERE, at the boundary, and
+            // is skipped where the surface would do it — the fallback
+            // arm of that same egui function can hand back an `*Srgb`
+            // format when no gamma-space one is offered, and encoding
+            // into that would be the same error in the other
+            // direction.
+            if target_format.is_srgb() {
+                "false"
+            } else {
+                "true"
+            },
+        )
         .replace(
             "{{FLAG_PROBE}}",
             &crate::scene::SceneMesh::FLAG_PROBE.to_string(),
@@ -1221,6 +1248,32 @@ fn tint(base: vec3<f32>, mark: vec4<f32>) -> vec3<f32> {
     return mix(base, mark.xyz, mark.w);
 }
 
+// Whether this pass owes the sRGB encode — see `shader_source`, which
+// substitutes it from the surface format eframe chose.
+const ENCODE_SRGB: bool = {{ENCODE_SRGB}};
+
+// **Linear light out to the display's own space.** The IEC 61966-2-1
+// curve, the same one `theme::channel_to_srgb8` states on the Rust
+// side and for the same reason: the toe below 0.0031308 is linear, and
+// rounding it into the exponent is the difference that shows in
+// near-black — which on a palette with a near-black probe mark is the
+// half that has to be right.
+//
+// Two spellings of one curve is a thing to know about: this is a
+// shader and that is a `u8` encoder, and neither can call the other.
+// `every_shader_token_is_substituted`'s sibling row pins the
+// constants against the Rust ones so a change to either is a failure
+// rather than a divergence.
+fn to_display(linear: vec3<f32>) -> vec3<f32> {
+    if (!ENCODE_SRGB) {
+        return linear;
+    }
+    let c = clamp(linear, vec3<f32>(0.0), vec3<f32>(1.0));
+    let toe = c * 12.92;
+    let curve = 1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(curve, toe, c <= vec3<f32>(0.0031308));
+}
+
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let n = normalize(in.normal);
@@ -1243,7 +1296,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         base = tint(base, uniforms.hovered);
     }
     let shade = base * (ambient + (1.0 - ambient) * lambert);
-    return vec4<f32>(shade, 1.0);
+    return vec4<f32>(to_display(shade), 1.0);
 }
 
 // An edge mark: the theme's own selected/hovered mark composited over
@@ -1331,7 +1384,7 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     if ((in.mark & {{EDGE_MARK_PREVIEW}}u) != 0u) {
         color = tint(base, uniforms.probe);
     }
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(to_display(color), 1.0);
 }
 
 struct IdOut {
@@ -1374,7 +1427,7 @@ mod tests {
     /// gating.
     #[test]
     fn every_shader_token_is_substituted() {
-        let source = shader_source();
+        let source = shader_source(wgpu::TextureFormat::Bgra8Unorm);
         assert!(
             !source.contains("{{"),
             "an unreplaced template token survives in the shader source"
@@ -1386,11 +1439,58 @@ mod tests {
             "{{EDGE_FLAG_PROBE}}",
             "{{EDGE_MARK_PREVIEW}}",
             "{{EDGE_CLIP_Z_SHRINK}}",
+            "{{ENCODE_SRGB}}",
         ] {
             assert!(
                 SHADER.contains(token),
                 "the template no longer spells {token}; keep this list \
                  and shader_source's replacements in step"
+            );
+        }
+    }
+
+    /// **The output encode follows the surface, both ways.**
+    ///
+    /// A gamma-space framebuffer — which is what `egui-wgpu` asks the
+    /// surface for — needs this pass to encode, because it shades in
+    /// linear. An `*Srgb` one does the encode itself and must not get
+    /// a second. The bug this pins was the first case going
+    /// unhandled: the whole viewport drew one gamma step dark under
+    /// every palette.
+    #[test]
+    fn the_srgb_encode_is_on_exactly_when_the_surface_does_not_do_it() {
+        for format in [
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Rgba8Unorm,
+        ] {
+            assert!(
+                shader_source(format).contains("const ENCODE_SRGB: bool = true;"),
+                "{format:?} is a gamma-space surface, so this pass owes the encode",
+            );
+        }
+        for format in [
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        ] {
+            assert!(
+                shader_source(format).contains("const ENCODE_SRGB: bool = false;"),
+                "{format:?} encodes on write; a second encode here would wash it out",
+            );
+        }
+    }
+
+    /// **The shader's transfer curve is the palette's transfer
+    /// curve.** They are two spellings — WGSL and Rust — of IEC
+    /// 61966-2-1, and nothing but this row stops one from being edited
+    /// without the other. The constants are what is compared, because
+    /// they are what a divergence would be made of.
+    #[test]
+    fn the_shaders_srgb_curve_states_the_same_constants_the_palette_does() {
+        for constant in ["12.92", "1.055", "0.055", "1.0 / 2.4", "0.0031308"] {
+            assert!(
+                SHADER.contains(constant),
+                "the shader's sRGB encode no longer spells {constant}; \
+                 `theme::channel_to_srgb8` is the other half of this curve",
             );
         }
     }
