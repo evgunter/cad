@@ -1,0 +1,160 @@
+CERT-N1 dual (v6), recorded BEFORE R1 dispatch, 2026-09-02
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+expected 710 — next free after CERT-M1's 709; take the next free
+ordinal at claim time and record which).
+slot byte 142 (od /dev/urandom, one byte), parity 0 => R1 OPUS + R2 FABLE
+(cross-model). Block CERT-B3 slot 3 (byte 27 => fable at 3): the
+implementer arm was FABLE.
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 836af9de0 — the delivered head, six
+commits on merge base a654dc6a2 (main after CERT-10), no
+orchestrator-direct commits past it at this writing (if the gate reds
+and a discipline fix is needed, this note is amended pre-R1 per its own
+rule and the frozen head restated). Dispatch CONDITIONAL on 836af9de0's
+gate concluding green on PR 1536. CERT-M1's dual (ordinal 709) runs
+CONCURRENTLY on ITS unit; the two grounds are file-disjoint (M1:
+geom-core real/ring_interval/dual/interval/k_stats, interval-
+transcendentals, bvh; N1: geom/src, geom-core spline/ and linalg/).
+R2 after R1 with the IDENTICAL stored brief, isolated. Probe branches:
+cert/n1r1-probes, cert/n1r2-probes (local until close-out).
+Implementer difficulty M (logged at spec pre-draw, docs/CERT-N1-SPEC.md
+at bacc06e2); impl ~367k tokens, ~45m by the usage counter, single
+lane, no restarts. Verification gap the lane disclosed: geom-brep's
+integration suite was NOT run locally (lib only); the hosted gate is
+its first full run. Unit shape for the reviewers' weighting: this unit
+DOES move kernel behaviour — a new production lift (D240) where a wrong
+answer is reachable, two row-0 deletions (D242/D243) and a rewritten
+NURBS derivative evaluator (C24) claimed bit-identical.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-N1 of the
+S-CERT program (repo evgunter/cad) — Track N's scalar-lift lane, the
+second absorbed SMELL track. Review PR 1536 on its FROZEN head
+836af9de0 — do not review any later commit; if the branch has moved,
+say so and still review 836af9de0.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-N1-SPEC.md — it fixes the rows,
+the order, the fence and the landing convention; your target is
+whether each row is COMPLETELY closed and closed in the BEST way
+available, whether any fix mints a fresh instance of the defect it
+closes, and — above all for this unit — whether the new lift is
+CORRECT), docs/SMELL-SCAN-2026-08.md at the MERGE BASE (git show
+a654dc6a2:docs/SMELL-SCAN-2026-08.md — the Track N table and findings
+S33, S100, S32's remainder, D320 as they stood BEFORE this PR edited
+them), the repartition rules in that file (rule 1 fence, rule 3
+landing, rule 5 no fresh instance), the D2 addendum in docs/DESIGN.md,
+crates/geom-core/src/spline/net.rs's module docs (CERT-10's home,
+adjacent ground), then the PR 1536 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution beats
+inspection; every number is the PR body's claim, not a fact):
+1. D240 — THE LIFT IS CORRECT (highest-value item; the body says this
+   is where a wrong answer is reachable). Run the four red-first rows
+   (described_nurbs_lifts_as_its_payload_at_{dual,interval} in
+   geom/src/{curves,surfaces}.rs) and verify they RED at e43a9a116
+   and GREEN at the head, in both lanes. Then go past the fixtures:
+   construct adversarial described NURBS — rational with extreme
+   weight ratios, degree >= 5, interior multiplicities up to p−1,
+   closed/periodic-shaped nets, a 2-D curve (NurbsCurve2), an
+   ApproxSurface with its certificate — and check that the lifted
+   payload evaluates (value, first derivative, second derivative,
+   normal where defined) to the source at MANY parameters including
+   knot values and span boundaries: dual value channel bit-identical
+   to f64, dual tangent vs closed-form/finite-difference, interval
+   enclosure CONTAINING the f64 evaluation with width consistent with
+   an exact structural map. Check the composition
+   map_scalar(Interval::from_f64).map_scalar(Dual::constant) is the
+   same object as the old hand re-spelling. Mutation: make one lift
+   drop a weight or a knot and confirm a row reds.
+2. Placeholder and poison. The body argues placeholder -> placeholder
+   and poisoned described net -> poisoned described net, never the
+   benign placeholder, and that is_placeholder's width (H2's ground)
+   is untouched. Execute: lift a placeholder in both lanes and check
+   is_placeholder survives; lift a described net with ONE poisoned
+   control point and check the image is NOT a placeholder and
+   evaluation poisons only where it should; check the first-channel
+   read in is_placeholder is unchanged before/after D242.
+3. ApproxSurface::map_scalar carries the certificate across scalars
+   (deviation 1). Is that SOUND — can a lift launder a certificate or
+   mint a claim at a scalar where the validator's answer would differ
+   (the interval validator vs the f64 one)? Read what the certificate
+   asserts, what the validator re-derives on every call, and whether
+   any consumer trusts the stored copy. Construct a case where the
+   f64-certified approx is lifted to Interval and the interval
+   validator disagrees — if that is reachable, the deviation is a
+   soundness hole.
+4. D242 — ControlPoint::Channels/channels(): verify the two
+   unreachable! arms and the precondition prose are gone, no new
+   index or count constant was minted (rule 5), ring_coords' zip
+   cannot drop or pad (both lengths one statement), and the
+   nurbs_curve! macro's new channel-count literal (deviation 3)
+   cannot disagree with the type (what happens if someone writes
+   nurbs_curve!(2, ...) on a 3-D net — compile error or silent
+   truncation?).
+5. D243 — InteriorKnot: is the state really UNREPRESENTABLE, or did
+   the guard move? Check both constructors (interior_knot_runs by
+   invariant; interior_knot(u) filter): can interior_knot mint for
+   u == lo, u == hi, NaN, a value inside a clamp run, or after the
+   knot vector is mutated mid-insertion (the type carries no borrow —
+   the docs argue the raw list mid-insertion keeps the domain; verify
+   that argument against insert_once_ring's actual loop)? Is the
+   public signature of interior_knots really unchanged (API
+   compatibility for out-of-fence callers)?
+6. C24 — the measurement and the bit identity. Reproduce the ns
+   table's ORDER (deriv_in_span 558->369 ns at degree 2 etc.) in
+   release; reproduce the 150,000-component bit-identity claim
+   against the retired spelling (checkout 5aa21ca24's parent for the
+   old evaluator or reconstruct it) on your own curves including
+   rational ones with extreme weights; check that deriv2_in_span,
+   ders, ders_in_span and the rational_corrections Leibniz form are
+   arithmetically the retired association (the body claims the terms
+   are subtracted in the retired order — verify, because a
+   re-association changes rounding).
+7. The reviewer-battery decision (deviation 2): three
+   review_m5_pr3_attack* files keep hand payload lifts while
+   review_m2_pr1_interval.rs's ladder was retired despite its
+   "verbatim" header. Is the distinction principled (a derivation vs
+   an embedding helper), and did retiring that ladder change what the
+   file's rows test?
+8. The SMELL-SCAN edits under rule 3: for every deleted row and
+   finding (D240, D241, D242, D243, C24's NURBS member, S33, S100),
+   was every STANDING RULE relocated before deletion; did the
+   "relocated into the code" claim actually land the standing content
+   in scalar_lift.rs's and net.rs's docs; is the rewritten C24 row and
+   the re-listed H2 (five members) honest; is the D320 rewrite for
+   Track T correct (re-derive sweep/src/skin.rs:760, loft.rs:348, the
+   four .expect("lifts") sites) and does it edit a row the lane does
+   not own beyond re-deriving a citation?
+9. The sweep: re-run the three patterns at the head; is the claim
+   "no per-variant scalar-lift ladder exists outside the fence"
+   true (check the listed same-scalar maps in topo/transform.rs,
+   replace_face.rs, chord_join.rs, step-import normalize.rs, revolve
+   surfaces.rs are really not lifts); is the S33 "roughly ten"
+   count's disappearance explained.
+10. The filed Track R row (loop_area.rs:163-164): citation right,
+    owner right, and is the one-call rewrite actually behaviour-
+    preserving?
+11. The eps/lane posture: trailer premise vs scripts/ci-filter.py;
+    run geom-core + geom at all three bands in both lanes; AND run
+    the geom-brep suite the lane did not (cargo test -p geom-brep,
+    both lanes, at least at one band) — the lane disclosed that gap.
+Also: Q3 (do the rows exercise what they claim on constructed
+inputs?), Q7 (map_scalar's API shape — a closure parameter vs a
+From-bound), Q8 (how much of the 785-line diff did you read clause by
+clause — say which files).
+
+RULES: work in your own worktree from the frozen head; do NOT push to
+cert/n1-scalar-lift; put probes on your assigned probe branch (local
+commits; the orchestrator collects them); no GitHub writes of any
+kind; no Co-Authored-By; serialize heavy builds through
+/home/user/cad/local-scripts/with-build-slot.sh -- <cmd>; foreground
+discipline (never wait on a background notifier — poll); check
+df -h / before big builds and clean your own target dir if free space
+nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
+NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
+severities, executed-vs-inspected marked per item, and the rubric
+scores per the style lane. Report <=150 lines.
