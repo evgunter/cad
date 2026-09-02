@@ -23,7 +23,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
-use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
+use crate::program::{LoopProgram, ProfileProgram, ProgramArrival, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
@@ -226,22 +226,45 @@ impl WireSide {
 enum WireTarget {
     /// The entry vertex — the closing form.
     Start,
+    /// The entry vertex with the closing leg's ARRIVAL declared — the
+    /// seam's own declaration, structural (no expressions), because the
+    /// arriving leg is the later-authored one and has no departing leg
+    /// to carry it (PATHS-DESIGN §6's revised PQ4).
+    StartArriving(WireArrival),
     /// An authored point (two Length expressions; every `Expr` field
     /// on this wire rebuilds through the dimension door — per-ROLE
     /// dimension agreement is the shared validator's walk).
     Point([Expr; 2]),
 }
 
+/// Which arrival a closing step declares, on the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+enum WireArrival {
+    /// Arrives STRAIGHT into the entry's first side.
+    Straight,
+    /// Arrives G1 into the entry's outgoing direction.
+    Tangent,
+}
+
 impl WireTarget {
     fn from_target(t: &ProgramTarget) -> Self {
         match t {
             ProgramTarget::Start => WireTarget::Start,
+            ProgramTarget::StartArriving(a) => WireTarget::StartArriving(match a {
+                ProgramArrival::Straight => WireArrival::Straight,
+                ProgramArrival::Tangent => WireArrival::Tangent,
+            }),
             ProgramTarget::Point(p) => WireTarget::Point(p.clone()),
         }
     }
     fn into_target(self) -> ProgramTarget {
         match self {
             WireTarget::Start => ProgramTarget::Start,
+            WireTarget::StartArriving(a) => ProgramTarget::StartArriving(match a {
+                WireArrival::Straight => ProgramArrival::Straight,
+                WireArrival::Tangent => ProgramArrival::Tangent,
+            }),
             WireTarget::Point(p) => ProgramTarget::Point(p),
         }
     }
@@ -286,6 +309,9 @@ enum WireStep {
     Line(Expr),
     /// `line_to(target)`.
     LineTo(WireTarget),
+    /// `continue_to(target)` — the declared point-target straight
+    /// continuation.
+    ContinueTo(WireTarget),
     /// `arc_to(spec)` — the unified §2c arc-spec record.
     ArcTo(WireArcData),
     /// `tangent_arc_to(target)`.
@@ -469,6 +495,7 @@ impl WireStep {
             P::Turn(e) => WireStep::Turn(e.clone()),
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
+            P::ContinueTo(t) => WireStep::ContinueTo(WireTarget::from_target(t)),
             P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
             P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
@@ -506,6 +533,7 @@ impl WireStep {
             WireStep::Turn(e) => P::Turn(e),
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),
+            WireStep::ContinueTo(t) => P::ContinueTo(t.into_target()),
             WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
             WireStep::ArcContinue(p) => P::ArcContinue(p),

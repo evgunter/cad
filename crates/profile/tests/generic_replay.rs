@@ -51,6 +51,7 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
     fn tgt<T: Real>(t: Target<f64>) -> Target<T> {
         match t {
             Target::Start => Target::Start,
+            Target::StartArriving(a) => Target::StartArriving(a),
             Target::Point(p) => Target::Point(pt(p)),
         }
     }

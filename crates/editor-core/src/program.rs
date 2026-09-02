@@ -50,6 +50,19 @@ pub enum ProgramTarget {
     Point([Expr; 2]),
     /// The entry vertex: this step closes the loop.
     Start,
+    /// The entry vertex with the closing leg's ARRIVAL declared — a
+    /// structural tag, no expressions (so it contributes no slots).
+    StartArriving(ProgramArrival),
+}
+
+/// The document mirror of [`profile::Arrival`]: which arrival a closing
+/// step declares at the seam. Structural, so it carries no [`Expr`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramArrival {
+    /// Arrives STRAIGHT into the entry's first side.
+    Straight,
+    /// Arrives G1 into the entry's outgoing direction.
+    Tangent,
 }
 
 /// One Expr-bearing recorded verb — the document-layer mirror of
@@ -95,6 +108,9 @@ pub enum ProgramStep {
     Line(Expr),
     /// `line_to(target)`.
     LineTo(ProgramTarget),
+    /// `continue_to(target)` — the declared point-target straight
+    /// continuation; `Start` targets close the loop.
+    ContinueTo(ProgramTarget),
     /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
     /// unified spec record (derived quantities re-derived at replay).
     ArcTo(ProgramArcData),
@@ -393,7 +409,7 @@ impl core::error::Error for ProgramRefusal {}
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
         ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
-        ProgramTarget::Start => {}
+        ProgramTarget::Start | ProgramTarget::StartArriving(_) => {}
     }
 }
 
@@ -450,7 +466,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
         ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
-        ProgramTarget::Start => {}
+        ProgramTarget::Start | ProgramTarget::StartArriving(_) => {}
     }
 }
 
@@ -466,7 +482,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Tangent | P::Cusp | P::CloseTo => {}
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
-        P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
+        P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
         P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
         P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
@@ -714,6 +730,7 @@ fn res_target<T: Decide>(
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
+        ProgramTarget::StartArriving(a) => profile::Target::StartArriving(arrival(*a)),
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
             res(&p[0], env, loop_, step, StepArg::TargetX)?,
             res(&p[1], env, loop_, step, StepArg::TargetY)?,
@@ -752,6 +769,7 @@ fn res_step<T: Decide>(
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
+        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
@@ -809,6 +827,7 @@ fn res_spec<T: Decide>(
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
         Ok(match t {
             ProgramTarget::Start => profile::Target::Start,
+            ProgramTarget::StartArriving(a) => profile::Target::StartArriving(arrival(*a)),
             ProgramTarget::Point(p) => profile::Target::Point(pt2(
                 p,
                 pick(A::TargetX, A::Target2X),
@@ -1041,8 +1060,27 @@ fn pair_bit_eq(a: &[Expr; 2], b: &[Expr; 2]) -> bool {
 fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
+        (ProgramTarget::StartArriving(x), ProgramTarget::StartArriving(y)) => x == y,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        (ProgramTarget::Start | ProgramTarget::Point(_), _) => false,
+        (ProgramTarget::Start | ProgramTarget::StartArriving(_) | ProgramTarget::Point(_), _) => {
+            false
+        }
+    }
+}
+
+/// The document arrival tag, lowered to the kernel's.
+fn arrival(a: ProgramArrival) -> profile::Arrival {
+    match a {
+        ProgramArrival::Straight => profile::Arrival::Straight,
+        ProgramArrival::Tangent => profile::Arrival::Tangent,
+    }
+}
+
+/// The kernel arrival tag, lifted to the document's.
+fn arrival_lit(a: &profile::Arrival) -> ProgramArrival {
+    match a {
+        profile::Arrival::Straight => ProgramArrival::Straight,
+        profile::Arrival::Tangent => ProgramArrival::Tangent,
     }
 }
 
@@ -1116,9 +1154,9 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
         (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
-        (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
-            target_bit_eq(x, y)
-        }
+        (P::LineTo(x), P::LineTo(y))
+        | (P::ContinueTo(x), P::ContinueTo(y))
+        | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
         (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
         (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
@@ -1162,6 +1200,7 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             | P::Turn(_)
             | P::Line(_)
             | P::LineTo(_)
+            | P::ContinueTo(_)
             | P::ArcTo(_)
             | P::TangentArcTo(_)
             | P::ArcContinue(_)
@@ -1242,11 +1281,17 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
     Ok(match t {
         Target::Point(p) => ProgramTarget::Point(pt_lit(p)?),
         Target::Start => ProgramTarget::Start,
+        Target::StartArriving(a) => ProgramTarget::StartArriving(arrival_lit(a)),
     })
 }
 
 /// Why a recorded PATHS program could not be lifted
 /// ([`LoopProgram::from_recorded`]).
+///
+/// Every verb the transition table declares now has a document
+/// spelling, so there is no vocabulary arm: `from_recorded` is
+/// exhaustive on [`profile::Step`], and a verb the table gains breaks
+/// this file at compile rather than reaching a typed refusal.
 ///
 /// Two of the three arms are unreachable through the authoring
 /// algebra — they exist because the door takes a `&[Step<f64>]`, which
@@ -1263,21 +1308,6 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
-    /// **A verb the DOCUMENT vocabulary does not spell yet.** The
-    /// authoring algebra and this crate's document form are separate
-    /// vocabularies (G1 layering: `profile` has neither expressions nor
-    /// serde), and the hop back from a recorded program is where the
-    /// difference becomes visible. A verb the table gains reaches this
-    /// arm until the document form — and, with it, the persisted form —
-    /// grows to match.
-    ///
-    /// One verb sits here today: `continue_to`, the declared
-    /// point-target continuation. Spelling it in the document is a WIRE
-    /// change (the checked-in corpus regenerates; the format carries no
-    /// schema version), which is its own unit; the census in
-    /// `tests/switch_program_vocabulary.rs` carries the gap as a named
-    /// exception so it stays loud rather than quiet.
-    VerbNotInDocumentVocabulary(profile::Verb),
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1296,12 +1326,6 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
-            Self::VerbNotInDocumentVocabulary(verb) => write!(
-                f,
-                "the authoring verb {verb:?} has no document spelling: the document and \
-                 persisted vocabularies grow by a format change that regenerates the \
-                 corpus, and this one has not landed yet"
-            ),
         }
     }
 }
@@ -1429,11 +1453,7 @@ impl LoopProgram {
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
-                Step::ContinueTo(_) => {
-                    return Err(RecordedProgramError::VerbNotInDocumentVocabulary(
-                        profile::Verb::ContinueTo,
-                    ));
-                }
+                Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),

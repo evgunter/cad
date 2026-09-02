@@ -97,6 +97,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
+            Target::StartArriving(a) => Target::StartArriving(a),
             Target::Point(p) => Target::Point(pt(p)),
         };
         let spec = |a: ArcData<f64>| match a {

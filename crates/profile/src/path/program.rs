@@ -117,6 +117,32 @@ pub enum Target<T: Real> {
     Point(Point2<T>),
     /// The entry vertex: this step closes the loop.
     Start,
+    /// The entry vertex, with the closing leg's ARRIVAL DECLARED: the
+    /// seam is the one junction whose arriving leg is the
+    /// later-authored one, so the declaration that elsewhere rides the
+    /// departing leg rides the target here. Authored data, not a
+    /// derived flag — the kernel CHECKS it and refuses a seam that
+    /// contradicts it.
+    StartArriving(Arrival),
+}
+
+/// Which arrival a closing step DECLARES at the seam (PATHS-DESIGN §6's
+/// revised PQ4 entry). One family, two members, ruled together.
+///
+/// Admissibility is per closing verb, and the pairs the matrix rejects
+/// are missing impls on the typed surface — unrepresentable rather than
+/// refused — exactly as the §2c `ArcData` matrix works. At the WIRE the
+/// same pairs are the replay driver's `Transition` class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Arrival {
+    /// The closing leg arrives STRAIGHT into the entry's first side:
+    /// the seam is a declared SUBDIVISION point of one carrier. Legal
+    /// on the straight closers (`line_to`, `continue_to`).
+    Straight,
+    /// The closing ARC arrives G1 into the entry's outgoing direction:
+    /// the seam is a declared tangent joint, and joint 0 carries the
+    /// flag. Legal on `tangent_arc_to`.
+    Tangent,
 }
 
 /// **The arc-mode vocabulary — ONE declaration, THREE projections.**
@@ -882,8 +908,8 @@ transition_table! {
                 <Tgt as super::LineTarget<T, F>>::line_from(self, target, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_line_to(p0, target, tol),
-                DynTip::DirectedPoint(p0) => do_line_to(p0, target, tol),
+                DynTip::PlainPoint(p0) => do_line_to(p0, target, TipState::PlainPoint, tol),
+                DynTip::DirectedPoint(p0) => do_line_to(p0, target, TipState::DirectedPoint, tol),
             }
         }
     }
@@ -949,7 +975,7 @@ transition_table! {
                 <Tgt as super::ContinueTarget<T>>::continue_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, tol),
+                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, TipState::DirectedPoint, tol),
             }
         }
     }
@@ -1023,8 +1049,10 @@ transition_table! {
                 <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
-                DynTip::DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
+                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target, TipState::DirectedPlain, tol),
+                DynTip::DirectedIncoming(p0) => {
+                    do_tangent_arc_to(p0, target, TipState::DirectedIncoming, tol)
+                }
             }
         }
     }
@@ -1912,22 +1940,35 @@ fn violation<T: Real>(state: TipState, verb: Verb) -> Applying<T> {
 fn do_line_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, NoAng>,
     t: Target<T>,
+    state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
+        Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
+            p.line_to(Start.arrives_straight(), tol)?,
+        )),
+        // A straight leg's arrival direction IS its own direction, so
+        // the G1 declaration has no straight spelling: the typed
+        // surface has no impl and the wire pair is a lattice violation.
+        Target::StartArriving(Arrival::Tangent) => violation(state, Verb::LineTo),
     }
 }
 
 fn do_continue_to<T: Decide>(
     p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
     t: Target<T>,
+    state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.continue_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.continue_to(Start, tol)?)),
+        Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
+            p.continue_to(Start.arrives_straight(), tol)?,
+        )),
+        Target::StartArriving(Arrival::Tangent) => violation(state, Verb::ContinueTo),
     }
 }
 
@@ -1941,6 +1982,24 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
     tol: Tol,
 ) -> Applying<T> {
     match spec {
+        // The seam ARRIVAL declaration is the closing verbs' target
+        // family (PATHS §6's revised PQ4). A sharp arc leg and every
+        // fused arrival fix their own end direction from authored
+        // bulge/via/centre data, so declaring the arrival there would
+        // author one fact twice: no typed spelling exists, and the wire
+        // pair is a lattice violation.
+        ArcData::Bulge {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Via {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Center {
+            target: Target::StartArriving(_),
+            ..
+        } => violation(state, Verb::ArcTo),
         ArcData::Bulge {
             target: Target::Point(q),
             b,
@@ -2012,6 +2071,7 @@ fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
 fn do_tangent_arc_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
     t: Target<T>,
+    state: TipState,
     tol: Tol,
 ) -> Applying<T> {
     match t {
@@ -2019,6 +2079,13 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
             p.tangent_arc_to(q, tol)?,
         ))),
         Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?)),
+        Target::StartArriving(Arrival::Tangent) => Ok(Applied::Closed(
+            p.tangent_arc_to(Start.arrives_tangent(), tol)?,
+        )),
+        // "Arrives straight" is the straight closers' declaration; an
+        // arc arriving straight into a straight first side IS the G1
+        // member, spelled `Arrival::Tangent`.
+        Target::StartArriving(Arrival::Straight) => violation(state, Verb::TangentArcTo),
     }
 }
 
@@ -2035,6 +2102,24 @@ fn do_arrival<T: ArcCarrierScalar>(
     use super::family::ArrivalSpec;
     let core = open.core;
     match spec {
+        // The seam ARRIVAL declaration is the closing verbs' target
+        // family (PATHS §6's revised PQ4). A sharp arc leg and every
+        // fused arrival fix their own end direction from authored
+        // bulge/via/centre data, so declaring the arrival there would
+        // author one fact twice: no typed spelling exists, and the wire
+        // pair is a lattice violation.
+        ArcData::Bulge {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Via {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Center {
+            target: Target::StartArriving(_),
+            ..
+        } => violation(state, verb),
         ArcData::Center {
             c,
             winding,
@@ -2094,6 +2179,27 @@ fn do_fused_point<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
+        // The seam ARRIVAL declaration is the closing verbs' target
+        // family (PATHS §6's revised PQ4). A sharp arc leg and every
+        // fused arrival fix their own end direction from authored
+        // bulge/via/centre data, so declaring the arrival there would
+        // author one fact twice: no typed spelling exists, and the wire
+        // pair is a lattice violation.
+        ArcData::Bulge {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Via {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Center {
+            target: Target::StartArriving(_),
+            ..
+        } => Err(ReplayErrorKind::Transition {
+            state,
+            verb: Some(verb),
+        }),
         ArcData::Bulge {
             target: Target::Point(q),
             b,
@@ -2139,6 +2245,27 @@ fn do_fused_leg_end<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
+        // The seam ARRIVAL declaration is the closing verbs' target
+        // family (PATHS §6's revised PQ4). A sharp arc leg and every
+        // fused arrival fix their own end direction from authored
+        // bulge/via/centre data, so declaring the arrival there would
+        // author one fact twice: no typed spelling exists, and the wire
+        // pair is a lattice violation.
+        ArcData::Bulge {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Via {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Center {
+            target: Target::StartArriving(_),
+            ..
+        } => Err(ReplayErrorKind::Transition {
+            state,
+            verb: Some(verb),
+        }),
         ArcData::Bulge {
             target: Target::Point(q),
             b,
@@ -2206,6 +2333,27 @@ fn do_fused_entry<T: ArcCarrierScalar>(
     tol: Tol,
 ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
     match spec {
+        // The seam ARRIVAL declaration is the closing verbs' target
+        // family (PATHS §6's revised PQ4). A sharp arc leg and every
+        // fused arrival fix their own end direction from authored
+        // bulge/via/centre data, so declaring the arrival there would
+        // author one fact twice: no typed spelling exists, and the wire
+        // pair is a lattice violation.
+        ArcData::Bulge {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Via {
+            target: Target::StartArriving(_),
+            ..
+        }
+        | ArcData::Center {
+            target: Target::StartArriving(_),
+            ..
+        } => Err(ReplayErrorKind::Transition {
+            state: TipState::Entry,
+            verb: Some(Verb::ArcFillet),
+        }),
         ArcData::Center {
             c,
             winding,

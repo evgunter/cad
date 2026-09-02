@@ -2264,6 +2264,12 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     fn target(h: &mut KeyHasher, t: &Target<f64>) {
         match t {
             Target::Start => h.write_tag(4),
+            // Appended, not squeezed in beside 4/5: the tag space is
+            // append-only and 42 was the high-water mark, so a declared
+            // arrival takes its own number per member rather than
+            // nesting a sub-tag under one.
+            Target::StartArriving(profile::Arrival::Straight) => h.write_tag(43),
+            Target::StartArriving(profile::Arrival::Tangent) => h.write_tag(44),
             Target::Point(p) => {
                 h.write_tag(5);
                 f(h, p.x);
@@ -2415,8 +2421,9 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
     fn target<T: ContentBits>(h: &mut KeyHasher, t: &Target<T>) {
         match t {
             // The Start/Point distinction is structural and rides the
-            // f64 stream; only a Point's coordinates are lane data.
-            Target::Start => {}
+            // f64 stream; only a Point's coordinates are lane data. A
+            // declared arrival is structural for the same reason.
+            Target::Start | Target::StartArriving(_) => {}
             Target::Point(p) => pt(h, p),
         }
     }
