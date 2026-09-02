@@ -786,6 +786,17 @@ pub(super) fn pair_section_frame<T: Decide>(
                 )),
             };
         }
+        // **Cylinder×sphere.** The DECLARED-coaxial configuration is
+        // the one this dispatch can name a frame for, and
+        // [`cs_pair_frame`] carries the whole argument — including why
+        // ONE frame serves BOTH section circles, and why the
+        // declaration cannot be read here yet.
+        (Sf::Cylinder { .. }, Sf::Sphere { .. }) => {
+            return cs_pair_frame(sa, sb, geom_brep::CoaxialEvidence::None, band);
+        }
+        (Sf::Sphere { .. }, Sf::Cylinder { .. }) => {
+            return cs_pair_frame(sb, sa, geom_brep::CoaxialEvidence::None, band);
+        }
         // The ONE structurally straight pair: a plane×plane section is
         // a line, so "no frame" is a proof here rather than a default.
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
@@ -879,6 +890,69 @@ pub(super) fn pair_section_frame<T: Decide>(
             "germ pair's section classification is not a locus",
         )),
         Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+        Err(_) => Err(FrameError::Desync(
+            "germ pair's section refused at match time",
+        )),
+    }
+}
+
+/// The cylinder×sphere germ frame, from the DECLARED-coaxial
+/// classification (`geom_brep::cylinder_sphere_section`).
+///
+/// **ONE frame serves BOTH section circles, and that is a proof rather
+/// than a convenience.** The declared-coaxial section is two circles of
+/// the cylinder's radius, centred at `c ± axis·station` on the
+/// cylinder's own axis — the SAME axis for both. The facing test this
+/// frame feeds asks only for the rotational sense `axis·((p−c)×dir)`,
+/// and sliding `c` along `axis` changes `p−c` by a multiple of `axis`,
+/// which the triple product annihilates. So the sense a germ gets is
+/// identical whichever of the two stations (or the sphere centre
+/// between them) is handed over, and the pair needs neither a second
+/// frame nor a pinch door. This is exactly where the cylinder PAIR
+/// differs: its crossing ellipses lie in two DIFFERENT bisector
+/// planes with two different axes, and no single frame is right for
+/// both — hence [`FrameError::IntersectingCylinderAxes`] there and
+/// nothing like it here.
+///
+/// **The declaration cannot be read at this door yet, and that is
+/// stated rather than hidden.** This dispatch is keyed on surface
+/// KINDS alone — no bodies, no keys — so it has nowhere to consult a
+/// coincidence ladder, and coaxiality is declared-only: it is NEVER
+/// inferred from a measured axis-to-centre distance, at any tolerance.
+/// Every in-tree caller therefore passes
+/// `geom_brep::CoaxialEvidence::None`, the section routes to the
+/// general rung, and the pose keeps [`FrameError::NoArm`] VERBATIM —
+/// which is the honest answer, because the general rung for this pair
+/// IS implemented and marches it. When the parameter-identity channel
+/// (#1372) lands, the declaration enters HERE, at this call's third
+/// argument, and the `Declared` path below is what it reaches.
+fn cs_pair_frame<T: Decide>(
+    cyl: &geom::Surface<T>,
+    sph: &geom::Surface<T>,
+    evidence: geom_brep::CoaxialEvidence,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
+    match geom_brep::cylinder_sphere_section(cyl, sph, evidence, band) {
+        Ok(geom_brep::CylinderSphereSection::TwoCircles { center, axis, .. }) => {
+            Ok(Some((center, axis)))
+        }
+        // A tangent circle / empty gap under a minted germ is a
+        // touching (or absent) configuration the reduction should not
+        // have paired — loud, typed, exactly as the sphere arms above.
+        // The tangency is classification data at BOTH doors: the
+        // marcher's own `ssi_cs_tangency` refuses the same pose toward
+        // C7, and nothing here re-adjudicates it.
+        Ok(
+            geom_brep::CylinderSphereSection::TangentCircle { .. }
+            | geom_brep::CylinderSphereSection::Empty,
+        ) => Err(FrameError::Desync(
+            "germ pair's cylinder×sphere section is not a locus",
+        )),
+        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+        // The undeclared / non-coaxial pose. NOT a desync: nothing is
+        // contradicted, the pair simply has no exact arm at this door
+        // and marches one rung down.
+        Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => Err(FrameError::NoArm),
         Err(_) => Err(FrameError::Desync(
             "germ pair's section refused at match time",
         )),
@@ -1733,7 +1807,7 @@ fn face_vertex_points<T: Decide>(
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
-    use super::{FrameError, pair_section_frame};
+    use super::{FrameError, cs_pair_frame, pair_section_frame};
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
@@ -1828,8 +1902,14 @@ mod frame_dispatch_tests {
                 cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
                 true,
             ),
-            // Cylinder × sphere, both orders: no arm at all, and the
-            // pinch variant is unreachable — pinned exactly.
+            // Cylinder × sphere, both orders. This pose is EXACTLY
+            // coaxial (`sphere()` sits on `cylinder()`'s axis) and its
+            // walls cross, so it is the pair's declared-arm pose — and
+            // it still refuses, because the declaration channel does
+            // not exist and coaxiality is never inferred from the
+            // measured distance. `NoArm` is the routing, not a
+            // frontier: the general rung marches this pair. The pinch
+            // variant stays unreachable — pinned exactly.
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere(), false),
             (sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
@@ -2063,6 +2143,233 @@ mod frame_dispatch_tests {
             assert!(
                 matches!(got, Err(FrameError::Desync(_))),
                 "{what}: a non-locus sphere pair is a desync, not a frame and not straight"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // The cylinder×sphere arm
+    // -----------------------------------------------------------------
+
+    /// The same rigid map the geom-brep section rows use, off every
+    /// axis plane, applied to BOTH operands: the configuration is
+    /// unchanged and only its pose is.
+    fn twin(s: &geom::Surface<f64>) -> geom::Surface<f64> {
+        let m = geom_core::Affine3::rotation_about_axis(
+            Point3::new(0.3, -0.2, 0.7),
+            Vec3::new(1.0, 2.0, 3.0).normalize(),
+            0.7,
+        ) * geom_core::Affine3::translation(Vec3::new(0.11, 0.23, -0.37));
+        match *s {
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => geom::Surface::Cylinder {
+                origin: m.transform_point(origin),
+                axis: m.transform_vec(axis),
+                radius,
+                u_ref: m.transform_vec(u_ref),
+            },
+            geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => geom::Surface::Sphere {
+                center: m.transform_point(center),
+                radius,
+                axis: m.transform_vec(axis),
+                u_ref: m.transform_vec(u_ref),
+            },
+            _ => panic!("the coaxial fixture is a cylinder and a sphere"),
+        }
+    }
+
+    fn ball(center: Point3<f64>, radius: f64) -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center,
+            radius,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// `FrameError` is deliberately not `Debug` (it is an internal
+    /// dispatch verdict, not a payload), so the rows below name the
+    /// outcome they got through this instead of formatting it.
+    fn outcome(
+        got: &Result<Option<(geom_core::Point3<f64>, geom_core::Vec3<f64>)>, FrameError>,
+    ) -> &'static str {
+        match got {
+            Ok(Some(_)) => "a frame",
+            Ok(None) => "the straight-chord verdict",
+            Err(FrameError::NoArm) => "NoArm",
+            Err(FrameError::Desync(_)) => "a desync",
+            Err(FrameError::Escalated(_)) => "an escalation",
+            Err(FrameError::IntersectingCylinderAxes) => "the cylinder pinch",
+        }
+    }
+
+    /// **ONE frame serves BOTH section circles**, measured rather than
+    /// argued: the rotational sense the facing test reads,
+    /// `axis·((p−c)×dir)`, is identical whether it is taken about the
+    /// frame this dispatch returns or about either circle's OWN centre.
+    /// That invariance is what makes a single frame correct here and is
+    /// exactly what a crossing cylinder pair lacks — its two ellipses
+    /// have two different axes, which is why the pinch door exists
+    /// there and nothing like it is needed here.
+    #[test]
+    fn one_frame_serves_both_coaxial_cylinder_sphere_circles() {
+        for (label, cyl, sph) in [
+            (
+                "direct",
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                ball(Point3::new(0.0, 0.0, 0.0), 2.0),
+            ),
+            (
+                "re-posed twin",
+                twin(&cylinder(Vec3::new(0.0, 0.0, 1.0))),
+                twin(&ball(Point3::new(0.0, 0.0, 0.0), 2.0)),
+            ),
+        ] {
+            let got = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band());
+            let Ok(Some((c, axis))) = got else {
+                panic!("{label}: the declared coaxial pose must name a frame, got {}", outcome(&got));
+            };
+            let station = 3.0_f64.sqrt(); // sqrt((2-1)(2+1))
+            // A frame-independent radial direction across the axis.
+            let u = if axis.cross(Vec3::new(1.0, 0.0, 0.0)).norm() > 0.5 {
+                axis.cross(Vec3::new(1.0, 0.0, 0.0)).normalize()
+            } else {
+                axis.cross(Vec3::new(0.0, 1.0, 0.0)).normalize()
+            };
+            let v = axis.cross(u);
+            for st in [station, -station] {
+                let own = c + axis * st;
+                for i in 0..8 {
+                    let t = f64::from(i) / 8.0 * core::f64::consts::TAU;
+                    let p = own + u * t.cos() + v * t.sin();
+                    // The circle's own unit tangent at p.
+                    let dir = u * -t.sin() + v * t.cos();
+                    let shared = axis.dot((p - c).cross(dir));
+                    let per_circle = axis.dot((p - own).cross(dir));
+                    assert!(
+                        (shared - per_circle).abs() < 1e-12,
+                        "{label}: station {st}, t {t}: the sense moved with the centre \
+                         ({shared} vs {per_circle})"
+                    );
+                    // And it is a real, definite sense — not zero on
+                    // both sides, which would make the row vacuous.
+                    assert!(shared.abs() > 0.5, "{label}: sense {shared} is not definite");
+                }
+            }
+        }
+    }
+
+    /// **The declaration is the whole gate.** The SAME exactly-coaxial
+    /// pose answers with a frame under `Declared` and refuses `NoArm`
+    /// under `None` — the never-infer rule, at this door. `NoArm` here
+    /// is a routing (the general rung marches the pair), never a
+    /// desync, and the dispatch's own arm passes `None` today because
+    /// it is keyed on KINDS and has nowhere to read a ladder.
+    #[test]
+    fn the_coaxial_frame_needs_the_declaration_and_never_infers_it() {
+        for (label, cyl, sph) in [
+            (
+                "direct",
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                ball(Point3::new(0.0, 0.0, 0.0), 2.0),
+            ),
+            (
+                "re-posed twin",
+                twin(&cylinder(Vec3::new(0.0, 0.0, 1.0))),
+                twin(&ball(Point3::new(0.0, 0.0, 0.0), 2.0)),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band()),
+                    Ok(Some(_))
+                ),
+                "{label}: declared"
+            );
+            assert!(
+                matches!(
+                    cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::None, band()),
+                    Err(FrameError::NoArm)
+                ),
+                "{label}: undeclared"
+            );
+            // And that is what the kind dispatch itself does today, in
+            // both operand orders.
+            assert!(
+                matches!(pair_section_frame(&cyl, &sph, band()), Err(FrameError::NoArm)),
+                "{label}: dispatch, cylinder first"
+            );
+            assert!(
+                matches!(pair_section_frame(&sph, &cyl, band()), Err(FrameError::NoArm)),
+                "{label}: dispatch, sphere first"
+            );
+        }
+    }
+
+    /// A germ was minted from a crossing, so a section that is a
+    /// TANGENCY, an empty gap, or a contradicted declaration is a
+    /// lockstep failure — loud, typed, and never `None`. Each is a
+    /// distinct cause and each gets the desync door, exactly as the
+    /// two sphere arms above treat their non-locus outcomes.
+    #[test]
+    fn a_cylinder_sphere_pose_that_is_not_a_locus_is_a_desync() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for (row, sph) in [
+            // R = r: the tangent circle, classification data.
+            ("tangent", ball(Point3::new(0.0, 0.0, 0.0), 1.0)),
+            // R < r: the sphere never reaches the wall.
+            ("empty", ball(Point3::new(0.0, 0.0, 0.0), 0.5)),
+            // Declared coaxial, definitely off the axis: the
+            // declaration is verified and contradicted.
+            ("off-axis", ball(Point3::new(0.4, 0.0, 0.0), 2.0)),
+        ] {
+            for (label, cyl, s) in [
+                ("direct", cylinder(z), sph.clone()),
+                ("re-posed twin", twin(&cylinder(z)), twin(&sph)),
+            ] {
+                let got = cs_pair_frame(&cyl, &s, geom_brep::CoaxialEvidence::Declared, band());
+                assert!(
+                    matches!(got, Err(FrameError::Desync(_))),
+                    "{row} / {label}: expected a desync, got {}",
+                    outcome(&got)
+                );
+            }
+        }
+    }
+
+    /// An ill-conditioned declared pair escalates through this door
+    /// rather than picking a branch — the same plumbing the sphere
+    /// arms use, on this arm.
+    #[test]
+    fn an_ill_conditioned_declared_coaxial_pair_escalates() {
+        let eps = Tol::witness().get().eps;
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for (label, cyl, sph) in [
+            (
+                "direct",
+                cylinder(z),
+                ball(Point3::new(0.0, 0.0, 0.0), 1.0 + 3.0 * eps),
+            ),
+            (
+                "re-posed twin",
+                twin(&cylinder(z)),
+                twin(&ball(Point3::new(0.0, 0.0, 0.0), 1.0 + 3.0 * eps)),
+            ),
+        ] {
+            let got = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band());
+            assert!(
+                matches!(got, Err(FrameError::Escalated(_))),
+                "{label}: expected an escalation, got {}",
+                outcome(&got)
             );
         }
     }

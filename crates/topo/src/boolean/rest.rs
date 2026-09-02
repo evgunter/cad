@@ -720,10 +720,23 @@ pub enum TangentLocusError {
 /// internally) tangent parallel cylinders is one-signed against the
 /// other — so an on-carrier edge under a verified declaration never
 /// crosses the partner surface. A new arm may NOT land here without
-/// restating its own residual-sign story: the coaxial
-/// cylinder×sphere circle arm's residuals are one-signed in OPPOSITE
-/// orientations per direction, which is exactly why it is blocked on
-/// that story (issue #974).
+/// restating its own residual-sign story.
+///
+/// **The coaxial cylinder×sphere circle arm's story is MEASURED and it
+/// PASSES — and that is not what still blocks the arm** (issue #974;
+/// the blocker's stated cause is superseded here rather than left
+/// standing). At the only coaxial tangency, `R = r`, the sphere lies
+/// wholly in the cylinder's non-positive residual half-space and the
+/// cylinder wholly in the sphere's non-negative one. The orientations
+/// are OPPOSITE per direction, which this contract never forbade: the
+/// internally tangent parallel cylinder pair the `|r1 − r2|` fallback
+/// already admits has exactly that structure. Both halves are pinned
+/// by `crates/topo/tests/verbs_cylsph_tangent_residuals.rs`. What
+/// blocks the arm is downstream of the story: [`TangentLocus`] carries
+/// a LINE and nothing else, its consumers all read a locus DIRECTION
+/// and none has a circle story, and the arm would need a
+/// declared-coaxiality channel this lane cannot reach. #974 stays open
+/// for that work.
 ///
 /// # Errors
 ///

@@ -856,14 +856,19 @@ pub enum BooleanError {
     ///   arm (exact C5 Circle) plus the extent-certified fallback
     ///   re-cut; no longer gated here.
     /// - **Cone / torus**: the germ-pair join dispatch wires
-    ///   `(Plane, Cylinder)` and `(Plane, Sphere)` only (PR 9c
-    ///   deviation 1 lineage). The cyl×sphere fitted-chord window's
-    ///   blocker MOVED at M6-2: `Pcurve::Fitted` now exists and
-    ///   certifies at rest (the SSI enclosure/certify stack is no
+    ///   `(Plane, Cylinder)`, `(Plane, Sphere)`, `(Sphere, Sphere)`
+    ///   and — behind a DECLARED coaxiality no production caller can
+    ///   supply — `(Cylinder, Sphere)`. The cyl×sphere fitted-chord
+    ///   window's blocker MOVED at M6-2: `Pcurve::Fitted` now exists
+    ///   and certifies at rest (the SSI enclosure/certify stack is no
     ///   longer `f64`-only), so what is left is the JOIN LANE itself —
     ///   `run_azimuth_window`/`chart_pcurve` have no cyl×sphere window
-    ///   analog, and building one is banked past M6 (M6-PLAN: the
-    ///   windows chase the lift).
+    ///   analog, and building one is still banked. **The exact coaxial
+    ///   classification does not retire this**, and the sentence is
+    ///   re-verified rather than moved: the coaxial arm's locus is two
+    ///   exact CIRCLES and needs no fitted chord at all, so it gives
+    ///   the window nothing to read. What would retire the sentence is
+    ///   the window itself, for the TRANSVERSAL poses that march.
     /// - **NURBS**: no edge×NURBS-face crossing layer at all
     ///   (deviation 5), and the fallback's extent test is unwritable
     ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
@@ -881,6 +886,15 @@ pub enum BooleanError {
     /// (a revert-wiring unit is the wrong place to re-cut the
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
+    ///
+    /// **The "cyl×sphere fitted-chord window has no window analog"
+    /// clause in this variant's Display is RE-VERIFIED, not moved.**
+    /// The exact DECLARED-coaxial classification
+    /// (`geom_brep::cylinder_sphere_section`) and its germ-frame arm
+    /// both exist now, and neither gives the window anything: the
+    /// coaxial locus is two exact CIRCLES and is never a fitted chord.
+    /// The window is a deliberate scope cut for the TRANSVERSAL poses,
+    /// which still march, and it is what would retire the clause.
     CurvedPairUnsupported {
         /// The op this refusal is specific to (never `Union`), or
         /// `None` when the kind has no arm under any op.

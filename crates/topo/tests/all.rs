@@ -238,6 +238,8 @@ mod probe_f34_review;
 mod probe_s5_sectors;
 #[path = "review_f7_pole_r1_probes.rs"]
 mod review_f7_pole_r1_probes;
+#[path = "verbs_cylsph_tangent_residuals.rs"]
+mod verbs_cylsph_tangent_residuals;
 #[path = "verbs_f7_collinear_seam.rs"]
 mod verbs_f7_collinear_seam;
 #[path = "verbs_f7_r2_probes.rs"]
