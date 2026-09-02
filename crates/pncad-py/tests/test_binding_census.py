@@ -398,6 +398,13 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
+    # internal wiring-bug refusal — and cross exactly as their carrier
+    # does: flattened to the `verb_arity` tag `EvaluationError.kind`
+    # answers (the `UnitVec3Error` row's precedent; the typed payload
+    # stays a Rust-side diagnosis surface).
+    "Arity": "EvaluationError.kind",
+    "VerbKind": "EvaluationError.kind",
     "UnevaluatedReason": "Verdict.reason",
     "UnitVec3": "Datum.direction",
     "UnitVec3Error": "EvaluationError.kind",
