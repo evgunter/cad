@@ -797,3 +797,86 @@ reconciliation). The Track W instrument filing is WITHDRAWN — landed.
 Slate: CERT-N1 (PR 1536, ordinal 710) in its dual; then CERT-M2/M3 and
 CERT-N2/N3 under a new block, the blinded tally adjudication (CERT-1×2,
 CERT-6×1, CERT-10×1), and the exit walk.
+
+### CERT-N1 — Track N's scalar-lift lane (D240, D241, D242, D243, C24) — MERGED
+
+PR 1536; spec `docs/CERT-N1-SPEC.md` (cert/orchestrator bacc06e2); block
+CERT-B3 slot 3 (byte 27, fable at 3 → FABLE); ordinal 710 claimed at
+dispatch (main 789149665); sample number at merge. Branched off
+a654dc6a2 (main after CERT-10) so `TensorNet` was live in the fence.
+
+Delivered and frozen head 836af9de0 (six commits; +785/−654 over
+seventeen files, all in fence plus the SMELL-SCAN landing). D240
+red-first: four rows red on the old ladders (`lifted x = NaN vs source
+2`), green after `Curve3::map_scalar`/`Surface::map_scalar` — one
+exhaustive match per enum with the conversion as the parameter, the
+payload lifts homed with their types; D241 the same diff; D242
+(`ControlPoint::channels`) and D243 (`InteriorKnot`) row-0 deletions;
+C24's NURBS member measured (a 35–45% discard) and fixed bit-identically
+(150,000 components). The lane disclosed one verification gap (geom-brep's
+integration suite not run locally); gate 33575803948 green, both ε=1e-12
+lanes trailer-pinned.
+
+Dual (v6, sequential; byte 142 parity 0 ⇒ R1 OPUS + R2 FABLE; R2
+stalled once on a background wait of its own making and was resumed by
+the orchestrator with the same brief): R1 A-W-F 0/4/2 — the lift
+UPHELD by execution (an adversarial battery: degree 5 at multiplicity
+p−1, weights 1e-8..1e8, a rational full circle, a 2-D curve, a (3,2)
+sheet; dual value channel bit-identical, tangents to 1e-11, interval
+enclosures degenerate at the control points; a weight-dropping mutation
+reds; a 103,401-component cross-commit bit dump for C24), and the
+geom-brep suite run in full in both lanes; its MINs: the red-first
+fixtures have NO interior knots, so a knot-perturbing mutation left the
+whole suite green (executed); `topo/src/props.rs:700`'s "no other scalar
+can hold an ApproxSurface" falsified by the public lift and unfiled;
+S33's out-of-fence population claim deleted on a false premise (five
+topo/tests + one profile/tests hand payload lifts remain);
+review_m2_pr1's "verbatim" header stale. R2 A-W-F 0/4/~9 (rubric
+5/4/3/4/5) — the lift upheld again (11,760 cross-commit components; a
+knots_v := knots_u mutation reds — via an index panic, which became an
+item), the composition bit-identical to the retired hand spelling; its
+MINs: the Track R draft would RE-MINT C24 (the order-2 jet discards C″;
+measured ~50% slower than two passes); the same props.rs premise (four
+copies); the same unfiled lifts plus `edge_nurbs.rs:576-581` and
+`loft.rs:215`; `map_scalar` as a second constructor bypassing `new`'s
+checks. Three bilateral substances, no MAJOR either arm ⇒ NO tally
+candidate.
+
+Fix pass (implementer-inherited, all 12 items taken, none declined):
+structure-pinning rows with interior knots up to p−1 and extreme
+weights, red under a knot-shifting mutation in both lanes (38/2 per
+lane) and green after; every payload lift through a private
+`from_validated_parts` door that says why `new`'s check is redundant
+(row 5 debug_assert on the counts); `ders1_in_span` exposed — one
+order-1 pass, 336 ns vs 399 (two passes) vs 573 (the discarding jet) at
+degree 2, pinned bit-identical (60,000 components), `deriv_in_span` its
+projection; the sweep re-run with BOTH shapes and the "roughly ten"
+population found (hand payload lifts in topo/profile/editor-core/
+geom-brep tests, `edge_nurbs.rs`'s rescale-plus-lift, `loft.rs`'s
+`lift_affine`, `anchor.rs`'s `Vec3` lift) and filed per owning track,
+with `Mat3::map`/`Affine3::map` minted so the T row is a one-liner; the
+props.rs premise filed (D223, in CERT-M2's drawn fence — the running
+lane told to take it); `InteriorKnot` pub(crate) with the
+privacy-plus-type proof stated; the header, the criterion stated once,
+`#[must_use]` uniform, one home for the poison argument; both probe
+suites adopted with authorship preserved (cert/n1r1-probes,
+cert/n1r2-probes pushed). Then the main merge carrying CERT-M1 (one
+SMELL-SCAN conflict at the Track N table, resolved keeping D244 and the
+H2 edit); ε sweep 560/560/560 and 722/722/722; geom-brep 465/0. One
+deviation: the trailer head is an `--allow-empty` commit atop the merge
+(the filter reads the head commit only; Evan authorized dummy commits as
+CI kicks on 2026-09-01). Final head 0899de802: run 33584286425 green,
+both lanes at 1e-12 by trailer.
+
+Filings landed on main by the orchestrator after merge (SMELL-SCAN):
+Track W D385 (the hand-payload-lift class in test crates), Track Q D290
+(`edge_nurbs.rs`'s two-operations-as-one), Track T D321 (`lift_affine`),
+Track V D368 (`anchor.rs`'s `Vec3` lift), Track M D223 (the props.rs
+premise; CERT-M2's fence), Track R D306 (`offset_fit.rs:432-437`'s note
+and `loop_area.rs:163-164`'s one-call rewrite through `ders1_in_span`).
+Track N's surviving rows: H2 (CERT-N2), S235/D98/D31/D244/C24 (CERT-N3).
+
+Slate: CERT-M2 in implementation (block CERT-B4 slot 0); CERT-N2 next
+(slot 1); CERT-M3 after M2 (slot 2); CERT-N3 after N2 (slot 3); then the
+blinded tally adjudication (CERT-1×2, CERT-6×1, CERT-10×1) and the exit
+walk.

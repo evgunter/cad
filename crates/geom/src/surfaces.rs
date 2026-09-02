@@ -669,71 +669,6 @@ mod tests {
         ]
     }
 
-    /// Lifts an f64 surface to `Surface<Dual64>` with constant geometry
-    /// (only evaluation parameters become variables).
-    fn lift_dual(s: &Surface<f64>) -> Surface<Dual64> {
-        match *s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => Surface::Plane {
-                origin: crate::scalar_lift::dual_point(origin),
-                normal: crate::scalar_lift::dual_vec(normal),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Surface::Cylinder {
-                origin: crate::scalar_lift::dual_point(origin),
-                axis: crate::scalar_lift::dual_vec(axis),
-                radius: Dual::constant(radius),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Surface::Cone {
-                apex: crate::scalar_lift::dual_point(apex),
-                axis: crate::scalar_lift::dual_vec(axis),
-                half_angle: Dual::constant(half_angle),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Surface::Sphere {
-                center: crate::scalar_lift::dual_point(center),
-                radius: Dual::constant(radius),
-                axis: crate::scalar_lift::dual_vec(axis),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => Surface::Torus {
-                center: crate::scalar_lift::dual_point(center),
-                axis: crate::scalar_lift::dual_vec(axis),
-                major_radius: Dual::constant(major_radius),
-                minor_radius: Dual::constant(minor_radius),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            // The corpus below is analytic; neither spline kind lifts
-            // to a `Dual` (there is no `NurbsSurface<Dual>` fixture).
-            Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
-        }
-    }
-
     fn close3(a: Vec3<f64>, b: Vec3<f64>, tol: f64) -> bool {
         (a.x - b.x).abs() <= tol && (a.y - b.y).abs() <= tol && (a.z - b.z).abs() <= tol
     }
@@ -923,7 +858,7 @@ mod tests {
         #[test]
         fn first_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
-                let sd = lift_dual(&s);
+                let sd = s.map_scalar(Dual::constant);
                 let pf = s.eval(u, v);
 
                 let pu = sd.eval(Dual::variable(u), Dual::constant(v));
@@ -949,7 +884,7 @@ mod tests {
         #[test]
         fn second_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
-                let sd = lift_dual(&s);
+                let sd = s.map_scalar(Dual::constant);
 
                 let duu = sd.deriv_u(Dual::variable(u), Dual::constant(v));
                 let uu = s.deriv_uu(u, v);
@@ -1033,6 +968,237 @@ mod tests {
     // Totality and poison
     // ------------------------------------------------------------------
 
+    /// A described NURBS fixture: a rational degree-(2, 1) sheet — a
+    /// quadratic arch extruded linearly in `v`, weights varying along
+    /// `u` — so the payload is rational and non-trivial in both
+    /// directions.
+    fn arch_sheet_nurbs() -> Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let base = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.5),
+            Point3::new(2.0, 0.0, 0.0),
+        ];
+        let wu = [1.0, 0.75, 1.25];
+        let mut control = Vec::with_capacity(6);
+        let mut weights = Vec::with_capacity(6);
+        for (b, w) in base.iter().zip(wu) {
+            control.push(*b);
+            control.push(Point3::new(b.x, b.y, b.z + 3.0));
+            weights.push(w);
+            weights.push(w);
+        }
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    }
+
+    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// the lifted surface's value channel is the source's evaluation bit
+    /// for bit, and its `u`-tangent channel is the source's closed-form
+    /// `∂u` to rounding.
+    #[test]
+    fn described_nurbs_lifts_as_its_payload_at_dual() {
+        let s = arch_sheet_nurbs();
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
+            let p = sd.eval(Dual::variable(u), Dual::constant(v));
+            let q = s.eval(u, v);
+            let du = s.deriv_u(u, v);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, du.x),
+                ("y", p.y, q.y, du.y),
+                ("z", p.z, q.z, du.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "(u, v) = ({u}, {v}): lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-12 * (1.0 + tangent.abs()),
+                    "(u, v) = ({u}, {v}): lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+        assert!(
+            matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()),
+            "a described NURBS lifted to the placeholder"
+        );
+    }
+
+    /// The approximating variant lifts as its payload too — the fit IS
+    /// the geometry, so the lifted surface evaluates to the source —
+    /// and the description, window, tolerance and certificate ride
+    /// along verbatim.
+    #[test]
+    fn approx_lifts_as_its_payload_with_its_record() {
+        let Surface::Nurbs(fit) = arch_sheet_nurbs() else {
+            panic!("fixture is a NURBS");
+        };
+        let certificate = OffsetCertificate {
+            distance: 0.25,
+            cells: 4,
+            samples: 3,
+            on_locus_max: 1e-9,
+            hull_sup: 2e-9,
+            normal_floor: 0.5,
+            curvature_reach: 1.5,
+            rounds: 2,
+        };
+        let spec = SurfaceSpec {
+            description: SurfaceDescription::Offset {
+                base: Arc::clone(&fit),
+                d: 0.25,
+            },
+            fit: (*fit).clone(),
+            window: ApproxWindow::of(&*fit),
+            tolerance: 1e-6,
+        };
+        let approx = ApproxSurface::certify(spec, |_, _, _, _| Ok::<_, ()>(certificate)).unwrap();
+        let s = Surface::Approx(Arc::new(approx));
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        let Surface::Approx(lifted) = &sd else {
+            panic!("an approximating surface lifted to another variant");
+        };
+        assert_eq!(lifted.window(), ApproxWindow::of(&*fit));
+        assert_eq!(lifted.tolerance(), 1e-6);
+        assert_eq!(lifted.certificate().hull_sup, certificate.hull_sup);
+        assert_eq!(lifted.certificate().rounds, certificate.rounds);
+        let SurfaceDescription::Offset { d, .. } = lifted.description();
+        assert_eq!(d.value, 0.25);
+        for (u, v) in [(0.0, 0.0), (0.3, 0.6), (1.0, 1.0)] {
+            let p = sd.eval(Dual::constant(u), Dual::constant(v));
+            let q = s.eval(u, v);
+            assert_eq!(p.x.value.to_bits(), q.x.to_bits(), "(u, v) = ({u}, {v}): x");
+            assert_eq!(p.y.value.to_bits(), q.y.to_bits(), "(u, v) = ({u}, {v}): y");
+            assert_eq!(p.z.value.to_bits(), q.z.to_bits(), "(u, v) = ({u}, {v}): z");
+        }
+    }
+
+    /// A described NURBS with the structure the arch sheet lacks:
+    /// degree (3, 2), `u` interior knots at multiplicities 1 and 2
+    /// (= p_u − 1), a `v` interior knot at multiplicity 1 (= p_v − 1), a
+    /// 7 × 4 net, weights spanning twelve orders of magnitude.
+    fn knotted_sheet() -> Surface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let cycle = [1.0, 1e6, 1e-6, 4.0, 3e5, 2e-5, 1.0];
+        let mut control = Vec::with_capacity(28);
+        let mut weights = Vec::with_capacity(28);
+        for iu in 0..7 {
+            for iv in 0..4 {
+                let (u, v) = (iu as f64, iv as f64);
+                control.push(Point3::new(
+                    u * 0.7 + 0.1 * v,
+                    (u * 0.9).sin() + v * 0.4,
+                    (v * 1.3).cos() - 0.2 * u,
+                ));
+                weights.push(cycle[(iu * 4 + iv) % 7]);
+            }
+        }
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(ku, kv, control, weights).unwrap(),
+        ))
+    }
+
+    /// Every knot value and every nonempty span's midpoint of one knot
+    /// vector.
+    fn knot_and_span_params(kv: &geom_core::spline::KnotVector) -> Vec<f64> {
+        let knots = kv.knots();
+        let mut ps: Vec<f64> = knots.to_vec();
+        ps.extend(
+            knots
+                .windows(2)
+                .filter(|w| w[1] > w[0])
+                .map(|w| 0.5 * (w[0] + w[1])),
+        );
+        ps.sort_by(f64::total_cmp);
+        ps.dedup();
+        ps
+    }
+
+    /// The lift carries the STRUCTURE verbatim — both knot vectors and
+    /// every weight — and the lifted surface evaluates to the source at
+    /// every `(u, v)` drawn from knot values, span boundaries and span
+    /// midpoints in both directions. A lift that perturbs an interior
+    /// knot or a weight is red here and nowhere in the
+    /// placeholder-vs-payload rows above.
+    #[test]
+    fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
+        let s = knotted_sheet();
+        let Surface::Nurbs(source) = &s else {
+            panic!("fixture is a NURBS");
+        };
+        let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
+        let Surface::Nurbs(lifted) = &sd else {
+            panic!("a described NURBS lifted to another variant");
+        };
+        assert_eq!(
+            lifted.knots_u(),
+            source.knots_u(),
+            "u-knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.knots_v(),
+            source.knots_v(),
+            "v-knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.weights(),
+            source.weights(),
+            "weights must be carried verbatim"
+        );
+        for u in knot_and_span_params(source.knots_u()) {
+            for v in knot_and_span_params(source.knots_v()) {
+                let p = sd.eval(Dual::variable(u), Dual::constant(v));
+                let q = s.eval(u, v);
+                let du = s.deriv_u(u, v);
+                for (name, lifted, source, tangent) in [
+                    ("x", p.x, q.x, du.x),
+                    ("y", p.y, q.y, du.y),
+                    ("z", p.z, q.z, du.z),
+                ] {
+                    assert_eq!(
+                        lifted.value.to_bits(),
+                        source.to_bits(),
+                        "(u, v) = ({u}, {v}): lifted {name} = {} vs source {source}",
+                        lifted.value
+                    );
+                    assert!(
+                        (lifted.deriv - tangent).abs() <= 1e-9 * (1.0 + tangent.abs()),
+                        "(u, v) = ({u}, {v}): lifted d{name} = {} vs source {tangent}",
+                        lifted.deriv
+                    );
+                }
+            }
+        }
+    }
+
+    /// The placeholder lifts to the placeholder: a structural map keeps
+    /// poison, so `is_placeholder` survives the lift at both scalars.
+    #[test]
+    fn placeholder_lifts_to_the_placeholder() {
+        let n: Surface<f64> = Surface::nurbs_placeholder();
+        let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
+        assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
+        assert!(
+            nd.eval(Dual::constant(0.5), Dual::constant(0.5))
+                .x
+                .value
+                .is_nan()
+        );
+    }
+
     #[test]
     fn nurbs_placeholder_evaluates_to_poison() {
         let n: Surface<f64> = Surface::nurbs_placeholder();
@@ -1077,69 +1243,6 @@ mod tests {
 
         use super::*;
 
-        fn lift(s: &Surface<f64>) -> Surface<Interval> {
-            match *s {
-                Surface::Plane {
-                    origin,
-                    normal,
-                    u_ref,
-                } => Surface::Plane {
-                    origin: crate::scalar_lift::interval_point(origin),
-                    normal: crate::scalar_lift::interval_vec(normal),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Cylinder {
-                    origin,
-                    axis,
-                    radius,
-                    u_ref,
-                } => Surface::Cylinder {
-                    origin: crate::scalar_lift::interval_point(origin),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    radius: Interval::from_f64(radius),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Cone {
-                    apex,
-                    axis,
-                    half_angle,
-                    u_ref,
-                } => Surface::Cone {
-                    apex: crate::scalar_lift::interval_point(apex),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    half_angle: Interval::from_f64(half_angle),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Sphere {
-                    center,
-                    radius,
-                    axis,
-                    u_ref,
-                } => Surface::Sphere {
-                    center: crate::scalar_lift::interval_point(center),
-                    radius: Interval::from_f64(radius),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                    u_ref,
-                } => Surface::Torus {
-                    center: crate::scalar_lift::interval_point(center),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    major_radius: Interval::from_f64(major_radius),
-                    minor_radius: Interval::from_f64(minor_radius),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                // As the dual lift: the corpus is analytic, and neither
-                // spline kind has an interval fixture to lift.
-                Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
-            }
-        }
-
         fn contains(e: Interval, x: f64) -> bool {
             e.lo() <= x && x <= e.hi()
         }
@@ -1153,7 +1256,7 @@ mod tests {
         #[test]
         fn evaluators_instantiate_and_residuals_enclose_zero() {
             for (name, s) in all_surfaces() {
-                let si = lift(&s);
+                let si = s.map_scalar(Interval::from_f64);
                 let (u, v) = (Interval::from_f64(0.7), Interval::from_f64(0.4));
                 // Instantiation coverage: every method at interval type.
                 let _ = si.eval(u, v);
@@ -1174,7 +1277,7 @@ mod tests {
                 );
             }
 
-            let sphere = lift(&all_surfaces()[3].1);
+            let sphere = all_surfaces()[3].1.map_scalar(Interval::from_f64);
             let (center, r) = match sphere {
                 Surface::Sphere { center, radius, .. } => (center, radius),
                 _ => panic!("fixture order"),
@@ -1186,7 +1289,7 @@ mod tests {
                 assert!(res.hi() - res.lo() < 1e-12);
             }
 
-            let cyl = lift(&all_surfaces()[1].1);
+            let cyl = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let (origin, axis, r) = match cyl {
                 Surface::Cylinder {
                     origin,
@@ -1210,7 +1313,7 @@ mod tests {
         #[test]
         fn plane_encloses_f64_evaluation() {
             let p = all_surfaces()[0].1.clone();
-            let pi_ = lift(&p);
+            let pi_ = p.map_scalar(Interval::from_f64);
             for (uu, vv) in [(0.0, 0.0), (1.75, -3.5), (1234.5, 0.125)] {
                 let q = p.eval(uu, vv);
                 let qi = pi_.eval(Interval::from_f64(uu), Interval::from_f64(vv));
@@ -1226,7 +1329,7 @@ mod tests {
         #[test]
         fn wide_boxes_enclose_sampled_images() {
             let p = all_surfaces()[0].1.clone(); // plane: exact ops, assertable
-            let pi_ = lift(&p);
+            let pi_ = p.map_scalar(Interval::from_f64);
             let ub = Interval::from_bounds(-1.0, 2.0);
             let vb = Interval::from_bounds(0.5, 0.75);
             let img = pi_.eval(ub, vb);
@@ -1241,11 +1344,95 @@ mod tests {
             }
         }
 
+        /// The interval half of the payload-lift row: a described NURBS
+        /// lifts as its payload, and the lifted enclosure brackets the
+        /// source's f64 evaluation at every sampled parameter pair.
+        #[test]
+        fn described_nurbs_lifts_as_its_payload_at_interval() {
+            let s = super::arch_sheet_nurbs();
+            let si = s.map_scalar(Interval::from_f64);
+            for (u, v) in [(0.0, 0.0), (0.3, 0.6), (0.5, 0.5), (0.8, 0.1), (1.0, 1.0)] {
+                let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
+                let q = s.eval(u, v);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "(u, v) = ({u}, {v}): lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() < 1e-12,
+                        "(u, v) = ({u}, {v}): {name} too wide"
+                    );
+                }
+            }
+            assert!(
+                matches!(&si, Surface::Nurbs(n) if !n.is_placeholder()),
+                "a described NURBS lifted to the placeholder"
+            );
+        }
+
+        /// The interval half of the structure row: knot vectors and
+        /// weights verbatim, and the lifted enclosure brackets the
+        /// source at every knot-value / span-midpoint pair. The width
+        /// bound is a FIXTURE PIN (this net, these weights), not a
+        /// degradation guard: it measures the evaluator's cancellation
+        /// under extreme weights, not width the lift adds (none).
+        #[test]
+        fn knotted_nurbs_lift_carries_structure_verbatim_at_interval() {
+            let s = super::knotted_sheet();
+            let Surface::Nurbs(source) = &s else {
+                panic!("fixture is a NURBS");
+            };
+            let si = s.map_scalar(Interval::from_f64);
+            let Surface::Nurbs(lifted) = &si else {
+                panic!("a described NURBS lifted to another variant");
+            };
+            assert_eq!(
+                lifted.knots_u(),
+                source.knots_u(),
+                "u-knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.knots_v(),
+                source.knots_v(),
+                "v-knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.weights(),
+                source.weights(),
+                "weights must be carried verbatim"
+            );
+            for u in super::knot_and_span_params(source.knots_u()) {
+                for v in super::knot_and_span_params(source.knots_v()) {
+                    let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
+                    let q = s.eval(u, v);
+                    for (name, enclosure, source) in
+                        [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                    {
+                        assert!(
+                            contains(enclosure, source),
+                            "(u, v) = ({u}, {v}): lifted {name} = [{}, {}] must contain {source}",
+                            enclosure.lo(),
+                            enclosure.hi()
+                        );
+                        assert!(
+                            enclosure.hi() - enclosure.lo() <= 1e-8 * (1.0 + source.abs()),
+                            "(u, v) = ({u}, {v}): {name} width {} (fixture pin)",
+                            enclosure.hi() - enclosure.lo()
+                        );
+                    }
+                }
+            }
+        }
+
         /// NaI in → NaI out, and the Nurbs placeholder poisons at
         /// interval type.
         #[test]
         fn poison_propagates_at_interval() {
-            let si = lift(&all_surfaces()[1].1);
+            let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.lo().is_nan());
             let n: Surface<Interval> = Surface::nurbs_placeholder();
