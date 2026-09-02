@@ -378,10 +378,28 @@ pub(crate) fn tessellate_curved(
     Ok(triangles)
 }
 
-/// **The SHAPE door**: this face's outer loop, handed to
-/// `geom_brep::props::require_iso_rectangle` — the S58 single home of
-/// the iso-rectangle predicate — and its refusal wrapped typed as
-/// [`TessellateError::UnsupportedCurvedShape`].
+/// **The SHAPE door and the BRANCH door**: this face's outer loop,
+/// handed to `geom_brep::props::require_iso_rectangle` — the S58
+/// single home of the iso-rectangle predicate — and then to
+/// `geom_brep::props::require_one_chart_branch`, each refusal wrapped
+/// typed as [`TessellateError::UnsupportedCurvedShape`].
+///
+/// **Two questions, asked in order** (issue 1571). The first certifies
+/// each edge's CARRIER as an iso curve and the rim structure as a
+/// rectangle; the second certifies that each traversed ARC stays on
+/// ONE branch of the chart — a certified sphere meridian carrier is a
+/// great circle, which contains both poles, and a certified cone
+/// generator is a line through the apex, so either can carry a span
+/// that runs through the chart singularity and puts the coordinate
+/// this walk holds constant per edge a half-turn away mid-edge. Order
+/// matters only for which refusal a doubly-defective face reports; the
+/// branch door decides arc membership on carriers the parse has
+/// certified, so asking it second is asking it of a classified edge.
+///
+/// **The branch door is the walk's, and NOT `mass_properties`'.** The
+/// extent derivations fold the singularity in and measure such a face
+/// exactly, so the flux lane admits what this lane refuses, and both
+/// are right about the same face — the argument is at the predicate.
 ///
 /// This is the line issue 727's ruling asked for: `mesh` cites the
 /// predicate itself, so the lane's floor is its own. When the
@@ -432,8 +450,9 @@ fn require_iso_rectangle_face(
         LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
         LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
     })?;
-    geom_brep::props::require_iso_rectangle(surface, &outer, band)
-        .map_err(|source| TessellateError::UnsupportedCurvedShape { face: fk, source })
+    let refuse = |source| TessellateError::UnsupportedCurvedShape { face: fk, source };
+    geom_brep::props::require_iso_rectangle(surface, &outer, band).map_err(refuse)?;
+    geom_brep::props::require_one_chart_branch(surface, &outer, band).map_err(refuse)
 }
 
 /// The walk entries that do NOT lie on the boundary of the UV bounding

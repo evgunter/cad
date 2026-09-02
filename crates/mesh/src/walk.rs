@@ -396,6 +396,15 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// non-gating findings report, with the ledger and the two π-rad
 /// witnesses. A tessellator is not a lint for other people's data.
 ///
+/// Both of those witnesses are a meridian ARC crossing a pole
+/// mid-edge, and both are now refused typed by
+/// `props::require_one_chart_branch` before this walk runs (issue
+/// 1571): the Euler-door body of `tests/mesh11_arc_branch.rs` and the
+/// imported half-cap of `step-import/tests/poleguard.rs`. The report
+/// still measures them — it has no door in front of it, by design —
+/// so what it says about them is now a second account of a body this
+/// lane already refused, not the only one.
+///
 /// [`iso_side_starts`] is NOT a consumer either, and the distinction is
 /// narrow enough to be worth stating rather than leaving to the
 /// absence: it does not read THIS PREDICATE — which traversals share a
@@ -453,15 +462,20 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// exactly the pole-fan corner the walk already emits two entries for,
 /// and exactly the π-apart wire-band case [`unwrap_tie`] exists for.
 ///
-/// ## The premise that argument needs, which nothing here checks
+/// ## The premise that argument needs, and where it is established
 ///
 /// Both bullets say "meridian" and "rim" meaning ISO-CURVES of this
 /// chart. [`classify`] does not establish that: a `Line` carrier is a
 /// meridian unconditionally, and a `Circle` is a rim iff
 /// `|n · axis| > 0.5` — a cone of directions, not coaxiality. So the
 /// real premise is **every boundary edge is an iso-curve of this
-/// chart**, and it is inherited from upstream rather than verified.
-/// Per kind:
+/// chart, traversed on ONE branch of it**, and it is verified at
+/// props: the two halves of it by
+/// `geom_brep::props::require_iso_rectangle` (the CARRIER, per edge,
+/// on every kind) and `require_one_chart_branch` (the traversed ARC),
+/// both cited by [`crate::curved`]'s door before this walk runs. What
+/// each kind would leak without them, which is what the door has to
+/// cover and the reason the second half needed its own predicate:
 ///
 /// - **cylinder, cone** — safe by geometry. A circle on either surface
 ///   whose axis is within 60° of the chart's IS coaxial.
@@ -494,28 +508,35 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// (`curved::tests::the_lens_walk_collapses_onto_one_rim_level_and_
 /// the_spatial_check_admits_it`, `tests/iso_rectangle_door.rs`).
 ///
-/// **CLOSED AS WORDED, by the shape door — and only as worded.** The
-/// case this qualification instanced is two consecutive same-kind
-/// traversals whose CARRIERS are not iso curves, and that is what
+/// **CLOSED, by the two doors in front of this walk.** The case this
+/// qualification instanced is two consecutive same-kind traversals
+/// whose CARRIERS are not iso curves, and that is what
 /// `geom_brep::props::require_iso_rectangle` refuses per edge, on
 /// every kind, before `curved::tessellate_curved` walks a face: the
 /// oblique section on `props_rim_axis_parallel`, a torus Villarceau
-/// circle on `props_rim_fit`. **The premise itself is NOT established
-/// by that door.** Props certifies the carrier — a great circle
-/// through the sphere centre — not that the traversed ARC stays on one
-/// chart meridian; a great circle contains both poles, so one meridian
-/// arc can cross a pole mid-edge, where `u` jumps by π, and such a
-/// face passes the door on every face and measures its exact volume
-/// (issue 1571, executed: `tests/mesh7r1_probes.rs`, pinned in
-/// `tests/iso_rectangle_door.rs`). The sentence above this list —
-/// "inherited from upstream rather than verified" — therefore still
-/// stands; what changed is that the two-non-iso-carriers instance is
-/// refused typed, and the upstream gates that kept it unreachable
-/// (the boolean's typed refusal of every sphere-face cut, tier 3 on
-/// the import route) are no longer what that instance rests on. The
-/// cheap hardening once recorded here (a coaxiality test in
-/// `classify`) is not taken: the door decides coaxiality at props'
-/// band; what it does not decide, arc membership, is issue 1571's.
+/// circle on `props_rim_fit`. That door closed the instance and not
+/// the premise — a certified meridian CARRIER can still carry an arc
+/// that leaves one chart meridian, because a great circle contains
+/// both poles and a cone generator passes through the apex, and this
+/// walk's `topo::chart_iso::mid_azimuth` reads the midpoint of exactly
+/// such an arc onto the far branch. The premise's second half is now
+/// its own named door, `props::require_one_chart_branch`, cited beside
+/// the first: it refuses a span containing a chart singularity in its
+/// INTERIOR and admits one that merely ends at it, which is this
+/// walk's own inclusive pole rule read at props' band.
+///
+/// **The two doors answer to different consumers, deliberately.** The
+/// flux lane keeps admitting the pole-crossing arc and measuring it
+/// exactly — its extent derivation folds the pole in
+/// (`props::curved`'s `sphere_meridian_pole_margins`, and
+/// `geom-brep/tests/cert1_sphere_polar.rs`'s three rows), so
+/// `mass_properties` answers where this lane refuses, and both are
+/// right about one face. What follows for a reader here: this walk's
+/// premise is NOT "whatever props admits", it is the branch door by
+/// name, and a change to the flux lane's admission set does not move
+/// it. The cheap hardening once recorded here (a coaxiality test in
+/// `classify`) is still not taken: the doors decide both halves at
+/// props' band, on props' margins.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
 ///

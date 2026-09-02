@@ -82,6 +82,8 @@ mod mesh10r1_probes;
 mod mesh10r2_digest;
 #[path = "mesh10r2_probes.rs"]
 mod mesh10r2_probes;
+#[path = "mesh11_arc_branch.rs"]
+mod mesh11_arc_branch;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
 #[path = "mesh8_corpus_coherence.rs"]
@@ -452,6 +454,3 @@ fn the_eps_inventory_is_pinned() {
 }
 #[path = "r2_mesh7_probes.rs"]
 mod r2_mesh7_probes;
-
-#[path = "mesh11_probe.rs"]
-mod mesh11_probe;

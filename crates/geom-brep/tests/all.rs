@@ -227,11 +227,7 @@ mod iso_rectangle_door;
 mod mesh10r1_probes;
 #[path = "mesh10r2_probes.rs"]
 mod mesh10r2_probes;
-#[path = "r2_mesh7_door_probes.rs"]
-mod r2_mesh7_door_probes;
-
-#[path = "mesh11_probe.rs"]
-mod mesh11_probe;
-
 #[path = "mesh11_arc_branch.rs"]
 mod mesh11_arc_branch;
+#[path = "r2_mesh7_door_probes.rs"]
+mod r2_mesh7_door_probes;

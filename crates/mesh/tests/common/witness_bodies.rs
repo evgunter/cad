@@ -260,3 +260,153 @@ pub fn slit() -> (Body<f64>, FaceKey) {
     strut(&mut body, e13.he_plus, tip, line(v1, tip));
     (body, seed.face)
 }
+
+/// **The pole-crossing half-cap**: the unit sphere about +Z split into
+/// two faces by a rim half-circle at latitude `asin 0.5` and ONE
+/// great-circle arc that runs from the rim's `u = π` end OVER THE
+/// NORTH POLE to its `u = 0` end. The seed face is the half-cap
+/// `[0, π] × [asin 0.5, π/2]`; the second is the rest of the sphere.
+///
+/// Both faces' boundaries are the SAME two edges traversed opposite
+/// ways, which is what makes this body the two things it witnesses:
+/// the traversed arc lies on two chart meridians (`u` jumps by π at
+/// the pole), and the parse hands both faces the same levels, so their
+/// fluxes are equal and opposite and `mass_properties` answers 0.0 on
+/// a closed sphere (issue 1598).
+///
+/// Returns the body, the half-cap face and the complement face.
+pub fn pole_crossing_half_cap() -> (Body<f64>, FaceKey, FaceKey) {
+    let tol = Tol::witness();
+    let z = 0.5_f64;
+    let r = (1.0 - z * z).sqrt();
+    let a = p3(r, 0.0, z);
+    let b = p3(-r, 0.0, z);
+    let rim = Curve3::Circle {
+        center: p3(0.0, 0.0, z),
+        axis: v3(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    // The great circle in the plane y = 0 anchored at `b`, oriented so
+    // the arc `b → a` climbs over the north pole.
+    let great = |axis: Vec3<f64>| Curve3::Circle {
+        center: p3(0.0, 0.0, 0.0),
+        axis,
+        radius: 1.0,
+        u_ref: v3(-r, 0.0, z),
+    };
+    let mut g = great(v3(0.0, 1.0, 0.0));
+    if g.eval(core::f64::consts::FRAC_PI_2).z < z {
+        g = great(v3(0.0, -1.0, 0.0));
+    }
+    let t_end = g.param_near(a, 0.0).expect("the arc's far end");
+    // The arc's own shape, stated where it is built: `b → a` over the
+    // pole is the long way round, 120° of the great circle.
+    assert!(
+        t_end > 0.0 && (t_end - 2.0 * core::f64::consts::FRAC_PI_3).abs() < 1e-9,
+        "the over-the-pole arc spans 120 degrees, got {t_end}"
+    );
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(a).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New(Surface::Sphere {
+            center: p3(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        }),
+    )
+    .unwrap();
+    let e_rim = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            arc(rim, 0.0, core::f64::consts::PI),
+            tol,
+        )
+        .unwrap();
+    let made = body
+        .mef(
+            MefSite::Chords {
+                he1: e_rim.he_minus,
+                he2: e_rim.he_plus,
+            },
+            arc(g, 0.0, t_end),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    (body, seed.face, made.face)
+}
+
+/// **The apex-crossing bow tie**: the 45° cone about +Z with its apex
+/// at the origin, cut into two faces by rims at signed slant ∓1 and
+/// two generator segments that run THROUGH the apex. Every carrier is
+/// a certified generator or coaxial rim and both rims sit at the
+/// extremes, so the shape door admits it; the traversed segments leave
+/// their chart branch at the apex, where `u` jumps to the mirror
+/// nappe.
+///
+/// The cone's sibling of [`pole_crossing_half_cap`], and the reason
+/// this unit's class sweep does not read "the cone is immune".
+pub fn apex_crossing_bowtie() -> (Body<f64>, FaceKey, FaceKey) {
+    let tol = Tol::witness();
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    let (a, b, c, d) = (
+        p3(s, 0.0, -s),
+        p3(-s, 0.0, -s),
+        p3(-s, 0.0, s),
+        p3(s, 0.0, s),
+    );
+    let rim = |z: f64| Curve3::Circle {
+        center: p3(0.0, 0.0, z),
+        axis: v3(0.0, 0.0, 1.0),
+        radius: s,
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let line = EdgeCurveSpec::line_between;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(a).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New(Surface::Cone {
+            apex: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: v3(1.0, 0.0, 0.0),
+        }),
+    )
+    .unwrap();
+    let e_ab = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            b,
+            arc(rim(-s), 0.0, core::f64::consts::PI),
+            tol,
+        )
+        .unwrap();
+    let strut = |body: &mut Body<f64>, at, to, spec| {
+        body.mev(MevSite::Fan { he1: at, he2: at }, to, spec, tol)
+            .unwrap()
+    };
+    // `b → d` and `c → a` are the two lines through the apex.
+    let e_bd = strut(&mut body, e_ab.he_minus, d, line(b, d));
+    let e_dc = strut(&mut body, e_bd.he_minus, c, arc(rim(s), 0.0, core::f64::consts::PI));
+    let made = body
+        .mef(
+            MefSite::Chords {
+                he1: e_dc.he_minus,
+                he2: e_ab.he_plus,
+            },
+            line(c, a),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+    (body, seed.face, made.face)
+}
