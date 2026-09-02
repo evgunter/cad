@@ -1,0 +1,25 @@
+CERT-B4 (drawn 2026-09-02, v4 block-of-4 rule per MODEL-AB-LOG read on
+main at dispatch: {opus, opus, opus, fable}, byte mod 4 = fable position,
+reject >= 252)
+byte=123 (od /dev/urandom, reject >=252), 123 mod 4 = 3 = fable position
+(the byte was drawn once, in the orchestrator's shell, immediately after
+the spec commit below; this file records that draw — no redraw).
+All four difficulties logged PRE-DRAW at spec (docs/CERT-M2-SPEC.md M/L,
+docs/CERT-M3-SPEC.md L (ADV), docs/CERT-N2-SPEC.md M (ADV on S99),
+docs/CERT-N3-SPEC.md M; committed to cert/orchestrator at 1267e32c0 before
+this draw).
+slots: 0=CERT-M2 (S213 by the PropsQuadLane split, D222, H-f's census),
+1=CERT-N2 (H2: S99, S101, S102, S103, S116(b)),
+2=CERT-M3 (the other three lane-trait splits — zero lane traits; ADV),
+3=CERT-N3 (S235, D31, D98, D244, C24's analytic member).
+Arm for slot 0 = OPUS. Arm for slot 1 = OPUS. Arm for slot 2 = OPUS.
+Arm for slot 3 = FABLE.
+Sequencing: M2 and N2 dispatch CONCURRENTLY once CERT-N1 merges (fences
+disjoint: topo props/validate + geom-core real vs geom/src); M3 after M2
+(its spec is M2's census); N3 after N2 (both edit geom/src; N3 also
+waits on N1's spline substrate). Live-claimant checks at each dispatch:
+BOOL on topo/src/boolean (N3's boxes.rs seam), BLEND/SEAT on sweep/
+(N3's skin.rs seam), PCURVE/MATE/VERBS on chart_region/pcurve_cache/
+edge_nurbs (M3).
+Branch-side block record per the v6 convention; reviewers are never
+pointed here.
