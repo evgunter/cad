@@ -52,14 +52,16 @@ tess-meter = { path = "../../tools/tess-meter" }
 # `pncad::profile` omits on purpose — and `ProfileLoop`'s fields are
 # sealed, so a consumer needing a vertex table the PATHS lattice has no
 # spelling for has exactly this route and no other. One scene needs it:
-# `lily.rs::section_loops`, the issue-433 named gap. Its interior half
-# is closed — a subdivided straight run is spelled `line(len)` off a
-# directed point — and the residual is the SEAM: this outline subdivides
-# EVERY side, so the run crossing the seam has no spelling in either
-# rotation (the comment at the site names both walls). This entry IS
-# that residual, stated in the dependency graph where it cannot be
-# overlooked; the declared structural closer that ends it is ruled and
-# scheduled (BOOL-11), and this line goes when that lands.
+# `lily.rs::section_loops`, the issue-433 named gap. Both halves the
+# 2026-09-01 ruling named are closed — a subdivided straight run is
+# `line(len)` off a directed point, and a run crossing the seam is
+# `continue_to(Start)`, so ONE section of this family now authors end
+# to end. What keeps this entry is narrower and measured at the site:
+# the closer needs the seam at a CORNER, and this family's corners move
+# between the kite and the rectangle while the loft pins every section
+# to one rotation. The section that loses closes on a subdivision
+# vertex — a mid-carrier seam, PQ4. This line goes when that question
+# is ruled (PATHS §4 puts it).
 profile = { path = "../../crates/profile" }
 
 # The tour is the ONLY release build of the kernel in CI (the ten
