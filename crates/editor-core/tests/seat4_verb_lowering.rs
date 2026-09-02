@@ -119,12 +119,12 @@ fn a_fillet_and_chamfer_document_round_trips_byte_identical() {
         first, second,
         "a fillet+chamfer document does not round-trip byte-identically"
     );
-    // The header the bytes carry, asserted separately: byte equality
-    // above holds just as well between two files at a NEW version, so
-    // it is not by itself evidence that no bump happened.
+    // The header the bytes carry, asserted separately: the format has
+    // no version line (the persist module docs say why), so the whole
+    // header is the document's `id:` line.
     assert!(
-        first.starts_with(&format!("schema: {}\n", persist::SCHEMA_VERSION)),
-        "the saved header is not the current schema line"
+        first.starts_with(&format!("id: {}\n", fixture.doc.id())),
+        "the saved header is not the document's id line"
     );
 }
 

@@ -156,3 +156,16 @@ Next: SEAT-DV (the issue-1527 ruling — DatumValue unit-by-
 construction) opens block SEAT-B2; then SEAT-5 (the boolean
 migration) and SEAT-6 (the ParamSource channel, with the issue-1372
 handoff note to VERBS at dispatch).
+
+## ORDINAL 1004 CLAIMED — SEAT-DV dual (2026-09-02)
+
+SEAT-DV (PR 1564, DatumValue normals unit-by-construction — the
+issue-1527 ruling executed) implementation delivered and green
+(lane=interval ASKED, eps 1e-12 drawn; run 33605838986). Newtype
+UnitVec3 in topo::query; bound loosened to Real with Decide only at
+the deciding doors; the SEAT-2 tripwire deleted; ONE disclosed
+observable move — the datum length decision reaches the funnel as
+the NEW site datum_unit_norm (K-REPORT carrier row added; audit row
+declined by the honest-length argument) — the dual's scrutiny
+point. v6 dual dispatches on frozen head 12ca8295: parity byte 216 → **R1 opus + R2 fable**. Difficulty S was
+logged pre-draw. Full row recorded at merge.

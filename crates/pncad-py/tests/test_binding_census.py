@@ -189,8 +189,8 @@ def pub_use_names(src):
     while this one asks "what can a consumer of these three modules
     name", and the answer includes the geometry crates the prelude
     lifts. The leaf of each path item is the name it introduces
-    (`editor_core::persist::MigrationError` introduces
-    `MigrationError`); a braced group introduces each of its items.
+    (`editor_core::ident::DocumentId` introduces `DocumentId`); a
+    braced group introduces each of its items.
     """
     code = code_without_comments(src)
     names = set()
@@ -669,8 +669,8 @@ FAMILIES = {
 #:   their refusal as ATTRIBUTES, but the arm is a `variant`/`kind`
 #:   string rather than a bound payload class, so the Rust arm types
 #:   have no Python name: `PersistError.variant` stands for
-#:   `SnapshotError`, `NonFiniteSite`, `ProgramFault` and
-#:   `MigrationError`; `EvaluationError` for `NodeError`,
+#:   `SnapshotError`, `NonFiniteSite` and `ProgramFault`;
+#:   `EvaluationError` for `NodeError`,
 #:   `BooleanError`, `TransformError` and the sweep/loft/fillet/
 #:   revolve refusals; `PathError` for `ProfileError` and
 #:   `RecordedProgramError`; `ValidationError.door` for
@@ -732,9 +732,7 @@ FAMILIES = {
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
 #:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs
-#:   in the exception's message. `SCHEMA_VERSION` is the same shape of
-#:   constant on the persistence door, which Python reaches only
-#:   through `load`.
+#:   in the exception's message.
 #:
 #:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` left this bullet at
 #:   LIB-G18b and are bound top-level, on `PIN_MISMATCH_RECOURSE`'s
@@ -934,7 +932,6 @@ NOT_BOUND = {
     "LoftError": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
-    "MigrationError": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
@@ -963,7 +960,6 @@ NOT_BOUND = {
     "RevolveError": SHAPE,
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
-    "SCHEMA_VERSION": SHAPE,
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,

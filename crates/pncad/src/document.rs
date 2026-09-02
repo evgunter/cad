@@ -136,21 +136,16 @@ pub use editor_core::{
     ValuePayload, evaluate,
 };
 
-// Persistence: the schema-v4 doors, verbatim.
+// Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
 // vocabulary — and every refusal is a typed `PersistError`, whose
-// payload types ride along so each arm is matchable from here
-// (`MigrationError` lives one path deeper in `editor_core`; the others
-// are crate-root re-exports there).
-//
-// Deliberately ABSENT: `MigrationStep`, the migration-table entry
-// type. Its signature speaks `serde_json::Value`, which does not cross
-// the curated surface (the U9S backlog measurement); the migration
-// TABLE is persist's interior, and a consumer never installs a step.
-pub use editor_core::persist::MigrationError;
+// payload types ride along so each arm is matchable from here (all
+// crate-root re-exports in `editor_core`). The format carries no
+// schema version (the persist module docs say why), so there is no
+// version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SCHEMA_VERSION,
-    SnapshotError, load, save,
+    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
+    save,
 };
 
 // Document identity and content pins.

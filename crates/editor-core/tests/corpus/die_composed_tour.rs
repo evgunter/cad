@@ -64,12 +64,11 @@
 //! so replaying it into a document minted at the ambient tolerance
 //! gives every row the same recipe.
 //!
-//! The price is that this module does NOT go through `persist::load`,
-//! and therefore not through the migration chain either. So it demands
-//! a file at the CURRENT [`SCHEMA_VERSION`] and refuses anything else,
-//! loudly, with the regeneration line above as the recourse: a
-//! committed body at an older version would otherwise be read under
-//! today's types.
+//! The price is that this module does NOT go through `persist::load`:
+//! it reads the body's edit log directly under today's types, so a
+//! committed body this build cannot read refuses here, loudly, with
+//! the regeneration line above as the recourse (the same recourse the
+//! persistence door gives — the format carries no schema version).
 //!
 //! # The selections are FROZEN at the tour's tolerance
 //!
@@ -89,8 +88,7 @@
 use std::path::Path;
 
 use editor_core::{
-    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SCHEMA_VERSION, SlotId,
-    header_document_id,
+    Axis3, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, header_document_id,
 };
 use geom_core::Tol;
 
@@ -142,14 +140,7 @@ fn edits() -> Vec<DocEdit<ProfileProgram>> {
         ProfileDoc::empty_derived(DOC_LABEL, Tol::witness()).id(),
         "the committed document is not the tour's `{DOC_LABEL}` document — {recourse}"
     );
-    let (schema, rest) = text.split_once('\n').expect("a header line");
-    assert_eq!(
-        schema,
-        format!("schema: {SCHEMA_VERSION}"),
-        "this module reads the body directly and so runs no migration: \
-         the committed file must be at the current schema — {recourse}"
-    );
-    let (_, body) = rest.split_once('\n').expect("an id line");
+    let (_, body) = text.split_once('\n').expect("an id line");
     let mut value: serde_json::Value = serde_json::from_str(body)
         .unwrap_or_else(|e| panic!("the tour die document's body refuses: {e} — {recourse}"));
     serde_json::from_value(value["edits"].take())
