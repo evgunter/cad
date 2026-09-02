@@ -260,3 +260,64 @@ fn r1_a_reparametrised_unsplit_edge_control() {
         }
     }
 }
+
+/// **The class sweep, measured rather than argued.** The unit reports
+/// the sphere, cylinder and cone extent derivations immune to a split
+/// meridian (the sphere folds each arc's own poles; the linear kinds
+/// are `min_max` over endpoint levels). This row splits EVERY edge of
+/// every curved witness body in the corpus at both of the issue-653
+/// sweep's patterns and compares each face's door / flux / area /
+/// side and the body's `mass_properties` BITWISE against the unsplit
+/// body — the receipt the dispositions are claims about.
+#[test]
+fn r1_the_class_sweep_measured_over_the_curved_corpus() {
+    let tol = Tol::witness();
+    let corpus: Vec<(&str, fn() -> Body<f64>)> = vec![
+        ("ball", ball as fn() -> Body<f64>),
+        ("cone", cone),
+        ("washer", washer),
+        ("wedge", wedge),
+        ("axis_wedge", axis_wedge),
+        ("rounded_prism", rounded_prism),
+        ("donut", donut),
+    ];
+    let mut moved = Vec::new();
+    for (name, make) in corpus {
+        let base = make();
+        let r0 = receipts(&base);
+        let mp0 = topo::mass_properties(&base, tol).map(|m| (m.volume.to_bits(), m.surface_area.to_bits())).map_err(|e| format!("{e:?}"));
+        let n = base.edges().count();
+        for i in 0..n {
+            for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
+                let mut body = make();
+                let ek = body.edges().nth(i).unwrap().0;
+                let c = body
+                    .get_curve_geom(body.get_edge(ek).unwrap().curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap();
+                let (t0, t1) = c.params();
+                let mut ok = true;
+                for f in fracs {
+                    if body.split_edge(ek, t0 + f * (t1 - t0), tol).is_err() {
+                        ok = false;
+                    }
+                }
+                if !ok {
+                    println!("{name} edge {i} @{fracs:?}: split refused (skipped)");
+                    continue;
+                }
+                let r = receipts(&body);
+                let mp = topo::mass_properties(&body, tol).map(|m| (m.volume.to_bits(), m.surface_area.to_bits())).map_err(|e| format!("{e:?}"));
+                let same = r == r0 && mp == mp0;
+                if !same {
+                    println!("{name} edge {i} @{fracs:?}: MOVED  mp={mp:?} vs {mp0:?}");
+                    moved.push(format!("{name} edge {i} @{fracs:?}"));
+                } else {
+                    println!("{name} edge {i} @{fracs:?}: bitwise identical");
+                }
+            }
+        }
+    }
+    println!("configurations whose props answer moved: {}", moved.len());
+}
