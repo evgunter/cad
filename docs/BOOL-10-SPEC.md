@@ -1,4 +1,4 @@
-# BOOL-10 — the arc_continue retirement and the declared-subdivision arc form
+# BOOL-10 — the arc_continue retirement and the declared-joints arc form
 
 **Binding at dispatch** (S-BOOL program, `docs/S-BOOL-PLAN.md`;
 difficulty logged pre-draw: **L**). Read
@@ -21,7 +21,15 @@ here because it bounds the unit:
 PATHS §2c (the directed-point axiom, the sealed verbs kernel — read
 `crates/profile/src/path/verbs.rs`'s header in full), the §3 verb
 table's `arc_continue` row and §4's arc_continue paragraphs (~:956,
-~:987) are the text this unit re-records. `circle_split` (`path.rs`'s
+~:987) are the text this unit re-records. **Vocabulary, per the Q1
+sixth-round ruling (Evan, 2026-09-02): there is no "subdivision" at
+the lattice — every zero-turn joint is a DECLARED TANGENT JOINT and
+the lattice never asks whether two carriers are the same. Where this
+spec says "declared subdivision", read "declared tangent joints on
+one carrier": the vertices the new arc form mints are declared
+tangent joints (they enter `tangent_joints`), and the "one curve" fact
+lives at the emission layer as structural bookkeeping, never as a
+lattice decision.** `circle_split` (`path.rs`'s
 `circle_split_kernel`, `program.rs`'s doc "the declared-subdivision
 closed carrier") is the precedent. **Precondition: BOOL-12 has
 merged** (this unit and BOOL-12 both rewrite `path.rs`,
@@ -33,8 +41,9 @@ which BOOL-9 owns — report, do not edit, any `lift.rs` need.
 ## Situation
 
 `arc_continue(p)` continues the incoming ARC carrier to `p`, minting a
-structural subdivision vertex, and runs no junction check because it
-is a same-carrier identity. To do that it reads what the previous leg
+vertex on the same circle, and runs no junction check because it
+reads the previous leg's carrier (a same-carrier shortcut the sixth-
+round ruling retires along with the concept). To do that it reads what the previous leg
 was — the one thing §2c says a verb cannot see — and it is the axiom's
 recorded exception. The ruling removes it and puts the need where the
 axiom's bookkeeping lives: a declared subdivision ON the arc leg
