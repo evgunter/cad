@@ -21,6 +21,17 @@
 # payloads, i.e. enclosure consumers of exactly the quadrature's
 # class.
 #
+# `crates/verbs/src/run.rs` is on the list for a different reason from
+# every seam above: it DECIDES NOTHING and READS NO BRACKET. It is the
+# verb vocabulary's dispatch site (one file, one run door per declared
+# arity), and its bound is the delegated
+# kernel doors' own (the blend pair's and, since the boolean's
+# migration, `topo::boolean_op_with`'s — the same three-term bound on
+# each), satisfied so the call type-checks. SEAT-4's entry in the
+# scope rule carries the necessity argument (the weakest bound that
+# works, with the tighter one shown breaking its dual-instantiated
+# caller); this is a pointer, not a restatement.
+#
 # The fillet seam is the one allowlisted seam with NO refusing lane
 # behind it; the written reason it needs none is the DELEGATION RULE
 # (DUAL-DESIGN DL5) recorded in ONE home: geom-core/src/real.rs, the
@@ -80,6 +91,14 @@
 # refusing impl is still not redundant with that. WHY both are needed
 # has ONE home: geom-core/src/real.rs, the M9-2 entry of the `Bounds`
 # scope rule. Not restated here; keep this a pointer.
+# topo/src/{validate,shell}.rs is the certified at-rest validator and
+# the verb that validates what it built (2026-09-02): tier 3's +V
+# invariant reads a certified volume enclosure, so the validator's
+# public entry is the composition of a structural half and a certified
+# one and carries the union bound. The seam's reasons, the weakest-bound
+# check and the refusal this replaced have ONE home: geom-core/src/real.rs,
+# the 2026-09-02 entry of the `Bounds` scope rule. Not restated here;
+# keep this a pointer.
 # editor-core/src/checks.rs is the advisory-check registry, the
 # SECOND production caller of topo::separation (ratified by Evan
 # 2026-08-29). Its bound is `Decide + CertifiedBounds` — TIGHTENED,
@@ -279,11 +298,13 @@ gate() {
     | gate_grep -vE '^crates/topo/src/separation\.rs$' \
     | gate_grep -vE '^crates/topo/src/props\.rs$' \
     | gate_grep -vE '^crates/topo/src/chart_region\.rs$' \
+    | gate_grep -vE '^crates/topo/src/(validate|shell)\.rs$' \
     | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
     | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-    | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$')
+    | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' \
+    | gate_grep -vE '^crates/verbs/src/run\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"

@@ -1,0 +1,60 @@
+[package]
+name = "verbs"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Forwards geom-core's certified interval scalar so the verb door runs
+# at `Interval` in CI's interval lane, exactly as its operand crates do.
+# Every crate this one depends on that has the row is listed: an
+# unforwarded edge would compile the verb door against a DIFFERENT
+# scalar than the ops it dispatches to and fail to unify.
+interval = [
+    "geom-brep/interval",
+    "geom-core/interval",
+    "sweep/interval",
+    "topo/interval",
+]
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. Same shape
+# and same reason as the `interval` row above.
+probe = [
+    "geom-brep/probe",
+    "geom-core/probe",
+    "sweep/probe",
+    "topo/probe",
+]
+
+[dependencies]
+# The lane trait the blend doors take (`PcurveFittedLane`).
+geom-brep = { path = "../geom-brep" }
+geom-core = { path = "../geom-core" }
+# The ops this crate's run doors dispatch to. `Verb` names the
+# kernel's verbs, so it depends on every crate that hosts one; today
+# that is the blend pair in `sweep` and the boolean in `topo` (the
+# split joins at its own migration).
+sweep = { path = "../sweep" }
+topo = { path = "../topo" }
+
+[dev-dependencies]
+# The blend fixtures the `param_flow` exhaustiveness rows run against —
+# a rim body is what mints the `bands` role family, and hand-building
+# one here would be a second copy of a fixture `sweep` already owns.
+# Dev-only: the featured edge never enters a production build graph
+# (`scripts/gates/test-features-dev-only.sh`).
+sweep = { path = "../sweep", features = ["test-support"] }
+# The one Rust-source reader the suites use: `tests/all.rs`'s
+# aggregation companion and the layer guard's code view both go through
+# `test_utils::source` rather than lexing Rust themselves (the
+# `reader_census` ledger's rule).
+test-utils = { path = "../test-utils" }
+
+# ONE test binary for the whole suite (see tests/all.rs).
+[[test]]
+name = "all"
+path = "tests/all.rs"

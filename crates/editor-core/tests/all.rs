@@ -48,26 +48,28 @@ mod asm2b_multisolid;
 mod asm4_split_inline;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
-#[path = "asm_r2a_schema_v13.rs"]
-mod asm_r2a_schema_v13;
+#[path = "asm_r2a_mate_wire.rs"]
+mod asm_r2a_mate_wire;
 #[path = "asm_r2b_assembly.rs"]
 mod asm_r2b_assembly;
-#[path = "asm_r2b_schema_v14.rs"]
-mod asm_r2b_schema_v14;
+#[path = "asm_r2b_interface_wire.rs"]
+mod asm_r2b_interface_wire;
 #[path = "asm_roots.rs"]
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
-#[path = "asm_upd_schema_v10.rs"]
-mod asm_upd_schema_v10;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
 mod blend5_r2_probes;
 #[path = "blend5_rim_support.rs"]
 mod blend5_rim_support;
-#[path = "blend5_schema_v18.rs"]
-mod blend5_schema_v18;
+#[path = "blend5_rim_support_wire.rs"]
+mod blend5_rim_support_wire;
+#[path = "bool13_r1_probes.rs"]
+mod bool13_r1_probes;
+#[path = "bool13r2_probes.rs"]
+mod bool13r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
@@ -84,8 +86,6 @@ mod e4_dual_door;
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
 mod gui1_pick_r2;
-#[path = "lbret_schema_v8.rs"]
-mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
@@ -108,16 +108,16 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
+#[path = "m10_1_distribution_wire.rs"]
+mod m10_1_distribution_wire;
 #[path = "m10_1_r2_probes.rs"]
 mod m10_1_r2_probes;
-#[path = "m10_1_schema_v15.rs"]
-mod m10_1_schema_v15;
 #[path = "m10_2_measure.rs"]
 mod m10_2_measure;
+#[path = "m10_2_measure_wire.rs"]
+mod m10_2_measure_wire;
 #[path = "m10_2_r1_probes.rs"]
 mod m10_2_r1_probes;
-#[path = "m10_2_schema_v17.rs"]
-mod m10_2_schema_v17;
 #[path = "m10_3_driver_interval.rs"]
 mod m10_3_driver_interval;
 #[path = "m10_3_driver_k_probe_interval.rs"]
@@ -202,8 +202,6 @@ mod m4_pr8_k_probe;
 mod m4_pr8_latency;
 #[path = "m5_pr10_nodes.rs"]
 mod m5_pr10_nodes;
-#[path = "m5_pr10_schema_v2.rs"]
-mod m5_pr10_schema_v2;
 #[path = "m5_pr11_corpus_curved.rs"]
 mod m5_pr11_corpus_curved;
 #[path = "m5_pr12_fillet_node.rs"]
@@ -220,16 +218,16 @@ mod m5_pr8_bvh_diff;
 mod m5_s1_rest_declare;
 #[path = "m6_5_downstream.rs"]
 mod m6_5_downstream;
-#[path = "m6_5_schema_v3.rs"]
-mod m6_5_schema_v3;
 #[path = "m6_5_selection_refusals.rs"]
 mod m6_5_selection_refusals;
+#[path = "m6_5_selection_wire.rs"]
+mod m6_5_selection_wire;
 #[path = "m6_composed_node.rs"]
 mod m6_composed_node;
+#[path = "m9_1_declaration_wire.rs"]
+mod m9_1_declaration_wire;
 #[path = "m9_1_declare_classes.rs"]
 mod m9_1_declare_classes;
-#[path = "m9_1_schema_v11.rs"]
-mod m9_1_schema_v11;
 #[path = "m9_d1_r1_probes.rs"]
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
@@ -246,10 +244,10 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
-#[path = "pirad_schema_v19.rs"]
-mod pirad_schema_v19;
-#[path = "placedunion_schema_v12.rs"]
-mod placedunion_schema_v12;
+#[path = "pirad_wire.rs"]
+mod pirad_wire;
+#[path = "placedunion_wire.rs"]
+mod placedunion_wire;
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;
 #[path = "r1_dual_probes.rs"]
@@ -266,8 +264,6 @@ mod r2_keydiff;
 mod r2_m10_2_probes;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
-#[path = "respell_schema_v9.rs"]
-mod respell_schema_v9;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
@@ -276,8 +272,6 @@ mod review_m4_pr1;
 mod review_m4_pr1_die;
 #[path = "review_m4_pr2.rs"]
 mod review_m4_pr2;
-#[path = "review_m5_pr10_schema.rs"]
-mod review_m5_pr10_schema;
 #[path = "review_m5_pr10_sweep_node.rs"]
 mod review_m5_pr10_sweep_node;
 #[path = "review_m5_pr1_e2e_interval.rs"]
@@ -288,8 +282,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
-#[path = "schema_ledger.rs"]
-mod schema_ledger;
+#[path = "seat4_verb_lowering.rs"]
+mod seat4_verb_lowering;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -306,6 +300,8 @@ mod switch_program_vocabulary;
 mod switch_slots;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "unreadable_by_this_build.rs"]
+mod unreadable_by_this_build;
 
 /// Guards the `autotests = false` hazard: a suite file added under
 /// `tests/` but not declared above would silently stop being compiled
@@ -347,5 +343,5 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
-#[path = "r1_probe_v15.rs"]
-mod r1_probe_v15;
+#[path = "cert_m2r1_corpus.rs"]
+mod cert_m2r1_corpus;

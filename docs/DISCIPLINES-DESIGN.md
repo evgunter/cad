@@ -196,8 +196,8 @@ Consequences, each load-bearing:
   "Run-global" survives as the semantic posture (one config governs
   a run's report, nothing per-body), not as storage. Persisting
   expectations (an AppearanceMap-shaped, StableName-keyed store) is
-  a named later unit priced at a schema bump; DS-Q1's
-  document-demanded strictness rides with it.
+  a named later unit (a format change — the corpus regenerates);
+  DS-Q1's document-demanded strictness rides with it.
 
 This invariant is the sharp boundary of the design: anything that
 can hold it is knob-eligible; the identification disciplines (DS2)

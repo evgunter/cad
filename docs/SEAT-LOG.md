@@ -137,3 +137,97 @@ evidence includes a differential of the digest suite against
 extracted main. v6 dual dispatches on frozen head 6f4fdea6: parity
 byte 40 → **R1 opus + R2 fable**. Difficulty L was logged pre-draw.
 Full row recorded at merge; block SEAT-B1 closes at that row.
+
+## SEAT-4 MERGED (2026-09-02, PR 1547) — BLOCK SEAT-B1 CLOSES
+
+The Verb substrate landed: crates/verbs owns the canonical blend
+vocabulary, editor-core lowers both blends through one generic
+wire_blend with behavior pinned end to end (tags, wire format, and
+a provenance-extended evaluation digest differentially reproduced
+on the merge base). Zero MAJORs from either review arm; the fix
+pass extended the digest rather than softening its claim, with
+red-first evidence for all three planted mutations, and fixed the
+BlendVerb wart the Shell compiler-experiment exposed. The
+compound-Bounds allowlist row is flagged for Evan's retroactive
+review. Full row + the SEAT-B1 block-close record (draw byte 85):
+MODEL-AB-LOG SEAT4 (ordinal 1003, sample #103 at merge).
+
+Next: SEAT-DV (the issue-1527 ruling — DatumValue unit-by-
+construction) opens block SEAT-B2; then SEAT-5 (the boolean
+migration) and SEAT-6 (the ParamSource channel, with the issue-1372
+handoff note to VERBS at dispatch).
+
+## ORDINAL 1004 CLAIMED — SEAT-DV dual (2026-09-02)
+
+SEAT-DV (PR 1564, DatumValue normals unit-by-construction — the
+issue-1527 ruling executed) implementation delivered and green
+(lane=interval ASKED, eps 1e-12 drawn; run 33605838986). Newtype
+UnitVec3 in topo::query; bound loosened to Real with Decide only at
+the deciding doors; the SEAT-2 tripwire deleted; ONE disclosed
+observable move — the datum length decision reaches the funnel as
+the NEW site datum_unit_norm (K-REPORT carrier row added; audit row
+declined by the honest-length argument) — the dual's scrutiny
+point. v6 dual dispatches on frozen head 12ca8295: parity byte 216 → **R1 opus + R2 fable**. Difficulty S was
+logged pre-draw. Full row recorded at merge.
+
+## SEAT-DV MERGED (2026-09-02, PR 1564) — issue 1527 closed
+
+The issue-1527 ruling is executed: DatumValue normals are
+unit-by-construction, and the dual earned its keep — the review
+found the overflow class the newtype's guarantee missed (norm
+overflow reads as maximally definite; the deleted tripwire had been
+catching exactly that input loudly), executed end to end including
+the merge-base panic reproduction. SEAT's FIRST tally candidate
+(unilateral, executed, one defect after dedup; coding at the
+blinded adjudication). The fix gated finiteness through the value
+channel with no Bounds ratification, and the fix pass's own sibling
+probe found the same class LIVE at unit() (Pattern directions —
+issue 1572, one line from closed). Issues 1570 (direction-family
+home) and 1572 filed. Full row: MODEL-AB-LOG SEATDV (ordinal 1004,
+sample #105 at merge).
+
+Next: SEAT-5 (the boolean migration onto Verb) on block SEAT-B2's
+next slot; SEAT-6 (ParamSource + the issue-1372 handoff) behind it.
+
+## ORDINAL 1005 CLAIMED — SEAT-5 dual (2026-09-02)
+
+SEAT-5 (PR 1581, the boolean migration onto the Verb substrate)
+implementation delivered and green (lane=interval ASKED via trailer,
+eps 1e-6 drawn; run 33627876568). The unit spans a container restart:
+the first lane died mid-unit with the kernel migration and the pin
+rows pushed; the continuation lane (same arm, identical brief)
+re-verified the orphaned allowlist edit from scratch before adopting
+it, and — running the banked red-first lesson literally — found the
+digest's contacts channel fed but DEAD across the whole corpus,
+fixing it with the new kiss_carry document (the carried-v-v Declare
+arm's first corpus exercise). v6 dual dispatches on frozen head
+c8d38257: parity byte 134 → **R1 opus + R2 fable**. Difficulty L was
+logged pre-draw. Full row recorded at merge.
+
+## SEAT-5 MERGED (2026-09-02, PR 1581)
+
+The boolean landed on the Verb substrate — the first two-operand verb,
+and the two substrate questions SEAT-4's review recorded are answered
+in code: the record channel is the closed per-family `VerbRecord`
+(compile-force made REAL at the fix — both consumers exhaustive after
+the dual's planted-variant proof that the shipped `let…else` shape was
+not delivering the claim), and the two-operand lowering stands beside
+`wire_blend` as its own body (tempered at fix to "a second lowering,
+not yet a second generic lowering" — both arms converged on the
+one-inhabitant honesty). The unit spanned a container restart: the
+first lane died mid-unit with the kernel migration and pin rows
+pushed; the continuation lane (same arm) falsified the dead lane's
+contact-carry red-first claim — the digest's contacts channel was fed
+but DEAD corpus-wide — and fixed it with the kiss_carry document. The
+dual then found the SAME class again in the same function (the
+typed-empty token, fed and dead), plus the compile-force gap: TWO
+tally candidates, both unilateral R1, both executed, the second
+carrying a class caveat (committed test code). The fix pinned the
+empty token live (disjoint-intersect fixture, red-first + reproduced
+on the extracted pre-change main) and carried the VerbArity payload
+types through the facade and Python censuses (two intermediate CI
+reds, both censuses working as designed). Full row: MODEL-AB-LOG
+SEAT5 (ordinal 1005, sample #109 at merge — corrected from #107, a concurrent-recorder collision ruled by main's merge order).
+
+Next: SEAT-6 (the ParamSource channel; the issue-1372 handoff note to
+VERBS rides the dispatch per the plan) on block SEAT-B2's next slot.

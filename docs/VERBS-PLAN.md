@@ -256,7 +256,9 @@ per kickoff ruling).
 - **#883 is PARKED** (folded into H-f/H5): W1 units assume
   `T: Decide + Bounds` on the fillet signatures and do NOT re-attempt
   the `CertifiedBounds` tightening as a side effect (its lone blocker
-  is `wire_fillet`; #687 and #279 sit behind any signature touch).
+  is `wire_blend`, the one generic blend lowering `wire_fillet` and
+  `wire_chamfer` collapsed onto in SEAT-4; #687 and #279 sit behind any
+  signature touch).
 - **Tessellation-gate claims stay suspect**, on two live defects:
   **#746** (tess-lint joins on face ORDINAL — a reorder compares the
   wrong faces or drops them silently; `diefillet` already has 16

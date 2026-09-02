@@ -1093,7 +1093,7 @@ dimensional types inside. The public API uses hand-rolled newtypes
 need ~five quantities, not the SI lattice.
 
 **D6 addendum — a stored literal always names its notation (ratified
-2026-09-01, in conversation with Evan; schema v20 carries the break).**
+2026-09-01, in conversation with Evan).**
 Units erase at the accessor doors because the kernel wants them gone.
 One consumer wants them kept: a document records what a person *wrote*,
 so it can be read back that way. Every continuous literal therefore

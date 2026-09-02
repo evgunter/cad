@@ -235,7 +235,16 @@ fn e2e_prism_dual_lane_matches_f64() {
     let (mut d, _, _) = triangle_prism::<Dual64>();
     common::describe_as_intersections(&mut f);
     common::describe_as_intersections(&mut d);
-    assert_eq!(validate_geometric(&d, Tol::witness()), Ok(()));
+    // The dual takes the structural half — checks 1-6, 8 and 9, which
+    // is where every certificate compared below is produced. The +V
+    // volume invariant reads an enclosure a dual may not certify and
+    // reads none of these certificates; the f64 row beside it runs the
+    // composed door on the same construction.
+    assert_eq!(
+        topo::validate_geometric_structural(&d, Tol::witness()),
+        Ok(())
+    );
+    assert_eq!(validate_geometric(&f, Tol::witness()), Ok(()));
     let fr: Vec<f64> = f
         .curves()
         .map(|(_, c)| c.certified().unwrap().certificate().max_residual)

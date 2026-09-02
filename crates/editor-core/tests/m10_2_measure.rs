@@ -1,6 +1,6 @@
 //! **M10-2 — measurement sinks and assertions**, evaluated.
 //!
-//! The schema half lives in `m10_2_schema_v17.rs`; this suite is about
+//! The wire half lives in `m10_2_measure_wire.rs`; this suite is about
 //! what a measure MEANS. Its spine is the worked example of
 //! ERROR-DESIGN's two-hole plate: a plate with two circular holes, a
 //! measure of the web between their walls, and an assertion that the

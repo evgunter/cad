@@ -158,12 +158,12 @@ where
                     ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(*origin);
-                        d.v3(*normal);
+                        d.v3(normal.get());
                     }
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(*origin);
-                        d.v3(*dir);
+                        d.v3(dir.get());
                     }
                     ValuePayload::Datum(DatumValue::Point { position }) => {
                         d.u64(12);
@@ -570,14 +570,18 @@ fn r1_e2e_consumer_drive_at_dual64() {
                     p.body.faces().count()
                 );
                 // The friction DL3 is about, made visible on a body the
-                // service just handed back: the validation DOOR is still
-                // callable at a dual (it is `PropsQuadLane`-bounded, not
-                // policy-bounded) and refuses there. What DL3 removes is
-                // the evaluation service's CALL, not the door.
-                match topo::validate_geometric(&p.body, tol) {
-                    Ok(()) => println!("R1E2E {name}: direct validate_geometric at Dual64 PASSED"),
+                // service just handed back. What a dual can take is the
+                // STRUCTURAL half of the validator; the composed door
+                // carries the certified half's bound and cannot be
+                // called here at all, so the friction is now the
+                // narrower verdict rather than a refusal. What DL3
+                // removes is still the evaluation service's CALL.
+                match topo::validate_geometric_structural(&p.body, tol) {
+                    Ok(()) => println!(
+                        "R1E2E {name}: direct validate_geometric_structural at Dual64 PASSED"
+                    ),
                     Err(errs) => println!(
-                        "R1E2E {name}: direct validate_geometric at Dual64 refused {} finding(s);                          first = {:?}",
+                        "R1E2E {name}: direct validate_geometric_structural at Dual64 refused {} finding(s);                          first = {:?}",
                         errs.len(),
                         errs.first()
                     ),
@@ -608,9 +612,12 @@ fn r1_e2e_consumer_drive_at_dual64() {
         }
     }
 
-    // The friction DL3 is about, made visible: the validation DOOR is
-    // still callable at a dual (it is `PropsQuadLane`-bounded, not
-    // policy-bounded) and refuses there. What DL3 removes is the
+    // The friction DL3 is about, made visible. The door a dual can take
+    // is the validator's STRUCTURAL half; the composed entry carries the
+    // +V invariant's certified bound and cannot be called here at all,
+    // so the friction is a narrower verdict rather than a refusal — and
+    // narrower in both directions, since the structural half reports no
+    // orientation verdict either. What DL3 removes is still the
     // evaluation service's CALL, not the door.
     let ev_d = eval::<Dual64>(&study);
     if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(tool) {
@@ -633,9 +640,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
         && let ValuePayload::Split { above, .. } = &v.payload
         && let editor_core::SplitSide::Body(b) = above
     {
-        let direct = topo::validate_geometric(b.as_ref(), tol);
+        let direct = topo::validate_geometric_structural(b.as_ref(), tol);
         println!(
-            "R1E2E direct validate_geometric at Dual64: {}",
+            "R1E2E direct validate_geometric_structural at Dual64: {}",
             match &direct {
                 Ok(()) => "PASSED (no refusal)".to_string(),
                 Err(errs) => format!("{} refusal(s): {:?}", errs.len(), errs.first()),
@@ -699,7 +706,14 @@ fn r1_is_dl3s_measured_problem_reproducible() {
             continue;
         };
         gathered += 1;
-        let d = topo::validate_geometric(&pd.body, tol);
+        // The dual column is the STRUCTURAL half — the composed door is
+        // not callable at a dual — and the f64 column stays the composed
+        // one, so the two columns differ by the +V volume invariant as
+        // well as by the scalar. DL3's measurement is about which
+        // refusals a dual product collects, and every refusal class the
+        // finding names (`ApproxLaneUnsupported`, `CensusUnsupported`)
+        // is raised in the structural half.
+        let d = topo::validate_geometric_structural(&pd.body, tol);
         let f = product_recorded(&doc.doc, &ev_f, tol)
             .ok()
             .map(|pf| topo::validate_geometric(&pf.body, tol));

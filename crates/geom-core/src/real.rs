@@ -459,6 +459,56 @@ pub trait Real:
 /// lives beside this trait rather than inside this doc because it is the
 /// part that grows — see that module's own header.
 ///
+/// **Extension (SEAT-4, authorized under the M7-8 precedent;
+/// retroactive Evan review per the self-merge convention):**
+/// `verbs::run` — the verb vocabulary's dispatch site — joins
+/// the compound allowlist as the narrowest possible extension of the
+/// PR 12 edge-blend seam, on the M7-8 argument verbatim: it adds no
+/// obligation because it DELEGATES to already-listed doors
+/// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`; since the
+/// boolean's migration also `topo::boolean_op_with`, itself listed
+/// under the M5 PR 8 BVH candidate-generation allowance), passing
+/// its operands and parameters through unchanged, and therefore
+/// inherits their signatures rather than widening the rule's reach.
+///
+/// **It clears the first thing an entry owes** — that its reads stay
+/// on the prune/report side — vacuously and checkably: the file
+/// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
+/// comparison; the bound appears exactly once, as an INLINE bound on
+/// the `impl<T: Decide + Bounds + PcurveFittedLane> Verb<T>` header
+/// (not a `where` clause — the earlier wording of this entry said
+/// `where`-position and was simply wrong about the syntax), purely so
+/// the callee's bound is satisfiable. Nothing there decides anything,
+/// in or out of the trilean.
+///
+/// **That "no read at all" clearance is a REVIEW-TIME MEASUREMENT, not
+/// a guarded invariant**, and the distinction is worth the sentence
+/// because the entry's whole force rests on it. The gate script
+/// (`scripts/gates/bounds-allowlist.sh`) checks that a compound
+/// `Bounds` bound appears only in allowlisted FILES; it does not check
+/// that an allowlisted file abstains from reading brackets. So a later
+/// edit could add a `lo()`/`hi()` comparison to this file and no row
+/// anywhere would redden — the abstention was verified by reading the
+/// file at ratification and holds only as long as someone keeps
+/// reading it. Every entry in this allowlist carries that same
+/// exposure; this one states it rather than leaving a reader to assume
+/// the gate is stronger than it is.
+///
+/// **On the second — the WEAKEST bound that works, with the next
+/// tighter one shown failing.** Dropping [`Bounds`] does not compile:
+/// the callees require it. The next tighter bound,
+/// `Decide + `[`CertifiedBounds`]` + PcurveFittedLane`, compiles in
+/// this crate and BREAKS its caller — `editor_core::eval::wire`'s
+/// blend lowering runs beneath `evaluate<T>`, a mixed pass
+/// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
+/// `Dual` implements [`CertifiedEnclosure`]. This is the `separation`
+/// entry's discriminator, not the M9-2 one: a generic mixed pass does
+/// call this door, so it keeps its lane rather than tightening.
+///
+/// The seam did not widen here; it acquired a file. The refusing-lane
+/// question is answered where it was already answered: the PR 12 entry
+/// above, under the delegation rule, for the doors this one calls.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
@@ -724,6 +774,51 @@ pub mod bounds_allowlist {
     //! end-to-end rows build the dual body and the closure that would reach
     //! the registry and record that the call cannot be written; that is the
     //! only shape in which an unwritable call can be checked.
+    //!
+    //! **2026-09-02 — `topo::validate_geometric` and the two `topo::shell`
+    //! verbs**, the certified at-rest validator and the one verb that
+    //! validates what it built. Tier 3's battery is nine checks, eight of
+    //! which any deciding scalar answers and one of which — the +V global
+    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
+    //! battery is therefore two functions, `validate_geometric_structural`
+    //! at `T: PropsQuadLane` and a private certified half at
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
+    //! composition, so its bound is the union and IS the compound one this
+    //! file ratifies. `shell`/`shell_open` take the same bound because their
+    //! last act is that entry.
+    //!
+    //! **What it owes "brackets never decide", stated at the substance and
+    //! not at the grep.** No `lo`/`hi` call appears in `validate.rs`, and the
+    //! certified half's own bracket read is `props`' certified quadrature,
+    //! already ratified at the `props.rs` seam — but the clearance would be
+    //! false if it stopped there, because ONE tier-3 site does read a bracket
+    //! end and branch on it, through a renamed accessor a grep for `lo`/`hi`
+    //! cannot see: check 1's `minor_radius.datum_lo()`, which is
+    //! `PropsQuadLane::datum_lo`, i.e. [`Bounds::lo`](super::Bounds::lo).
+    //! It is disclosed here rather than left to be discovered, and the reason
+    //! it is admissible is the reason that accessor has its own name: a torus
+    //! tube radius that is zero, negative or poison does not describe a small
+    //! torus, it fails to describe one, so the read is about a STORED DATUM's
+    //! representability and not about where geometry lies. It takes no
+    //! `k_stats` name and no band precisely because it meters nothing — the
+    //! chamfer's `NonpositiveSize` precedent — and the geometric question
+    //! beside it (`R - r`) does go through `decide`. This is `S88`'s named
+    //! blind spot (a bracket read behind a renamed accessor) with its one
+    //! in-fence instance written down. The weakest bound that works is this one, checked
+    //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! alone does NOT compile, because the certified quadrature reads
+    //! [`Bounds`](super::Bounds) as well.
+    //!
+    //! **Why the obligation had to become literal at all**, since the door
+    //! was already closed to a dual before this row and by construction: it
+    //! was not closed. `T: PropsQuadLane` ADMITS a dual — the lane answers
+    //! "no certified quadrature" and the +V check reported that refusal at
+    //! run time — so the certification duty rode a trait name that spells
+    //! none of this gate's, invisible to every instrument. What changed is
+    //! the mechanism, not the strictness: the refusal is retired and the
+    //! call a dual cannot honour is unwritable instead. A dual keeps the
+    //! structural half, which is where every certificate its bit-identity
+    //! rows compare is produced.
     //!
     //! **What a future row owes instead of citing this one.** Two negative
     //! results carried its first draft and neither reaches the question: that

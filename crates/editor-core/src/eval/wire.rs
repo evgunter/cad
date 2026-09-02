@@ -14,8 +14,9 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
-    Body, BooleanDeclarations, BooleanResult, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
-    FacePairDeclaration, GeomSource, VfContact, VvContact,
+    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
+    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, UnitVec3, UnitVec3Error, VfContact,
+    VvContact,
 };
 
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
@@ -151,12 +152,31 @@ where
         Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, env.lane, tol),
         Node::Fillet {
             target, selection, ..
-        } => wire_fillet(id, *target, selection, doc, results, vals, tol),
+        } => wire_blend(
+            &crate::verbs::blend::fillet(),
+            id,
+            *target,
+            selection,
+            doc,
+            results,
+            vals,
+            tol,
+        ),
         Node::Chamfer {
             target, selection, ..
-        } => wire_chamfer(id, *target, selection, doc, results, vals, tol),
+        } => wire_blend(
+            &crate::verbs::blend::chamfer(),
+            id,
+            *target,
+            selection,
+            doc,
+            results,
+            vals,
+            tol,
+        ),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
         Node::Boolean { op, a, b, declare } => wire_boolean(
+            &crate::verbs::boolean::boolean(),
             id,
             *op,
             *a,
@@ -419,9 +439,23 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 }
 
 /// Normalizes a direction-valued vector; decided-zero length refuses,
-/// in-band indeterminacy escalates (all through the one door). Shared
-/// with the mate solve's derived-offset derivation, so a direction is
-/// decided under the same predicate wherever it is read.
+/// in-band indeterminacy escalates.
+///
+/// **Two doors, not one, and the split is a crate boundary.** This one
+/// carries the directions this layer OWNS — a transform's rotation
+/// axis, a linear pattern's direction — under
+/// `eval_direction_norm`. A datum's normal or axis direction is
+/// normalized by the kernel type that holds it
+/// ([`topo::UnitVec3::new`], under [`DATUM_UNIT_NORM`]) because that
+/// invariant belongs to the type and not to the caller: `DatumValue`
+/// has no unnormalized spelling, so there is nowhere for this door to
+/// stand in that path. MATE-1 collapsed `mate_pattern_direction_norm`
+/// into this door and that collapse HOLDS — the mate solve still
+/// derives its offsets through this function, so a direction this
+/// layer owns is decided under one predicate wherever it is read. What
+/// is no longer true is the wider reading: the workspace decides
+/// direction length under TWO names now, split by which layer owns the
+/// value. `mate/solve.rs` reads both roads (issue 1570).
 pub(crate) fn unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
@@ -461,11 +495,29 @@ fn need_point3<T: Decide>(
     point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
+/// A slot's vector as a datum direction, through the kernel type's own
+/// constructor: the normalization and the two refusals live there, and
+/// this layer only names the ROLE the refusal is about.
+fn datum_unit<T: Decide>(
+    v: Vec3<T>,
+    role: &'static str,
+    band: Band,
+) -> Result<UnitVec3<T>, NodeErrorKind> {
+    UnitVec3::new(v, band).map_err(|e| match e {
+        UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
+        UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
+        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated {
+            predicate: DATUM_UNIT_NORM,
+            source,
+        },
+    })
+}
+
 fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadResult<T> {
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
-            normal: unit(
+            normal: datum_unit(
                 need_vec3(vals, SlotId::Normal)?,
                 "datum plane normal",
                 band(tol)?,
@@ -473,7 +525,7 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
         },
         Datum::Axis { .. } => DatumValue::Axis {
             origin: need_point3(vals, SlotId::Origin)?,
-            dir: unit(
+            dir: datum_unit(
                 need_vec3(vals, SlotId::Direction)?,
                 "datum axis direction",
                 band(tol)?,
@@ -693,6 +745,7 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
             found: av.payload.kind_name(),
         });
     };
+    let dir = dir.get();
     // The kernel's RevolveAxis lives in SKETCH-PLANE coordinates: the
     // 3-D datum axis must lie in the profile's plane (decided; a
     // definite out-of-plane component is a typed refusal, spec D3's
@@ -774,49 +827,95 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     ))
 }
 
-/// **Both blend doors' one refusal translation**: the kernel door
-/// attached the verb, and this layer READS it off the refusal rather
-/// than re-deriving which door it called — one discrimination point
-/// per layer, and one site for it here so the two doors cannot drift.
-fn blend_refused(refusal: sweep::blend::BlendRefusal) -> NodeErrorKind {
-    let sweep::blend::BlendRefusal { verb, error } = refusal;
-    NodeErrorKind::Blend { verb, error }
+/// **The verb dispatch's one refusal translation**: the kernel door
+/// attached the verb, the `verbs` run door carried the refusal through
+/// unaltered, and this layer READS the family off it rather than
+/// re-deriving which door it called — one discrimination point per
+/// layer, and one site for it here so no two doors can drift.
+///
+/// Exhaustive over [`verbs::VerbError`] with no wildcard arm, so a
+/// verb family with a new refusal shape breaks here rather than
+/// arriving as another's. One boolean refusal does NOT come through
+/// this door: the undeclared-coincidence menu lift needs the operands'
+/// naming context, so [`refusal_menu`] intercepts it and delegates
+/// everything else here.
+fn verb_refused(refusal: verbs::VerbError) -> NodeErrorKind {
+    match refusal {
+        verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
+            NodeErrorKind::Blend { verb, error }
+        }
+        verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
+        verbs::VerbError::Arity { verb, given } => NodeErrorKind::VerbArity { verb, given },
+    }
 }
 
+/// **The blend pair's ONE lowering**, driven by the verb's
+/// correspondence ([`crate::verbs::blend`]) rather than written twice.
+///
+/// The shape is the same for both verbs and always was: resolve the
+/// frozen selection through the target's name table into edge keys,
+/// evaluate the size slot to `T`, build the kernel verb, run it, emit
+/// names from the birth record under THIS node's id. What the
+/// correspondence supplies is the four literals that differ — the size
+/// slot, the selection-refusal label, which verb to build, and what to
+/// call a missing record.
+///
+/// # Fillet
+///
 /// **Constant-radius rolling-ball fillets on a SELECTION of the
 /// target's edges** (M5 PR 12; the selection is M6-5).
+///
+/// # Chamfer
+///
+/// **Equal-setback flat chamfers on a SELECTION of the target's
+/// edges** — the fillet's twin, and the reason this function is one
+/// function.
+///
+/// # Refusals
 ///
 /// The selection resolves through the TARGET's name table into edge
 /// keys. Resolution failures are the N5 typed trio VERBATIM
 /// ([`NodeErrorKind::BlendSelectionResolve`]) — a selection is a
-/// commitment (`Node::Fillet`'s freeze semantics), so a name that
+/// commitment (the blend nodes' freeze semantics), so a name that
 /// stopped resolving refuses loudly rather than shrinking the set.
 ///
 /// Failure of the op itself is a TYPED refusal
 /// ([`NodeErrorKind::Blend`]) carrying the kernel's own error
-/// unaltered, exactly as the split/boolean arms carry theirs. The
-/// input body is never passed through: a fillet that did not happen
-/// must read as a failed node, not as a silently sharp solid.
+/// unaltered, exactly as the split/boolean arms carry theirs. The input
+/// body is never passed through: a blend that did not happen must read
+/// as a failed node, not as a silently sharp solid.
 ///
 /// # Naming
 ///
-/// **The assembly emits a FULL table** ([`names::name_fillet`]): it
-/// hands over per-entity birth records and the emitter translates
-/// them, never matching geometry. A fillet result therefore always
-/// carries birth records, and the totality check covers every role it
-/// mints; an empty table would be a silent naming dead end, so this
-/// layer refuses rather than accepting one.
+/// **The assembly emits a FULL table**: the kernel hands over
+/// per-entity birth records and the emitter translates them, never
+/// matching geometry. A blend result therefore always carries birth
+/// records, and the totality check covers every role it mints; an empty
+/// table would be a silent naming dead end, so this layer refuses
+/// rather than accepting one — `naming: None` is a kernel bug, and
+/// falling back to an empty table would leave every downstream
+/// reference into this body silently unresolvable.
 ///
-/// What that is worth, precisely (`m6_5_downstream.rs`): the
-/// appearance store resolves an attribute onto a fillet-minted face,
-/// the resolve ladder answers `Resolved` for every role this door
-/// mints, and such a reference survives an upstream bump. A BOOLEAN
-/// over a filleted body is still not reachable — the kernel refuses
+/// The role vocabulary is SHARED between the two verbs, and what tells
+/// a chamfer's strip from a fillet's blend at a selector is which node
+/// minted it (RECIPE-DOORS D3) — which is why one lowering can serve
+/// both without their names colliding.
+///
+/// What that is worth, precisely (`m6_5_downstream.rs`): the appearance
+/// store resolves an attribute onto a fillet-minted face, the resolve
+/// ladder answers `Resolved` for every role this door mints, and such a
+/// reference survives an upstream bump. A BOOLEAN over a filleted body
+/// is still not reachable — the kernel refuses
 /// `FallbackExtentUnsupported` on the sphere octants every fillet
-/// result carries, even against a disjoint operand — and that
-/// frontier, which predates M6-5, is pinned executed in the same
-/// file. The naming side is ready; the kernel side is not.
-fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+/// result carries, even against a disjoint operand — and that frontier,
+/// which predates M6-5, is pinned executed in the same file. The naming
+/// side is ready; the kernel side is not.
+// The 8th is the verb's correspondence — which is what collapses two
+// of these functions into one, so it is the parameter that REMOVES
+// duplication rather than adding a duty.
+#[allow(clippy::too_many_arguments)]
+fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
@@ -826,85 +925,37 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, target)?;
-    let radius = need_scalar(vals, SlotId::Radius)?;
+    let size = need_scalar(vals, verb.size_slot)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
-    let filleted =
-        sweep::blend::build::fillet_edges(&body, &edges, radius, tol).map_err(blend_refused)?;
-    // The assembly always keeps records, so `None` is a kernel bug:
-    // refuse loudly rather than fall back to an empty table, which
-    // would leave every downstream reference into this body silently
-    // unresolvable.
-    let rec =
-        filleted
-            .naming
-            .as_ref()
-            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: "the fillet returned a body with no birth records",
-            }))?;
-    let table = names::name_fillet(id, target, &target_table, &filleted.body, rec)
+    let edges = resolve_selection(verb.selection_label, selection, doc, &target_table)?;
+    let out = (verb.build)(edges, size)
+        .run(&body, tol)
+        .map_err(verb_refused)?;
+    // The record channel is per-family; a blend's run produces the
+    // blend variant by construction, so another family here is a
+    // kernel bug — refused typed, exactly like the `None` record below.
+    // The match is EXHAUSTIVE with no wildcard arm (D3): a record
+    // family added to the channel breaks this consumer at compile time
+    // and must be routed here deliberately, never silently refused.
+    let naming = match out.record {
+        verbs::VerbRecord::Blend(naming) => naming,
+        verbs::VerbRecord::Boolean { .. } => {
+            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: verb.foreign_record,
+            }));
+        }
+    };
+    let rec = naming.ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+        what: verb.no_records,
+    }))?;
+    let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
-    let mut out = filleted.body;
-    // The blend's own surfaces/curves/points are minted HERE (D1/N6);
-    // the supports' pass-through descriptions keep the source they
-    // arrived with.
-    stamp_minted(&mut out, id);
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
-}
-
-/// **Equal-setback flat chamfers on a SELECTION of the target's
-/// edges** — [`wire_fillet`]'s twin, arm for arm.
-///
-/// The selection resolves through the TARGET's name table into edge
-/// keys, resolution failures are the N5 typed trio verbatim, the op's
-/// own failure is a typed refusal carrying the kernel's error
-/// unaltered ([`NodeErrorKind::Blend`] with [`BlendKind::Chamfer`]),
-/// and the input body is never passed through. Every one of those
-/// sentences is [`wire_fillet`]'s and holds here for the same reasons
-/// — read them there.
-///
-/// # Naming
-///
-/// The chamfer surgery IS the fillet surgery: `chamfer_edges` returns
-/// the same birth records, so this door refuses `naming: None` exactly
-/// as the fillet's does and hands the records to
-/// [`names::name_chamfer`], which mints under THIS node's id. That id
-/// is the whole discrimination (RECIPE-DOORS D3): the role vocabulary
-/// is shared, and what tells a chamfer's strip from a fillet's blend
-/// at a selector is which node minted it.
-fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
-    id: RecipeNodeId,
-    target: RecipeNodeId,
-    selection: &[names::StableName],
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> OpResult<T> {
-    let body = body_operand(results, target)?;
-    let distance = need_scalar(vals, SlotId::ChamferDistance)?;
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
-    let chamfered =
-        sweep::blend::build::chamfer_edges(&body, &edges, distance, tol).map_err(blend_refused)?;
-    // The assembly always keeps records, so `None` is a kernel bug —
-    // the fillet door's argument unchanged: an empty table would leave
-    // every downstream reference into this body silently unresolvable.
-    let rec =
-        chamfered
-            .naming
-            .as_ref()
-            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: "the chamfer returned a body with no birth records",
-            }))?;
-    let table = names::name_chamfer(id, target, &target_table, &chamfered.body, rec)
-        .map_err(NodeErrorKind::Naming)?;
-    let mut out = chamfered.body;
-    // The strips' and patches' own surfaces, curves and points are
-    // minted HERE (D1/N6); the supports' pass-through descriptions keep
-    // the source they arrived with.
-    stamp_minted(&mut out, id);
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
+    let mut body = out.body;
+    // The blend's own surfaces, curves and points are minted HERE
+    // (D1/N6); the supports' pass-through descriptions keep the source
+    // they arrived with.
+    stamp_minted(&mut body, id);
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
 }
 
 /// The mid-evaluation N5 refusal ladder, shared by every door that
@@ -1257,7 +1308,7 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     };
     let plane = SplitPlane {
         origin: *origin,
-        normal: *normal,
+        normal: normal.get(),
     };
     let result = split(&body, &plane, tol).map_err(NodeErrorKind::Split)?;
     // Pass-through descriptions keep their sources (the clone carried
@@ -1285,7 +1336,7 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
         target,
         &target_table,
         &body,
-        *normal,
+        normal.get(),
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
@@ -1295,8 +1346,18 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
 // `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
+//
+// The TWO-OPERAND generic lowering, beside `wire_blend`'s one-operand
+// shape rather than folded into it: the boolean's document semantics
+// have more upstairs than a blend's — two operand tables, the
+// `declare` input's N5 resolution, the declared-contact carry into the
+// boolean VALUE, and the typed empty success — and a lowering generic
+// over operand COUNT would trade those typed shapes for runtime arity.
+// The correspondence (`crate::verbs::boolean`) supplies what varies
+// per pair verb: the verb constructor and the naming emitter.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
 fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
@@ -1310,7 +1371,9 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // F5 threading (M4 PR 5): the Declare input's name pairs resolve
     // through the OPERANDS' name tables into the kernel's declared
     // coincidence data. Resolution failures are the N5 typed errors —
-    // no silent drop, no best-effort gluing.
+    // no silent drop, no best-effort gluing. This stays upstairs: it
+    // is the document's semantics (names, freezes, refusal payloads),
+    // and the kernel verb receives only the lowered arena-key form.
     let mut kernel_decls = BooleanDeclarations::none();
     if let Some(d) = declare {
         let dv = value_of(results, d)?;
@@ -1327,20 +1390,39 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
-    match topo::boolean_op_with(op, &body_a, &body_b, &kernel_decls, boolean_sweep, tol)
+    match (verb.build)(op, kernel_decls)
+        .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(|err| refusal_menu(results, a, b, err))?
     {
-        BooleanResult::Empty => Ok(OpOut::plain(
+        verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
             names::empty(),
         )),
-        BooleanResult::Body(bb) => {
+        verbs::PairOut::Out(out) => {
+            // Per-family record channel; another family from a
+            // boolean run is a kernel bug, refused typed
+            // (`wire_blend`'s clause, mirrored). Exhaustive with no
+            // wildcard arm (D3): a new record family breaks this
+            // consumer at compile time rather than routing silently
+            // to the refusal.
+            let (kind, contacts, naming) = match out.record {
+                verbs::VerbRecord::Boolean {
+                    kind,
+                    contacts,
+                    naming,
+                } => (kind, contacts, naming),
+                verbs::VerbRecord::Blend(_) => {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: verb.foreign_record,
+                    }));
+                }
+            };
             let a_table = Arc::clone(&value_of(results, a)?.name_table);
             let b_table = Arc::clone(&value_of(results, b)?.name_table);
-            let table = names::name_boolean(
+            let table = (verb.emitter)(
                 id,
-                &bb.body,
-                &bb.naming,
+                &out.body,
+                &naming,
                 &names::OperandCtx {
                     node: a,
                     table: &a_table,
@@ -1354,15 +1436,15 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                 tol,
             )
             .map_err(NodeErrorKind::Naming)?;
-            let mut body = bb.body;
+            let mut body = out.body;
             // Seam chords / minted descriptions get THIS node's
             // sources; everything carried keeps its own (D1).
             stamp_minted(&mut body, id);
             Ok(OpOut::plain(
                 ValuePayload::Boolean(BooleanValue::Body {
                     body: Arc::new(body),
-                    kind: bb.kind,
-                    contacts: Arc::new(bb.contacts),
+                    kind,
+                    contacts: Arc::new(contacts),
                 }),
                 table,
             ))
@@ -1384,19 +1466,24 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// invariant break (`vocabulary_coverage_is_total` pins coverage),
 /// not an authoring state — the plain `Boolean` wrapping is
 /// preserved: the boolean's refusal is never masked by its own menu.
+///
+/// The menu is the ONE translation that needs the operands' naming
+/// context, so it happens here, before the shared translation: every
+/// other refusal a boolean run can carry falls through to
+/// [`verb_refused`], the same door every verb's refusal goes through.
 fn refusal_menu<T: Decide>(
     results: &Results<T>,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    err: topo::BooleanError,
+    err: verbs::VerbError,
 ) -> NodeErrorKind {
-    let topo::BooleanError::UndeclaredCoincidence {
+    let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
         diag,
         pair,
         relation,
-    } = err
+    }) = err
     else {
-        return NodeErrorKind::Boolean(err);
+        return verb_refused(err);
     };
     // The finding's contract orders the pair (a-side, b-side); the
     // raise sites order it by discovery. Relation is orientation-
@@ -1610,7 +1697,11 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// The resolved operands of a stepped placement rule: what the rule's
 /// math consumes once every slot or expression is evaluated and every
-/// direction is unit (through [`unit()`]'s decided normalization).
+/// direction is unit. The two rules get there by different roads: a
+/// LINEAR rule's direction is a slot this layer normalizes through
+/// [`unit()`], while a CIRCULAR rule's axis arrives already unit out of
+/// a datum's `UnitVec3` — the kernel type's constructor did it, and
+/// `.get()` only reads it back.
 pub(crate) enum SteppedOperands<T: geom_core::Real> {
     /// A linear rule: unit direction, spacing per step.
     Linear {
@@ -1623,7 +1714,8 @@ pub(crate) enum SteppedOperands<T: geom_core::Real> {
     Circular {
         /// A point on the rotation axis.
         origin: Point3<T>,
-        /// The axis direction, already unit.
+        /// The axis direction, unit because it came out of the datum's
+        /// `UnitVec3` — no door here re-decides it.
         dir: Vec3<T>,
         /// The rotation angle per step.
         step: T,
@@ -1685,7 +1777,7 @@ fn stepped_map<T: Decide>(
             };
             SteppedOperands::Circular {
                 origin: *origin,
-                dir: *dir,
+                dir: dir.get(),
                 step: need_scalar(vals, SlotId::Step)?,
             }
         }
