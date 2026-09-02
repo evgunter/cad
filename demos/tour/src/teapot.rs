@@ -1302,8 +1302,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              torus the meridian reduction did not know, so the body fell to the \
              per-chart loop and the C5 table refused its plane x torus pair. The \
              reduction knows the kind now, that pot hollows, and the probe above \
-             asserts the hollow instead of pinning a refusal — nothing here widened \
-             `intersect::route` (`tests/verbs_teapot.rs` \
+             asserts the hollow instead of pinning a refusal — the hollow rides the \
+             meridian reduction, not the C5 table, and held on both sides of \
+             VERBS-C5ARMS's later `intersect::route` widening for the pair \
+             (`tests/verbs_teapot.rs` \
              carries the junction table, the tangency discriminator and the sweep's \
              blind spot). THE MOUTH IS \
              OPEN, AND THAT WAS THE SCENE'S SECOND FINDING BEFORE IT WAS FIXED: \
