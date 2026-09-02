@@ -227,6 +227,12 @@ pub enum SlotId {
     Normal(Axis3),
     /// A datum axis's / linear pattern's direction component (Scalar).
     Direction(Axis3),
+    /// A datum frame's first in-plane direction component — sketch +x
+    /// (Scalar).
+    U(Axis3),
+    /// A datum frame's second in-plane direction component — sketch +y
+    /// (Scalar). Orthogonalized against `u` at evaluation.
+    V(Axis3),
     /// An extrude's distance (Length).
     Distance,
     /// A fillet's constant blend radius (Length).
@@ -304,6 +310,10 @@ pub enum VectorSlot {
     /// A datum axis's / linear pattern's direction
     /// ([`SlotId::Direction`]).
     Direction,
+    /// A datum frame's first in-plane direction ([`SlotId::U`]).
+    U,
+    /// A datum frame's second in-plane direction ([`SlotId::V`]).
+    V,
     /// A transform's translation ([`SlotId::Translation`]).
     Translation,
     /// A transform's rotation axis ([`SlotId::RotationAxis`]).
@@ -313,10 +323,12 @@ pub enum VectorSlot {
 impl VectorSlot {
     /// Every vector family, in no significant order — for a consumer
     /// enumerating families rather than reading one off a slot.
-    pub const ALL: [VectorSlot; 5] = [
+    pub const ALL: [VectorSlot; 7] = [
         VectorSlot::Origin,
         VectorSlot::Normal,
         VectorSlot::Direction,
+        VectorSlot::U,
+        VectorSlot::V,
         VectorSlot::Translation,
         VectorSlot::RotationAxis,
     ];
@@ -328,6 +340,8 @@ impl VectorSlot {
             Self::Origin => SlotId::Origin(axis),
             Self::Normal => SlotId::Normal(axis),
             Self::Direction => SlotId::Direction(axis),
+            Self::U => SlotId::U(axis),
+            Self::V => SlotId::V(axis),
             Self::Translation => SlotId::Translation(axis),
             Self::RotationAxis => SlotId::RotationAxis(axis),
         }
@@ -345,6 +359,12 @@ impl VectorSlot {
             Self::Origin => "origin",
             Self::Normal => "normal",
             Self::Direction => "direction",
+            // The SKETCH's names for them, not the vocabulary's: a
+            // reader picking a frame's axes is thinking in the 2D
+            // coordinates they are about to draw, and "u" alone on a
+            // panel says nothing.
+            Self::U => "x axis",
+            Self::V => "y axis",
             Self::Translation => "translation",
             Self::RotationAxis => "rotation axis",
         }
@@ -373,7 +393,11 @@ impl SlotId {
             | Self::ChamferDistance
             | Self::Translation(_)
             | Self::Spacing => Dimension::Length,
-            Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
+            Self::Normal(_)
+            | Self::Direction(_)
+            | Self::U(_)
+            | Self::V(_)
+            | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle | Self::RotationAngle | Self::Step => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
@@ -422,6 +446,8 @@ impl SlotId {
             Self::Origin(_)
             | Self::Normal(_)
             | Self::Direction(_)
+            | Self::U(_)
+            | Self::V(_)
             | Self::Translation(_)
             | Self::RotationAxis(_) => self.component().map_or_else(
                 || String::from("component"),
@@ -441,6 +467,8 @@ impl SlotId {
             Self::Origin(axis) => Some((VectorSlot::Origin, axis)),
             Self::Normal(axis) => Some((VectorSlot::Normal, axis)),
             Self::Direction(axis) => Some((VectorSlot::Direction, axis)),
+            Self::U(axis) => Some((VectorSlot::U, axis)),
+            Self::V(axis) => Some((VectorSlot::V, axis)),
             Self::Translation(axis) => Some((VectorSlot::Translation, axis)),
             Self::RotationAxis(axis) => Some((VectorSlot::RotationAxis, axis)),
             Self::Distance
@@ -482,6 +510,34 @@ pub enum Datum {
     Point {
         /// Position components, Length ([`SlotId::Origin`]).
         position: [Expr; 3],
+    },
+    /// **An oriented plane**: a plane through `origin` spanned by `u`
+    /// and `v`, with normal u × v — the sketch frame a 2D profile is
+    /// drawn on.
+    ///
+    /// [`Datum::Plane`] is origin plus normal, which pins five of a
+    /// placement's six rigid degrees of freedom. The sixth — the spin
+    /// about the normal — is what a sketch's x and y axes ARE, so a
+    /// plane cannot serve as a sketch frame and a frame is not a
+    /// dressed-up plane: a section cut wants the surface and would
+    /// have to ignore the spin. Both stay, named apart.
+    ///
+    /// `u` and `v` are authored as arbitrary expressions and
+    /// ORTHONORMALIZED at evaluation (PR 2's `wire`), which is also
+    /// where a degenerate or parallel pair refuses loudly. Nothing is
+    /// checked here — this vocabulary carries expression slots, never
+    /// geometry.
+    Frame {
+        /// Origin components, Length ([`SlotId::Origin`]) — sketch
+        /// (0, 0) in world space.
+        origin: [Expr; 3],
+        /// First in-plane direction, sketch +x, Scalar
+        /// ([`SlotId::U`]).
+        u: [Expr; 3],
+        /// Second in-plane direction, sketch +y, Scalar
+        /// ([`SlotId::V`]). Orthogonalized against `u`, so only its
+        /// component perpendicular to `u` is read.
+        v: [Expr; 3],
     },
 }
 
@@ -1365,6 +1421,12 @@ impl<P> Node<P> {
                 s
             }
             Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
+            Node::Datum(Datum::Frame { .. }) => {
+                let mut s = vec3(SlotId::Origin).to_vec();
+                s.extend(vec3(SlotId::U));
+                s.extend(vec3(SlotId::V));
+                s
+            }
             Node::Profile(p) => p.slots(),
             // AQ4: an instance takes no arguments in v1 — the
             // referenced document evaluates at its OWN parameters.
@@ -1424,6 +1486,7 @@ impl<P> Node<P> {
             (Node::Profile(p), S::Profile { .. }) => p.expr(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
+            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
                 Some(comp(origin, ax))
             }
@@ -1431,6 +1494,8 @@ impl<P> Node<P> {
             (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
                 Some(comp(direction, ax))
             }
+            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
+            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
@@ -1486,6 +1551,7 @@ impl<P> Node<P> {
             (Node::Profile(p), S::Profile { .. }) => p.expr_mut(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
+            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
                 Some(comp_mut(origin, ax))
             }
@@ -1493,6 +1559,8 @@ impl<P> Node<P> {
             (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
                 Some(comp_mut(direction, ax))
             }
+            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
+            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),

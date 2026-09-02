@@ -511,6 +511,50 @@ pub enum DatumValue<T: Real> {
         /// Its position.
         position: Point3<T>,
     },
+    /// **An oriented plane** — origin plus a right-handed pair of
+    /// in-plane directions, so the surface AND the spin about its
+    /// normal are pinned.
+    ///
+    /// A [`DatumValue::Plane`] fixes five of a placement's six rigid
+    /// degrees of freedom; the sixth, the rotation about the normal,
+    /// is exactly what a sketch's `u` and `v` axes are. Anything that
+    /// only measures against the SURFACE (a section cut,
+    /// [`datum_distance`]) wants the plane and would have to ignore
+    /// the spin; anything that reads or writes 2D coordinates on the
+    /// plane needs the frame, because there is nothing else to hang an
+    /// `(x, y)` pair on. The two are separate variants for that
+    /// reason, not as a naming accident.
+    ///
+    /// `u` and `v` are unit by their type and ORTHOGONAL by the
+    /// contract of whoever built the value — the evaluation layer
+    /// orthonormalizes and refuses a degenerate pair loudly, so a
+    /// frame reaching a consumer spans a plane. The normal is `u × v`,
+    /// computed rather than stored: storing it would be a second
+    /// opinion that could come to disagree with the pair.
+    Frame {
+        /// Sketch (0, 0) in world space.
+        origin: Point3<T>,
+        /// The first in-plane direction — sketch +x.
+        u: UnitVec3<T>,
+        /// The second in-plane direction — sketch +y, perpendicular to
+        /// `u`.
+        v: UnitVec3<T>,
+    },
+}
+
+impl<T: Real> DatumValue<T> {
+    /// A frame's normal, `u × v` — unit because a unit orthogonal pair
+    /// crosses to a unit vector, so this is a projection of the frame
+    /// and not a renormalization.
+    ///
+    /// Spelled here rather than at each reader for the reason the
+    /// variant's own doc gives: the normal is DERIVED, and a consumer
+    /// that recomputed it locally would be the place the two spellings
+    /// drift apart.
+    #[must_use]
+    pub fn frame_normal(u: UnitVec3<T>, v: UnitVec3<T>) -> Vec3<T> {
+        u.get().cross(v.get())
+    }
 }
 
 /// **The funnel site name** of the decided position predicate — the
@@ -527,9 +571,12 @@ pub enum DatumValue<T: Real> {
 /// "The inventory method, restated").
 pub const SEL_DATUM_DISTANCE: &str = "sel_datum_distance";
 
-/// The distance of `p` from a datum: SIGNED along a plane's normal
-/// (which is unit by construction, so the dot product is already a
-/// length), UNSIGNED to an axis or a point.
+/// The distance of `p` from a datum: SIGNED along a plane's or a
+/// frame's normal (which is unit by construction, so the dot product
+/// is already a length), UNSIGNED to an axis or a point.
+///
+/// A frame answers as the plane it lies in — its spin about the normal
+/// is exactly the datum this measurement does not read.
 ///
 /// Arithmetic only, so [`Real`] is the whole bound: deciding what the
 /// distance MEANS is [`datum_distance_sign`]'s job, and that is where
@@ -544,6 +591,7 @@ pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
             (v - d * v.dot(d)).norm()
         }
         DatumValue::Point { position } => (p - *position).norm(),
+        DatumValue::Frame { origin, u, v } => (p - *origin).dot(DatumValue::frame_normal(*u, *v)),
     }
 }
 

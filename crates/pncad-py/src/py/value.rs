@@ -289,18 +289,28 @@ impl Body {
     }
 }
 
-/// A datum: a construction plane, axis, or point.
+/// A datum: a construction plane, frame, axis, or point.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Datum {
-    /// `"plane"`, `"axis"`, or `"point"`.
+    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
     #[pyo3(get)]
     kind: &'static str,
-    /// Plane/axis origin, or the point's position, as metres.
+    /// Plane/frame/axis origin, or the point's position, as metres.
     #[pyo3(get)]
     origin: (Length, Length, Length),
-    /// Plane normal or axis direction; `None` for a point.
+    /// Plane normal, frame normal (x̂ × ŷ), or axis direction; `None`
+    /// for a point.
     #[pyo3(get)]
     direction: Option<(f64, f64, f64)>,
+    /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
+    /// for every other kind.
+    ///
+    /// The pair rides ALONGSIDE `direction` rather than replacing it:
+    /// a reader asking which way a datum faces gets the same answer
+    /// for a frame as for a plane, and one asking how the frame is
+    /// TURNED — the datum a plane does not carry — reads the axes.
+    #[pyo3(get)]
+    axes: Option<((f64, f64, f64), (f64, f64, f64))>,
 }
 
 #[pymethods]
@@ -504,6 +514,7 @@ impl Value {
                     kind: "plane",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
+                    axes: None,
                 })
             }
             d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => {
@@ -512,13 +523,25 @@ impl Value {
                     kind: "axis",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
+                    axes: None,
                 })
             }
             d::ValuePayload::Datum(d::DatumValue::Point { position }) => Ok(Datum {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
+                axes: None,
             }),
+            d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {
+                let (x, y) = (u.get(), v.get());
+                let n = d::DatumValue::frame_normal(*u, *v);
+                Ok(Datum {
+                    kind: "frame",
+                    origin: lengths(*origin),
+                    direction: Some((n.x, n.y, n.z)),
+                    axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
+                })
+            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a datum", other.kind_name()),

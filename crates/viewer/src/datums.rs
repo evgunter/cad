@@ -12,16 +12,61 @@
 //! every number below is a display decision this module is answerable
 //! for rather than a fact read out of the document.
 //!
-//! # A datum has no size, so the picture lends it one
+//! # A datum has no size, so the VIEW lends it one
 //!
 //! The document says where a plane is and which way it faces; it does
 //! not say how big to draw it, because a plane is not big. Every
-//! dimension here is therefore a multiple of an EXTENT the caller
-//! supplies — the scene's own bounding diagonal — so a datum on a
-//! 2 mm boss and one on a 2 m plate are drawn at the same size
-//! relative to what they are beside. A document with no geometry at
-//! all has no extent to scale against and gets a fallback, stated
-//! once, in [`FALLBACK_EXTENT`].
+//! dimension here therefore comes from a [`View`] — where the eye is
+//! and how much world one pixel spans — and NOT from the scene's
+//! extent, which is what the first version of this module used.
+//!
+//! **Sizing against the scene has a hole in it, and the hole is
+//! literal.** A world-fixed grid keeps its pitch while the view zooms
+//! in, so past some distance one cell fills the window and the plane
+//! vanishes — not dimmed, not clipped, absent, with nothing on screen
+//! to say a plane is there at all. On the shipped 60x40x8 plate the
+//! grid was 10 mm and one cell filled the view at 12 mm of camera
+//! distance, inside a zoom band that reaches 1.8 mm. The same failure
+//! runs the other way at the far end: zoom out and a world-fixed patch
+//! shrinks to a speck.
+//!
+//! So both halves follow the view, and they are two decisions:
+//!
+//! - **The patch** is centred on what the camera is POINTED AT,
+//!   projected onto the plane, and sized to overflow the window
+//!   ([`PATCH_COVER`]) — so panning cannot leave it and zooming out
+//!   cannot shrink it away. The looked-at point rather than the eye's
+//!   own perpendicular foot: that foot is well defined and the wrong
+//!   point, because on a plane seen at a grazing angle it sits far
+//!   from where the camera is aimed ([`View::look_at`]).
+//! - **The pitch** snaps to a 1-2-5 ladder chosen so one cell spans
+//!   about [`TARGET_PITCH_PX`] pixels. Snapping is the half that is
+//!   easy to miss: a pitch varying CONTINUOUSLY with distance would
+//!   keep the on-screen spacing perfect and make every line swim under
+//!   the cursor as you zoom, which is useless as a ruler. On a ladder
+//!   the lines hold still and the grid subdivides in steps — at the
+//!   cost of a visible pop at each rung, which this pass cannot
+//!   cross-fade away because it has no alpha and which is the honest
+//!   price of lines that stay put.
+//!
+//! Lines are laid at multiples of the pitch FROM THE DATUM'S ORIGIN,
+//! not from the patch's centre: the origin is a real point on the
+//! plane and a grid line through it is a fact, where a grid indexed
+//! off a moving window would slide as the eye moved.
+//!
+//! **Perspective makes one pitch a compromise**, stated rather than
+//! hidden, and the compromise is not one-sided. World-per-pixel grows
+//! with depth, so one pitch over a plane seen at an angle is finer
+//! than asked for beyond the scale point and COARSER than asked for
+//! nearer than it. The scale is taken where the camera is pointed,
+//! which puts the target pitch exactly where a reader is looking and
+//! spends the error on the parts of the plane they are not.
+//!
+//! So the claim this module makes is the bounded one and not the
+//! total one: no cell opens wide enough to swallow the window where
+//! the view is aimed. A plane raking away under the camera still has
+//! a near corner drawn coarser than [`TARGET_PITCH_PX`], and pointing
+//! at that corner is what re-scales it.
 //!
 //! # Lines, not a translucent quad
 //!
@@ -43,47 +88,191 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Vec3};
 
-/// **What a datum is drawn at when the document has no geometry to
-/// scale against**, in metres.
+/// **Where the eye is and how much world a pixel spans** — everything
+/// this module needs to size a drawing against the window rather than
+/// against the model.
 ///
-/// A fresh document whose first act is a datum has no extent — there
-/// is nothing on screen for a plane to be sized relative to — and a
-/// datum drawn at zero would be a datum nobody can see. 20 mm is the
-/// order of the shipped startup document, so the first datum in an
-/// empty document lands at a size the camera can frame.
-pub const FALLBACK_EXTENT: f64 = 0.02;
+/// A value rather than a borrow of the camera, for the reason the rest
+/// of this module is a value: the suite drives these numbers directly
+/// and asserts what comes out, with no camera, no viewport and no
+/// renderer in the room.
+#[derive(Debug, Clone, Copy)]
+pub struct View {
+    /// The eye's position, world metres.
+    pub eye: Point3<f64>,
+    /// **What the camera is looking AT** — the orbit target, world
+    /// metres.
+    ///
+    /// Both points are needed and they do different jobs. The eye
+    /// gives the SCALE (how much world a pixel spans is a function of
+    /// distance from it); the target gives the CENTRE (where on an
+    /// infinite plane to put the drawn patch). An earlier version
+    /// centred on the eye's own perpendicular foot, which is a
+    /// well-defined point and the wrong one: on a plane seen at a
+    /// grazing angle that foot sits far from what the camera is
+    /// pointed at, so the grid drifted into a corner of the window
+    /// exactly when the view was most oblique.
+    pub look_at: Point3<f64>,
+    /// **World metres one pixel spans at one metre from the eye.** The
+    /// scale at any other depth is this times that depth, which is the
+    /// whole of the perspective arithmetic here.
+    ///
+    /// From the camera as `2 * tan(fov_y / 2) / viewport_height_px`.
+    pub metres_per_pixel_at_one_metre: f64,
+    /// The window's larger side, in pixels — what a patch has to
+    /// overflow to be un-pannable-off.
+    pub viewport_px: f64,
+}
 
-/// How much of the scene's diagonal a drawn plane spans.
-const PLANE_SPAN: f64 = 0.55;
+impl View {
+    /// World metres one pixel spans at `point`.
+    ///
+    /// Floored at a hair above zero so a datum lying exactly at the
+    /// eye — reachable by flying the camera into a plane — produces a
+    /// degenerate drawing rather than a division by zero.
+    fn metres_per_pixel_at(&self, point: Point3<f64>) -> f64 {
+        let depth = ((point.x - self.eye.x).powi(2)
+            + (point.y - self.eye.y).powi(2)
+            + (point.z - self.eye.z).powi(2))
+        .sqrt();
+        (depth * self.metres_per_pixel_at_one_metre).max(f64::MIN_POSITIVE)
+    }
 
-/// How much of the scene's diagonal a drawn axis spans, end to end.
-/// Longer than a plane is wide, because an axis's whole content is a
-/// direction and a short one states it weakly.
-const AXIS_SPAN: f64 = 0.9;
+    /// How much world the window spans at `point`'s depth.
+    fn window_metres_at(&self, point: Point3<f64>) -> f64 {
+        self.metres_per_pixel_at(point) * self.viewport_px.max(1.0)
+    }
+}
 
-/// How much of the scene's diagonal a drawn point's arms span.
-const POINT_SPAN: f64 = 0.06;
-
-/// How long a plane's normal tick is, as a share of the diagonal — the
-/// one mark that says which way the plane faces, and deliberately much
-/// shorter than the plane is wide so it reads as an annotation on the
-/// plane rather than as an axis through it.
-const NORMAL_TICK: f64 = 0.12;
-
-/// How many interior grid lines a drawn plane carries per axis.
+/// **The pitch one cell is drawn at**: the rung of the 1-2-5 ladder
+/// whose on-screen span is nearest [`TARGET_PITCH_PX`].
 ///
-/// Three, which is what makes a rectangle read as a SURFACE rather
-/// than as four segments that happen to meet: an empty outline seen
-/// edge-on is indistinguishable from a single line. More would be a
-/// texture competing with the model behind it.
-const PLANE_GRID: usize = 3;
+/// Public because it is the module's one arithmetic claim worth
+/// asserting on its own — that the realized pitch stays inside the
+/// band the ladder's step size implies, at every scale.
+pub fn grid_pitch(metres_per_pixel: f64) -> f64 {
+    let wanted = metres_per_pixel * TARGET_PITCH_PX;
+    if !wanted.is_finite() || wanted <= 0.0 {
+        return f64::MIN_POSITIVE;
+    }
+    // The decade below `wanted`, then the mantissa on the ladder that
+    // lands closest to it in RATIO — a grid is read logarithmically,
+    // so 1.0 and 2.0 are equally far from 1.41 and the linear midpoint
+    // would prefer the coarser rung at every crossing.
+    let decade = 10.0_f64.powf(wanted.log10().floor());
+    let mut best = decade;
+    let mut best_ratio = f64::INFINITY;
+    for scale in [0.1, 1.0, 10.0] {
+        for mantissa in PITCH_STEPS {
+            let rung = decade * scale * mantissa;
+            let ratio = (rung / wanted).ln().abs();
+            if ratio < best_ratio {
+                best_ratio = ratio;
+                best = rung;
+            }
+        }
+    }
+    best
+}
 
-/// Which kind of datum a drawing came from — carried so a consumer can
+/// **How many windows across a drawn plane's patch spans.**
+///
+/// Above one, so the patch always overflows the window and a pan
+/// cannot run off its edge; not far above one, because every extra
+/// window of patch is grid lines drawn outside the frame.
+///
+/// **It cannot be made large enough for every view, and this is the
+/// one limit worth stating.** A plane seen at a grazing angle recedes
+/// to a horizon, so no finite patch covers what is on screen and the
+/// far edge is visible as a straight line across the picture. Two and
+/// a bit windows puts that edge well out of the way at any ordinary
+/// angle and costs about 35 lines a direction; chasing the grazing
+/// case properly means scaling by the view's inclination, which buys
+/// a rarely-seen edge with arithmetic that blows up as the angle goes
+/// to zero.
+const PATCH_COVER: f64 = 2.2;
+
+/// **What one grid cell aims to span on screen**/// **What one grid cell aims to span on screen**, in pixels.
+///
+/// The pitch ladder picks the rung nearest this. A judgement, and the
+/// range around it is what the ladder's steps are worth: at a 1-2-5
+/// ladder a rung is at most 2.5x the one below, so the realized pitch
+/// stays inside roughly 40..160 px of this whatever the zoom.
+const TARGET_PITCH_PX: f64 = 80.0;
+
+/// The mantissas of the pitch ladder — a decade, halved and fifthed.
+///
+/// 1-2-5 rather than powers of two because a datum grid is read as a
+/// RULER against a model authored in millimetres, and 2 mm and 5 mm
+/// are lengths a person has a feel for where 1.6 mm is not.
+const PITCH_STEPS: [f64; 3] = [1.0, 2.0, 5.0];
+
+/// **The most grid lines one plane draws per direction.**
+///
+/// Not a budget the design expects to spend: a patch of
+/// [`PATCH_COVER`] windows at [`TARGET_PITCH_PX`] per cell needs about
+/// `PATCH_COVER * viewport_px / TARGET_PITCH_PX` lines, which is
+/// around 26 on a 1280-pixel window. It is a backstop for the
+/// arithmetic going wrong at an extreme — an eye inside the plane, a
+/// pathological viewport — where an uncapped loop would spend the
+/// frame drawing lines nobody asked for.
+const MAX_GRID_LINES: usize = 96;
+
+/// How long a plane's normal tick is, in PIXELS — the one mark that
+/// says which way the plane faces, screen-sized because it is an
+/// annotation on the plane rather than a part of it.
+const NORMAL_TICK_PX: f64 = 46.0;
+
+/// How far a drawn axis reaches from its origin, in windows.
+///
+/// Longer than a plane's patch is wide: an axis's whole content is a
+/// direction, and a segment that ends inside the frame states one
+/// weakly.
+const AXIS_COVER: f64 = 1.4;
+
+/// How long the tick across each end of a drawn axis is, in pixels.
+const AXIS_TICK_PX: f64 = 18.0;
+
+/// How long a frame's sketch-+x arrow is, in PIXELS — the mark that
+/// says which way the frame is turned, screen-sized for the reason the
+/// plane's normal tick is.
+///
+/// **Longer than [`TARGET_PITCH_PX`] on purpose.** The arrow's shaft
+/// lies on a grid line (both run along the axis, and both start at the
+/// origin), so the head is the whole of what a reader sees. At less
+/// than one cell the head lands inside the first square, crowded by
+/// the crossing at the origin and by the next one; past a cell it sits
+/// in clear ground with the ruling behind it.
+const FRAME_ARM_PX: f64 = 108.0;
+
+/// How far each barb runs back from an arrow's tip, as a fraction of
+/// that arrow's length. Its half-width across the axis is half again
+/// of this, which is the ordinary look of an arrowhead.
+const FRAME_BARB_FRACTION: f64 = 0.34;
+
+/// How long the sketch-+y arm is as a fraction of the +x one.
+///
+/// The two arms are drawn UNEQUAL on purpose: a grid is symmetric
+/// under a quarter turn, so two arms of one length would say which
+/// pair of directions the axes are without saying which of them is x.
+const FRAME_Y_ARM_FRACTION: f64 = 0.62;
+
+/// How long each arm of a drawn point's cross is, in pixels.
+///
+/// A point has no extent, so this is purely an annotation's size and
+/// belongs in pixels outright — at any zoom, the mark is the same
+/// mark.
+const POINT_ARM_PX: f64 = 14.0;
+
+/// Which kind of datum a drawing came from/// Which kind of datum a drawing came from — carried so a consumer can
 /// say what it is pointing at without re-reading the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
     Plane,
+    /// A frame: a plane's grid ruled on the frame's own axes, plus an
+    /// arm along each of them.
+    Frame,
     /// An axis: one segment, with a tick across each end.
     Axis,
     /// A point: three short arms crossing at the position.
@@ -95,6 +284,7 @@ impl DatumKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Plane => "plane",
+            Self::Frame => "frame",
             Self::Axis => "axis",
             Self::Point => "point",
         }
@@ -116,24 +306,15 @@ pub struct DatumDraw {
     pub segments: Vec<[f64; 3]>,
 }
 
-/// **Every datum the landed evaluation holds a value for**, drawn at
-/// `extent`.
+/// **Every datum the landed evaluation holds a value for**, drawn for
+/// `view`.
 ///
 /// Walks the document's live nodes in order, so the answer is stable
 /// and a reader gets datums in the order the tree lists them. A datum
 /// node whose evaluation FAILED contributes nothing — there is no
 /// value to draw and the tree's own badge already says why — and so
 /// does a node this evaluation never reached.
-///
-/// `extent` is the scene's bounding diagonal in metres; a
-/// non-positive or non-finite one falls back to [`FALLBACK_EXTENT`]
-/// rather than drawing a datum of zero size that nobody could see.
-pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, extent: f64) -> Vec<DatumDraw> {
-    let extent = if extent.is_finite() && extent > 0.0 {
-        extent
-    } else {
-        FALLBACK_EXTENT
-    };
+pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> Vec<DatumDraw> {
     let mut out = Vec::new();
     for &node in doc.order() {
         // The NODE says it is a datum and the EVALUATION says what it
@@ -151,36 +332,131 @@ pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, extent: f64) -> 
         let ValuePayload::Datum(datum) = &value.payload else {
             continue;
         };
-        out.push(draw_one(node, datum, extent));
+        out.push(draw_one(node, datum, view));
     }
     out
 }
 
 /// One datum value's wireframe.
-fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, extent: f64) -> DatumDraw {
+fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDraw {
     match datum {
         DatumValue::Plane { origin, normal } => DatumDraw {
             node,
             kind: DatumKind::Plane,
-            segments: plane_segments(*origin, normal.get(), extent),
+            segments: plane_segments(*origin, normal.get(), view),
         },
         DatumValue::Axis { origin, dir } => DatumDraw {
             node,
             kind: DatumKind::Axis,
-            segments: axis_segments(*origin, dir.get(), extent),
+            segments: axis_segments(*origin, dir.get(), view),
         },
         DatumValue::Point { position } => DatumDraw {
             node,
             kind: DatumKind::Point,
-            segments: point_segments(*position, extent),
+            segments: point_segments(*position, view),
+        },
+        DatumValue::Frame { origin, u, v } => DatumDraw {
+            node,
+            kind: DatumKind::Frame,
+            segments: frame_segments(*origin, u.get(), v.get(), view),
         },
     }
 }
 
-/// A gridded rectangle in the plane, plus a tick along the normal.
-fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, extent: f64) -> Vec<[f64; 3]> {
+/// **A grid over the part of the plane the window is looking at**,
+/// plus a tick along the normal.
+///
+/// Centred on the EYE's projection onto the plane, so the patch
+/// follows the view instead of sitting where the datum's origin
+/// happens to be; ruled at multiples of the pitch FROM THE ORIGIN, so
+/// a line passes through the origin and no line moves when the eye
+/// does. The two together are what makes this a grid over an infinite
+/// plane rather than a rectangle somebody placed.
+fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let (u, v) = basis(normal);
-    let half = extent * PLANE_SPAN * 0.5;
+    grid(origin, u, v, normal, view)
+}
+
+/// **A frame's grid, ruled along the frame's OWN axes**, plus an
+/// ARROW along each of them.
+///
+/// A frame drawn exactly like a plane would be a drawing that lies: the
+/// two differ by precisely the spin about the normal, so a grid ruled
+/// on a display convention (which is what [`basis`] is) would show the
+/// same picture for every rotation of the same frame. Here the ruling
+/// IS the datum — a reader can see which way sketch +x points by
+/// looking at the lines — and the two arrows name which of the two
+/// directions is which, since a grid alone is symmetric under a quarter
+/// turn.
+///
+/// **The barbs are the half that is visible, and the reason is the
+/// grid.** The ruling passes through the origin along both axes (that
+/// is what anchoring it there means), so a bare arm drawn along an
+/// axis lies exactly on top of a grid line and shows nothing — which
+/// is what the first cut of this did, and what driving it in the app
+/// found. A barb points AWAY from both axes, so it is the one part of
+/// the mark that cannot coincide with the ruling. The arms stay
+/// because an arrowhead floating at a distance reads as debris.
+fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
+    let mut out = grid(origin, u, v, cross(u, v), view);
+    let arm = view.metres_per_pixel_at(origin) * FRAME_ARM_PX;
+    let o = [origin.x, origin.y, origin.z];
+    // The two arrows differ in LENGTH as well as direction: a grid is
+    // symmetric under a quarter turn, so equal arrows would name the
+    // pair of directions without saying which of them sketch +x is.
+    for (along, across, len) in [(u, v, arm), (v, u, arm * FRAME_Y_ARM_FRACTION)] {
+        let tip = [
+            origin.x + along.x * len,
+            origin.y + along.y * len,
+            origin.z + along.z * len,
+        ];
+        out.extend([o, tip]);
+        let (back, wide) = (len * FRAME_BARB_FRACTION, len * FRAME_BARB_FRACTION * 0.5);
+        for side in [1.0_f64, -1.0] {
+            out.extend([
+                tip,
+                [
+                    tip[0] - along.x * back + across.x * wide * side,
+                    tip[1] - along.y * back + across.y * wide * side,
+                    tip[2] - along.z * back + across.z * wide * side,
+                ],
+            ]);
+        }
+    }
+    out
+}
+
+/// The gridded patch the two plane-like datums share, ruled along
+/// `u`/`v` and ticked along `normal`.
+fn grid(
+    origin: Point3<f64>,
+    u: Vec3<f64>,
+    v: Vec3<f64>,
+    normal: Vec3<f64>,
+    view: View,
+) -> Vec<[f64; 3]> {
+    // What the camera is looking at, dropped onto the plane, in the
+    // plane's own coordinates.
+    let to_target = Vec3::new(
+        view.look_at.x - origin.x,
+        view.look_at.y - origin.y,
+        view.look_at.z - origin.z,
+    );
+    let (cu, cv) = (dot(to_target, u), dot(to_target, v));
+    let centre = Point3::new(
+        origin.x + u.x * cu + v.x * cv,
+        origin.y + u.y * cu + v.y * cv,
+        origin.z + u.z * cu + v.z * cv,
+    );
+    // **The scale is taken at the CENTRE of the patch** — the point
+    // of the plane the camera is pointed at, so the realized pitch is
+    // the target pitch exactly where a reader is looking. Parts of the
+    // plane nearer the eye than that are drawn coarser and parts
+    // further are drawn finer, which is the compromise one pitch over
+    // a perspective view cannot avoid.
+    let per_pixel = view.metres_per_pixel_at(centre);
+    let half = view.window_metres_at(centre) * PATCH_COVER * 0.5;
+    let pitch = grid_pitch(per_pixel);
     let at = |a: f64, b: f64| {
         [
             origin.x + u.x * a + v.x * b,
@@ -189,20 +465,30 @@ fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, extent: f64) -> Vec<[f
         ]
     };
     let mut out = Vec::new();
-    // The outline and the interior grid are one loop: the border is
-    // just the first and last line of each family, so an off-by-one
-    // that dropped an edge would drop a grid line too and be visible
-    // rather than subtle.
-    let lines = PLANE_GRID + 2;
-    for i in 0..lines {
-        // `lines - 1` is at least 1 because PLANE_GRID is at least 0
-        // and two borders always exist.
-        let t = -half + 2.0 * half * (i as f64) / ((lines - 1) as f64);
-        out.extend([at(t, -half), at(t, half)]);
-        out.extend([at(-half, t), at(half, t)]);
-    }
-    // Which way it faces, said once and quietly.
-    let tick = extent * NORMAL_TICK;
+    // The ruled range in each direction, as index bounds on multiples
+    // of the pitch from the origin. `ceil`/`floor` outward, so the
+    // patch is covered rather than nearly covered.
+    let mut rule = |along_u: bool, from: f64, to: f64, lo: f64, hi: f64| {
+        let first = (from / pitch).ceil();
+        let last = (to / pitch).floor();
+        let count = ((last - first) as usize).min(MAX_GRID_LINES);
+        for i in 0..=count {
+            let t = (first + i as f64) * pitch;
+            if along_u {
+                out.extend([at(t, lo), at(t, hi)]);
+            } else {
+                out.extend([at(lo, t), at(hi, t)]);
+            }
+        }
+    };
+    let (u_lo, u_hi) = (cu - half, cu + half);
+    let (v_lo, v_hi) = (cv - half, cv + half);
+    rule(true, u_lo, u_hi, v_lo, v_hi);
+    rule(false, v_lo, v_hi, u_lo, u_hi);
+    // Which way it faces, said once and quietly, AT THE ORIGIN — the
+    // one part of the drawing that is about the datum rather than
+    // about the window.
+    let tick = view.metres_per_pixel_at(origin) * NORMAL_TICK_PX;
     out.extend([
         [origin.x, origin.y, origin.z],
         [
@@ -214,13 +500,25 @@ fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, extent: f64) -> Vec<[f
     out
 }
 
-/// One segment along the axis, with a short cross tick at each end so
-/// the extent drawn reads as a drawing decision rather than as the
-/// axis's own length.
-fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, extent: f64) -> Vec<[f64; 3]> {
-    let half = extent * AXIS_SPAN * 0.5;
+/// **One segment along the axis, reaching past the window**, with a
+/// screen-sized tick across each end so the length drawn reads as a
+/// drawing decision rather than as the axis's own.
+fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
+    // Centred and sized at the point of the axis the camera is
+    // pointed at, for `plane_segments`' reason.
+    let to_target = Vec3::new(
+        view.look_at.x - origin.x,
+        view.look_at.y - origin.y,
+        view.look_at.z - origin.z,
+    );
+    let along = dot(to_target, dir);
+    let centre = Point3::new(
+        origin.x + dir.x * along,
+        origin.y + dir.y * along,
+        origin.z + dir.z * along,
+    );
+    let half = view.window_metres_at(centre) * AXIS_COVER * 0.5;
     let (u, _) = basis(dir);
-    let tick = extent * POINT_SPAN * 0.5;
     let at = |t: f64| {
         [
             origin.x + dir.x * t,
@@ -228,9 +526,13 @@ fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, extent: f64) -> Vec<[f64; 
             origin.z + dir.z * t,
         ]
     };
-    let mut out = vec![at(-half), at(half)];
-    for end in [-half, half] {
+    // Centred on the looked-at point, not on the origin, so the
+    // segment covers the window wherever along it the view is.
+    let (lo, hi) = (along - half, along + half);
+    let mut out = vec![at(lo), at(hi)];
+    for end in [lo, hi] {
         let p = at(end);
+        let tick = view.metres_per_pixel_at(Point3::new(p[0], p[1], p[2])) * AXIS_TICK_PX * 0.5;
         out.extend([
             [p[0] - u.x * tick, p[1] - u.y * tick, p[2] - u.z * tick],
             [p[0] + u.x * tick, p[1] + u.y * tick, p[2] + u.z * tick],
@@ -240,9 +542,10 @@ fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, extent: f64) -> Vec<[f64; 
 }
 
 /// Three arms crossing at the position — a point has no extent, so
-/// what is drawn is a mark AT it rather than a picture OF it.
-fn point_segments(position: Point3<f64>, extent: f64) -> Vec<[f64; 3]> {
-    let arm = extent * POINT_SPAN * 0.5;
+/// what is drawn is a mark AT it rather than a picture OF it, and the
+/// mark is the same size at every zoom.
+fn point_segments(position: Point3<f64>, view: View) -> Vec<[f64; 3]> {
+    let arm = view.metres_per_pixel_at(position) * POINT_ARM_PX * 0.5;
     let p = [position.x, position.y, position.z];
     let mut out = Vec::with_capacity(6);
     for axis in 0..3 {
@@ -252,6 +555,11 @@ fn point_segments(position: Point3<f64>, extent: f64) -> Vec<[f64; 3]> {
         out.extend([lo, hi]);
     }
     out
+}
+
+/// The dot product, spelled here for [`cross`]'s reason.
+fn dot(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
+    a.x * b.x + a.y * b.y + a.z * b.z
 }
 
 /// **Two unit vectors spanning the plane `n` is normal to.**

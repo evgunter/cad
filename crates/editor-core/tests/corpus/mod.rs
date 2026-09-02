@@ -344,6 +344,12 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
         Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
+        // NOT a listed sub-kind, for `PlacedUnion::Circular`'s reason
+        // above: no corpus document authors a frame yet — nothing
+        // consumes one — and a listed-but-uncovered sub-kind fails the
+        // tally. It is exercised directly in `m4_pr2_frame.rs`, and it
+        // joins this list when a profile takes a frame as its plane.
+        Node::Datum(Datum::Frame { .. }) => Vec::new(),
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",
