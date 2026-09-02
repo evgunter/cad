@@ -20,20 +20,27 @@ use geom_brep::props::{
     LoopEdge, PropsError, curved_face, require_iso_rectangle, require_one_chart_branch,
 };
 use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
 
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
+fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
+    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
+fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
+    Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
 }
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
+fn edge<T: Real>(carrier: Curve3<T>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<T> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
+    LoopEdge::hand_built(
+        carrier,
+        T::from_f64(t0),
+        T::from_f64(t1),
+        forward,
+        start,
+        end,
+    )
 }
 
 // ---------------------------------------------------------------------
@@ -42,22 +49,22 @@ fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<
 
 const RS: f64 = 0.010;
 
-fn sphere() -> Surface<f64> {
+fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
         center: p3(0.0, 0.0, 0.0),
-        radius: RS,
+        radius: T::from_f64(RS),
         axis: v3(0.0, 0.0, 1.0),
         u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
 /// The rim at latitude `v`, `u0 → u1`.
-fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
+fn rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
     edge(
         Curve3::Circle {
             center: p3(0.0, 0.0, RS * v.sin()),
             axis: v3(0.0, 0.0, 1.0),
-            radius: RS * v.cos(),
+            radius: T::from_f64(RS * v.cos()),
             u_ref: v3(1.0, 0.0, 0.0),
         },
         u0,
@@ -70,12 +77,12 @@ fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// The meridian great circle whose plane contains the axis at azimuth
 /// `u`; its parameter IS the latitude on the `u` side, so `t = π/2` is
 /// the north pole and `t ∈ (π/2, 3π/2)` descends the `u + π` side.
-fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
+fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
     edge(
         Curve3::Circle {
             center: p3(0.0, 0.0, 0.0),
             axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: RS,
+            radius: T::from_f64(RS),
             u_ref: v3(u.cos(), u.sin(), 0.0),
         },
         t0,
@@ -99,31 +106,44 @@ fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 #[test]
 fn a_pole_crossing_meridian_arc_is_not_one_chart_branch() {
     let b = 0.5;
-    let face = vec![
+    let face: Vec<LoopEdge<f64>> = vec![
         rim(b, 0.0, core::f64::consts::PI, 0, 1),
         great(0.0, core::f64::consts::PI - b, b, 1, 0),
     ];
     assert_eq!(
-        require_iso_rectangle(&sphere(), &face, band()),
+        require_iso_rectangle(&sphere::<f64>(), &face, band()),
         Ok(()),
         "the shape door certifies the carrier and the rim structure"
     );
     let exact = RS * RS * core::f64::consts::PI * (1.0 - b.sin());
-    let fc = curved_face(&sphere(), &face, 1.0, band()).expect("the flux lane measures it");
+    let fc = curved_face(&sphere::<f64>(), &face, 1.0, band()).expect("the flux lane measures it");
     assert!(
         (fc.area - exact).abs() / exact < 1e-12,
         "the closed form is exact on this face: {} vs {exact}",
         fc.area
     );
-    assert_eq!(
-        require_one_chart_branch(&sphere(), &face, band()),
-        Err(PropsError::NotOneChartBranch {
-            edge: 1,
-            what: "a sphere meridian arc whose stored span contains a pole — the chart \
-                   singularity, where u jumps by π",
-        }),
-        "the traversed arc runs over the pole, so it is not one chart branch"
+    let refusal = require_one_chart_branch(&sphere::<f64>(), &face, band());
+    assert!(
+        matches!(refusal, Err(PropsError::NotOneChartBranch { edge: 1, .. })),
+        "the traversed arc runs over the pole, so it is not one chart branch: {refusal:?}"
     );
+    // The payload's sentence is per-KIND (a sphere's azimuth jumps by
+    // π at a pole; a cone's flips to the mirror nappe at the apex), so
+    // it is pinned by `contains` on the fragments that carry the kind
+    // and the mechanism, never as a whole string.
+    let Err(e) = refusal else { unreachable!() };
+    let text = e.to_string();
+    for fragment in [
+        "boundary edge 1",
+        "sphere meridian arc",
+        "contains a pole",
+        "jumps by π",
+    ] {
+        assert!(
+            text.contains(fragment),
+            "{fragment:?} missing from {text:?}"
+        );
+    }
 }
 
 /// **The quiet side: an arc ENDING at a pole is admitted.** The
@@ -134,14 +154,17 @@ fn a_pole_crossing_meridian_arc_is_not_one_chart_branch() {
 #[test]
 fn an_arc_ending_exactly_at_a_pole_is_admitted() {
     let b = 0.5;
-    let cap = vec![
+    let cap: Vec<LoopEdge<f64>> = vec![
         rim(b, 0.0, core::f64::consts::PI, 0, 1),
         great(core::f64::consts::PI, b, core::f64::consts::FRAC_PI_2, 1, 2),
         great(0.0, core::f64::consts::FRAC_PI_2, b, 2, 0),
     ];
-    assert_eq!(require_iso_rectangle(&sphere(), &cap, band()), Ok(()));
     assert_eq!(
-        require_one_chart_branch(&sphere(), &cap, band()),
+        require_iso_rectangle(&sphere::<f64>(), &cap, band()),
+        Ok(())
+    );
+    assert_eq!(
+        require_one_chart_branch(&sphere::<f64>(), &cap, band()),
         Ok(()),
         "a span that ENDS at the pole never leaves its branch"
     );
@@ -164,13 +187,13 @@ fn a_split_vertex_a_hair_off_the_pole_is_admitted() {
     let mid_band = 0.5 * (band().zero() / RS);
     for d in [mid_band, 0.25 * mid_band] {
         let split = core::f64::consts::FRAC_PI_2 - d;
-        let face = vec![
+        let face: Vec<LoopEdge<f64>> = vec![
             rim(b, 0.0, core::f64::consts::PI, 0, 1),
             great(0.0, core::f64::consts::PI - b, split, 1, 2),
             great(0.0, split, b, 2, 0),
         ];
         assert_eq!(
-            require_one_chart_branch(&sphere(), &face, band()),
+            require_one_chart_branch(&sphere::<f64>(), &face, band()),
             Ok(()),
             "at an offset of {d} rad ({} m at R) the pole is at a span end, not inside it",
             d * RS
@@ -188,7 +211,7 @@ fn the_branch_refusal_begins_when_the_pole_clears_the_band() {
     let b = 0.5;
     let d = 10.0 * band().escalate() / RS;
     let split = core::f64::consts::FRAC_PI_2 - d;
-    let face = vec![
+    let face: Vec<LoopEdge<f64>> = vec![
         rim(b, 0.0, core::f64::consts::PI, 0, 1),
         great(0.0, core::f64::consts::PI - b, split, 1, 2),
         great(0.0, split, b, 2, 0),
@@ -196,14 +219,17 @@ fn the_branch_refusal_begins_when_the_pole_clears_the_band() {
     // Edge 1 spans `[split, π − b]`, which contains the pole at π/2.
     assert!(
         matches!(
-            require_one_chart_branch(&sphere(), &face, band()),
+            require_one_chart_branch(&sphere::<f64>(), &face, band()),
             Err(PropsError::NotOneChartBranch { edge: 1, .. })
         ),
         "a pole {} m inside the span is decisively inside it",
         d * RS
     );
     // The rim-bearing shape door and the closed form are unmoved.
-    assert_eq!(require_iso_rectangle(&sphere(), &face, band()), Ok(()));
+    assert_eq!(
+        require_iso_rectangle(&sphere::<f64>(), &face, band()),
+        Ok(())
+    );
 }
 
 /// **A rim is never measured against a pole.** An equatorial rim is a
@@ -213,14 +239,14 @@ fn the_branch_refusal_begins_when_the_pole_clears_the_band() {
 /// (span 2π, which contains every direction) must be admitted.
 #[test]
 fn an_equatorial_rim_is_not_a_meridian_and_is_admitted() {
-    let band_face = vec![
+    let band_face: Vec<LoopEdge<f64>> = vec![
         rim(0.0, 0.0, core::f64::consts::TAU, 0, 0),
         rim(1.0, core::f64::consts::TAU, 0.0, 1, 1),
         great(0.0, 0.0, 1.0, 0, 1),
         great(0.0, 1.0, 0.0, 1, 0),
     ];
     assert_eq!(
-        require_one_chart_branch(&sphere(), &band_face, band()),
+        require_one_chart_branch(&sphere::<f64>(), &band_face, band()),
         Ok(()),
         "a rim's v is constant over its whole circle, at any span"
     );
@@ -230,23 +256,23 @@ fn an_equatorial_rim_is_not_a_meridian_and_is_admitted() {
 // Cone — apex at the origin about +Z, half-angle π/4
 // ---------------------------------------------------------------------
 
-fn cone() -> Surface<f64> {
+fn cone<T: Real>() -> Surface<T> {
     Surface::Cone {
         apex: p3(0.0, 0.0, 0.0),
         axis: v3(0.0, 0.0, 1.0),
-        half_angle: core::f64::consts::FRAC_PI_4,
+        half_angle: T::from_f64(core::f64::consts::FRAC_PI_4),
         u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
 /// The cone rim at signed slant length `v`, `u0 → u1`.
-fn cone_rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
+fn cone_rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
     let s = core::f64::consts::FRAC_1_SQRT_2;
     edge(
         Curve3::Circle {
             center: p3(0.0, 0.0, v * s),
             axis: v3(0.0, 0.0, 1.0),
-            radius: (v * s).abs(),
+            radius: T::from_f64((v * s).abs()),
             u_ref: v3(1.0, 0.0, 0.0),
         },
         u0,
@@ -259,7 +285,7 @@ fn cone_rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// The generator through the apex whose positive half sits at azimuth
 /// `u`, from signed slant `v0` to `v1` — the line parameter IS the
 /// slant length, so a span with `v0 < 0 < v1` runs through the apex.
-fn generator(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
+fn generator<T: Real>(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<T> {
     let s = core::f64::consts::FRAC_1_SQRT_2;
     edge(
         Curve3::Line {
@@ -285,20 +311,20 @@ fn generator(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// shape door, not `curved_face`.)
 #[test]
 fn an_apex_crossing_generator_is_not_one_chart_branch() {
-    let bow = vec![
+    let bow: Vec<LoopEdge<f64>> = vec![
         cone_rim(-1.0, 0.0, core::f64::consts::PI, 0, 1),
         generator(core::f64::consts::PI, -1.0, 1.0, 1, 2),
         cone_rim(1.0, core::f64::consts::PI, 0.0, 2, 3),
         generator(0.0, 1.0, -1.0, 3, 0),
     ];
     assert_eq!(
-        require_iso_rectangle(&cone(), &bow, band()),
+        require_iso_rectangle(&cone::<f64>(), &bow, band()),
         Ok(()),
         "the shape door admits it: certified generators, rims at the extremes"
     );
     assert!(
         matches!(
-            require_one_chart_branch(&cone(), &bow, band()),
+            require_one_chart_branch(&cone::<f64>(), &bow, band()),
             Err(PropsError::NotOneChartBranch { edge: 1, .. })
         ),
         "the first generator's span runs through the apex"
@@ -311,23 +337,23 @@ fn an_apex_crossing_generator_is_not_one_chart_branch() {
 /// `revolve` mints).
 #[test]
 fn a_single_nappe_cone_band_and_an_apex_endpoint_are_admitted() {
-    let band_face = vec![
+    let band_face: Vec<LoopEdge<f64>> = vec![
         cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
         generator(core::f64::consts::PI, 1.0, 2.0, 1, 2),
         cone_rim(2.0, core::f64::consts::PI, 0.0, 2, 3),
         generator(0.0, 2.0, 1.0, 3, 0),
     ];
     assert_eq!(
-        require_one_chart_branch(&cone(), &band_face, band()),
+        require_one_chart_branch(&cone::<f64>(), &band_face, band()),
         Ok(())
     );
-    let cap = vec![
+    let cap: Vec<LoopEdge<f64>> = vec![
         cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
         generator(core::f64::consts::PI, 0.0, 1.0, 1, 2),
         generator(0.0, 1.0, 0.0, 2, 0),
     ];
     assert_eq!(
-        require_one_chart_branch(&cone(), &cap, band()),
+        require_one_chart_branch(&cone::<f64>(), &cap, band()),
         Ok(()),
         "a generator that ENDS at the apex never leaves its branch"
     );
@@ -337,12 +363,18 @@ fn a_single_nappe_cone_band_and_an_apex_endpoint_are_admitted() {
 // The immune kinds, executed rather than asserted in prose
 // ---------------------------------------------------------------------
 
-/// **The cylinder has no branch to leave.** Its chart has no
-/// singularity: `v` is the axial coordinate and a generator is a line
-/// PARALLEL to the axis, so no span of it can reach an axis point;
-/// rims are coaxial circles at constant `v`. The row runs the extreme
-/// spans anyway — a generator ten radii long and a rim wrapping twice
-/// round — and both are admitted.
+/// **The cylinder has no branch to leave** — and this row cannot go
+/// red at the arm, which is worth saying rather than leaving a reader
+/// to discover it. The cylinder arm is `Ok(())` unconditionally, so no
+/// input reddens it; what this row DOES execute is the dispatch (the
+/// door answers `Ok` rather than `Unimplemented` or a panic for a
+/// cylinder, at spans no other row uses — a generator ten radii long,
+/// a rim wrapping twice round). The REASON the arm is unconditional is
+/// executed elsewhere and cannot be executed here: `Chart::poles()`
+/// lists a cylinder's singularities as none, and `topo` is above this
+/// crate, so the row that ties the arm set to that enumeration lives
+/// at `mesh/tests/mesh11_arc_branch.rs::the_branch_doors_arms_mirror_
+/// the_charts_own_singularities`. Asserted here, executed there.
 #[test]
 fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
     let cyl = Surface::Cylinder {
@@ -365,7 +397,7 @@ fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
             b,
         )
     };
-    let face = vec![
+    let face: Vec<LoopEdge<f64>> = vec![
         rim_at(-5.0, 0.0, 2.0 * core::f64::consts::TAU, 0, 0),
         edge(
             Curve3::Line {
@@ -384,9 +416,15 @@ fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
 
 /// **A torus minor circle never meets the axis on a ring torus**, so
 /// its `u` is constant over the whole circle and no span leaves the
-/// branch — including a span that wraps the minor angle right past
-/// its period. (The extent that wrap implies is a different question,
-/// and MESH-10's fold owns it.)
+/// branch — including a span that wraps the minor angle right past its
+/// period. (The extent that wrap implies is a different question, and
+/// MESH-10's fold owns it.)
+///
+/// Same caveat as the cylinder row above: the torus arm is `Ok(())`
+/// unconditionally, so this row executes the dispatch and the wrap,
+/// not the reason. The reason — `Chart::poles()` is empty for a torus
+/// — is tied to the arm set by the `mesh`-side row that can see both
+/// crates.
 #[test]
 fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
     let tor = Surface::Torus {
@@ -410,7 +448,7 @@ fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
             b,
         )
     };
-    let face = vec![
+    let face: Vec<LoopEdge<f64>> = vec![
         minor(0.0, 0.0, 1.5 * core::f64::consts::TAU, 0, 1),
         minor(1.0, 1.5 * core::f64::consts::TAU, 0.0, 1, 0),
     ];
@@ -421,7 +459,7 @@ fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
 /// rather than answering "yes" for a chart it has no singularity in.
 #[test]
 fn a_plane_is_refused_typed_rather_than_answered() {
-    let plane = Surface::Plane {
+    let plane: Surface<f64> = Surface::Plane {
         origin: p3(0.0, 0.0, 0.0),
         normal: v3(0.0, 0.0, 1.0),
         u_ref: v3(1.0, 0.0, 0.0),
@@ -430,4 +468,238 @@ fn a_plane_is_refused_typed_rather_than_answered() {
         require_one_chart_branch(&plane, &[], band()),
         Err(PropsError::NotIsoRectangle { .. })
     ));
+}
+
+// ---------------------------------------------------------------------
+// The floor, from both sides and along the whole band
+// ---------------------------------------------------------------------
+
+/// The half-cap split by a vertex `d` radians short of the north pole,
+/// so the pole sits `d` INSIDE edge 1's span `[split, π − b]`. The
+/// point deviation the door decides is the chord to the nearer span
+/// end levered at `RS`, which for these offsets is `RS·d` to within a
+/// relative `d²/24`.
+fn split_short_of_the_pole(d: f64) -> Vec<LoopEdge<f64>> {
+    let b = 0.5;
+    let split = core::f64::consts::FRAC_PI_2 - d;
+    vec![
+        rim(b, 0.0, core::f64::consts::PI, 0, 1),
+        great(0.0, core::f64::consts::PI - b, split, 1, 2),
+        great(0.0, split, b, 2, 0),
+    ]
+}
+
+/// **The floor is `Band::escalate`, not ε — the whole ladder.** The
+/// unit's first rows exercised only the two ends (a `Zero` at half the
+/// coincidence width, a decisive `Positive` at ten escalation widths)
+/// and never the INDETERMINATE rung between them, which is the rung
+/// that decides whether this door's threshold is `ε` or `K·ε`. It is
+/// `K·ε`: a singularity five coincidence widths inside a span is
+/// ADMITTED, because five widths is inside the ambiguity band and this
+/// door admits everything that is not a definite `Positive`.
+///
+/// The rungs are derived from the run's own `Band`, so the row means
+/// the same at every ε, and the indeterminate rung ASSERTS its band
+/// placement (`zero < m < escalate`) from the same chord arithmetic
+/// the door uses rather than trusting the name.
+#[test]
+fn the_branch_floor_is_the_escalation_threshold_and_not_epsilon() {
+    let band = band();
+    // Angular offsets whose point deviation at RS is the named
+    // multiple of the band's own thresholds.
+    let rung = |metres: f64| metres / RS;
+    let indeterminate_mid = 0.5 * (band.zero() + band.escalate());
+    for (name, d, refuses) in [
+        ("0.25 x zero", rung(0.25 * band.zero()), false),
+        ("1 x zero", rung(band.zero()), false),
+        ("the indeterminate midpoint", rung(indeterminate_mid), false),
+        ("0.99 x escalate", rung(0.99 * band.escalate()), false),
+        ("1.01 x escalate", rung(1.01 * band.escalate()), true),
+        ("4 x escalate", rung(4.0 * band.escalate()), true),
+    ] {
+        let face = split_short_of_the_pole(d);
+        let got = require_one_chart_branch(&sphere::<f64>(), &face, band);
+        assert_eq!(
+            matches!(got, Err(PropsError::NotOneChartBranch { edge: 1, .. })),
+            refuses,
+            "rung {name}: offset {d} rad = {} m at the arc's lever; got {got:?}",
+            d * RS
+        );
+        // The shape door and the closed form are unmoved at every rung.
+        assert_eq!(require_iso_rectangle(&sphere::<f64>(), &face, band), Ok(()));
+    }
+    // The indeterminate rung really is indeterminate: its margin is
+    // the chord to the nearer span end levered at RS, and it lands
+    // strictly between the two thresholds.
+    let d = rung(indeterminate_mid);
+    let m = RS * 2.0 * (d * 0.5).sin();
+    assert!(
+        band.zero() < m && m < band.escalate(),
+        "the midpoint rung's margin {m:e} must sit inside ({:e}, {:e})",
+        band.zero(),
+        band.escalate()
+    );
+}
+
+/// **The same bracket on the SOUTH pole**, the second entry of
+/// `sphere_meridian_pole_margins`' pair, which no other row in this
+/// file crosses: every refusing sphere row above crosses the north
+/// pole. Mirror side, same floor.
+#[test]
+fn the_branch_floor_brackets_escalate_on_the_south_pole_too() {
+    let band = band();
+    // The south pole sits at parameter 3π/2 on `great`'s circle.
+    let south = 1.5 * core::f64::consts::PI;
+    for (d, refuses) in [
+        (0.99 * band.escalate() / RS, false),
+        (1.01 * band.escalate() / RS, true),
+    ] {
+        let face: Vec<LoopEdge<f64>> = vec![
+            rim(-0.5, core::f64::consts::PI, 0.0, 0, 1),
+            great(0.0, core::f64::consts::PI + 0.5, south + d, 1, 2),
+            great(0.0, south + d, core::f64::consts::TAU - 0.5, 2, 0),
+        ];
+        let got = require_one_chart_branch(&sphere::<f64>(), &face, band);
+        assert_eq!(
+            matches!(got, Err(PropsError::NotOneChartBranch { .. })),
+            refuses,
+            "south pole at {d} rad past the split; got {got:?}"
+        );
+    }
+}
+
+/// **The cone's floor, bracketed the same way, on both sides of the
+/// apex.** The cone margin is a line parameter and IS metres, so the
+/// bracket needs no lever: the apex `d` metres inside the span.
+#[test]
+fn the_cone_branch_floor_brackets_escalate_from_both_sides() {
+    let band = band();
+    for (d, refuses) in [
+        (0.99 * band.escalate(), false),
+        (1.01 * band.escalate(), true),
+    ] {
+        // Two mirror shapes: the apex `d` inside the span from the
+        // negative end, and `d` inside it from the positive end.
+        for (v0, v1) in [(-d, 1.0), (-1.0, d)] {
+            let face: Vec<LoopEdge<f64>> = vec![
+                cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
+                generator(core::f64::consts::PI, v0, v1, 1, 2),
+                generator(0.0, v1, v0, 2, 0),
+            ];
+            let got = require_one_chart_branch(&cone::<f64>(), &face, band);
+            assert_eq!(
+                matches!(got, Err(PropsError::NotOneChartBranch { .. })),
+                refuses,
+                "apex {d:e} m inside span ({v0}, {v1}); got {got:?}"
+            );
+        }
+    }
+}
+
+/// **A `Line` that lies on no cone is not read as a generator** (the
+/// arm's own rim/meridian guard). The sphere arm filters circles on
+/// `props_circle_axis_class` before measuring a pole against them; the
+/// cone arm now filters lines on `props_meridian_apex` the same way,
+/// so a line that misses the apex is skipped rather than refused with
+/// a sentence about a singularity it never approaches. Without the
+/// guard this row answers `NotOneChartBranch` where the shape door
+/// answers `props_meridian_generator`.
+#[test]
+fn a_line_that_misses_the_apex_is_not_read_as_a_generator() {
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    let offset: Vec<LoopEdge<f64>> = vec![edge(
+        Curve3::Line {
+            origin: p3(0.0, 1.0, 0.0),
+            dir: v3(s, 0.0, s),
+        },
+        -1.0,
+        1.0,
+        0,
+        1,
+    )];
+    assert_eq!(
+        require_one_chart_branch(&cone::<f64>(), &offset, band()),
+        Ok(()),
+        "a line a metre off the apex has no apex in its span to cross"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The asked-for lane: the predicate EXECUTED at the interval scalar
+// ---------------------------------------------------------------------
+
+/// **The branch door on `LoopEdge<Interval>`, refusing and admitting,
+/// on both kinds.** The unit asked CI for the interval lane on the
+/// argument that this predicate is `Decide`-generic and its
+/// `copysign` / `min` / `decide` arithmetic is new code there; a lane
+/// that only COMPILES the arithmetic does not test that argument.
+/// These rows run it.
+///
+/// The interval scalar's `copysign` on a sign enclosure straddling
+/// zero yields the two-sided hull `±chord`, which is indeterminate —
+/// and indeterminate ADMITS here — so the refusing rows are placed
+/// decisively past the floor (ten escalation widths), where the
+/// enclosure is one-signed and the refusal must survive the widening.
+#[cfg(feature = "interval")]
+#[test]
+fn the_branch_door_decides_at_the_interval_scalar() {
+    use geom_core::Interval;
+    let band = band();
+    let b = 0.5;
+    let far = 10.0 * band.escalate() / RS;
+
+    // Sphere, refusing: the pole decisively inside edge 1's span.
+    let split = core::f64::consts::FRAC_PI_2 - far;
+    let crossing: Vec<LoopEdge<Interval>> = vec![
+        rim(b, 0.0, core::f64::consts::PI, 0, 1),
+        great(0.0, core::f64::consts::PI - b, split, 1, 2),
+        great(0.0, split, b, 2, 0),
+    ];
+    assert!(
+        matches!(
+            require_one_chart_branch(&sphere::<Interval>(), &crossing, band),
+            Err(PropsError::NotOneChartBranch { edge: 1, .. })
+        ),
+        "the interval lane must reach the same refusal, and name the same edge"
+    );
+
+    // Sphere, admitting: the cap whose meridians END at the pole.
+    let cap: Vec<LoopEdge<Interval>> = vec![
+        rim(b, 0.0, core::f64::consts::PI, 0, 1),
+        great(core::f64::consts::PI, b, core::f64::consts::FRAC_PI_2, 1, 2),
+        great(0.0, core::f64::consts::FRAC_PI_2, b, 2, 0),
+    ];
+    assert_eq!(
+        require_one_chart_branch(&sphere::<Interval>(), &cap, band),
+        Ok(()),
+        "an arc ending at the pole is admitted at interval as it is at f64"
+    );
+
+    // Cone, refusing: the apex decisively inside the generator's span.
+    let bow: Vec<LoopEdge<Interval>> = vec![
+        cone_rim(-1.0, 0.0, core::f64::consts::PI, 0, 1),
+        generator(core::f64::consts::PI, -1.0, 1.0, 1, 2),
+        cone_rim(1.0, core::f64::consts::PI, 0.0, 2, 3),
+        generator(0.0, 1.0, -1.0, 3, 0),
+    ];
+    assert!(
+        matches!(
+            require_one_chart_branch(&cone::<Interval>(), &bow, band),
+            Err(PropsError::NotOneChartBranch { edge: 1, .. })
+        ),
+        "the cone arm decides at interval too"
+    );
+
+    // Cone, admitting: the single-nappe band.
+    let single: Vec<LoopEdge<Interval>> = vec![
+        cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
+        generator(core::f64::consts::PI, 1.0, 2.0, 1, 2),
+        cone_rim(2.0, core::f64::consts::PI, 0.0, 2, 3),
+        generator(0.0, 2.0, 1.0, 3, 0),
+    ];
+    assert_eq!(
+        require_one_chart_branch(&cone::<Interval>(), &single, band),
+        Ok(()),
+        "no apex in any span: admitted at interval"
+    );
 }
