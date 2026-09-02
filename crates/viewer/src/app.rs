@@ -3436,6 +3436,7 @@ impl ViewerBehavior<'_> {
         // verbs a combo may offer reads the WHOLE list, and it cannot
         // borrow it while a row holds a mutable slice of it.
         let mut rebind: Option<(usize, PathVerb)> = None;
+        let mut insert: Option<usize> = None;
         let notation = self.drafts.notation();
         let tol = self.session.tol();
         let last = self.drafts.profile_path.len().saturating_sub(1);
@@ -3493,6 +3494,19 @@ impl ViewerBehavior<'_> {
                     });
                 let step = &mut self.drafts.profile_path[index];
                 path_step_fields(ui, &salt, length_unit, angle_unit, step);
+                // **Insert after this row**, at the end of the row it
+                // inserts after. A chain is written in the middle as
+                // often as at the end — a leg forgotten between two
+                // that exist used to mean appending it and walking it
+                // up with the arrows — so every row carries the
+                // control and the last row's is the append.
+                if ui
+                    .small_button("+")
+                    .on_hover_text("insert a step after this one")
+                    .clicked()
+                {
+                    insert = Some(index + 1);
+                }
             });
         }
         if let Some((index, verb)) = rebind {
@@ -3501,34 +3515,28 @@ impl ViewerBehavior<'_> {
         if let Some(index) = remove {
             self.drafts.profile_path.remove(index);
         }
+        if let Some(at) = insert {
+            self.drafts.profile_path.insert(at, fresh_step(at));
+        }
         if let Some((from, to)) = swap {
             self.drafts.profile_path.swap(from, to);
         }
         ui.horizontal(|ui| {
-            // **No verb picker beside this button.** It duplicated the
-            // row combo one row down: whatever the new step is, the
-            // way to change it is the same control either way, and a
-            // second one only asked the question a frame earlier. The
-            // appended step is `at` for an empty chain — nothing else
-            // is well-typed at the entry — and `line_to` after that,
-            // which is the verb a chain is mostly made of; the row's
-            // own combo, now narrowed to what the lattice admits
-            // there, is where it becomes something else.
-            if ui.button("Add step").clicked() {
-                let fresh = if self.drafts.profile_path.is_empty() {
-                    PathVerb::At
-                } else {
-                    PathVerb::LineTo
-                };
-                self.drafts.profile_path.push(fresh.fresh());
-            }
-            if ui
-                .add_enabled(
-                    !self.drafts.profile_path.is_empty(),
-                    egui::Button::new("Clear"),
-                )
-                .clicked()
-            {
+            // **"Add step" only when there is no row to insert after.**
+            // Once the list has rows, every one of them carries a `+`
+            // that inserts after it — including the last, which is the
+            // append — so a second control at the bottom would be the
+            // same move spelled twice.
+            //
+            // There is no verb picker beside it either. It duplicated
+            // the row combo one row down: whatever the new step is,
+            // the way to change it is the same control either way, and
+            // a second one only asked the question a frame earlier.
+            if self.drafts.profile_path.is_empty() {
+                if ui.button("Add step").clicked() {
+                    self.drafts.profile_path.push(fresh_step(0));
+                }
+            } else if ui.button("Clear").clicked() {
                 self.drafts.profile_path.clear();
             }
         });
@@ -4628,14 +4636,47 @@ fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [f64; 3]) {
 /// applied to a field showing millimetres is the same gesture made a
 /// thousand times finer by a change of notation.
 fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical: &mut f64) {
+    named_field(ui, "", unit, speed, canonical);
+}
+
+/// [`unit_field`] with the quantity's NAME written into the field
+/// itself.
+///
+/// A prefix rather than a `Label` beside it, and that is the point: a
+/// path step's row is a horizontal strip of controls, and the labels
+/// that used to sit between them belonged to whichever field a reader
+/// guessed. `arc_fillet` is the case that made it matter — an arc
+/// radius and a fillet radius, both written `r`, both in the same row,
+/// with nothing saying which was which. A prefix cannot drift away
+/// from its field.
+///
+/// The name is the QUANTITY, never the unit: the picker beside the
+/// form says the unit, and a second statement of it here would be
+/// free to disagree ([`length_picker`]'s own rule).
+fn named_field(ui: &mut egui::Ui, name: &str, unit: UnitDef, speed: f64, canonical: &mut f64) {
     let mut written = props::in_written(*canonical, unit);
-    let response = ui.add(egui::DragValue::new(&mut written).speed(props::in_written(speed, unit)));
+    let mut field = egui::DragValue::new(&mut written).speed(props::in_written(speed, unit));
+    if !name.is_empty() {
+        field = field.prefix(format!("{name} "));
+    }
+    let response = ui.add(field);
     // Written back only on a real edit: an untouched field would
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
         *canonical = props::from_written(written, unit);
     }
+}
+
+/// A dimensionless field with its own name written in — the scalar
+/// twin of [`named_field`], for the components and bulges that carry
+/// no unit at all.
+fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mut f64) {
+    ui.add(
+        egui::DragValue::new(value)
+            .speed(speed)
+            .prefix(format!("{name} ")),
+    );
 }
 
 /// The vector twin of [`unit_field`] — one label, three components,
@@ -4649,10 +4690,13 @@ fn unit_vec3_row(ui: &mut egui::Ui, label: &str, unit: UnitDef, speed: f64, valu
     });
 }
 
-/// Two Length fields, one point of the sketch frame.
+/// Two Length fields, one point of the sketch frame — each carrying
+/// the axis it is, because a row of a path form holds several points
+/// and a bare pair of numbers says which of them it belongs to only
+/// by position.
 fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut [f64; 2]) {
-    for component in point {
-        unit_field(ui, unit, FIELD_DRAG_SPEED, component);
+    for (axis, component) in ["x", "y"].into_iter().zip(point) {
+        named_field(ui, axis, unit, FIELD_DRAG_SPEED, component);
     }
 }
 
@@ -4720,10 +4764,21 @@ fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSweep) {
 fn arc_fields(
     ui: &mut egui::Ui,
     salt: &str,
+    role: &str,
     length_unit: UnitDef,
     angle_unit: UnitDef,
     spec: &mut ArcSpec,
 ) {
+    // What to call this arc's own radius. A step can hold TWO arcs and
+    // a fillet between them (`arc_fillet_arc`), and every one of the
+    // three has a radius: unqualified, all three fields read `r` and
+    // the row is unreadable. The caller names the role because only
+    // the caller knows which arc of the step this is.
+    let radius = if role.is_empty() {
+        "r".to_owned()
+    } else {
+        format!("{role} r")
+    };
     let mut mode = ArcMode::of(spec);
     let before = mode;
     egui::ComboBox::from_id_salt(("arc_mode", salt))
@@ -4739,14 +4794,12 @@ fn arc_fields(
     }
     match spec {
         ArcSpec::Radius { r, side } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
         }
         ArcSpec::Bulge { target, b } => {
             target_fields(ui, length_unit, target);
-            ui.label("bulge");
-            ui.add(egui::DragValue::new(b).speed(UNIT_DRAG_SPEED));
+            named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
         }
         ArcSpec::Via { q, target } => {
             ui.label("via");
@@ -4760,19 +4813,31 @@ fn arc_fields(
             target_fields(ui, length_unit, target);
         }
         ArcSpec::Sweep { r, side, angle } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
-            ui.label("angle");
-            unit_field(ui, angle_unit, ANGLE_DRAG_SPEED, angle);
+            named_field(ui, "sweep", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
         ArcSpec::ArcLen { r, side, len } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, r);
+            named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
             side_picker(ui, salt, side);
-            ui.label("length");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, len);
+            named_field(ui, "arc length", length_unit, FIELD_DRAG_SPEED, len);
         }
+    }
+}
+
+/// **The step a fresh row starts as**, by where it is going.
+///
+/// `at` at position 0 — nothing else is well-typed at the entry, so
+/// offering anything there would be offering a refusal — and `line_to`
+/// anywhere after it, which is the verb a chain is mostly made of. It
+/// is a starting point and not a judgement: the row's own combo,
+/// narrowed to what the lattice admits at that tip, is where it
+/// becomes something else.
+fn fresh_step(at: usize) -> PathStep {
+    if at == 0 {
+        PathVerb::At.fresh()
+    } else {
+        PathVerb::LineTo.fresh()
     }
 }
 
@@ -4790,38 +4855,73 @@ fn path_step_fields(
     angle_unit: UnitDef,
     step: &mut PathStep,
 ) {
+    // **Every field says which quantity it is.** The arms below are
+    // split further than the lowering's are — `line` and `fillet` both
+    // carry one Length and shared an arm — because what a number MEANS
+    // is the thing a row has to say, and a shared arm can only give
+    // two different quantities one name.
     match step {
-        PathStep::At(point) | PathStep::ArcContinue(point) | PathStep::FarEndTo(point) => {
+        PathStep::At(point) => point_fields(ui, length_unit, point),
+        PathStep::ArcContinue(point) => {
+            ui.label("through");
             point_fields(ui, length_unit, point);
         }
-        PathStep::Angle(angle) | PathStep::Turn(angle) => {
-            unit_field(ui, angle_unit, ANGLE_DRAG_SPEED, angle);
+        PathStep::FarEndTo(point) => {
+            ui.label("far end");
+            point_fields(ui, length_unit, point);
+        }
+        PathStep::Angle(angle) => {
+            named_field(ui, "angle", angle_unit, ANGLE_DRAG_SPEED, angle);
+        }
+        PathStep::Turn(angle) => {
+            named_field(ui, "turn", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
         PathStep::Toward { dx, dy } => {
-            ui.add(egui::DragValue::new(dx).speed(UNIT_DRAG_SPEED));
-            ui.add(egui::DragValue::new(dy).speed(UNIT_DRAG_SPEED));
+            named_scalar(ui, "dx", UNIT_DRAG_SPEED, dx);
+            named_scalar(ui, "dy", UNIT_DRAG_SPEED, dy);
         }
-        PathStep::Line(length) | PathStep::Fillet(length) => {
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, length);
+        PathStep::Line(length) => {
+            named_field(ui, "length", length_unit, FIELD_DRAG_SPEED, length);
+        }
+        PathStep::Fillet(radius) => {
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         PathStep::LineTo(target) | PathStep::TangentArcTo(target) => {
             target_fields(ui, length_unit, target);
         }
-        PathStep::ArcTo(spec) => arc_fields(ui, salt, length_unit, angle_unit, spec),
-        PathStep::FilletArc { radius, spec } | PathStep::ArcFillet { spec, radius } => {
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, salt, length_unit, angle_unit, spec);
+        PathStep::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, spec),
+        // The two mixed verbs read in the order their names do, so the
+        // row is the step spelled left to right.
+        PathStep::FilletArc { radius, spec } => {
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+        }
+        PathStep::ArcFillet { spec, radius } => {
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, spec);
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         PathStep::ArcFilletArc {
             spec,
             radius,
             spec2,
         } => {
-            arc_fields(ui, &format!("{salt}_in"), length_unit, angle_unit, spec);
-            ui.label("r");
-            unit_field(ui, length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, &format!("{salt}_out"), length_unit, angle_unit, spec2);
+            arc_fields(
+                ui,
+                &format!("{salt}_in"),
+                "in arc",
+                length_unit,
+                angle_unit,
+                spec,
+            );
+            named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
+            arc_fields(
+                ui,
+                &format!("{salt}_out"),
+                "out arc",
+                length_unit,
+                angle_unit,
+                spec2,
+            );
         }
         // Structural verbs: the verb IS the whole step.
         PathStep::Tangent | PathStep::Cusp | PathStep::CloseTo => {}

@@ -250,8 +250,21 @@ fn an_unclaimed_theme_is_not_held_to_the_bar() {
 /// term moved.
 #[test]
 fn a_claimed_theme_has_as_much_shading_range_as_the_light_neutral_one() {
-    let reference = Theme::by_name("light-neutral").expect("registered");
-    let bar = cvd::shading_range(&reference);
+    // Found by walking the registry rather than unwrapped out of
+    // `by_name`: this suite is one of the few here without the
+    // `expect_used` allowance, and a missing reference deserves the
+    // sentence below rather than a panic message.
+    let mut bar = 0.0_f64;
+    for theme in Theme::ALL {
+        if theme.name == "light-neutral" {
+            bar = cvd::shading_range(theme);
+        }
+    }
+    assert!(
+        bar > 0.0,
+        "the light-neutral palette is the reference this row measures against, and it \
+         is not in the registry — if it was renamed, rename it here too",
+    );
     for theme in Theme::ALL
         .iter()
         .filter(|theme| theme.safety == Safety::ColorblindSafe)
