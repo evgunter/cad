@@ -38,6 +38,15 @@ impl<T: Real> Point2<T> {
         Self { x, y }
     }
 
+    /// The same point read at another scalar: `f` applied to each
+    /// coordinate, in `x, y` order. A structural map — no arithmetic,
+    /// so it is exact whenever `f` is (`Real::from_f64`,
+    /// `Dual::constant`).
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Point2<U> {
+        Point2::new(f(self.x), f(self.y))
+    }
+
     /// The coordinate origin — the base point of the chart that
     /// identifies the affine space with its coordinate tuples. Nothing
     /// geometric is special about it; it is the reference point the
@@ -92,6 +101,13 @@ impl<T: Real> Point3<T> {
     /// Builds a point from its coordinates.
     pub fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
+    }
+
+    /// The same point read at another scalar: `f` applied to each
+    /// coordinate, in `x, y, z` order (see [`Point2::map`]).
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Point3<U> {
+        Point3::new(f(self.x), f(self.y), f(self.z))
     }
 
     /// The coordinate origin — the base point of the chart that

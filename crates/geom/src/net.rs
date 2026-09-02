@@ -22,27 +22,19 @@ pub(crate) trait ControlPoint<T: Real>: Copy + Sub<Self, Output = Self::Offset> 
     /// yields, and what the bound measures.
     type Offset: Copy + Sub<Self::Offset, Output = Self::Offset> + Mul<T, Output = Self::Offset>;
 
-    /// The number of coordinate channels (2 for a plane point, 3 for
-    /// a space point).
-    const CHANNELS: usize;
+    /// The coordinate channels as a fixed-size array — `[x, y]` for a
+    /// plane point, `[x, y, z]` for a space point. The array's length
+    /// IS the channel count: there is no separate constant to keep in
+    /// agreement with it, and no channel index a caller could get
+    /// wrong.
+    type Channels: IntoIterator<Item = T>;
 
     /// The point with every coordinate equal to `v` — the origin at
     /// `T::zero()`, the all-poison point at the scalar's poison.
     fn splat(v: T) -> Self;
 
-    /// Coordinate `d`.
-    ///
-    /// `d >= CHANNELS` is a caller bug, not an input: every caller in
-    /// this crate drives it from `0..CHANNELS`. The implementations
-    /// announce it with `unreachable!` (D9's D2 addendum: a state the
-    /// code can observe in a branch is announced, never swallowed)
-    /// rather than returning a plausible-looking wrong coordinate.
-    ///
-    /// Those two arms are therefore **unguardable by construction**:
-    /// no public door reaches them, and a row could only fire them
-    /// through a fake `ControlPoint` impl written to lie about
-    /// `CHANNELS` — which would test the fake, not the kernel.
-    fn channel(self, d: usize) -> T;
+    /// The coordinates in channel order (see [`Self::Channels`]).
+    fn channels(self) -> Self::Channels;
 
     /// `‖offset‖`.
     fn norm(offset: Self::Offset) -> T;
@@ -50,21 +42,14 @@ pub(crate) trait ControlPoint<T: Real>: Copy + Sub<Self, Output = Self::Offset> 
 
 impl<T: Real> ControlPoint<T> for Point2<T> {
     type Offset = Vec2<T>;
-    const CHANNELS: usize = 2;
+    type Channels = [T; 2];
 
     fn splat(v: T) -> Self {
         Point2::new(v, v)
     }
 
-    fn channel(self, d: usize) -> T {
-        match d {
-            0 => self.x,
-            1 => self.y,
-            _ => unreachable!(
-                "plane control point has no channel {d}: every caller in this crate \
-                 drives `channel` from `0..CHANNELS`"
-            ),
-        }
+    fn channels(self) -> [T; 2] {
+        [self.x, self.y]
     }
 
     fn norm(offset: Vec2<T>) -> T {
@@ -74,22 +59,14 @@ impl<T: Real> ControlPoint<T> for Point2<T> {
 
 impl<T: Real> ControlPoint<T> for Point3<T> {
     type Offset = Vec3<T>;
-    const CHANNELS: usize = 3;
+    type Channels = [T; 3];
 
     fn splat(v: T) -> Self {
         Point3::new(v, v, v)
     }
 
-    fn channel(self, d: usize) -> T {
-        match d {
-            0 => self.x,
-            1 => self.y,
-            2 => self.z,
-            _ => unreachable!(
-                "space control point has no channel {d}: every caller in this crate \
-                 drives `channel` from `0..CHANNELS`"
-            ),
-        }
+    fn channels(self) -> [T; 3] {
+        [self.x, self.y, self.z]
     }
 
     fn norm(offset: Vec3<T>) -> T {
@@ -143,9 +120,12 @@ pub(crate) fn poison_point<T: Real, P: ControlPoint<T>>() -> P {
 
 /// Is this the "no description yet" placeholder net rather than a
 /// described one? The contract is stated once, in the crate docs'
-/// totality-and-poison section; this is its one implementation.
+/// totality-and-poison section; this is its one implementation, and
+/// it reads every point's **first** channel.
 pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
-    control.iter().all(|p| p.channel(0).is_poison())
+    control
+        .iter()
+        .all(|p| p.channels().into_iter().next().is_some_and(Real::is_poison))
 }
 
 /// The net's coordinate channels as ring enclosures, in channel order
@@ -163,14 +143,21 @@ pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool
 pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
 ) -> Vec<Vec<RingInterval>> {
-    (0..P::CHANNELS)
-        .map(|d| {
-            control
-                .iter()
-                .map(|p| RingInterval::from_certified(p.channel(d)))
-                .collect()
-        })
-        .collect()
+    // One lane per channel. The lane count is read off the channel
+    // array of a point this impl mints itself, so it is the SAME
+    // statement of the count every `channels()` below makes — one
+    // array type, one length — and the zip cannot drop or pad.
+    let mut lanes: Vec<Vec<RingInterval>> = P::splat(T::zero())
+        .channels()
+        .into_iter()
+        .map(|_| Vec::with_capacity(control.len()))
+        .collect();
+    for p in control {
+        for (lane, c) in lanes.iter_mut().zip(p.channels()) {
+            lane.push(RingInterval::from_certified(c));
+        }
+    }
+    lanes
 }
 
 /// One knot-removal pass's projected perturbation bound: `orig` and

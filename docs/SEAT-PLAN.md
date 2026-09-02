@@ -110,6 +110,18 @@ the first migrated verb whose consumer needs it.
    channel is this program's). Dispatch after SEAT-4 and after a
    handoff note on issue 1372.
 
+## Side units (rulings and review products, outside the wave cut)
+
+- **SEAT-DV (S)** — issue 1527's ruling (Evan, 2026-09-02:
+  "probably a validating constructor, or making the unnormalized
+  version unrepresentable"): `DatumValue`'s plane/axis normals
+  become unit-by-construction — private fields, constructors that
+  normalize or refuse typed; the SEAT-2 `debug_assert` tripwire
+  retires with the class it guarded; `editor-core`'s construction
+  sites move onto the constructors; the `Decide`-vs-`Real` bound
+  question decided in the same pass. Dispatches after SEAT-4's
+  implementation phase, on block SEAT-B2.
+
 ## Standing constraints
 
 - **Protocol**: implementer dispatches ride the A/B ledger

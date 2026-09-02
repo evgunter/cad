@@ -39,6 +39,14 @@ impl<T: Real> Mat3<T> {
         Self::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z())
     }
 
+    /// The same matrix read at another scalar: `f` applied to every
+    /// entry, column by column ([`Vec3::map`]). A structural map — no
+    /// arithmetic, so exact whenever `f` is.
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Mat3<U> {
+        Mat3::from_cols(self.c0.map(&f), self.c1.map(&f), self.c2.map(&f))
+    }
+
     /// The transpose. Pure field shuffling — no arithmetic, so
     /// bit-exact, and an exact involution.
     pub fn transpose(self) -> Self {
