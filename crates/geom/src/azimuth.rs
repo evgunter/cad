@@ -119,4 +119,28 @@ mod tests {
             );
         }
     }
+
+    /// CERT-N2 R1 PROBE: does a transposition still COMPILE? The PR
+    /// body says "the swap is a type error at the site". Both fields
+    /// are `Vec3<T>`, so a field-renaming destructure and a
+    /// field-swapping struct literal both typecheck.
+    #[test]
+    fn probe_a_transposition_still_compiles() {
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let u_ref = Vec3::new(1.0, 0.0, 0.0);
+        let f = frame(axis, u_ref, 0.3f64);
+        // (1) destructure with the names swapped — compiles.
+        let AzimuthFrame {
+            radial: tangential,
+            tangential: radial,
+        } = frame(axis, u_ref, 0.3f64);
+        assert_eq!(radial.x, f.tangential.x);
+        assert_eq!(tangential.x, f.radial.x);
+        // (2) a struct literal with the roles swapped — compiles.
+        let swapped = AzimuthFrame {
+            radial: f.tangential,
+            tangential: f.radial,
+        };
+        assert_eq!(swapped.radial.x, f.tangential.x);
+    }
 }

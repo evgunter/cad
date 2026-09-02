@@ -256,6 +256,8 @@ pub mod test_support {
     }
 }
 #[cfg(test)]
+mod n2r1_probes;
+#[cfg(test)]
 mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;

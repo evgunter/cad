@@ -211,3 +211,6 @@ mod r2_cert6_probes;
 
 #[path = "cert6_gauge_rows.rs"]
 mod cert6_gauge_rows;
+
+#[path = "n2r1_probes.rs"]
+mod n2r1_probes;
