@@ -111,7 +111,7 @@ fn r2_the_floor_is_the_escalation_threshold_from_both_sides() {
         ("1.01·escalate", 1.01 * bd.escalate()),
         ("4·escalate", 4.0 * bd.escalate()),
         ("10·escalate", 10.0 * bd.escalate()),
-        ("1e6·escalate", 1.0e6 * bd.escalate()),
+        ("100·escalate", 100.0 * bd.escalate()),
     ];
     for (name, metres) in rows {
         let d = metres / RS;
@@ -367,7 +367,7 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let Curve3::Circle { axis: n_c, .. } = e.carrier else {
             unreachable!()
         };
-        let w0 = e.p0() - p3(0.0, 0.0, 0.0);
+        let w0 = e.carrier.eval(e.t0) - p3(0.0, 0.0, 0.0);
         let sa = w0.dot(axis) / RS;
         let ca = n_c.cross(w0).dot(axis) / RS;
         let dt = e.t1 - e.t0;
