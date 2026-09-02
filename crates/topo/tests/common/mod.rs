@@ -576,68 +576,31 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
     describe_as_intersections(body);
 }
 
-/// Test-authoring convenience (M4 PR 5): the [`BooleanDeclarations`]
-/// declaring EVERY geometrically-plausible cross-operand flush-plane
-/// face pair of `(a, b)` — the test author's stand-in for a recipe
-/// `Declare` (the author built the contact deliberately; this writes
-/// the intent down). Selection is banded (in-band pairs are declared
-/// too — the declared rung's verification re-checks each pair at its
-/// meeting edges — exact fixtures decide definitely); coincidence
-/// CERTIFICATION still happens inside the
-/// op through the verified declared rung, never here.
+/// Test-authoring convenience: the [`BooleanDeclarations`] declaring
+/// every flush-plane face pair of `(a, b)` — the test author's
+/// stand-in for a recipe `Declare` (the author built the contact
+/// deliberately; this writes the intent down).
+///
+/// The detection is the library's ([`topo::flush`]), so this helper
+/// interprets nothing: it detects through the same door the op then
+/// verifies with, and hands the findings straight to the declare
+/// sugar. Coincidence CERTIFICATION still happens inside the op
+/// through the verified declared rung, never here.
+///
+/// **The in-band arm INVERTED here, deliberately.** The hand declarer
+/// this replaced treated an in-band pair as plausible and declared it
+/// anyway, leaving the op's declared rung to re-check it. A finding is
+/// only ever DEFINITE, so the library refuses instead — and this
+/// helper turns that refusal into a panic rather than swallowing it,
+/// which makes "every fixture that reaches this helper decides
+/// definitely" a fixture assertion instead of an assumption. A future
+/// fixture built inside the band fails loudly at its own door; the old
+/// helper would have declared it and moved on.
 pub fn flush_declarations<T: geom_core::Decide>(
     a: &Body<T>,
     b: &Body<T>,
 ) -> topo::BooleanDeclarations {
-    use geom_core::k_stats::{decide, decide_flagged};
-    use geom_core::{Margin, Sign};
-    let band = Band::linear(Tol::witness()).unwrap();
-    let planes = |body: &Body<T>| -> Vec<(topo::FaceKey, Point3<T>, geom_core::Vec3<T>)> {
-        body.faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(&Surface::Plane { origin, normal, .. }) => Some((k, origin, normal)),
-                _ => None,
-            })
-            .collect()
-    };
-    let mut decls = topo::BooleanDeclarations::none();
-    for &(fa, oa, na) in &planes(a) {
-        for &(fb, ob, nb) in &planes(b) {
-            // Parallel? (in-band counts as plausible.)
-            let par = na.cross(nb).norm();
-            if matches!(
-                decide_flagged(
-                    "test_flush_parallel",
-                    par,
-                    band,
-                    "test fixture: bare sine gate"
-                ),
-                Ok(Sign::Positive)
-            ) {
-                continue;
-            }
-            // Relative orientation, then the offset in that frame.
-            let sigma = match decide_flagged(
-                "test_flush_orient",
-                na.dot(nb),
-                band,
-                "test fixture: bare cosine gate",
-            ) {
-                Ok(Sign::Positive) => T::one(),
-                Ok(Sign::Negative) => -T::one(),
-                _ => continue,
-            };
-            let da = na.dot(oa - Point3::origin());
-            let db = nb.dot(ob - Point3::origin());
-            if matches!(
-                decide("test_flush_offset", Margin::of(da - sigma * db), band),
-                Ok(Sign::Zero)
-            ) {
-                decls
-                    .coincident_faces
-                    .push(topo::FacePairDeclaration::rest(fa, fb));
-            }
-        }
-    }
-    decls
+    let found = topo::flush::find_flush_candidates(a, b, Tol::witness())
+        .expect("a fixture's flush pairs decide definitely");
+    topo::flush::declare_all(&found)
 }

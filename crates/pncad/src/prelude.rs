@@ -222,3 +222,14 @@ pub use crate::select::{
 // (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
 // already above, one definition re-exported upward.
 pub use topo::query;
+// The KERNEL flush seat (`topo::flush`): the same detect/declare
+// protocol as a pure function of two `Body`s, for the caller who holds
+// arena keys and no document. A MODULE for the reason `query` is one,
+// and more sharply — all three door names collide with the document
+// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
+// which answer names from an evaluation where `flush::` answers keys
+// from a body. The finding vocabulary the doors speak
+// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
+// already above, one definition re-exported upward: `FlushFinding` is
+// literally the same type at both seats, over each seat's pair.
+pub use topo::flush;
