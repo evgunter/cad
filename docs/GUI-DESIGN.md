@@ -325,7 +325,8 @@ outcome. Progress reporting and in-op yield points remain absent.*
 removing/disabling persistence later is far easier than adding it
 (and session-spanning undo, macros, and collaboration all want it).
 Banked consequences: the edit schema enters Band 4's versioning
-discipline from the first persisted file; storage shape is
+discipline from the first RELEASED file (ruled 2026-09-01: none
+before that); storage shape is
 **snapshot + edit log** (details at editor-core design time).
 
 *Shipped: snapshot + edit log is the on-disk format (`id:` header

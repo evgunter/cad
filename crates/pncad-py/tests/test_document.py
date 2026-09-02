@@ -412,7 +412,7 @@ class TestDocumentIdentity(unittest.TestCase):
 
 
 class TestPersistence(unittest.TestCase):
-    """LIB-DOORS F1: the schema-v4 doors, through the curated facade."""
+    """LIB-DOORS F1: the persistence doors, through the curated facade."""
 
     def test_save_load_evaluate_round_trip_is_bit_exact(self):
         doc = Doc()

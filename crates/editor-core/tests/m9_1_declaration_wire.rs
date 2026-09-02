@@ -55,8 +55,12 @@ fn an_unknown_class_spelling_refuses_typed() {
     );
     let tampered = text.replace("\"tangent\"", "\"fit\"");
     let err = load(&tampered, Tol::witness()).expect_err("an unknown class spelling must refuse");
+    // The deserializer's message is the ONLY place the name exists
+    // (serde exposes no structured accessor), so reading it back is the
+    // assertion, not message sniffing; the fuller phrase keeps a short
+    // word from matching by accident.
     assert!(
-        err.to_string().contains("fit"),
+        err.to_string().contains("unknown contact class 'fit'"),
         "the refusal names the spelling it could not read: {err}"
     );
 }

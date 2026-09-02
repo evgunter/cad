@@ -101,8 +101,13 @@ fn the_retired_spelling_is_unreadable_by_this_build() {
     assert_ne!(retired, text, "the substitution must actually land");
     match load(&retired, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
+            // The deserializer's message is the ONLY place the name
+            // exists (serde exposes no structured accessor), so reading
+            // it back is the assertion, not message sniffing; the
+            // fuller phrase keeps a two-letter word from matching by
+            // accident.
             assert!(
-                detail.contains("pi"),
+                detail.contains("unknown display unit \"pi\""),
                 "the refusal names the symbol it could not read: {detail}"
             );
         }

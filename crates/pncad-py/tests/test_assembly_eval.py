@@ -597,6 +597,24 @@ class TestTheCorpusIsTheToursOwn(unittest.TestCase):
                     f"(cd demos/tour && cargo run -- asm-corpus "
                     f"../../crates/pncad-py/tests/corpus/bench)",
                 )
+        # The pattern's count and spacing are authored INLINE in the
+        # layout scene (`count: pe("2", ...)`, `spacing: pe("200 mm",
+        # ...)`), not as `const`s, so they are read out of `layout_doc`'s
+        # own body — the two remaining quantities the corpus pins, and
+        # the two that drifted unseen once (PR 1506 took the flat-pack
+        # from four posts to two and the corpus was not regenerated).
+        start = source.index("fn layout_doc(")
+        layout = source[start : source.index("\n}\n", start)]
+        count = re.search(r'count: pe\("(\d+)", &scope\)', layout)
+        self.assertIsNotNone(count, "layout_doc no longer authors its pattern count inline")
+        self.assertEqual(int(count.group(1)), PATTERN_COUNT, "PATTERN_COUNT moved in the tour")
+        spacing = re.search(r'spacing: pe\("(\d+) mm", &scope\)', layout)
+        self.assertIsNotNone(spacing, "layout_doc no longer authors its spacing inline, in mm")
+        self.assertEqual(
+            int(spacing.group(1)) / 1000.0,
+            PATTERN_SPACING,
+            "PATTERN_SPACING moved in the tour",
+        )
 
     def test_the_patterned_posts_sit_where_the_scene_places_them(self):
         """A VOLUME is invariant under placement, and until this row

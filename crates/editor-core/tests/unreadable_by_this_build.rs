@@ -9,9 +9,19 @@
 //! There is no schema version to pin and no per-version golden to
 //! refuse: this ONE generic family replaces the per-version suites.
 //! The refusal rows mutate a fresh save, so they follow the wire
-//! shape wherever it goes; the load row reads FROZEN bytes, because
-//! "an older-shaped document" has to be an actual old shape and not
-//! whatever today's serializer writes.
+//! shape wherever it goes. The load row reads a SYNTHESIZED body that
+//! names two arms of today's vocabulary and nothing else — the
+//! additive-growth property by construction; its pair on REAL bytes
+//! is the historical census in `bool13r2_probes.rs` (every document
+//! an earlier build of this repo wrote, `schema:` line removed: none
+//! loads, because the last format change before the demolition made
+//! a literal's unit required, and every body refusal names `unit`).
+//!
+//! Some wire suites still derive their document ids from seeds that
+//! spell an old version number (`"blend5-schema-v18"`,
+//! `"asm-r2a-schema"`, `"asm-r2b-schema"`). A seed is an
+//! id-derivation input, not prose, and stays; this is the one place
+//! that says so.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -121,17 +131,24 @@ fn a_missing_required_field_refuses_naming_it() {
     }
 }
 
-/// A document written by a build whose node vocabulary was profile and
-/// extrude ALONE, frozen as bytes. Today's `Node` knows many more arms
-/// (the row checks a few by name below, against the bytes), and the
-/// document loads regardless: nothing about growing an enum makes an
-/// older document name what it never named. This is the property the
-/// ruling is FOR — the reason no version number needs to stand between
-/// a format's growth and its files.
+/// A SYNTHESIZED document in today's shape that names exactly two node
+/// arms, profile and extrude, and nothing else. No build ever wrote
+/// these bytes (the literals carry the `unit` key, which became
+/// required only in the last format change before the demolition);
+/// what the row proves is the additive-growth property BY
+/// CONSTRUCTION: today's `Node` knows many more arms (the row checks a
+/// few by name below, against the bytes), and a body that never names
+/// them loads regardless, because nothing about an enum's other
+/// variants is consulted when a tag it does name is read. This is the
+/// property the ruling is FOR — the reason no version number needs to
+/// stand between a format's growth and its files. Its pair on REAL
+/// older-build bytes is `bool13r2_probes::
+/// real_historical_documents_refuse_typed_and_name_what_they_lack`.
 ///
 /// The bytes are compact rather than pretty because whitespace is not
 /// part of the shape; the id line and the snapshot id agree by
-/// construction, as a saved file's do.
+/// construction, as a saved file's do; the recorded ε is rewritten to
+/// the process's below so the LOAD is asserted on every CI ε row.
 const OLDER_SHAPED: &str = concat!(
     "id: 403dad134a805e2f6ad6d453633789a4\n",
     "{\"snapshot\":{\"id\":\"403dad134a805e2f6ad6d453633789a4\",\"next_id\":2,",
@@ -165,21 +182,20 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
             "the frozen document must predate `{newer}` for this row to mean anything"
         );
     }
-    match load(OLDER_SHAPED, Tol::witness()) {
-        Ok(loaded) => {
-            assert_eq!(
-                loaded.doc.order().len(),
-                2,
-                "profile and extrude, as written"
-            );
-        }
-        // The frozen bytes record the ε they were written at; under
-        // another CI ε row the document parsed, validated and replayed
-        // (that door is the LAST in the sequence) and refuses only
-        // there — the property this row asserts is already proven.
-        Err(PersistError::ToleranceConflict { .. }) => {}
-        Err(other) => panic!("an older-shaped document must load, got {other:?}"),
-    }
+    // The bytes record an ε; a document refuses at the LAST door under
+    // any other process ε, which would leave the LOAD half of this row
+    // unproven on two of the three CI rows. So the recorded ε is the
+    // process's — one replacement, the rest of the bytes untouched.
+    let eps = Tol::witness().eps();
+    let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
+    assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
+    let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
+    assert_eq!(
+        loaded.doc.order().len(),
+        2,
+        "profile and extrude, as written"
+    );
+    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }
 
 /// The seam's other side, so the split is pinned from both directions:

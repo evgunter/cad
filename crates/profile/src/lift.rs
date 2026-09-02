@@ -4,9 +4,10 @@
 //! [`ProfileLoop`] — vertices, bulges, and the declared-tangent joint
 //! set — and mints an equivalent chain- (or carrier-) vocabulary
 //! program. It is **not a load path and never runs at load** (LQ7a's
-//! clean break: a v1-form document is unreadable by the persistence
-//! door and regenerates from source; nothing in that door reaches
-//! this module).
+//! clean break: a v1-form document predates the `id:` header line, so
+//! the persistence door refuses it `PersistError::HeaderId` with the
+//! regenerate recourse and never reads its body; nothing in that door
+//! reaches this module).
 //!
 //! # What the declared flags can pin
 //!

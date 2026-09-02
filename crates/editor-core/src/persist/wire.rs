@@ -252,7 +252,8 @@ impl WireTarget {
 /// change, not a mapping (the checked-in corpus regenerates; see the
 /// persist module docs), so this enum going quietly short is worse
 /// than its being a third spelling — a spelling can be reconciled
-/// later, a shipped format cannot.
+/// later; a format that has reached someone's disk (Band 4, once a
+/// document ships) cannot.
 ///
 /// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
 /// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on

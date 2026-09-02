@@ -17,11 +17,22 @@
 //! ([`PersistError::Unreadable`]) with [`REGENERATE_RECOURSE`], carried
 //! by the deserializer's own rejection of unknown or missing
 //! vocabulary — serde_json names the variant or field it could not
-//! place, and the refusal forwards that name. Two things follow. An
-//! ADDITIVE vocabulary change (a new node arm, a new optional field)
-//! invalidates nothing: an older-shaped document never names the new
-//! thing, so it loads. A BREAKING change refuses naming the field, and
-//! the recourse is the one sentence it always was.
+//! place, and the refusal forwards that name. Both directions of
+//! growth follow from that one door. An OLDER document lacking
+//! vocabulary this build has since grown (a new node arm, a new
+//! optional field) never names it, so it loads — additive growth
+//! invalidates nothing. A NEWER document carrying a field this build
+//! lacks refuses (every wire type is `deny_unknown_fields`): a stale
+//! reader must not silently drop data. A BREAKING change — a field
+//! made required, a spelling retired — refuses naming the field. The
+//! recourse is the one sentence it always was, and it is also on
+//! [`PersistError::HeaderId`], because a document from before the
+//! `id:` line is a file this build cannot read too.
+//!
+//! Which arm a refusal lands on is decided by serde_json's own
+//! classification of its failure and by nothing else — the one
+//! statement of that seam, with its executed edges, is on
+//! [`parse_err`].
 //!
 //! # Format (spec D1)
 //!
@@ -29,7 +40,14 @@
 //! document's identity (ASM-1 D-6 — the workspace scan reads it
 //! without parsing the body), then a JSON body
 //! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
-//! snapshot plus the edit log since that snapshot. JSON via
+//! snapshot plus the edit log since that snapshot. (One known hatch,
+//! pinned rather than closed: serde's derived struct visitor also
+//! accepts the two fields POSITIONALLY, so a body spelled
+//! `[<snapshot>, <edits>]` loads. No writer produces it, the loaded
+//! document still walks every validator, and closing it would mean a
+//! hand-written visitor for a struct that exists only to be derived —
+//! `tests/bool13_r1_probes.rs::a_positional_array_body_loads` is the
+//! pin.) JSON via
 //! `serde_json` is the ratified shape's PR-spec aesthetic choice
 //! (REPORTED): floats serialize through ryu (shortest round-trip —
 //! exactly D2's contract), parse errors carry line/column (typed
@@ -199,7 +217,10 @@ pub enum PersistError {
     },
     /// The file has no parseable `id: <32 lowercase hex>` header line
     /// (the workspace scan reads identity from the header without
-    /// parsing the body; canonical spelling only).
+    /// parsing the body; canonical spelling only). Carries
+    /// [`REGENERATE_RECOURSE`]: a document written before the `id:`
+    /// line existed lands here, and it is a file this build cannot
+    /// read exactly as an [`Self::Unreadable`] body is.
     HeaderId {
         /// What the id line looked like (truncated).
         found: String,
@@ -213,9 +234,14 @@ pub enum PersistError {
         /// The id the snapshot carries.
         snapshot: DocumentId,
     },
-    /// The body is not valid JSON (a syntax error or a truncated
-    /// file) — with the serde_json position (1-based line/column into
-    /// the BODY, i.e. after the header line).
+    /// The body was rejected by the JSON reader BEFORE this build's
+    /// types were consulted — serde_json's `Syntax`/`Eof` classes: a
+    /// syntax error, a truncated file, a non-finite token, a numeric
+    /// literal outside `f64` (see [`parse_err`] for the executed edges).
+    /// Position only, no recourse: these bytes are not a stale
+    /// document, and "regenerate" is not the diagnosis. Position is
+    /// serde_json's (1-based line/column into the BODY, i.e. after the
+    /// header line).
     Parse {
         /// Line within the body.
         line: usize,
@@ -224,13 +250,18 @@ pub enum PersistError {
         /// The parser's message.
         message: String,
     },
-    /// The body is valid JSON but not a shape this build reads: the
-    /// deserializer met a variant or field it has no name for, or
-    /// missed one it requires, and `detail` is its own words — the
-    /// offending name is in there. This is the one door between a
-    /// format change and a stale document (module docs): additive
-    /// growth never lands here, a breaking change lands here naming
-    /// the field, and the recourse is [`REGENERATE_RECOURSE`].
+    /// The body passed the JSON reader and this build's TYPES rejected
+    /// it — serde_json's `Data` class (the seam is stated once, on
+    /// [`parse_err`]): a variant or field this build has no name for,
+    /// a required field it lacks, a wrong type, a rebuild refusal.
+    /// `detail` is the deserializer's own words and the offending name
+    /// is in there. Both directions of growth meet this arm or none
+    /// (module docs): an OLDER document that merely lacks vocabulary
+    /// grown since does NOT land here — it loads; an OLDER document
+    /// missing a field since made required lands here naming it; a
+    /// NEWER document carrying a field this build lacks lands here
+    /// naming it (`deny_unknown_fields` — a stale reader must not
+    /// silently drop data). The recourse is [`REGENERATE_RECOURSE`].
     Unreadable {
         /// Line within the body (serde_json's 1-based position).
         line: usize,
@@ -269,10 +300,10 @@ pub enum PersistError {
     },
 }
 
-/// The one recourse sentence a [`PersistError::Unreadable`] ends on —
-/// composed EXACTLY once per message (the shared-recourse-carrier
-/// discipline, D4 ¶1 addendum). Public so callers can assert on it
-/// without restating prose.
+/// The one recourse sentence a [`PersistError::Unreadable`] and a
+/// [`PersistError::HeaderId`] end on — composed EXACTLY once per
+/// message (the shared-recourse-carrier discipline, D4 ¶1 addendum).
+/// Public so callers can assert on it without restating prose.
 pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recipe with a current build \
      (every saved document replays from source; this kernel is \
      unreleased and writes no old-format files)";
@@ -303,7 +334,8 @@ impl core::fmt::Display for PersistError {
             Self::HeaderId { found } => {
                 write!(
                     f,
-                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?})"
+                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?}) — \
+                     {REGENERATE_RECOURSE}"
                 )
             }
             Self::IdMismatch { header, snapshot } => write!(
@@ -488,15 +520,33 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
     serde_json::from_str(body_text).map_err(parse_err)
 }
 
-/// The seam the module docs describe: serde_json classifies its own
-/// failures, and the class decides the arm. `Data` is valid JSON this
-/// build's types reject — unknown or missing vocabulary, a wrong type,
-/// a rebuild refusal — and that is the one refusal a stale document
-/// meets ([`PersistError::Unreadable`], recourse attached). `Syntax`
-/// and `Eof` are not a document at all (corrupt or truncated bytes)
-/// and keep the plain position report; `Io` cannot arise from a
-/// `&str` source and is grouped with them rather than left to a
-/// wildcard.
+/// THE seam, stated once (the variant docs and the module header point
+/// here): which arm a body refusal lands on is serde_json's own
+/// classification of its failure — [`serde_json::error::Category`] —
+/// and nothing else. No message is inspected.
+///
+/// `Data` → [`PersistError::Unreadable`] with the recourse: the JSON
+/// reader accepted the bytes and this build's TYPES rejected them.
+/// `Syntax` / `Eof` → [`PersistError::Parse`] without it: the reader
+/// rejected the bytes before any type was consulted. `Io` cannot arise
+/// from a `&str` source and is grouped with the reader's classes
+/// rather than left to a wildcard.
+///
+/// The executed edges, so nobody has to guess where the line falls
+/// (`tests/bool13_r1_probes.rs`, `tests/bool13r2_probes.rs`):
+/// unknown variant, unknown field, missing field, duplicate field, a
+/// wrong type at any depth, a body that is `null` / `5` / `[]` / a
+/// string, a nesting bomb (the typed visitor fails at depth three
+/// before the reader's recursion limit), and the crate's own rebuild
+/// refusals (duplicate strict-map key, ill-dimensioned expression,
+/// unknown display unit) are all `Data` → `Unreadable`. A syntax error,
+/// truncation, an empty body, trailing bytes after the value, a `NaN`
+/// or `Infinity` token, and a decimal literal outside `f64` (`1e999`,
+/// "number out of range" — serde_json rejects it at the TOKEN, so it is
+/// `Syntax` although the bytes are grammatical JSON) are all
+/// → `Parse`. That last edge is the one place the two descriptions
+/// "not JSON" and "reader-rejected" part company, and the reader's
+/// class is the one this door follows.
 fn parse_err(e: serde_json::Error) -> PersistError {
     use serde_json::error::Category;
     let (line, column, message) = (e.line(), e.column(), e.to_string());

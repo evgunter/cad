@@ -95,7 +95,11 @@ fn the_selection_reaches_the_wire_canonical() {
     let unselected = text.replacen("\"selection\"", "\"unselection\"", 1);
     match load(&unselected, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("unselection"), "{detail}");
+            // The deserializer's message is the ONLY place the name
+            // exists (serde exposes no structured accessor), so reading
+            // it back is the assertion, not message sniffing; the
+            // fuller phrase keeps a short word from matching by accident.
+            assert!(detail.contains("unknown field `unselection`"), "{detail}");
         }
         other => panic!("a fillet without its selection must refuse unreadable, got {other:?}"),
     }
