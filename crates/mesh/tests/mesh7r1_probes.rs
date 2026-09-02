@@ -7,9 +7,17 @@
 //! pole mid-edge, so the traversed arc lies on TWO chart meridians
 //! (`u` and `u + π`). Props' sphere parse certifies the CARRIER (a
 //! great circle) and, since CERT-1, folds the pole into the extent, so
-//! the door admits both faces of the body — while the walk's premise
-//! ("every boundary edge is an iso curve of the chart") does not hold
-//! for that edge. The row records what each lane says about it.
+//! the SHAPE door admits both faces of the body — while the walk's
+//! premise ("every boundary edge is an iso curve of the chart,
+//! traversed on one branch of it") does not hold for that edge. The
+//! row records what each lane says about it.
+//!
+//! **Since MESH-11 (issue 1571) a second door decides that half**:
+//! `props::require_one_chart_branch`, cited beside the shape door, so
+//! the body is refused typed before the walk. The half-cap row is
+//! re-aimed onto the SEAM rather than deleted — shape door yes, branch
+//! door no, on one face — because the seam is what this review found
+//! and it is still the thing worth pinning.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;

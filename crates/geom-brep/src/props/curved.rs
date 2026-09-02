@@ -263,15 +263,19 @@ pub fn boundary_material_sign<T: Decide>(
 /// `NotIsoRectangle` from here carries the `what` the flux lane would
 /// report for the same face.
 ///
-/// **Carrier membership is not arc membership, and this door does not
-/// decide the latter** (issue 1571). A certified meridian CARRIER can
-/// carry an arc that leaves one chart meridian: a great circle
-/// contains both poles, so a sphere meridian arc may cross a pole
-/// mid-edge, where the chart's `u` jumps by π. The parse folds that
-/// pole into the face's extent (the closed form is right about the
-/// area) and says nothing about the arc's chart image; a consumer
-/// whose walk assumes each edge stays on one iso curve — `mesh`'s —
-/// still inherits that premise rather than receiving it from here.
+/// **Carrier membership is not arc membership; this door decides the
+/// former and [`require_one_chart_branch`] decides the latter** (issue
+/// 1571). A certified meridian CARRIER can carry an arc that leaves
+/// one chart meridian: a great circle contains both poles, so a sphere
+/// meridian arc may cross a pole mid-edge, where the chart's `u` jumps
+/// by π; a generator is a line through the apex, so a cone generator
+/// segment may run through it. This parse folds the singularity into
+/// the face's extent (the closed form is right about the area) and
+/// says nothing about the arc's chart image — deliberately, because
+/// the flux lane must keep measuring such a face. A consumer whose
+/// walk assumes each edge stays on one iso curve — `mesh`'s — no
+/// longer inherits that premise: it cites the branch door beside this
+/// one, and gets it.
 ///
 /// **It inherits the extent derivations, and says so.** The door
 /// decides shape from rim structure against the extremes each kind
