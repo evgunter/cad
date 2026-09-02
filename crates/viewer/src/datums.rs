@@ -233,10 +233,22 @@ const AXIS_COVER: f64 = 1.4;
 /// How long the tick across each end of a drawn axis is, in pixels.
 const AXIS_TICK_PX: f64 = 18.0;
 
-/// How long a frame's sketch-+x arm is, in PIXELS — the mark that says
-/// which way the frame is turned, screen-sized for the reason the
+/// How long a frame's sketch-+x arrow is, in PIXELS — the mark that
+/// says which way the frame is turned, screen-sized for the reason the
 /// plane's normal tick is.
-const FRAME_ARM_PX: f64 = 46.0;
+///
+/// **Longer than [`TARGET_PITCH_PX`] on purpose.** The arrow's shaft
+/// lies on a grid line (both run along the axis, and both start at the
+/// origin), so the head is the whole of what a reader sees. At less
+/// than one cell the head lands inside the first square, crowded by
+/// the crossing at the origin and by the next one; past a cell it sits
+/// in clear ground with the ruling behind it.
+const FRAME_ARM_PX: f64 = 108.0;
+
+/// How far each barb runs back from an arrow's tip, as a fraction of
+/// that arrow's length. Its half-width across the axis is half again
+/// of this, which is the ordinary look of an arrowhead.
+const FRAME_BARB_FRACTION: f64 = 0.34;
 
 /// How long the sketch-+y arm is as a fraction of the +x one.
 ///
@@ -365,30 +377,51 @@ fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f6
     grid(origin, u, v, normal, view)
 }
 
-/// **A frame's grid, ruled along the frame's OWN axes**, plus an arm
-/// along each of them.
+/// **A frame's grid, ruled along the frame's OWN axes**, plus an
+/// ARROW along each of them.
 ///
 /// A frame drawn exactly like a plane would be a drawing that lies: the
 /// two differ by precisely the spin about the normal, so a grid ruled
 /// on a display convention (which is what [`basis`] is) would show the
 /// same picture for every rotation of the same frame. Here the ruling
 /// IS the datum — a reader can see which way sketch +x points by
-/// looking at the lines — and the two arms name which of the two
+/// looking at the lines — and the two arrows name which of the two
 /// directions is which, since a grid alone is symmetric under a quarter
 /// turn.
+///
+/// **The barbs are the half that is visible, and the reason is the
+/// grid.** The ruling passes through the origin along both axes (that
+/// is what anchoring it there means), so a bare arm drawn along an
+/// axis lies exactly on top of a grid line and shows nothing — which
+/// is what the first cut of this did, and what driving it in the app
+/// found. A barb points AWAY from both axes, so it is the one part of
+/// the mark that cannot coincide with the ruling. The arms stay
+/// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let mut out = grid(origin, u, v, cross(u, v), view);
     let arm = view.metres_per_pixel_at(origin) * FRAME_ARM_PX;
     let o = [origin.x, origin.y, origin.z];
-    for (dir, len) in [(u, arm), (v, arm * FRAME_Y_ARM_FRACTION)] {
-        out.extend([
-            o,
-            [
-                origin.x + dir.x * len,
-                origin.y + dir.y * len,
-                origin.z + dir.z * len,
-            ],
-        ]);
+    // The two arrows differ in LENGTH as well as direction: a grid is
+    // symmetric under a quarter turn, so equal arrows would name the
+    // pair of directions without saying which of them sketch +x is.
+    for (along, across, len) in [(u, v, arm), (v, u, arm * FRAME_Y_ARM_FRACTION)] {
+        let tip = [
+            origin.x + along.x * len,
+            origin.y + along.y * len,
+            origin.z + along.z * len,
+        ];
+        out.extend([o, tip]);
+        let (back, wide) = (len * FRAME_BARB_FRACTION, len * FRAME_BARB_FRACTION * 0.5);
+        for side in [1.0_f64, -1.0] {
+            out.extend([
+                tip,
+                [
+                    tip[0] - along.x * back + across.x * wide * side,
+                    tip[1] - along.y * back + across.y * wide * side,
+                    tip[2] - along.z * back + across.z * wide * side,
+                ],
+            ]);
+        }
     }
     out
 }

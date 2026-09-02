@@ -161,15 +161,12 @@ fn a_frames_grid_follows_its_own_axes() {
     let drawn = draws(&doc, tol, [0.0, -0.15, 0.1]);
     assert_eq!(drawn.len(), 1);
     assert_eq!(drawn[0].kind, DatumKind::Frame);
-    // The two arms are the LAST two pairs; every pair before them is a
-    // grid line. Both sets are checked, for different claims: a grid
-    // line runs ALONG one of the axes, and an arm runs along one from
-    // the origin.
     let segments = &drawn[0].segments;
     assert!(segments.len() >= 6, "{} positions", segments.len());
     let mut along_u = 0;
     let mut along_v = 0;
     let mut along_n = 0;
+    let mut off_axis = 0;
     for pair in segments.chunks_exact(2) {
         let d = [
             pair[1][0] - pair[0][0],
@@ -188,9 +185,16 @@ fn a_frames_grid_follows_its_own_axes() {
         } else if unit[2].abs() > 1.0 - 1.0e-9 {
             along_n += 1;
         } else {
-            panic!("a segment runs {unit:?}, along none of the frame's axes or its normal");
+            // The arrow barbs, whose whole job is to point off both
+            // axes — `a_frames_arrows_cannot_hide_in_its_grid` is the
+            // row that owns them.
+            off_axis += 1;
         }
     }
+    // Every RULED line runs along an axis: the four barbs are the only
+    // segments that may not, so the count below is what "the grid
+    // follows the frame" means once the arrows are subtracted.
+    assert_eq!(off_axis, 4, "only the four barbs may leave the axes");
     assert!(along_u > 0 && along_v > 0, "{along_u} / {along_v}");
     // The third line of the triad: a frame says which side is up as
     // well as which way it is turned, so a reader can see which way an
@@ -198,7 +202,51 @@ fn a_frames_grid_follows_its_own_axes() {
     assert_eq!(along_n, 1, "one normal tick, not {along_n}");
 }
 
-/// **The two arms are unequal, so the drawing says which axis is x.**
+/// **A frame's arrows are VISIBLE against its own grid.**
+///
+/// The row the first cut of this needed and did not have. The arms are
+/// drawn along the frame's axes, and the grid is ruled from the origin
+/// along those same axes — so a grid line passes exactly through the
+/// origin in x and in y, and a bare arm lies exactly on top of one.
+/// The earlier rows all passed: the arms ran the right directions, at
+/// the right lengths, from the right point. They were also invisible,
+/// which driving the app found and no assertion did.
+///
+/// So the claim is stated as what a reader can actually see: some part
+/// of the mark points along NEITHER axis, and is therefore somewhere
+/// the ruling cannot be.
+#[test]
+fn a_frames_arrows_cannot_hide_in_its_grid() {
+    let (doc, tol) = evaluated(vec![frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+    )]);
+    let segments = &draws(&doc, tol, [0.0, -0.15, 0.1])[0].segments;
+    let off_axis = segments
+        .chunks_exact(2)
+        .filter(|pair| {
+            let d = [
+                pair[1][0] - pair[0][0],
+                pair[1][1] - pair[0][1],
+                pair[1][2] - pair[0][2],
+            ];
+            let n = (d[0].powi(2) + d[1].powi(2) + d[2].powi(2)).sqrt();
+            // Off BOTH axes and off the normal: a segment along any of
+            // the three could be mistaken for the ruling or the tick.
+            n > 0.0
+                && (d[0] / n).abs() < 1.0 - 1.0e-9
+                && (d[1] / n).abs() < 1.0 - 1.0e-9
+                && (d[2] / n).abs() < 1.0 - 1.0e-9
+        })
+        .count();
+    assert_eq!(
+        off_axis, 4,
+        "two barbs per arrow have to point off both axes, or the arrow          is drawn on top of a grid line and shows nothing",
+    );
+}
+
+/// **The two arrows are unequal, so the drawing says which axis is x.**
 ///
 /// A grid is symmetric under a quarter turn, so a frame drawn with two
 /// arms of one length would name the PAIR of directions without naming
@@ -212,25 +260,33 @@ fn a_frames_arms_name_which_axis_is_x() {
         [0.0, 1.0, 0.0],
     )]);
     let segments = &draws(&doc, tol, [0.0, -0.15, 0.1])[0].segments;
-    let arms = &segments[segments.len() - 4..];
-    let length = |pair: &[[f64; 3]]| {
-        let d = [
-            pair[1][0] - pair[0][0],
-            pair[1][1] - pair[0][1],
-            pair[1][2] - pair[0][2],
-        ];
-        (d[0].powi(2) + d[1].powi(2) + d[2].powi(2)).sqrt()
-    };
-    let (x_arm, y_arm) = (length(&arms[0..2]), length(&arms[2..4]));
+    // The arms found by what they ARE — a segment leaving the origin
+    // along one of the frame's two axes — rather than by their index in
+    // the list. The arrow barbs moved that index once already, and a
+    // positional read is a test that breaks on a drawing change instead
+    // of on a behaviour change. The normal tick also leaves the origin
+    // and is excluded by running along neither axis.
+    let mut arms: Vec<(usize, f64)> = Vec::new();
+    for pair in segments.chunks_exact(2) {
+        if reach(&[pair[0]], [0.0, 0.0, 0.0]) > 1.0e-12 {
+            continue;
+        }
+        let d = [pair[1][0], pair[1][1], pair[1][2]];
+        let n = (d[0].powi(2) + d[1].powi(2) + d[2].powi(2)).sqrt();
+        if (d[0] / n).abs() > 1.0 - 1.0e-9 {
+            arms.push((0, n));
+        } else if (d[1] / n).abs() > 1.0 - 1.0e-9 {
+            arms.push((1, n));
+        }
+    }
+    arms.sort_by_key(|&(axis, _)| axis);
+    assert_eq!(arms.len(), 2, "one arm per axis, got {arms:?}");
+    let (x_arm, y_arm) = (arms[0].1, arms[1].1);
     assert!(
         x_arm > y_arm * 1.2,
-        "the x arm ({x_arm:e} m) has to read as longer than the y one          ({y_arm:e} m) or the picture is symmetric under a quarter turn",
+        "the x arm ({x_arm:e} m) has to read as longer than the y one \
+         ({y_arm:e} m) or the picture is symmetric under a quarter turn",
     );
-    // Both start AT the origin: an arm is a mark on the datum, so it
-    // says where the datum is as well as which way it is turned.
-    for pair in arms.chunks_exact(2) {
-        assert!(reach(&[pair[0]], [0.0, 0.0, 0.0]) < 1.0e-12, "{pair:?}");
-    }
 }
 
 /// **A node that is not a datum draws nothing.**

@@ -41,9 +41,7 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{
-    Datum, Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId,
-};
+use pncad::document::{Datum, Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId};
 
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
