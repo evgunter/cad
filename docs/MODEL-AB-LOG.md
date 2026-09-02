@@ -3138,7 +3138,6 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
-
 BOOL-12 (PR #1573) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1106** (S-BOOL band 1100–1199). v6 dual: parity byte **173**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `50740f965`
@@ -3149,7 +3148,6 @@ granted. Implementer difficulty M (pre-logged at the spec, pre-draw).
 The PR is HELD for Evan's sign-off (PATHS §6 PQ4 / §4 / verb table —
 design surface); merge follows the dual + sign-off. Sample number at
 merge; row in the docs PR after the merge.
-
 
 BOOL-11 REVIEWS DELIVERED + ROW (2026-09-01/02; CONCURRENT on frozen
 0d285cd3f per the fixed-at-dispatch record above; fix pass
@@ -3178,3 +3176,7 @@ the twelve, ZERO tally candidates (three pairs with converged or
 zero MAJORs; SEAT-3's sole MAJOR excluded by the instrument's
 doc-only + by-inspection criteria). Block SEAT-B2 draws at its first
 dispatch.
+VERBS-C5ARMS PR-1 review ordinal fixed at dispatch (2026-09-02,
+PR #1577 open — frozen head `d4e67f57a`): **ordinal 111** (VERBS
+band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
+Sample number AT MERGE in main's order. Row at merge.

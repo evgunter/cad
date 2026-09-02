@@ -2882,3 +2882,92 @@ needs a move_point_for_tests door, scheduled as an adjudication
 ask). Teapot wall 1 RETIRED (shipped pot unchanged). Dual:
 parity byte 105 ⇒ R1 FABLE + R2 OPUS, frozen 086c66944; claim
 to main at dispatch.
+## ORDINAL 110 RETURNED AND ADJUDICATED (2026-09-02)
+
+R1 (fable) 1 MAJ / 3 MIN, 5/4/4 — APPROVE the half + the fired
+STOP. R2 (opus) 3 MAJ / 6 MIN, 4/3/3 — ACCEPT with findings. No
+code defect found by either arm; every closed form re-derived
+independently both arms to ≤2e-17; the opening measurement,
+spiric numbers, and both CI runs reproduced to the last digit.
+
+- BILATERAL (R1 M1 = R2 MAJ-2, dedup single): the bit-identity
+  receipt is CLEAN but STRUCTURALLY BLIND — every cited byte-dump
+  fixture is planes/cylinders/fillets and never reaches the
+  circle arm (R1's 1e-9 mutation at the roots site left all ten
+  dumps byte-identical; the armed dumps are also env-gated skips
+  hosted). The CONCLUSION (one spelling, no fence needed) is
+  TRUE and both arms supplied the missing evidence: R2's
+  mutation A (rho_c:=0 no-op on the sphere path, 5 red torus
+  rows) + mutation B (the generalized d site pinned by a
+  pre-existing sphere row) + the signed-zero analysis; R1's
+  1e-9/1e-13 floor measurements. The spec's fence question is
+  decided by argument+mutation, not the dump harness.
+- R2 MAJ-1 UNILATERAL CANDIDATE (class test-gap, demonstrated by
+  mutation): the 'planted red' exercises NONE of the unit's code
+  — it stops at wall_clearance (kind-agnostic operand gate,
+  shell.rs:386/:568), asserts only !Corrupt, and stayed green
+  under R2's arm-breaking mutation; 3 of 7 torax rows are
+  insensitive to the entire arm; the actual torus floor
+  (OffsetError::TorusRing, offset.rs:376-381) is untested. R1
+  did not raise it and CREDITED the row ('a live planted red')
+  — a calibration miss recorded for the coding.
+- BILATERAL severity-split (R2 MAJ-3 = R1 m1, no candidate):
+  the capability record's 'rim unbuilt for EVERY curved wall' is
+  FALSE — sf2b's wedge (partial revolve, cylinder wall) hollows
+  green; the honest scope is CIRCLE-PROFILE walls
+  (sphere/torus), and the elbow vs lune refusals are at
+  DIFFERENT doors (TogetherAxialCorner vs
+  TogetherEdgeDisagreement) — the follow-on unit must be scoped
+  to that, not to 'every curved wall'.
+- MINOR union: is_axial's doc still calls a torus definite-false
+  (now wrong); the teapot scene note: string missed the
+  retirement (walls.rs's own contract); the by-name
+  (Plane,Torus) pin degraded to an unnamed match; the re-pose
+  row omits translation and compares loose subsets; new decides
+  uninstantiated at Interval (both arms, nuanced differently —
+  R1 measured margins nowhere near any band, low-risk;
+  scheduled); the 1e-14 teapot tolerance unexplained;
+  'unauthorable' overstated (pub(crate) path exists — R1).
+
+TALLY: ONE unilateral candidate (R2 MAJ-1) to the blinded coding
+— running total of candidates now 5 (2 from 107, 1 from 108, 1
+here, plus 106's none); tally 1/8 pending the coding session.
+Pair COUNTS, clean by neither arm. Union fix pass out.
+## TORAX MERGED (#1494, 2026-09-02) — ordinal-110 row (sample #102 after THREE renumbers)
+
+The fix pass closed every finding: the TorusRing floor row
+reached through the PUBLIC door (t∈[2/128,7/128] by sweep —
+'unauthorable' corrected); the receipt section rewritten to the
+true evidence chain (mutation table A/B/C: A reds exactly the
+six torus rows, B adds two sphere rows pinning the generalized
+site at rho_c=0, C leaves the old planted red green — the
+alarm); the capability record corrected everywhere
+(circle-profile walls at two doors); torax_interval.rs added
+(the seam decide at Interval, h-width exactly 0); the tolerance
+site's stated reason measured WRONG (hypot ≡ sqrt bitwise; the
+real residue is the door's chain) and replaced with one
+documented GAP_REL. The merge crossed the ACCOUNT-WIDE mutation
+ceiling (hours of GraphQL 'rate limit' errors that turned out to
+be masking a plain merge conflict — the REST endpoint told the
+truth; lesson: when gh pr merge cries rate-limit, ask the REST
+door before believing it) and three sample renumbers
+(#97→#100→#102; BOOL11 took #100 mid-correction). C5ARMS PR-1
+RE-DISPATCHED (same unit, same fable arm per the standing
+VERBS-7 slot-4 assignment; elbow rows re-scoped to the measured
+capability record; the barrel/teapot rows now assert SUCCESS
+against TORAX's pinned closed forms).
+## ORDINAL 111 CLAIMED — C5ARMS PR-1 dual (2026-09-02)
+
+The resumed unit delivered with NO STOP: plane_torus_section
+(MeridianCircles / the demanded ConcentricCircles /
+TangentCircle-as-classification-data / Empty; five pt_* trileans;
+DegenerateTorus guard; spiric and Villarceau named in the general
+rung refusals); the (Plane,Torus) table arm flips Closed +
+implemented; the opening measurement found the elbow ALREADY at
+the rim door (TogetherAxialCorner — the C5 gate no longer its
+blocker) and the barrel/teapot hollows SUCCEED flag-independent
+(TORAX's axial door never consults route); the direct door moved
+exactly one refusal deeper under the scratch flip (the
+ReanchorOffCarrier family at 0.83mm, re-pinned as row 4's
+replacement); refusal-text instance 7 recorded spec-directed.
+Dual claim to main at dispatch; parity per the draw line.

@@ -188,3 +188,18 @@ sample #105 at merge).
 
 Next: SEAT-5 (the boolean migration onto Verb) on block SEAT-B2's
 next slot; SEAT-6 (ParamSource + the issue-1372 handoff) behind it.
+
+## ORDINAL 1005 CLAIMED — SEAT-5 dual (2026-09-02)
+
+SEAT-5 (PR 1581, the boolean migration onto the Verb substrate)
+implementation delivered and green (lane=interval ASKED via trailer,
+eps 1e-6 drawn; run 33627876568). The unit spans a container restart:
+the first lane died mid-unit with the kernel migration and the pin
+rows pushed; the continuation lane (same arm, identical brief)
+re-verified the orphaned allowlist edit from scratch before adopting
+it, and — running the banked red-first lesson literally — found the
+digest's contacts channel fed but DEAD across the whole corpus,
+fixing it with the new kiss_carry document (the carried-v-v Declare
+arm's first corpus exercise). v6 dual dispatches on frozen head
+c8d38257: parity byte 134 → **R1 opus + R2 fable**. Difficulty L was
+logged pre-draw. Full row recorded at merge.
