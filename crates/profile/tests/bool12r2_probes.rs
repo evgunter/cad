@@ -539,3 +539,43 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // The recourse the gate offers is the RAW door.
     assert!(msg.contains("tangent_joints"), "{msg}");
 }
+
+/// The SIBLING of the row above, on the tangent member: a closing arc
+/// that arrives G1 at a seam whose first side is an arc on the SAME
+/// circle. `declare_seam` marks joint 0 tangent unconditionally, and a
+/// declaration on carrier IDENTITY is what `ProfileLoop::tangent_joints`
+/// says is contradicted. `tangent_arc_geom`'s identity refusal compares
+/// the closing arc against the PREVIOUS segment's carrier, not the
+/// entry's, so a line in between hides it.
+#[test]
+fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
+    let t = Tol::witness();
+    // The unit circle, entered at (1,0) heading north; a quarter of it
+    // is the first side; two straights leave and come back to (0,-1);
+    // the closing tangent arc is forced back onto the same circle.
+    let turn_to_east = -(-3.0_f64).atan2(2.0);
+    let built = Open
+        .at(p2(1.0, 0.0))
+        .angle(FRAC_PI_2, t)
+        .unwrap()
+        .tangent_arc_to(p2(0.0, 1.0), t)
+        .unwrap()
+        .line_to(p2(-2.0, 2.0), t)
+        .unwrap()
+        .line_to(p2(0.0, -1.0), t)
+        .unwrap()
+        .turn(turn_to_east, t)
+        .unwrap()
+        .tangent_arc_to(Start.arrives_tangent(), t);
+    let closed = built.expect("the declared G1 arrival closes");
+    println!(
+        "R2: cocircular G1 seam -> closed, joints {:?}",
+        closed.loop_.tangent_joints()
+    );
+    assert_eq!(closed.loop_.tangent_joints(), &[0]);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    println!("R2: cocircular G1 seam, at the gate -> {verdict:?}");
+    let msg = format!("{verdict:?}");
+    assert!(msg.contains("TangencyContradicted"), "{msg}");
+    assert!(msg.contains("same_carrier: true"), "{msg}");
+}
