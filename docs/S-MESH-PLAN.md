@@ -220,6 +220,18 @@ logged pre-draw per the protocol.
   direction; `walk.rs:803`'s ledger already names the two π-rad
   witnesses. After MESH-8; the door/walk split is the unit's first
   recorded question.
+- **MESH-12 — issues 1601 and 1588 (S/M, recorded S; scheduling
+  by the orchestrator, Evan deferring — in-chat 2026-09-02).** The
+  sphere parse refuses a meridian span past the per-edge winding bound
+  instead of folding it short (the saturated clamp's sign has a
+  nonempty zero set — MESH-11 R2, measured 36 of 400 spans); every
+  consumer flips together; CERT-1's multi-wrap row changes and the
+  change is stated (S-CERT informed on the away channel). And the
+  rim-continuation coherence condition is either witnessed end to end
+  through a committed fixture or measured dead through every public
+  door and recorded as such. Issue 1598 (the L-shaped complement's
+  volume 0.0) is HANDED TO S-CERT — the closed form's extent premise,
+  issue 723's class. Spec `docs/MESH-12-SPEC.md`. After MESH-11.
 - **MESH-R — the remaining Track R rows as track lanes** after the
   defect cluster clears, sequenced by the track's own table: S28,
   S236 (its `tools/` half is Track K's row, per the cell), S237,
