@@ -111,4 +111,17 @@ mod tests {
             );
         }
     }
+
+    /// The wrong-family sentence names its door (the blends' module
+    /// pins the same property for its pair by distinctness; with one
+    /// instance here, naming the door IS the property — it is what
+    /// makes the refusal attributable when the unreachable-by-
+    /// construction case ever fires).
+    #[test]
+    fn the_foreign_record_sentence_names_the_door() {
+        assert!(
+            boolean::<f64>().foreign_record.contains("boolean"),
+            "the wrong-family sentence no longer names the boolean"
+        );
+    }
 }

@@ -186,13 +186,17 @@ fn both_blends_evaluate_in_one_document() {
 /// `wire_boolean` writes the same first three plus the boolean VALUE's
 /// other halves — the result classification, the surviving declared
 /// contacts, and the typed empty success — and all of those are here
-/// too (the `Boolean` payload arm). The refusal path is NOT, and that
-/// is a real hole, stated: a refusal payload's spelling and the
-/// verdict logs are outside this digest, so a change that only altered
-/// which `NodeErrorKind` came back would pass it — the boolean's
-/// undeclared-contact menu lift included.
-/// `both_blends_evaluate_in_one_document` covers only that the success
-/// path stays a success.
+/// too (the `Boolean` payload arm), each with a pinned input on which
+/// it actually VARIES: the contacts through `kiss_carry`, the empty
+/// token through `an_empty_boolean_evaluates_to_its_committed_digest`
+/// (both were measured fed-but-dead before those inputs existed — no
+/// pinned evaluation reached them, so perturbing them moved nothing).
+/// The refusal path is NOT covered, and that is a real hole, stated: a
+/// refusal payload's spelling and the verdict logs are outside this
+/// digest, so a change that only altered which `NodeErrorKind` came
+/// back would pass it — the boolean's undeclared-contact menu lift
+/// included. `both_blends_evaluate_in_one_document` covers only that
+/// the success path stays a success.
 ///
 /// # Why each half is load-bearing, measured rather than assumed
 ///
@@ -201,13 +205,14 @@ fn both_blends_evaluate_in_one_document() {
 ///   twenty-four vertex positions to the bit, differing only in whether
 ///   the faces between them are cylinders and spheres or planes. A
 ///   points-only digest gave the two documents ONE identical number and
-///   could not tell this unit's two verbs apart at all.
+///   could not tell the blend pair apart at all.
 /// - **Carriers alone are not enough either.** Face carriers were the
 ///   first fix, and `stamp_minted` — the line that gives every surface,
 ///   curve and point this blend mints its `GeomSource`, and the thing
 ///   that makes a downstream reference into a blended body resolvable —
 ///   could be DELETED from `wire_blend` with this digest and the whole
-///   891-row editor-core suite still green. So the three provenance
+///   editor-core suite (891 rows when this was measured, at SEAT-4)
+///   still green. So the three provenance
 ///   source tables are fed here, and so are the edge curve carriers
 ///   (faces reach surfaces; nothing reached the curve arena).
 ///
@@ -418,4 +423,66 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
             "{name}'s evaluation moved — body, value or name table"
         );
     }
+}
+
+/// **The typed empty success is pinned by an input that PRODUCES it** —
+/// a disjoint intersect, authored in-suite because the corpus has no
+/// empty-boolean document and the empty path needs none of the corpus's
+/// other rows (no body to round-trip eps rows over, no mass to pin).
+///
+/// This row exists because the digest's `b"empty"` token was measured
+/// FED BUT DEAD — the same class as the contacts channel before
+/// `kiss_carry`: no pinned document ever took the `Empty` arm, so
+/// perturbing the token left every constant standing. The value under
+/// pin is asserted to actually BE `BooleanValue::Empty` first, so the
+/// constant cannot go vacuous if the fixture drifts; with that,
+/// perturbing the token reds THIS row while the three document
+/// constants stand (measured), and a lowering that turned the typed
+/// empty into anything else — or an empty result into a phantom body —
+/// moves this number. The constant reproduces on the same extracted
+/// pre-change tree as the document rows (the empty path predates the
+/// migration), so it is a differential pin, not a self-agreement.
+#[test]
+fn an_empty_boolean_evaluates_to_its_committed_digest() {
+    let mut r = corpus::Recorder::new();
+    let square =
+        |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
+    let pa = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square(0.0)],
+    }));
+    let a = r.insert(Node::Extrude {
+        profile: pa,
+        distance: len(L),
+    });
+    let pb = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![square(3.0)],
+    }));
+    let b = r.insert(Node::Extrude {
+        profile: pb,
+        distance: len(L),
+    });
+    let boolean = r.insert(Node::Boolean {
+        op: editor_core::BooleanOp::Intersect,
+        a,
+        b,
+        declare: None,
+    });
+    let ev = corpus::eval::<f64>(&r.doc);
+    let failures = corpus::failures(&ev);
+    assert!(failures.is_empty(), "the fixture evaluates: {failures:?}");
+    assert!(
+        matches!(
+            &ev.value(boolean).expect("the boolean has a value").payload,
+            editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Empty)
+        ),
+        "a disjoint intersect is the typed empty; the fixture no longer produces it"
+    );
+    let got = digest(&ev);
+    println!("seat5 empty_intersect: {got:#018x}");
+    assert_eq!(
+        got, 0xfd6f_d386_9889_c0f7,
+        "the empty-boolean evaluation moved — value token, bodies or name tables"
+    );
 }

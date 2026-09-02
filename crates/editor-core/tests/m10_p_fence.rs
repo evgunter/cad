@@ -124,22 +124,21 @@
 //!   carried on `main` before the M10-2 merge, and the rows came back
 //!   GREEN against them rather than being compared by hand.
 //!
-//! The M10-2 measurement is the strongest of the three, for a reason
-//! worth stating: this roster minus `measured_web` IS main's roster,
-//! so the expected values were not re-derived for the occasion — they
-//! were already committed here by someone else. A measurement sink
-//! denotes no body, so it contributes no geometry to any pre-existing
-//! document, and that prediction is what the removal confirms.
-//!
 //! - SEAT-5 added `kiss_carry`, the corner-kiss assembly whose
 //!   boolean values carry non-empty surviving contacts. Removing it
 //!   alone returned `f64`/`probe` `6542ae63e161000c, e9e2cd7e8a6adda0`
 //!   and `interval` `91f196cc0b84faf6, b2fdb74116c51f32` — the
 //!   committed constants of the tree it landed on, and the rows came
-//!   back GREEN against them. The M10-2 property holds here too: the
-//!   roster minus the addition is the prior roster, its constants
-//!   committed by someone else. `lib_g16_corpus_name_digests` agrees
+//!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
+//!
+//! The M10-2 and SEAT-5 measurements are the strongest of the four,
+//! for a reason worth stating: in each, the roster minus the addition
+//! IS the prior tree's roster, so the expected values were not
+//! re-derived for the occasion — they were already committed here by
+//! someone else. A measurement sink denotes no body, so it contributes
+//! no geometry to any pre-existing document (the M10-2 prediction);
+//! the removal is what confirms each.
 //!
 //! The three numbers below are the same digest over the grown roster.
 //!

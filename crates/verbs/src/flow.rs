@@ -204,7 +204,8 @@ mod all_census {
         assert_eq!(
             ScalarParam::ALL.len(),
             variants,
-            "ScalarParam::ALL has drifted — the enum has {variants} variants"
+            "ScalarParam::ALL has drifted — it holds {} entries, the enum has {variants} variants",
+            ScalarParam::ALL.len()
         );
     }
 }

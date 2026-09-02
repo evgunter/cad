@@ -267,8 +267,9 @@ fn sample(kind: VerbKind) -> Verb<f64> {
 /// are untested. The declared-arity door's behavior is the dispatch
 /// rows above; what is pinned here is that the OTHER door answers
 /// `Arity` with the right verb and the right count, and never runs the
-/// op (an empty edge list or an empty declaration set would refuse
-/// differently if it did).
+/// op — proven by the returned variant itself: `Arity` is minted only
+/// at the doors' own mismatch arms, before any op door is reached, so
+/// its arrival IS the non-execution.
 #[test]
 fn each_door_refuses_the_undeclared_arity() {
     let a = sweep::test_support::cube(1.0, tol());

@@ -17,9 +17,12 @@ use crate::verb::{Arity, Verb, VerbKind};
 /// of what it minted, in the record channel for the verb's family.
 ///
 /// No record is RESTATED here — each family's channel carries the
-/// operation's own value across ([`VerbRecord`]), so a change to what
-/// the blend surgery or the boolean pipeline records reaches this door
-/// with no edit.
+/// operation's own value across ([`VerbRecord`]), so a change INSIDE
+/// any moved type reaches this door with no edit. A record GROWN at
+/// the top level (a new `BooleanBody` field, a new blend record
+/// beside `naming`) is a compile-time visit here instead — the pair
+/// door destructures its result exhaustively so a grown field cannot
+/// vanish in the move.
 ///
 /// The blend doors also hand back their solid, shell and per-role face
 /// lists. Those are geometry a caller who wants them reads off the door
@@ -37,12 +40,13 @@ pub struct VerbOut<T: Real> {
 /// operation's own types, moved across by value, never restated.
 ///
 /// Closed with no wildcard arm (D3): a verb family with a new record
-/// shape adds a variant, and every consumer of the channel is forced to
-/// visit it. Which variant a given verb's run produces is fixed by the
-/// verb's family; a consumer holding the other family's variant is
-/// holding a kernel bug and refuses typed rather than emitting names
-/// from the wrong record (the same class as a blend body arriving with
-/// `None` records).
+/// shape adds a variant, and the lowerings that consume the channel
+/// match it exhaustively — a new family breaks them at compile time
+/// and is routed deliberately, never silently refused. Which variant a
+/// given verb's run produces is fixed by the verb's family; a consumer
+/// handed another family's variant is holding a kernel bug and refuses
+/// typed rather than emitting names from the wrong record (the same
+/// class as a blend body arriving with `None` records).
 #[derive(Debug)]
 pub enum VerbRecord {
     /// A blend door's per-entity birth records. The `Option` is the op
@@ -187,14 +191,26 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
             Self::Boolean { op, declare } => {
                 match boolean_op_with(*op, a, b, declare, sweep, tol).map_err(VerbError::Boolean)? {
                     BooleanResult::Empty => Ok(PairOut::Empty),
-                    BooleanResult::Body(bb) => Ok(PairOut::Out(VerbOut {
-                        body: bb.body,
-                        record: VerbRecord::Boolean {
-                            kind: bb.kind,
-                            contacts: bb.contacts,
-                            naming: bb.naming,
-                        },
-                    })),
+                    BooleanResult::Body(bb) => {
+                        // Exhaustive destructure, deliberately: a field
+                        // grown onto `BooleanBody` breaks this door at
+                        // compile time instead of silently vanishing
+                        // in a field-by-field move.
+                        let topo::BooleanBody {
+                            body,
+                            kind,
+                            contacts,
+                            naming,
+                        } = bb;
+                        Ok(PairOut::Out(VerbOut {
+                            body,
+                            record: VerbRecord::Boolean {
+                                kind,
+                                contacts,
+                                naming,
+                            },
+                        }))
+                    }
                 }
             }
             Self::Fillet { .. } | Self::Chamfer { .. } => Err(VerbError::Arity {

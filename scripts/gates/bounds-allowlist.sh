@@ -23,7 +23,8 @@
 #
 # `crates/verbs/src/run.rs` is on the list for a different reason from
 # every seam above: it DECIDES NOTHING and READS NO BRACKET. It is the
-# verb vocabulary's one dispatch site, and its bound is the delegated
+# verb vocabulary's dispatch site (one file, one run door per declared
+# arity), and its bound is the delegated
 # kernel doors' own (the blend pair's and, since the boolean's
 # migration, `topo::boolean_op_with`'s — the same three-term bound on
 # each), satisfied so the call type-checks. SEAT-4's entry in the

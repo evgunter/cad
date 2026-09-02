@@ -5,13 +5,14 @@
 //! # What it is NOT, yet
 //!
 //! It is not "every operation a recipe door can invoke", and reading it
-//! that way would misjudge every later unit's cost. **Three op
-//! families live here**: the blend pair and the boolean. Every other
-//! door — extrude, revolve, split, transform, pattern, loft, sweep,
-//! shell, measure — still runs the way it always did, and is reached by
-//! `editor-core`'s lowering calling its op crate directly. This crate
-//! is the SEAT the rest migrate onto (SEAT-6 and after), not a
-//! description of where they are.
+//! that way would misjudge every later unit's cost. **Three verbs in
+//! two record families live here**: the blend pair and the boolean's
+//! three regularized ops. Every other door — extrude, revolve, split,
+//! transform, pattern, loft, sweep, shell, measure — still runs the
+//! way it always did, and is reached by `editor-core`'s lowering
+//! calling its op crate directly. This crate is the SEAT the rest
+//! migrate onto (SEAT-7 and after — SEAT-6 is the `ParamSource`
+//! channel, not a migration), not a description of where they are.
 //!
 //! The design's cost claim is scoped the same way and is not
 //! demonstrated here: what these units show is that the migrated verbs

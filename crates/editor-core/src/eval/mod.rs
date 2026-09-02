@@ -349,6 +349,13 @@ pub enum SplitSide<T: Decide> {
 // without naming the type that carries the invariant.
 pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
 
+// `NodeErrorKind::VerbArity` carries the kernel's verb name and
+// declared-arity types in a pub payload, so both cross with it — the
+// discriminant-crosses-with-the-refusal rule the pncad prelude writes
+// at its `BlendKind` row. Without these a consumer could match the
+// variant but never name what it caught.
+pub use verbs::{Arity, VerbKind};
+
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
 /// [`NodeErrorKind::Expr`] — the PR 1 `NonFiniteResult` obligation).
@@ -990,11 +997,17 @@ impl core::fmt::Display for NodeErrorKind {
                     "internal: the wiring expected slot {slot:?}, which is absent"
                 )
             }
-            Self::VerbArity { verb, given } => write!(
-                f,
-                "internal: the {verb:?} verb declares {:?} operand(s) and was run through the {given:?}-operand door",
-                verb.arity()
-            ),
+            // The sentence is single-homed at the run doors' own
+            // refusal (`verbs::VerbError::Arity`); this arm re-wraps
+            // the same fields and forwards its Display, so the two
+            // layers cannot drift apart.
+            Self::VerbArity { verb, given } => {
+                let refusal = verbs::VerbError::Arity {
+                    verb: *verb,
+                    given: *given,
+                };
+                write!(f, "internal: {refusal}")
+            }
             Self::Escalated { predicate, source } => write!(
                 f,
                 "predicate {predicate} escalated (in-band indeterminacy): {source}"

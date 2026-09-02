@@ -189,7 +189,8 @@ mod all_census {
         assert_eq!(
             VerbKind::ALL.len(),
             rows,
-            "VerbKind::ALL has drifted from the vocabulary — it has {rows} rows"
+            "VerbKind::ALL has drifted from the vocabulary — it holds {} rows, the vocabulary has {rows}",
+            VerbKind::ALL.len()
         );
     }
 }

@@ -932,12 +932,18 @@ fn wire_blend<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
         .run(&body, tol)
         .map_err(verb_refused)?;
     // The record channel is per-family; a blend's run produces the
-    // blend variant by construction, so the other family here is a
+    // blend variant by construction, so another family here is a
     // kernel bug — refused typed, exactly like the `None` record below.
-    let verbs::VerbRecord::Blend(naming) = out.record else {
-        return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: verb.foreign_record,
-        }));
+    // The match is EXHAUSTIVE with no wildcard arm (D3): a record
+    // family added to the channel breaks this consumer at compile time
+    // and must be routed here deliberately, never silently refused.
+    let naming = match out.record {
+        verbs::VerbRecord::Blend(naming) => naming,
+        verbs::VerbRecord::Boolean { .. } => {
+            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: verb.foreign_record,
+            }));
+        }
     };
     let rec = naming.ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
         what: verb.no_records,
@@ -1393,18 +1399,23 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
             names::empty(),
         )),
         verbs::PairOut::Out(out) => {
-            // Per-family record channel; the other family from a
+            // Per-family record channel; another family from a
             // boolean run is a kernel bug, refused typed
-            // (`wire_blend`'s clause, mirrored).
-            let verbs::VerbRecord::Boolean {
-                kind,
-                contacts,
-                naming,
-            } = out.record
-            else {
-                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: verb.foreign_record,
-                }));
+            // (`wire_blend`'s clause, mirrored). Exhaustive with no
+            // wildcard arm (D3): a new record family breaks this
+            // consumer at compile time rather than routing silently
+            // to the refusal.
+            let (kind, contacts, naming) = match out.record {
+                verbs::VerbRecord::Boolean {
+                    kind,
+                    contacts,
+                    naming,
+                } => (kind, contacts, naming),
+                verbs::VerbRecord::Blend(_) => {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: verb.foreign_record,
+                    }));
+                }
             };
             let a_table = Arc::clone(&value_of(results, a)?.name_table);
             let b_table = Arc::clone(&value_of(results, b)?.name_table);
