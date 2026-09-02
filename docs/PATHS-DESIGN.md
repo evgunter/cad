@@ -1132,14 +1132,17 @@ other declaration in this document rides the departing leg, and at the
 seam there is no departing leg to ride: the entry's first side is
 authored at the front, where §2's entry rule makes the seam's content
 ill-typed. So `Start` gains two declaring siblings —
-`Start.arrives_straight()` for a straight closer and
-`Start.arrives_tangent()` for the tangent-arc one — and the closing
-verbs are the ordinary ones, unchanged, each still one
-`transition_table!` row. Admissibility is the §2c matrix discipline: a
-straight leg's arrival direction IS its own direction, so
-`Start.arrives_tangent()` has no `LineTarget` impl and the pair is
-unrepresentable rather than refused; at the wire it is the replay
-driver's `Transition` class.
+`Start.arrives_straight()` for a SUBDIVISION joint and
+`Start.arrives_tangent()` for a G1 one — and the closing verbs are the
+ordinary ones, unchanged, each still one `transition_table!` row.
+Admissibility is still the §2c matrix discipline, and after the ruling
+the matrix over the CLOSERS is FULL: `line_to`, `continue_to`,
+`tangent_arc_to` and `arc_to(Bulge { … })` each take either token,
+because the token classifies the JOINT and not the shape of the leg
+reaching it. What stays unrepresentable is the arc DATA that has no
+arm: `arc_to`'s `Via` and `Center` modes carry no declaring target, so
+those pairs are missing impls rather than refusals, and at the wire they
+are the replay driver's `Transition` class (issue 1579).
 
 **The two declarations on a closing leg are INDEPENDENT**, and lily's
 own section needs three of the four combinations. `continue_to`

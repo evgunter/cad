@@ -158,16 +158,21 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
 /// `tangent_joints` empty — and the loop is a G1 line→arc joint with
 /// no declaration, which the data gate then refuses
 /// `UndeclaredTangency`. So the "straight" token has authored a
-/// tangency it declares nothing about, and the only spelling of this
-/// seam (a straight leg arriving G1 into an arc) is unrepresentable:
-/// `line_to(Start.arrives_tangent())` has no impl.
+/// tangency it declares nothing about, and at the time of the review
+/// the only spelling of this seam — a straight leg arriving G1 into an
+/// arc — was unrepresentable: `line_to(Start.arrives_tangent())` had no
+/// impl.
 ///
-/// **FIXED — the row flipped.** The declared straight arrival now
-/// refuses at the AUTHORING layer,
-/// `PathError::SeamArrivalNeedsStraightFirstSide`, because the ruling's
-/// case is a declared SUBDIVISION point and there is no one carrier
-/// here. Whether the straight leg should instead be able to declare a
-/// TANGENT arrival is an open question put to Evan in PATHS §6.
+/// **RULED (Evan, in-chat, 2026-09-02), and the finding is answered in
+/// BOTH halves.** The arrival token classifies the JOINT, not the leg,
+/// so `line_to(Start.arrives_tangent())` is now a spelling and the
+/// second half of this finding is gone. And nothing at the seam may
+/// consult the following carrier, so the first half is DELIBERATE: the
+/// lattice cannot see that the entry's first side is an arc, the
+/// declared-straight close therefore lands, and the DATA gate — the
+/// layer that owns materialized carriers — is what refuses it. This row
+/// pins that division of labour, then runs the recourse and requires it
+/// to close and validate.
 ///
 /// Fixture: a quarter-circle fan. Entry (0,0); first side the CCW
 /// quarter arc about (0,1) to (1,1) — departing EAST; then west to

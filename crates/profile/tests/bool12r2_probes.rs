@@ -483,15 +483,19 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
 /// So the lattice MINTS a loop the data gate then refuses
 /// `UndeclaredTangency` at joint 0, and its suggestion names the RAW
 /// door (`add 0 to loop 0\'s tangent_joints`) — the door issue 433 is
-/// demoting. There is no lattice spelling: `Start.arrives_tangent()` is
-/// not a `LineTarget`, by design, on the argument that "a straight
-/// leg\'s arrival direction IS its own direction" — true, and beside
-/// the point, because what is undeclared here is the JOINT, not the
-/// direction.
+/// demoting. At the time of the review there was no lattice spelling:
+/// `Start.arrives_tangent()` was not a `LineTarget`, on the argument
+/// that "a straight leg\'s arrival direction IS its own direction" —
+/// which this finding called beside the point, because what is
+/// undeclared here is the JOINT, not the direction.
 ///
-/// Before this unit the same authoring refused `SeamTangent` at the
-/// seam: loud, and at the authoring layer. Both straight closers reach
-/// it.
+/// **RULED (Evan, in-chat, 2026-09-02): the finding was right, and the
+/// argument is retired.** The token classifies the JOINT, so a straight
+/// leg may declare a tangent seam and the recourse exists — this row
+/// runs it below. The refusal STAYS at the data gate rather than moving
+/// to the lattice, and that half is deliberate: nothing at the seam may
+/// consult the following carrier, so the layer that owns materialized
+/// carriers is the layer that speaks.
 #[test]
 fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() {
     let t = Tol::witness();
