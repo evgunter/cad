@@ -172,6 +172,7 @@ mod n2r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_together;
+pub mod param_source;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
@@ -324,6 +325,7 @@ pub use provenance::Provenance;
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
+pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, SEL_DATUM_DISTANCE,
     SurfaceKindSet, UnitVec3, UnitVec3Error,

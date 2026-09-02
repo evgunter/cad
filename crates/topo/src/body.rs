@@ -60,6 +60,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
+use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
 use crate::source::{GeomSource, SourceAttachError};
 
@@ -179,6 +180,13 @@ pub struct Body<T: Real> {
     pub(crate) point_sources: SecondaryMap<PointKey, GeomSource>,
     pub(crate) curve_sources: SecondaryMap<CurveKey, GeomSource>,
     pub(crate) surface_sources: SecondaryMap<SurfaceKey, GeomSource>,
+    // ParamSource records (VERB-SEAT-DESIGN P1), one level finer than
+    // the GeomSource maps above: the recipe expression behind each
+    // STORED SCALAR FIELD of a surface description, stamped by the
+    // recipe layer at mint time. Absence is the normal state — the
+    // channel is opt-in and every kernel-direct construction leaves it
+    // empty. See `crate::param_source`.
+    pub(crate) surface_field_sources: SecondaryMap<SurfaceKey, FieldSources>,
 }
 
 impl<T: Real> Body<T> {
@@ -207,6 +215,7 @@ impl<T: Real> Body<T> {
             point_sources: SecondaryMap::new(),
             curve_sources: SecondaryMap::new(),
             surface_sources: SecondaryMap::new(),
+            surface_field_sources: SecondaryMap::new(),
         }
     }
 
@@ -451,6 +460,7 @@ impl<T: Real> Body<T> {
         let removed = self.surfaces.remove(surface).is_some();
         if removed {
             self.surface_sources.remove(surface);
+            self.surface_field_sources.remove(surface);
         }
         removed
     }
@@ -567,6 +577,59 @@ impl<T: Real> Body<T> {
         Ok(())
     }
 
+    // ------------------------------------------------------------------
+    // ParamSource records (VERB-SEAT-DESIGN P1) — see
+    // `crate::param_source`.
+    // ------------------------------------------------------------------
+
+    /// The recipe expression behind one stored scalar field of a
+    /// surface description, if the recipe layer stamped one.
+    ///
+    /// `None` is the normal answer: the channel is opt-in, so every
+    /// kernel-direct construction, every import and every hand-built
+    /// body answers `None` everywhere. Absence NEVER certifies
+    /// anything — it routes the general rung
+    /// ([`crate::param_source::field_source_evidence`]).
+    pub fn surface_field_source(
+        &self,
+        key: SurfaceKey,
+        field: SurfaceField,
+    ) -> Option<&ParamSource> {
+        self.surface_field_sources.get(key)?.get(field)
+    }
+
+    /// Stamps (or replaces) the recipe source of one stored scalar
+    /// field — the recipe layer's post-op attachment door, the
+    /// per-field spelling of [`Body::set_surface_source`].
+    ///
+    /// # Errors
+    ///
+    /// [`ParamAttachError::StaleKey`] if the key does not resolve;
+    /// [`ParamAttachError::FieldNotOnKind`] if the surface at that key
+    /// has no such field. Both are caller bugs — a flow declaration
+    /// naming a field its carrier does not store is exactly the wiring
+    /// mistake the declaration exists to make impossible, so it is
+    /// refused rather than recorded where nothing reads it.
+    pub fn set_surface_field_source(
+        &mut self,
+        key: SurfaceKey,
+        field: SurfaceField,
+        source: ParamSource,
+    ) -> Result<(), ParamAttachError> {
+        let Some(surface) = self.surfaces.get(key) else {
+            return Err(ParamAttachError::StaleKey);
+        };
+        if !field.belongs_to(surface) {
+            return Err(ParamAttachError::FieldNotOnKind { field });
+        }
+        self.surface_field_sources
+            .entry(key)
+            .expect("the surface key resolved above")
+            .or_default()
+            .set(field, source);
+        Ok(())
+    }
+
     /// Clears every GeomSource record — the honest posture after a
     /// kernel-level geometric rewrite without recipe context
     /// (`transform_rigid`): the old sources' bit-identity claim no
@@ -574,6 +637,12 @@ impl<T: Real> Body<T> {
     /// coincidence between bit-DIFFERENT descriptions. The recipe
     /// layer re-stamps composed sources after the op (N6: the
     /// transform node composes into `expr`).
+    ///
+    /// The per-field [`ParamSource`] records are deliberately NOT
+    /// cleared here, and that is the whole difference between the two
+    /// channels: a rigid map rewrites a description's bits but cannot
+    /// change a radius, so a field's identity survives the placement
+    /// verbatim (`crate::param_source`).
     pub fn clear_geom_sources(&mut self) {
         self.point_sources.clear();
         self.curve_sources.clear();

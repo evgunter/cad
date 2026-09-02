@@ -992,6 +992,11 @@ pub enum BooleanError {
         a_face: FaceKey,
         /// The B-side germ face.
         b_face: FaceKey,
+        /// The radius-equality evidence the germ site read off the
+        /// lowered parameter-identity channel
+        /// (`crate::param_source`) — which of the two shapes named in
+        /// the message the locus actually has.
+        evidence: geom_brep::RadiusEvidence,
     },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
@@ -1265,7 +1270,11 @@ impl core::fmt::Display for BooleanError {
                 a_kind.name(),
                 b_kind.name(),
             ),
-            Self::GermFrameCylinderPinch { a_face, b_face } => write!(
+            Self::GermFrameCylinderPinch {
+                a_face,
+                b_face,
+                evidence,
+            } => write!(
                 f,
                 "boolean join: the germ pair (face {a_face:?} of A, face {b_face:?} of B) \
                  is two cylinder walls whose axes definitely intersect, and that pair has \
@@ -1273,12 +1282,15 @@ impl core::fmt::Display for BooleanError {
                  bisector-plane ellipses, which CROSS at the two points p ± r·n̂ where \
                  n̂ = unit(a1 x a2) — the walls are mutually tangent there — four arcs at \
                  two valence-4 pinch \
-                 vertices, not one conic — and this dispatch is keyed on surface kinds \
-                 alone, so it has no point with which to select a branch. With unequal \
+                 vertices, not one conic, so no point selects a branch. With unequal \
                  radii the locus is a space quartic and has no conic frame at all. Which \
-                 holds is a radius-equality question, and radius equality is structural or \
-                 declared and never inferred from values. Recourse: a chord lane that walks \
-                 a self-intersecting section, or geometry whose germ pairs are wired",
+                 holds is a radius-equality question, answered by the lowered \
+                 parameter-identity channel and never by the stored values: this pair's \
+                 evidence is {evidence:?} — Declared means the ellipse pair, verified \
+                 against the geometry; None means no declaration exists and the pair \
+                 routes the general rung with the question open. Recourse: a chord lane \
+                 that walks a self-intersecting section, geometry whose germ pairs are \
+                 wired, or a document that declares the shared radius",
             ),
             Self::Pcurves { source } => write!(
                 f,
