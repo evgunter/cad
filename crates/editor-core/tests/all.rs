@@ -347,7 +347,7 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
-#[path = "r1_probe_v15.rs"]
-mod r1_probe_v15;
 #[path = "cert_m2r1_corpus.rs"]
 mod cert_m2r1_corpus;
+#[path = "r1_probe_v15.rs"]
+mod r1_probe_v15;

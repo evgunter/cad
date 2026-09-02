@@ -11,19 +11,32 @@ use editor_core::product_recorded;
 use geom_core::{Decide, Tol};
 use topo::{AtRestPolicy, Body, PropsQuadLane};
 
-fn dump<T: Decide + PropsQuadLane + AtRestPolicy + core::fmt::Debug>(scalar: &str, name: &str, body: &Body<T>, contacts: &topo::ContactRecords) {
+fn dump<T: Decide + PropsQuadLane + AtRestPolicy + core::fmt::Debug>(
+    scalar: &str,
+    name: &str,
+    body: &Body<T>,
+    contacts: &topo::ContactRecords,
+) {
     let tol = Tol::witness();
-    println!("M2R1C|{scalar}|{name}|pseudomanifold|{:?}", topo::validate_pseudomanifold(body, contacts, tol));
+    println!(
+        "M2R1C|{scalar}|{name}|pseudomanifold|{:?}",
+        topo::validate_pseudomanifold(body, contacts, tol)
+    );
     let marks = topo::contact_marks(body, tol).map(|m| {
         let mut v: Vec<String> = m.iter().map(|(k, m)| format!("{k:?}={m:?}")).collect();
         v.sort();
         v
     });
     println!("M2R1C|{scalar}|{name}|contact_marks|{marks:?}");
-    println!("M2R1C|{scalar}|{name}|mass_properties|{:?}", topo::mass_properties(body, tol));
+    println!(
+        "M2R1C|{scalar}|{name}|mass_properties|{:?}",
+        topo::mass_properties(body, tol)
+    );
 }
 
-fn run<T: editor_core::EvalScalar + core::fmt::Debug>(scalar: &str) -> Vec<(String, editor_core::Product<T>)> {
+fn run<T: editor_core::EvalScalar + core::fmt::Debug>(
+    scalar: &str,
+) -> Vec<(String, editor_core::Product<T>)> {
     let tol = Tol::witness();
     let mut out = Vec::new();
     for doc in documents() {
@@ -42,7 +55,10 @@ fn run<T: editor_core::EvalScalar + core::fmt::Debug>(scalar: &str) -> Vec<(Stri
 #[test]
 fn m2r1_corpus_f64() {
     for (n, p) in run::<f64>("f64") {
-        println!("M2R1C|f64|{n}|validate_geometric|{:?}", topo::validate_geometric(&p.body, Tol::witness()));
+        println!(
+            "M2R1C|f64|{n}|validate_geometric|{:?}",
+            topo::validate_geometric(&p.body, Tol::witness())
+        );
     }
 }
 
@@ -55,6 +71,9 @@ fn m2r1_corpus_dual64() {
 #[test]
 fn m2r1_corpus_interval() {
     for (n, p) in run::<geom_core::Interval>("interval") {
-        println!("M2R1C|interval|{n}|validate_geometric|{:?}", topo::validate_geometric(&p.body, Tol::witness()));
+        println!(
+            "M2R1C|interval|{n}|validate_geometric|{:?}",
+            topo::validate_geometric(&p.body, Tol::witness())
+        );
     }
 }

@@ -22,10 +22,16 @@ fn m2r1_structural_dual_matches_f64_structural_and_shows_what_the_dual_loses() {
         println!("M2R1H|{n}|f64_structural|{sf:?}");
         println!("M2R1H|{n}|dual_structural|{sd:?}");
         println!("M2R1H|{n}|f64_composed|{cf:?}");
-        assert_eq!(sf, sd, "{n}: structural half differs between f64 and Dual64");
+        assert_eq!(
+            sf, sd,
+            "{n}: structural half differs between f64 and Dual64"
+        );
     }
     for (n, fb) in passes::f64_only_corpus() {
-        println!("M2R1H|{n}|f64_structural|{:?}", validate_geometric_structural(&fb, tol));
+        println!(
+            "M2R1H|{n}|f64_structural|{:?}",
+            validate_geometric_structural(&fb, tol)
+        );
         println!("M2R1H|{n}|f64_composed|{:?}", validate_geometric(&fb, tol));
     }
 }
@@ -39,11 +45,17 @@ fn m2r1_dual_structural_value_channel_is_f64s() {
     for ((n, fb), (_, db)) in f.iter().zip(d.iter()) {
         let fr: Vec<u64> = fb
             .curves()
-            .filter_map(|(_, c)| c.certified().map(|c| c.certificate().max_residual.to_bits()))
+            .filter_map(|(_, c)| {
+                c.certified()
+                    .map(|c| c.certificate().max_residual.to_bits())
+            })
             .collect();
         let dr: Vec<u64> = db
             .curves()
-            .filter_map(|(_, c)| c.certified().map(|c| c.certificate().max_residual.value.to_bits()))
+            .filter_map(|(_, c)| {
+                c.certified()
+                    .map(|c| c.certificate().max_residual.value.to_bits())
+            })
             .collect();
         assert_eq!(fr, dr, "{n}: certificate value channel");
         let _ = Body::<f64>::new;

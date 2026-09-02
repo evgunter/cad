@@ -51,7 +51,11 @@ pub fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
     let phi = 0.4;
     let plane = SplitPlane {
         origin: Point3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
-        normal: Vec3::new(T::from_f64(phi.sin()), T::from_f64(0.0), T::from_f64(phi.cos())),
+        normal: Vec3::new(
+            T::from_f64(phi.sin()),
+            T::from_f64(0.0),
+            T::from_f64(phi.cos()),
+        ),
     };
     let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {
@@ -71,7 +75,9 @@ pub fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
         origin: Point2::new(T::from_f64(0.0), T::from_f64(0.0)),
         dir: Vec2::new(T::from_f64(0.0), T::from_f64(1.0)),
     };
-    let washer = revolve(&profile(w), axis, Revolution::Full, tol).unwrap().body;
+    let washer = revolve(&profile(w), axis, Revolution::Full, tol)
+        .unwrap()
+        .body;
     out.push(("washer".into(), washer));
     // Quarter washer (partial revolve — wedge caps).
     let w2 = ProfileLoop::new(vec![
@@ -228,14 +234,18 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         v(0.30, 0.40, 0.0),
     ]));
     let t = 0.05;
-    for (what, body, y) in [("ring_on_outer_vessel", vessel, 0.4), ("ring_on_outer_tube", tube, 0.40)] {
+    for (what, body, y) in [
+        ("ring_on_outer_vessel", vessel, 0.4),
+        ("ring_on_outer_tube", tube, 0.40),
+    ] {
         let mut sealed = topo::shell(&body, t, 1e-6, tol).expect("sealed shell");
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
-        let plane_of = |b: &Body<f64>, f: topo::FaceKey| match b.get_surface(b.get_face(f).unwrap().surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-            other => panic!("non-planar cap {other:?}"),
-        };
+        let plane_of =
+            |b: &Body<f64>, f: topo::FaceKey| match b.get_surface(b.get_face(f).unwrap().surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+                other => panic!("non-planar cap {other:?}"),
+            };
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
