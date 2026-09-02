@@ -32,6 +32,19 @@
 //!   kernel site (SELECT-DESIGN GS-Q1: the naming convention does the
 //!   separating, not a second funnel).
 //!
+//!   **The `sel_*` convention covers the SELECTOR sites, and this
+//!   module has one that is not a selector site.** The datum a
+//!   selection is measured against carries a decision of its own, one
+//!   layer earlier: [`UnitVec3::new`] ([`DATUM_UNIT_NORM`], no `sel_`
+//!   prefix) decides that a direction has a finite, nonzero length
+//!   before normalizing it. It is deliberately outside the convention
+//!   — it decides nothing about a candidate and answers no selection
+//!   question; it is a constructor refusing a value the type cannot
+//!   hold, and a `sel_` name on it would tell a census reader it
+//!   belongs to a selector margin population it is not part of. What
+//!   it buys the door above is that [`datum_distance`] is arithmetic
+//!   all the way down.
+//!
 //! # Where an entity IS, for the decided door
 //!
 //! The decided door measures a POINT against a [`DatumValue`]. The
@@ -44,10 +57,15 @@
 //! ([`readback::face_pose`](crate::readback::face_pose)) — and the
 //! read-back refusals travel with those doors (a NURBS face has no
 //! canonical frame, so it refuses rather than being silently dropped).
-//! Datum-node resolution — a recipe reference becoming a
+//! Datum-node RESOLUTION — a recipe reference becoming a
 //! [`DatumValue`] — stays in the document layer; this seat takes the
-//! resolved value. Stable names themselves never appear below the G1
-//! line, which is the point.
+//! resolved value. One half of what used to be up there came down with
+//! the type: the document layer no longer normalizes a datum's
+//! direction by hand, because [`UnitVec3`] admits no unnormalized
+//! spelling, so the normalization and its typed refusal are HERE and
+//! the document layer maps that refusal onto its own node error.
+//! Stable names themselves never appear below the G1 line, which is
+//! the point.
 
 use geom::Curve3;
 use geom_brep::SurfaceKind;
@@ -316,33 +334,177 @@ pub fn edge_adjacent_matches<T: Real>(
 }
 
 // ---------------------------------------------------------------
-// The DECIDED door: one funnel site, an honest Margin, a typed
+// The DECIDED door and the type it measures against: two funnel
+// sites — the datum's own unit-direction constructor, and the
+// distance-sign door — each with an honest Margin and a typed
 // indeterminate.
 // ---------------------------------------------------------------
 
+/// **A direction that cannot be unnormalized.** [`UnitVec3::new`] is
+/// the only way to spell one; it normalizes a vector whose length is a
+/// finite, definitely-nonzero number and refuses every other input
+/// typed — so a plane normal or an axis direction held here is unit as
+/// a property of the TYPE, not of the caller's diligence, and it stays
+/// unit after it is copied back out of whatever structure holds it.
+///
+/// The signed distance to a plane is a length only against a unit
+/// normal, so an unnormalized one silently scales a DECIDED
+/// predicate's comparand — a wrong [`Sign`] with no refusal. That
+/// failure is unrepresentable rather than asserted.
+///
+/// **"Every other input" includes the ones a length comparison alone
+/// cannot see.** A vector whose components overflow the norm
+/// (`|v| ≳ 1e154` at `f64`) has an INFINITE length, which the scalar's
+/// own [`Decide`] machinery calls maximally definite — a `Positive`
+/// answer, followed by a division that collapses the direction to
+/// zero. The constructor therefore asks whether the length is a finite
+/// number BEFORE asking which side of zero it lies on
+/// ([`UnitVec3Error::NonFiniteLength`]); without that order the type's
+/// guarantee would be false exactly where it is least visible.
+#[derive(Debug, Clone, Copy)]
+pub struct UnitVec3<T: Real>(Vec3<T>);
+
+/// **The funnel site name** of the unit-direction constructor's length
+/// decision. Its comparand is a genuine length (the vector's norm), so
+/// it goes through the plain [`Margin::norm3`] door and owes NO
+/// `docs/predicate-dimension-audit.md` row.
+///
+/// A K row name reaching the funnel through a const, not a literal at
+/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
+/// "The inventory method, restated").
+pub const DATUM_UNIT_NORM: &str = "datum_unit_norm";
+
+/// Why a vector could not become a [`UnitVec3`] — a closed enum (D4
+/// ¶3): every arm is a fact about the input, never a lane to swallow.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UnitVec3Error {
+    /// The vector's length decided to zero: it names no direction, and
+    /// picking one for it would be invention (spec D3).
+    Degenerate,
+    /// The vector's length is not a finite number — the components
+    /// overflow the norm (`|v| ≳ 1e154` at `f64`), or one of them is
+    /// the scalar's poison. Refused BEFORE the length is decided,
+    /// because an infinite margin is maximally definite to
+    /// [`Decide`] and would be normalized into a zero direction; a
+    /// poisoned one has no direction either.
+    NonFiniteLength,
+    /// The length decision landed in the ambiguity band — at the
+    /// interval scalar, an enclosure that straddles "has a direction"
+    /// and "does not". Escalated unaltered.
+    Escalated(Indeterminate),
+}
+
+impl core::fmt::Display for UnitVec3Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Degenerate => f.write_str(
+                "a direction vector decided to zero length, so it names no \
+                 direction to normalize",
+            ),
+            Self::NonFiniteLength => f.write_str(
+                "a direction vector's length is not a finite number — its \
+                 components overflow the norm, or one of them is not a \
+                 number; scale the geometry into the session's range",
+            ),
+            Self::Escalated(source) => {
+                write!(f, "a direction vector's length is indeterminate: {source}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for UnitVec3Error {}
+
+/// **Is `x` a finite number at this scalar?** — asked through the
+/// value channel every [`Real`] has, with no bracket read and no
+/// threshold invented.
+///
+/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
+/// are the scalar's poison. So the self-difference IS the question,
+/// which is why the equal-operands lint is allowed here and nowhere
+/// near it. An enclosure answers YES however wide it is (a finite
+/// interval's self-difference is a finite interval around zero, and an
+/// enclosure whose upper end overflowed still contains its truth) —
+/// the honest scope: this catches the point scalars, which is where an
+/// infinite length turns into a definite wrong answer.
+fn is_finite_length<T: Real>(x: T) -> bool {
+    #[allow(clippy::eq_op)]
+    let residual = x - x;
+    !residual.is_poison()
+}
+
+impl<T: Real> UnitVec3<T> {
+    /// The direction itself, unit.
+    #[must_use]
+    pub fn get(self) -> Vec3<T> {
+        self.0
+    }
+}
+
+impl<T: Decide> UnitVec3<T> {
+    /// **The only constructor**: `v` normalized, or a typed refusal.
+    ///
+    /// Two questions in this order, and the order is the point.
+    ///
+    /// 1. **Is the length a finite number?** Asked through the value
+    ///    channel every scalar has, as "does the length minus itself
+    ///    stay a number": a finite value less itself is exactly zero,
+    ///    while `∞ − ∞` and `NaN − NaN` are the scalar's poison. No
+    ///    bracket is read and no threshold is invented, so an
+    ///    enclosure of any width passes — the arm bites at the point
+    ///    scalars, which is where the failure is (an interval whose
+    ///    norm overflowed still ENCLOSES the truth, so it stays sound
+    ///    and simply refuses later, where a `f64` would answer a
+    ///    definite wrong sign).
+    /// 2. **Which side of zero is it on?** Through the scalar's own
+    ///    decision machinery ([`Margin::norm3`] at the
+    ///    [`DATUM_UNIT_NORM`] funnel site) — `Real` deliberately has no
+    ///    comparison surface, and a hand-rolled `> 0` would be wrong at
+    ///    the interval scalar. Only a DEFINITELY zero length refuses,
+    ///    so a wide enclosure that contains a real direction never
+    ///    refuses spuriously; one that straddles zero escalates instead
+    ///    of guessing.
+    ///
+    /// # Errors
+    ///
+    /// [`UnitVec3Error::NonFiniteLength`] on an overflowed or poisoned
+    /// length, [`UnitVec3Error::Degenerate`] on a decided-zero one,
+    /// [`UnitVec3Error::Escalated`] on an in-band one.
+    pub fn new(v: Vec3<T>, band: Band) -> Result<Self, UnitVec3Error> {
+        // `norm3` below recomputes this same value (`Vec3::norm` is
+        // deterministic), so the gate and the margin are the one
+        // length; it is spelled twice rather than reached into.
+        if !is_finite_length(v.norm()) {
+            return Err(UnitVec3Error::NonFiniteLength);
+        }
+        match decide(DATUM_UNIT_NORM, Margin::norm3(v), band) {
+            Ok(Sign::Positive) => Ok(Self(v.normalize())),
+            Ok(_) => Err(UnitVec3Error::Degenerate),
+            Err(source) => Err(UnitVec3Error::Escalated(source)),
+        }
+    }
+}
+
 /// A resolved datum: geometry VALUES, not kernel entities and not
-/// recipe references. Normals/directions are UNIT — the document
-/// layer normalizes at evaluation (a degenerate vector is a typed
-/// refusal there), and a kernel-direct caller OWES the same
-/// invariant: nothing here re-normalizes (not bit-preserving), and
-/// the decided door asserts unit norm in debug builds — which this
-/// workspace keeps on in release — rather than silently measuring
-/// against a scaled datum.
+/// recipe references. Normals and axis directions are [`UnitVec3`],
+/// which is unit by construction — nothing here re-normalizes (not
+/// bit-preserving) and nothing needs to: an unnormalized datum has no
+/// spelling.
 #[derive(Debug, Clone)]
-pub enum DatumValue<T: Decide> {
-    /// A plane through `origin` with UNIT `normal`.
+pub enum DatumValue<T: Real> {
+    /// A plane through `origin` with `normal`.
     Plane {
         /// A point on the plane.
         origin: Point3<T>,
-        /// The unit normal.
-        normal: Vec3<T>,
+        /// The normal.
+        normal: UnitVec3<T>,
     },
-    /// An axis through `origin` along UNIT `dir`.
+    /// An axis through `origin` along `dir`.
     Axis {
         /// A point on the axis.
         origin: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
+        /// The direction.
+        dir: UnitVec3<T>,
     },
     /// A point.
     Point {
@@ -366,15 +528,20 @@ pub enum DatumValue<T: Decide> {
 pub const SEL_DATUM_DISTANCE: &str = "sel_datum_distance";
 
 /// The distance of `p` from a datum: SIGNED along a plane's normal
-/// (which is stored unit, so the dot product is already a length),
-/// UNSIGNED to an axis or a point.
+/// (which is unit by construction, so the dot product is already a
+/// length), UNSIGNED to an axis or a point.
+///
+/// Arithmetic only, so [`Real`] is the whole bound: deciding what the
+/// distance MEANS is [`datum_distance_sign`]'s job, and that is where
+/// [`Decide`] enters.
 #[must_use]
-pub fn datum_distance<T: Decide>(datum: &DatumValue<T>, p: Point3<T>) -> T {
+pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
     match datum {
-        DatumValue::Plane { origin, normal } => (p - *origin).dot(*normal),
+        DatumValue::Plane { origin, normal } => (p - *origin).dot(normal.get()),
         DatumValue::Axis { origin, dir } => {
+            let d = dir.get();
             let v = p - *origin;
-            (v - *dir * v.dot(*dir)).norm()
+            (v - d * v.dot(d)).norm()
         }
         DatumValue::Point { position } => (p - *position).norm(),
     }
@@ -397,30 +564,6 @@ pub fn datum_distance_sign<T: Decide>(
     value: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    // The caller-owed unit invariant (type docs), asserted rather
-    // than repaired: a signed plane distance is a length ONLY against
-    // a unit normal, and re-normalizing here would not be
-    // bit-preserving. Checked through the scalar's own decision door
-    // (`Real` deliberately has no comparison surface): the assert
-    // fires only on a DEFINITELY non-unit vector, so a wide interval
-    // enclosure never trips it spuriously.
-    debug_assert!(
-        {
-            let unit = |v: Vec3<T>| {
-                !matches!(
-                    Band::new(1e-9, 2e-9).map(|b| (v.dot(v) - T::one()).sign_within(b)),
-                    Ok(Ok(Sign::Positive | Sign::Negative))
-                )
-            };
-            match datum {
-                DatumValue::Plane { normal, .. } => unit(*normal),
-                DatumValue::Axis { dir, .. } => unit(*dir),
-                DatumValue::Point { .. } => true,
-            }
-        },
-        "DatumValue normals/directions must be unit — the document layer normalizes at \
-         evaluation; a kernel-direct caller owes the same"
-    );
     decide(
         SEL_DATUM_DISTANCE,
         Margin::of(datum_distance(datum, p) - value),
@@ -429,11 +572,11 @@ pub fn datum_distance_sign<T: Decide>(
 }
 
 // The door-only contracts: totality on dangling keys, materializer
-// determinism, empty-set and unordered-pair semantics, and the decided
-// door's band partition. The delegation's agreement with the document
-// layer is pinned upstairs (`editor-core`'s selector suites drive the
-// same arms through `select_where`). Boundary rows adapted from a
-// review probe.
+// determinism, empty-set and unordered-pair semantics, the unit
+// constructor's two refusals, and the decided door's band partition.
+// The delegation's agreement with the document layer is pinned
+// upstairs (`editor-core`'s selector suites drive the same arms
+// through `select_where`). Boundary rows adapted from a review probe.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -538,16 +681,104 @@ mod tests {
         assert!(mixed_pair_hit, "the fixture carries a Plane x Nurbs rim");
     }
 
+    /// **The constructor is the enforcement**: a vector with no
+    /// decided length refuses typed, and one with a length normalizes
+    /// however far from unit it started. The wobble rows are the ones
+    /// that matter for the decided door downstream — the datum they
+    /// end up in measures a length whatever the input's scale was.
+    ///
+    /// Every fixture here is off unit by MORE than the assertion's own
+    /// tolerance, deliberately: a wobble the f64 grid swallows
+    /// (`1.0 + 1e-30` IS `1.0`; `(1e-30, 1e-30, 1.0)` has
+    /// `norm_squared` exactly 1) would pass this row without the
+    /// normalization ever running.
+    #[test]
+    fn the_unit_constructor_refuses_the_lengthless_and_normalizes_the_rest() {
+        let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
+        assert!(matches!(
+            UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), band),
+            Err(UnitVec3Error::Degenerate)
+        ));
+        // Scale is irrelevant to what comes out: a 1e-12 wobble on a
+        // unit input and a 1e6 blow-up both leave unit length.
+        for v in [
+            Vec3::new(0.0, 0.0, 1.0 + 1e-12),
+            Vec3::new(1e-6, 1e-6, 1.0),
+            Vec3::new(3e6, 4e6, 0.0),
+            Vec3::new(3.0, 4.0, 12.0),
+        ] {
+            assert!(
+                (v.norm() - 1.0).abs() > 1e-15,
+                "the fixture {v:?} is already unit, so it would not \
+                 exercise the normalization"
+            );
+            let u = UnitVec3::new(v, band)
+                .expect("a vector with a length")
+                .get();
+            assert!(
+                (u.norm() - 1.0).abs() <= 1e-15,
+                "norm {} for {v:?}",
+                u.norm()
+            );
+        }
+        // The overflow class: a length that is not a finite NUMBER
+        // refuses BEFORE the sign of the length is asked for. An
+        // infinite margin is maximally definite to `sign_within`, so
+        // deciding first would answer Positive and normalize the
+        // direction into the zero vector — a datum that then answers a
+        // definite WRONG sign with no refusal.
+        for v in [
+            Vec3::new(1e200, 0.0, 0.0),
+            Vec3::new(0.0, 1e200, 1e200),
+            Vec3::new(f64::INFINITY, 0.0, 0.0),
+            Vec3::new(f64::NEG_INFINITY, 0.0, 0.0),
+            Vec3::new(f64::NAN, 0.0, 1.0),
+        ] {
+            assert!(
+                matches!(UnitVec3::new(v, band), Err(UnitVec3Error::NonFiniteLength)),
+                "{v:?} must refuse, not normalize"
+            );
+        }
+        // What the refusal prevents, executed rather than asserted.
+        // The normalization these components go through collapses the
+        // direction to the ZERO vector:
+        let collapsed = Vec3::new(1e200, 0.0, 0.0).normalize();
+        assert_eq!((collapsed.x, collapsed.y, collapsed.z), (0.0, 0.0, 0.0));
+        // — and a zero normal is DEFINITELY non-unit, the condition
+        // the retired tripwire fired on. So this input was loud before
+        // the type existed, and the finiteness arm is what keeps it
+        // loud now that the tripwire is gone: without it the door
+        // would take a zero normal and measure every point as exactly
+        // on the plane.
+        let tripwire = Band::new(1e-9, 2e-9).expect("a well-ordered band");
+        assert_eq!(
+            (collapsed.dot(collapsed) - 1.0).sign_within(tripwire),
+            Ok(Sign::Negative)
+        );
+        // And the datum built from one measures a LENGTH: the same
+        // plane spelled at scale 1e6 answers the same distance.
+        let p = Point3::new(3.0, 4.0, -2.0);
+        let at = |v| DatumValue::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: UnitVec3::new(v, band).expect("a vector with a length"),
+        };
+        assert_eq!(
+            datum_distance(&at(Vec3::new(0.0, 0.0, 1e6)), p),
+            datum_distance(&at(Vec3::new(0.0, 0.0, 1.0)), p)
+        );
+    }
+
     #[test]
     fn the_decided_door_partitions_on_the_band() {
         let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
+        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), band).expect("a unit z");
         let plane = DatumValue::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
+            normal: up,
         };
         let axis = DatumValue::Axis {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: up,
         };
         let point = DatumValue::Point {
             position: Point3::new(0.0, 0.0, 0.0),
@@ -593,5 +824,128 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+// The interval-safety half of the constructor's contract, at the
+// scalar that has enclosures to be safe about: refusal is reserved for
+// a length the enclosure DECIDES is zero, and an enclosure that merely
+// cannot tell escalates rather than refusing.
+#[cfg(test)]
+#[cfg(feature = "interval")]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod interval_tests {
+    use geom_core::{Decide, Interval, Real, Sign};
+
+    use super::{Band, UnitVec3, UnitVec3Error, Vec3};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// An enclosure that CONTAINS unit length is a direction — the
+    /// widths interval arithmetic carries are not a reason to refuse —
+    /// and what comes back DECIDES unit at the band.
+    ///
+    /// The assertion direction is deliberate. "Not definitely off
+    /// unit" would be satisfied by every degradation, including a
+    /// normalization that never ran on a wide enough input: a claim
+    /// that gets easier as the enclosure gets worse is not evidence.
+    /// `Ok(Sign::Zero)` on `‖u‖ − 1` is the opposite — it holds only
+    /// while the whole enclosure sits inside the band, so it fails
+    /// loudly if the normalization is skipped, if the result is
+    /// collapsed, or if the enclosure blows up. Both fixtures are
+    /// therefore tight; the price is that this row says nothing about
+    /// SLOPPY enclosures, which the escalation row below covers.
+    #[test]
+    fn an_enclosure_containing_unit_length_passes() {
+        // Straddles unit length; a scale away from it.
+        let wobbled = Vec3::new(
+            Interval::from_bounds(-1e-13, 1e-13),
+            Interval::from_bounds(-1e-13, 1e-13),
+            Interval::from_bounds(1.0 - 1e-13, 1.0 + 1e-13),
+        );
+        let scaled = Vec3::new(
+            Interval::from_f64(3e4),
+            Interval::from_f64(4e4),
+            Interval::from_bounds(-1e-9, 1e-9),
+        );
+        for v in [wobbled, scaled] {
+            let u = UnitVec3::new(v, band())
+                .expect("an enclosure with a length")
+                .get();
+            let off = u.norm() - Interval::from_f64(1.0);
+            assert_eq!(
+                off.sign_within(band()),
+                Ok(Sign::Zero),
+                "the normalized enclosure must DECIDE unit length: {off:?}"
+            );
+        }
+    }
+
+    /// The overflow class at the enclosure scalar, stated honestly: an
+    /// interval whose norm overflows still ENCLOSES the true length,
+    /// so it is not unsound and the constructor does not refuse it —
+    /// what it loses is precision, and the loss surfaces downstream as
+    /// an escalation rather than as a definite wrong sign. Poison is
+    /// the arm that does bite here: an empty/NaI component has no
+    /// length at all.
+    #[test]
+    fn an_overflowed_enclosure_stays_sound_and_poison_refuses() {
+        let huge = Vec3::new(
+            Interval::from_f64(1e200),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+        );
+        let u = UnitVec3::new(huge, band())
+            .expect("an overflowing enclosure still encloses its direction")
+            .get();
+        // Containment, the interval contract: unit length is inside
+        // what comes back, so nothing downstream can certify a wrong
+        // side from it.
+        let off = u.norm() - Interval::from_f64(1.0);
+        assert!(
+            !matches!(off.sign_within(band()), Ok(Sign::Positive | Sign::Negative)),
+            "an overflowed enclosure must not DECIDE off-unit: {off:?}"
+        );
+        let poisoned = Vec3::new(
+            Interval::from_f64(f64::NAN),
+            Interval::from_f64(0.0),
+            Interval::from_f64(1.0),
+        );
+        assert!(
+            matches!(
+                UnitVec3::new(poisoned, band()),
+                Err(UnitVec3Error::NonFiniteLength)
+            ),
+            "a poisoned component names no direction"
+        );
+    }
+
+    /// A DECIDED zero length refuses; an enclosure that straddles the
+    /// band escalates instead of picking an arm.
+    #[test]
+    fn a_decided_zero_refuses_and_a_straddling_enclosure_escalates() {
+        let zero = Vec3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+        );
+        assert!(
+            matches!(UnitVec3::new(zero, band()), Err(UnitVec3Error::Degenerate)),
+            "a length the enclosure decides is zero"
+        );
+        let straddling = Vec3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+            Interval::from_bounds(0.0, 1e-7),
+        );
+        assert!(
+            matches!(
+                UnitVec3::new(straddling, band()),
+                Err(UnitVec3Error::Escalated(_))
+            ),
+            "an enclosure that cannot tell escalates"
+        );
     }
 }

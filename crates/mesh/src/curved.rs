@@ -9,14 +9,24 @@
 //! interior grid is strictly inside every boundary constraint. Every
 //! sweep-authored face satisfies it; it is not a property of
 //! iso-bounded input in general (a keyway is iso-bounded and is a U),
-//! so it is CHECKED here rather than assumed —
-//! [`TessellateError::UnsupportedCurvedDomain`].
+//! so it is CHECKED here rather than assumed, as TWO questions with
+//! two homes:
 //!
-//! The check is BANDED, in metres, not exact. `walk::iso_side_starts`
-//! makes an iso side carried by several edges exactly straight at the
-//! source, so the band separates nothing in tree and is kept as a
-//! backstop with a synthetic witness (#653; the argument is at
-//! `entries_off_bbox`).
+//! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
+//!    Asked BEFORE the walk, on rim structure, through the predicate's
+//!    own door `geom_brep::props::require_iso_rectangle` (the S58
+//!    single home of `props_rim_level`), refusing
+//!    [`TessellateError::UnsupportedCurvedShape`] — this lane cites
+//!    the predicate itself rather than leaning on the boolean's or
+//!    tier 3's inability to answer ([`require_iso_rectangle_face`]).
+//! 2. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
+//!    Asked after, on the polygon, BANDED in metres
+//!    ([`require_swept_rectangle`], refusing
+//!    [`TessellateError::UnsupportedCurvedDomain`]).
+//!    `walk::iso_side_starts` makes an iso side carried by several
+//!    edges exactly straight at the source, so the band separates
+//!    nothing in tree and is kept as a backstop with a synthetic
+//!    witness (#653; the argument is at `entries_off_bbox`).
 //!
 //! Boundary polyline segments are inserted as CDT **constraints**, so
 //! the triangulation conforms to the shared chord segments in both
@@ -39,10 +49,12 @@
 //! builds is a manifest setting.** The floor is three lines and runs
 //! everywhere. The `debug_assert` in [`tessellate_curved`]'s emit pass
 //! that re-derives the conclusion over the patch (D2 addendum row 5)
-//! is `#[cfg(debug_assertions)]`, which cargo's release default
-//! compiles out — but the root `Cargo.toml`'s `[profile.release]` sets
+//! is `#[cfg(debug_assertions)]`, which cargo's release DEFAULT would
+//! drop — but the root `Cargo.toml`'s `[profile.release]` sets
 //! `debug-assertions = true`, so **every profile this workspace builds
-//! today runs the re-derivation**. That stanza is a pre-publish
+//! today runs the re-derivation**. "Compiled out of every shipping
+//! build" is therefore the wrong tense for this tree: the guard is
+//! cfg-conditional, and today the condition holds. That stanza is a pre-publish
 //! posture and is on `DESIGN.md`'s *Before publishing* list to come
 //! back out; with it gone, the floor is the entire guard in release,
 //! for a class whose failure is a *silently* non-watertight mesh
@@ -63,11 +75,30 @@
 //! the competing reading is row 2 (*valid but unbuilt*, hence a typed
 //! refusal), and it turns on whether [`pole_columns`] closes the
 //! `nu == 2` class. If that floor is ever falsified, the state moves and
-//! so does the mechanism. The remaining option — the full-2π seam case
-//! with no floor in any build, and cross-face identification with no
-//! check at all — is **#897**, and the second of those is outside this
-//! re-derivation by construction: it reads THIS patch's pole-incident
-//! edges only.
+//! so does the mechanism.
+//!
+//! **The two cases that sat outside this re-derivation are now inside
+//! one or the other of two, decided by measurement (issue 897).** The
+//! full-2π seam — held off by [`pole_columns`]' arithmetic rather than
+//! by any check — is covered by widening the emit pass's census from
+//! pole-incident edges to IDENTIFIED ones ([`identified_ids`]).
+//! Cross-face identification is outside a per-patch census by
+//! construction, whatever its footprint, so it is re-derived once per
+//! mesh instead, at the end of [`fn@crate::tessellate`], as a use count
+//! over the chord segments the adjacent faces are supposed to share.
+//!
+//! **Both are `cfg`-CONDITIONAL, which today means both RUN in a
+//! release build, and that is the ruled state rather than a gap in
+//! it.** S65's ruling is that no guard for this class ships
+//! UNCONDITIONALLY; `#[cfg(debug_assertions)]` is what that means in
+//! code, and the manifest is what decides the reach. With the root
+//! `Cargo.toml`'s pre-publish `[profile.release] debug-assertions =
+//! true` in place — as it is now — every profile this workspace builds
+//! runs both censuses, at the measured cost (donut, the corpus's
+//! largest mesh: +13% to +15% of `tessellate` for the pair). When that
+//! stanza comes back out at publish, both go quiet in release together
+//! and the floor is again the whole of the shipped guard. Neither
+//! census reads a tolerance in any build.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
@@ -83,9 +114,10 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::Point3;
+use geom_core::{Band, Point3};
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
-use topo::{Body, EdgeKey, FaceKey};
+use topo::props::LoopEdgesError;
+use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
 use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_step};
@@ -108,6 +140,17 @@ pub(crate) fn tessellate_curved(
     if !face.rings.is_empty() {
         return Err(TessellateError::RingOnCurvedFace { face: fk });
     }
+    // THE SHAPE DOOR, before the walk (module docs, question 1): props'
+    // rim-structure predicate decides whether this face's domain is an
+    // iso-rectangle at all, and refuses every edge whose CARRIER is not
+    // a rim or a meridian carrier of this surface. Everything the walk
+    // then does — `iso_side_starts`' collapse of same-kind runs in
+    // particular — assumes more: that each traversed ARC stays on one
+    // iso curve of the chart. The door does not certify that (a
+    // great-circle arc may cross a pole mid-edge and pass — issue
+    // 1571), so that premise remains inherited, as `walk`'s header
+    // says; what the door closes is the non-iso-carrier instance.
+    require_iso_rectangle_face(body, fk, face.outer, surface, tol.band)?;
     let chart = Chart::of(surface).ok_or(TessellateError::MissingEntity {
         what: "curved chart",
     })?;
@@ -290,29 +333,35 @@ pub(crate) fn tessellate_curved(
     // does not run `check_mesh`, so with `pole_columns` in place a
     // three-line arithmetic coincidence is otherwise the only thing
     // between a pole face and a silently non-manifold mesh. Re-derive
-    // the conclusion here, over THIS patch's pole-incident edges only
+    // the conclusion here, over THIS patch's IDENTIFIED edges only
     // (the class's whole footprint, and O(triangles)): a fan edge is
     // interior to the patch and used twice, or on its boundary and
     // used once with the neighbouring face supplying the other use.
     // Four uses is the #678 signature.
+    //
+    // IDENTIFIED, not pole-incident, and that is a DECIDED widening
+    // (issue 897) rather than the definition it always had.
+    // [`identified_ids`] carries why a seam double-traversal and a
+    // pole corner are one set; the full-2π seam was the half held off
+    // by [`pole_columns`]' arithmetic instead of by a check, in the
+    // lane that actually has seams. What decided it was the price,
+    // measured on the tour corpus rather than estimated: the widening
+    // is free on a face the walk identifies nothing on (the census
+    // does not run), and costs +5% to +12% of `tessellate` on the
+    // donut, whose two torus patches carry a 212-id seam over 178k
+    // triangles each at the finest δ. (That range is the review's
+    // independent in-binary reproduction, which is the tighter of the
+    // two measurements; this lane's own rounds put the same three rows
+    // at +8% to +13%. Both are inside the box's noise for anything
+    // smaller, which is why only the donut rows are quoted.) That is at or under the price already paid for
+    // the pole half, and it buys the case a mechanical check.
     #[cfg(debug_assertions)]
-    if has_pole {
-        let poles: std::collections::HashSet<u32> =
-            polygon.iter().filter(|e| e.pole).map(|e| e.id).collect();
-        let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-        for t in &triangles {
-            for k in 0..3 {
-                let (a, b) = (t[k], t[(k + 1) % 3]);
-                if poles.contains(&a) || poles.contains(&b) {
-                    *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
-                }
-            }
-        }
-        let over = uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n));
+    {
+        let over = overused_identified_edge(&polygon, &triangles);
         debug_assert!(
             over.is_none(),
-            "face {fk:?}: pole-fan edge {:?} used {} times in one patch \
-             (nu = {nu}, nv = {nv}); the collapse-and-drop argument is \
+            "face {fk:?}: identified-vertex fan edge {:?} used {} times in one \
+             patch (nu = {nu}, nv = {nv}); the collapse-and-drop argument is \
              falsified — see curved::pole_columns, issue #678",
             over.map(|(e, _)| e),
             over.map_or(0, |(_, n)| n)
@@ -327,6 +376,64 @@ pub(crate) fn tessellate_curved(
         });
     }
     Ok(triangles)
+}
+
+/// **The SHAPE door**: this face's outer loop, handed to
+/// `geom_brep::props::require_iso_rectangle` — the S58 single home of
+/// the iso-rectangle predicate — and its refusal wrapped typed as
+/// [`TessellateError::UnsupportedCurvedShape`].
+///
+/// This is the line issue 727's ruling asked for: `mesh` cites the
+/// predicate itself, so the lane's floor is its own. When the
+/// certified-quadrature lane learns notched iso domains, the change
+/// that lets this lane see them — or route them — is here, visibly,
+/// rather than a limit in the boolean or in tier 3 quietly ceasing to
+/// keep such faces away. The loop is flattened by
+/// [`topo::props::loop_edges`], the same half-edge cycle the walk
+/// reads, so the door and the walk cannot disagree about which edges
+/// the face has; the band is props' own ([`SizingTols::band`]), so
+/// the decision is metered exactly as the flux lane meters it — no
+/// comparand and no margin of `mesh`'s.
+///
+/// **A rimless sphere band passes**: it is a chart rectangle, and the
+/// door says so at its definition — the `Δu = π` the flux lane also
+/// needs is that lane's premise, not the shape's, which is why a
+/// partial sphere wedge meshes here and refuses `mass_properties`.
+///
+/// An empty loop is reported by this lane's own name for that state
+/// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
+/// would otherwise call it corruption.
+///
+/// Four `require_*` spellings meet at this door — props'
+/// `require_iso_rectangle` and `require_rims_at_extremes`, this fn and
+/// [`require_swept_rectangle`] — and the shared prefix is the point:
+/// each is a typed precondition answering `Result<(), E>` with nothing
+/// computed, the props two on the face's rim structure, the mesh two
+/// on the face and on the walk. The suffix names the question.
+fn require_iso_rectangle_face(
+    body: &Body<f64>,
+    fk: FaceKey,
+    lk: LoopKey,
+    surface: &Surface<f64>,
+    band: Band,
+) -> Result<(), TessellateError> {
+    let lp = body
+        .get_loop(lk)
+        .ok_or(TessellateError::MissingEntity { what: "loop" })?;
+    if matches!(lp.boundary, topo::LoopBoundary::Empty { .. }) {
+        return Err(TessellateError::EmptyLoop { face: fk });
+    }
+    // `loop_edges` reports exactly the two states a flatten can reach,
+    // in its own type, so this match is exhaustive over them and a
+    // third arm minted in `topo` is a compile error here — D2 row 0
+    // across the crate boundary, in place of an `unreachable!` over
+    // arms the flatten never produced.
+    let (outer, _half_edges) = topo::props::loop_edges(body, lk).map_err(|e| match e {
+        LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
+        LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
+    })?;
+    geom_brep::props::require_iso_rectangle(surface, &outer, band)
+        .map_err(|source| TessellateError::UnsupportedCurvedShape { face: fk, source })
 }
 
 /// The walk entries that do NOT lie on the boundary of the UV bounding
@@ -471,6 +578,18 @@ fn entries_off_bbox(
 /// rectangle — the swept-UV-rectangle contract this lane's interior
 /// grid rests on, made a typed refusal.
 ///
+/// **This is the WALK-CONSISTENCY question, and only that** (issue
+/// 726). The SHAPE question — *is the domain an iso-rectangle at all* —
+/// is asked before the walk by [`require_iso_rectangle_face`], on rim
+/// structure, through `geom_brep::props`' own door; what reaches here
+/// is a face whose domain props has certified rectangular, and the
+/// question left is whether the walk traced it: whether every iso side
+/// came out straight (#653's ulp wobble, the reason the bar is SPATIAL
+/// and banded in metres rather than structural) and whether every
+/// entry landed where the rim structure says it should. Two
+/// derivations of the shape used to live here and in props; one does
+/// now, and this check measures the walk against it.
+///
 /// **Why a refusal and not a comment.** The grid runs the OPEN ranges
 /// `1..nu` × `1..nv` over the walk's own bounding box, which is
 /// strictly interior iff the polygon IS that box. When it is not, the
@@ -478,47 +597,53 @@ fn entries_off_bbox(
 /// lane keeps wholesale, having no inside/outside classification —
 /// emits triangles outside the face: a silently wrong mesh, and
 /// [`fn@crate::tessellate`] does not run `check_mesh`, so it would
-/// reach the caller unannounced. D2's addendum row 2 puts a
-/// reachable-by-input, valid-but-unbuilt state behind a typed
-/// `Unsupported*` error; D9's *"silent discard is never an answer"*
-/// says the same. `trimmed` already refuses the same hazard typed
-/// ([`TessellateError::SelfTouchingTrimLoop`]), and the structural
-/// twin of this arm is [`TessellateError::RingOnCurvedFace`] sixty
-/// lines up, whose stated reason is this very contract.
+/// reach the caller unannounced. D9's *"silent discard is never an
+/// answer"* makes it a refusal; `trimmed` refuses the same hazard
+/// typed ([`TessellateError::SelfTouchingTrimLoop`]), and the
+/// structural twin of this arm is
+/// [`TessellateError::RingOnCurvedFace`], whose stated reason is this
+/// very contract.
+///
+/// **What can still trip it, with the shape door in front.** A walk
+/// that failed to straighten a side — sub-ε is absorbed by the band,
+/// and above it is a kernel-bug report — and an iso-bounded loop the
+/// rim predicate cannot see: a zero-width slit (two meridians up and
+/// down one column to an interior level) has every rim at an extreme
+/// and a walk entry a feature width inside its box. The payload's
+/// distance is what separates the two, which is why it is a distance
+/// and not a count.
 ///
 /// **Nothing in tree trips it** (the tests below sweep every chart this
 /// build authors plus a boolean-cut face, as authored AND under a
-/// general rigid placement with a multiply-carried iso side). What the
-/// check buys is that the premise is enforced where it is USED: today
-/// a notched iso domain is kept out of this lane only by other
-/// modules' limits — the boolean refuses `CurvedPierceUnsupported`,
-/// and `import_step`'s tier-3 at-rest gate refuses
-/// `PropsError::NotIsoRectangle` because props' volume closed form
-/// requires **the same property this check requires**, named since S58
-/// as one predicate: `geom_brep::props`' `props_rim_level`, *every rim
-/// at one of the face's two extreme `v`-levels*. The two lanes derive
-/// it differently — `props` from rim structure, this one from the
-/// walked UV polygon — but they are not testing coincidentally
-/// similar things. Both of those upstream limits can still move
-/// without a line changing in `mesh`; this cannot.
+/// general rigid placement with a multiply-carried iso side). The
+/// notched domains that used to be kept out of this lane only by other
+/// modules' limits — the boolean's `CurvedPierceUnsupported`, tier 3's
+/// `VolumeUncomputable { NotIsoRectangle }` — now refuse at the shape
+/// door in this crate; when either of those limits moves, the line
+/// that has to change is [`require_iso_rectangle_face`]'s call in
+/// [`tessellate_curved`], and it is in `mesh`.
 ///
-/// The check here still earns its place, because it also answers a
-/// SECOND question `props` cannot (*did the walk produce a consistent
-/// polygon*, which is why the bar is spatial — [`entries_off_bbox`]);
-/// folding the first question into a call on the face-level predicate
-/// is the open follow-up, **issue #726**, not this unit.
-///
-/// **One line in `mesh` can defeat it.** `walk::iso_side_starts`
-/// collapses consecutive same-kind traversals onto one coordinate on a
-/// premise `walk::classify` never verifies — that every boundary edge
-/// is an iso-curve of the chart — and where that premise fails the
-/// collapse can turn a polygon this guard would have REFUSED into one
-/// that is its own bounding rectangle. The failing case (an obliquely
-/// cut SPHERE, whose every plane section is a `Circle` and so is not
-/// diverted to the trimmed lane), the two upstream gates that keep it
-/// unreachable today, and what would harden it are all stated at
-/// `walk::iso_side_starts`. It is the same shape as the paragraph
-/// above rather than an exception to it.
+/// **The `walk::iso_side_starts` collapse on two non-iso CARRIERS
+/// cannot defeat it any more; the collapse on a non-iso ARC still
+/// can.** That collapse merges consecutive same-kind traversals onto
+/// one coordinate on the premise that every boundary edge is an iso
+/// curve of the chart. Two tilted plane sections of a SPHERE both
+/// classify `Rim`, merge onto one `v`, and the polygon IS its own
+/// bounding rectangle — this check admitted it (executed: the
+/// collapsed lens walked to one `v`, passed here; with assertions on
+/// the S65 cross-face census panicked, with them off `tessellate`
+/// returned an `Ok` EMPTY mesh that `check_mesh` passes —
+/// `tests::the_lens_walk_collapses_onto_one_rim_level_and_the_spatial_
+/// check_admits_it`). The shape door refuses that face on
+/// `props_rim_axis_parallel` before the walk runs, on every kind
+/// (structural: per-edge CARRIER certification — a torus Villarceau
+/// lens refuses `props_rim_fit`). It does NOT certify that a traversed
+/// arc stays on one chart meridian: a great-circle arc crossing a pole
+/// passes the door and reaches this walk, where `mid_azimuth` reads
+/// the pole's `u` and the closing column disagrees by π (issue 1571,
+/// pinned in `tests/iso_rectangle_door.rs`). The qualification at
+/// `walk::iso_side_starts` is closed as worded; the premise it
+/// instanced stays inherited, and `walk`'s header says so.
 ///
 /// **A measured constant in this crate is re-derivable from the tree,
 /// or it says it is not.** The band's own doc ([`entries_off_bbox`])
@@ -622,8 +747,101 @@ fn require_swept_rectangle(
 /// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
 /// [`torus_grid_step`] is capped against the same value here, so a
 /// `2*pi` span gives `nu >= 8`.
+///
+/// **That arithmetic is VERIFIED and it is NOT the seam case's whole
+/// argument** (issue 897, and the distinction is the finding). Verified:
+/// `the_full_2pi_seam_never_reaches_the_two_column_shape` runs the
+/// capped step over its whole range and gets `nu >= 8` every time, with
+/// the row that goes red if the cap is lowered — at `pi`, four times
+/// today's cap, the same `2*pi` span sizes to exactly the two columns
+/// the fan needs — so the claim depends on the cap and says which way.
+/// **Not the whole argument, and the reason is PER ARM.** A full-`2*pi`
+/// seam does not live on one arm; the corpus puts one on three, and the
+/// bound means different things on each. The interior grid is
+/// `for j in 1..nv { for i in 1..nu }`, so it is EMPTY unless BOTH
+/// ranges are — `nv == 1` empties it however many columns `nu`
+/// schedules, which is the distinction the bound alone does not make:
+///
+/// * **Torus** — the seam arm where the bound is fully protective. The
+///   donut's two patches carry a seam on both meridians and size
+///   `nu x nv` = 85x43 up to 422x211, i.e. 3 528 up to **88 410**
+///   interior grid vertices per patch. Eight columns is a floor on a
+///   set with tens of thousands of members, and the two seam entries
+///   are separated by every one of them.
+/// * **Cone and sphere, seam-carrying and pole-free** — protective
+///   exactly when `nv >= 2`. The `band_0.1` body's cone walls run
+///   `nv` = 1 to 7 at the same deltas, so this arm is on both sides of
+///   the line depending on the patch.
+/// * **Cylinder** — the arm where the bound is VACUOUS, structurally
+///   and at every delta: [`grid_counts`]' cylinder arm returns
+///   `(nu, 1)` by construction, so the ROW range `1..nv` is empty and
+///   no interior point is ever emitted, whatever `nu` says. The
+///   washer's walls are `nu` = 10..71 with `nv = 1` throughout. What
+///   separates the seam's two entries there is the boundary chord
+///   rows, which this paragraph never mentioned.
+///
+/// So the floor is a real separation on most seam faces and no
+/// separation at all on the cylinder ones, and reading it as covering
+/// "the seam case" flattens that. The emission is therefore re-derived
+/// rather than argued — the emit pass's census runs on every patch the
+/// walk identifies a vertex on, on every arm, seam or pole.
 fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
+}
+
+/// The mesh ids this patch's boundary walk IDENTIFIES: an id the walk
+/// placed at two or more DISTINCT UV locations, together with the
+/// pole/apex entries. Empty ⟺ no boundary vertex of this patch is
+/// reachable at two places in parameter space, and then the emit
+/// pass's re-derivation has nothing to re-derive.
+///
+/// **The two sources are one set, and that is the point.** A pole
+/// corner and a full-2π seam double-traversal are the same situation
+/// for the collapse-and-drop argument — one mesh vertex entering the
+/// CDT at two parameter locations, with a triangle spanning both
+/// dropped as degenerate — and the argument that the drop leaves a
+/// fan rather than a hole is the same argument in both. Splitting
+/// them into two cases is what let the seam half go unchecked while
+/// the pole half was re-derived every build ([`pole_columns`] holds
+/// the seam off by arithmetic, and that arithmetic is protective on
+/// some arms and vacuous on others — the per-arm reading is there).
+///
+/// A pole entry that appears ONCE is still in the set: it cannot be
+/// collapsed, but including it keeps the census's footprint a
+/// superset of the pole-incident one it replaces, so no coverage
+/// moves with this definition.
+///
+/// The repeat half is [`crate::walk::ids_at_two_uvs`], which is where
+/// the spade-equality rule lives for both lanes; this function is that
+/// set unioned with the pole flags.
+#[cfg(debug_assertions)]
+fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
+    let mut identified = crate::walk::ids_at_two_uvs(polygon.iter().map(|e| (e.u, e.v, e.id)));
+    identified.extend(polygon.iter().filter(|e| e.pole).map(|e| e.id));
+    identified
+}
+
+/// The identified-vertex edge this patch uses more than twice, if any
+/// — the emitted form of #678's class, re-derived over the emission
+/// rather than argued from the grid.
+///
+/// A fan edge around an identified vertex is interior to the patch and
+/// used twice, or on the patch boundary and used once with the
+/// neighbouring face supplying the other use. Three or more uses in
+/// ONE patch means the collapse left something other than a fan, which
+/// is the non-manifold state, and four is #678's own signature.
+///
+/// Returns the edge and its use count so the caller can name both.
+/// Empty [`identified_ids`] means there is nothing to re-derive and
+/// the scan does not run — a wedge wall or an untrimmed patch pays
+/// nothing.
+#[cfg(debug_assertions)]
+fn overused_identified_edge(
+    polygon: &[UvPoint],
+    triangles: &[[u32; 3]],
+) -> Option<((u32, u32), usize)> {
+    let identified = identified_ids(polygon);
+    crate::walk::overused_identified_edge_in(&identified, triangles)
 }
 
 /// The sphere arm's extra sizing margin: it sizes at δ_s divided by
@@ -777,6 +995,7 @@ mod tests {
     //! and the sweep showing nothing this build authors trips it.
 
     use super::*;
+    use crate::sizing::MAX_ANGULAR_STEP;
     use geom_core::Tol;
     use geom_core::{Affine3, Point2, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
@@ -1342,11 +1561,29 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 254;
-    /// Typed refusals in the same sweep: `CertificateExceeded` on
-    /// bodies whose split geometry exceeds the chord certificate at
-    /// δ = 0.1, identically before and after #653.
-    const TOTAL_REFUSED: usize = 4;
+    const TOTAL_MESHED: usize = 250;
+    /// Typed refusals in the same sweep, two kinds: four
+    /// `CertificateExceeded` on the mirror nappe, whose split geometry
+    /// exceeds the chord certificate at δ = 0.1 (identically before
+    /// and after #653), and four `UnsupportedCurvedShape { props_rim_level }`
+    /// on the donut with a SEAM MERIDIAN split (either torus face, at
+    /// either pattern). The second kind is a recorded FINDING, not a
+    /// notch: the domain is a chart rectangle and the walk meshed it
+    /// before the shape door ran, but props' torus arm takes the face's
+    /// `v`-extent from the FIRST meridian's stored span
+    /// (`props::curved::torus_ends`), so a meridian carried by two
+    /// edges reads half the extent and the far rim is "not at an
+    /// extreme" — `topo::mass_properties` refuses the same body by the
+    /// same name. The door is props' predicate and is not softened
+    /// here; the limitation is props' extent derivation and is filed
+    /// against it as issue 1562 — its fix returns these totals to
+    /// (254, 4), and `tests/iso_rectangle_door.rs` pins the limitation
+    /// itself so the flip is visible. Splitting a RIM is fine on both
+    /// sides. Reach: `split_edge` on a torus seam directly, or a blend
+    /// whose surgery splits a torus meridian (`sweep::blend::surgery`
+    /// splits seam and meridian edges in production; whether one lands
+    /// on a torus is unmeasured), then `tessellate`.
+    const TOTAL_REFUSED: usize = 8;
 
     /// **The premise, swept.** Every curved face this build can put in
     /// front of [`tessellate_curved`] walks to a UV polygon that IS its
@@ -1424,18 +1661,18 @@ mod tests {
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
     }
 
-    /// **The refusal.** A notched iso domain is refused TYPED, naming
-    /// both re-entrant corners, where they are, and how far off the box
-    /// they sit; the swept rectangle passes. Asserting the production
-    /// refusal rather than a predicate's return value is what makes
-    /// this a guarantee about the lane instead of about a helper.
+    /// **The spatial check's own refusal.** A notched polygon is refused
+    /// TYPED, naming both re-entrant corners, where they are, and how
+    /// far off the box they sit; the swept rectangle passes. Asserting
+    /// the production refusal rather than a predicate's return value is
+    /// what makes this a guarantee about the check instead of about a
+    /// helper.
     ///
-    /// The fixture is a synthetic polygon because no public
-    /// construction mints such a body: the boolean refuses
-    /// `CurvedPierceUnsupported`, and `import_step`'s tier-3 gate
-    /// refuses `PropsError::NotIsoRectangle` before adoption.
-    /// That is precisely why the guard is here — the mesher is
-    /// otherwise protected only by other modules' limits.
+    /// The fixture is a synthetic polygon on purpose: a real notched
+    /// body never reaches this check any more — the shape door refuses
+    /// it on rim structure first (`tests/iso_rectangle_door.rs`, the
+    /// keyway) — so this row is the walk-consistency question asked in
+    /// isolation, which is the only way to ask it.
     #[test]
     fn a_notched_domain_is_refused_typed() {
         let fk = fixtures()
@@ -1965,5 +2202,224 @@ mod tests {
             }
         }
         (cdt.num_constraints() - before, hits)
+    }
+
+    /// A boundary entry at a chosen UV with a chosen mesh id.
+    ///
+    /// Gated with the rows that use it: they call
+    /// `#[cfg(debug_assertions)]` items, so with debug-assertions off
+    /// the rows are gone and this would be dead code.
+    #[cfg(debug_assertions)]
+    fn entry(u: f64, v: f64, id: u32, pole: bool) -> UvPoint {
+        UvPoint { u, v, id, pole }
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn identified_ids_takes_the_seam_the_pole_filter_misses() {
+        // RED FIRST for the widening (issue 897). A full-2π seam
+        // double-traversal: one mesh id, two ends of the u range, no
+        // pole flag anywhere. The set this census runs on must contain
+        // it; the filter it replaced — `e.pole` — is empty here, which
+        // is precisely how the seam case went unchecked.
+        let seam = vec![
+            entry(0.0, 0.0, 7, false),
+            entry(0.0, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 0.0, 7, false),
+        ];
+        assert_eq!(seam.iter().filter(|e| e.pole).count(), 0);
+        let mut got: Vec<u32> = identified_ids(&seam).into_iter().collect();
+        got.sort_unstable();
+        assert_eq!(got, vec![7, 8]);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn identified_ids_keeps_a_pole_corner_and_drops_an_ordinary_walk() {
+        // The set stays a SUPERSET of the pole-incident one it
+        // replaced: a pole entry is in it even when it appears once
+        // and so cannot be collapsed.
+        let one_pole = vec![
+            entry(0.0, 0.0, 1, true),
+            entry(1.0, 0.0, 2, false),
+            entry(1.0, 1.0, 3, false),
+        ];
+        assert_eq!(
+            identified_ids(&one_pole).into_iter().collect::<Vec<_>>(),
+            vec![1]
+        );
+        // And a walk that identifies nothing costs the census nothing:
+        // the emit pass returns before scanning a triangle.
+        let plain = vec![
+            entry(0.0, 0.0, 1, false),
+            entry(1.0, 0.0, 2, false),
+            entry(1.0, 1.0, 3, false),
+        ];
+        assert!(identified_ids(&plain).is_empty());
+        assert_eq!(overused_identified_edge(&plain, &[[1, 2, 3]]), None);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_repeat_at_the_same_uv_is_one_spade_vertex_and_not_identified() {
+        // "Distinct" is spade's `==`, not a bit compare: an entry the
+        // CDT merges cannot be fanned apart, so it is not in the set.
+        let merged = vec![
+            entry(0.0, -0.0, 4, false),
+            entry(1.0, 0.0, 5, false),
+            entry(-0.0, 0.0, 4, false),
+        ];
+        assert!(identified_ids(&merged).is_empty());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_seam_vertex_fanned_over_one_column_is_caught() {
+        // RED FIRST for the guard itself, in #678's own shape but with
+        // a SEAM rather than a pole supplying the identification: the
+        // two entries of id 8 end up sharing a single interior column
+        // (id 9), so the edge (8, 9) is used four times in one patch.
+        let seam = vec![
+            entry(0.0, 0.0, 7, false),
+            entry(0.0, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 0.0, 7, false),
+        ];
+        let fanned = [[8, 9, 7], [9, 8, 10], [8, 9, 11], [9, 8, 12]];
+        assert_eq!(overused_identified_edge(&seam, &fanned), Some(((8, 9), 4)));
+        // The fan the argument PREDICTS — every identified edge at two
+        // uses — is quiet.
+        let clean = [[7, 8, 9], [8, 7, 10], [9, 8, 10], [7, 9, 10]];
+        assert_eq!(overused_identified_edge(&seam, &clean), None);
+    }
+
+    /// The census threshold is at THREE uses, not four.
+    ///
+    /// Three is already the non-manifold state — an undirected edge
+    /// interior to a patch has two uses and a boundary one has one, so
+    /// a third use is the defect however many more follow. #678's own
+    /// witness happens to show four, and a threshold written from that
+    /// witness (`n > 3`) is a mutant this census would otherwise
+    /// survive: every other row here fans an edge four times. This row
+    /// fans one exactly three times.
+    #[cfg(debug_assertions)]
+    #[test]
+    fn three_uses_of_an_identified_edge_is_already_the_defect() {
+        let seam = vec![
+            entry(0.0, 0.0, 7, false),
+            entry(0.0, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 0.0, 7, false),
+        ];
+        let thrice = [[8, 9, 7], [9, 8, 10], [8, 9, 11]];
+        assert_eq!(
+            overused_identified_edge(&seam, &thrice),
+            Some(((8, 9), 3)),
+            "a third use is the defect; a threshold of four would pass this patch"
+        );
+    }
+
+    #[test]
+    fn the_full_2pi_seam_never_reaches_the_two_column_shape() {
+        // `pole_columns`' argument for the seam case, VERIFIED as the
+        // arithmetic it claims to be: the fan needs a single interior
+        // column between the two identified entries (`nu == 2`), and a
+        // 2π span cannot size to one while the angular cap holds.
+        let tau = core::f64::consts::TAU;
+        // THE MECHANISM, NAMED AS THE ONE THAT FIRES. An earlier
+        // spelling of this row opened with
+        // `const { assert!(MAX_ANGULAR_STEP <= FRAC_PI_4) }`, which
+        // reds at COMPILE time if the cap is raised — so the runtime
+        // asserts the row advertises would never have run, and the row
+        // named a mechanism that could not be the one to fire. The cap
+        // is pinned here instead, through the same door the sizing
+        // arms use, so a raised cap reds THIS assert, at run time, in
+        // the same battery as the rest.
+        assert_eq!(
+            ceil_count(tau, cap_angular(f64::INFINITY)).unwrap(),
+            8,
+            "the angular cap decides the seam bound: at pi/4 a 2*pi span takes eight columns"
+        );
+        for step in [
+            f64::MIN_POSITIVE,
+            1e-12,
+            1e-6,
+            MAX_ANGULAR_STEP,
+            1.0,
+            1e6,
+            f64::INFINITY,
+            f64::NAN,
+        ] {
+            // A refusal is the far side of the same claim — the count
+            // the step asks for is past `ceil_count`'s 2^24 cap, which
+            // is not two columns either.
+            assert!(
+                !matches!(ceil_count(tau, cap_angular(step)), Ok(n) if n < 8),
+                "a 2π span at capped step {step} sized below eight columns"
+            );
+        }
+        // The row that goes RED if the floor is lowered: at a cap of π
+        // — four times today's — the same span sizes to exactly the
+        // two-column shape, and the arithmetic stops holding the case
+        // off. The cap is what this depends on, and this says so.
+        assert_eq!(ceil_count(tau, core::f64::consts::PI).unwrap(), 2);
+    }
+
+    /// **The `walk::iso_side_starts` qualification, executed and
+    /// closed.** The oblique lens is a sphere face bounded by two
+    /// tilted plane sections meeting off the axis. Both classify `Rim`
+    /// in the walk (`|n · axis| > 0.5`), so `iso_side_starts` merges
+    /// them onto ONE `v`: the polygon collapses onto a single rim level
+    /// and IS its own bounding box, and the spatial check ADMITS it —
+    /// the severity flip the qualification recorded, measured here
+    /// rather than argued. (Run through `tessellate` with the door
+    /// removed and debug assertions on, the S65 cross-face census
+    /// panicked on that walk; with them off `tessellate` returned an
+    /// `Ok` EMPTY mesh — 12 positions, two patches of 0 triangles —
+    /// which `check_mesh` PASSES.) The shape door refuses the same
+    /// face on its rims' CARRIERS before the walk runs, which closes
+    /// the qualification as worded; it does not establish the walk's
+    /// arc premise (issue 1571), and this row does not claim it does.
+    #[test]
+    fn the_lens_walk_collapses_onto_one_rim_level_and_the_spatial_check_admits_it() {
+        let (body, face) = crate::witness_bodies::oblique_lens();
+        let walked = curved_walks(&body);
+        let (fk, poly, levers) = walked
+            .iter()
+            .find(|(fk, _, _)| *fk == face)
+            .expect("the lens face is walked");
+        let v0 = poly[0].v;
+        assert!(
+            poly.iter().all(|e| e.v.to_bits() == v0.to_bits()),
+            "two Rim-classified oblique arcs collapse onto one v; got {:?}",
+            poly.iter().map(|e| e.v).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            require_swept_rectangle(*fk, poly, levers, bbox(poly), eps()),
+            Ok(()),
+            "the collapsed polygon is its own (degenerate) bounding box, so the \
+             walk-consistency check cannot see that it is wrong"
+        );
+        let surface = body
+            .get_surface(body.get_face(face).unwrap().surface)
+            .unwrap();
+        let outer = body.get_face(face).unwrap().outer;
+        assert_eq!(
+            require_iso_rectangle_face(
+                &body,
+                face,
+                outer,
+                surface,
+                Band::linear(Tol::witness()).unwrap()
+            ),
+            Err(TessellateError::UnsupportedCurvedShape {
+                face,
+                source: geom_brep::props::PropsError::NotIsoRectangle {
+                    what: "props_rim_axis_parallel",
+                },
+            }),
+            "the shape door refuses the lens on rim structure, before any walk"
+        );
     }
 }

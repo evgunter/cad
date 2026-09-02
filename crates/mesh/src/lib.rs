@@ -147,12 +147,25 @@
 //! corner points; `curved::pole_columns` is what guarantees that
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
-//! The `debug_assert` that re-derives the conclusion over each pole
-//! patch is `#[cfg(debug_assertions)]`, which cargo's release default
-//! compiles out — so whether a release build carries more than the
-//! floor is a manifest setting, and the root `Cargo.toml` currently
-//! sets `debug-assertions = true` for `[profile.release]` (a
-//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list).
+//! The `debug_assert` that re-derives the conclusion runs over each
+//! patch whose walk IDENTIFIES a vertex — a pole corner or a seam
+//! double-traversal, one set rather than two cases
+//! (`curved::identified_ids`, issue 897) — and a second re-derivation
+//! at the end of `tessellate` counts each chord segment's uses across
+//! the whole mesh, which is the CROSS-FACE half no per-patch census
+//! can see. **What that made mechanical is the FULL-2π SEAM half of
+//! the pole-fan argument**: before issue 897 the seam was held off by
+//! an arithmetic claim in `pole_columns`' prose (a `2π` span sizes to
+//! `nu >= 8`, so the two seam entries never share one interior column)
+//! and by no check at all, while the pole half was re-derived on every
+//! patch. The seam half is now re-derived on the same footing.
+//! Both censuses are `#[cfg(debug_assertions)]`, which cargo's release
+//! default would drop — so whether a release build carries more than
+//! the floor is a manifest setting, and the root `Cargo.toml`
+//! currently sets `debug-assertions = true` for `[profile.release]` (a
+//! pre-publish posture, on `DESIGN.md`'s *Before publishing* list), so
+//! today both DO run in release, at a measured +13% to +15% of
+//! `tessellate` on the corpus's largest mesh.
 //! `curved`'s module header states what runs where, and why the
 //! `debug_assert` — not a typed refusal — is the settled mechanism for
 //! that state (a D2 addendum row-5 state, ruled in #884).
@@ -253,6 +266,21 @@ mod trimmed;
 pub mod types;
 pub mod validate;
 pub mod walk;
+
+/// The Euler-door witnesses the iso-rectangle shape door is measured
+/// on — one definition, shared with the integration suite through
+/// `tests/common/witness_bodies.rs` (its header says why it uses
+/// nothing from this crate). Test-only: in-crate rows reach the walk
+/// itself on these bodies, the suite reaches the public door. The
+/// trade: a `tests/` file mounted into `src` is unusual and a reader
+/// finds it only through this line; the alternatives were a second
+/// copy of the builders (the duplication a style lane raises) or a
+/// dev-only feature exposing the walk to `tests/` (public surface for
+/// a test's convenience). The mount costs one path attribute.
+#[cfg(test)]
+#[path = "../tests/common/witness_bodies.rs"]
+#[allow(dead_code, unreachable_pub)]
+mod witness_bodies;
 
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};

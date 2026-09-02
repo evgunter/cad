@@ -37,6 +37,7 @@ members = [
     "crates/sweep",
     "crates/test-utils",
     "crates/topo",
+    "crates/verbs",
     "crates/viewer",
 ]
 

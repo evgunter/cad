@@ -36,8 +36,8 @@
 //! `check_mesh`. [`iso_side_starts`] now groups consecutive traversals
 //! into RUNS and gives each run ONE coordinate, so bitwise
 //! straightness is this module's GUARANTEE rather than its intent.
-//! [`crate::curved`]'s domain guard still bands its comparison in
-//! metres (`curved::entries_off_bbox`) — as a backstop, no longer as
+//! [`crate::curved`]'s walk-consistency check still bands its comparison
+//! in metres (`curved::entries_off_bbox`) — as a backstop, no longer as
 //! the thing that keeps valid parts from being refused.
 //!
 //! One structural exception to the continuity rule: a
@@ -497,6 +497,92 @@ pub(crate) struct UvPoint {
 
 const TAU: f64 = core::f64::consts::TAU;
 
+/// The ids that appear at two or more DISTINCT UV locations among
+/// `entries` — the "one mesh vertex, two parameter locations" state
+/// that both tessellation lanes have to reason about, with ONE home.
+///
+/// **"Distinct" means what SPADE means by it**, which is why this
+/// compares `f64`s and not their bits. Spade's vertex lookup is
+/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0` are
+/// ONE spade vertex and two bit patterns. A `to_bits` compare would
+/// report "apart" exactly where spade dedupes, which is an invariant
+/// restated in a spelling that disagrees with the module it is about.
+/// Two entries spade merges are one CDT vertex and cannot be fanned
+/// apart; two it keeps can.
+///
+/// Both callers used to carry their own copy of that rule against
+/// their own polygon type (`curved::identified_ids` over
+/// [`UvPoint`], `trimmed::id_repeats_apart` over `(u, v, id)`
+/// triples), one of them documenting itself AS a copy. The rule is
+/// spade's, not either lane's, so it lives once and both lanes hand it
+/// their entries.
+pub(crate) fn ids_at_two_uvs(
+    entries: impl IntoIterator<Item = (f64, f64, u32)>,
+) -> std::collections::HashSet<u32> {
+    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
+    let mut repeated: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for (u, v, id) in entries {
+        #[allow(clippy::float_cmp)]
+        if seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)) {
+            repeated.insert(id);
+        }
+    }
+    repeated
+}
+
+/// The undirected key of the edge `(a, b)`: endpoints ascending.
+///
+/// One home for the spelling every edge census in this crate uses —
+/// the two in [`mod@crate::tessellate`], the pole/seam one in
+/// [`crate::curved`] and [`crate::trimmed`], `planar`'s crossing
+/// bookkeeping and [`crate::validate::check_mesh`]'s manifoldness
+/// census. The censuses themselves are deliberately NOT unified: they
+/// ask different questions (which edges to count at all, what count is
+/// legal, whether winding is tracked), and folding them together would
+/// state a shared conclusion they do not share. What they do share is
+/// this key, and a key spelled six ways is six chances to spell it
+/// wrong.
+pub(crate) const fn edge_key(a: u32, b: u32) -> (u32, u32) {
+    if a < b { (a, b) } else { (b, a) }
+}
+
+/// The edge incident to an IDENTIFIED vertex that this patch uses more
+/// than twice, if any — the emitted form of #678's class, re-derived
+/// over the emission rather than argued from the grid, for whichever
+/// lane hands it a patch.
+///
+/// A fan edge around an identified vertex is interior to the patch and
+/// used twice, or on the patch boundary and used once with the
+/// neighbouring face supplying the other use. THREE or more uses in
+/// ONE patch means the collapse left something other than a fan, which
+/// is the non-manifold state; four is #678's own signature, and the
+/// threshold is at three because three is already the state — a row
+/// pins that, since `n > 3` is a mutant this census would otherwise
+/// survive.
+///
+/// An empty `identified` set means there is nothing to re-derive and
+/// the scan does not run at all: a wedge wall, an untrimmed patch or
+/// any face whose walk repeats no id pays one branch.
+#[cfg(debug_assertions)]
+pub(crate) fn overused_identified_edge_in(
+    identified: &std::collections::HashSet<u32>,
+    triangles: &[[u32; 3]],
+) -> Option<((u32, u32), usize)> {
+    if identified.is_empty() {
+        return None;
+    }
+    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+    for t in triangles {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            if identified.contains(&a) || identified.contains(&b) {
+                *uses.entry(edge_key(a, b)).or_insert(0) += 1;
+            }
+        }
+    }
+    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
+}
+
 /// `raw + 2πk` nearest `prev`.
 fn unwrap_near(raw: f64, prev: f64) -> f64 {
     raw + TAU * ((prev - raw) / TAU).round()
@@ -559,7 +645,7 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///   column is the closing vertex's own azimuth either way. What it
 ///   measures is INPUT quality, and it is this project's only detector
 ///   for a class of defective source coordinates (S22).
-/// - [`crate::curved`]'s swept-rectangle domain guard
+/// - [`crate::curved`]'s walk-consistency check
 ///   (`entries_off_bbox`) — decides whether a face is REFUSED. #648
 ///   compared exactly there, on the then-false premise that every iso
 ///   side is bitwise straight, and false-refused valid parts. #653
@@ -705,8 +791,14 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///   from the mesh being right. And release now has NO detector at all
 ///   for the defective-source class: under the old shape a large
 ///   residue left the polygon unsnapped, which the CDT pre-check would
-///   refuse typed. Nothing above 3.6e-9 rad has ever been seen, so the
-///   practical risk is small — but it is a trade, not a free win.
+///   refuse typed. On source data nothing above 3.6e-9 rad has been
+///   seen; two π-rad witnesses exist, both a meridian ARC that crosses
+///   a pole mid-edge (issue 723's half-cap through import; issue 1571's
+///   Euler-door body, which the shape door admits) — the carrier
+///   midpoint then sits a half-turn from the closing vertex, and this
+///   assertion is what announces it in a debug build. The practical
+///   risk on ordinary data is small — but it is a trade, not a free
+///   win.
 ///
 /// A typed warning channel would dominate both; there is none, and
 /// building one is **issue #868** — which is why the trade is where it
@@ -782,27 +874,43 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: Eps) -> f64 {
 /// That last one is a severity FLIP, not a wash, and it is worth being
 /// explicit: per-edge, the two sub-arcs took two different wrong
 /// coordinates and the polygon would very likely have failed
-/// [`crate::curved`]'s domain guard as a typed
+/// [`crate::curved`]'s spatial check as a typed
 /// `UnsupportedCurvedDomain`; collapsed, it can BE its own bounding
 /// rectangle and be admitted. The #653 sweep cannot see this — it
 /// measures straightness and watertightness, not whether two sides
-/// were correctly distinguished.
+/// were correctly distinguished. **Executed, not argued**: an
+/// obliquely cut sphere assembled through the Euler doors (the one
+/// route no certification fronts) walked to a polygon on ONE `v` and
+/// passed the spatial check; with debug assertions on, `tessellate`
+/// panicked at the S65 cross-face census (a chord segment used by no
+/// triangle); with them off it returned `Ok` on an EMPTY mesh — 12
+/// positions, two patches of 0 triangles — which `check_mesh` PASSES,
+/// having nothing to find non-manifold
+/// (`curved::tests::the_lens_walk_collapses_onto_one_rim_level_and_
+/// the_spatial_check_admits_it`, `tests/iso_rectangle_door.rs`).
 ///
-/// **Reachable today: no**, by two upstream gates. `topo`'s boolean
-/// doors refuse plane × sphere cuts typed, wider than any tilt
-/// distinction: `splitting::split` refuses every sphere-face cut
-/// `CurvedBooleanUnsupported` and `boolean_op_with` refuses
-/// `CurvedPierceUnsupported`, measured across cut heights in the
-/// issue-896 review rows (an earlier form of this sentence cited a
-/// `SectionInvariant` refusal with an axis-aligned cut succeeding —
-/// that witness does not reproduce on today's tree, and the refusal
-/// is now broader than it claimed). `import_step`'s tier-3
-/// `props::curved::sphere_boundary` admits a circle only as a coaxial
-/// rim or a great circle centred at the sphere centre — read, not
-/// executed, and so the one door not directly witnessed. Recorded
-/// rather than fixed: the cheap hardening, if this ever needs one, is
-/// for `classify` to require the rim circle's centre ON the axis
-/// (`|w − â(w·â)| < eps`) rather than only `|n · axis| > 0.5`.
+/// **CLOSED AS WORDED, by the shape door — and only as worded.** The
+/// case this qualification instanced is two consecutive same-kind
+/// traversals whose CARRIERS are not iso curves, and that is what
+/// `geom_brep::props::require_iso_rectangle` refuses per edge, on
+/// every kind, before `curved::tessellate_curved` walks a face: the
+/// oblique section on `props_rim_axis_parallel`, a torus Villarceau
+/// circle on `props_rim_fit`. **The premise itself is NOT established
+/// by that door.** Props certifies the carrier — a great circle
+/// through the sphere centre — not that the traversed ARC stays on one
+/// chart meridian; a great circle contains both poles, so one meridian
+/// arc can cross a pole mid-edge, where `u` jumps by π, and such a
+/// face passes the door on every face and measures its exact volume
+/// (issue 1571, executed: `tests/mesh7r1_probes.rs`, pinned in
+/// `tests/iso_rectangle_door.rs`). The sentence above this list —
+/// "inherited from upstream rather than verified" — therefore still
+/// stands; what changed is that the two-non-iso-carriers instance is
+/// refused typed, and the upstream gates that kept it unreachable
+/// (the boolean's typed refusal of every sphere-face cut, tier 3 on
+/// the import route) are no longer what that instance rests on. The
+/// cheap hardening once recorded here (a coaxiality test in
+/// `classify`) is not taken: the door decides coaxiality at props'
+/// band; what it does not decide, arc membership, is issue 1571's.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
 ///

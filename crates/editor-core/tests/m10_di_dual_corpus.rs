@@ -20,13 +20,33 @@
 //!
 //! # The DL3 witnesses, by name
 //!
-//! Two corpus documents are the measured reason the policy seam
-//! exists: `cut_cylinder` (ellipse-trimmed cylinder) and `loft_prism`
-//! (NURBS walls) both gather green at `Dual64` while the DIRECT
-//! certified door refuses their product bodies at that scalar with
-//! `VolumeUncomputable`. The gather rows below pin that set by name in
-//! both directions, so a witness silently going green (or a new one
+//! Corpus documents that gather green at `Dual64` while the direct
+//! at-rest door refuses their product bodies at that scalar are the
+//! measured reason the policy seam exists. The door a dual can take is
+//! now the validator's STRUCTURAL half — the composed entry carries the
+//! +V invariant's certified bound and cannot be called at a dual — so
+//! the witness set is the set that half refuses, pinned by name in both
+//! directions below, and a witness silently going green (or a new one
 //! appearing) is loud.
+//!
+//! **The set is EMPTY today, and that is the measurement rather than an
+//! omission.** Neither `VolumeUncomputable` NOR `NegativeVolume` is
+//! among the classes a dual can collect here any more, and the reason
+//! is the door rather than the scalar: the whole +V invariant — its
+//! certified quadrature AND its closed form, which computes at any
+//! scalar — lives in the certified half, so the structural door says
+//! nothing about orientation at all. DL3's two named witnesses,
+//! `cut_cylinder` (ellipse-trimmed cylinder) and `loft_prism` (NURBS
+//! walls), now pass the structural half at `Dual64`; the row below pins
+//! them there and at the composed `f64` door, so the retirement is
+//! asserted rather than left as an absence. **What a dual gives up here
+//! is not only the refusal it used to receive but, on a closed-form
+//! body, the SIGN it used to be given** — recorded at the doors and
+//! pinned by `topo/tests/geometric_cube.rs`'s
+//! `the_structural_half_does_not_judge_orientation_at_any_scalar`. The
+//! verdict is still reachable at a dual through the mixed passes that
+//! keep their lanes (`validate_pseudomanifold`, `contact_marks`,
+//! `mass_properties`).
 //!
 //! # What the memo rows assert
 //!
@@ -52,10 +72,12 @@ use editor_core::{
 use geom_core::{Decide, Dual64, Tol};
 use topo::Body;
 
-/// The gather-door witness pair (module docs): gathers at `Dual64`
-/// because the policy gate is absent; refused by the DIRECT certified
-/// door at that scalar.
-const DUAL_REFUSED_BY_DIRECT_DOOR: [&str; 2] = ["cut_cylinder", "loft_prism"];
+/// The gather-door witnesses (module docs): they gather at `Dual64`
+/// because the policy gate is absent, and the door a dual CAN take —
+/// the validator's structural half — refuses their product bodies at
+/// that scalar.
+const DUAL_REFUSED_BY_THE_STRUCTURAL_DOOR: [&str; 0] = [];
+const FORMER_DL3_WITNESSES: [&str; 2] = ["cut_cylinder", "loft_prism"];
 
 /// A scalar's VALUE CHANNEL as exact bits — what "bit-identical to the
 /// base scalar's run" quantifies over. At the interval pair this is
@@ -150,12 +172,12 @@ fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
                     ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.point3(*origin);
-                        d.vec3(*normal);
+                        d.vec3(normal.get());
                     }
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.point3(*origin);
-                        d.vec3(*dir);
+                        d.vec3(dir.get());
                     }
                     ValuePayload::Datum(DatumValue::Point { position }) => {
                         d.u64(12);
@@ -293,14 +315,14 @@ fn every_document_evaluates_at_dual64_with_the_f64_value_channel() {
 /// f64 `gate_at_rest` arm gains its corpus-level witness; today that
 /// arm's refusing pin is `topo`'s `at_rest_policy_tests`), every one
 /// gathers at `Dual64` too with a bit-equal value channel, and the
-/// documents whose product bodies the DIRECT certified door refuses at
-/// `Dual64` are exactly [`DUAL_REFUSED_BY_DIRECT_DOOR`] — gathered
-/// green only because the policy gate is absent there.
+/// documents whose product bodies the structural door refuses at
+/// `Dual64` are exactly [`DUAL_REFUSED_BY_THE_STRUCTURAL_DOOR`] —
+/// gathered green only because the policy gate is absent there.
 #[test]
 fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
     let tol = Tol::witness();
     let docs = documents();
-    let mut direct_door_refused: Vec<&'static str> = Vec::new();
+    let mut structural_door_refused: Vec<&'static str> = Vec::new();
     for doc in &docs {
         let ev_f = eval::<f64>(&doc.doc);
         let ev_d = eval::<Dual64>(&doc.doc);
@@ -312,36 +334,58 @@ fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
         df.body(&product_f.body);
         dd.body(&product_d.body);
         assert_eq!(df.0, dd.0, "{}: product value channel", doc.name);
-        if topo::validate_geometric(&product_d.body, tol).is_err() {
-            direct_door_refused.push(doc.name);
+        if topo::validate_geometric_structural(&product_d.body, tol).is_err() {
+            structural_door_refused.push(doc.name);
         }
     }
     assert_eq!(
-        direct_door_refused,
-        DUAL_REFUSED_BY_DIRECT_DOOR.to_vec(),
-        "the direct-door-refuses-at-Dual64 witness set moved — re-derive \
+        structural_door_refused,
+        DUAL_REFUSED_BY_THE_STRUCTURAL_DOOR.to_vec(),
+        "the structural-door-refuses-at-Dual64 witness set moved — re-derive \
          DL3's witnesses and update the module docs"
     );
 }
 
-/// Item-by-name confirmation that each witness's refusal is the
-/// measured class: `VolumeUncomputable` through the dual's refusing
-/// quadrature arms — the exact refusal DL3's design text names.
+/// **DL3's two named witnesses no longer refuse anything at `Dual64`,
+/// and that is the measurement this row now carries.** Both refused the
+/// direct door with `VolumeUncomputable`, raised by the dual's refusing
+/// quadrature arm inside the +V invariant — and the invariant as a
+/// whole, closed form included, is what the split moved behind the
+/// certified bound. So these two lose a refusal here; a body whose
+/// closed form DOES compute loses the verdict instead. With the validator split, `cut_cylinder` and
+/// `loft_prism` pass the structural half at `Dual64` outright, and the
+/// same documents pass the composed door at `f64`, so the pair is a
+/// scalar difference in what may be CLAIMED and no longer a difference
+/// in what is FOUND.
+///
+/// Pinned by name, both directions, on both doors: a witness that
+/// starts refusing again is loud, and so is one whose `f64` verdict
+/// moves. What this row does NOT assert is that the policy seam is
+/// unnecessary — the seam is why these gather at all, and its own
+/// justification is a scalar's certification rights, not this corpus.
 #[test]
-fn each_dual_witness_refuses_the_direct_door_with_volume_uncomputable() {
+fn the_dl3_witnesses_pass_both_doors_they_can_still_reach() {
     let tol = Tol::witness();
     let docs = documents();
-    for doc in named(&docs, &DUAL_REFUSED_BY_DIRECT_DOOR) {
+    for doc in named(&docs, &FORMER_DL3_WITNESSES) {
         let ev_d = eval::<Dual64>(&doc.doc);
         let product = product_recorded(&doc.doc, &ev_d, tol)
             .unwrap_or_else(|e| panic!("{}: must gather at Dual64: {e}", doc.name));
-        let errors = topo::validate_geometric(&product.body, tol)
-            .expect_err("a named witness must refuse the direct door at Dual64");
-        assert!(
-            errors
-                .iter()
-                .any(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
-            "{}: expected a VolumeUncomputable refusal, got {errors:?}",
+        assert_eq!(
+            topo::validate_geometric_structural(&product.body, tol),
+            Ok(()),
+            "{}: the structural half must pass at Dual64 — its refusal was the \
+             +V invariant's, and this door runs no part of that invariant",
+            doc.name
+        );
+        let ev_f = eval::<f64>(&doc.doc);
+        let product_f = product_recorded(&doc.doc, &ev_f, tol)
+            .unwrap_or_else(|e| panic!("{}: the f64 product gather refused: {e}", doc.name));
+        assert_eq!(
+            topo::validate_geometric(&product_f.body, tol),
+            Ok(()),
+            "{}: the composed door must pass at f64 — the +V invariant is a claim \
+             about this body that a certifying scalar can make",
             doc.name
         );
     }

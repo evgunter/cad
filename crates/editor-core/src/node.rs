@@ -492,8 +492,7 @@ pub enum Datum {
 /// **INHABITED as of ASM-R2b D-4** — the hook ASM-4 named is taken up
 /// by its one intended inhabitant, the crossing MATE EDGE. The
 /// obligation ASM-4 recorded here is discharged with it: the record
-/// now feeds the instantiate node's content key, and the format change
-/// rode a schema-version bump (see [`crate::SCHEMA_VERSION`]'s ledger).
+/// now feeds the instantiate node's content key and is file data.
 ///
 /// An enum with a single variant, not a struct, for the reason ASM-4
 /// gave: a crossing is whatever KIND of edge crossed, and mates are

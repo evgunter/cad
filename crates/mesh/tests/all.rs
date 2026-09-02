@@ -56,6 +56,8 @@ mod issue111_az_needle;
 #[path = "issue303_signed_volume_recentring.rs"]
 mod issue303_signed_volume_recentring;
 
+#[path = "iso_rectangle_door.rs"]
+mod iso_rectangle_door;
 #[path = "issue1362_band_placement.rs"]
 mod issue1362_band_placement;
 #[path = "issue555_subfloor_cap.rs"]
@@ -64,6 +66,8 @@ mod issue555_subfloor_cap;
 mod issue685_nu1_sizing;
 #[path = "issue896_pole_guard.rs"]
 mod issue896_pole_guard;
+#[path = "issue897_s65_cost.rs"]
+mod issue897_s65_cost;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -72,6 +76,8 @@ mod m5_s10_face_sense;
 mod m5_s11_concave_sense;
 #[path = "m7_nurbs_trimmed.rs"]
 mod m7_nurbs_trimmed;
+#[path = "mesh7r1_probes.rs"]
+mod mesh7r1_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
 #[path = "prisms.rs"]
@@ -98,6 +104,8 @@ mod r2_cert9_probes;
 mod r2_mesh1_probes;
 #[path = "r2_mesh2_probes.rs"]
 mod r2_mesh2_probes;
+#[path = "r2_mesh6_probes.rs"]
+mod r2_mesh6_probes;
 #[path = "r2_split_door.rs"]
 mod r2_split_door;
 #[path = "review_m2_pr6_cert_oracle.rs"]
@@ -426,3 +434,5 @@ fn the_eps_inventory_is_pinned() {
         "the crate has six terminal ε reads; the operation columns must sum to them"
     );
 }
+#[path = "r2_mesh7_probes.rs"]
+mod r2_mesh7_probes;

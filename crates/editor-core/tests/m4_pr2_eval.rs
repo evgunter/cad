@@ -339,6 +339,7 @@ fn split_evaluates_both_parts_role_tagged() {
     // The datum evaluated with a NORMALIZED normal.
     match &ev.value(plane).unwrap().payload {
         ValuePayload::Datum(DatumValue::Plane { normal, .. }) => {
+            let normal = normal.get();
             assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         }
         other => panic!("expected datum, got {}", other.kind_name()),

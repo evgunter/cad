@@ -310,7 +310,7 @@ type DocumentGapEntry = (Verb, &'static str, fn() -> Vec<profile::Step<f64>>);
 const NOT_IN_DOCUMENT: &[DocumentGapEntry] = &[(
     Verb::ContinueTo,
     "the declared point-target continuation (issue 433's lattice half): reaching the \
-     document means reaching the wire, which is a ratified schema bump and its own unit",
+     document means reaching the wire, which is a format change and its own unit",
     // Minimal on purpose: `At` establishes a position so the chain is
     // well-formed, and the closer arm carries the verb under test.
     || {

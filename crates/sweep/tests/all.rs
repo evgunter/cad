@@ -96,6 +96,10 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "torax_axial.rs"]
+mod torax_axial;
+#[path = "torax_interval.rs"]
+mod torax_interval;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -462,5 +466,9 @@ mod r1_p2_probes;
 
 #[path = "bool1_r2_probes.rs"]
 mod bool1_r2_probes;
+#[path = "cert_m2r1_head.rs"]
+mod cert_m2r1_head;
+#[path = "cert_m2r1_passes.rs"]
+mod cert_m2r1_passes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;

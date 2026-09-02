@@ -797,7 +797,12 @@ macro_rules! nurbs_curve {
             /// a negative one it is by the smallest. (The opposite
             /// choice — dividing by the min-weight floor — is the
             /// direction for an UPPER bound on the derivative, and
-            /// would be unsound here.) Which case applies is a
+            /// would be unsound here. Its deliberate instance is the
+            /// `derivative_sup` whole-patch sup in `step-import`'s
+            /// `recognize` module, whose rational track divides by
+            /// `w_min` for exactly that reason: the two bounds face
+            /// opposite ways, so neither derivation may be copied into
+            /// the other's site.) Which case applies is a
             /// question about a `Real`, which this code may not ask, so
             /// it takes the **lattice min of both divisions**: that is
             /// `L/w_max` exactly when `L ≥ 0` and `L/w_min` exactly

@@ -555,11 +555,6 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
 /// **Two rows survive, and each names a different reason** — which is
 /// why this table is still worth running:
 ///
-/// - a **TORUS** wall (the barrel bulged about a centre OFF the axis)
-///   is outside the axial kinds, so the body never reaches the door
-///   and keeps the C5 table's own refusal, naming the PAIR. Nothing in
-///   either PR widened `intersect::route`, and this row is what says
-///   so on a body rather than in a sentence.
 /// - a **TANGENT** junction has no transversal corner to solve at all,
 ///   and the conditioning meter says so in the geometry's own terms.
 ///   The bullet's `cylinder ∩ sphere` is the SAME surface pair as the
@@ -600,40 +595,39 @@ fn the_hollow_now_survives_every_axial_junction() {
             lifted_dome(tol),
             t,
         ),
+        // FLIPPED again: the barrel bulged about a centre OFF the axis
+        // has a TORUS wall, which the axial reduction now reads as the
+        // meridian circle centred `(R, h_c)` that it is. The body no
+        // longer falls to the per-chart loop, so it never asks the C5
+        // table about `plane × torus` — and nothing here widened
+        // `intersect::route`, which is what makes that worth a row.
+        (
+            "a belly bulged about a centre OFF the axis: a TORUS wall",
+            torus_barrel(tol),
+            t,
+        ),
     ] {
         pncad::topo::shell(&body, thickness, FIT_TOL, tol)
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
     }
 
-    for (what, body, thickness, door) in [
-        (
-            "a belly bulged about a centre OFF the axis: a TORUS wall",
-            torus_barrel(tol),
-            t,
-            "NeighborPairUnroutable(Plane x Torus)",
-        ),
-        (
-            "a hemisphere TANGENT to its cylinder",
-            bullet(tol),
-            t,
-            // main renamed this door's payload to
-            // `CarrierLaneUnsupported(declared)` while this branch was
-            // open. The rename is moot for the bullet: a tangent
-            // junction no longer reaches a carrier lane at all, it
-            // refuses at the corner's own transversality meter. The
-            // lifted dome and the quarter-revolve wedge, which main
-            // still lists here, are on the hollowing list above.
-            "TogetherAxialCorner",
-        ),
-    ] {
-        let e = pncad::topo::shell(&body, thickness, FIT_TOL, tol)
-            .expect_err("this junction is not square, so the hollow must refuse");
-        assert_eq!(
-            offset_refusal(&e),
-            door,
-            "{what}: the door that refuses is part of the finding, not an incidental"
-        );
-    }
+    // ONE row is left on the refusing side, and it is written as one
+    // rather than as a table of one: the torus belly moved to the list
+    // above when the axial reduction learned its kind, and the tangent
+    // bullet is the only junction here that still has no corner to
+    // solve. Its door's payload was renamed to
+    // `CarrierLaneUnsupported(declared)` on main while this branch was
+    // open; the rename is moot for the bullet, which no longer reaches
+    // a carrier lane at all — it refuses at the corner's own
+    // transversality meter.
+    let what = "a hemisphere TANGENT to its cylinder";
+    let e = pncad::topo::shell(&bullet(tol), t, FIT_TOL, tol)
+        .expect_err("this junction is not square, so the hollow must refuse");
+    assert_eq!(
+        offset_refusal(&e),
+        "TogetherAxialCorner",
+        "{what}: the door that refuses is part of the finding, not an incidental"
+    );
 }
 
 /// **The opened rim, on the acceptance corpus's own shape.** A box

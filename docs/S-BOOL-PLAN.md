@@ -239,7 +239,7 @@ logged pre-draw per the protocol.
 - **BOOL-13 — the schema demolition (S/M; ruled — Evan, in-chat,
   2026-09-01, option C strong form).** Delete the hand-maintained
   `SCHEMA_VERSION`, the version door and its `SchemaTooOld` family,
-  the ratified-empty migration chain, the twelve per-version
+  the ratified-empty migration chain, the thirteen per-version
   break-fixture test files and their `schema_version_is_current`
   equality pins, and the bump-coordination convention. What stays:
   ONE typed refusal — a file this build cannot read refuses with
