@@ -1280,10 +1280,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Node::Declare {
                 pairs: vec![(
-                    (
-                        in_part(ids[1], PART_BODY),
-                        in_part(ids[0], PART_BODY),
-                    ),
+                    (in_part(ids[1], PART_BODY), in_part(ids[0], PART_BODY)),
                     ContactClass::Rest,
                 )],
             },

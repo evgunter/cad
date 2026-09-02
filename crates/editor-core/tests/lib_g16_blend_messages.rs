@@ -134,13 +134,13 @@ fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned()
         ),
         (
             "kind",
-            "the fillet selection name minted by node 1 denotes a face, not an edge",
+            "the fillet selection name minted by node 2 denotes a face, not an edge",
         ),
         (
             "resolve",
-            "a fillet selection name failed to resolve: the edge name minted by node 1 no \
+            "a fillet selection name failed to resolve: the edge name minted by node 2 no \
              longer resolves in this evaluation: the recorded reference disagrees with the \
-             recipe as it stands on the derivation path (node 1's payload differs)",
+             recipe as it stands on the derivation path (node 2's payload differs)",
         ),
     ];
     for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {

@@ -74,7 +74,8 @@ fn a_half_turn_literal_round_trips() {
         "the retired spelling is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-    let unit = match back.node(RecipeNodeId(2)) {
+    // Frame, profile, extrude, then the transform.
+    let unit = match back.node(RecipeNodeId(3)) {
         Some(Node::Transform { rotation_angle, .. }) => {
             rotation_angle.display_unit().expect("the unit survives")
         }

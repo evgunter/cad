@@ -548,6 +548,33 @@ enum WireLoopProgram {
     },
 }
 
+/// The profile's `plane`, read so that a document written before the
+/// sketch plane became a node refuses in terms that NAME what moved.
+///
+/// Those files carry a twelve-float placement object in this field.
+/// Serde's own report for that is `invalid type: map, expected u64` —
+/// true, and useless: it says nothing about which field of which node
+/// changed shape, which is the whole job of an `Unreadable` refusal
+/// (a reader has to know what to regenerate). The visitor's `expecting`
+/// is where that sentence goes.
+fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error> {
+    struct PlaneRef;
+    impl serde::de::Visitor<'_> for PlaneRef {
+        type Value = RecipeNodeId;
+        fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str(
+                "a `plane` node id: the `Datum::Frame` node a profile is drawn on \
+                 (a document that carries a sketch-plane PLACEMENT here predates \
+                 the frame node and cannot be read by this build)",
+            )
+        }
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<RecipeNodeId, E> {
+            Ok(RecipeNodeId(v))
+        }
+    }
+    de.deserialize_u64(PlaneRef)
+}
+
 /// The profile payload's wire shape (module docs): the FRAME NODE it
 /// is drawn on + loop PROGRAMS. No derived value is on this wire —
 /// segments, bulges and joints are all replay products (V3: caches are
@@ -565,6 +592,7 @@ enum WireLoopProgram {
 #[serde(deny_unknown_fields)]
 struct WireProfile {
     /// The frame datum node this profile is drawn on.
+    #[serde(deserialize_with = "plane_ref")]
     plane: RecipeNodeId,
     /// The loop programs: outer first, then holes, description order.
     loops: Vec<WireLoopProgram>,

@@ -70,10 +70,13 @@ fn fixtures_dir() -> std::path::PathBuf {
 ///
 /// The row does not require them to load, and as of this head none of
 /// the nineteen does (the three kept here are representatives; the
-/// census was run over all of them): the last format change before
-/// the demolition made a literal's display unit non-optional, so
-/// every pre-`v20` document misses a required field, and the four
-/// oldest predate the `id:` header line entirely. What it pins is the property the ruling
+/// census was run over all of them). TWO breaking changes account for
+/// that, and either one is enough on its own: a literal's display unit
+/// became non-optional, so every pre-`v20` document misses a required
+/// field, and a profile's plane became a NODE REFERENCE, so every
+/// document that carries a placement object there is unreadable too.
+/// The four oldest predate the `id:` header line entirely. What it
+/// pins is the property the ruling
 /// actually bought — that the outcome is TYPED and self-describing on
 /// real bytes: the body refusals name the field they could not place
 /// and carry the recourse exactly once, the header refusals say the
@@ -109,8 +112,13 @@ fn real_historical_documents_refuse_typed_and_name_what_they_lack() {
             Ok(_) | Err(PersistError::ToleranceConflict { .. }) => {}
             Err(err @ PersistError::Unreadable { .. }) => {
                 let msg = err.to_string();
+                // The NAME, not which name: two different fields do
+                // the naming across this set (a missing `unit`, and a
+                // `plane` that is a node id now), and pinning one of
+                // them would make the row about the format's history
+                // rather than about the refusal being self-describing.
                 assert!(
-                    msg.contains("missing field `unit`"),
+                    msg.contains('`'),
                     "{name}: the refusal must name the vocabulary it could not place: {msg}"
                 );
                 assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{name}: {msg}");

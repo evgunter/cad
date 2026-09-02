@@ -12,7 +12,7 @@ use editor_core::{
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
     PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{DEPTH, die, insert, len, on_frame, scl, square, step};
+use fixture::{DEPTH, desc, die, insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -240,12 +240,10 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 #[test]
 fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     let doc0 = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
-    let (doc1, p) = on_frame(
-        doc0.clone(),
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
+    let (doc1, plane) = insert(doc0.clone(), fixture::xy_frame());
+    let (doc1, p) = insert(
+        doc1,
+        Node::Profile(desc(plane, vec![square(0.0, 0.0, 0.5)])),
     );
     let (doc2, ext) = insert(
         doc1,
@@ -265,6 +263,11 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
 
     // Replay from empty reproduces the appearance bit-identically.
     let edits = vec![
+        // The frame first: the profile names it, so a replay that
+        // skipped it would insert a profile with an unresolved input.
+        DocEdit::InsertNode {
+            node: doc3.node(plane).unwrap().clone(),
+        },
         DocEdit::InsertNode {
             node: doc3.node(p).unwrap().clone(),
         },

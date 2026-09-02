@@ -1229,9 +1229,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     );
     // The tab sits inside the plate's slab: its own plane, so its own
     // frame.
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).unwrap()
-    };
+    let scl =
+        |v: f64| pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).unwrap();
     let (doc, tab_plane) = doors_insert(
         doc,
         Node::Datum(pncad::document::Datum::Frame {
