@@ -373,6 +373,7 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
         let pt = |p: Point2<f64>| Point2::new(p.x * s, p.y * s);
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
+            Target::StartArriving(a) => Target::StartArriving(a),
             Target::Point(p) => Target::Point(pt(p)),
         };
         let spec = |d: ArcData<f64>| match d {

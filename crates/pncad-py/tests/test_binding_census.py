@@ -1092,6 +1092,19 @@ NOT_BOUND = {
     "Resolution": f"{GAP}: B-RESOLVE names across runs",
     "RunCtx": f"{GAP}: B-RESOLVE names across runs",
     "resolve": f"{GAP}: B-RESOLVE names across runs",
+    # --- gap: the seam's declared arrival (audit G1) ---------------
+    # The two tokens that DECLARE how a closing leg arrives at the seam
+    # (PATHS-DESIGN §6's revised PQ4). Not absorbed into the verbs the
+    # way `LineTarget`/`ContinueTarget`/`TangentArcTarget` are: those are
+    # traits naming what a parameter accepts, while these are VALUES a
+    # caller writes — `line_to(Start.arrives_straight())` — so a Python
+    # author who cannot name them cannot author a loop whose seam is a
+    # declared subdivision point or a declared G1 joint. Same family as
+    # the profile lattice itself, and it rides beside `continue_to`,
+    # which the Rust-side surface census records as unbound for the same
+    # reason (`surface_census.rs`'s `Spelling::NotBound`).
+    "ArrivesStraight": f"{GAP}: G1 the seam's declared straight arrival",
+    "ArrivesTangent": f"{GAP}: G1 the seam's declared G1 arrival",
     # --- gap: the expression surface (audit G1 + census-owned) ----
     "EvalError": f"{GAP}: B-EXPR-READ an expression's value",
     "Expr": f"{GAP}: G1 Expr-bearing authoring steps",

@@ -582,8 +582,10 @@ macro_rules! step_arg_access {
             (P::Turn(e), A::TurnVal) => Some(e),
             (P::Line(e), A::Length) => Some(e),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetX)
+            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetX)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetX) => Some($($ref_kw)* p[0]),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
+            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
             (P::Fillet(e), A::Radius)
