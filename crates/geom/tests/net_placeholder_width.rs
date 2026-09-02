@@ -233,13 +233,10 @@ fn the_widened_answer_survives_a_lift() {
 fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
     // A box far away on y and z, disjoint from the masquerade's finite
     // lanes: the witness a partially poisoned box would answer with.
-    let elsewhere = Aabb::from_points(
-        [
-            Point3::new(0.0, 500.0, 500.0),
-            Point3::new(1.0, 501.0, 501.0),
-        ]
-        .into_iter(),
-    )
+    let elsewhere = Aabb::from_points([
+        Point3::new(0.0, 500.0, 500.0),
+        Point3::new(1.0, 501.0, 501.0),
+    ])
     .unwrap();
 
     for (what, b) in [

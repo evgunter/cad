@@ -17,12 +17,23 @@
 //! caller's own doc comment does not spell out — the association
 //! orders are D9-fixed per arm and stay where they are read.
 //!
-//! [`frame`] answers an [`AzimuthFrame`] rather than a pair, and the
-//! reason is the arms: they ask for the radial alone, for the
-//! tangential alone, and for both, so a positional result has to be
-//! destructured three ways — and a transposed destructure of two
-//! same-typed vectors compiles, runs, and moves geometry. Named
-//! fields make that spelling not exist.
+//! [`frame`] answers an [`AzimuthFrame`] of [`Radial`] and
+//! [`Tangential`], and the reason is the arms: they ask for the radial
+//! alone, for the tangential alone, and for both, so a positional pair
+//! of two same-typed vectors has to be destructured three ways and a
+//! transposed one compiles, runs, and moves geometry.
+//!
+//! **Names alone would not have fixed that** — while the two fields
+//! share a type, `AzimuthFrame { radial: t, tangential: r }` compiles.
+//! The newtypes make the exchange E0308 **wherever the two cross a
+//! typed boundary**: the constructor here, and any site that passes one
+//! where the other is expected. What no newtype can stop, and what is
+//! therefore stated rather than claimed away, is a local binding
+//! deliberately named for the other value and unwrapped on the spot
+//! (`let AzimuthFrame { radial: tangential, .. }`); that residue is one
+//! visible line at the site, and the downstream suites named on the row
+//! below are its evidence. `.0` unwraps the vector where an arm's
+//! arithmetic needs it.
 
 use geom_core::{Real, Vec3};
 
@@ -32,15 +43,25 @@ pub(crate) fn basis<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> ((T, T), Ve
     ((u.sin_cos()), axis.cross(u_ref))
 }
 
+/// The unit vector at an azimuth: `u_ref·c + v_ref·s`. A newtype
+/// rather than a bare `Vec3<T>` so that it and [`Tangential`] cannot be
+/// exchanged (module docs).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Radial<T: Real>(pub(crate) Vec3<T>);
+
+/// The derivative of [`Radial`] in the azimuth: `u_ref·(−s) + v_ref·c`.
+/// Distinct from it by type, for the reason on [`Radial`].
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Tangential<T: Real>(pub(crate) Vec3<T>);
+
 /// The azimuthal frame at one angle: the unit vector at that azimuth
-/// and its derivative. Two `Vec3<T>` of the same type, told apart by
-/// name and not by position (module docs).
+/// and its derivative, each in its own type.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct AzimuthFrame<T: Real> {
-    /// `u_ref·c + v_ref·s` — the unit vector at azimuth `u`.
-    pub radial: Vec3<T>,
-    /// `u_ref·(−s) + v_ref·c` — its derivative in `u`.
-    pub tangential: Vec3<T>,
+    /// The unit vector at azimuth `u`.
+    pub radial: Radial<T>,
+    /// Its derivative in `u`.
+    pub tangential: Tangential<T>,
 }
 
 /// The azimuthal frame at angle `u`, from one `sin_cos` call, with the
@@ -49,8 +70,8 @@ pub(crate) struct AzimuthFrame<T: Real> {
 pub(crate) fn frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> AzimuthFrame<T> {
     let ((s, c), v_ref) = basis(axis, u_ref, u);
     AzimuthFrame {
-        radial: u_ref * c + v_ref * s,
-        tangential: u_ref * (-s) + v_ref * c,
+        radial: Radial(u_ref * c + v_ref * s),
+        tangential: Tangential(u_ref * (-s) + v_ref * c),
     }
 }
 
@@ -80,11 +101,13 @@ mod tests {
     /// by an ulp. Generic bodies only ever see the trait method; this
     /// row must too, or it measures the dispatch rather than the frame.
     ///
-    /// **What it does not have to pin: the transposed call site.**
-    /// Taking the radial where the tangential belongs is not a
-    /// spelling any more — [`frame`] answers named fields, so the
-    /// swap is a type error at the site rather than geometry that
-    /// moves silently and is caught only indirectly, downstream, by
+    /// **What it does not have to pin, and what it still does.**
+    /// Exchanging the two across a typed boundary is E0308 since they
+    /// became [`Radial`] and [`Tangential`], so the shape the module
+    /// used to concede is gone from every site that passes or
+    /// constructs them. A binding renamed at the destructure and
+    /// unwrapped immediately still compiles (module docs), and THAT
+    /// residue is what stays covered indirectly, downstream, by
     /// the derivative-vs-dual rows in
     /// `tests/curves/nurbs_differential.rs`, the hand-computed
     /// partials in `tests/surfaces/review_m2_pr1.rs` and the
@@ -111,9 +134,13 @@ mod tests {
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
             let f = frame(axis, u_ref, u);
-            assert_eq!(bits(f.radial), bits(u_ref * c + v_ref * s), "radial at {u}");
             assert_eq!(
-                bits(f.tangential),
+                bits(f.radial.0),
+                bits(u_ref * c + v_ref * s),
+                "radial at {u}"
+            );
+            assert_eq!(
+                bits(f.tangential.0),
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
             );

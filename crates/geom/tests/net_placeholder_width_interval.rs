@@ -122,13 +122,10 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_at_interval() {
     for axis in [Axis::X, Axis::Y, Axis::Z] {
         assert!(b.min(axis).is_nan() && b.max(axis).is_nan());
     }
-    let elsewhere = Aabb::from_points(
-        [
-            Point3::new(0.0, 500.0, 500.0),
-            Point3::new(1.0, 501.0, 501.0),
-        ]
-        .into_iter(),
-    )
+    let elsewhere = Aabb::from_points([
+        Point3::new(0.0, 500.0, 500.0),
+        Point3::new(1.0, 501.0, 501.0),
+    ])
     .unwrap();
     assert!(b.overlaps(&elsewhere), "the poison box never prunes");
 }
