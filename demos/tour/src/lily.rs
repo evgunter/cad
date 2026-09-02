@@ -3035,8 +3035,21 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
-            ("lily_leaf_b", 2e-3, 468),
-            ("lily_leaf_c", 2e-3, 414),
+            // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the
+            // patch-hull consolidation folded the whole-face bound
+            // over `patch_bound`'s cells, which tightens or holds, and
+            // these two leaves are where it bites hardest in the tour.
+            // Per face, merge base -> now: leaf_b `mvv` 0.548115 ->
+            // 0.518406 (0.9458x) and `mv1` 1.367961 -> 1.305420
+            // (0.9543x); leaf_c `mvv` 0.385360 -> 0.346893 (0.9002x)
+            // and `mv1` 1.099628 -> 1.001095 (0.9104x). A tighter
+            // Hessian buys a longer step, so the whole-patch chord
+            // schedule coarsens (leaf_b's `nv` 46 -> 45, leaf_c's 40 ->
+            // 37) and the counts fall with it: 468 -> 454, 414 -> 384.
+            // Nothing about the leaves moved — same charts, same trim
+            // boxes, same delta; the bound got honester.
+            ("lily_leaf_b", 2e-3, 454),
+            ("lily_leaf_c", 2e-3, 384),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read

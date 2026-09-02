@@ -78,17 +78,12 @@
 //! - `sup|S_u|` — the same recurrence one order down;
 //! - `sup|w_kl|` — the weight spline's own derivative hulls.
 //!
-//! **The divisor is `w_min`, argued not assumed.** On the cell,
-//! `w ∈ [w_min, w_max]` of the active weights (convex combination).
-//! Every numerator bound above is a NONNEGATIVE magnitude sup, and for
-//! a nonnegative numerator the conservative (sup-side) division is by
-//! the SMALLEST denominator: `|X|/w ≤ sup|X|/w_min`. This is the
-//! mirror image of the speed meter's lower-bound choice
-//! (`geom::rational_speed_lower_bound`: a nonnegative numerator
-//! divides by `w_max` for an INF bound) — same lattice, opposite side.
-//! The interval division by the cell's weight hull `[w_lo, w_hi]`
-//! computes exactly `sup/w_lo`, outward-rounded, and poisons if
-//! positivity was never proven.
+//! **The divisor is the cell's weight hull, argued not assumed.** On
+//! the cell, `w ∈ [w_min, w_max]` of the active weights (convex
+//! combination), and the recurrence is evaluated SIGNED in the ring —
+//! the true minus signs, divided by the whole hull, which is where the
+//! quotient rule's cancellations survive. The interval division
+//! poisons if positivity was never proven.
 //!
 //! **Recentring keeps the cross terms cell-sized**: with the cell's
 //! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
@@ -177,8 +172,6 @@
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
-use geom_core::spline::hull::derivative_coeffs;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -193,42 +186,25 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
     }
 }
 
-/// The RATIONAL arm of [`nurbs_face_bound`]: the whole-patch max over
-/// the lifted per-cell enclosures' magnitude reading
-/// ([`patch_bound::PatchCell`]).
+/// One cell's five squared-sum readings, in [`NurbsFaceBound`]'s field
+/// order (`uu, uv, vv, u, v`) — the single place this crate names which
+/// enclosure feeds which bound.
 ///
-/// The accumulation is hull-then-`m`, at the ring level and in cell
-/// order, because that is what makes a poisoned cell reach the shared
-/// finite check: `m` maps poison to NaN, and an f64 `max` over NaN
-/// would drop it.
-fn rational_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    let cells = patch_bound::patch_cells(n).map_err(|e| face_err(fk, e))?;
-    let (mut sq_uu, mut sq_uv, mut sq_vv) = (None, None, None);
-    let (mut sq_u, mut sq_v) = (None, None);
-    let acc = |slot: &mut Option<RingInterval>, v: RingInterval| {
-        *slot = Some(match *slot {
-            None => v,
-            Some(h) => RingInterval::hull(h, v),
-        });
-    };
-    for c in &cells {
-        acc(&mut sq_uu, c.sq_uu);
-        acc(&mut sq_uv, c.sq_uv);
-        acc(&mut sq_vv, c.sq_vv);
-        acc(&mut sq_u, c.sq_u);
-        acc(&mut sq_v, c.sq_v);
-    }
-    let m = |sq: Option<RingInterval>| sq.map_or(f64::NAN, cell_component);
-    Ok(NurbsFaceBound {
-        muu: m(sq_uu),
-        muv: m(sq_uv),
-        mvv: m(sq_vv),
-        mu1: m(sq_u),
-        mv1: m(sq_v),
-    })
+/// The cell reports SIGNED componentwise enclosures and this is where
+/// a vector magnitude is read off them: `Σ_c sup²`, whose `√hi`
+/// ([`cell_component`]) bounds the partial's norm. There is no second
+/// reading to choose between — the magnitude assembly the rational arm
+/// used to carry alongside the signed one applied the triangle
+/// inequality to the quotient rule and could not see its cancellations
+/// (issue 1006).
+fn cell_readings(c: &patch_bound::PatchCell) -> [RingInterval; 5] {
+    [
+        patch_bound::sq_norm(c.s_uu),
+        patch_bound::sq_norm(c.s_uv),
+        patch_bound::sq_norm(c.s_vv),
+        patch_bound::sq_norm(c.s_u),
+        patch_bound::sq_norm(c.s_v),
+    ]
 }
 
 /// Certified sup bounds on the three second partials of one described
@@ -492,7 +468,7 @@ fn min3(a: f64, b: f64, c: f64) -> f64 {
 }
 
 /// One knot-span cell's own certified Hessian bound (the
-/// [`nurbs_face_bound`] assembly restricted to the cell's active
+/// [`nurbs_cell_grid`] assembly restricted to the cell's active
 /// coefficient window) with the UV rectangle it is valid on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CellBound {
@@ -521,7 +497,7 @@ fn cell_component(sq: RingInterval) -> f64 {
 }
 
 /// **The per-cell bounds** (TESS-SPAN, promoted from the #320 sizing
-/// diagnostic): the same certified assembly as [`nurbs_face_bound`],
+/// diagnostic): the same certified assembly as [`face_bound`],
 /// reported per knot-span cell instead of maxed over the patch.
 ///
 /// Since TESS-SPAN this is the SHIPPED lane's sizing input (through
@@ -537,14 +513,17 @@ fn cell_component(sq: RingInterval) -> f64 {
 /// budget row carries the cell count, so a reader is never guessing
 /// which.
 ///
-/// The max over the returned cells is `≤` the face bound in every arm
-/// (the whole-patch hull is over a superset of every cell's window);
-/// this module's own `no_cell_exceeds_the_whole_patch_bound` test
-/// asserts exactly that, componentwise.
+/// The max over the returned cells IS the face bound
+/// ([`NurbsCellGrid::patch`] folds exactly these cells); this module's
+/// own `no_cell_exceeds_the_whole_patch_bound` test asserts the
+/// inequality componentwise and
+/// `cert10_whole_face_bound_is_the_per_cell_fold` asserts the
+/// equality.
 ///
 /// # Errors
 ///
-/// As [`nurbs_face_bound`] — same gates, same arms, same refusals.
+/// As [`patch_bound::patch_cells`] — same gates, same arms, same
+/// refusals, reported in this crate's error type.
 pub(crate) fn nurbs_cell_bounds(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
@@ -555,12 +534,15 @@ pub(crate) fn nurbs_cell_bounds(
         .map(|c| CellBound {
             u: c.u,
             v: c.v,
-            bound: NurbsFaceBound {
-                muu: cell_component(c.sq_uu),
-                muv: cell_component(c.sq_uv),
-                mvv: cell_component(c.sq_vv),
-                mu1: cell_component(c.sq_u),
-                mv1: cell_component(c.sq_v),
+            bound: {
+                let r = cell_readings(&c);
+                NurbsFaceBound {
+                    muu: cell_component(r[0]),
+                    muv: cell_component(r[1]),
+                    mvv: cell_component(r[2]),
+                    mu1: cell_component(r[3]),
+                    mv1: cell_component(r[4]),
+                }
             },
         })
         .collect())
@@ -574,34 +556,68 @@ pub(crate) fn nurbs_cell_bounds(
 /// tightening and [`crate::trimmed`]'s band schedule both need the
 /// same per-face fact, and a cache hosted inside one of its two
 /// consumers is the shape that drifts.
-pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsFaceBound>;
+pub(crate) type FaceBounds = std::collections::HashMap<FaceKey, NurbsCellGrid>;
 
-/// A described NURBS face's certified whole-patch bound, assembled on
-/// first ask and remembered for the rest of the tessellation.
+/// A described NURBS face's certified cell table, assembled on first
+/// ask and remembered for the rest of the tessellation.
 ///
-/// The assembly is the most expensive thing either pass does and its
-/// answer is a per-face fact, so one memo threaded from
-/// [`crate::tessellate()`] through both passes makes it one assembly
-/// per face per tessellation instead of one per pass.
+/// **The memo holds the CELL GRID, not the whole-patch bound, and that
+/// is the whole point of it.** The whole-patch bound is a *reading* of
+/// the cells ([`NurbsCellGrid::patch`]) since the fold, so a memo of
+/// the coarser fact would make the finer one unreachable and force the
+/// second consumer to reassemble. It was measured doing exactly that:
+/// with a `NurbsFaceBound` memo, a swept elbow ran `patch_cells` twice
+/// per described NURBS face — once for the chord pass, once for the
+/// trimmed lane — because [`crate::tessellate()`] runs
+/// [`crate::chords::compute_chords`] BEFORE the per-face dispatch, so
+/// the trimmed lane's ask was always a memo hit on a value it could
+/// not refine. `crates/mesh/tests/cert10r1_assembly_accounting.rs`
+/// pins the count.
+///
+/// It lives HERE, beside the assembly it remembers, rather than in
+/// either pass that reads it: [`crate::chords`]' adjacent-face
+/// tightening and [`crate::trimmed`]'s band schedule both need the
+/// same per-face fact, and a cache hosted inside one of its two
+/// consumers is the shape that drifts.
 ///
 /// # Errors
 ///
-/// As [`nurbs_face_bound`] — a face outside the certified inventory
+/// As [`nurbs_cell_grid`] — a face outside the certified inventory
 /// refuses here exactly as it would there, on the first ask and (from
-/// the memo's absence) on every later one.
+/// the memo's absence) on every later one. The refusal CLASS is
+/// unchanged from a whole-patch memo: the per-cell finite check and
+/// the whole-patch one refuse the same faces with the same prose,
+/// because the fold's hull carries a poisoned or infinite cell
+/// straight into the whole-patch number.
+pub(crate) fn face_grid<'m>(
+    memo: &'m mut FaceBounds,
+    payload: &NurbsSurface<f64>,
+    fk: FaceKey,
+) -> Result<&'m NurbsCellGrid, TessellateError> {
+    // The Entry API, not `contains_key` + `insert` (clippy::map_entry),
+    // and the shape matters beyond the lint: the assembly's `?` sits
+    // INSIDE the vacant arm, so a face that refuses leaves the memo
+    // untouched and refuses identically on every later ask — the
+    // "refuses on the first ask and (from the memo's absence) on every
+    // later one" contract above, made structural.
+    match memo.entry(fk) {
+        std::collections::hash_map::Entry::Occupied(e) => Ok(e.into_mut()),
+        std::collections::hash_map::Entry::Vacant(e) => Ok(e.insert(nurbs_cell_grid(payload, fk)?)),
+    }
+}
+
+/// The whole-patch bound of a described NURBS face, read off the
+/// memoized cell table ([`face_grid`]).
+///
+/// # Errors
+///
+/// As [`face_grid`].
 pub(crate) fn face_bound(
     memo: &mut FaceBounds,
     payload: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<NurbsFaceBound, TessellateError> {
-    match memo.get(&fk) {
-        Some(&b) => Ok(b),
-        None => {
-            let b = nurbs_face_bound(payload, fk)?;
-            memo.insert(fk, b);
-            Ok(b)
-        }
-    }
+    Ok(face_grid(memo, payload, fk)?.patch())
 }
 
 /// The realized-anisotropy line beyond which a band snaps to the
@@ -696,8 +712,46 @@ pub(crate) struct NurbsCellGrid {
     bounds: Vec<NurbsFaceBound>,
 }
 
+impl NurbsCellGrid {
+    /// **The whole-patch bound, folded off the cells already
+    /// assembled** — componentwise max over this grid's own cells.
+    ///
+    /// Identical to the fold over [`nurbs_cell_bounds`] on the same
+    /// face, and the
+    /// identity is exact rather than approximate: that function hulls
+    /// the per-cell squared-sum ENCLOSURES and collapses once, this one
+    /// collapses per cell and takes the f64 max, and
+    /// [`cell_component`] is monotone in the enclosure's `hi` — so
+    /// `max_c sqrt(hi_c)` and `sqrt(max_c hi_c)` are the same f64. The
+    /// NaN asymmetry that makes the ring-level accumulation
+    /// load-bearing there does not arise here: [`nurbs_cell_grid`] has
+    /// already refused a face with any non-finite cell.
+    ///
+    /// It exists so a caller that needs BOTH readings of a face pays
+    /// for one assembly. The fold made the whole-patch bound a reading
+    /// of the cells rather than a second pass over the net, and this is
+    /// where that shows up as work not done.
+    pub(crate) fn patch(&self) -> NurbsFaceBound {
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+            mu1: 0.0,
+            mv1: 0.0,
+        };
+        for b in &self.bounds {
+            m.muu = m.muu.max(b.muu);
+            m.muv = m.muv.max(b.muv);
+            m.mvv = m.mvv.max(b.mvv);
+            m.mu1 = m.mu1.max(b.mu1);
+            m.mv1 = m.mv1.max(b.mv1);
+        }
+        m
+    }
+}
+
 /// The shipped lane's entry to per-cell sizing: [`nurbs_cell_bounds`]
-/// finite-checked cell by cell (the [`nurbs_face_bound`] refusal,
+/// finite-checked cell by cell (the whole-patch refusal,
 /// applied where the shipped consumer now reads) and assembled into a
 /// [`NurbsCellGrid`].
 ///
@@ -709,6 +763,7 @@ pub(crate) fn nurbs_cell_grid(
     n: &NurbsSurface<f64>,
     fk: FaceKey,
 ) -> Result<NurbsCellGrid, TessellateError> {
+    crate::budget::note_assembly();
     let cells = nurbs_cell_bounds(n, fk)?;
     for c in &cells {
         let b = c.bound;
@@ -1122,209 +1177,27 @@ impl NurbsCellGrid {
     }
 }
 
-/// The certified Hessian sup bounds of a described NURBS face, or the
-/// typed refusal naming its class (module docs).
-///
-/// Two arms share the gates and the finite check: the INTEGRAL arm
-/// (all weights bitwise `1.0` — the kernel's definition of
-/// non-rational) is the original hull assembly, bit-identical; the
-/// RATIONAL arm (M8-5) is the quotient-rule assembly over the
-/// homogeneous nets (module docs, "The rational arm").
-///
-/// # Errors
-///
-/// [`TessellateError::UnsupportedNurbsFace`] — C⁰-creased, degree-0,
-/// an illegal rational description (non-positive/non-finite weight),
-/// or a poisoned/unbounded hull. The PLACEHOLDER is the caller's check
-/// (it refuses `UnsupportedSurface`, the mvfs state's historical
-/// variant).
-pub(crate) fn nurbs_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    patch_bound::check_direction(n.knots_u()).map_err(|e| face_err(fk, e))?;
-    patch_bound::check_direction(n.knots_v()).map_err(|e| face_err(fk, e))?;
-    let bound = if patch_bound::is_rational(n) {
-        rational_face_bound(n, fk)?
-    } else {
-        integral_face_bound(n, fk)?
-    };
-    if !(bound.muu.is_finite()
-        && bound.muv.is_finite()
-        && bound.mvv.is_finite()
-        && bound.mu1.is_finite()
-        && bound.mv1.is_finite())
-    {
-        return Err(TessellateError::UnsupportedNurbsFace {
-            face: fk,
-            note: "NURBS face second-derivative hull is unbounded/poisoned — \
-                   outside the certified inventory",
-        });
-    }
-    Ok(bound)
-}
-
-/// The integral (all-unit-weight) arm of [`nurbs_face_bound`]: the
-/// direct control-hull convexity assembly (module docs), including
-/// the first-derivative sups the split selection's aspect cap reads.
-///
-/// **Why this stayed behind when the per-cell assembly was lifted**
-/// into `geom_brep::patch_bound`: it computes a different quantity.
-/// The lifted one hulls each partial over one knot-span cell's ACTIVE
-/// coefficient window; this one hulls the whole net at once, which is
-/// not the max of the cell bounds — it is a coarser single number,
-/// and it is the number `nurbs_face_bound`'s integral arm has always
-/// returned. Folding it into a max over `patch_cells` would be
-/// tighter and would move every integral face's grid, so the
-/// consolidation is scheduled with that baseline move attached
-/// (#1006) rather than done in passing. The differencing recurrence
-/// itself is shared: `derivative_coeffs` is the one spelling, here
-/// and there.
-fn integral_face_bound(
-    n: &NurbsSurface<f64>,
-    fk: FaceKey,
-) -> Result<NurbsFaceBound, TessellateError> {
-    let (nu, nv) = n.control_counts();
-    let comp = |c: usize| -> Vec<RingInterval> {
-        n.control()
-            .iter()
-            .map(|p| {
-                RingInterval::point(match c {
-                    0 => p.x,
-                    1 => p.y,
-                    _ => p.z,
-                })
-            })
-            .collect()
-    };
-    let mut sq_uu = RingInterval::zero();
-    let mut sq_uv = RingInterval::zero();
-    let mut sq_vv = RingInterval::zero();
-    let mut sq_u = RingInterval::zero();
-    let mut sq_v = RingInterval::zero();
-    for c in 0..3 {
-        // Row-major layout: control[iu·nv + iv] (NurbsSurface docs).
-        let grid = comp(c);
-        let u_rows: Vec<Vec<RingInterval>> = (0..nv)
-            .map(|j| (0..nu).map(|i| grid[i * nv + j]).collect())
-            .collect();
-        let v_rows: Vec<Vec<RingInterval>> = (0..nu)
-            .map(|i| (0..nv).map(|j| grid[i * nv + j]).collect())
-            .collect();
-        sq_uu = sq_uu + second_derivative_hull(n.knots_u(), &u_rows, fk)?.sqr();
-        sq_vv = sq_vv + second_derivative_hull(n.knots_v(), &v_rows, fk)?.sqr();
-        sq_uv = sq_uv + mixed_derivative_hull(n.knots_u(), n.knots_v(), &u_rows)?.sqr();
-        sq_u = sq_u + first_derivative_hull(n.knots_u(), &u_rows)?.sqr();
-        sq_v = sq_v + first_derivative_hull(n.knots_v(), &v_rows)?.sqr();
-    }
-    Ok(NurbsFaceBound {
-        muu: cell_component(sq_uu),
-        muv: cell_component(sq_uv),
-        mvv: cell_component(sq_vv),
-        mu1: cell_component(sq_u),
-        mv1: cell_component(sq_v),
-    })
-}
-
-/// Hull of ALL first-derivative coefficients along one direction: each
-/// `rows[k]` is the coefficient row of one fixed cross-direction
-/// index, differenced ONCE against `kv` — the first-fundamental-form
-/// sup the split selection's aspect cap reads, by the same convexity
-/// fact as the second-derivative hulls. Needs only degree ≥ 1, which
-/// `patch_bound::check_direction` guarantees.
-fn first_derivative_hull(
-    kv: &KnotVector,
-    rows: &[Vec<RingInterval>],
-) -> Result<RingInterval, TessellateError> {
-    let mut acc: Option<RingInterval> = None;
-    for row in rows {
-        for q in derivative_coeffs(kv, row) {
-            acc = Some(match acc {
-                None => q,
-                Some(a) => RingInterval::hull(a, q),
-            });
-        }
-    }
-    acc.ok_or(TessellateError::MissingEntity {
-        what: "empty NURBS control net",
-    })
-}
-
-/// Hull of ALL second-derivative coefficients along one direction:
-/// each `rows[k]` is the coefficient row of one fixed cross-direction
-/// index, differenced twice against `kv` (module docs). A degree-1
-/// single-span direction answers the exact zero.
-fn second_derivative_hull(
-    kv: &KnotVector,
-    rows: &[Vec<RingInterval>],
-    fk: FaceKey,
-) -> Result<RingInterval, TessellateError> {
-    if kv.degree() < 2 {
-        return Ok(RingInterval::zero());
-    }
-    let kv1 = patch_bound::derived_knots(kv).map_err(|e| face_err(fk, e))?;
-    let mut acc: Option<RingInterval> = None;
-    for row in rows {
-        let q1 = derivative_coeffs(kv, row);
-        let q2 = derivative_coeffs(&kv1, &q1);
-        for q in q2 {
-            acc = Some(match acc {
-                None => q,
-                Some(a) => RingInterval::hull(a, q),
-            });
-        }
-    }
-    acc.ok_or(TessellateError::MissingEntity {
-        what: "empty NURBS control net",
-    })
-}
-
-/// Hull of ALL mixed-derivative coefficients: difference once along
-/// `kv_u` (per `u_rows` row, i.e. per fixed v index), then once along
-/// `kv_v` across the resulting net (module docs — one application per
-/// direction, so only degree ≥ 1 is needed on each, which
-/// `patch_bound::check_direction` guarantees).
-fn mixed_derivative_hull(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    u_rows: &[Vec<RingInterval>],
-) -> Result<RingInterval, TessellateError> {
-    // q_u[j][i'] : derivative-in-u coefficients at v index j.
-    let q_u: Vec<Vec<RingInterval>> = u_rows
-        .iter()
-        .map(|row| derivative_coeffs(kv_u, row))
-        .collect();
-    let nu1 = q_u.first().map_or(0, Vec::len);
-    let nv = q_u.len();
-    if nu1 == 0 || nv == 0 {
-        return Err(TessellateError::MissingEntity {
-            what: "empty NURBS control net",
-        });
-    }
-    let mut acc: Option<RingInterval> = None;
-    // Walked column-wise on purpose (transposing the row-major
-    // intermediate net), so `i` indexes across the OUTER Vec.
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..nu1 {
-        let v_row: Vec<RingInterval> = (0..nv).map(|j| q_u[j][i]).collect();
-        for q in derivative_coeffs(kv_v, &v_row) {
-            acc = Some(match acc {
-                None => q,
-                Some(a) => RingInterval::hull(a, q),
-            });
-        }
-    }
-    acc.ok_or(TessellateError::MissingEntity {
-        what: "empty NURBS control net",
-    })
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The whole-patch bound of a single face, with no memo — the door
+    /// the rows below take. The shipped lane never has this shape (it
+    /// always carries a `FaceBounds`), which is why it lives here: an
+    /// un-memoized production entry is exactly how a second assembly
+    /// per face gets reintroduced, and `cert10r1_assembly_accounting`
+    /// is the row that would catch it.
+    fn nurbs_face_bound(
+        n: &NurbsSurface<f64>,
+        fk: FaceKey,
+    ) -> Result<NurbsFaceBound, TessellateError> {
+        Ok(nurbs_cell_grid(n, fk)?.patch())
+    }
+
     use geom_core::Point3;
     use geom_core::Tol;
+    use geom_core::spline::KnotVector;
     use profile::RawLoop;
     use test_utils::fuzz;
 
@@ -1619,8 +1492,8 @@ mod tests {
     /// aspect cap reads (`mu1`/`mv1`, TESS-SPLIT) get the SAME
     /// falsification rows their Hessian siblings have — sampled
     /// dominance per cell and whole-patch, and cell ≤ patch
-    /// componentwise. Without this, a subtle `first_derivative_hull` /
-    /// `s1u` window bug would misplace the aspect window with nothing
+    /// componentwise. Without this, a subtle first-derivative window
+    /// or `s1u` recurrence bug would misplace the aspect window with nothing
     /// going red (the cap is policy, so no certificate catches it).
     #[test]
     fn first_derivative_sups_dominate_samples_and_refine_upward() {
@@ -2718,5 +2591,671 @@ mod tests {
              {worst:.6} — {}",
             fuzz::replay()
         );
+    }
+
+    // ---------------------------------------------------------------
+    // CERT-10 (issue 1006): the fold-cost measurement, taken BEFORE
+    // the whole-face arm's shape was chosen.
+    // ---------------------------------------------------------------
+
+    /// A high-knot-count integral face: degree 3 x 3 with `k` interior
+    /// knots per direction, so the whole-net hull covers a net the
+    /// per-cell fold reads in `(k+1)^2` windows of `4 x 4`.
+    fn many_knot_face(k: usize) -> NurbsSurface<f64> {
+        #[allow(clippy::cast_precision_loss)]
+        let interior: Vec<f64> = (1..=k).map(|i| i as f64 / (k + 1) as f64).collect();
+        let mk = || {
+            let mut ks = vec![0.0; 4];
+            ks.extend(interior.iter().copied());
+            ks.extend([1.0; 4]);
+            KnotVector::clamped(ks, 3).unwrap()
+        };
+        let (kv_u, kv_v) = (mk(), mk());
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let (x, y) = (i as f64 * 0.31, j as f64 * 0.27);
+                control.push(Point3::new(x, y, (1.7 * x).sin() * (1.1 * y).cos()));
+            }
+        }
+        let w = vec![1.0; control.len()];
+        NurbsSurface::new(kv_u, kv_v, control, w).unwrap()
+    }
+
+    /// **The fixture the tighter-or-equal claim has teeth on.** A
+    /// per-channel `mag` hull is the max of `|coefficient|` over the
+    /// window, and the cell windows COVER the net, so for any single
+    /// channel `max over cells == whole net` exactly. The whole-net
+    /// spelling is strictly wider only where the `sum over channels of
+    /// sup squared` mixes channels whose extremes live in DIFFERENT
+    /// cells: the whole-net number adds three maxima that no single
+    /// point of the patch attains together. This net staggers them —
+    /// `x` bends hard near `u = 0`, `z` near `u = 1`.
+    fn staggered_channels() -> NurbsSurface<f64> {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        // Per u index: a big x-kink at the low end, a big z-kink at the
+        // high end, and a y that ramps uniformly.
+        let xs = [0.0, 3.0, 0.0, 0.05];
+        let zs = [0.0, 0.02, 0.0, 4.0];
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let y = j as f64 * 0.5;
+                control.push(Point3::new(xs[i % 4], y, zs[i % 4]));
+            }
+        }
+        let w = vec![1.0; control.len()];
+        NurbsSurface::new(kv_u, kv_v, control, w).unwrap()
+    }
+
+    /// **The whole-net hull, as the fold's counterfactual.** This is
+    /// not a third spelling of the differencing: it assembles the very
+    /// same derivative nets through the shared home
+    /// ([`geom_core::spline::net::TensorNet`]) and reads them with ONE
+    /// window instead of one per cell — which is exactly what the
+    /// retired whole-face arm did. Kept in the test module because the
+    /// only remaining consumer is the measurement that chose the
+    /// fold's shape.
+    ///
+    /// INTEGRAL faces only: the spelling reads the control net with no
+    /// weights at all, so on a rational description it answers a
+    /// different surface's bound. The rational arm never had a
+    /// whole-net counterpart — it has always been a fold.
+    fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
+        use geom_core::spline::net::TensorNet;
+        assert!(
+            !patch_bound::is_rational(s),
+            "the whole-net spelling is the integral arm's; a rational face has no such arm"
+        );
+        let (kv_u, kv_v) = (s.knots_u(), s.knots_v());
+        patch_bound::check_direction(kv_u).ok()?;
+        patch_bound::check_direction(kv_v).ok()?;
+        let kv_u1 = (kv_u.degree() >= 2)
+            .then(|| patch_bound::derived_knots(kv_u))
+            .transpose()
+            .ok()?;
+        let kv_v1 = (kv_v.degree() >= 2)
+            .then(|| patch_bound::derived_knots(kv_v))
+            .transpose()
+            .ok()?;
+        let (nu, nv) = s.control_counts();
+        let zero = RingInterval::zero();
+        let mut sq = [zero; 5];
+        for c in 0..3 {
+            let base = TensorNet::from_fn(nu, nv, |i, j| {
+                let p = s.control()[i * nv + j];
+                RingInterval::point(match c {
+                    0 => p.x,
+                    1 => p.y,
+                    _ => p.z,
+                })
+            });
+            let d10 = base.diff_u_knots(kv_u);
+            let d01 = base.diff_v_knots(kv_v);
+            let d11 = d10.diff_v_knots(kv_v);
+            let g20 = kv_u1.as_ref().map_or(zero, |k| d10.diff_u_knots(k).hull());
+            let g02 = kv_v1.as_ref().map_or(zero, |k| d01.diff_v_knots(k).hull());
+            for (slot, h) in sq
+                .iter_mut()
+                .zip([g20, d11.hull(), g02, d10.hull(), d01.hull()])
+            {
+                *slot = *slot + h.sqr();
+            }
+        }
+        Some(NurbsFaceBound {
+            muu: cell_component(sq[0]),
+            muv: cell_component(sq[1]),
+            mvv: cell_component(sq[2]),
+            mu1: cell_component(sq[3]),
+            mv1: cell_component(sq[4]),
+        })
+    }
+
+    /// **The counterfactual is FAITHFUL**: re-expressing the retired
+    /// whole-net arm through the shared home
+    /// ([`whole_net_bound`]) reproduces the digits the deleted
+    /// `integral_face_bound` answered, exactly.
+    ///
+    /// Both reviewers checked this by hand, which is the reason it is a
+    /// row now: the fold-cost table and the tighter-or-equal claim are
+    /// both measured AGAINST this function, so a counterfactual that
+    /// drifted would silently restate the comparison the unit's whole
+    /// argument rests on. The literals are the pre-collapse
+    /// measurement, taken before the arm was deleted.
+    #[test]
+    fn cert10_the_whole_net_counterfactual_reproduces_the_pre_collapse_digits() {
+        for (name, s, want) in [
+            (
+                "wavy",
+                wavy(),
+                [
+                    10.394_094_997_048_835,
+                    9.245_962_289_850_134,
+                    13.743_674_653_694_748,
+                    5.275_689_895_607_064,
+                    4.335_017_346_749_23,
+                ],
+            ),
+            (
+                "staggered_channels",
+                staggered_channels(),
+                [
+                    48.219_564_494_093_156,
+                    1.084_596_414_278_405_7e-13,
+                    2.000_000_000_000_007,
+                    20.000_000_000_000_025,
+                    2.000_000_000_000_002_7,
+                ],
+            ),
+        ] {
+            let b = whole_net_bound(&s).expect("covered");
+            let got = [b.muu, b.muv, b.mvv, b.mu1, b.mv1];
+            for (k, (g, w)) in got.iter().zip(&want).enumerate() {
+                assert!(
+                    g == w,
+                    "{name}: counterfactual component {k} is {g:.17e}, the retired arm \
+                     answered {w:.17e}"
+                );
+            }
+        }
+    }
+
+    /// The per-cell fold: the componentwise max over `patch_cells`'
+    /// per-cell bounds.
+    fn fold_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
+        let cells = nurbs_cell_bounds(s, FaceKey::default()).ok()?;
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+            mu1: 0.0,
+            mv1: 0.0,
+        };
+        for c in &cells {
+            m.muu = m.muu.max(c.bound.muu);
+            m.muv = m.muv.max(c.bound.muv);
+            m.mvv = m.mvv.max(c.bound.mvv);
+            m.mu1 = m.mu1.max(c.bound.mu1);
+            m.mv1 = m.mv1.max(c.bound.mv1);
+        }
+        Some(m)
+    }
+
+    /// Mean microseconds per call of `f`, over `reps` repetitions.
+    fn micros<T>(reps: u32, mut f: impl FnMut() -> T) -> f64 {
+        let t = std::time::Instant::now();
+        for _ in 0..reps {
+            core::hint::black_box(f());
+        }
+        t.elapsed().as_secs_f64() * 1e6 / f64::from(reps)
+    }
+
+    /// **The fold-cost table** (issue 1006's ruling: "fold cost
+    /// measured against the whole-net hull BEFORE the shape is
+    /// chosen"). Reports, per INTEGRAL fixture, the wall time and the
+    /// bound width of both spellings, plus the rational fixtures'
+    /// per-cell cost for scale (the rational arm has always been a
+    /// fold, so it has no whole-net counterpart to compare against).
+    ///
+    /// `#[ignore]`d: it is a MEASUREMENT, not an assertion — timings
+    /// are a reading on one box and gate nothing. Run it with
+    /// `cargo test -p mesh --lib -- --ignored --nocapture cert10_fold_cost`.
+    #[test]
+    #[ignore = "measurement harness: prints the fold-cost table, asserts nothing about timings"]
+    fn cert10_fold_cost_table() {
+        let integral: Vec<(&str, NurbsSurface<f64>)> = vec![
+            ("wavy (2x3, 1+1 interior)", wavy()),
+            ("staggered_channels (2x2)", staggered_channels()),
+            ("many_knot k=8 (3x3)", many_knot_face(8)),
+            ("many_knot k=24 (3x3)", many_knot_face(24)),
+        ];
+        let reps = 40;
+        println!(
+            "\nINTEGRAL: whole-net hull vs per-cell fold\n{:<30} {:>6} {:>9} {:>9} {:>6} \
+             {:>13} {:>13} {:>9}",
+            "fixture",
+            "cells",
+            "whole us",
+            "fold us",
+            "cost x",
+            "whole muu",
+            "fold muu",
+            "fold/whole"
+        );
+        for (name, s) in &integral {
+            let cells = patch_bound::patch_cells(s).map_or(0, |c| c.len());
+            let tw = micros(reps, || whole_net_bound(s));
+            let tf = micros(reps, || fold_bound(s));
+            let (w, f) = (
+                whole_net_bound(s).expect("covered"),
+                fold_bound(s).expect("covered"),
+            );
+            println!(
+                "{name:<30} {cells:>6} {tw:>9.1} {tf:>9.1} {:>6.2} {:>13.6e} {:>13.6e} {:>9.4}",
+                tf / tw,
+                w.muu,
+                f.muu,
+                f.muu / w.muu
+            );
+            println!(
+                "{:<30} {:>6} {:>9} {:>9} {:>6} muv {:>9.6e} {:>13.6e} {:>9.4}",
+                "",
+                "",
+                "",
+                "",
+                "",
+                w.muv,
+                f.muv,
+                f.muv / w.muv
+            );
+            println!(
+                "{:<30} {:>6} {:>9} {:>9} {:>6} mu1 {:>9.6e} {:>13.6e} {:>9.4}",
+                "",
+                "",
+                "",
+                "",
+                "",
+                w.mu1,
+                f.mu1,
+                f.mu1 / w.mu1
+            );
+        }
+        let rational: Vec<(&str, NurbsSurface<f64>)> = vec![
+            ("quarter_cylinder (2x1)", quarter_cylinder()),
+            ("wavy_rational (2x3)", wavy_rational()),
+            ("pie_wall (real loft)", pie_wall()),
+        ];
+        println!(
+            "\nRATIONAL (already a fold; no whole-net arm exists)\n{:<30} {:>6} {:>9} {:>13}",
+            "fixture", "cells", "fold us", "fold muu"
+        );
+        for (name, s) in &rational {
+            let cells = patch_bound::patch_cells(s).map_or(0, |c| c.len());
+            let tf = micros(reps, || fold_bound(s));
+            let f = fold_bound(s).expect("covered");
+            println!("{name:<30} {cells:>6} {tf:>9.1} {:>13.6e}", f.muu);
+        }
+    }
+
+    /// R2 probe: full-precision digits of the whole-net counterfactual,
+    /// for comparison against the pre-collapse arm's own output.
+    #[test]
+    fn r2_probe_whole_net_digits() {
+        for (name, s) in [
+            ("wavy", wavy()),
+            ("staggered", staggered_channels()),
+            ("many8", many_knot_face(8)),
+        ] {
+            let b = whole_net_bound(&s).unwrap();
+            println!(
+                "R2WHOLE {name} muu={:.17e} muv={:.17e} mvv={:.17e} mu1={:.17e} mv1={:.17e}",
+                b.muu, b.muv, b.mvv, b.mu1, b.mv1
+            );
+        }
+    }
+
+    /// **The tighter-or-equal claim, randomized.** The two pinned
+    /// fixtures show the gap exists and that a smooth net closes it;
+    /// this row asserts the INEQUALITY over a sweep of random integral
+    /// nets, which is the form the claim is actually made in. Integral
+    /// only, because the rational arm has always been a fold and has
+    /// no whole-net counterpart to be tighter than.
+    #[test]
+    fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
+        let mut rng = fuzz::start("nurbs_cert::cert10_fold_vs_whole_net");
+        /// Interior multiplicities are drawn up to `p - 1`, the C¹
+        /// gate's ceiling — NOT left at 1. That is where the fold's
+        /// coverage premise is TIGHT: a cell window is
+        /// `Span::window()` / `first_derived_window()` /
+        /// `derived_window(2)`, and the claim that those windows COVER
+        /// the derivative nets is what makes `max over cells == whole
+        /// net` per channel. Raising a multiplicity shortens the
+        /// derivative net and shifts every window; at `p - 1` the
+        /// second-derivative net is at its shortest that
+        /// `check_direction` still admits, which is exactly the case a
+        /// multiplicity-1 generator never reaches.
+        fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
+            let spans = 1 + r.below(4);
+            let mut k = vec![0.0; p + 1];
+            for i in 1..spans {
+                #[allow(clippy::cast_precision_loss)]
+                let t = i as f64 / spans as f64;
+                // 1 ..= p - 1 (a degree-1 direction admits no interior
+                // knot at all — `check_direction`'s Degree1Crease).
+                let m = if p >= 2 { 1 + r.below(p - 1) } else { 1 };
+                for _ in 0..m {
+                    k.push(t);
+                }
+            }
+            k.extend(vec![1.0; p + 1]);
+            KnotVector::clamped(k, p).unwrap()
+        }
+        let mut strict = 0usize;
+        let mut saw_high_mult = false;
+        let trials = fuzz::scaled(60);
+        for _ in 0..trials {
+            let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
+            let kv_u = mk(&mut rng, pu);
+            let kv_v = mk(&mut rng, pv);
+            saw_high_mult |= kv_u.interior_knots().any(|(_, m)| m >= 2)
+                || kv_v.interior_knots().any(|(_, m)| m >= 2);
+            let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+            let control: Vec<Point3<f64>> = (0..nu * nv)
+                .map(|_| {
+                    Point3::new(
+                        rng.range(-4.0, 4.0),
+                        rng.range(-4.0, 4.0),
+                        rng.range(-4.0, 4.0),
+                    )
+                })
+                .collect();
+            let w = vec![1.0; control.len()];
+            let Ok(s) = NurbsSurface::new(kv_u, kv_v, control, w) else {
+                continue;
+            };
+            let (Some(whole), Some(fold)) = (whole_net_bound(&s), fold_bound(&s)) else {
+                continue;
+            };
+            for (what, f, w) in [
+                ("muu", fold.muu, whole.muu),
+                ("muv", fold.muv, whole.muv),
+                ("mvv", fold.mvv, whole.mvv),
+                ("mu1", fold.mu1, whole.mu1),
+                ("mv1", fold.mv1, whole.mv1),
+            ] {
+                assert!(
+                    f <= w,
+                    "the fold EXCEEDED the whole-net hull on {what}: {f:.17e} > \
+                     {w:.17e} — {}",
+                    fuzz::replay()
+                );
+                if f < w {
+                    strict += 1;
+                }
+            }
+        }
+        // COVERAGE FLOOR, both halves. An inequality nothing ever
+        // makes strict is a tautology; and a sweep that never leaves
+        // multiplicity 1 never challenges the coverage premise the
+        // inequality rests on. If a run trips either, RAISE the trial
+        // count — never lower the floor.
+        assert!(
+            saw_high_mult,
+            "the sweep never drew an interior multiplicity >= 2, so the fold's window \
+             coverage went unchallenged where it is tight — {}",
+            fuzz::replay()
+        );
+        assert!(
+            strict > trials,
+            "the sweep must keep producing STRICT gaps: {strict} strict of {} \
+             comparisons — {}",
+            trials * 5,
+            fuzz::replay()
+        );
+        println!(
+            "cert10 fold-vs-whole-net: {strict} strict of {} comparisons",
+            trials * 5
+        );
+    }
+
+    /// **CERT-10 red row (issue 1006, the Q2 ruling): the whole-face
+    /// bound IS the per-cell fold.** Per-cell-then-union is tighter or
+    /// equal — every cell's window is a SUBSET of the whole net's, so
+    /// no cell can report more, and the fold can report less wherever
+    /// two channels' extremes live in different cells. This row pins
+    /// the shipped face bound to that fold, componentwise, on every
+    /// covered fixture class.
+    #[test]
+    fn cert10_whole_face_bound_is_the_per_cell_fold() {
+        for (name, s) in [
+            ("wavy", wavy()),
+            ("staggered_channels", staggered_channels()),
+            ("many_knot k=8", many_knot_face(8)),
+            ("quarter_cylinder", quarter_cylinder()),
+            ("wavy_rational", wavy_rational()),
+            ("pie_wall", pie_wall()),
+        ] {
+            let shipped = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+            let fold = fold_bound(&s).expect("covered");
+            for (what, a, b) in [
+                ("muu", shipped.muu, fold.muu),
+                ("muv", shipped.muv, fold.muv),
+                ("mvv", shipped.mvv, fold.mvv),
+                ("mu1", shipped.mu1, fold.mu1),
+                ("mv1", shipped.mv1, fold.mv1),
+            ] {
+                assert!(
+                    a == b,
+                    "{name}: shipped {what} {a:.17e} is not the per-cell fold {b:.17e}"
+                );
+            }
+        }
+    }
+
+    /// **CERT-10 red row: the tightening is real, not merely
+    /// non-negative.** The whole-net figures below were MEASURED on
+    /// this tree before the collapse (`cert10_fold_cost_table`), and
+    /// are pinned as the record of what the whole-net spelling
+    /// answered. The mechanism, so the gap is not read as noise: a
+    /// per-channel hull's `mag` is `max |coefficient|` over the
+    /// window, and the cell windows COVER the net, so for one channel
+    /// the fold and the whole net agree exactly. The gap lives in the
+    /// `sum over channels of sup squared` — the whole-net number adds
+    /// three per-channel maxima no single point of the patch attains
+    /// together, and `staggered_channels` puts the `x` and `z` maxima
+    /// in different cells on purpose.
+    #[test]
+    fn cert10_fold_is_strictly_tighter_than_the_whole_net_hull() {
+        let s = staggered_channels();
+        let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+        // Measured whole-net figures (pre-collapse), full precision.
+        let whole_muu = 4.821_956_449_409_315_6e1;
+        let whole_mu1 = 2.000_000_000_000_002_5e1;
+        assert!(
+            b.muu < whole_muu * 0.8,
+            "staggered muu {:.17e} is not strictly tighter than the whole-net {whole_muu:.17e}",
+            b.muu
+        );
+        assert!(
+            b.mu1 < whole_mu1 * 0.9,
+            "staggered mu1 {:.17e} is not strictly tighter than the whole-net {whole_mu1:.17e}",
+            b.mu1
+        );
+        // And a smooth fixture keeps the "or equal" half honest: the
+        // three second-partial channels peak in one cell there, so the
+        // fold reproduces the whole-net number exactly, while the
+        // first-partial `mv1` still gains.
+        let w = wavy();
+        let bw = nurbs_face_bound(&w, FaceKey::default()).expect("covered");
+        assert!(
+            bw.muu == 1.039_409_499_704_883_5e1,
+            "wavy muu moved: {:.17e}",
+            bw.muu
+        );
+        assert!(
+            bw.mv1 < 4.335_017_346_749_23,
+            "wavy mv1 {:.17e} did not gain on the whole-net figure",
+            bw.mv1
+        );
+    }
+
+    /// **CERT-10 red row: the rational per-cell reading is the SIGNED
+    /// one.** The magnitude reading applied the triangle inequality to
+    /// the quotient rule (all `+`, divide by the smallest weight); the
+    /// signed one evaluates the quotient rule itself in the ring, with
+    /// the true minus signs and the whole weight hull as the divisor.
+    /// The signed reading is strictly tighter and both are sound, so
+    /// the shipped grid sizing reads the signed one.
+    #[test]
+    fn cert10_rational_cell_reading_is_the_signed_hull() {
+        for (name, s) in [
+            ("quarter_cylinder", quarter_cylinder()),
+            ("wavy_rational", wavy_rational()),
+            ("pie_wall", pie_wall()),
+        ] {
+            let cells = patch_bound::patch_cells(&s).expect("covered");
+            let shipped = nurbs_cell_bounds(&s, FaceKey::default()).expect("covered");
+            assert_eq!(cells.len(), shipped.len());
+            for (c, b) in cells.iter().zip(&shipped) {
+                for (what, got, want) in [
+                    (
+                        "muu",
+                        b.bound.muu,
+                        cell_component(patch_bound::sq_norm(c.s_uu)),
+                    ),
+                    (
+                        "muv",
+                        b.bound.muv,
+                        cell_component(patch_bound::sq_norm(c.s_uv)),
+                    ),
+                    (
+                        "mvv",
+                        b.bound.mvv,
+                        cell_component(patch_bound::sq_norm(c.s_vv)),
+                    ),
+                    (
+                        "mu1",
+                        b.bound.mu1,
+                        cell_component(patch_bound::sq_norm(c.s_u)),
+                    ),
+                    (
+                        "mv1",
+                        b.bound.mv1,
+                        cell_component(patch_bound::sq_norm(c.s_v)),
+                    ),
+                ] {
+                    assert!(
+                        got == want,
+                        "{name}: cell u{:?} v{:?} shipped {what} {got:.17e} is not the \
+                         signed reading {want:.17e}",
+                        c.u,
+                        c.v
+                    );
+                }
+            }
+        }
+    }
+
+    /// **CERT-10 red row: the signed-vs-magnitude width gap on a
+    /// rational face.** The magnitude figures below were MEASURED on
+    /// this tree before the retirement and are pinned as the record of
+    /// what the retired reading answered. `muv` is where the triangle
+    /// inequality costs most: on the quarter cylinder the quotient
+    /// rule's minus signs cancel almost entirely, and the magnitude
+    /// spelling — which cannot see a sign — reports eleven times the
+    /// signed one.
+    #[test]
+    fn cert10_signed_reading_is_strictly_tighter_on_a_rational_face() {
+        let s = quarter_cylinder();
+        let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+        let mag_muu = 3.942_263_838_556_179_7;
+        let mag_muv = 1.266_375_820_315_083_4;
+        assert!(
+            b.muu < mag_muu * 0.78,
+            "quarter cylinder muu {:.17e} did not tighten on the magnitude {mag_muu:.17e}",
+            b.muu
+        );
+        assert!(
+            b.muv < mag_muv * 0.1,
+            "quarter cylinder muv {:.17e} did not tighten on the magnitude {mag_muv:.17e}",
+            b.muv
+        );
+    }
+
+    /// **The rational-face grid re-sizing, in digits** (issue 1006's
+    /// ruling: the retirement "coarsens/re-sizes rational-face grids",
+    /// and the figures are owed). Reports the split selection's steps
+    /// and whole-chart division counts for the retired MAGNITUDE
+    /// reading (pinned from the measurement taken before it was
+    /// removed) beside the shipped SIGNED one, at the tour's own
+    /// delta_s decade.
+    ///
+    /// `#[ignore]`d: a measurement, not an assertion.
+    ///
+    /// **The `mvv` entries are NOT pinned digits.** On these ruled
+    /// (degree-1 in `v`) faces the true `S_vv` is identically zero,
+    /// and what the assembly reports is the rational arm's
+    /// knot-insertion rounding — see `PatchCell`'s field docs, "the
+    /// refined net is what is enclosed". Pinning that to sixteen
+    /// digits would pin a rounding artifact, so the entries below
+    /// carry the retired reading's ORDER of magnitude and their
+    /// provenance instead; nothing in this harness is sensitive to
+    /// them (a `mvv` of 1e-15 and one of 5e-15 size the same grid).
+    #[test]
+    #[ignore = "measurement harness: prints the rational-face grid re-sizing"]
+    fn cert10_rational_grid_resizing() {
+        // Measured on this tree before the retirement. The two first
+        // partials and `muu`/`muv` are digits; `mvv` is dust (above).
+        let dust = 4.3e-15;
+        let retired = [
+            (
+                "quarter_cylinder",
+                NurbsFaceBound {
+                    muu: 3.942_263_838_556_179_7,
+                    muv: 1.266_375_820_315_083_4,
+                    mvv: dust,
+                    mu1: 1.758_098_729_671_621_3,
+                    mv1: 1.064_513_033_689_903,
+                },
+                quarter_cylinder(),
+            ),
+            (
+                "pie_wall",
+                NurbsFaceBound {
+                    muu: 3.757_781_184_602_715_4,
+                    muv: 1.187_199_279_294_388_2,
+                    mvv: dust,
+                    mu1: 1.736_856_620_662_045_7,
+                    mv1: 1.060_465_116_279_076_4,
+                },
+                pie_wall(),
+            ),
+            (
+                "wavy_rational",
+                NurbsFaceBound {
+                    muu: 2.102_738_222_528_367_3e3,
+                    muv: 7.072_400_295_746_917e2,
+                    mvv: 3.944_546_314_591_795_5e2,
+                    mu1: 3.783_331_582_921_541_5e1,
+                    mv1: 1.429_748_990_854_184_7e1,
+                },
+                wavy_rational(),
+            ),
+        ];
+        for delta_s in [1e-2, 4e-3, 1e-3] {
+            println!("\ndelta_s = {delta_s:.0e}");
+            println!(
+                "{:<18} {:>6} {:>13} {:>13} {:>9} {:>9} {:>7}",
+                "face", "read", "h_u", "h_v", "div_u", "div_v", "cells"
+            );
+            for (name, old, s) in &retired {
+                let new = nurbs_face_bound(s, FaceKey::default()).expect("covered");
+                for (tag, b) in [("mag", *old), ("signed", new)] {
+                    let (hu, hv) = b.grid_steps(delta_s);
+                    // The chart is the unit square in both directions
+                    // for every fixture here.
+                    let du = if hu.is_finite() && hu > 0.0 {
+                        (1.0f64 / hu).ceil().max(1.0)
+                    } else {
+                        1.0
+                    };
+                    let dv = if hv.is_finite() && hv > 0.0 {
+                        (1.0f64 / hv).ceil().max(1.0)
+                    } else {
+                        1.0
+                    };
+                    println!(
+                        "{name:<18} {tag:>6} {hu:>13.6e} {hv:>13.6e} {du:>9.0} {dv:>9.0} \
+                         {:>7.0}",
+                        du * dv
+                    );
+                }
+            }
+        }
     }
 }

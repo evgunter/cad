@@ -88,3 +88,14 @@ materializer+filter truth.
 
 Next: SEAT-3 (the flush detector at the body seat, retiring the
 issue-757 producer gap) dispatches on the block's next slot.
+
+## ORDINAL 1002 CLAIMED — SEAT-3 dual (2026-09-02)
+
+SEAT-3 (PR 1531, the flush detector at the body seat) implementation
+delivered and green (lane=default ASKED via trailer, eps drawn; run
+33571617460; the one neutral check is main's inherited freecad
+render-drift baseline, re-rendered driftless). The cylindrical
+measurement answered YES — the Rest ladder already verifies curved
+rungs; the detector widening is a reported fork, not taken. v6 dual
+dispatches on frozen head 1cf1c377: parity byte 41 → **R1 fable + R2 opus**. Difficulty M was logged
+pre-draw. Full row recorded at merge.

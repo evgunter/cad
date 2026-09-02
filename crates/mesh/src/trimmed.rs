@@ -99,7 +99,7 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::types::TessellateError;
@@ -186,20 +186,25 @@ pub(crate) fn tessellate_trimmed(
         // An approximating surface takes the spline lane on its fit
         // (there is no placeholder state to screen: it is certified by
         // construction).
-        Surface::Approx(ref a) => Lane::Nurbs {
-            grid: nurbs_cell_grid(a.fit(), fk)?,
-            patch: face_bound(bounds, a.fit(), fk)?,
-        },
+        // Both readings off ONE assembly: the memo holds the cell
+        // table (`nurbs_cert::face_grid`), and the whole-patch bound is
+        // a reading of it. The chord pass has normally already filled
+        // this entry, so the usual cost here is a clone of the table,
+        // not an assembly.
+        Surface::Approx(ref a) => {
+            let grid = face_grid(bounds, a.fit(), fk)?.clone();
+            let patch = grid.patch();
+            Lane::Nurbs { grid, patch }
+        }
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 // The mvfs "no description yet" state — the historical
                 // refusal, kept for exactly this class (types docs).
                 return Err(TessellateError::UnsupportedSurface { face: fk });
             }
-            Lane::Nurbs {
-                grid: nurbs_cell_grid(payload, fk)?,
-                patch: face_bound(bounds, payload, fk)?,
-            }
+            let grid = face_grid(bounds, payload, fk)?.clone();
+            let patch = grid.patch();
+            Lane::Nurbs { grid, patch }
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
@@ -591,7 +596,7 @@ pub(crate) fn tessellate_trimmed(
                         // and on a flat wall certifying at ~5e-17 a
                         // bare `d / cert` would read pure rounding
                         // dust as a violation.
-                        let r = d / (bound + tol.eps);
+                        let r = d / tol.eps.pad(bound);
                         // A first sample replaces the NaN seed; after
                         // that, max — sticky-NaN, the same rule the
                         // certificate accumulation below follows,

@@ -89,6 +89,15 @@ mod cert7_r1_probes;
 #[path = "cert7_r2_probes.rs"]
 mod cert7_r2_probes;
 
+#[path = "cert10_r1_probes.rs"]
+mod cert10_r1_probes;
+
+#[path = "cert10r2_probes.rs"]
+mod cert10r2_probes;
+
+#[path = "r2_quad_digit_probe.rs"]
+mod r2_quad_digit_probe;
+
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
