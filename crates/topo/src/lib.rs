@@ -297,12 +297,12 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
+pub use chart_region::{
+    ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
+};
 pub use coherence::{
     CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined,
     examine_chart_coherence,
-};
-pub use chart_region::{
-    ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
 };
 pub use geom::Curve3;
 pub use geom::Surface;

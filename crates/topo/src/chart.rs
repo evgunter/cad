@@ -318,5 +318,4 @@ mod tests {
             assert!((d - h).abs() < 1e-15, "expected {h}, got {d}");
         }
     }
-
 }

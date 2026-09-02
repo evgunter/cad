@@ -346,9 +346,13 @@ fn classify(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind
 fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>, Unexaminable> {
     let corrupt = |what| Unexaminable::Corrupt { what };
     let point = |body: &Body<f64>, v: VertexKey| -> Option<Point3<f64>> {
-        body.get_vertex(v).and_then(|vx| body.get_point(vx.point)).copied()
+        body.get_vertex(v)
+            .and_then(|vx| body.get_point(vx.point))
+            .copied()
     };
-    let lp = body.get_loop(lk).ok_or(corrupt("loop key does not resolve"))?;
+    let lp = body
+        .get_loop(lk)
+        .ok_or(corrupt("loop key does not resolve"))?;
     let LoopBoundary::Cycle { first } = lp.boundary else {
         return Err(corrupt("empty loop (construction scaffolding at rest)"));
     };
@@ -511,9 +515,7 @@ fn loop_findings(
                 // a default would silently measure a rim against a
                 // meridian and report the difference between two
                 // unrelated coordinates as a defect in the data.
-                _ => unreachable!(
-                    "an iso side's continuations are the kind its opening edge is"
-                ),
+                _ => unreachable!("an iso side's continuations are the kind its opening edge is"),
             }
         }
         if let TravKind::Meridian { u_raw } = t.kind {
