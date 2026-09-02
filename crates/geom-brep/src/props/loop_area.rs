@@ -176,18 +176,17 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge {
-            carrier_id: None,
-            carrier: Curve3::Line {
+        LoopEdge::hand_built(
+            Curve3::Line {
                 origin: a,
                 dir: d * (1.0 / len),
             },
-            t0: 0.0,
-            t1: len,
+            0.0,
+            len,
             forward,
-            start: 0,
-            end: 0,
-        }
+            0,
+            0,
+        )
     }
 
     #[test]
@@ -207,20 +206,19 @@ mod tests {
     #[test]
     fn full_circle_vector_area_is_pi_r_squared_axis() {
         let r = 2.0;
-        let e = LoopEdge {
-            carrier_id: None,
-            carrier: Curve3::Circle {
+        let e = LoopEdge::hand_built(
+            Curve3::Circle {
                 center: Point3::new(1.0, 2.0, 3.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 radius: r,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
-            t0: 0.0,
-            t1: core::f64::consts::TAU,
-            forward: true,
-            start: 0,
-            end: 0,
-        };
+            0.0,
+            core::f64::consts::TAU,
+            true,
+            0,
+            0,
+        );
         let va = loop_vector_area(core::slice::from_ref(&e), Point3::origin()).unwrap();
         assert!((va.z - core::f64::consts::PI * r.powi(2)).abs() < 1e-12);
         assert!(va.x.abs() < 1e-12 && va.y.abs() < 1e-12);

@@ -21,15 +21,7 @@ fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
 }
 fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge {
-        carrier_id: None,
-        carrier,
-        t0,
-        t1,
-        forward,
-        start,
-        end,
-    }
+    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
 }
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
@@ -357,15 +349,7 @@ mod interval_lane {
     }
     fn edge<T: Real>(c: Curve3<T>, a: f64, b: f64, s: u32, e: u32) -> LoopEdge<T> {
         let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-        LoopEdge {
-            carrier_id: None,
-            carrier: c,
-            t0: f(t0),
-            t1: f(t1),
-            forward,
-            start: s,
-            end: e,
-        }
+        LoopEdge::hand_built(c, f(t0), f(t1), forward, s, e)
     }
     fn rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
         edge(

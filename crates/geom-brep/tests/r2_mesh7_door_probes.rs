@@ -40,15 +40,7 @@ fn band() -> Band {
 /// flattening stores it (certified forward interval + traversal bool).
 fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge {
-        carrier_id: None,
-        carrier,
-        t0,
-        t1,
-        forward,
-        start,
-        end,
-    }
+    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
 }
 
 /// **The Villarceau lens.** The torus `R = 1`, `r = 0.5` about `+Z`;

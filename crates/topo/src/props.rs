@@ -37,10 +37,7 @@ use slotmap::Key;
 
 use crate::body::Body;
 use crate::boolean::ContactRecords;
-use crate::entity::{
-    EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
-};
-use crate::provenance::Provenance;
+use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
 use crate::validate::ValidationError;
 
 /// Exact-B-rep integral properties of a body.
@@ -403,8 +400,10 @@ fn face_flux<T: Decide>(
     })
 }
 
-/// Flatten one loop's half-edge cycle into key-free [`LoopEdge`]s
-/// (traversal order; vertex tags are loop-local first-seen indices),
+/// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
+/// order; vertex tags are loop-local first-seen indices; each edge's
+/// carrier identity is the root of its split lineage, minted from this
+/// body's own keys and comparable only within this flattening),
 /// alongside the half-edge keys walked (the PR 11 quadrature lane
 /// reads stored pcurve caches through them).
 ///
@@ -462,7 +461,17 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
-            carrier_id: Some(CarrierId(split_root(body, he.edge).data().as_ffi())),
+            // A lineage that cycles is one a graft aliased (issue 1597:
+            // records are copied with their source keys, which in the
+            // destination chain into strangers); the flattening then
+            // stamps NO identity, so no two such edges are ever folded
+            // into one — the fold declines rather than trusting a
+            // record it cannot read, and a split meridian on such a
+            // body refuses at the far rim as it did before any fold.
+            carrier_id: body
+                .split_root(he.edge, |_| false)
+                .ok()
+                .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
             forward: he_key == edge.he_plus,
@@ -471,24 +480,6 @@ pub fn loop_edges<T: Decide>(
         });
     }
     Ok((edges, hes))
-}
-
-/// The edge `edge` is a piece of: its split lineage chased to the edge
-/// that was never itself minted by a split. `split_edge` keeps the
-/// parent's key for the first child and records the parent on the
-/// second, so every piece of one original edge reaches the same root;
-/// the chase is bounded by the edge count (a lineage is a chain of
-/// older edges, and a cycle in it would be a corrupt provenance
-/// record, not an infinite one).
-fn split_root<T: Real>(body: &Body<T>, edge: EdgeKey) -> EdgeKey {
-    let mut root = edge;
-    for _ in 0..body.edges.len() {
-        match body.edge_provenance_of(root) {
-            Some(Provenance::SplitEdge { edge: parent }) => root = *parent,
-            _ => break,
-        }
-    }
-    root
 }
 
 /// The derived outer/void designation of one shell. The shell list

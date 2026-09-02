@@ -54,31 +54,33 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
         radius: Probe(r),
         u_ref: v3(1.0, 0.0, 0.0),
     };
-    let rim = |z: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier_id: None,
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, z),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: Probe(r),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        t0: Probe(t0),
-        t1: Probe(t1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let rim = |z: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: p(0.0, 0.0, z),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: Probe(r),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            Probe(t0),
+            Probe(t1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
-    let meridian = |u: f64, z0: f64, z1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier_id: None,
-        carrier: Curve3::Line {
-            origin: p(r * u.cos(), r * u.sin(), 0.0),
-            dir: v3(0.0, 0.0, 1.0),
-        },
-        t0: Probe(z0),
-        t1: Probe(z1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let meridian = |u: f64, z0: f64, z1: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Line {
+                origin: p(r * u.cos(), r * u.sin(), 0.0),
+                dir: v3(0.0, 0.0, 1.0),
+            },
+            Probe(z0),
+            Probe(z1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
     let edges = vec![
         rim(0.0, 0.0, u1, true, (0, 1)),

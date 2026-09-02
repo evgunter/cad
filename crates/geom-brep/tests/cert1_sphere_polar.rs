@@ -39,15 +39,7 @@ fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
 }
 fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge {
-        carrier_id: None,
-        carrier,
-        t0,
-        t1,
-        forward,
-        start,
-        end,
-    }
+    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
 }
 
 /// The sphere under every row: R = 10 mm about +Z at the origin.

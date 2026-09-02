@@ -36,15 +36,7 @@ fn band() -> Band {
 /// `topo`'s half-edge flattening does it.
 fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge {
-        carrier_id: None,
-        carrier,
-        t0,
-        t1,
-        forward,
-        start,
-        end,
-    }
+    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
 }
 
 /// The unit cylinder about +Z with its rim (coaxial circle at height
@@ -253,7 +245,7 @@ fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// built without a body records none).
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
     LoopEdge {
-        carrier_id: id.map(CarrierId),
+        carrier_id: id.map(CarrierId::minted),
         ..edge(
             Curve3::Circle {
                 center: p3(RR * u.cos(), RR * u.sin(), 0.0),
@@ -332,13 +324,7 @@ fn a_meridian_in_pieces_folds_by_lineage_into_the_edge_it_came_from() {
         );
         let c = curved_face(&s, &rot, 1.0, band())
             .unwrap_or_else(|e| panic!("rotation {k}: refused {e:?}"));
-        let (f0, a0) = (f64::from_bits(ctl.0), f64::from_bits(ctl.1));
-        assert!(
-            (c.flux - f0).abs() <= 1e-12 * f0.abs() && (c.area - a0).abs() <= 1e-12 * a0,
-            "rotation {k}: ({}, {}) vs the control ({f0}, {a0})",
-            c.flux,
-            c.area
-        );
+        assert_eq!(bits(c), ctl, "rotation {k}: bitwise the control");
     }
 }
 
@@ -384,7 +370,7 @@ fn pieces_from_distinct_edges_never_fold() {
             .enumerate()
             .map(|(i, mut e)| {
                 if i == 2 {
-                    e.carrier_id = Some(CarrierId(9));
+                    e.carrier_id = Some(CarrierId::minted(9));
                 }
                 e
             })

@@ -265,8 +265,12 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
 /// at the `t0` end evaluates its carrier there to the unsplit edge's
 /// own `t0` point bitwise. That is what makes the folded meridian the
 /// unsplit meridian's record exactly, at every split fraction — and
-/// `mass_properties` says so bitwise on both patterns. If `split_edge`
-/// ever re-parametrised a child, this row reds.
+/// `mass_properties` says so bitwise on both patterns. The premise is
+/// ENFORCED, not assumed: a child restated through `set_edge_curve`
+/// with its interval shifted by a period on its own carrier (every
+/// piece still certifies) no longer meets its sibling, and every
+/// consumer refuses `props_meridian_pieces_meet` — this row reds if
+/// the fold ever admits it.
 #[test]
 fn split_children_partition_the_parent_edges_own_parametrisation() {
     let tol = Tol::witness();
@@ -328,6 +332,36 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
             topo::mass_properties(&body, tol).unwrap().volume.to_bits(),
             v0,
             "{fracs:?}: the volume, bitwise"
+        );
+        // The enforcement: shift the last-minted child by a period.
+        let mut shifted = body.clone();
+        let child = shifted.edges().last().unwrap().0;
+        let cert = shifted
+            .get_curve_geom(shifted.get_edge(child).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .clone();
+        let mut spec = cert.restated_spec();
+        spec.param_start += core::f64::consts::TAU;
+        spec.param_end += core::f64::consts::TAU;
+        shifted
+            .set_edge_curve(child, spec, tol)
+            .expect("the identical arc, one period along its own carrier, certifies");
+        let meet = PropsError::NotIsoRectangle {
+            what: "props_meridian_pieces_meet",
+        };
+        let got = topo::mass_properties(&shifted, tol).map(|m| m.volume);
+        assert!(
+            matches!(&got, Err(topo::MassPropsError::Face { source, .. }) if *source == meet),
+            "{fracs:?}: the shifted child no longer meets its sibling: {got:?}"
+        );
+        assert!(
+            matches!(
+                mesh::tessellate(&shifted, 0.1, tol),
+                Err(TessellateError::UnsupportedCurvedShape { source, .. }) if source == meet
+            ),
+            "{fracs:?}: tessellate refuses by the same name"
         );
     }
 }
