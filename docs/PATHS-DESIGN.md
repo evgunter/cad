@@ -1448,11 +1448,10 @@ constructs them.
 `arc_to(Bulge { … })` take `arrives_tangent`. `arc_to`'s `Via` and
 `Center` modes fix an end tangent too and the same token would
 serve them; their arms stay lattice violations until a unit takes
-them (issue TBD (orchestrator files)). So does the
-construct-from-arrival closer — the arc through the departure point
-and `Start` whose END tangent is `Start.dir`, which would spare an
-author solving for a departure angle (issue TBD (orchestrator
-files)).
+them (issue 1579). So does the construct-from-arrival closer — the
+arc through the departure point and `Start` whose END tangent is
+`Start.dir`, which would spare an author solving for a departure
+angle (issue 1578).
 
 ## 7. Explicitly out of scope
 
