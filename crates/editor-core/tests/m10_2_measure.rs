@@ -17,14 +17,14 @@ mod fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
-    DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
-    MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload, apply, evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Datum, Dimension, DocEdit, DocParam,
+    DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
+    MeasurePrimitive, MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload,
+    apply, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
-use profile::SketchPlane;
 
 /// The plate's hole radius, as a document parameter — the thing the
 /// e2e edits to flip the assertion.
@@ -50,6 +50,25 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
         .doc
 }
 
+/// Inserts a node and returns the document beside the minted id — the
+/// [`push`] shape for a node whose id the caller needs, which a frame
+/// datum's is: every profile drawn on it names it.
+fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+    let applied = apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
+        .unwrap_or_else(|e| panic!("edit refused: {e}"));
+    let id = applied.record.minted.expect("an insert mints an id");
+    (applied.doc, id)
+}
+
+/// The world xy frame as a node — what a profile is drawn on.
+fn xy_frame() -> Node<ProfileProgram> {
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
 /// **The two-hole plate**, authored through the public edit door as a
 /// user would: a rectangular plate, and beside it two
 /// parameter-driven cylindrical hole tools.
@@ -63,6 +82,11 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// Returns the plate body and the two hole nodes.
 fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-plate"), Tol::witness());
+    // ONE frame for every sketch in this document: they were all on
+    // the world xy plane, and a frame that several profiles name is
+    // what "the same plane" is now spelled as.
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
@@ -86,7 +110,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane: xy,
                 loops: vec![outer],
             }),
         },
@@ -107,7 +131,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
                         radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
@@ -195,13 +219,22 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ])
     };
     for z in [0.0, 1.0 + SLAB_GAP] {
+        // A frame PER SLAB: these are two different planes (the second
+        // is lifted in z), so they are two frames, not one shared.
+        let (next, plane) = mint(
+            &doc,
+            Node::Datum(Datum::Frame {
+                origin: [len(0.0), len(0.0), len(z)],
+                u: [scl(1.0), scl(0.0), scl(0.0)],
+                v: [scl(0.0), scl(1.0), scl(0.0)],
+            }),
+        );
+        doc = next;
         doc = push(
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::new(geom_core::Affine3::translation(geom_core::Vec3::new(
-                        0.0, 0.0, z,
-                    ))),
+                    plane,
                     loops: vec![square()],
                 }),
             },
@@ -242,12 +275,14 @@ fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> MeasureRef {
 /// is exactly `r_bore - r_pin`. Returns (doc, bore, pin).
 fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-coaxial"), Tol::witness());
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     for r in [bore_r, pin_r] {
         doc = push(
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
@@ -731,6 +766,8 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
 #[test]
 fn the_same_division_in_a_slot_has_always_refused() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf-slot"), Tol::witness());
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
@@ -747,7 +784,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane: xy,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
@@ -795,11 +832,13 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     const SHIFT: f64 = 100.0;
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-placed"), Tol::witness());
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane: xy,
                 loops: vec![LoopProgram::Chain(vec![
                     ProgramStep::At([len(0.0), len(0.0)]),
                     ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
