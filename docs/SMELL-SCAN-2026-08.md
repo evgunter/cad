@@ -6169,8 +6169,8 @@ of whether it should have one is a design question, not a doc edit.
 **Number allocated by the Track H orchestrator** (`docs/SMELL-H-LOG.md`),
 not drawn from the block by this lane: `main` cannot see an unmerged
 sibling branch, so re-deriving against it is not a defence between two
-open lanes inside one track. `S213` (landed) was this lane's; `S214` and
-`S215` were held elsewhere when this was written.
+open lanes inside one track. `S214` and `S215` were held elsewhere when
+this was written.
 
 **One finding, two halves, found six hours apart by two lanes, and
 neither half is visible from the other.**
@@ -6980,19 +6980,43 @@ per-unit by the orchestrator, never taken from here by resemblance.
 | **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12). **`H-f`'s census of the other three lane traits is DONE and is CERT-M3's specification** (CERT-M2's PR body, per trait: where the certified sub-operation sits, what the pass hands back without it, whether the certified half is already a parameter, which absence spelling it carries, and a verdict). **And the ruling's own price is falsified, measured rather than argued** —
 the correction `CERT-M3` inherits, relocated here because the finding that
 held it has landed. `H-R16` prices the three-function split at *"exactly one
-in-repo site"*, a number taken from the single site `S3` had read. The split
-of ONE of the four passes cost **nine files and twenty `E0277`s**: one
-generic `src` caller (`topo::shell`/`shell_open`, whose bound tightened with
-the door they validate through), two `props.rs` policy pins, seven generic
-test-helper instantiations, and **eight `Body<Dual64>` rows that call the
-pass and assert a verdict**, seven of them DUAL-DESIGN DL3's own measurement
-in `editor-core`. Two consequences a taker should carry rather than
-rediscover: the per-trait cost is a MEASUREMENT and not an estimate, and the
-`Dual64` rows are the expensive part — they live in other programs' suites,
-they assert what the pass FINDS, and retiring a refusal can empty a witness
-set outright (splitting the validator did exactly that to DL3's two named
-witnesses, whose only refusal was the +V invariant's). Its three verdicts: `EdgeNurbsLane` **splits free and is already split** — `geom_brep::NurbsLane` is a `&dyn Fn` injected at the door and `EdgeCurve::certify` already IS the structural half, so the trait's whole remaining job is naming `T::plane_nurbs_limbs`; `PcurveFittedLane` **does not split** — its certified half CONSTITUTES the pass's product (`run_fitted_checks` check 4 is where the `PcurveCertificate` comes from, and its `envelope` field IS `ssi.hull_sup`), so a structural half hands back a weaker object, not less information; `ChartRegionLane` **splits only with a new contract** — the census's conformal face-pair arm goes silent without it, which is a completeness claim nothing in the tree states | Track H |
-| **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** **Re-read against the tree 2026-09-02, as a measurement and not an unparking** — three things moved and one did not. (i) The blocker STANDS: `sweep::blend::fillet_edges` is still reachable from `editor_core::eval::evaluate`, through `eval::wire::run_op`'s `T: Decide + ContentBits + Bounds + Send + Sync + AtRestPolicy + AxisScalar` to `wire_fillet`, and that set admits `Dual`, so #883's twelve red jobs still reduce to that one `E0277`. (ii) The pass is still mixed, and the split still sits where H-g put it: the geometry builder holds ZERO bracket reads at `T: Real`. (iii) **Every #883-era citation needs re-aiming**: the module is `crates/sweep/src/blend/`, not `sweep/src/fillet/`, and the builder is `blend/arms.rs`, not `blend.rs`. (iv) **H-g's bracket-read count is 14 no longer — it is 17**, `battery.rs` 11 (typed-error payloads: `margin`/`radius`/`gap`/`arm` fields), `build.rs` 3 (the `NonpositiveSize` datum gate and an f64 payload) and `surgery.rs` 3 (representation-datum selections, each with its argument written at the site) — so the class holds and the number does not; re-derive it rather than quoting either | Track H |
+in-repo site"*, a number taken from the single site `S3` had read.
+Re-derived at the merge base by three independent compiles, and the count
+is stated with its unit because the two disagree: the split of ONE of the
+four passes cost **twenty-one call sites across eleven files, emitting
+twenty-two `E0277` diagnostics in-workspace plus one more in an excluded
+cargo root**. (`topo::shell` and `shell_open` are ONE site — the single
+`validate_geometric` call in `shell_open` — and it emits TWO diagnostics,
+one per missing supertrait; the excluded root is `demos/tour`, which
+`--workspace` never compiles.) By kind: one generic `src` caller
+(`topo::shell_open`, whose two public doors tightened with the call they
+validate through), two `props.rs` policy pins, seven generic test-helper
+instantiations, one demo probe, and **ten `Body<Dual64>` rows that call
+the pass and assert a verdict**, seven of them DUAL-DESIGN DL3's own
+measurement in `editor-core`. Three consequences a taker should carry rather than
+rediscover. (i) The per-trait cost is a MEASUREMENT and not an estimate.
+(ii) The `Dual64` rows are the expensive part — they live in other
+programs' suites, they assert what the pass FINDS, and retiring a refusal
+can empty a witness set outright (splitting the validator did exactly that
+to DL3's two named witnesses). (iii) **A split can retire a VERDICT and not
+only a refusal, and that is the thing to price first.** Check 7 has two
+derivations, a certified quadrature and a CLOSED FORM that computes at any
+scalar with a zero pad, so before the split a dual asking
+`validate_geometric` about any planar body got a real `+V` sign. Moving the
+whole check behind the certified bound retires the sign as well as the
+refusal at that door — sound, because the sign is now decided in exactly
+one place, and visible, because the at-rest doors then DISAGREE at a dual
+(`validate_pseudomanifold` still answers `NegativeVolume` on the same body).
+Each of the other three traits must be read for the same shape: what does
+the pass still ANSWER at a non-certifying scalar that the split would take
+away. **And `EdgeNurbsLane`'s "free" carries one price, named**: the shared
+certified body `edge_nurbs::lane` is PRIVATE today, reached only through
+the trait's three forwarding impls, so deleting the trait means making it
+`pub` (or `pub(crate)` plus a re-export for `topo`'s two consumers) — a
+public-surface addition in `geom-brep`, not a deletion. That is the whole
+of the cost and it is smaller than the trait it removes, but "free" should
+not read as "no diff outside the trait". Its three verdicts: `EdgeNurbsLane` **splits free and is already split** — `geom_brep::NurbsLane` is a `&dyn Fn` injected at the door and `EdgeCurve::certify` already IS the structural half, so the trait's whole remaining job is naming `T::plane_nurbs_limbs`; `PcurveFittedLane` **does not split** — its certified half CONSTITUTES the pass's product (`run_fitted_checks` check 4 is where the `PcurveCertificate` comes from, and its `envelope` field IS `ssi.hull_sup`), so a structural half hands back a weaker object, not less information; `ChartRegionLane` **splits only with a new contract** — the census's conformal face-pair arm goes silent without it, which is a completeness claim nothing in the tree states. **CERT-M3 also inherits a bound to narrow.** `H-R16` spells the structural half `T: Decide`; it landed as `T: PropsQuadLane`, because checks 1-6 still dispatch through the trait — check 2's `recertify_nurbs_lane` (the `EdgeNurbsLane` half), check 1's `recertify_approx` and `datum_lo`, and check 8's `validate_pcurves` (the `PcurveFittedLane` half). After the `EdgeNurbsLane` split the `EdgeNurbsLane` term goes; what still holds the bound up is `recertify_approx`/`datum_lo` (`PropsQuadLane`'s own methods, and `datum_lo` is a `Bounds` read behind a name) and `PcurveFittedLane`, which the census says does not split. So the honest end state for the structural half is `Decide + Bounds + PcurveFittedLane` plus a home for `recertify_approx` — not `Decide`, and saying so is part of the row | Track H |
+| **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** **Re-read against the tree 2026-09-02, as a measurement and not an unparking** — three things moved and one did not. (i) The blocker STANDS: `sweep::blend::fillet_edges` is still reachable from `editor_core::eval::evaluate`, through `eval::wire::run_op`'s `T: Decide + ContentBits + Bounds + Send + Sync + AtRestPolicy + AxisScalar` to `wire_fillet`, and that set admits `Dual`, so #883's twelve red jobs still reduce to that one `E0277`. (ii) The pass is still mixed, and the split still sits where H-g put it: the geometry builder holds ZERO bracket reads at `T: Real`. (iii) **Every #883-era citation needs re-aiming**: the module is `crates/sweep/src/blend/`, not `sweep/src/fillet/`, and the builder is `blend/arms.rs`, not `blend.rs`. (iv) **H-g's bracket-read count of 14 no longer holds, and the unit matters**: 17 LINES carry a bracket read, 19 READS in all — `battery.rs` 11 lines / 12 reads, `build.rs` 3 / 3, `surgery.rs` 3 / 4, `arms.rs` (the geometry builder) 0. The classification also needs correcting rather than repeating: they are NOT all typed-error payloads. In `battery.rs` nine are error-payload fields (`margin`/`radius`/`gap`/`arm`), `:1235` is a BRANCH CONDITION comparing two bracket lows (`d0.min(d1).lo() == d0.lo()`, a junction-end pick) and `:1289` is a value read feeding an f64 quantity; `build.rs` is one `partial_cmp` datum gate plus two payloads; `surgery.rs`'s four are representation-datum selections, each with its argument written at the site. So the population is payloads plus SELECTIONS, and a taker owes a per-read classification rather than either count | Track H |
 
 ## Track N — `geom`, and the spline and linalg substrate
 

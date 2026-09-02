@@ -510,12 +510,7 @@ pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
 /// Then [`ShellError`] — [`shell`]'s, plus the designation gates (a face
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
-/// **The scalar must be able to certify**, because this verb validates
-/// what it built: its last act is [`validate_geometric`], whose +V
-/// invariant is a certified claim. A scalar without certification
-/// rights cannot form the call — there is no arm and no refusal — and
-/// the recourse is not a weaker shell but the ordinary one, built at a
-/// certifying scalar.
+/// The certification bound is [`shell`]'s, for [`shell`]'s reason.
 pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     body: &Body<T>,
     thickness: T,

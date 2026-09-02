@@ -612,9 +612,12 @@ fn r1_e2e_consumer_drive_at_dual64() {
         }
     }
 
-    // The friction DL3 is about, made visible: the validation DOOR is
-    // still callable at a dual (it is `PropsQuadLane`-bounded, not
-    // policy-bounded) and refuses there. What DL3 removes is the
+    // The friction DL3 is about, made visible. The door a dual can take
+    // is the validator's STRUCTURAL half; the composed entry carries the
+    // +V invariant's certified bound and cannot be called here at all,
+    // so the friction is a narrower verdict rather than a refusal — and
+    // narrower in both directions, since the structural half reports no
+    // orientation verdict either. What DL3 removes is still the
     // evaluation service's CALL, not the door.
     let ev_d = eval::<Dual64>(&study);
     if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(tool) {

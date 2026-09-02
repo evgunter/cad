@@ -30,14 +30,23 @@
 //! appearing) is loud.
 //!
 //! **The set is EMPTY today, and that is the measurement rather than an
-//! omission.** `VolumeUncomputable` is no longer among the classes a
-//! dual can collect here — the refusal DL3's design text names came
-//! from the dual's refusing quadrature arm inside the +V invariant, the
-//! one check that certifies and therefore the one a dual cannot call.
-//! DL3's two named witnesses, `cut_cylinder` (ellipse-trimmed cylinder)
-//! and `loft_prism` (NURBS walls), now pass the structural half at
-//! `Dual64`; the row below pins them there and at the composed `f64`
-//! door, so the retirement is asserted rather than left as an absence.
+//! omission.** Neither `VolumeUncomputable` NOR `NegativeVolume` is
+//! among the classes a dual can collect here any more, and the reason
+//! is the door rather than the scalar: the whole +V invariant — its
+//! certified quadrature AND its closed form, which computes at any
+//! scalar — lives in the certified half, so the structural door says
+//! nothing about orientation at all. DL3's two named witnesses,
+//! `cut_cylinder` (ellipse-trimmed cylinder) and `loft_prism` (NURBS
+//! walls), now pass the structural half at `Dual64`; the row below pins
+//! them there and at the composed `f64` door, so the retirement is
+//! asserted rather than left as an absence. **What a dual gives up here
+//! is not only the refusal it used to receive but, on a closed-form
+//! body, the SIGN it used to be given** — recorded at the doors and
+//! pinned by `topo/tests/geometric_cube.rs`'s
+//! `the_structural_half_does_not_judge_orientation_at_any_scalar`. The
+//! verdict is still reachable at a dual through the mixed passes that
+//! keep their lanes (`validate_pseudomanifold`, `contact_marks`,
+//! `mass_properties`).
 //!
 //! # What the memo rows assert
 //!
@@ -339,10 +348,11 @@ fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
 
 /// **DL3's two named witnesses no longer refuse anything at `Dual64`,
 /// and that is the measurement this row now carries.** Both refused the
-/// direct door with `VolumeUncomputable`, which came from the dual's
-/// refusing quadrature arm inside the +V invariant — the one check that
-/// certifies, and therefore the one a dual cannot call rather than the
-/// one it is told about. With the validator split, `cut_cylinder` and
+/// direct door with `VolumeUncomputable`, raised by the dual's refusing
+/// quadrature arm inside the +V invariant — and the invariant as a
+/// whole, closed form included, is what the split moved behind the
+/// certified bound. So these two lose a refusal here; a body whose
+/// closed form DOES compute loses the verdict instead. With the validator split, `cut_cylinder` and
 /// `loft_prism` pass the structural half at `Dual64` outright, and the
 /// same documents pass the composed door at `f64`, so the pair is a
 /// scalar difference in what may be CLAIMED and no longer a difference
@@ -364,8 +374,8 @@ fn the_dl3_witnesses_pass_both_doors_they_can_still_reach() {
         assert_eq!(
             topo::validate_geometric_structural(&product.body, tol),
             Ok(()),
-            "{}: the structural half must pass at Dual64 — its only refusal was \
-             the +V invariant's, which this door does not run",
+            "{}: the structural half must pass at Dual64 — its refusal was the \
+             +V invariant's, and this door runs no part of that invariant",
             doc.name
         );
         let ev_f = eval::<f64>(&doc.doc);

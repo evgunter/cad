@@ -785,10 +785,24 @@ pub mod bounds_allowlist {
     //! file ratifies. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
     //!
-    //! **It clears "brackets never decide" at the door being ratified**: no
-    //! `lo`/`hi` call appears in `validate.rs`, and the certified half's own
-    //! bracket read is `props`' certified quadrature, already ratified at the
-    //! `props.rs` seam. The weakest bound that works is this one, checked
+    //! **What it owes "brackets never decide", stated at the substance and
+    //! not at the grep.** No `lo`/`hi` call appears in `validate.rs`, and the
+    //! certified half's own bracket read is `props`' certified quadrature,
+    //! already ratified at the `props.rs` seam — but the clearance would be
+    //! false if it stopped there, because ONE tier-3 site does read a bracket
+    //! end and branch on it, through a renamed accessor a grep for `lo`/`hi`
+    //! cannot see: check 1's `minor_radius.datum_lo()`, which is
+    //! `PropsQuadLane::datum_lo`, i.e. [`Bounds::lo`](super::Bounds::lo).
+    //! It is disclosed here rather than left to be discovered, and the reason
+    //! it is admissible is the reason that accessor has its own name: a torus
+    //! tube radius that is zero, negative or poison does not describe a small
+    //! torus, it fails to describe one, so the read is about a STORED DATUM's
+    //! representability and not about where geometry lies. It takes no
+    //! `k_stats` name and no band precisely because it meters nothing — the
+    //! chamfer's `NonpositiveSize` precedent — and the geometric question
+    //! beside it (`R - r`) does go through `decide`. This is `S88`'s named
+    //! blind spot (a bracket read behind a renamed accessor) with its one
+    //! in-fence instance written down. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.

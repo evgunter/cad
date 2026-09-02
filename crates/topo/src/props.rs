@@ -647,11 +647,15 @@ pub fn classify_shells<T: PropsQuadLane>(
 /// quadrature machinery only ever instantiates for CERTIFYING scalars
 /// (bracket-carrying is no longer the distinguishing property — a dual
 /// carries a bracket since D1, 2026-08-19); the `Dual` impl contains
-/// **no quadrature code at all** — it answers "no lane", the
-/// closed-form pass's typed refusal stands, and tier 3's check 7
-/// reports `VolumeUncomputable` there. The dual lane validates what is
-/// its business; volume certification is proven by the certified
-/// lanes.
+/// **no quadrature code at all** — it answers "no lane", and the
+/// closed-form pass's typed refusal stands. Where tier 3's check 7 then
+/// reports `VolumeUncomputable` depends on which pass asked: the mixed
+/// passes that keep this lane ([`crate::validate_pseudomanifold`],
+/// [`crate::contact_marks`], [`mass_properties`]) report it at every
+/// scalar, while [`crate::validate_geometric`] runs check 7 in its
+/// certified half and is not callable at a scalar with no lane at all.
+/// The dual lane validates what is its business; volume certification is
+/// proven by the certified lanes.
 ///
 /// # Why the pcurve lane rides along (M6-2)
 ///
@@ -854,12 +858,9 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
-    // The offset fit is derived at `f64` only, so this scalar has no
-    // re-derivation lane. That is the whole reason, and it is about the
-    // derivation: an `ApproxSurface<Self>` is representable here —
-    // `ApproxSurface::certify` is scalar-generic and takes its
-    // certifier as an argument — so such a face does reach this arm and
-    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
+    // No re-derivation lane at this scalar; the reason has one home, on
+    // [`PropsQuadLane::recertify_approx`], and it is about the
+    // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -899,12 +900,9 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
-    // The offset fit is derived at `f64` only, so this scalar has no
-    // re-derivation lane. That is the whole reason, and it is about the
-    // derivation: an `ApproxSurface<Self>` is representable here —
-    // `ApproxSurface::certify` is scalar-generic and takes its
-    // certifier as an argument — so such a face does reach this arm and
-    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
+    // No re-derivation lane at this scalar; the reason has one home, on
+    // [`PropsQuadLane::recertify_approx`], and it is about the
+    // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,

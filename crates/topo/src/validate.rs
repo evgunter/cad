@@ -160,13 +160,27 @@
 //! [`validate_geometric`].
 //!
 //! **The tier is two functions.** Eight of its nine checks are answerable
-//! by any deciding scalar; the ninth reads a certified volume enclosure,
-//! which is an act of certification rather than a measurement. So
+//! by any deciding scalar; the ninth — the +V global orientation
+//! invariant — reads a volume enclosure, and deciding its sign is an act
+//! of certification rather than a measurement. So
 //! [`validate_geometric_structural`] runs the eight and
 //! [`validate_geometric`] is that call followed by the certified one,
 //! carrying the union of their bounds — a scalar without certification
 //! rights takes the structural door, and cannot write the composed call
 //! at all.
+//!
+//! **The structural half never judges orientation, at ANY scalar.** That
+//! is the consequence to carry away, and it is stronger than "a dual
+//! cannot certify": check 7's closed form computes a signed volume at
+//! every scalar with a zero pad, so the pre-split door handed a dual a
+//! real `+V` verdict on any planar body. The split moves the whole
+//! check — both derivations — behind the certified bound, because the
+//! sign is decided in exactly one place or the half that is supposed to
+//! carry no certification arm grows one back. **An inverted body
+//! therefore passes the structural half by design**, and a caller that
+//! wants the sign at a non-certifying scalar goes to the mixed passes
+//! that keep their lanes: [`validate_pseudomanifold`],
+//! [`contact_marks`], [`crate::mass_properties`].
 //!
 //! # All failures, not the first
 //!
@@ -789,13 +803,18 @@ pub enum ValidationError {
     ///   every-variant fixture builds the variant with.
     ///
     /// What keeps the row-1 arms **near**-unreachable here is not a
-    /// property of this site but the `if errors.is_empty()` gate on
-    /// check 7's `mass_properties_with` call: it runs only after every
-    /// structural check has passed, so a corrupt body has normally
-    /// already been refused by the check that names its corruption.
-    /// "Normally" is the honest word — that gate is a sequencing fact
-    /// elsewhere in this file, not an invariant this variant enforces,
-    /// and `mass_properties` called directly has no such guard.
+    /// property of this site but the gate in front of check 7, and that
+    /// gate now has two spellings. At [`validate_geometric`] it is the
+    /// `?` between the pass's two halves, so the volume is read only
+    /// after the WHOLE structural battery came back clean — checks 8
+    /// and 9 included, which the older spelling did not cover. In
+    /// [`validate_pseudomanifold`] and [`contact_marks`], which run the
+    /// battery in one call, it is still the `if errors.is_empty()`
+    /// standing between checks 6 and 7. Neither is an invariant this
+    /// variant enforces: a corrupt body has normally already been
+    /// refused by the check that names its corruption, "normally" is
+    /// the honest word, and [`crate::mass_properties`] called directly
+    /// has no guard at all.
     VolumeUncomputable {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
@@ -2157,9 +2176,17 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// **A scalar that may not certify cannot write this call**, which is
 /// the point rather than a side effect: it is not refused here, there
-/// is no arm and no diagnostic. A dual body still validates — through
-/// [`validate_geometric_structural`], which is where every certificate
-/// a dual build compares bitwise against its `f64` twin is produced.
+/// is no arm and no diagnostic. **What such a scalar loses at THIS door
+/// is the +V verdict itself, not merely a refusal it used to receive**:
+/// check 7's closed-form derivation computes at any scalar, so before
+/// the split a dual asking this door about a planar body got a real
+/// orientation sign. It gets neither now, because the sign is decided in
+/// one place and that place is the certified half. A dual body still
+/// validates — through [`validate_geometric_structural`], which is where
+/// every certificate a dual build compares bitwise against its `f64`
+/// twin is produced — and the orientation verdict is still available to
+/// it through [`validate_pseudomanifold`], [`contact_marks`] and
+/// [`crate::mass_properties`], the mixed passes that keep their lanes.
 /// The structural half is open to it:
 ///
 /// ```
@@ -2195,14 +2222,39 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 }
 
 /// **Tier 3 without its one certifying check** — checks 1–6, 8 and 9,
-/// at any scalar that decides ([`validate_geometric`]'s two halves).
+/// at every [`crate::PropsQuadLane`] scalar ([`validate_geometric`]'s
+/// two halves; the bound is the lane trait rather than bare `Decide`
+/// because check 1 and check 2 still dispatch through it).
 ///
 /// What a caller gives up by taking this door instead of the composed
 /// one is named, not implied: the **+V global orientation invariant**
-/// (check 7) does not run, so this pass says nothing about whether the
-/// body's volume is positive. It is LESS INFORMATION about a body, not
-/// a weaker body — every check it does run is the same check, in the
-/// same order, reporting the same errors.
+/// (check 7) does not run, so **this pass says nothing about whether the
+/// body's volume is positive, and an inverted body passes it — by
+/// design, at every scalar.** It is LESS INFORMATION about a body, not a
+/// weaker body: every check it does run is the same check, in the same
+/// order, reporting the same errors.
+///
+/// **Read that as a statement about the DOOR, not about certification
+/// rights.** Check 7 has two derivations — the certified quadrature, and
+/// a closed form that computes at any scalar with a zero pad — and the
+/// split moves the whole check, both derivations, into the certified
+/// half. So this door is silent about orientation on a planar body at
+/// `f64` exactly as it is at a dual. The alternative, a `Decide`-only
+/// closed-form arm living here, is refused deliberately: it would put a
+/// certification arm back inside the half whose whole property is having
+/// none, which is the mixed-pass shape this split exists to leave
+/// behind.
+///
+/// **Where the sign still lives**, so nothing is lost by accident: the
+/// mixed passes keep their lanes and keep check 7 through the scalar's
+/// own quadrature lane. A caller that wants the orientation verdict at a
+/// scalar this door's composed sibling excludes asks
+/// [`validate_pseudomanifold`], [`contact_marks`] or
+/// [`crate::mass_properties`] — all three answer at a dual, and on a
+/// closed-form body all three still say `NegativeVolume`.
+/// `topo/tests/geometric_cube.rs`'s
+/// `the_structural_half_does_not_judge_orientation_at_any_scalar` is the
+/// three verdicts side by side.
 ///
 /// # Errors
 ///
@@ -2522,13 +2574,22 @@ pub(crate) fn material_arm_error(
 
 /// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
 /// runs the structural coarse gate, then the tier-3 battery, and
-/// returns the recorded per-edge [`ContactMark`]s. `Err` carries every
-/// validation failure exactly as [`validate_geometric`] would (marks
-/// are only meaningful on a valid body).
+/// returns the recorded per-edge [`ContactMark`]s (marks are only
+/// meaningful on a valid body).
+///
+/// **This pass keeps its lane**, which is why it is not
+/// [`validate_geometric`] with a second return value: it runs the whole
+/// nine-check battery in ONE call at every [`crate::PropsQuadLane`]
+/// scalar, check 7 included, through that scalar's own quadrature lane.
+/// So its `Err` is the battery's vector and differs from the composed
+/// door's in two stated ways — it can be produced at a scalar the
+/// composed door excludes, and its check 7 is gated on checks 1-6 only,
+/// where the composed door gates on the whole structural half.
 ///
 /// # Errors
 ///
-/// As [`validate_geometric`].
+/// The tier-1/2 report, else the tier-3 battery's vector — the same
+/// [`ValidationError`]s in the same documented order.
 pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     tol: Tol,
@@ -2544,7 +2605,8 @@ pub fn contact_marks<T: crate::props::PropsQuadLane>(
 ///
 /// # Errors
 ///
-/// As [`validate_geometric_declared`].
+/// As [`contact_marks`], with check 4's material arm reading the
+/// declarations.
 pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
@@ -3452,8 +3514,18 @@ fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // never trusted), and domain validity (trim containment + the
     // loop's one-branch continuity) must hold. Bodies carrying no
     // stored pcurves — every all-planar body — contribute nothing.
-    // Ungated on the volume check: a pcurve defect is local evidence
-    // about a specific half-edge, not cascade noise.
+    // The gating runs ONE way, and both directions are worth saying.
+    // This check is not gated on the volume one: a pcurve defect is
+    // local evidence about a specific half-edge, not cascade noise, so
+    // it is reported whatever check 7 concluded. The volume check IS
+    // gated on this one at `validate_geometric`, whose composition
+    // reaches check 7 only when the whole structural battery came back
+    // clean — the reason being check 7's own: a volume read off a body
+    // whose stored pcurves do not re-certify is a number derived from
+    // geometry the pass has just refused to vouch for. In the two
+    // passes that run the battery in one call the older, narrower gate
+    // stands (checks 1-6 only), because they answer with one vector
+    // rather than a composition.
     // ------------------------------------------------------------------
     for finding in crate::pcurves::validate_pcurves(body, band) {
         errors.push(ValidationError::Pcurve { finding });
@@ -3474,8 +3546,10 @@ fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // Compared by POSITION, not by key: the shape this exists to catch
     // is minted by a surgery that copies a boundary and re-labels the
     // copy as a ring, so the copy carries fresh vertex and edge keys
-    // standing on the original's geometry. Ungated on the volume
-    // check — a loop contact is local evidence about one face.
+    // standing on the original's geometry. Not gated on the volume
+    // check — a loop contact is local evidence about one face — while
+    // the volume check IS gated on this one at `validate_geometric`,
+    // for the reason check 8 above states in full.
     //
     // **What the three arms match, and WHAT THEY DO NOT** (D4 honesty
     // — an unstated blind spot is an unverified claim). Matched:
@@ -3804,7 +3878,12 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Structure (D1):
 /// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).
 /// 2. All of tier 3's local checks, shared verbatim
-///    ([`tier3_local_checks`]).
+///    ([`tier3_local_checks`]) — **this pass keeps its lane**: the whole
+///    nine-check battery runs in one call at every
+///    [`crate::PropsQuadLane`] scalar, check 7 included, through that
+///    scalar's own quadrature lane, and its check-7 gate is the
+///    battery-internal one (checks 1-6) rather than
+///    [`validate_geometric`]'s composition.
 /// 3. The **global coincidence census** (only when the local checks are
 ///    clean — census geometry on a locally corrupt body is cascade
 ///    noise, the check-7 discipline): every cross-entity position

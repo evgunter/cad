@@ -1332,3 +1332,81 @@ fn r2_probe_other_two_passes_dump() {
         );
     }
 }
+
+/// **The order pin the composition's widening gets instead of a
+/// separating fixture** (CERT-M2 fix pass, standing beside the review
+/// probe above rather than replacing it).
+///
+/// The composed door now reaches check 7 only when checks 1-6, 8 AND 9
+/// are all silent, where the battery gates it on checks 1-6 alone. To
+/// SEE that widening a body must pass checks 1-6, fail check 8 or 9,
+/// and have a check-7 error waiting. **No such body can be built from
+/// the constructions this repository has**, and the reason is uniform:
+/// every surgery that leaves a ring on its own outer loop, or a
+/// half-edge without its stored pcurve, leaves the same edges naming a
+/// surface they no longer lie on — so check 2 fires first and the
+/// battery never reaches check 7 either. The probe above measures
+/// exactly that (`lost=0` on both bodies), and R1's corpus reproduces
+/// it on a third construction (a diagonal chord split, `ScaffoldAtRest`
+/// beside `Pcurve`).
+///
+/// So the widening is **unobservable in-tree, not absent**, and what
+/// can honestly be pinned is the other half of the claim: on a body
+/// that fails checks 8/9, the composed door's vector is the battery's
+/// vector — same errors, same order, nothing dropped and nothing
+/// reordered by the split. That is what this row asserts.
+#[test]
+fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
+    let tol = Tol::witness();
+    let t = 0.05;
+    for (what, body, y) in [
+        ("an axis-touching cap", vessel(0.5, 0.4), 0.4),
+        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40),
+    ] {
+        let mut sealed = topo::shell(&body, t, FIT_TOL, tol).expect("the sealed shell");
+        let mouth = plane_chart_at_y(&sealed, y);
+        let counterpart = plane_chart_at_y(&sealed, y - t);
+        let plane_of =
+            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+                other => panic!("{what}: a non-planar cap: {other:?}"),
+            };
+        let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+        let (o_onto, _) = plane_of(&sealed, mouth[0]);
+        let back = (o_onto - o_from).dot(n_from);
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, FIT_TOL, band(), tol)
+            .expect("the counterpart chart lifts onto the mouth plane");
+        for (&rim, &source) in mouth.iter().zip(&counterpart) {
+            sealed.kfmrh(rim, source).expect("the raw glue");
+        }
+        let composed = topo::validate_geometric(&sealed, tol).expect_err("the composed door");
+        let battery = topo::contact_marks(&sealed, tol).expect_err("the battery");
+        assert_eq!(
+            composed, battery,
+            "{what}: the split must not move or drop an error on a check-9 body"
+        );
+        // Non-vacuity in both directions: the body really does reach
+        // check 9, and check 2 really is what stops either pass short of
+        // check 7 — which is why the widening cannot be seen here.
+        assert!(
+            composed
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. })),
+            "{what}: the fixture must reach check 9"
+        );
+        assert!(
+            composed
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. })),
+            "{what}: check 2 is what pre-empts check 7 in BOTH passes"
+        );
+        assert!(
+            !composed.iter().any(|e| matches!(
+                e,
+                topo::ValidationError::NegativeVolume
+                    | topo::ValidationError::VolumeUncomputable { .. }
+            )),
+            "{what}: neither pass reaches check 7, so the widening is invisible here"
+        );
+    }
+}

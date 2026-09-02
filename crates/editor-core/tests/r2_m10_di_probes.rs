@@ -592,10 +592,12 @@ fn direct_validation_door_behavior_at_dual64() {
         let body_n = corpus::body_of(&ev_n, result);
         // MEASURED, and the reverse of what this row asserted before the
         // validator split: a NURBS-walled body PASSES the structural
-        // half at a dual. Its only refusal was the +V invariant's
+        // half at a dual. Its refusal was the +V invariant's
         // `VolumeUncomputable`, raised by the dual's refusing quadrature
-        // arm — the certified half, which a dual cannot call at all now.
-        // Nothing the structural checks consult refuses this body.
+        // arm, and the split moved that invariant WHOLE — closed form
+        // included — into the certified half, so the structural door
+        // reports no orientation verdict of any kind. Nothing else the
+        // structural checks consult refuses this body.
         assert_eq!(
             topo::validate_geometric_structural(body_n, tol),
             Ok(()),
