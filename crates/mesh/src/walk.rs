@@ -36,8 +36,8 @@
 //! `check_mesh`. [`iso_side_starts`] now groups consecutive traversals
 //! into RUNS and gives each run ONE coordinate, so bitwise
 //! straightness is this module's GUARANTEE rather than its intent.
-//! [`crate::curved`]'s domain guard still bands its comparison in
-//! metres (`curved::entries_off_bbox`) — as a backstop, no longer as
+//! [`crate::curved`]'s walk-consistency check still bands its comparison
+//! in metres (`curved::entries_off_bbox`) — as a backstop, no longer as
 //! the thing that keeps valid parts from being refused.
 //!
 //! One structural exception to the continuity rule: a
@@ -645,7 +645,7 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///   column is the closing vertex's own azimuth either way. What it
 ///   measures is INPUT quality, and it is this project's only detector
 ///   for a class of defective source coordinates (S22).
-/// - [`crate::curved`]'s swept-rectangle domain guard
+/// - [`crate::curved`]'s walk-consistency check
 ///   (`entries_off_bbox`) — decides whether a face is REFUSED. #648
 ///   compared exactly there, on the then-false premise that every iso
 ///   side is bitwise straight, and false-refused valid parts. #653
@@ -791,8 +791,14 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///   from the mesh being right. And release now has NO detector at all
 ///   for the defective-source class: under the old shape a large
 ///   residue left the polygon unsnapped, which the CDT pre-check would
-///   refuse typed. Nothing above 3.6e-9 rad has ever been seen, so the
-///   practical risk is small — but it is a trade, not a free win.
+///   refuse typed. On source data nothing above 3.6e-9 rad has been
+///   seen; two π-rad witnesses exist, both a meridian ARC that crosses
+///   a pole mid-edge (issue 723's half-cap through import; issue 1571's
+///   Euler-door body, which the shape door admits) — the carrier
+///   midpoint then sits a half-turn from the closing vertex, and this
+///   assertion is what announces it in a debug build. The practical
+///   risk on ordinary data is small — but it is a trade, not a free
+///   win.
 ///
 /// A typed warning channel would dominate both; there is none, and
 /// building one is **issue #868** — which is why the trade is where it
@@ -868,27 +874,43 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: Eps) -> f64 {
 /// That last one is a severity FLIP, not a wash, and it is worth being
 /// explicit: per-edge, the two sub-arcs took two different wrong
 /// coordinates and the polygon would very likely have failed
-/// [`crate::curved`]'s domain guard as a typed
+/// [`crate::curved`]'s spatial check as a typed
 /// `UnsupportedCurvedDomain`; collapsed, it can BE its own bounding
 /// rectangle and be admitted. The #653 sweep cannot see this — it
 /// measures straightness and watertightness, not whether two sides
-/// were correctly distinguished.
+/// were correctly distinguished. **Executed, not argued**: an
+/// obliquely cut sphere assembled through the Euler doors (the one
+/// route no certification fronts) walked to a polygon on ONE `v` and
+/// passed the spatial check; with debug assertions on, `tessellate`
+/// panicked at the S65 cross-face census (a chord segment used by no
+/// triangle); with them off it returned `Ok` on an EMPTY mesh — 12
+/// positions, two patches of 0 triangles — which `check_mesh` PASSES,
+/// having nothing to find non-manifold
+/// (`curved::tests::the_lens_walk_collapses_onto_one_rim_level_and_
+/// the_spatial_check_admits_it`, `tests/iso_rectangle_door.rs`).
 ///
-/// **Reachable today: no**, by two upstream gates. `topo`'s boolean
-/// doors refuse plane × sphere cuts typed, wider than any tilt
-/// distinction: `splitting::split` refuses every sphere-face cut
-/// `CurvedBooleanUnsupported` and `boolean_op_with` refuses
-/// `CurvedPierceUnsupported`, measured across cut heights in the
-/// issue-896 review rows (an earlier form of this sentence cited a
-/// `SectionInvariant` refusal with an axis-aligned cut succeeding —
-/// that witness does not reproduce on today's tree, and the refusal
-/// is now broader than it claimed). `import_step`'s tier-3
-/// `props::curved::sphere_boundary` admits a circle only as a coaxial
-/// rim or a great circle centred at the sphere centre — read, not
-/// executed, and so the one door not directly witnessed. Recorded
-/// rather than fixed: the cheap hardening, if this ever needs one, is
-/// for `classify` to require the rim circle's centre ON the axis
-/// (`|w − â(w·â)| < eps`) rather than only `|n · axis| > 0.5`.
+/// **CLOSED AS WORDED, by the shape door — and only as worded.** The
+/// case this qualification instanced is two consecutive same-kind
+/// traversals whose CARRIERS are not iso curves, and that is what
+/// `geom_brep::props::require_iso_rectangle` refuses per edge, on
+/// every kind, before `curved::tessellate_curved` walks a face: the
+/// oblique section on `props_rim_axis_parallel`, a torus Villarceau
+/// circle on `props_rim_fit`. **The premise itself is NOT established
+/// by that door.** Props certifies the carrier — a great circle
+/// through the sphere centre — not that the traversed ARC stays on one
+/// chart meridian; a great circle contains both poles, so one meridian
+/// arc can cross a pole mid-edge, where `u` jumps by π, and such a
+/// face passes the door on every face and measures its exact volume
+/// (issue 1571, executed: `tests/mesh7r1_probes.rs`, pinned in
+/// `tests/iso_rectangle_door.rs`). The sentence above this list —
+/// "inherited from upstream rather than verified" — therefore still
+/// stands; what changed is that the two-non-iso-carriers instance is
+/// refused typed, and the upstream gates that kept it unreachable
+/// (the boolean's typed refusal of every sphere-face cut, tier 3 on
+/// the import route) are no longer what that instance rests on. The
+/// cheap hardening once recorded here (a coaxiality test in
+/// `classify`) is not taken: the door decides coaxiality at props'
+/// band; what it does not decide, arc membership, is issue 1571's.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
 ///

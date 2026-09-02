@@ -101,6 +101,25 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
         T::UnsupportedCurvedDomain { max_distance, .. } => {
             float(*max_distance).map(|v| fields[1] = ("value", v))
         }
+        // The shape door's refusal is props' own, and its prose names
+        // the structural expectation that failed (`props_rim_level`,
+        // an incidence name); that sentence is the payload a caller can
+        // act on, so it rides as the note. The band arm's payload is
+        // the run's configuration failure, likewise a sentence.
+        T::UnsupportedCurvedShape { source, .. } => {
+            fields[4] = (
+                "note",
+                PyString::new(py, &source.to_string()).unbind().into_any(),
+            );
+            Ok(())
+        }
+        T::Band { error } => {
+            fields[4] = (
+                "note",
+                PyString::new(py, &error.to_string()).unbind().into_any(),
+            );
+            Ok(())
+        }
         // The key-only arms: the offending entity is an arena key, so
         // there is nothing to project that a caller may hold.
         T::UnsupportedSurface { .. }

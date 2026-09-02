@@ -143,6 +143,14 @@
 //!   only a rectangle guarantees it. The arm runs
 //!   `require_rims_at_extremes` on the same `torus_ends` extremes the
 //!   flux lane uses.
+//! * **[`require_iso_rectangle`] is the predicate's own public door**:
+//!   the per-kind boundary classification and `props_rim_level`, and
+//!   nothing integrated on top — for a consumer whose lane rests on
+//!   the premise without wanting a volume (`mesh`'s swept-rectangle
+//!   walk cites it before walking a face). It ADMITS the rimless
+//!   sphere band the flux lane refuses on `props_band_coplanar`:
+//!   `Δu = π` is the closed form's premise, not the shape's, and the
+//!   door says so at its definition.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
@@ -169,7 +177,7 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 
-pub use curved::{MaterialSign, boundary_material_sign, curved_face};
+pub use curved::{MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle};
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of
