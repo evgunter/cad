@@ -868,6 +868,16 @@ pub enum DatumSpec {
         /// Position components (`Length`).
         position: [Expr; 3],
     },
+    /// A sketch frame through `origin`, spanned by `u` and `v`.
+    Frame {
+        /// Origin components (`Length`).
+        origin: [Expr; 3],
+        /// Sketch +x components (`Scalar`).
+        u: [Expr; 3],
+        /// Sketch +y components (`Scalar`), orthogonalized against
+        /// `u` at evaluation.
+        v: [Expr; 3],
+    },
 }
 
 /// **The add-profile door's loop vocabulary**, re-exported from the
@@ -2908,6 +2918,7 @@ fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
         DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
+        DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
     })
 }
 

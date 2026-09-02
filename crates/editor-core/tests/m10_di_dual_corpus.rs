@@ -183,6 +183,12 @@ fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
                         d.u64(12);
                         d.point3(*position);
                     }
+                    ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+                        d.u64(23);
+                        d.point3(*origin);
+                        d.vec3(u.get());
+                        d.vec3(v.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {

@@ -534,6 +534,29 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
         Datum::Point { .. } => DatumValue::Point {
             position: need_point3(vals, SlotId::Origin)?,
         },
+        // **The frame is the one datum whose slots are not independent**:
+        // u and v have to span a plane, and a pair that does not is the
+        // authoring mistake this refuses. Gram-Schmidt states that
+        // condition as a length, so it is decided at the SAME door as
+        // every other direction rather than under a new predicate — v's
+        // component perpendicular to û is decided-zero exactly when the
+        // two are parallel, which is exactly when there is no plane.
+        //
+        // u is normalized FIRST and kept: the frame's sketch +x is what
+        // the author wrote, and v is the axis that yields. Choosing the
+        // other order would silently rotate every profile drawn on the
+        // frame when only v was edited.
+        Datum::Frame { .. } => {
+            let band = band(tol)?;
+            let u = datum_unit(need_vec3(vals, SlotId::U)?, "datum frame x axis", band)?;
+            let v_raw = need_vec3(vals, SlotId::V)?;
+            let v_perp = v_raw - u.get() * v_raw.dot(u.get());
+            DatumValue::Frame {
+                origin: need_point3(vals, SlotId::Origin)?,
+                u,
+                v: datum_unit(v_perp, "datum frame y axis", band)?,
+            }
+        }
     }))
 }
 
