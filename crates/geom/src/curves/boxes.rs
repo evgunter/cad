@@ -13,7 +13,7 @@
 //!
 //! These land now and are consumed later (the planar boolean consumes
 //! only vertex-extent boxes in PR 8); they live HERE, not in the `bvh`
-//! crate, so the tree stays below the geometry crates (PR 7's SSI
+//! crate, so the tree stays below the geometry crate (PR 7's SSI
 //! subdivision duty inside them must be able to consume it — see
 //! `bvh`'s crate docs) and each constructor sits next to the invariant
 //! it cites.
@@ -36,6 +36,7 @@ use geom_core::{Bounds, Point3};
 
 use crate::curves::Curve3;
 use crate::curves::nurbs::NurbsCurve3;
+use crate::net;
 
 /// A one-dimensional outward bracket: plain `f64` interval arithmetic
 /// where every ring operation widens its result by one ulp per side.
@@ -388,9 +389,16 @@ pub fn ellipse_arc_aabb<T: Bounds>(
 /// convexity, Book p. 293). Valid over the whole domain, a fortiori
 /// over any certified span (span-tight hulls via knot refinement are a
 /// later sharpening; a wider box still contains the locus). No
-/// arithmetic — brackets only — so no rounding to pad. The placeholder
-/// curve's all-poison control points yield the poison box, which
-/// overlaps everything.
+/// arithmetic — brackets only — so no rounding to pad.
+///
+/// **A net carrying poison ANYWHERE yields the poison box**, which
+/// overlaps everything: the placeholder curve (all-poison by
+/// construction) and equally a described net poisoned in one channel
+/// of one point. The screen is `net::any_poison`, whose docs carry why
+/// a box asks the wider question than the state discriminator does.
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
+    if net::any_poison(curve.control()) {
+        return Aabb::poison();
+    }
     Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)
 }

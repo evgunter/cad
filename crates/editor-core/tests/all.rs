@@ -342,3 +342,6 @@ fn every_suite_file_is_aggregated() {
         found.len()
     );
 }
+
+#[path = "cert_m2r1_corpus.rs"]
+mod cert_m2r1_corpus;

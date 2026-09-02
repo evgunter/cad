@@ -121,11 +121,40 @@ pub(crate) fn poison_point<T: Real, P: ControlPoint<T>>() -> P {
 /// Is this the "no description yet" placeholder net rather than a
 /// described one? The contract is stated once, in the crate docs'
 /// totality-and-poison section; this is its one implementation, and
-/// it reads every point's **first** channel.
+/// it reads **every channel of every control point** — the width that
+/// contract states, as one expression because
+/// [`ControlPoint::Channels`] carries the count.
+///
+/// The width is load-bearing in one direction. A net whose every point
+/// carries poison in SOME channel and finite data in the others is
+/// corrupt *described* geometry: it must reach each consumer's
+/// described arm and fail there. The placeholder arm is a benign
+/// "mid-surgery, nothing to answer here" at every consumer that tells
+/// the states apart, and it is the one answer such a net must never
+/// get.
 pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
     control
         .iter()
-        .all(|p| p.channels().into_iter().next().is_some_and(Real::is_poison))
+        .all(|p| p.channels().into_iter().all(Real::is_poison))
+}
+
+/// Does any control point carry poison in any channel?
+///
+/// The box constructors' screen, and the complement of the question
+/// [`is_placeholder`] asks: a placeholder answers `true` here (every
+/// channel of every point is poison), and so does a DESCRIBED net that
+/// carries poison anywhere. That is the distinction a **box** needs and
+/// the state discriminator does not — a box is a claim about where the
+/// locus is, and a net with one poisoned bracket bounds its locus on no
+/// axis. Folding such a net gives a box that is poison on the poisoned
+/// axis and finite on the others, and `Aabb::overlaps` tests each axis
+/// on its own, so the finite axes witness a disjointness the geometry
+/// does not support and the box PRUNES. The poison box is the loud
+/// answer for a door whose return type cannot refuse.
+pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
+    control
+        .iter()
+        .any(|p| p.channels().into_iter().any(Real::is_poison))
 }
 
 /// The net's coordinate channels as ring enclosures, in channel order

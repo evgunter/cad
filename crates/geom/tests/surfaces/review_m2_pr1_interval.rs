@@ -458,8 +458,8 @@ fn decoration_chain_through_reduce_and_eval() {
     let reduced = iv(6.2, 6.4).reduce_periodic(Interval::tau());
     let p = ci.eval(reduced, Interval::from_f64(0.3));
     assert!(
-        !p.x.lo().is_nan(),
-        "Def-decorated parameter must evaluate, not poison"
+        !p.x.is_poison() && !p.y.is_poison() && !p.z.is_poison(),
+        "Def-decorated parameter must evaluate, not poison — on every channel"
     );
     // Residual still certifies (contains 0) over the widened enclosure.
     let (origin, axis, r) = match ci {
@@ -481,7 +481,10 @@ fn decoration_chain_through_reduce_and_eval() {
         empty.reduce_periodic(Interval::tau()),
         Interval::from_f64(0.3),
     );
-    assert!(p.x.lo().is_nan(), "empty parameter must stay poison");
+    assert!(
+        p.x.is_poison() && p.y.is_poison() && p.z.is_poison(),
+        "empty parameter must stay poison, on every channel"
+    );
 }
 
 /// Dual<Interval> through a REAL consumer chain: derivative of the
