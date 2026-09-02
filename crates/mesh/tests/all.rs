@@ -82,6 +82,10 @@ mod mesh8_corpus_coherence;
 mod mesh8r1_probes;
 #[path = "mesh8r2_probes.rs"]
 mod mesh8r2_probes;
+#[path = "mesh10r2_digest.rs"]
+mod mesh10r2_digest;
+#[path = "mesh10r2_probes.rs"]
+mod mesh10r2_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
 #[path = "prisms.rs"]
