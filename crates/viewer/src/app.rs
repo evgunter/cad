@@ -2243,7 +2243,13 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         // at the tile's edge, no collapse under short content); the
         // salt is the tile id, so two tabs of one tile scroll
         // independently.
-        let scrolled = egui::ScrollArea::vertical()
+        // **Both axes**, not just the vertical. A row of this
+        // chrome is as wide as the controls on it — a path step's verb
+        // decides how many fields follow it — so a pane that scrolled
+        // only downward clipped the right-hand end of its widest rows
+        // with nothing to reach them by. That is the same failure
+        // first light found downward (#1097), in the other direction.
+        let scrolled = egui::ScrollArea::both()
             .auto_shrink([false, false])
             .id_salt(tile_id)
             .show(ui, |ui| match pane {
@@ -3343,7 +3349,16 @@ impl ViewerBehavior<'_> {
                     length_picker(ui, "profile_rectangle", &mut self.drafts.length_unit);
                 });
             }
-            Some(ShapeKind::Path) => self.path_steps_ui(ui),
+            Some(ShapeKind::Path) => {
+                self.path_steps_ui(ui);
+                // A chain with no steps is a form waiting for its
+                // first one, not a chain that fails to close. Without
+                // this the empty list drew the lattice's own refusal
+                // about a program nobody had started writing.
+                if self.drafts.profile_path.is_empty() {
+                    blocked = Some("add a step to the chain");
+                }
+            }
         }
         if let Some(reason) = blocked {
             ui.weak(reason);
@@ -3353,10 +3368,15 @@ impl ViewerBehavior<'_> {
         // so a refusal here is the refusal the button would get —
         // which is why the button waits on it rather than letting a
         // reader find out by clicking.
-        // With no shape chosen there are no loops to have an opinion
-        // about, and a preview report on nothing would be a line of
-        // text arguing with the "choose a shape" the form just said.
-        let refused = match self.profile_preview.as_ref().filter(|_| shape.is_some()) {
+        // **A form at rest reports no preview.** With no shape chosen,
+        // or a path chain with no steps, there are no loops to have an
+        // opinion about — and a refusal about nothing would be a line
+        // of text arguing with the "choose a shape" the form has just
+        // said. `blocked` already carries that sentence, and it is
+        // what disables the commit; this only keeps a second one from
+        // contradicting it.
+        let at_rest = shape.is_none() || self.drafts.profile_path.is_empty() && blocked.is_some();
+        let refused = match self.profile_preview.as_ref().filter(|_| !at_rest) {
             // The first frame this form is on screen: the latch has
             // not asked for a preview yet, so there is nothing
             // honest to say about one. The commit door is still the
@@ -3389,7 +3409,19 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(Err(error)) => {
-                ui.colored_label(chrome(self.theme.unresolved), error.to_string());
+                // **Unfinished is not wrong.** The end-of-program arm
+                // says only that the chain has no closing verb yet,
+                // which is the state every chain passes through while
+                // it is being written — a one-point chain reaches the
+                // form this way, because there is no leg for the
+                // provisional close to be walked over. Every OTHER
+                // refusal blames a step somebody actually wrote, and
+                // keeps the colour that says so.
+                if matches!(error, PreviewError::Transition { verb: None, .. }) {
+                    ui.weak(error.to_string());
+                } else {
+                    ui.colored_label(chrome(self.theme.unresolved), error.to_string());
+                }
                 true
             }
         };
@@ -3490,6 +3522,27 @@ impl ViewerBehavior<'_> {
                 {
                     swap = Some((index, index + 1));
                 }
+                // **Insert after this row.** A chain is written in the
+                // middle as often as at the end — a leg forgotten
+                // between two that exist used to mean appending it and
+                // walking it up with the arrows — so every row carries
+                // the control, and the last row's is the append.
+                //
+                // In the row's own control cluster rather than at the
+                // far end of it, which is where this first went: a
+                // row's width is its verb's, so at the end the `+`
+                // sits at a different place on every row and, on the
+                // widest, past the edge of a pane that does not scroll
+                // sideways. A control that moves under the cursor is
+                // worse than one that is not where a reader first
+                // looks for it.
+                if ui
+                    .small_button("+")
+                    .on_hover_text("insert a step after this one")
+                    .clicked()
+                {
+                    insert = Some(index + 1);
+                }
                 let verb = PathVerb::of(&self.drafts.profile_path[index]);
                 egui::ComboBox::from_id_salt(("path_verb", index))
                     .selected_text(verb.label())
@@ -3534,19 +3587,6 @@ impl ViewerBehavior<'_> {
                     });
                 let step = &mut self.drafts.profile_path[index];
                 path_step_fields(ui, &salt, length_unit, angle_unit, step);
-                // **Insert after this row**, at the end of the row it
-                // inserts after. A chain is written in the middle as
-                // often as at the end — a leg forgotten between two
-                // that exist used to mean appending it and walking it
-                // up with the arrows — so every row carries the
-                // control and the last row's is the append.
-                if ui
-                    .small_button("+")
-                    .on_hover_text("insert a step after this one")
-                    .clicked()
-                {
-                    insert = Some(index + 1);
-                }
             });
         }
         if let Some((index, verb)) = rebind {
