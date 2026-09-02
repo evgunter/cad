@@ -32,7 +32,11 @@
 //!   same analytic circle (what an exporter emits when a vertex lands
 //!   on a rim) each derive their own row coordinate; the gap is the
 //!   one a consumer discards when it gives the whole side one value.
-//!   Lever: [`Chart::v_lever`], constant per kind.
+//!   Lever: [`Chart::v_lever`], constant per kind. **This one has no
+//!   witness in any corpus**: a rim through two given points is unique
+//!   on every chart kind here, so a v gap forces one carrier off the
+//!   surface and the natively-constructible witness is synthetic. A
+//!   committed fixture through the import door is issue 1588.
 //! - [`CoherenceCondition::MeridianContinuation`] — the same, one axis
 //!   over: two edges carrying one meridian column disagree in u. Lever:
 //!   [`Chart::radial`] at the junction between them.
@@ -568,11 +572,19 @@ fn loop_findings(
 /// vertices disagree about the chart coordinates they both state, and
 /// report every disagreement that clears ε as a length.
 ///
-/// # This door decides nothing
+/// # This door decides nothing, and today nothing calls it
 ///
 /// It has no failure mode, no tier, and no verdict. It refuses no
 /// body, it changes no body, and no operation in this kernel consults
-/// what it returns. A body that meshes, validates, or exports today
+/// what it returns — **on the day it lands it has zero production
+/// callers**, only tests. That is the honest state and it is stated
+/// rather than implied: the two consumers it was shaped for are
+/// scheduled, not built (issue 1587 — `editor_core`'s checks surface,
+/// and `step-import`'s diagnostics at the door defective coordinates
+/// actually arrive at). A door nobody walks through reports nothing to
+/// anybody; what it does buy today is that the three conditions are
+/// stated where they are true, and a tessellator no longer panics
+/// about them. A body that meshes, validates, or exports today
 /// does exactly the same after this has looked at it — which is the
 /// whole point of stating these conditions here rather than as
 /// assertions inside a tessellator.

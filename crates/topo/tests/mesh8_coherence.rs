@@ -202,6 +202,9 @@ fn chord_wobble(metres: f64) -> Body<f64> {
 /// given points is unique on every chart kind here, so a v-gap forces
 /// the second carrier off the surface — by `~c`, which is of order
 /// `sqrt(gap · R)` and therefore vastly larger than the gap itself.
+/// That is why this condition has no CORPUS witness and only a
+/// synthetic one; a committed fixture through the import door, where
+/// the class actually occurs, is issue 1588.
 fn two_circle_rim_cap(c: f64) -> Body<f64> {
     let tol = Tol::witness();
     let r = rim_r();
