@@ -6982,18 +6982,18 @@ the correction `CERT-M3` inherits, relocated here because the finding that
 held it has landed. `H-R16` prices the three-function split at *"exactly one
 in-repo site"*, a number taken from the single site `S3` had read.
 Re-derived at the merge base by three independent compiles, and the count
-is stated with its unit because the two disagree: the split of ONE of the
-four passes cost **twenty-one call sites across eleven files, emitting
-twenty-two `E0277` diagnostics in-workspace plus one more in an excluded
-cargo root**. (`topo::shell` and `shell_open` are ONE site — the single
-`validate_geometric` call in `shell_open` — and it emits TWO diagnostics,
-one per missing supertrait; the excluded root is `demos/tour`, which
-`--workspace` never compiles.) By kind: one generic `src` caller
-(`topo::shell_open`, whose two public doors tightened with the call they
-validate through), two `props.rs` policy pins, seven generic test-helper
-instantiations, one demo probe, and **ten `Body<Dual64>` rows that call
-the pass and assert a verdict**, seven of them DUAL-DESIGN DL3's own
-measurement in `editor-core`. Three consequences a taker should carry rather than
+is stated with its unit because sites and diagnostics differ: the split of
+ONE of the four passes costs **twenty-one call sites across eleven files**,
+emitting **twenty-two `E0277` diagnostics in-workspace and one more in an
+excluded cargo root** (`demos/tour`, which `--workspace` never compiles).
+Two sites emit two diagnostics each, one per missing supertrait —
+`shell_open`'s single `validate_geometric` call, which is also what
+tightens BOTH public `shell` doors, and `props.rs`'s generic
+`AtRestPolicy` pin. By kind: one generic `src` caller, two `props.rs`
+policy pins, seven generic test-helper instantiations, one demo probe, and
+**ten `Body<Dual64>` rows that call the pass and assert a verdict** —
+`geometric_cube`, `review_m2_pr3`, `extrude_acceptance` and seven in
+`editor-core`, the last being DUAL-DESIGN DL3's own measurement. Three consequences a taker should carry rather than
 rediscover. (i) The per-trait cost is a MEASUREMENT and not an estimate.
 (ii) The `Dual64` rows are the expensive part — they live in other
 programs' suites, they assert what the pass FINDS, and retiring a refusal

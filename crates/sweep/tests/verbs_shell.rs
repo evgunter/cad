@@ -1284,13 +1284,14 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
 fn r2_probe_other_two_passes_dump() {
     let tol = Tol::witness();
     let t = 0.05;
-    let mut corpus: Vec<(String, Body<f64>)> = Vec::new();
-    corpus.push(("vessel".into(), vessel(0.5, 0.4)));
-    corpus.push(("tube".into(), tube(0.30, 0.50, 0.40)));
-    corpus.push((
-        "vessel_sealed".into(),
-        topo::shell(&vessel(0.5, 0.4), t, FIT_TOL, tol).expect("sealed"),
-    ));
+    let mut corpus: Vec<(String, Body<f64>)> = vec![
+        ("vessel".into(), vessel(0.5, 0.4)),
+        ("tube".into(), tube(0.30, 0.50, 0.40)),
+        (
+            "vessel_sealed".into(),
+            topo::shell(&vessel(0.5, 0.4), t, FIT_TOL, tol).expect("sealed"),
+        ),
+    ];
     corpus.push((
         "tube_sealed".into(),
         topo::shell(&tube(0.30, 0.50, 0.40), t, FIT_TOL, tol).expect("sealed"),

@@ -24,7 +24,7 @@ fn profile<T: geom_core::Decide>(lp: ProfileLoop<T>) -> profile::ValidatedProfil
 
 /// The generic corpus: name, body. Valid bodies first, then their
 /// reverted (NegativeVolume) twins.
-pub fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
+pub(crate) fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
     let tol = Tol::witness();
     let mut out: Vec<(String, Body<T>)> = Vec::new();
     // L-prism (planar, closed form).
@@ -217,7 +217,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 /// A ring standing on its own outer loop (check 9), built the way
 /// `verbs_shell.rs::a_ring_standing_on_its_outer_loop_refuses_at_tier_3`
 /// builds it; plus its reverted twin so check 7 WOULD also fire.
-pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
+pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let mut out = Vec::new();
