@@ -694,11 +694,15 @@ pub trait PropsQuadLane:
     /// the ratified one. The stored tolerance stays what it always
     /// was: the MINT's parameter, and the fit door's own gate.
     ///
-    /// `None` = this scalar has no re-derivation lane. That is not a
-    /// pass: tier 3 reports it, because a surface certificate is the
-    /// one claim this kernel refuses to leave unchecked. It is also
-    /// vacuous today — the fit door is `f64`-only, so no other scalar
-    /// can hold an `ApproxSurface` in the first place.
+    /// `None` = this scalar has no re-derivation lane. That is a
+    /// statement about the DERIVATION, never about which values can
+    /// arrive: [`geom::ApproxSurface::certify`] is generic in the
+    /// scalar and takes its certifier as an argument, so an
+    /// `ApproxSurface<Self>` is representable at every scalar and such
+    /// a face reaches this arm. `None` is not a pass — tier 3 reports
+    /// it as [`ValidationError::ApproxLaneUnsupported`](crate::ValidationError),
+    /// because a surface certificate is the one claim this kernel
+    /// refuses to leave unchecked.
     ///
     /// # Errors
     ///
@@ -715,8 +719,10 @@ pub trait PropsQuadLane:
     ///
     /// `None` = this scalar has no fit lane. That is not a pass: a
     /// caller that cannot mint the offset refuses, exactly as tier 3
-    /// refuses a certificate it cannot re-derive. The fit door is
-    /// `f64`-only, so `None` is every other scalar's honest answer.
+    /// refuses a certificate it cannot re-derive. The fit itself is
+    /// derived at `f64` only, so `None` is every other scalar's honest
+    /// answer — the absence of a derivation, not of a representable
+    /// operand.
     ///
     /// # Errors
     ///
@@ -779,9 +785,12 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // The offset fit is derived at `f64` only, so this scalar has no
+    // re-derivation lane. That is the whole reason, and it is about the
+    // derivation: an `ApproxSurface<Self>` is representable here —
+    // `ApproxSurface::certify` is scalar-generic and takes its
+    // certifier as an argument — so such a face does reach this arm and
+    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -817,9 +826,12 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // The offset fit is derived at `f64` only, so this scalar has no
+    // re-derivation lane. That is the whole reason, and it is about the
+    // derivation: an `ApproxSurface<Self>` is representable here —
+    // `ApproxSurface::certify` is scalar-generic and takes its
+    // certifier as an argument — so such a face does reach this arm and
+    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -859,9 +871,12 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // The offset fit is derived at `f64` only, so this scalar has no
+    // re-derivation lane. That is the whole reason, and it is about the
+    // derivation: an `ApproxSurface<Self>` is representable here —
+    // `ApproxSurface::certify` is scalar-generic and takes its
+    // certifier as an argument — so such a face does reach this arm and
+    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
