@@ -184,12 +184,15 @@ fn the_widened_predicate_implies_the_narrow_one() {
 }
 
 /// What the masquerade is downstream, at the doors a consumer reaches
-/// through: evaluation carries the poison in the poisoned channel and
-/// finite values in the others — which is why a consumer's y/z margin
-/// still decides a sign and the face never refuses — and the surface
-/// projection door refuses rather than returning a foot.
+/// through. Evaluation is **partly finite**, and that is the whole
+/// hazard: the poisoned channel poisons, the others answer real
+/// numbers, so a consumer's y/z margin still decides a sign. The
+/// surface projection door, by contrast, refuses rather than returning
+/// a foot. Both halves are pinned here because the first is what makes
+/// a per-axis consumer wrong and the second is what a certifying one
+/// does right.
 #[test]
-fn the_masquerade_poisons_evaluation_and_refuses_projection() {
+fn the_masquerade_evaluates_partly_finite_and_refuses_projection() {
     let c = masquerading_curve::<f64>();
     let p = c.eval(0.5);
     assert!(p.x.is_nan(), "the poisoned channel evaluates to poison");
@@ -275,5 +278,48 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
     assert!(
         !nurbs_surface_aabb(&described).overlaps(&elsewhere),
         "the screen must not cost a described net its pruning power"
+    );
+}
+
+/// **Which poison, per scalar** — the crate doc's extension note,
+/// executed rather than asserted in prose. The rule is one predicate
+/// (`Real::is_poison`) and it answers a different question at each
+/// instantiation, so the SET of nets that read as the placeholder is
+/// not the same set at every scalar.
+#[test]
+fn the_placeholder_set_differs_in_extension_between_scalars() {
+    // At `f64` only NaN is poison, so a net of infinities — which a
+    // file CAN spell, `1.E999` overflowing on read — is DESCRIBED, not
+    // a placeholder, and its every channel is non-finite.
+    let inf = NurbsCurve3::new(
+        knots5(),
+        vec![Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY); 5],
+        vec![1.0; 5],
+    )
+    .unwrap();
+    assert!(
+        !inf.is_placeholder(),
+        "+inf is not this scalar's poison, so this is described data"
+    );
+
+    // At `Dual` the question is the VALUE channel only: a poisoned
+    // value over a finite derivative reads as the placeholder.
+    let d = NurbsCurve3::new(
+        knots5(),
+        vec![
+            Point3::new(
+                Dual::new(f64::NAN, 1.0),
+                Dual::new(f64::NAN, 1.0),
+                Dual::new(f64::NAN, 1.0)
+            );
+            5
+        ],
+        vec![1.0; 5],
+    )
+    .unwrap();
+    assert!(
+        d.is_placeholder(),
+        "at Dual the discriminator reads the value channel; the finite \
+         derivative does not make this described"
     );
 }

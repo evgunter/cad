@@ -38,7 +38,8 @@
 //!
 //! It lives directly under `tests/` rather than in `tests/curves/` or
 //! `tests/surfaces/` because its subject is the shared interior
-//! `projection` module, and because the two halves share one defect —
+//! `projection_policy` module, and because the two halves share one
+//! defect —
 //! split across the two group directories they would drift apart.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

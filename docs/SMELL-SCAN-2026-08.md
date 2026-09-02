@@ -4008,7 +4008,7 @@ meaningful, and the disposition.
 | `NurbsSurface::project` | as the curve half, in two parameters | → **issue #874** + docs |
 | `NurbsSurface::project_seed` | as the curve half | **fine** |
 | `NurbsSurface::project_from_seed` | as `project` | → **issue #874** + docs |
-| `projection::mid` (`pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
+| `projection_policy::mid` (`pub(crate)`) | where the derivative channel leaves | **documented** — this is the freeze site |
 
 **"Fine, because —" is the disposition for seven of the twelve rows, and
 the reason is one reason.** The box constructors' bracket read is a
@@ -4083,7 +4083,7 @@ axis that actually separates them from `project` is **locally-constant
 selection versus smoothly-varying implicit function**: a span index is
 piecewise constant, so freezing it loses nothing; `t*(p)` is a smooth
 implicit function of the input, so freezing it drops `dt*/dp`. That is
-the framing #875 ships, at `projection::mid` and in one clause at
+the framing #875 ships, at `projection_policy::mid` and in one clause at
 `impl Bounds for Dual`.
 
 ### What enforces it afterwards: nothing, and that is by design
@@ -4116,7 +4116,8 @@ identical to one that tightened.
 difference at `f64` — the numbers a #874 fix must reproduce — and records what
 `Dual64` reported as prose, because that half can no longer be executed
 in-tree. The eviction itself is pinned by `compile_fail,E0277` rows in
-`geom/src/projection.rs`'s module docs, which is where a doctest is actually
+`geom/src/projection_policy.rs`'s module docs, which is where a doctest is
+actually
 collected — and `S216` is why those rows demonstrate the eviction without
 guarding it.
 
@@ -5794,7 +5795,8 @@ target is never collected.** H-g verified it empirically — it planted a
 deliberately-failing `compile_fail` block in
 `crates/geom/tests/dual_foot_tangent.rs` and `cargo test --doc -p geom`
 reported **zero** rows from the file. That is why #886 sites its
-compile-fail rows in `geom/src/projection.rs`, where rustdoc runs them.
+compile-fail rows in `geom/src/projection_policy.rs`, where rustdoc runs
+them.
 
 **This is `D113`'s root cause with a second and worse consequence, which
 `D113` does not draw.** `D113` already records that *"`cargo doc` builds
@@ -6129,7 +6131,7 @@ rows, which is where it should be read from: the lane wrote *"a mistyped
 path reds rather than passes"* in a PR body, and that sentence was false
 about every `compile_fail` row in the repo.
 
-**The measurement.** Two rows planted in `crates/geom/src/projection.rs`
+**The measurement.** Two rows planted in `crates/geom/src/projection_policy.rs`
 on toolchain 1.97.0:
 
 | annotation | what it actually emits |
@@ -6202,7 +6204,7 @@ them more or less likely to.
 
 **The hit list, so the next lane does not re-derive it**:
 `profile/src/path.rs` (16), `quantity/src/units.rs` (8),
-`topo/src/entity.rs` (3), `geom/src/projection.rs` (2),
+`topo/src/entity.rs` (3), `geom/src/projection_policy.rs` (2),
 `topo/src/review_m0_pr7.rs` (2), and one each in
 `editor-core/src/eval/memo.rs`, `geom-core/src/dual.rs`,
 `profile/src/lib.rs`, `topo/src/body.rs` and `topo/src/chart_region.rs`.

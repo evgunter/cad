@@ -17,11 +17,8 @@
 //!
 //! Iso-curve extraction — turning a row of this control net into a
 //! curve for an **edge** to carry — is the EdgeDescription layer's,
-//! under a placement rule whose statement and whose argument are
-//! `geom-brep`'s `nurbs_iso` module docs. On a clamped surface it is a
-//! copy of a control row and nothing else, so this module is exactly
-//! where the next person to need one would write it: read that module
-//! first, and add the door there.
+//! under a placement rule stated and argued in `geom-brep`'s
+//! `nurbs_iso` module docs. Read it before adding such a door here.
 //!
 //! # Grid layout (binding)
 //!

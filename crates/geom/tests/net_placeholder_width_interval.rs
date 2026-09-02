@@ -129,3 +129,32 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_at_interval() {
     .unwrap();
     assert!(b.overlaps(&elsewhere), "the poison box never prunes");
 }
+
+/// The interval scalar's poison is NaI **or** the empty interval, so a
+/// net of empties reads as the placeholder here and its `f64` shadow
+/// would not — the extension difference the crate doc names, executed.
+#[test]
+fn an_all_empty_net_reads_as_the_placeholder_at_interval() {
+    // `sqrt` of a wholly negative enclosure is empty (its own doc).
+    let empty = Interval::from_f64(-4.0).sqrt();
+    assert!(
+        empty.is_poison(),
+        "the empty interval is this scalar's poison"
+    );
+    let c = NurbsCurve3::new(
+        knots5(),
+        vec![Point3::new(empty, empty, empty); 5],
+        vec![1.0; 5],
+    )
+    .unwrap();
+    assert!(c.is_placeholder());
+    // And one empty channel over finite ones is a described net, the
+    // same masquerade the row above pins with NaI.
+    let mixed = NurbsCurve3::new(
+        knots5(),
+        vec![Point3::new(empty, Interval::from_f64(1.0), Interval::from_f64(2.0)); 5],
+        vec![1.0; 5],
+    )
+    .unwrap();
+    assert!(!mixed.is_placeholder());
+}
