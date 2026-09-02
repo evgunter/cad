@@ -63,11 +63,19 @@
 //! the competing reading is row 2 (*valid but unbuilt*, hence a typed
 //! refusal), and it turns on whether [`pole_columns`] closes the
 //! `nu == 2` class. If that floor is ever falsified, the state moves and
-//! so does the mechanism. The remaining option — the full-2π seam case
-//! with no floor in any build, and cross-face identification with no
-//! check at all — is **#897**, and the second of those is outside this
-//! re-derivation by construction: it reads THIS patch's pole-incident
-//! edges only.
+//! so does the mechanism.
+//!
+//! **The two cases that sat outside this re-derivation are now inside
+//! one or the other of two, decided by measurement (issue 897).** The
+//! full-2π seam — held off by [`pole_columns`]' arithmetic rather than
+//! by any check, in the lane that actually has seams — is covered by
+//! widening the emit pass's census from pole-incident edges to
+//! IDENTIFIED ones ([`identified_ids`]). Cross-face identification is
+//! outside a per-patch census by construction, whatever its footprint,
+//! so it is re-derived once per mesh instead, at the end of
+//! [`crate::tessellate`], as a use count over the chord segments the
+//! adjacent faces are supposed to share. Both are `debug_assertions`
+//! only, which is S65's ruled posture, and neither reads a tolerance.
 //!
 //! Grid sizing (heuristic; the certificates are the guarantee), from
 //! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
@@ -290,29 +298,31 @@ pub(crate) fn tessellate_curved(
     // does not run `check_mesh`, so with `pole_columns` in place a
     // three-line arithmetic coincidence is otherwise the only thing
     // between a pole face and a silently non-manifold mesh. Re-derive
-    // the conclusion here, over THIS patch's pole-incident edges only
+    // the conclusion here, over THIS patch's IDENTIFIED edges only
     // (the class's whole footprint, and O(triangles)): a fan edge is
     // interior to the patch and used twice, or on its boundary and
     // used once with the neighbouring face supplying the other use.
     // Four uses is the #678 signature.
+    //
+    // IDENTIFIED, not pole-incident, and that is a DECIDED widening
+    // (issue 897) rather than the definition it always had.
+    // [`identified_ids`] carries why a seam double-traversal and a
+    // pole corner are one set; the full-2π seam was the half held off
+    // by [`pole_columns`]' arithmetic instead of by a check, in the
+    // lane that actually has seams. What decided it was the price,
+    // measured on the tour corpus rather than estimated: the widening
+    // is free on a face the walk identifies nothing on (the census
+    // does not run), and costs +4% to +13% of `tessellate` on the
+    // donut, whose two torus patches carry a 212-id seam over 178k
+    // triangles each at the finest δ. That is at or under the price already paid for
+    // the pole half, and it buys the case a mechanical check.
     #[cfg(debug_assertions)]
-    if has_pole {
-        let poles: std::collections::HashSet<u32> =
-            polygon.iter().filter(|e| e.pole).map(|e| e.id).collect();
-        let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
-        for t in &triangles {
-            for k in 0..3 {
-                let (a, b) = (t[k], t[(k + 1) % 3]);
-                if poles.contains(&a) || poles.contains(&b) {
-                    *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
-                }
-            }
-        }
-        let over = uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n));
+    {
+        let over = overused_identified_edge(&polygon, &triangles);
         debug_assert!(
             over.is_none(),
-            "face {fk:?}: pole-fan edge {:?} used {} times in one patch \
-             (nu = {nu}, nv = {nv}); the collapse-and-drop argument is \
+            "face {fk:?}: identified-vertex fan edge {:?} used {} times in one \
+             patch (nu = {nu}, nv = {nv}); the collapse-and-drop argument is \
              falsified — see curved::pole_columns, issue #678",
             over.map(|(e, _)| e),
             over.map_or(0, |(_, n)| n)
@@ -622,8 +632,108 @@ fn require_swept_rectangle(
 /// [`crate::sizing::MAX_ANGULAR_STEP`] on both branches and
 /// [`torus_grid_step`] is capped against the same value here, so a
 /// `2*pi` span gives `nu >= 8`.
+///
+/// **That arithmetic is VERIFIED and it is NOT the seam case's whole
+/// argument** (issue 897, and the distinction is the finding). Verified:
+/// `the_full_2pi_seam_never_reaches_the_two_column_shape` runs the
+/// capped step over its whole range and gets `nu >= 8` every time, with
+/// the row that goes red if the cap is lowered — at `pi`, four times
+/// today's cap, the same `2*pi` span sizes to exactly the two columns
+/// the fan needs — so the claim depends on the cap and says which way.
+/// Not the whole argument: `nu` counts INTERIOR columns, and on the arm
+/// where a full-`2*pi` seam actually lives, [`grid_counts`]' cylinder
+/// arm returns `nv = 1`, whose `1..nv` interior range is empty. There
+/// are no interior columns there at all, so a bound of eight on them
+/// separates the seam's two entries only in the sense that an empty set
+/// contains no counterexample; what actually separates them is the
+/// boundary chord rows. The emission is therefore re-derived rather
+/// than argued — the emit pass's census now runs on every patch the
+/// walk identifies a vertex on, seam or pole.
 fn pole_columns(nu: usize, has_pole: bool) -> usize {
     if has_pole && nu == 2 { 3 } else { nu }
+}
+
+/// The mesh ids this patch's boundary walk IDENTIFIES: an id the walk
+/// placed at two or more DISTINCT UV locations, together with the
+/// pole/apex entries. Empty ⟺ no boundary vertex of this patch is
+/// reachable at two places in parameter space, and then the emit
+/// pass's re-derivation has nothing to re-derive.
+///
+/// **The two sources are one set, and that is the point.** A pole
+/// corner and a full-2π seam double-traversal are the same situation
+/// for the collapse-and-drop argument — one mesh vertex entering the
+/// CDT at two parameter locations, with a triangle spanning both
+/// dropped as degenerate — and the argument that the drop leaves a
+/// fan rather than a hole is the same argument in both. Splitting
+/// them into two cases is what let the seam half go unchecked while
+/// the pole half was re-derived every build ([`pole_columns`] holds
+/// the seam off by arithmetic — `sagitta_step`'s π/4 cap forces
+/// `nu >= 8` on a 2π span, so the two seam entries never share a
+/// single interior column — and arithmetic is exactly the kind of
+/// argument this row re-derives rather than trusts).
+///
+/// A pole entry that appears ONCE is still in the set: it cannot be
+/// collapsed, but including it keeps the census's footprint a
+/// superset of the pole-incident one it replaces, so no coverage
+/// moves with this definition.
+///
+/// **"Distinct" means what SPADE means by it** — plain `==` on the
+/// `f64` pair, the comparison `insert` dedupes on, not a bit compare.
+/// Two entries spade merges are one CDT vertex and cannot be fanned
+/// apart; two it keeps can. (`trimmed::id_repeats_apart` states the
+/// same rule for the trimmed lane's polygon.)
+#[cfg(debug_assertions)]
+#[allow(clippy::float_cmp)]
+fn identified_ids(polygon: &[UvPoint]) -> std::collections::HashSet<u32> {
+    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
+    let mut identified: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for e in polygon {
+        if e.pole {
+            identified.insert(e.id);
+        }
+        if seen
+            .insert(e.id, (e.u, e.v))
+            .is_some_and(|p| p != (e.u, e.v))
+        {
+            identified.insert(e.id);
+        }
+    }
+    identified
+}
+
+/// The identified-vertex edge this patch uses more than twice, if any
+/// — the emitted form of #678's class, re-derived over the emission
+/// rather than argued from the grid.
+///
+/// A fan edge around an identified vertex is interior to the patch and
+/// used twice, or on the patch boundary and used once with the
+/// neighbouring face supplying the other use. Three or more uses in
+/// ONE patch means the collapse left something other than a fan, which
+/// is the non-manifold state, and four is #678's own signature.
+///
+/// Returns the edge and its use count so the caller can name both.
+/// Empty [`identified_ids`] means there is nothing to re-derive and
+/// the scan does not run — a wedge wall or an untrimmed patch pays
+/// nothing.
+#[cfg(debug_assertions)]
+fn overused_identified_edge(
+    polygon: &[UvPoint],
+    triangles: &[[u32; 3]],
+) -> Option<((u32, u32), usize)> {
+    let identified = identified_ids(polygon);
+    if identified.is_empty() {
+        return None;
+    }
+    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+    for t in triangles {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            if identified.contains(&a) || identified.contains(&b) {
+                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+            }
+        }
+    }
+    uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
 }
 
 /// The sphere arm's extra sizing margin: it sizes at δ_s divided by
@@ -777,6 +887,7 @@ mod tests {
     //! and the sweep showing nothing this build authors trips it.
 
     use super::*;
+    use crate::sizing::MAX_ANGULAR_STEP;
     use geom_core::Tol;
     use geom_core::{Affine3, Point2, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
@@ -1965,5 +2076,119 @@ mod tests {
             }
         }
         (cdt.num_constraints() - before, hits)
+    }
+
+    /// A boundary entry at a chosen UV with a chosen mesh id.
+    fn entry(u: f64, v: f64, id: u32, pole: bool) -> UvPoint {
+        UvPoint { u, v, id, pole }
+    }
+
+    #[test]
+    fn identified_ids_takes_the_seam_the_pole_filter_misses() {
+        // RED FIRST for the widening (issue 897). A full-2π seam
+        // double-traversal: one mesh id, two ends of the u range, no
+        // pole flag anywhere. The set this census runs on must contain
+        // it; the filter it replaced — `e.pole` — is empty here, which
+        // is precisely how the seam case went unchecked.
+        let seam = vec![
+            entry(0.0, 0.0, 7, false),
+            entry(0.0, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 0.0, 7, false),
+        ];
+        assert_eq!(seam.iter().filter(|e| e.pole).count(), 0);
+        let mut got: Vec<u32> = identified_ids(&seam).into_iter().collect();
+        got.sort_unstable();
+        assert_eq!(got, vec![7, 8]);
+    }
+
+    #[test]
+    fn identified_ids_keeps_a_pole_corner_and_drops_an_ordinary_walk() {
+        // The set stays a SUPERSET of the pole-incident one it
+        // replaced: a pole entry is in it even when it appears once
+        // and so cannot be collapsed.
+        let one_pole = vec![
+            entry(0.0, 0.0, 1, true),
+            entry(1.0, 0.0, 2, false),
+            entry(1.0, 1.0, 3, false),
+        ];
+        assert_eq!(
+            identified_ids(&one_pole).into_iter().collect::<Vec<_>>(),
+            vec![1]
+        );
+        // And a walk that identifies nothing costs the census nothing:
+        // the emit pass returns before scanning a triangle.
+        let plain = vec![
+            entry(0.0, 0.0, 1, false),
+            entry(1.0, 0.0, 2, false),
+            entry(1.0, 1.0, 3, false),
+        ];
+        assert!(identified_ids(&plain).is_empty());
+        assert_eq!(overused_identified_edge(&plain, &[[1, 2, 3]]), None);
+    }
+
+    #[test]
+    fn a_repeat_at_the_same_uv_is_one_spade_vertex_and_not_identified() {
+        // "Distinct" is spade's `==`, not a bit compare: an entry the
+        // CDT merges cannot be fanned apart, so it is not in the set.
+        let merged = vec![
+            entry(0.0, -0.0, 4, false),
+            entry(1.0, 0.0, 5, false),
+            entry(-0.0, 0.0, 4, false),
+        ];
+        assert!(identified_ids(&merged).is_empty());
+    }
+
+    #[test]
+    fn a_seam_vertex_fanned_over_one_column_is_caught() {
+        // RED FIRST for the guard itself, in #678's own shape but with
+        // a SEAM rather than a pole supplying the identification: the
+        // two entries of id 8 end up sharing a single interior column
+        // (id 9), so the edge (8, 9) is used four times in one patch.
+        let seam = vec![
+            entry(0.0, 0.0, 7, false),
+            entry(0.0, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 1.0, 8, false),
+            entry(core::f64::consts::TAU, 0.0, 7, false),
+        ];
+        let fanned = [[8, 9, 7], [9, 8, 10], [8, 9, 11], [9, 8, 12]];
+        assert_eq!(overused_identified_edge(&seam, &fanned), Some(((8, 9), 4)));
+        // The fan the argument PREDICTS — every identified edge at two
+        // uses — is quiet.
+        let clean = [[7, 8, 9], [8, 7, 10], [9, 8, 10], [7, 9, 10]];
+        assert_eq!(overused_identified_edge(&seam, &clean), None);
+    }
+
+    #[test]
+    fn the_full_2pi_seam_never_reaches_the_two_column_shape() {
+        // `pole_columns`' argument for the seam case, VERIFIED as the
+        // arithmetic it claims to be: the fan needs a single interior
+        // column between the two identified entries (`nu == 2`), and a
+        // 2π span cannot size to one while the angular cap holds.
+        let tau = core::f64::consts::TAU;
+        const { assert!(MAX_ANGULAR_STEP <= core::f64::consts::FRAC_PI_4) };
+        for step in [
+            f64::MIN_POSITIVE,
+            1e-12,
+            1e-6,
+            MAX_ANGULAR_STEP,
+            1.0,
+            1e6,
+            f64::INFINITY,
+            f64::NAN,
+        ] {
+            // A refusal is the far side of the same claim — the count
+            // the step asks for is past `ceil_count`'s 2^24 cap, which
+            // is not two columns either.
+            assert!(
+                !matches!(ceil_count(tau, cap_angular(step)), Ok(n) if n < 8),
+                "a 2π span at capped step {step} sized below eight columns"
+            );
+        }
+        // The row that goes RED if the floor is lowered: at a cap of π
+        // — four times today's — the same span sizes to exactly the
+        // two-column shape, and the arithmetic stops holding the case
+        // off. The cap is what this depends on, and this says so.
+        assert_eq!(ceil_count(tau, core::f64::consts::PI).unwrap(), 2);
     }
 }

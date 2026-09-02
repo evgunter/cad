@@ -147,8 +147,13 @@
 //! corner points; `curved::pole_columns` is what guarantees that
 //! (issue #678 — at `nu == 2` a single equidistant column gives both
 //! corners a fan over it and the identified edge is used four times).
-//! The `debug_assert` that re-derives the conclusion over each pole
-//! patch is `#[cfg(debug_assertions)]`, which cargo's release default
+//! The `debug_assert` that re-derives the conclusion runs over each
+//! patch whose walk IDENTIFIES a vertex — a pole corner or a seam
+//! double-traversal, one set rather than two cases
+//! (`curved::identified_ids`, issue 897) — and a second re-derivation
+//! at the end of `tessellate` counts each chord segment's uses across
+//! the whole mesh, which is the CROSS-FACE half no per-patch census
+//! can see. Both are `#[cfg(debug_assertions)]`, which cargo's release default
 //! compiles out — so whether a release build carries more than the
 //! floor is a manifest setting, and the root `Cargo.toml` currently
 //! sets `debug-assertions = true` for `[profile.release]` (a

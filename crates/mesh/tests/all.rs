@@ -64,6 +64,8 @@ mod issue555_subfloor_cap;
 mod issue685_nu1_sizing;
 #[path = "issue896_pole_guard.rs"]
 mod issue896_pole_guard;
+#[path = "issue897_s65_cost.rs"]
+mod issue897_s65_cost;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]

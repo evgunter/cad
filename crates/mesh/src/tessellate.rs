@@ -69,6 +69,14 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
     let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
+    // Every id a face can SHARE with another face is already minted:
+    // topology vertices, then chord points, then (per face, below) that
+    // face's own interior grid. So a shared id is exactly an id below
+    // this mark, and the census at the end of this function tests it
+    // with an integer compare rather than a lookup.
+    #[cfg(debug_assertions)]
+    #[allow(clippy::cast_possible_truncation)]
+    let shared_below = positions.len() as u32;
     let mut boundaries = Vec::new();
     for (ek, _) in body.edges() {
         let (start_vertex, end_vertex) = edge_vertices(body, ek)?;
@@ -162,9 +170,191 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
         });
     }
 
-    Ok(Mesh {
+    let mesh = Mesh {
         positions,
         patches,
         boundaries,
-    })
+    };
+
+    // D2 addendum row 5, and the CROSS-FACE half of the class
+    // `curved`'s per-patch re-derivation cannot see: that census reads
+    // ONE patch's identified edges, so a boundary the two adjacent
+    // faces failed to identify with each other is outside its
+    // footprint by construction (issue 897 says so, and it is right).
+    // Re-derive it here, over the only ids two faces can share — the
+    // chord segments of the body's own edges — and over nothing else.
+    //
+    // WHY NOT `check_mesh`, which is already the oracle for exactly
+    // this: it was the first candidate and it was MEASURED against
+    // this one on the tour corpus, at all three ε rows and the byte
+    // instrument's three deltas. Switched in, it costs +10% to +63% of
+    // `tessellate`, and +27% to +34% on the donut — the corpus's
+    // largest mesh and so its least noisy row — and never 0%, because
+    // it censuses every edge of every patch, most of which are
+    // patch-interior grid edges no cross-face question is about, and
+    // because it re-checks winding and degeneracy, which are other
+    // rows' classes. The segment census below is +3% to +8% on those
+    // same donut rows, and its footprint IS the class:
+    // an unidentified shared boundary makes each side's copy a
+    // one-use edge, which is what `n != 2` catches. The narrower guard
+    // is not a second copy of the oracle; it is the class's own
+    // question, and `check_mesh` remains available to a caller.
+    #[cfg(debug_assertions)]
+    {
+        let polylines: Vec<&[u32]> = chords.ids.values().map(Vec::as_slice).collect();
+        let patch_triangles: Vec<&[[u32; 3]]> = mesh
+            .patches
+            .iter()
+            .map(|p| p.triangles.as_slice())
+            .collect();
+        let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below);
+        debug_assert!(
+            bad.is_none(),
+            "chord segment {:?} is used by {} face triangles rather than 2: the \
+             faces meeting on that edge did not identify it (issue 897)",
+            bad.map(|(e, _)| e),
+            bad.map_or(0, |(_, n)| n)
+        );
+    }
+
+    Ok(mesh)
+}
+
+/// The chord segment that is NOT used by exactly two face triangles,
+/// if any — the cross-face identification re-derivation (issue 897).
+///
+/// Every edge of the body carries a chord polyline whose segments the
+/// two faces meeting on that edge both insert as CDT constraints, so
+/// in a watertight emission each segment is a triangle edge exactly
+/// twice: once per side, or twice within one patch where a `Seam` edge
+/// is traversed both ways by the same face. A count of 1 is the class
+/// this guard exists for — the two sides emitted the segment under
+/// DIFFERENT ids, so neither copy pairs up.
+///
+/// `shared_below` is the first id minted after the chord pass. Ids are
+/// minted topology-vertices-then-chords-then-per-face-grid (D9's
+/// determinism order, at the top of [`tessellate`]), so an id at or
+/// above the mark is one face's private grid point and can never be a
+/// chord segment endpoint. Testing that first is what keeps this scan
+/// an integer compare on the overwhelming majority of triangle edges
+/// rather than a map probe.
+///
+/// **This reads no tolerance.** It is a census of ids and counts;
+/// `Eps` has no role in it, and a band would be the wrong instrument
+/// for a question whose answer is an integer.
+#[cfg(debug_assertions)]
+fn unpaired_chord_segment(
+    polylines: &[&[u32]],
+    patch_triangles: &[&[[u32; 3]]],
+    shared_below: u32,
+) -> Option<((u32, u32), usize)> {
+    let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+    for ids in polylines {
+        for w in ids.windows(2) {
+            uses.insert((w[0].min(w[1]), w[0].max(w[1])), 0);
+        }
+    }
+    for t in patch_triangles.iter().copied().flatten() {
+        for k in 0..3 {
+            let (a, b) = (t[k], t[(k + 1) % 3]);
+            if a < shared_below
+                && b < shared_below
+                && let Some(n) = uses.get_mut(&(a.min(b), a.max(b)))
+            {
+                *n += 1;
+            }
+        }
+    }
+    uses.iter().find(|&(_, &n)| n != 2).map(|(&e, &n)| (e, n))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The cross-face identification census (issue 897), red first.
+    //!
+    //! The class is the one the per-patch re-derivation in `curved`
+    //! cannot see by construction: each patch is internally consistent
+    //! — every one of its own edges used at most twice — and the
+    //! failure is only visible when the two patches are read together.
+    //! The rows below build exactly that mesh.
+
+    use super::*;
+
+    /// Every edge use within one patch, so a row can show the patch is
+    /// internally clean while the pair of patches is not.
+    fn per_patch_max_use(tris: &[[u32; 3]]) -> usize {
+        let mut uses: HashMap<(u32, u32), usize> = HashMap::new();
+        for t in tris {
+            for k in 0..3 {
+                let (a, b) = (t[k], t[(k + 1) % 3]);
+                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+            }
+        }
+        uses.values().copied().max().unwrap_or(0)
+    }
+
+    #[test]
+    fn a_shared_chord_segment_used_once_per_side_pairs_up() {
+        // Chord polyline 0-1-2 on the edge between two faces; each
+        // face emits both segments once. Ids 9+ are grid points.
+        let poly: [&[u32]; 1] = [&[0, 1, 2]];
+        let tris = [[0, 1, 9], [1, 2, 9], [1, 0, 10], [2, 1, 10]];
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris], 3),
+            None,
+            "two faces that identified the boundary leave every segment at two uses"
+        );
+    }
+
+    #[test]
+    fn a_seam_edge_traversed_twice_by_one_face_pairs_up() {
+        // The full-2π case: ONE patch supplies both uses. The census
+        // counts uses, not sides, which is what makes this legal.
+        let poly: [&[u32]; 1] = [&[0, 1]];
+        let tris = [[0, 1, 9], [1, 0, 10]];
+        assert_eq!(unpaired_chord_segment(&poly, &[&tris], 2), None);
+    }
+
+    #[test]
+    fn a_boundary_the_second_face_renumbered_is_caught() {
+        // RED FIRST. The second face emits the same chord points under
+        // its own ids (3, 4, 5) instead of the shared 0, 1, 2 — the
+        // cross-face identification failure. Both patches stay
+        // internally consistent, so nothing per-patch can see it.
+        let a = [[0, 1, 9], [1, 2, 9]];
+        let b = [[4, 3, 10], [5, 4, 10]];
+        assert!(per_patch_max_use(&a) <= 2, "patch A is internally clean");
+        assert!(per_patch_max_use(&b) <= 2, "patch B is internally clean");
+        let poly: [&[u32]; 1] = [&[0, 1, 2]];
+        let bad = unpaired_chord_segment(&poly, &[&a, &b], 9);
+        assert!(
+            matches!(bad, Some((_, 1))),
+            "an unidentified shared boundary leaves each side's copy at ONE use, got {bad:?}"
+        );
+    }
+
+    #[test]
+    fn a_segment_no_face_emitted_at_all_is_caught() {
+        // The other side of `n != 2`: a hole rather than a mismatch.
+        let poly: [&[u32]; 1] = [&[0, 1]];
+        assert_eq!(unpaired_chord_segment(&poly, &[&[]], 2), Some(((0, 1), 0)));
+    }
+
+    #[test]
+    fn ids_at_or_above_the_mark_are_never_probed() {
+        // The mark is what keeps the scan an integer compare on grid
+        // edges. Below it the same pair IS probed and counted, so the
+        // two halves of the row differ only in the mark.
+        let poly: [&[u32]; 1] = [&[0, 1]];
+        let tris = [[0, 1, 9]];
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris], 1),
+            Some(((0, 1), 0))
+        );
+        assert_eq!(
+            unpaired_chord_segment(&poly, &[&tris], 2),
+            Some(((0, 1), 1))
+        );
+    }
 }
