@@ -2933,3 +2933,26 @@ TALLY: ONE unilateral candidate (R2 MAJ-1) to the blinded coding
 — running total of candidates now 5 (2 from 107, 1 from 108, 1
 here, plus 106's none); tally 1/8 pending the coding session.
 Pair COUNTS, clean by neither arm. Union fix pass out.
+## TORAX MERGED (#1494, 2026-09-02) — ordinal-110 row (sample #102 after THREE renumbers)
+
+The fix pass closed every finding: the TorusRing floor row
+reached through the PUBLIC door (t∈[2/128,7/128] by sweep —
+'unauthorable' corrected); the receipt section rewritten to the
+true evidence chain (mutation table A/B/C: A reds exactly the
+six torus rows, B adds two sphere rows pinning the generalized
+site at rho_c=0, C leaves the old planted red green — the
+alarm); the capability record corrected everywhere
+(circle-profile walls at two doors); torax_interval.rs added
+(the seam decide at Interval, h-width exactly 0); the tolerance
+site's stated reason measured WRONG (hypot ≡ sqrt bitwise; the
+real residue is the door's chain) and replaced with one
+documented GAP_REL. The merge crossed the ACCOUNT-WIDE mutation
+ceiling (hours of GraphQL 'rate limit' errors that turned out to
+be masking a plain merge conflict — the REST endpoint told the
+truth; lesson: when gh pr merge cries rate-limit, ask the REST
+door before believing it) and three sample renumbers
+(#97→#100→#102; BOOL11 took #100 mid-correction). C5ARMS PR-1
+RE-DISPATCHED (same unit, same fable arm per the standing
+VERBS-7 slot-4 assignment; elbow rows re-scoped to the measured
+capability record; the barrel/teapot rows now assert SUCCESS
+against TORAX's pinned closed forms).
