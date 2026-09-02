@@ -103,10 +103,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
-        path: "crates/editor-core/tests/schema_ledger.rs",
-        disposition: Shared, // doc-comment ledger, prose view
-    },
-    Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

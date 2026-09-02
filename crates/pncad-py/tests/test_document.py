@@ -420,10 +420,9 @@ class TestPersistence(unittest.TestCase):
         before = evaluate(doc).value(box).body().mass_properties().volume
 
         text = doc.save()
-        schema = pncad.__build_info__["schema_version"]
         self.assertTrue(
-            text.startswith(f"schema: {schema}\n"),
-            "the file speaks the build's own schema version",
+            text.startswith(f"id: {doc.id}\n"),
+            "the file's header names the document",
         )
 
         loaded = load(text)
@@ -436,12 +435,18 @@ class TestPersistence(unittest.TestCase):
     def test_a_garbage_file_is_a_typed_refusal(self):
         with self.assertRaises(pncad.PersistError) as caught:
             load("not a document")
-        self.assertEqual(caught.exception.variant, "header")
+        self.assertEqual(caught.exception.variant, "header_id")
 
-    def test_an_unknown_schema_is_a_typed_refusal(self):
+    def test_a_body_this_build_cannot_read_is_a_typed_refusal(self):
+        """The format carries no schema version: a document a build
+        cannot read refuses on the deserializer's own rejection, naming
+        the vocabulary it could not place, with the regenerate recourse."""
+        body = '{"snapshot": {"no_such_field": 1}, "edits": []}'
         with self.assertRaises(pncad.PersistError) as caught:
-            load("schema: 9999\n{}")
-        self.assertEqual(caught.exception.variant, "unknown_schema")
+            load(f"id: {'0' * 32}\n{body}")
+        self.assertEqual(caught.exception.variant, "unreadable")
+        self.assertIn("no_such_field", str(caught.exception))
+        self.assertIn("regenerate", str(caught.exception))
 
 
 class TestStepExport(unittest.TestCase):

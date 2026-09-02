@@ -1,88 +1,25 @@
-//! **Distributions in the document** (ERROR-DESIGN E1/E2) — schema
-//! **v15**, and the gate that refuses everything older.
+//! **Distributions in the document** (ERROR-DESIGN E1/E2), on the
+//! wire and at the doors.
 //!
-//! Before v15 a document parameter could not carry a `distribution`
-//! key at all. A v14 reader handed one meets a field its
-//! `deny_unknown_fields` document types have no name for and dies
-//! inside serde rather than at the version door — which is exactly the
-//! direction the gate buys. The other direction is forgiving by
-//! construction (a v14 file declares no distributions, and an
-//! unannotated v15 param writes no key), so the disposition is the
-//! family's: the older file refuses TYPED with the regenerate
-//! recourse, and the migration table stays empty.
-//!
-//! **Why 15.** Read by eye from main's constant at the final re-merge
-//! (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
-//! SCHEMA_VERSION`), because units have repeatedly had a same-number
-//! claim merge CLEAN — both sides write the identical line, so git
-//! never conflicts.
+//! A document parameter may carry a `distribution` key; an
+//! unannotated parameter writes none. Every form round-trips bit for
+//! bit, a broken invariant refuses identically at the load door, the
+//! save door and the edit door (the ONE shared validator), and the
+//! diff reports a distribution-only change. (The format carries no
+//! schema version — the persist module docs say why — so there is no
+//! version pin here and no older golden to refuse.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::UnitSym;
 use editor_core::{
     Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocParam, DocumentId,
-    EditError, ParamName, PersistError, ProfileDoc, REGENERATE_RECOURSE, SCHEMA_VERSION, apply,
-    load, save,
+    EditError, ParamName, PersistError, ProfileDoc, apply, load, save,
 };
 use geom_core::Tol;
 
-/// The prior live golden, kept as the REFUSAL fixture: a break nobody
-/// can demonstrate is a break nobody can trust.
-const V14: &str = include_str!("golden/v14_golden.cad");
-/// One further back, to show the gate has no notion of "nearly
-/// current".
-const V13: &str = include_str!("golden/v13_golden.cad");
-
-#[test]
-fn schema_version_is_current() {
-    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
-    // precedent): M10-1's own bump was v15; LIB-G16 took v16 for the
-    // chamfer recipe node, and the number is what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 20);
-}
-
-#[test]
-fn the_checked_in_older_goldens_are_really_older() {
-    assert_eq!(V14.lines().next(), Some("schema: 14"));
-    assert_eq!(V13.lines().next(), Some("schema: 13"));
-}
-
-/// The break, demonstrated in the direction that matters: a v14 file
-/// refuses TYPED at the version door, naming the version found, the
-/// version supported, and the step that does not exist.
-#[test]
-fn v14_refuses_too_old() {
-    match load(V14, Tol::witness()) {
-        Err(PersistError::SchemaTooOld {
-            found,
-            supported,
-            missing,
-        }) => {
-            assert_eq!(found, 14);
-            assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(
-                missing, 14,
-                "the 14 → 15 step is the one that does not exist"
-            );
-        }
-        other => panic!("v14 must refuse SchemaTooOld, got {other:?}"),
-    }
-}
-
-#[test]
-fn the_refusal_carries_the_regenerate_recourse() {
-    for (label, bytes) in [("v14", V14), ("v13", V13)] {
-        let msg = match load(bytes, Tol::witness()) {
-            Err(e) => e.to_string(),
-            Ok(_) => panic!("{label} must refuse"),
-        };
-        assert!(msg.contains(REGENERATE_RECOURSE), "{label}: {msg}");
-    }
-}
-
 fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-schema"), Tol::witness());
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-distribution-wire"), Tol::witness());
     for (name, value) in params {
         doc = apply(
             &doc,
@@ -109,7 +46,7 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
 
 /// All FOUR forms on the wire at once, round-tripped bit for bit.
 #[test]
-fn every_distribution_form_round_trips_at_v15() {
+fn every_distribution_form_round_trips() {
     let doc = doc_with(&[
         (
             "band",
@@ -136,11 +73,6 @@ fn every_distribution_form_round_trips_at_v15() {
         ),
     ]);
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    assert_eq!(
-        text.lines().next(),
-        Some(&format!("schema: {SCHEMA_VERSION}")[..]),
-        "a fresh save carries the CURRENT version"
-    );
     for form in ["Band", "Uniform", "Normal", "TruncatedNormal"] {
         assert!(text.contains(form), "{form} is on the wire: {text}");
     }
@@ -214,9 +146,9 @@ fn the_same_document_refuses_at_save() {
     assert_ne!(corrupt, text, "the corruption must actually land");
     let body: serde_json::Value = serde_json::from_str(
         corrupt
-            .splitn(3, '\n')
-            .nth(2)
-            .expect("the JSON body follows the two header lines"),
+            .split_once('\n')
+            .map(|(_id_line, body)| body)
+            .expect("the JSON body follows the header line"),
     )
     .expect("the corrupt body is still JSON");
     let broken: ProfileDoc =
@@ -373,9 +305,9 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
     assert_ne!(corrupt, text, "the corruption must actually land");
     let body: serde_json::Value = serde_json::from_str(
         corrupt
-            .splitn(3, '\n')
-            .nth(2)
-            .expect("the JSON body follows the two header lines"),
+            .split_once('\n')
+            .map(|(_id_line, body)| body)
+            .expect("the JSON body follows the header line"),
     )
     .expect("the corrupt body is still JSON");
     let doubly: ProfileDoc =

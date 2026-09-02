@@ -1500,10 +1500,9 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
         );
     }
     println!(
-        "   [{label}] {} bytes through schema v{}: reloaded and re-evaluated identically \
-         ({} names, V bit-equal)",
+        "   [{label}] {} bytes through the persistence door: reloaded and re-evaluated \
+         identically ({} names, V bit-equal)",
         text.len(),
-        pncad::document::SCHEMA_VERSION,
         names.iter().count()
     );
 }

@@ -17,16 +17,11 @@ mod fixture;
 
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
-    ProductError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RoleSeg,
-    RootFault, SCHEMA_VERSION, SnapshotError, content_pin, evaluate, load, save,
+    ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, RootFault, SnapshotError,
+    content_pin, evaluate, load, save,
 };
 use fixture::{desc, insert, len, scl, square, step};
 use geom_core::Tol;
-
-/// The v5 bytes, kept verbatim as the clean break's refusal fixture
-/// (the M5 PR 10 / M6-5 precedent: a break nobody can demonstrate is
-/// a break nobody can trust).
-const V5: &str = include_str!("golden/v5_golden.cad");
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -534,37 +529,7 @@ fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
     out.into_iter().collect()
 }
 
-// ---- Row 6: the v6 clean break ----
-
-/// Row 6a — the v5 bytes refuse TYPED with the regenerate recourse;
-/// the migration table stays empty.
-#[test]
-fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
-    // Moved nine times since this row was written (ASM-2A's v7,
-    // LIB-LBRET's v8, LIB-RESPELL's v9, ASM-UPD's v10, M9-1's v11,
-    // LIB-PLACEDUNION's v12, ASM-R2a's v13, ASM-R2b's v14, M10-1's
-    // v15) — the repo's
-    // convention is that a bump updates every pin it invalidates, so
-    // the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 20);
-    assert_eq!(V5.lines().next(), Some("schema: 5"));
-    match load(V5, Tol::witness()) {
-        Err(PersistError::SchemaTooOld {
-            found,
-            supported,
-            missing,
-        }) => {
-            assert_eq!(found, 5);
-            assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(missing, 5, "the 5 → 6 step is the one that does not exist");
-        }
-        other => panic!("v5 must refuse SchemaTooOld, got {other:?}"),
-    }
-    assert!(
-        REGENERATE_RECOURSE.contains("regenerate"),
-        "the recourse names regeneration"
-    );
-}
+// ---- Row 6: the persisted root list ----
 
 /// Row 6b — a document's save text is byte-stable across two saves
 /// (the fixtures' bless pipeline is a function, not a nondeterministic

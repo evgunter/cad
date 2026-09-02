@@ -470,10 +470,13 @@ fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value
 fn persist_error_tags_are_stable() {
     let header =
         pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
-    assert_eq!(persist_error_tag(&header), "header");
-    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness())
-        .expect_err("a future schema refuses");
-    assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+    assert_eq!(persist_error_tag(&header), "header_id");
+    let unreadable = pncad::document::load(
+        "id: 00000000000000000000000000000000\n{\"snapshot\": {\"no_such_field\": 1}}",
+        Tol::witness(),
+    )
+    .expect_err("a body this build cannot read refuses");
+    assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is

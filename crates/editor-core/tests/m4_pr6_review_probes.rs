@@ -12,7 +12,7 @@ mod fixture;
 use editor_core::{
     Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
     EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SCHEMA_VERSION, SlotId, StableName, WitnessDatum,
+    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum,
     apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
@@ -115,10 +115,10 @@ fn attack_duplicate_json_keys() {
     );
     assert_ne!(dup_param, text, "fixture must contain the param");
     match load(&dup_param, Tol::witness()) {
-        Err(PersistError::Parse { message, .. }) => {
+        Err(PersistError::Unreadable { detail, .. }) => {
             assert!(
-                message.contains("duplicate document parameter key") && message.contains("\"q\""),
-                "refusal must name key and section: {message}"
+                detail.contains("duplicate document parameter key") && detail.contains("\"q\""),
+                "refusal must name key and section: {detail}"
             );
         }
         other => panic!("duplicate param key must refuse typed, got {other:?}"),
@@ -141,10 +141,10 @@ fn attack_duplicate_node_keys() {
         &text[end..]
     );
     match load(&doubled, Tol::witness()) {
-        Err(PersistError::Parse { message, .. }) => {
+        Err(PersistError::Unreadable { detail, .. }) => {
             assert!(
-                message.contains("duplicate snapshot node key"),
-                "refusal must name key and section: {message}"
+                detail.contains("duplicate snapshot node key"),
+                "refusal must name key and section: {detail}"
             );
         }
         other => panic!("duplicate node key must refuse typed, got {other:?}"),
@@ -500,11 +500,7 @@ fn attack_truncation_ladder() {
     for i in 1..=10 {
         let cut = &text[..(n * i / 11)];
         match load(cut, Tol::witness()) {
-            Err(
-                PersistError::Parse { .. }
-                | PersistError::Header { .. }
-                | PersistError::UnknownSchema { .. },
-            ) => {}
+            Err(PersistError::Parse { .. } | PersistError::HeaderId { .. }) => {}
             Ok(_) => panic!("truncation at {} loaded", n * i / 11),
             Err(e) => panic!("untyped-ish refusal at {}: {e:?}", n * i / 11),
         }
@@ -547,28 +543,30 @@ fn attack_epsilon_doors_in_file() {
     }
 }
 
-/// ATTACK 9: header lenience — non-canonical spellings.
+/// ATTACK 9: header lenience — non-canonical spellings of the `id:`
+/// line.
 #[test]
 fn attack_header_spellings() {
-    let (_, text) = small();
-    let body = text.split_once('\n').unwrap().1;
-    let v = SCHEMA_VERSION;
+    let (doc, text) = small();
+    let (header, body) = text.split_once('\n').unwrap();
+    let hex = doc.id().to_string();
+    assert_eq!(header, format!("id: {hex}"));
     for h in [
-        format!("schema: +{v}"),
-        format!("schema:{v}"),
-        format!("schema:  {v}"),
-        format!("schema: 0{v}"),
+        format!("id:{hex}"),
+        format!("id:  {hex}"),
+        format!("id: {hex} "),
+        format!("ID: {hex}"),
+        format!("id: {}", hex.to_uppercase()),
+        format!("id: {}", &hex[1..]),
     ] {
         let t = format!("{h}\n{body}");
         match load(&t, Tol::witness()) {
-            Err(PersistError::Header { .. }) => {}
+            Err(PersistError::HeaderId { .. }) => {}
             other => panic!("non-canonical header {h:?} must refuse typed, got {other:?}"),
         }
     }
-    // The canonical spelling still loads. (M5 PR 10: the version is
-    // read from `SCHEMA_VERSION`, not a literal — a schema bump must
-    // not silently turn this row into a too-old refusal probe.)
-    assert!(load(&format!("schema: {v}\n{body}"), Tol::witness()).is_ok());
+    // The canonical spelling still loads.
+    assert!(load(&format!("id: {hex}\n{body}"), Tol::witness()).is_ok());
 }
 
 /// ATTACK 10: appearance key referencing a DELETED node (< next_id,
@@ -696,9 +694,9 @@ fn duplicate_keys_refuse_in_every_map() {
         let crafted = text.replacen(needle, replacement, 1);
         assert_ne!(crafted, text, "fixture must contain {needle:?}");
         match load(&crafted, Tol::witness()) {
-            Err(PersistError::Parse { message, .. }) => assert!(
-                message.contains(expected),
-                "expected {expected:?} in refusal, got: {message}"
+            Err(PersistError::Unreadable { detail, .. }) => assert!(
+                detail.contains(expected),
+                "expected {expected:?} in refusal, got: {detail}"
             ),
             other => panic!("{expected}: must refuse typed, got {other:?}"),
         }

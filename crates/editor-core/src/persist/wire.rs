@@ -248,11 +248,11 @@ impl WireTarget {
 }
 
 /// One chain step on the wire — `ProgramStep`'s structural mirror, and
-/// the vocabulary's last stop. A verb reaching here is a SCHEMA
-/// change, not a mapping: v8 and v9 are both bumps for exactly this
-/// enum's vocabulary (see [`crate::persist::SCHEMA_VERSION`]), so this
-/// enum going quietly short is worse than its being a third spelling
-/// — a spelling can be reconciled later, a shipped format cannot.
+/// the vocabulary's last stop. A verb reaching here is a FORMAT
+/// change, not a mapping (the checked-in corpus regenerates; see the
+/// persist module docs), so this enum going quietly short is worse
+/// than its being a third spelling — a spelling can be reconciled
+/// later, a shipped format cannot.
 ///
 /// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
 /// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
@@ -324,7 +324,7 @@ enum WireStep {
 
 /// An arc spec on the wire (`ProgramArcData`'s structural mirror), and
 /// the arc-mode vocabulary's last stop — a mode reaching here is a
-/// schema change for the same reason a verb is.
+/// format change for the same reason a verb is.
 ///
 /// It cannot go short of `ProgramArcData`: [`WireArcData::from_spec`]
 /// and [`WireArcData::into_spec`] are exhaustive on the document type

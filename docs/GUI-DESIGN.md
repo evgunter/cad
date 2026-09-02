@@ -26,9 +26,9 @@ layer this doc banks on is REAL —
 `apply`, #81), the GQ2 per-node result DAG with descendants-only
 poisoning plus memoized incremental evaluation and cooperative
 cancelation (#83), one stable-name type with resolution/diagnosis/
-`Rebind` (#87/#96/#102), GQ3 persist-all-edits (schema v1 at #112,
-carried forward through a series of pre-release clean breaks; the
-live number is `persist::SCHEMA_VERSION`) — StableName-
+`Rebind` (#87/#96/#102), GQ3 persist-all-edits (#112; the format
+carries no schema version before release — `persist`'s module docs)
+— StableName-
 keyed appearance with the N3/N5 loss semantics (#92), the
 dimension-checked total expression AST (GQ5's restrictive
 dimension answer) with the text door and display-unit round-trip
@@ -328,12 +328,13 @@ Banked consequences: the edit schema enters Band 4's versioning
 discipline from the first persisted file; storage shape is
 **snapshot + edit log** (details at editor-core design time).
 
-*Shipped: snapshot + edit log is the on-disk format (`schema: n`
-header + JSON body); save verifies the log replays through `apply`
-before writing, and load replays it after. Schema v1 landed at M4
-PR 6, and the versioning discipline has since carried a series of
-ratified pre-release clean breaks (LQ7a — no migration machinery
-before release).*
+*Shipped: snapshot + edit log is the on-disk format (`id:` header
+line + JSON body); save verifies the log replays through `apply`
+before writing, and load replays it after. The format landed at M4
+PR 6 and carries no schema version before release (the Band 4
+roadmap line in DESIGN.md; LQ7a — no migration machinery before
+release): a format change regenerates the checked-in corpus, and a
+file a build cannot read refuses typed with the regenerate recourse.*
 
 ### GQ4 (RATIFIED 2026-07-19 round 5): Document scope — local refs + wrapper, assemblies in the same formalism
 
