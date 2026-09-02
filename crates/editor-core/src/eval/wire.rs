@@ -1304,7 +1304,7 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
         target,
         &target_table,
         &body,
-        *normal,
+        normal.get(),
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
