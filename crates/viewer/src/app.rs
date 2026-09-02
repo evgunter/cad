@@ -195,21 +195,27 @@ const GLYPH_DOWN: &str = "⬇";
 /// Marks a product root in the feature tree — see [`GLYPH_REMOVE`].
 const GLYPH_ROOT: &str = "»";
 
-/// **The picture's own size**, in metres: the diagonal of the scene's
-/// bounding box, which is what a datum is drawn relative to.
+/// **What a datum is drawn against**: where the eye is, and how much
+/// world one pixel of this window spans.
 ///
-/// Zero for a scene with no geometry — an emptied document, or one
-/// holding only datums — and `datums::draws` turns that into its own
-/// fallback rather than this function inventing one. Two places would
-/// be two answers to "how big is nothing".
-fn scene_extent(scene: &SceneMesh) -> f64 {
-    let bounds = scene.bounds();
-    let span = |axis| bounds.max(axis) - bounds.min(axis);
-    let (x, y, z) = (span(bvh::Axis::X), span(bvh::Axis::Y), span(bvh::Axis::Z));
-    (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
+/// The one place the camera and the pane's pixel size become
+/// `datums::View`, so the module below stays a value over two numbers
+/// rather than a borrow of the renderer. The scale is the vertical
+/// field of view over the vertical pixel count — one pixel's angular
+/// share — which at one metre from the eye is that many metres.
+fn datum_view(camera: &Camera, viewport: ViewportSize) -> datums::View {
+    let height = viewport.height_px.max(1.0);
+    datums::View {
+        eye: camera.eye(),
+        look_at: camera.target(),
+        metres_per_pixel_at_one_metre: 2.0 * (camera.fov_y() * 0.5).tan() / height,
+        // The LARGER side: a patch that covered the height of a wide
+        // window would still be pannable off sideways.
+        viewport_px: viewport.width_px.max(height),
+    }
 }
 
-/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane
 /// metres: a fraction of the whole preview's extent.
 ///
 /// Relative rather than absolute because a preview has no fixed scale
@@ -2488,11 +2494,12 @@ impl ViewerBehavior<'_> {
         // point.
         // **The document's construction geometry**, drawn before the
         // preview so a form composing something over a datum reads on
-        // top of it. Sized against the scene's own extent
-        // (`datums::draws`), so a datum is the same size relative to
-        // the part whatever the part's scale is.
+        // top of it. Sized against the VIEW (`datums::draws`): a datum
+        // has no size of its own, and one sized against the model
+        // opens into a hole the moment the camera is closer than a
+        // grid cell is wide.
         if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
-            for drawn in datums::draws(doc, evaluation, scene_extent(self.scene)) {
+            for drawn in datums::draws(doc, evaluation, datum_view(self.camera, viewport)) {
                 for point in drawn.segments {
                     edges
                         .datums
