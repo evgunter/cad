@@ -396,7 +396,12 @@ pub fn apex_crossing_bowtie() -> (Body<f64>, FaceKey, FaceKey) {
     };
     // `b → d` and `c → a` are the two lines through the apex.
     let e_bd = strut(&mut body, e_ab.he_minus, d, line(b, d));
-    let e_dc = strut(&mut body, e_bd.he_minus, c, arc(rim(s), 0.0, core::f64::consts::PI));
+    let e_dc = strut(
+        &mut body,
+        e_bd.he_minus,
+        c,
+        arc(rim(s), 0.0, core::f64::consts::PI),
+    );
     let made = body
         .mef(
             MefSite::Chords {

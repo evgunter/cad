@@ -41,9 +41,9 @@ fn refuses_the_branch_premise(name: &str, body: &Body<f64>, faces: [FaceKey; 2])
                 faces.contains(&face),
                 "{name} at δ={delta}: refused a face that is not one of {faces:?}"
             ),
-            other => panic!(
-                "{name} at δ={delta}: expected the branch premise refusal, got {other:?}"
-            ),
+            other => {
+                panic!("{name} at δ={delta}: expected the branch premise refusal, got {other:?}")
+            }
         }
     }
 }

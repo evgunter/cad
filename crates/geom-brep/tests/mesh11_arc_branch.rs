@@ -317,7 +317,10 @@ fn a_single_nappe_cone_band_and_an_apex_endpoint_are_admitted() {
         cone_rim(2.0, core::f64::consts::PI, 0.0, 2, 3),
         generator(0.0, 2.0, 1.0, 3, 0),
     ];
-    assert_eq!(require_one_chart_branch(&cone(), &band_face, band()), Ok(()));
+    assert_eq!(
+        require_one_chart_branch(&cone(), &band_face, band()),
+        Ok(())
+    );
     let cap = vec![
         cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
         generator(core::f64::consts::PI, 0.0, 1.0, 1, 2),
