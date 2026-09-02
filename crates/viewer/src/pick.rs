@@ -609,12 +609,14 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// As [`PickIndex::scene`]. Hiding EVERYTHING is not an error:
-    /// when the index has parts and the view hides all of them, the
-    /// answer is [`SceneMesh::empty`] — an honest blank picture whose
+    /// As [`PickIndex::scene`]. **Drawing nothing is never an error
+    /// here**, and there are two ways to draw nothing. Hiding
+    /// EVERYTHING gives [`SceneMesh::empty`] — a blank picture whose
     /// bounds are the hidden geometry's, so the camera keeps a real
-    /// extent to frame against and the picture is never left stale
-    /// behind a refusal.
+    /// extent to frame against. An index with NO PARTS AT ALL — an
+    /// emptied document, or one that holds only datums and profiles —
+    /// gives [`SceneMesh::nothing`], which has no extent to carry.
+    /// Either way the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         self.scene_focused(display, &std::collections::BTreeSet::new())
     }
@@ -648,7 +650,28 @@ impl PickIndex {
                 probe: display.moved_roots.get(&part.node()).copied(),
             });
         }
-        if parts.is_empty() && !self.parts.is_empty() {
+        if parts.is_empty() {
+            // Nothing is drawn, and there are two ways to arrive here.
+            // Every part hidden by the display view keeps its
+            // geometry's box, so a camera still has a real extent to
+            // frame against (the case the docs above state).
+            //
+            // An index with NO PARTS is the other, and it is what
+            // deleting the last feature leaves — as does a document
+            // that has only datums or profiles in it yet. That used to
+            // fall through to `build_parts_focused`, which counts zero
+            // triangles and refuses `EmptyMesh`; the refusal left the
+            // PREVIOUS picture on screen under an error line, so an
+            // emptied document went on showing the body it no longer
+            // has. An empty document is a state, not a fault, and
+            // [`SceneMesh::nothing`] is the picture of it.
+            if self.parts.is_empty() {
+                return Ok(SceneMesh::nothing(self.delta));
+            }
+            // Parts that exist but offer no point to bound is still a
+            // refusal, and deliberately still this one: that is a
+            // tessellation that produced nothing, which is the fault
+            // `EmptyMesh` has always named.
             let bounds = bvh::Aabb::from_points(
                 self.parts
                     .iter()
@@ -1648,17 +1671,31 @@ pub struct EdgeOverlay {
     /// requirement), so a wireframe can never be mistaken for a
     /// selection of something that exists.
     pub preview: Vec<[f32; 3]>,
+    /// **Construction geometry that is in the document but is not
+    /// material**: the datum wireframes `crate::datums` draws, in the
+    /// same line-list shape as everything above.
+    ///
+    /// It rides this overlay for [`EdgeOverlay::preview`]'s reason —
+    /// one pass for every world-space segment drawn over the solid —
+    /// and it is a separate LANE for the same reason that one is: the
+    /// mark is what differs. A datum is drawn in `Theme::datum`, the
+    /// colour that means "not material", so it can never be mistaken
+    /// for a marked face of something that is.
+    pub datums: Vec<[f32; 3]>,
 }
 
 impl EdgeOverlay {
     /// Whether there is nothing to draw.
     pub fn is_empty(&self) -> bool {
-        self.selected.is_empty() && self.hovered.is_empty() && self.preview.is_empty()
+        self.selected.is_empty()
+            && self.hovered.is_empty()
+            && self.preview.is_empty()
+            && self.datums.is_empty()
     }
 
     /// How many line segments this overlay draws.
     pub fn segments(&self) -> usize {
-        (self.selected.len() + self.hovered.len() + self.preview.len()) / 2
+        (self.selected.len() + self.hovered.len() + self.preview.len() + self.datums.len()) / 2
     }
 }
 
@@ -1699,8 +1736,11 @@ pub fn edge_overlay(
         hovered_probed: hovered_edge.is_some_and(probed),
         // Nothing a SELECTION implies: a preview is about something
         // that is not in the document, so it is added by whoever is
-        // composing it, not derived from what is picked.
+        // composing it, not derived from what is picked. Datums are
+        // not derived from a pick either — they are simply what the
+        // document holds — so the same line covers both.
         preview: Vec::new(),
+        datums: Vec::new(),
     }
 }
 
