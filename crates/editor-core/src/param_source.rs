@@ -5,7 +5,7 @@
 //! # The token
 //!
 //! [`lower`] turns a slot expression into the opaque
-//! [`ParamSource`](topo::ParamSource) the kernel compares. The lowering
+//! [`topo::ParamSource`] the kernel compares. The lowering
 //! is a **canonical prefix encoding of the expression tree**: one tag
 //! byte per AST node, operands in [`Expr::child`] order, literals as
 //! their `f64` BITS, parameters as their names. It is injective — every
