@@ -40,6 +40,7 @@ pub mod measure;
 pub mod meta;
 pub mod names;
 pub mod node;
+pub mod param_source;
 pub mod parse;
 pub mod part;
 pub mod persist;

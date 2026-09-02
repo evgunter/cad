@@ -622,11 +622,9 @@ impl<T: Real> Body<T> {
         if !field.belongs_to(surface) {
             return Err(ParamAttachError::FieldNotOnKind { field });
         }
-        self.surface_field_sources
-            .entry(key)
-            .expect("the surface key resolved above")
-            .or_default()
-            .set(field, source);
+        let mut rows = self.surface_field_sources.remove(key).unwrap_or_default();
+        rows.set(field, source);
+        self.surface_field_sources.insert(key, rows);
         Ok(())
     }
 
