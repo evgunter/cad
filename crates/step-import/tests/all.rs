@@ -51,12 +51,15 @@ mod halfcap_pole;
 
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "mesh8r2_probes.rs"]
+mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
 #[path = "p1b_r1_import_scan.rs"]
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+
 #[path = "poleguard.rs"]
 mod poleguard;
 #[path = "probe_dup.rs"]

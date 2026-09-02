@@ -38,6 +38,9 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "mesh8r2_probes.rs"]
+mod mesh8r2_probes;
+
 #[path = "mesh8_corpus_coherence.rs"]
 mod mesh8_corpus_coherence;
 
