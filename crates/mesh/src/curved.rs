@@ -73,7 +73,7 @@
 //! IDENTIFIED ones ([`identified_ids`]). Cross-face identification is
 //! outside a per-patch census by construction, whatever its footprint,
 //! so it is re-derived once per mesh instead, at the end of
-//! [`crate::tessellate`], as a use count over the chord segments the
+//! [`fn@crate::tessellate`], as a use count over the chord segments the
 //! adjacent faces are supposed to share. Both are `debug_assertions`
 //! only, which is S65's ruled posture, and neither reads a tolerance.
 //!
