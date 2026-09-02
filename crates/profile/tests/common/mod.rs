@@ -561,7 +561,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .unwrap()
         .line_to(p2(0.0, -1.0), Tol::witness())
         .unwrap()
-        .continue_to(Start.arrives_straight(), Tol::witness())
+        .continue_to(Start.arrives_tangent(), Tol::witness())
         .unwrap();
 
     // 15. The DECLARED G1 ARRIVAL at the seam (BOOL-12): a stadium,

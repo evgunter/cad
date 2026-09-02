@@ -23,7 +23,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
-use crate::program::{LoopProgram, ProfileProgram, ProgramArrival, ProgramStep, ProgramTarget};
+use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
@@ -226,45 +226,29 @@ impl WireSide {
 enum WireTarget {
     /// The entry vertex — the closing form.
     Start,
-    /// The entry vertex with the closing leg's ARRIVAL declared — the
-    /// seam's own declaration, structural (no expressions), because the
-    /// arriving leg is the later-authored one and has no departing leg
-    /// to carry it (PATHS-DESIGN §6's revised PQ4).
-    StartArriving(WireArrival),
+    /// The entry vertex with the seam's TANGENT JOINT declared — the
+    /// seam's own declaration, structural (no expressions) and without
+    /// a payload, because the arriving leg is the later-authored one
+    /// and there is one thing to declare there (PATHS-DESIGN §6).
+    StartArriving,
     /// An authored point (two Length expressions; every `Expr` field
     /// on this wire rebuilds through the dimension door — per-ROLE
     /// dimension agreement is the shared validator's walk).
     Point([Expr; 2]),
 }
 
-/// Which arrival a closing step declares, on the wire.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-enum WireArrival {
-    /// Arrives STRAIGHT into the entry's first side.
-    Straight,
-    /// Arrives G1 into the entry's outgoing direction.
-    Tangent,
-}
-
 impl WireTarget {
     fn from_target(t: &ProgramTarget) -> Self {
         match t {
             ProgramTarget::Start => WireTarget::Start,
-            ProgramTarget::StartArriving(a) => WireTarget::StartArriving(match a {
-                ProgramArrival::Straight => WireArrival::Straight,
-                ProgramArrival::Tangent => WireArrival::Tangent,
-            }),
+            ProgramTarget::StartArriving => WireTarget::StartArriving,
             ProgramTarget::Point(p) => WireTarget::Point(p.clone()),
         }
     }
     fn into_target(self) -> ProgramTarget {
         match self {
             WireTarget::Start => ProgramTarget::Start,
-            WireTarget::StartArriving(a) => ProgramTarget::StartArriving(match a {
-                WireArrival::Straight => ProgramArrival::Straight,
-                WireArrival::Tangent => ProgramArrival::Tangent,
-            }),
+            WireTarget::StartArriving => ProgramTarget::StartArriving,
             WireTarget::Point(p) => ProgramTarget::Point(p),
         }
     }

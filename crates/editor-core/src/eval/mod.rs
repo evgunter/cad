@@ -2330,11 +2330,11 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
         match t {
             Target::Start => h.write_tag(4),
             // Appended, not squeezed in beside 4/5: the tag space is
-            // append-only and 42 was the high-water mark, so a declared
-            // arrival takes its own number per member rather than
-            // nesting a sub-tag under one.
-            Target::StartArriving(profile::Arrival::Straight) => h.write_tag(43),
-            Target::StartArriving(profile::Arrival::Tangent) => h.write_tag(44),
+            // append-only and 42 was the high-water mark. 44 was the
+            // TANGENT arrival's number and the one surviving declaration
+            // keeps it; 43 held the retired STRAIGHT member and stays
+            // DEAD, never reused (D365).
+            Target::StartArriving => h.write_tag(44),
             Target::Point(p) => {
                 h.write_tag(5);
                 f(h, p.x);
@@ -2488,7 +2488,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
             // The Start/Point distinction is structural and rides the
             // f64 stream; only a Point's coordinates are lane data. A
             // declared arrival is structural for the same reason.
-            Target::Start | Target::StartArriving(_) => {}
+            Target::Start | Target::StartArriving => {}
             Target::Point(p) => pt(h, p),
         }
     }
@@ -2960,33 +2960,31 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
 mod verb_tag_tests {
     use super::{RETIRED_VERB_TAGS, verb_tag};
 
-    /// **The seam-arrival target tags are reachable and distinct.**
-    /// Tags 43 and 44 are appended past 42, the previous high-water
-    /// mark, rather than squeezed in beside `Start` (4) and `Point` (5),
-    /// because the space is append-only and renumbering re-keys every
-    /// program using the tags in between (D365).
+    /// **The seam-arrival target tag is reachable and distinct.** Tag
+    /// 44 is appended past 42, the previous high-water mark, rather
+    /// than squeezed in beside `Start` (4) and `Point` (5), because the
+    /// space is append-only and renumbering re-keys every program using
+    /// the tags in between (D365). 43 held the retired second arrival
+    /// member and stays dead.
     ///
-    /// This EXECUTES them. Both hashers are otherwise reached only by
+    /// This EXECUTES it. Both hashers are otherwise reached only by
     /// evaluating a document node that carries the new target, which
-    /// nothing in the tree does, so without this row the two arms are
-    /// compiled and never run — and two arms that write the same tag
-    /// would alias two different seams into one content key.
+    /// nothing in the tree does, so without this row the arms are
+    /// compiled and never run — and a declared seam sharing `Start`'s
+    /// key would alias two different loops into one content key.
     #[test]
-    fn the_seam_arrival_target_tags_are_distinct_and_executed() {
+    fn the_seam_arrival_target_tag_is_distinct_and_executed() {
         use super::memo::KeyHasher;
         use super::{feed_lane_step, feed_step};
-        use profile::{Arrival, Step, Target};
+        use profile::{Step, Target};
         let key = |t: Target<f64>| {
             let mut h = KeyHasher::new();
             feed_step(&mut h, &Step::LineTo(t));
             h.finish()
         };
         let start = key(Target::Start);
-        let straight = key(Target::StartArriving(Arrival::Straight));
-        let tangent = key(Target::StartArriving(Arrival::Tangent));
-        assert_ne!(start, straight, "Start and a declared straight arrival");
-        assert_ne!(start, tangent, "Start and a declared G1 arrival");
-        assert_ne!(straight, tangent, "the two declared arrivals");
+        let declared = key(Target::StartArriving);
+        assert_ne!(start, declared, "Start and a declared tangent seam joint");
         // The LANE hasher treats all three as structural — no lane data
         // rides them — so its keys agree, which is the property that
         // makes a bisecting lane's memo sound.
@@ -2995,14 +2993,7 @@ mod verb_tag_tests {
             feed_lane_step(&mut h, &Step::LineTo(t));
             h.finish()
         };
-        assert_eq!(
-            lane(Target::Start),
-            lane(Target::StartArriving(Arrival::Straight))
-        );
-        assert_eq!(
-            lane(Target::Start),
-            lane(Target::StartArriving(Arrival::Tangent))
-        );
+        assert_eq!(lane(Target::Start), lane(Target::StartArriving));
     }
 
     /// [`verb_tag`]'s two properties, computed over the transition

@@ -89,7 +89,7 @@ fn d_shape_forward(declared: bool) -> Result<ClosedLoop<f64>, PathError<f64>> {
         .line_to(p2(0.0, -1.0), t)
         .unwrap();
     if declared {
-        p.continue_to(Start.arrives_straight(), t)
+        p.continue_to(Start.arrives_tangent(), t)
     } else {
         p.continue_to(Start, t)
     }
@@ -162,7 +162,7 @@ fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
         .unwrap()
         .line(1.0 + off, t)
         .unwrap()
-        .line_to(Start.arrives_straight(), t)
+        .line_to(Start.arrives_tangent(), t)
 }
 
 /// **The escalation message at the two new keys.** `PathError`'s
@@ -267,7 +267,7 @@ fn r2_a_degenerate_closing_leg_is_refused_for_want_of_a_lever() {
             .line_to(p2(-stub, 0.0), t)
             .unwrap();
         if declared {
-            p.line_to(Start.arrives_straight(), t)
+            p.line_to(Start.arrives_tangent(), t)
         } else {
             p.line_to(Start, t)
         }
@@ -395,9 +395,9 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
         }
         let closed = match (turns(7), turns(0)) {
             (true, true) => path.line_to(Start, t),
-            (true, false) => path.line_to(Start.arrives_straight(), t),
+            (true, false) => path.line_to(Start.arrives_tangent(), t),
             (false, true) => path.continue_to(Start, t),
-            (false, false) => path.continue_to(Start.arrives_straight(), t),
+            (false, false) => path.continue_to(Start.arrives_tangent(), t),
         }
         .unwrap_or_else(|e| panic!("shoulder {shoulder}: {e}"));
 
@@ -472,7 +472,7 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
 // 5. The straight arrival when the entry's FIRST SIDE is an ARC.
 // ------------------------------------------------------------------
 
-/// **MAJOR — the premise `Start.arrives_straight()` rests on is "one
+/// **MAJOR — the premise `Start.arrives_tangent()` rests on is "one
 /// carrier continues through the seam".** That holds when the entry's
 /// first side is a LINE. When it is an ARC, a straight closing leg
 /// arriving along the arc's start tangent is a G1 joint between
@@ -518,7 +518,7 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
             .line_to(p2(-2.0, 0.0), t)
             .unwrap();
         if declared {
-            p.line_to(Start.arrives_straight(), t)
+            p.line_to(Start.arrives_tangent(), t)
         } else {
             p.line_to(Start, t)
         }

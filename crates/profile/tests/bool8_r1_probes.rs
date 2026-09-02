@@ -808,7 +808,7 @@ enum Closer {
     ContinueTo,
     /// The DECLARED ARRIVAL (BOOL-12): the closing leg's departure is
     /// spelled by whichever verb its own junction wants, and the SEAM
-    /// is declared on the target — `Start.arrives_straight()`. This is
+    /// is declared on the target — `Start.arrives_tangent()`. This is
     /// the spelling the parity wall was waiting for.
     ArrivesStraight,
 }
@@ -865,10 +865,10 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
         // where it turns.
         Closer::ArrivesStraight => match (straight_at(n - 1), straight_at(0)) {
             (false, false) => chain.line_to(Start, t).map_err(|_| ())?,
-            (false, true) => chain.line_to(Start.arrives_straight(), t).map_err(|_| ())?,
+            (false, true) => chain.line_to(Start.arrives_tangent(), t).map_err(|_| ())?,
             (true, false) => chain.continue_to(Start, t).map_err(|_| ())?,
             (true, true) => chain
-                .continue_to(Start.arrives_straight(), t)
+                .continue_to(Start.arrives_tangent(), t)
                 .map_err(|_| ())?,
         },
     };

@@ -117,13 +117,21 @@ pub enum Target<T: Real> {
     Point(Point2<T>),
     /// The entry vertex: this step closes the loop.
     Start,
-    /// The entry vertex, with the closing leg's ARRIVAL DECLARED: the
+    /// The entry vertex, with the seam's tangent joint DECLARED: the
     /// seam is the one junction whose arriving leg is the
     /// later-authored one, so the declaration that elsewhere rides the
     /// departing leg rides the target here. Authored data, not a
-    /// derived flag — the kernel CHECKS it and refuses a seam that
-    /// contradicts it.
-    StartArriving(Arrival),
+    /// derived flag — the kernel CHECKS the arriving direction against
+    /// `Start`'s own and refuses a seam that contradicts it.
+    ///
+    /// It carries NO payload, and that is the ruling's shape (Evan,
+    /// in-chat, 2026-09-02): every zero-turn joint is a declared
+    /// tangent joint, so there is exactly one thing to declare here. A
+    /// one-member enum in this slot would be a tag distinguishing
+    /// nothing — bound by every match, branched on by no reader. If a
+    /// second declaration is ever ruled, the variant grows a payload
+    /// then, additively, exactly as this one arrived.
+    StartArriving,
 }
 
 impl<T: Real> ArcData<T> {
@@ -143,25 +151,6 @@ impl<T: Real> ArcData<T> {
             ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => None,
         }
     }
-}
-
-/// Which arrival a closing step DECLARES at the seam (PATHS-DESIGN §6's
-/// revised PQ4 entry). One family, two members, ruled together.
-///
-/// Admissibility is per closing verb, and the pairs the matrix rejects
-/// are missing impls on the typed surface — unrepresentable rather than
-/// refused — exactly as the §2c `ArcData` matrix works. At the WIRE the
-/// same pairs are the replay driver's `Transition` class.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Arrival {
-    /// The closing leg arrives STRAIGHT into the entry's first side:
-    /// the seam is a declared SUBDIVISION point of one carrier. Legal
-    /// on the straight closers (`line_to`, `continue_to`).
-    Straight,
-    /// The closing ARC arrives G1 into the entry's outgoing direction:
-    /// the seam is a declared tangent joint, and joint 0 carries the
-    /// flag. Legal on `tangent_arc_to`.
-    Tangent,
 }
 
 /// **The arc-mode vocabulary — ONE declaration, THREE projections.**
@@ -1984,15 +1973,11 @@ fn do_line_to<T: Decide, F: Flavor>(
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
-        // BOTH members, on every closer: the token classifies the
-        // JOINT, not the leg (Evan, in-chat, 2026-09-02), so a straight
-        // leg may declare that the joint it closes at is a tangent one.
-        Target::StartArriving(Arrival::Straight) => {
-            Ok(Applied::Closed(p.line_to(Start.arrives_straight(), tol)?))
-        }
-        Target::StartArriving(Arrival::Tangent) => {
-            Ok(Applied::Closed(p.line_to(Start.arrives_tangent(), tol)?))
-        }
+        // Every closer takes it: the token declares the seam's JOINT,
+        // not the shape of the leg reaching it (Evan, in-chat,
+        // 2026-09-02), so a straight leg declares a tangent seam joint
+        // exactly as a closing arc does.
+        Target::StartArriving => Ok(Applied::Closed(p.line_to(Start.arrives_tangent(), tol)?)),
     }
 }
 
@@ -2004,10 +1989,7 @@ fn do_continue_to<T: Decide>(
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.continue_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.continue_to(Start, tol)?)),
-        Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
-            p.continue_to(Start.arrives_straight(), tol)?,
-        )),
-        Target::StartArriving(Arrival::Tangent) => Ok(Applied::Closed(
+        Target::StartArriving => Ok(Applied::Closed(
             p.continue_to(Start.arrives_tangent(), tol)?,
         )),
     }
@@ -2026,11 +2008,11 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         // See `declared_arrival_not_on_this_row`; `Bulge` is served
         // by the two rows above.
         ArcData::Via {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Center {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         } => declared_arrival_not_on_this_row(state, Verb::ArcTo),
         ArcData::Bulge {
@@ -2043,25 +2025,13 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             target: Target::Start,
             b,
         } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
-        // The sharp arc seam with its arrival declared. `Straight` is
-        // not this verb's — an arc leg's arrival into a straight first
-        // side IS the G1 member — so it stays a lattice violation.
+        // The sharp arc seam with its tangent joint declared.
         ArcData::Bulge {
-            target: Target::StartArriving(Arrival::Tangent),
+            target: Target::StartArriving,
             b,
         } => Ok(Applied::Closed(p.arc_to(
             Bulge {
                 p: Start.arrives_tangent(),
-                b,
-            },
-            tol,
-        )?)),
-        ArcData::Bulge {
-            target: Target::StartArriving(Arrival::Straight),
-            b,
-        } => Ok(Applied::Closed(p.arc_to(
-            Bulge {
-                p: Start.arrives_straight(),
                 b,
             },
             tol,
@@ -2134,13 +2104,8 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
             p.tangent_arc_to(q, tol)?,
         ))),
         Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?)),
-        Target::StartArriving(Arrival::Tangent) => Ok(Applied::Closed(
+        Target::StartArriving => Ok(Applied::Closed(
             p.tangent_arc_to(Start.arrives_tangent(), tol)?,
-        )),
-        // A closing ARC may declare a SUBDIVISION joint too — a seam
-        // on one carrier, which is what a cocircular close is.
-        Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
-            p.tangent_arc_to(Start.arrives_straight(), tol)?,
         )),
     }
 }
@@ -2160,15 +2125,15 @@ fn do_arrival<T: ArcCarrierScalar>(
     match spec {
         // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Via {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Center {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         } => declared_arrival_not_on_this_row(state, verb),
         ArcData::Center {
@@ -2232,15 +2197,15 @@ fn do_fused_point<T: ArcCarrierScalar>(
     match spec {
         // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Via {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Center {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         } => declared_arrival_not_on_this_row(state, verb),
         ArcData::Bulge {
@@ -2290,15 +2255,15 @@ fn do_fused_leg_end<T: ArcCarrierScalar>(
     match spec {
         // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Via {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Center {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         } => declared_arrival_not_on_this_row(state, verb),
         ArcData::Bulge {
@@ -2370,15 +2335,15 @@ fn do_fused_entry<T: ArcCarrierScalar>(
     match spec {
         // See `declared_arrival_not_on_this_row`.
         ArcData::Bulge {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Via {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         }
         | ArcData::Center {
-            target: Target::StartArriving(_),
+            target: Target::StartArriving,
             ..
         } => declared_arrival_not_on_this_row(TipState::Entry, Verb::ArcFillet),
         ArcData::Center {

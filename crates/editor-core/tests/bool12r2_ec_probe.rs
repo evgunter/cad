@@ -15,7 +15,6 @@
 //! These rows execute them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::program::ProgramArrival;
 use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 use geom_core::{Point2, Tol};
 use profile::{Open, SketchPlane, Start};
@@ -43,7 +42,7 @@ fn d_shape() -> Vec<profile::Step<f64>> {
         .unwrap()
         .line_to(p2(0.0, -1.0), t)
         .unwrap()
-        .continue_to(Start.arrives_straight(), t)
+        .continue_to(Start.arrives_tangent(), t)
         .unwrap()
         .program
 }
@@ -68,14 +67,12 @@ fn stadium() -> Vec<profile::Step<f64>> {
         .program
 }
 
-/// **The lifting door reaches the new target.** Both members lift to
-/// `ProgramTarget::StartArriving` with the matching arrival tag.
+/// **The lifting door reaches the new target.** Both chains lift, each
+/// carrying the seam's declaration as `ProgramTarget::StartArriving` —
+/// which has no payload, because there is one declaration to make.
 #[test]
 fn r2_the_declared_arrivals_lift_to_the_document() {
-    for (name, steps, want) in [
-        ("d-shape", d_shape(), ProgramArrival::Straight),
-        ("stadium", stadium(), ProgramArrival::Tangent),
-    ] {
+    for (name, steps) in [("d-shape", d_shape()), ("stadium", stadium())] {
         let prog = LoopProgram::from_recorded(&steps)
             .unwrap_or_else(|e| panic!("{name}: the declared arrival lifts: {e}"));
         let LoopProgram::Chain(doc) = &prog else {
@@ -86,20 +83,13 @@ fn r2_the_declared_arrivals_lift_to_the_document() {
             .filter(|s| {
                 matches!(
                     s,
-                    ProgramStep::LineTo(ProgramTarget::StartArriving(_))
-                        | ProgramStep::ContinueTo(ProgramTarget::StartArriving(_))
-                        | ProgramStep::TangentArcTo(ProgramTarget::StartArriving(_))
+                    ProgramStep::LineTo(ProgramTarget::StartArriving)
+                        | ProgramStep::ContinueTo(ProgramTarget::StartArriving)
+                        | ProgramStep::TangentArcTo(ProgramTarget::StartArriving)
                 )
             })
             .collect();
         assert_eq!(found.len(), 1, "{name}: {doc:?}");
-        let got = match found[0] {
-            ProgramStep::LineTo(ProgramTarget::StartArriving(a))
-            | ProgramStep::ContinueTo(ProgramTarget::StartArriving(a))
-            | ProgramStep::TangentArcTo(ProgramTarget::StartArriving(a)) => *a,
-            other => panic!("{name}: {other:?}"),
-        };
-        assert_eq!(got, want, "{name}");
         println!("R2: {name} lifts -> {found:?}");
     }
 }

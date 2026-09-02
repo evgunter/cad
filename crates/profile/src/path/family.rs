@@ -1495,7 +1495,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             target: Target::Start,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b, None, tol)
+        path.arc_to_start(spec.b, false, tol)
     }
 }
 
@@ -1506,26 +1506,15 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
 /// `Bulge` alone, and that is a scope statement rather than a rule —
 /// `Via` and `Center` fix an end tangent too and the same token would
 /// serve them. Their arms stay lattice violations until a unit takes
-/// them (PATHS-DESIGN §6 records it).
-impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesStraight> {
-    type Out = Result<ClosedLoop<T>, PathError<T>>;
-    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
-        path.core.record(Step::ArcTo(ArcData::Bulge {
-            target: Target::StartArriving(super::Arrival::Straight),
-            b: spec.b,
-        }));
-        path.arc_to_start(spec.b, Some(super::Arrival::Straight), tol)
-    }
-}
-
+/// them (issue 1579; PATHS-DESIGN §6 records it).
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesTangent> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
         path.core.record(Step::ArcTo(ArcData::Bulge {
-            target: Target::StartArriving(super::Arrival::Tangent),
+            target: Target::StartArriving,
             b: spec.b,
         }));
-        path.arc_to_start(spec.b, Some(super::Arrival::Tangent), tol)
+        path.arc_to_start(spec.b, true, tol)
     }
 }
 
@@ -1549,7 +1538,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             target: Target::Start,
         }));
         let bulge = path.arc_via_bulge(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(bulge, None, tol)
+        path.arc_to_start(bulge, false, tol)
     }
 }
 
@@ -1575,7 +1564,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             target: Target::Start,
         }));
         let bulge = path.arc_center_bulge(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(bulge, None, tol)
+        path.arc_to_start(bulge, false, tol)
     }
 }
 

@@ -971,9 +971,9 @@ impl Section {
         // combinations across its own shoulder range.
         let closed = match (self.corners.turns_at(7), self.corners.turns_at(0)) {
             (true, true) => path.line_to(Start, tol),
-            (true, false) => path.line_to(Start.arrives_straight(), tol),
+            (true, false) => path.line_to(Start.arrives_tangent(), tol),
             (false, true) => path.continue_to(Start, tol),
-            (false, false) => path.continue_to(Start.arrives_straight(), tol),
+            (false, false) => path.continue_to(Start.arrives_tangent(), tol),
         };
         vec![closed.expect("the section's seam").into()]
     }

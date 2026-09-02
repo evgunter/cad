@@ -50,19 +50,10 @@ pub enum ProgramTarget {
     Point([Expr; 2]),
     /// The entry vertex: this step closes the loop.
     Start,
-    /// The entry vertex with the closing leg's ARRIVAL declared — a
-    /// structural tag, no expressions (so it contributes no slots).
-    StartArriving(ProgramArrival),
-}
-
-/// The document mirror of [`profile::Arrival`]: which arrival a closing
-/// step declares at the seam. Structural, so it carries no [`Expr`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramArrival {
-    /// Arrives STRAIGHT into the entry's first side.
-    Straight,
-    /// Arrives G1 into the entry's outgoing direction.
-    Tangent,
+    /// The entry vertex with the seam's TANGENT JOINT declared — a
+    /// structural tag, no expressions (so it contributes no slots) and
+    /// no payload: there is exactly one declaration to make there.
+    StartArriving,
 }
 
 /// One Expr-bearing recorded verb — the document-layer mirror of
@@ -409,7 +400,7 @@ impl core::error::Error for ProgramRefusal {}
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
         ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
-        ProgramTarget::Start | ProgramTarget::StartArriving(_) => {}
+        ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
 
@@ -466,7 +457,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
         ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
-        ProgramTarget::Start | ProgramTarget::StartArriving(_) => {}
+        ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
 
@@ -732,7 +723,7 @@ fn res_target<T: Decide>(
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
-        ProgramTarget::StartArriving(a) => profile::Target::StartArriving(arrival(*a)),
+        ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
             res(&p[0], env, loop_, step, StepArg::TargetX)?,
             res(&p[1], env, loop_, step, StepArg::TargetY)?,
@@ -829,7 +820,7 @@ fn res_spec<T: Decide>(
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
         Ok(match t {
             ProgramTarget::Start => profile::Target::Start,
-            ProgramTarget::StartArriving(a) => profile::Target::StartArriving(arrival(*a)),
+            ProgramTarget::StartArriving => profile::Target::StartArriving,
             ProgramTarget::Point(p) => profile::Target::Point(pt2(
                 p,
                 pick(A::TargetX, A::Target2X),
@@ -1062,27 +1053,9 @@ fn pair_bit_eq(a: &[Expr; 2], b: &[Expr; 2]) -> bool {
 fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
-        (ProgramTarget::StartArriving(x), ProgramTarget::StartArriving(y)) => x == y,
+        (ProgramTarget::StartArriving, ProgramTarget::StartArriving) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        (ProgramTarget::Start | ProgramTarget::StartArriving(_) | ProgramTarget::Point(_), _) => {
-            false
-        }
-    }
-}
-
-/// The document arrival tag, lowered to the kernel's.
-fn arrival(a: ProgramArrival) -> profile::Arrival {
-    match a {
-        ProgramArrival::Straight => profile::Arrival::Straight,
-        ProgramArrival::Tangent => profile::Arrival::Tangent,
-    }
-}
-
-/// The kernel arrival tag, lifted to the document's.
-fn arrival_lit(a: &profile::Arrival) -> ProgramArrival {
-    match a {
-        profile::Arrival::Straight => ProgramArrival::Straight,
-        profile::Arrival::Tangent => ProgramArrival::Tangent,
+        (ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::Point(_), _) => false,
     }
 }
 
@@ -1283,7 +1256,7 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
     Ok(match t {
         Target::Point(p) => ProgramTarget::Point(pt_lit(p)?),
         Target::Start => ProgramTarget::Start,
-        Target::StartArriving(a) => ProgramTarget::StartArriving(arrival_lit(a)),
+        Target::StartArriving => ProgramTarget::StartArriving,
     })
 }
 

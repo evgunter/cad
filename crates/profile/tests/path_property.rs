@@ -2006,7 +2006,7 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
 ///   closer still does not apply, because the leg departs a CORNER and
 ///   `Start` is off its ray — but the declaration the seam wanted was
 ///   never on the departure. It is on the ARRIVAL, and
-///   `line_to(Start.arrives_straight())` closes: the seam is a declared
+///   `line_to(Start.arrives_tangent())` closes: the seam is a declared
 ///   subdivision point, checked against the entry's own outgoing
 ///   direction (PATHS §6's revised PQ4).
 ///
@@ -2123,7 +2123,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     // `validate` green.
     let closed = pinned(
         back_at_keel()
-            .line_to(Start.arrives_straight(), t)
+            .line_to(Start.arrives_tangent(), t)
             .expect("the declared arrival closes the seam at a subdivision vertex"),
     );
     assert_eq!(closed.vertices().len(), 8);

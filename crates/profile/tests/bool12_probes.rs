@@ -75,7 +75,7 @@ fn d_shape_forward(closer: Closer) -> Result<ClosedLoop<f64>, PathError<f64>> {
         .line_to(p2(0.0, -1.0), t)
         .unwrap();
     match closer {
-        Closer::Declared => p.continue_to(Start.arrives_straight(), t),
+        Closer::Declared => p.continue_to(Start.arrives_tangent(), t),
         Closer::Undeclared => p.continue_to(Start, t),
         Closer::UndeclaredLineTo => p.line_to(Start, t),
     }
@@ -106,7 +106,7 @@ fn d_shape_reverse(closer: Closer) -> Result<ClosedLoop<f64>, PathError<f64>> {
         )
         .unwrap();
     match closer {
-        Closer::Declared => p.line_to(Start.arrives_straight(), t),
+        Closer::Declared => p.line_to(Start.arrives_tangent(), t),
         Closer::Undeclared | Closer::UndeclaredLineTo => p.line_to(Start, t),
     }
 }
@@ -324,7 +324,7 @@ fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
         .unwrap()
         .line(1.0 + off, t)
         .unwrap()
-        .line_to(Start.arrives_straight(), t)
+        .line_to(Start.arrives_tangent(), t)
 }
 
 #[test]
@@ -452,7 +452,7 @@ fn a_reversed_declared_arrival_is_a_cusp() {
         .unwrap()
         .line(2.0, t)
         .unwrap()
-        .continue_to(Start.arrives_straight(), t);
+        .continue_to(Start.arrives_tangent(), t);
     assert!(
         matches!(refused, Err(PathError::JunctionCusp { .. })),
         "{refused:?}"
@@ -582,7 +582,7 @@ fn the_arrival_token_classifies_the_joint_not_the_leg() {
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(Start.arrives_straight(), t)
+        .tangent_arc_to(Start.arrives_tangent(), t)
         .expect("an arc closer may declare a SUBDIVISION seam joint");
     // The three departure tangencies remain; the SEAM declares nothing.
     assert!(!as_sub.loop_.tangent_joints().contains(&0));
@@ -619,7 +619,7 @@ fn the_arrival_token_classifies_the_joint_not_the_leg() {
         } else {
             p.arc_to(
                 Bulge {
-                    p: Start.arrives_straight(),
+                    p: Start.arrives_tangent(),
                     b: 1.0,
                 },
                 t,

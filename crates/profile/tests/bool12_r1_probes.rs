@@ -46,7 +46,7 @@ fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
         .unwrap()
         .line(1.0 + off, t)
         .unwrap()
-        .line_to(Start.arrives_straight(), t)
+        .line_to(Start.arrives_tangent(), t)
 }
 
 // ------------------------------------------------------------------
@@ -113,7 +113,7 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
         .unwrap()
         .line_to(p2(0.0, -1.0), t)
         .unwrap()
-        .line_to(Start.arrives_straight(), t);
+        .line_to(Start.arrives_tangent(), t);
     assert!(
         matches!(forward_line_to, Err(PathError::JunctionTangent { .. })),
         "{forward_line_to:?}"
@@ -136,7 +136,7 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
             t,
         )
         .unwrap()
-        .continue_to(Start.arrives_straight(), t);
+        .continue_to(Start.arrives_tangent(), t);
     assert!(
         matches!(
             reverse_continue_to,
@@ -150,7 +150,7 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
 // Claims 4/5: the arrival check is ENTRY-SIDE CARRIER-BLIND.
 // ------------------------------------------------------------------
 
-/// **FINDING (R1 MINOR, design surface).** `Start.arrives_straight()`
+/// **FINDING (R1 MINOR, design surface).** `Start.arrives_tangent()`
 /// is documented as "the seam is a declared SUBDIVISION point of one
 /// carrier", but the check compares DIRECTIONS only: nothing verifies
 /// the entry's first side is a LINE. With an ARC first side whose
@@ -196,7 +196,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
             .line_to(p2(-1.0, 0.0), t)
             .unwrap();
         if declared {
-            p.line_to(Start.arrives_straight(), t)
+            p.line_to(Start.arrives_tangent(), t)
         } else {
             p.line_to(Start, t)
         }
@@ -311,7 +311,7 @@ fn r1_a_cocircular_declared_tangent_arrival_is_carrier_identity_the_algebra_miss
         .unwrap()
         .angle(FRAC_PI_4, t)
         .unwrap()
-        .tangent_arc_to(Start.arrives_straight(), t)
+        .tangent_arc_to(Start.arrives_tangent(), t)
         .expect("a closing arc may declare a SUBDIVISION seam joint");
     assert!(sub.loop_.tangent_joints().is_empty());
 }
@@ -526,7 +526,7 @@ fn r1_the_seam_cusp_names_a_departure_recourse() {
         .unwrap()
         .line(2.0, t)
         .unwrap()
-        .continue_to(Start.arrives_straight(), t);
+        .continue_to(Start.arrives_tangent(), t);
     let err = match refused {
         Err(e @ PathError::JunctionCusp { .. }) => e,
         other => panic!("{other:?}"),

@@ -332,7 +332,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
-            Target::StartArriving(a) => Target::StartArriving(a),
+            Target::StartArriving => Target::StartArriving,
             Target::Point(p) => Target::Point(pt(p)),
         };
         let spec = |s: ArcData<f64>| match s {

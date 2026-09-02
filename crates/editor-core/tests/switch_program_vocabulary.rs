@@ -62,7 +62,7 @@
 
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramArrival, ProgramStep, ProgramTarget, SlotId,
+    ProgramStep, ProgramTarget, SlotId,
 };
 use profile::{ArcMode, SketchPlane, Verb};
 
@@ -163,8 +163,7 @@ fn chain_steps() -> Vec<ProgramStep> {
         ProgramStep::ContinueTo(point(2.0, 0.0)),
         // The seam's two declared arrivals, so the corpus the wire
         // round-trip and the slot bijection walk carries them.
-        ProgramStep::ContinueTo(ProgramTarget::StartArriving(ProgramArrival::Straight)),
-        ProgramStep::TangentArcTo(ProgramTarget::StartArriving(ProgramArrival::Tangent)),
+        ProgramStep::ContinueTo(ProgramTarget::StartArriving),
     ];
     steps.extend(
         ArcMode::ALL
@@ -282,8 +281,8 @@ fn every_table_verb_is_a_document_program() {
 /// `res_target` matches the document target vocabulary and CONSTRUCTS
 /// the kernel one, so an arm that builds a NEIGHBOUR's form is
 /// well-typed, ships, and silently re-authors the seam — a `Start` that
-/// resolved to `StartArriving(Straight)` would close a loop declaring
-/// something the author never wrote. Comparing the resolved form
+/// resolved to `StartArriving` would close a loop declaring something
+/// the author never wrote. Comparing the resolved form
 /// against the form asked for is what catches that, and it is exactly
 /// what the mode census does for `ArcData`.
 ///
@@ -304,16 +303,14 @@ fn every_target_form_is_a_document_program() {
                 Expr::literal(2.0, Dimension::Length).unwrap(),
             ]),
             ProgramTarget::Start,
-            ProgramTarget::StartArriving(ProgramArrival::Straight),
-            ProgramTarget::StartArriving(ProgramArrival::Tangent),
+            ProgramTarget::StartArriving,
         ];
         all.into_iter()
             .map(|t| {
                 let name = match &t {
                     ProgramTarget::Point(_) => "Point",
                     ProgramTarget::Start => "Start",
-                    ProgramTarget::StartArriving(ProgramArrival::Straight) => "Straight",
-                    ProgramTarget::StartArriving(ProgramArrival::Tangent) => "Tangent",
+                    ProgramTarget::StartArriving => "Declared",
                 };
                 (t, name)
             })
@@ -334,8 +331,7 @@ fn every_target_form_is_a_document_program() {
         let got_name = match got {
             profile::Target::Point(_) => "Point",
             profile::Target::Start => "Start",
-            profile::Target::StartArriving(profile::Arrival::Straight) => "Straight",
-            profile::Target::StartArriving(profile::Arrival::Tangent) => "Tangent",
+            profile::Target::StartArriving => "Declared",
         };
         assert_eq!(
             got_name, name,
@@ -361,11 +357,10 @@ fn every_target_form_is_a_document_program() {
         .map(|t| match t {
             profile::Target::Point(_) => "Point",
             profile::Target::Start => "Start",
-            profile::Target::StartArriving(profile::Arrival::Straight) => "Straight",
-            profile::Target::StartArriving(profile::Arrival::Tangent) => "Tangent",
+            profile::Target::StartArriving => "Declared",
         })
         .collect();
-    for form in ["Point", "Start", "Straight", "Tangent"] {
+    for form in ["Point", "Start", "Declared"] {
         assert!(
             seen.contains(&form),
             "the corpus carries no {form} target: {seen:?}"
