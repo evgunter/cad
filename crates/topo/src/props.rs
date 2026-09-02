@@ -343,8 +343,13 @@ fn face_flux<T: Decide>(
 /// (traversal order; vertex tags are loop-local first-seen indices),
 /// alongside the half-edge keys walked (the PR 11 quadrature lane
 /// reads stored pcurve caches through them).
+///
+/// Public because `mesh` is its second consumer: the curved lane hands
+/// a face's outer loop to `geom_brep::props`' iso-rectangle door before
+/// walking it, and this is the same half-edge cycle that walk reads —
+/// one flattening, not two.
 #[allow(clippy::type_complexity)]
-pub(crate) fn loop_edges<T: Decide>(
+pub fn loop_edges<T: Decide>(
     body: &Body<T>,
     lk: LoopKey,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), MassPropsError> {

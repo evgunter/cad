@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use geom::Surface;
-use geom_core::Tol;
+use geom_core::{Band, Tol};
 use topo::Body;
 
 use crate::chords::{compute_chords, edge_vertices};
@@ -45,6 +45,10 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
         return Err(TessellateError::InvalidChordalTolerance { value: chordal });
     }
     let eps = Eps::at(tol);
+    // Props' decision band, built once at operation entry as
+    // `Band::linear` prescribes; the curved lane's shape door is its
+    // only consumer (`SizingTols::band`).
+    let band = Band::linear(tol).map_err(|error| TessellateError::Band { error })?;
     let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
@@ -107,6 +111,7 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             delta: chordal,
             delta_s,
             eps,
+            band,
         };
         let triangles = match *surface {
             // Described NURBS faces route through the trimmed lane
@@ -150,7 +155,11 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
             // that shape, and nothing on this path screens loop SHAPE.
             // So an iso boundary reaching `tessellate_curved` is a
             // routing decision, not a guarantee about the domain; the
-            // domain itself is checked there
+            // domain itself is checked there, twice over — its SHAPE
+            // through props' iso-rectangle door before the walk
+            // (`curved::require_iso_rectangle_face`, refusing
+            // [`TessellateError::UnsupportedCurvedShape`]) and the
+            // walk's consistency after it
             // (`curved::require_swept_rectangle`, refusing
             // [`TessellateError::UnsupportedCurvedDomain`]).
             _ if crate::trimmed::has_trim_carrier(body, fk)? => crate::trimmed::tessellate_trimmed(

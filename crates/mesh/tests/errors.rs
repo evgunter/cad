@@ -164,6 +164,24 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             },
             vec!["3 walk entries", "2.5e-1", "1e-9", "re-author"],
         ),
+        (
+            TessellateError::UnsupportedCurvedShape {
+                face,
+                source: geom_brep::props::PropsError::NotIsoRectangle {
+                    what: "props_rim_level",
+                },
+            },
+            vec!["props_rim_level", "iso-parameter rectangle", "quadrature"],
+        ),
+        (
+            TessellateError::Band {
+                error: geom_core::BandError::Empty {
+                    zero: 1.0,
+                    escalate: 1.0,
+                },
+            },
+            vec!["band", "tolerance"],
+        ),
     ];
     // The variant identifiers, spelled out: a rendering that leaks one
     // is a struct dump wearing a sentence's clothes.
@@ -181,6 +199,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         "Triangulation",
         "SelfTouchingTrimLoop",
         "UnsupportedCurvedDomain",
+        "UnsupportedCurvedShape",
     ];
     for (err, wants) in cases {
         let shown = err.to_string();

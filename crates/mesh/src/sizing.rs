@@ -81,7 +81,7 @@
 //! refinement budgets.
 
 use crate::types::TessellateError;
-use geom_core::Tol;
+use geom_core::{Band, Tol};
 
 /// **The kernel ε, carried as a band with four named operations —
 /// this crate's whole ε vocabulary.**
@@ -327,6 +327,15 @@ pub(crate) struct SizingTols {
     /// what its reads may do, [`Eps`] for the four they are spelled
     /// with, and `the_eps_inventory_is_pinned` for where they are.
     pub eps: Eps,
+    /// The linear decision band props classifies with, minted from
+    /// the same [`Tol`] as `eps` at operation entry (the calling
+    /// convention `Band::linear` prescribes). Consumed by exactly one
+    /// site — `curved`'s shape door, which hands it to
+    /// `geom_brep::props::require_iso_rectangle` — and by no rule of
+    /// this crate's own: `mesh` decides nothing against it, it carries
+    /// props' band to props' predicate. Not an ε read of this crate,
+    /// and the inventory pin does not count it as one.
+    pub band: Band,
 }
 
 /// The sizing target δ_s for a call's chordal tolerance δ.

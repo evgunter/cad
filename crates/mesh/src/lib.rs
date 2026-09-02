@@ -267,5 +267,15 @@ pub mod types;
 pub mod validate;
 pub mod walk;
 
+/// The Euler-door witnesses the iso-rectangle shape door is measured
+/// on — one definition, shared with the integration suite through
+/// `tests/common/witness_bodies.rs` (its header says why it uses
+/// nothing from this crate). Test-only: in-crate rows reach the walk
+/// itself on these bodies, the suite reaches the public door.
+#[cfg(test)]
+#[path = "../tests/common/witness_bodies.rs"]
+#[allow(dead_code, unreachable_pub)]
+mod witness_bodies;
+
 pub use tessellate::tessellate;
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};

@@ -868,27 +868,35 @@ fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: Eps) -> f64 {
 /// That last one is a severity FLIP, not a wash, and it is worth being
 /// explicit: per-edge, the two sub-arcs took two different wrong
 /// coordinates and the polygon would very likely have failed
-/// [`crate::curved`]'s domain guard as a typed
+/// [`crate::curved`]'s spatial check as a typed
 /// `UnsupportedCurvedDomain`; collapsed, it can BE its own bounding
 /// rectangle and be admitted. The #653 sweep cannot see this — it
 /// measures straightness and watertightness, not whether two sides
-/// were correctly distinguished.
+/// were correctly distinguished. **Executed, not argued**: an
+/// obliquely cut sphere assembled through the Euler doors (the one
+/// route no certification fronts) walked to a polygon on ONE `v`,
+/// passed the spatial check, and meshed to a patch the cross-face
+/// census caught as non-watertight
+/// (`curved::tests::the_lens_walk_collapses_onto_one_rim_level_and_
+/// the_spatial_check_admits_it`, `tests/iso_rectangle_door.rs`).
 ///
-/// **Reachable today: no**, by two upstream gates. `topo`'s boolean
-/// doors refuse plane × sphere cuts typed, wider than any tilt
-/// distinction: `splitting::split` refuses every sphere-face cut
-/// `CurvedBooleanUnsupported` and `boolean_op_with` refuses
-/// `CurvedPierceUnsupported`, measured across cut heights in the
-/// issue-896 review rows (an earlier form of this sentence cited a
-/// `SectionInvariant` refusal with an axis-aligned cut succeeding —
-/// that witness does not reproduce on today's tree, and the refusal
-/// is now broader than it claimed). `import_step`'s tier-3
-/// `props::curved::sphere_boundary` admits a circle only as a coaxial
-/// rim or a great circle centred at the sphere centre — read, not
-/// executed, and so the one door not directly witnessed. Recorded
-/// rather than fixed: the cheap hardening, if this ever needs one, is
-/// for `classify` to require the rim circle's centre ON the axis
-/// (`|w − â(w·â)| < eps`) rather than only `|n · axis| > 0.5`.
+/// **CLOSED by the shape door, not by this function.** The premise
+/// this collapse needs — every boundary edge an iso curve of the
+/// chart — is exactly what `geom_brep::props::require_iso_rectangle`
+/// certifies per edge, and `curved::tessellate_curved` runs that door
+/// on the face's rim structure BEFORE this walk: props'
+/// `sphere_boundary` admits a circle only as a coaxial rim or a great
+/// circle centred at the sphere centre, so the oblique section refuses
+/// `NotIsoRectangle { props_rim_axis_parallel }` and never reaches
+/// this collapse. That is the door the earlier record had read but
+/// not executed (through `import_step`'s tier 3); it is now `mesh`'s
+/// own line, executed on the witness. The upstream gates that kept
+/// the case unreachable — the boolean's typed refusal of every
+/// sphere-face cut, tier 3 on the import route — still stand, and are
+/// no longer what this function's premise rests on. The cheap
+/// hardening once recorded here (a coaxiality test in `classify`) is
+/// therefore not taken: the door already decides coaxiality, at
+/// props' band, once.
 ///
 /// # One test for every singularity — of the run-breaking DECISION
 ///

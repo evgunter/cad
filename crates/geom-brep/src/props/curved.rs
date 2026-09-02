@@ -227,6 +227,134 @@ pub fn boundary_material_sign<T: Decide>(
     }
 }
 
+/// **The iso-rectangle SHAPE door** — *is this curved face's domain an
+/// iso-parameter rectangle?* — answered by the S58 single-home
+/// predicate (`require_rims_at_extremes`, decided as `props_rim_level`)
+/// on top of the same per-kind boundary classification the flux lane
+/// and [`boundary_material_sign`] parse with, and by nothing else: no
+/// flux, no area, no material side. A consumer whose own lane rests on
+/// the premise — `mesh`'s swept-rectangle walk is the first — cites
+/// this door itself rather than inheriting the refusal transitively
+/// through a mass-properties call: no consumer keeps a transitive
+/// floor, so when the certified-quadrature lane learns notched
+/// domains, each door's line changes visibly instead of a floor
+/// silently vanishing.
+///
+/// **What it decides, per kind.** The boundary parse certifies every
+/// edge as a rim (a coaxial iso-`v` circle, incident on the surface) or
+/// a meridian (an axial line, a generator through the apex, a great
+/// circle through the poles, a minor circle in an axial plane) — an
+/// edge that is neither refuses there, which is what establishes that
+/// the loop is iso-bounded at all — and the predicate then requires
+/// every rim to sit at one of the face's two extreme levels: the
+/// cylinder's, cone's and sphere's from `min_max` over every level the
+/// parse touched (the sphere's with each meridian arc's span-derived
+/// pole extremes folded in), the torus's from its anchor meridian's
+/// stored span. One home and one band: the margins are `RimArms`-
+/// levered through the same named decides as the flux lane
+/// (`props_circle_axis_class`, `props_rim_fit`,
+/// `props_rim_axis_parallel`, `props_rim_center_on_axis`, the
+/// `props_meridian_*` incidences, `props_rim_level`), so a
+/// `NotIsoRectangle` from here carries the `what` the flux lane would
+/// report for the same face.
+///
+/// **A rimless sphere band is a chart rectangle and PASSES.** A lune
+/// between two meridians is `[u0, u1] × [−π/2, π/2]` whatever
+/// `u1 − u0` is; the predicate is vacuous on it (no rim to place) and
+/// this door says so. [`curved_face`] refuses the same face unless its
+/// meridians are coplanar (`props_band_coplanar`) — that is the closed
+/// form's own premise, `Δu = π`, which the flux arm needs in order to
+/// integrate and which says nothing about the shape. Two questions,
+/// two homes: a consumer of this door meshes a partial sphere wedge,
+/// the flux lane finds its volume uncomputable, and both are right.
+///
+/// **A plane is not its question.** A planar face's loop is arbitrary
+/// by design (rings, polygons, splines); asked anyway, this refuses
+/// typed exactly as [`curved_face`] does, rather than answer "yes" for
+/// a domain no chart rectangle describes.
+///
+/// # Errors
+///
+/// [`PropsError::NotIsoRectangle`] naming the failed structural
+/// expectation; [`PropsError::Escalated`] when a classification lands
+/// in the ambiguity band (escalate, never guess);
+/// [`PropsError::Unimplemented`] for a NURBS carrier or surface. The
+/// recourse for a genuinely notched iso domain is the
+/// certified-quadrature lane (D2 addendum row 2: valid input, lane not
+/// built).
+pub fn require_iso_rectangle<T: Decide>(
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(), PropsError> {
+    match *surface {
+        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+            what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
+        }),
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let b = cylinder_boundary(origin, axis, radius, outer, band)?;
+            linear_rims_at_extremes(&b, band)
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let (sin_a, cos_a) = half_angle.sin_cos();
+            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            linear_rims_at_extremes(&b, band)
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
+            let (b, _meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
+            linear_rims_at_extremes(&b, band)
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (rims, meridians) =
+                torus_boundary(center, axis, major_radius, minor_radius, outer, band)?;
+            let m0 = meridians.first().ok_or(PropsError::NotIsoRectangle {
+                what: "torus face without a meridian",
+            })?;
+            let orient = torus_meridian_orient(m0, center, axis, minor_radius, band)?;
+            let (s0, c0, s1, c1) = torus_ends(m0, center, axis, major_radius, minor_radius, orient);
+            require_rims_at_extremes(
+                &rims,
+                (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
+                torus_arms(major_radius, minor_radius),
+                band,
+            )
+        }
+        // As `curved_face`: no rim inventory for a spline or for an
+        // offset description over one.
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// The predicate on a linearly-leveled parse: the face's extremes from
+/// `min_max` over every level the boundary touches, lifted into the
+/// rims' own representation. Vacuous on a rimless parse (the sphere
+/// band), which is the door's stated answer for it.
+fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Result<(), PropsError> {
+    let (lo, hi) = min_max(&b.levels)?;
+    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)
+}
+
 // ---------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------

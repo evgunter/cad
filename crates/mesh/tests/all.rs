@@ -56,6 +56,8 @@ mod issue111_az_needle;
 #[path = "issue303_signed_volume_recentring.rs"]
 mod issue303_signed_volume_recentring;
 
+#[path = "iso_rectangle_door.rs"]
+mod iso_rectangle_door;
 #[path = "issue1362_band_placement.rs"]
 mod issue1362_band_placement;
 #[path = "issue555_subfloor_cap.rs"]
