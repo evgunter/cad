@@ -66,6 +66,9 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "bool13r2_probes.rs"]
+mod bool13r2_probes;
+
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
