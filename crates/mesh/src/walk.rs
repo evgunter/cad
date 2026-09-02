@@ -471,7 +471,7 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 ///   `0.0` for every one of them and merging a pair lands on the value
 ///   they already shared.
 /// - **sphere** — the real leak. EVERY plane section of a sphere is a
-///   [`Curve3::Circle`], and `trimmed::has_trim_carrier` diverts only
+///   [`geom::Curve3::Circle`], and `trimmed::has_trim_carrier` diverts only
 ///   `Ellipse` and `Nurbs`, so an obliquely-cut sphere face would
 ///   arrive here carrying two non-iso circles. Two consecutive such
 ///   arcs meeting off-axis get collapsed onto ONE coordinate.

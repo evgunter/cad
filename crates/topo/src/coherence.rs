@@ -235,7 +235,7 @@ pub enum Unexaminable {
 /// One variant per fallible arena read the traversal makes, in the
 /// order it makes them. A closed enum rather than a message: every
 /// one of these is a tier-1 defect with a name of its own over in
-/// [`crate::validate`], and a consumer routing this to that vocabulary
+/// [`mod@crate::validate`], and a consumer routing this to that vocabulary
 /// needs to match, not to parse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StructureRead {
