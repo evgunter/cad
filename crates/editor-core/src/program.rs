@@ -1299,8 +1299,8 @@ impl core::fmt::Display for RecordedProgramError {
             Self::VerbNotInDocumentVocabulary(verb) => write!(
                 f,
                 "the authoring verb {verb:?} has no document spelling: the document and \
-                 persisted vocabularies grow with a ratified schema version, and this one \
-                 has not landed yet"
+                 persisted vocabularies grow by a format change that regenerates the \
+                 corpus, and this one has not landed yet"
             ),
         }
     }

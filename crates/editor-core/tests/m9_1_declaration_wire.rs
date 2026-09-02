@@ -27,7 +27,7 @@ fn a_declaration_round_trips_carrying_its_class() {
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
     let back: ProfileDoc = load(&text, Tol::witness())
-        .expect("the current version loads")
+        .expect("the saved text loads")
         .doc;
     let Some(Node::Declare { pairs }) = back.node(decl) else {
         panic!("the Declare node survives the round trip");

@@ -28,7 +28,7 @@ fn len(v: f64) -> Expr {
 }
 
 /// Two datum points, so the measure's references name nodes that
-/// EXIST — the insert door checks that, and a schema fixture must pass
+/// EXIST — the insert door checks that, and a wire fixture must pass
 /// the same doors a real document does. Nothing here is evaluated:
 /// these rows are about the wire.
 fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {

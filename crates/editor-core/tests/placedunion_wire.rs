@@ -56,7 +56,7 @@ fn both_rules_round_trip() {
         ],
     ));
     let text = save(&r.doc, &[], Tol::witness()).expect("the document saves");
-    let back = load(&text, Tol::witness()).expect("the current version loads");
+    let back = load(&text, Tol::witness()).expect("the saved text loads");
     assert_eq!(back.doc.node(stepped), r.doc.node(stepped));
     assert_eq!(back.doc.node(listed), r.doc.node(listed));
     // Bit-exact frames: a placement is data, and `-0.0` is a different

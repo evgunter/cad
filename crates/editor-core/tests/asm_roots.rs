@@ -545,7 +545,7 @@ fn row6b_saves_are_byte_stable_and_roots_round_trip() {
     let once = save(&doc, &[], Tol::witness()).expect("saves");
     let twice = save(&doc, &[], Tol::witness()).expect("saves again");
     assert_eq!(once, twice, "two blesses, one byte string");
-    let loaded = load(&once, Tol::witness()).expect("the current-schema text loads");
+    let loaded = load(&once, Tol::witness()).expect("the saved text loads");
     assert_eq!(
         loaded.doc.roots(),
         &[b, a][..],
