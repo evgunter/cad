@@ -540,8 +540,11 @@ fn path_error_tags_are_stable() {
         .expect("a leg east")
         .tangent()
         .tangent_arc_to(Start, Tol::witness())
-        .expect_err("a tangent LINE close refuses always");
-    assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
+        .expect_err("a collinear tangent-arc close refuses always");
+    // Carrier identity, and it does not become a different fact because
+    // the target is `Start`: the close-only second name for this was
+    // removed with the seam wall's departure half.
+    assert_eq!(path_error_tag(&overdetermined), "same_carrier_junction");
 }
 
 /// The prose rule's guard, checked against what it actually guards

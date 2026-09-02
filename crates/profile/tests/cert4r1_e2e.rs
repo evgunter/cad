@@ -76,6 +76,7 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
         Step::Turn(delta) => Step::Turn(T::from_f64(delta)),
         Step::Line(len) => Step::Line(T::from_f64(len)),
         Step::LineTo(t) => Step::LineTo(tgt(t)),
+        Step::ContinueTo(t) => Step::ContinueTo(tgt(t)),
         Step::ArcTo(s) => Step::ArcTo(spec(s)),
         Step::TangentArcTo(t) => Step::TangentArcTo(tgt(t)),
         Step::ArcContinue(p) => Step::ArcContinue(pt(p)),
