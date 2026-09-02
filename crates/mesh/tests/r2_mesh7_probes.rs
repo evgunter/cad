@@ -101,7 +101,7 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
             let vol = topo::mass_properties(&body, tol).map(|m| m.volume);
             println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
-            if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(&v0).map(|v| *v) {
+            if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {
                 wrong.push((i, pi, format!("{got:?} / {vol:?}")));
             }
         }
