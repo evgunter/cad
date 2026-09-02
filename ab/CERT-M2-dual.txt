@@ -1,0 +1,204 @@
+CERT-M2 dual (v6), recorded BEFORE R1 dispatch, 2026-09-02
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+expected 712 — CERT-N2 is expected to take 711 first; take the next
+free ordinal at claim time and record which).
+slot byte 131 (od /dev/urandom, one byte), parity 1 => R1 FABLE + R2 OPUS
+(cross-model). Block CERT-B4 slot 0 (byte 123 => fable at 3): the
+implementer arm was OPUS.
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 81d131acc576ef1d35ceb4bc8bdd3992398a1976
+— the delivered head, six commits on merge base 922eb5f1f (the lane
+merged main once mid-unit at b40be889f, one SMELL-SCAN conflict resolved
+as stated in the body), no orchestrator-direct commits past it at this
+writing (if the gate reds and a discipline fix is needed, this note is
+amended pre-R1 per its own rule and the frozen head restated). This
+branch is a RE-LAND: the lane's first branch (cert/m2-supertrait-bound)
+carried its in-tree build directory in two pushed commits and was
+deleted; the v2 branch was rebuilt from main and verified artefact-free
+by the orchestrator (object listing). Dispatch CONDITIONAL on
+81d131acc's gate concluding green on PR 1559 (both lanes at 1e-12 by
+trailer). CERT-N2's dual (expected ordinal 711) may run CONCURRENTLY on
+ITS unit; the grounds are file-disjoint (N2: geom/src and tests; M2:
+geom-core real.rs, topo props/validate/shell/lib, the listed test
+files, the gate script). R2 after R1 with the IDENTICAL stored brief,
+isolated. Probe branches: cert/m2r1-probes, cert/m2r2-probes (local
+until close-out).
+Implementer difficulty M/L (logged at spec pre-draw, docs/CERT-M2-SPEC.md
+at 1267e32c0); impl ~440k tokens, 290 tool uses, ~234m wall by the
+usage counter INCLUDING the re-land after the build-artefact incident
+and one mid-unit orchestrator ruling (the lane first measured S213's
+split at nine files / twenty E0277s plus a gate-allowlist prerequisite
+and RECORDED it rather than taking it; the orchestrator ruled to LAND
+it and widened the fence to the allowlist file-list line, the ledger
+entry, and every site the tightened bound reaches). Verification the
+lane disclosed: six-point ε×lane sweep on geom-core/topo/sweep/
+editor-core; the rest of the workspace at the default point only.
+Unit shape for the reviewers' weighting: kernel BEHAVIOUR moves in one
+place — validate_geometric's composition now gates the +V claim on
+ALL structural checks (8 and 9 included) where before only 1–6 did;
+everything else is claimed byte-identical (the two other passes
+through the hook), a bound made literal, 36 alias inlines, comments,
+a census, a gate line and a ledger entry. Where a wrong answer is
+reachable: the tightened pass (H-R3: what Body<Dual64> can still do
+and what it now silently does NOT check), and the DL3 witness result
+the lane flags.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-M2 of the
+S-CERT program (repo evgunter/cad) — Track M's second unit: the
+supertrait bound made visible (S213's split), D222, D223, the lane
+census (H-f) and the S90-impl re-read. Review PR 1559 on its FROZEN
+head 81d131acc576ef1d35ceb4bc8bdd3992398a1976 — do not review any
+later commit; if the branch has moved, say so and still review
+81d131acc.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-M2-SPEC.md — it fixes the rows,
+the order, the fence and the landing convention; your target is
+whether each row is COMPLETELY closed and closed in the BEST way
+available, whether any fix mints a fresh instance of the defect it
+closes, and — above all for this unit — whether the SPLIT is correct:
+what the structural half still checks, what it now silently does not,
+and whether the two passes claimed byte-identical are), docs/
+SMELL-H-LOG.md H-R3 and H-R16 in full (the ruling executed here; its
+vocabulary: a tightened bound does not refuse — the call is
+unwritable), docs/SMELL-SCAN-2026-08.md at the MERGE BASE (git show
+922eb5f1f:docs/SMELL-SCAN-2026-08.md — the Track M table, findings
+S213, S3, S89, S90, S216, H5, and the D222/D223 rows as they stood
+BEFORE this PR edited them), the repartition rules in that file (rule
+1 fence, rule 3 landing, rule 5 no fresh instance), the D2 addendum
+in docs/DESIGN.md, geom_core::real::bounds_allowlist and
+scripts/gates/bounds-allowlist.sh at the merge base, then the PR 1559
+diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution beats
+inspection; every number is the PR body's claim, not a fact):
+1. S213 — THE COMPOSITION'S BEHAVIOUR CHANGE. validate_geometric now
+   gates check 7 (+V) on ALL of checks 1–6, 8, 9 via `?`, where
+   before only 1–6 gated it. Construct bodies that pass 1–6 and fail
+   check 8 (a pcurve defect) or check 9 (a ring on its own outer
+   loop) at f64 and at Interval: what did the OLD door report (error
+   vector, order) and what does the new one report? Does any consumer
+   in the tree (editor-core's at-rest gate, validate_pseudomanifold
+   callers, tests) read the error VECTOR's shape or count and now sees
+   a different one? Is the body's "honest direction" argument
+   actually true for check 8 and 9 failures, or does dropping the
+   volume error hide a second, independent defect from a caller who
+   reads all errors?
+2. S213 — THE TWO OTHER PASSES ARE BYTE-IDENTICAL. The body claims
+   validate_pseudomanifold and contact_marks keep error vectors,
+   ordering and gating byte-identical through the tier3_local_checks
+   hook. Execute: at the merge base and at the head, run both passes
+   over a corpus of corrupt and valid bodies (the tier-3 test
+   fixtures, m3_pr6_tier3prime's scenarios, the DL3 corpus) at f64,
+   Interval and Dual64, and diff the results field by field. Any
+   difference is a MAJOR.
+3. S213 — THE TIGHTENED PASS (H-R3). What can Body<Dual64> still do:
+   run validate_geometric_structural at Dual64 on the same corpus and
+   confirm the value channel is bitwise-equal to the f64 build's
+   structural half (the body claims geometric_cube keeps that pin
+   verbatim); then find what a dual caller LOSES — which check-7
+   refusals it used to see and no longer does (the DL3 witnesses),
+   and whether any dual caller in the tree relied on that refusal as
+   a signal (grep for VolumeUncomputable consumers). Is the rewritten
+   m10_di_dual_corpus row (DUAL_REFUSED_BY_THE_STRUCTURAL_DOOR = [])
+   loud — plant a refusal and confirm it reds — or vacuous?
+4. S213 — THE compile_fail ROW IS HONEST (S216). Remove the annotation
+   and compile; confirm exactly one E0277 naming validate_geometric's
+   bound and nothing else (no E0433, no stale import). Confirm the
+   sibling green row differs in one identifier.
+5. S213 — mass_properties_certified. Is its answer bitwise-equal to
+   mass_properties_with at f64 and Interval on the corpus? Can a
+   scalar without CertifiedBounds reach it by any route (a trait
+   object, a macro, an impl in a test)? Is `PlusVCheck` a closure
+   type alias carrying no bound (rule 5), and does the hook shape
+   introduce any path where the hook is Ok(None) at a certifying
+   scalar (an absence channel the body says does not exist)?
+6. S213 — THE TWENTY SITES. Re-derive by compiling the tightened bound
+   at the merge base (--workspace --all-targets, both lanes): is it
+   twenty in nine files? Classify each yourself; is there a class (c)
+   site the lane missed (a mixed pass needing the certified half for
+   one arm only)? For each class-(a) test conversion, did the row
+   LOSE an assertion (compare what it asserted before and after,
+   especially geometric_cube, review_m2_pr3, extrude_acceptance and
+   the three editor-core files)?
+7. The gate and the ledger: run bounds-allowlist.sh --selftest at the
+   head; verify the planted spellings; verify the ledger's weakest-
+   bound claim by compiling `Decide + CertifiedEnclosure` alone and
+   reading the error; verify no lo()/hi() call appears in validate.rs
+   (the "brackets never decide" clearance) and shell.rs's two bound
+   lines are the minimal edit. Is D210's withdrawal right — does D103
+   really carry the file-granularity residue?
+8. The spec-acceptance DEVIATION: "no refusing impl for this trait
+   survives" — the lane keeps impl PropsQuadLane for Dual<T> with the
+   receipt that AtRestPolicy for Dual depends on it. Verify the
+   dependency by deleting the impl and compiling; is there a
+   narrower shape (AtRestPolicy re-bounded) the lane should have
+   priced, or is that M10's seam as the body says? Grep the receipt:
+   is quad_cut_face's Ok(None) really the only "no lane" arm left?
+9. D222 — 36 inlines of `br`: is every one a pure rename (diff the
+   call sites; any argument reorder, any changed expression)? Does
+   bracket_seam_tests still pin the crossing after the rename? Is
+   the fence draw (props.rs → Track M; validate.rs stays P's)
+   recorded in BOTH the territory table and the fence line?
+10. D223 — is the corrected premise TRUE: is ApproxSurface::certify
+    pub, scalar-generic, certifier-as-argument, and was the "f64-only
+    fit door" claim false at main BEFORE CERT-N1's map_scalar? Do
+    the four rewritten comments say what the code does?
+11. THE CENSUS (CERT-M3's spec — it must be executable). For each of
+    the three traits verify the load-bearing claim by reading and
+    where possible compiling: EdgeNurbsLane — does the NurbsLane
+    closure alias exist as described and would `impl<T: Decide +
+    CertifiedBounds> EdgeCurve<T>` calling edge_nurbs::lane::<T>
+    compile with the trait deleted (try it in a scratch branch;
+    report the E0277 count); PcurveFittedLane — is check 4's product
+    really the certificate's envelope (certificate.envelope ==
+    ssi.hull_sup) so a structural half has no object to return;
+    ChartRegionLane — at census.rs:1610 do the None and Some(Err)
+    arms push the identical CensusUnsupported, and is the "complete
+    minus conformal pairs" contract really unstated anywhere? Any
+    verdict you overturn is a MAJOR against the spec CERT-M3 will
+    execute.
+12. S90-impl re-read: re-derive the bracket-read count in
+    sweep/src/blend/ (17 claimed: battery 11 / build 3 / surgery 3),
+    confirm fillet_edges is still reachable from evaluate::<Dual64>
+    via run_op's bound, and that the row is NOT unparked.
+13. The sweep of 44 trait declarations: re-run it (count the
+    declarations; check the seven-row table's dispositions;
+    AbsEnclosure's near-miss); find a certification-by-name door the
+    lane missed.
+14. SMELL-SCAN landing under rule 3: S213 finding + row deleted, D222
+    and D223 rows deleted, H5 rewritten with the census and the
+    H-R16 correction, S89's count 3→2 with `br` deleted member by
+    member, S90-impl re-read recorded, territory table + fence line
+    updated, D210 absent from both tables; the citation sweep's "3
+    hits" re-counted over the whole file; every standing rule
+    relocated before deletion; no number collides.
+15. Rule 5 per row; D2-addendum row 0 classification (is
+    VolumeUncomputable's survival consistent with "state made
+    unrepresentable"?); Q3 (do the rows exercise what they claim on
+    constructed inputs?), Q7 (the hook-closure shape versus a trait
+    method or an enum; the union bound versus an alias — the body
+    argues both), Q8 (how much of the +618/−226 diff you read clause
+    by clause — say which files).
+16. The eps/lane posture: trailer premise vs scripts/ci-filter.py;
+    run geom-core, topo, sweep, editor-core at all three bands in
+    both lanes; AND run geom-brep, mesh and profile in the interval
+    lane at 1e-12 (the lane ran the rest of the workspace at the
+    default point only).
+
+RULES: work in your own worktree from the frozen head; do NOT push to
+cert/m2-supertrait-bound-v2; put probes on your assigned probe branch
+(local commits; the orchestrator collects them); no GitHub writes of
+any kind; no Co-Authored-By; keep CARGO_TARGET_DIR OUTSIDE your
+worktree; serialize heavy builds through
+/home/user/cad/local-scripts/with-build-slot.sh -- <cmd>; foreground
+discipline (never wait on a background notifier — poll); check
+df -h / before big builds and clean your own target dir if free space
+nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
+NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
+severities, executed-vs-inspected marked per item, and the rubric
+scores per the style lane. Report <=150 lines.
