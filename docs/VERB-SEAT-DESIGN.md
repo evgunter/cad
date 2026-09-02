@@ -1,7 +1,8 @@
 # VERB-SEAT-DESIGN: the kernel query seat, one verb vocabulary, and lowered parameter identity
 
-Status: **DESIGN CONVERSATION — not ratified.** Evan's sign-off is
-required before merge (standing rule for design-conversation PRs).
+Status: **RATIFIED** (PR #1388, Evan's sign-off in-session,
+2026-08-31; companion-table row at DESIGN.md). Originally a
+design-conversation PR; the text below is the ratified record.
 This doc proposes the mechanism for issue #1345's decided item (1)
 and its cheap fix, the producer gap of issue #757, and the
 parameter-identity channel of issue #1372 — one conversation because
