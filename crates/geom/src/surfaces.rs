@@ -1448,7 +1448,7 @@ mod tests {
         fn poison_propagates_at_interval() {
             let si = all_surfaces()[1].1.map_scalar(Interval::from_f64);
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
-            assert!(p.x.lo().is_nan());
+            assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
             let n: Surface<Interval> = Surface::nurbs_placeholder();
             // All-poison, not first-channel-poison: the placeholder's
             // promise is the whole point.

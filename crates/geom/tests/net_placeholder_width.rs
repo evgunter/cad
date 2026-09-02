@@ -31,6 +31,9 @@
 
 use std::sync::Arc;
 
+use bvh::{Aabb, Axis};
+use geom::curves::boxes::nurbs_curve_aabb;
+use geom::surfaces::boxes::nurbs_surface_aabb;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Dual, Point3, Real};
@@ -217,4 +220,63 @@ fn the_widened_answer_survives_a_lift() {
     let s = Surface::Nurbs(Arc::new(masquerading_surface::<f64>()));
     let sd = s.map_scalar(Dual::constant);
     assert!(matches!(&sd, Surface::Nurbs(n) if !n.is_placeholder()));
+}
+
+/// The box doors are the second member of the same class, and the one
+/// that lives in this crate: a certified-conservative AABB folded over
+/// a net poisoned in ONE channel is poison on that axis and FINITE on
+/// the others, and `Aabb::overlaps` is a per-axis test — so the finite
+/// axes witness disjointness and the box PRUNES. A box that prunes on
+/// geometry it cannot bound is unsound, and the module's own contract
+/// (poison never prunes) is what it violates.
+#[test]
+fn a_net_poisoned_in_one_channel_yields_the_poison_box_on_every_axis() {
+    // A box far away on y and z, disjoint from the masquerade's finite
+    // lanes: the witness a partially poisoned box would answer with.
+    let elsewhere = Aabb::from_points(
+        [
+            Point3::new(0.0, 500.0, 500.0),
+            Point3::new(1.0, 501.0, 501.0),
+        ]
+        .into_iter(),
+    )
+    .unwrap();
+
+    for (what, b) in [
+        (
+            "surface",
+            nurbs_surface_aabb(&masquerading_surface::<f64>()),
+        ),
+        ("curve", nurbs_curve_aabb(&masquerading_curve::<f64>())),
+    ] {
+        for axis in [Axis::X, Axis::Y, Axis::Z] {
+            assert!(
+                b.min(axis).is_nan() && b.max(axis).is_nan(),
+                "{what}: a net carrying poison anywhere has no honest box on any axis"
+            );
+        }
+        assert!(
+            b.overlaps(&elsewhere),
+            "{what}: the poison box must never prune — that is the whole of its contract"
+        );
+    }
+
+    // The placeholder's documented answer is unchanged: still poison.
+    let ph = nurbs_surface_aabb(&NurbsSurface::<f64>::placeholder());
+    assert!(ph.min(Axis::X).is_nan() && ph.overlaps(&elsewhere));
+
+    // And a fully described net still gets its real, pruning box.
+    let described = NurbsSurface::new(
+        knots2(),
+        knots2(),
+        (0..4)
+            .map(|i| Point3::new(f64::from(i), 1.0, 2.0))
+            .collect(),
+        vec![1.0; 4],
+    )
+    .unwrap();
+    assert!(
+        !nurbs_surface_aabb(&described).overlaps(&elsewhere),
+        "the screen must not cost a described net its pruning power"
+    );
 }

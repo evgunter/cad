@@ -12,6 +12,7 @@
 use bvh::Aabb;
 use geom_core::Bounds;
 
+use crate::net;
 use crate::surfaces::nurbs::NurbsSurface;
 
 /// The certified-conservative box of a NURBS surface: the AABB of its
@@ -23,8 +24,19 @@ use crate::surfaces::nurbs::NurbsSurface;
 /// convexity, Book p. 293). Valid over the whole (u, v) domain, a
 /// fortiori over any cell (cell-tight hulls via knot refinement are
 /// PR 7's sharpening; a wider box still contains the locus). No
-/// arithmetic — brackets only. All-poison control points (a
-/// placeholder) yield the poison box, which overlaps everything.
+/// arithmetic — brackets only.
+///
+/// **A net carrying poison ANYWHERE yields the poison box**, which
+/// overlaps everything: the placeholder (all-poison by construction)
+/// and equally a described net poisoned in one channel of one point.
+/// The screen is `net::any_poison` and its docs carry why the wider
+/// question is the right one here — folding a partially poisoned net
+/// gives a box finite on the unpoisoned axes, and `Aabb::overlaps`
+/// tests axes independently, so such a box prunes on geometry it does
+/// not bound.
 pub fn nurbs_surface_aabb<T: Bounds>(surface: &NurbsSurface<T>) -> Aabb {
+    if net::any_poison(surface.control()) {
+        return Aabb::poison();
+    }
     Aabb::from_points(surface.control().iter().copied()).unwrap_or_else(Aabb::poison)
 }

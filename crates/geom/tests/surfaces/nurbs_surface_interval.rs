@@ -106,7 +106,11 @@ fn surface_poison_propagates() {
     )
     .unwrap();
     // Index 6 is (iu = 3, iv = 0): active near u ∈ [0.25, 0.5], v low.
-    assert!(np.eval(0.3, 0.2).x.is_nan());
-    // Far cell unaffected (basis locality).
-    assert!(!np.eval(0.9, 2.9).x.is_nan());
+    // The poisoned CHANNEL poisons and the others stay finite — the
+    // partial answer named, not read on x alone.
+    let near = np.eval(0.3, 0.2);
+    assert!(near.x.is_nan() && near.y.is_finite() && near.z.is_finite());
+    // Far cell unaffected (basis locality), on every channel.
+    let far = np.eval(0.9, 2.9);
+    assert!(far.x.is_finite() && far.y.is_finite() && far.z.is_finite());
 }

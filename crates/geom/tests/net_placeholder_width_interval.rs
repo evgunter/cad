@@ -13,6 +13,8 @@
 
 use std::sync::Arc;
 
+use bvh::{Aabb, Axis};
+use geom::surfaces::boxes::nurbs_surface_aabb;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Real};
@@ -99,4 +101,34 @@ fn the_masquerade_lifts_to_a_described_interval_net() {
         "the finite channels still enclose their values — the partial answer a consumer \
          then decides against"
     );
+}
+
+/// The box doors at the interval scalar: the same screen, and the same
+/// executed consequence — a box poisoned on one axis and finite on the
+/// others prunes on the finite ones.
+#[test]
+fn a_net_poisoned_in_one_channel_yields_the_poison_box_at_interval() {
+    let control: Vec<Point3<Interval>> = (0..4)
+        .map(|i| {
+            Point3::new(
+                poison(),
+                Interval::from_f64(f64::from(i)),
+                Interval::from_f64(2.0),
+            )
+        })
+        .collect();
+    let s = NurbsSurface::new(knots2(), knots2(), control, vec![1.0; 4]).unwrap();
+    let b = nurbs_surface_aabb(&s);
+    for axis in [Axis::X, Axis::Y, Axis::Z] {
+        assert!(b.min(axis).is_nan() && b.max(axis).is_nan());
+    }
+    let elsewhere = Aabb::from_points(
+        [
+            Point3::new(0.0, 500.0, 500.0),
+            Point3::new(1.0, 501.0, 501.0),
+        ]
+        .into_iter(),
+    )
+    .unwrap();
+    assert!(b.overlaps(&elsewhere), "the poison box never prunes");
 }
