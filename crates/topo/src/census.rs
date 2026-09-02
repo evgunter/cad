@@ -1615,7 +1615,17 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         // D1, 2026-08-19, a dual DOES carry a bracket;
                         // the refusal is the lane's ruling, not a
                         // missing `Bounds` impl.)
-                        errors.push(ValidationError::CensusUnsupported {
+                        //
+                        // Its own variant, and not the one the typed
+                        // predicate refusals below raise: this absence
+                        // is a fact about the RUN's scalar and the same
+                        // candidate is examined at every certifying
+                        // one, while those are facts about THIS pair's
+                        // geometry that no replay changes. One variant
+                        // for both made a run-wide condition read as a
+                        // per-pair geometric refusal, and the two
+                        // recourses are opposite.
+                        errors.push(ValidationError::CensusLaneUnsupported {
                             entity: EntityId::Face(fa),
                         });
                     }

@@ -2257,6 +2257,32 @@ impl<T: Decide> Body<T> {
 impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// [`Body::set_edge_curve`] with the plane × NURBS lane wired in.
     ///
+    /// **A scalar without certification rights cannot write this
+    /// call**, and that is the door's guarantee rather than a side
+    /// effect: nothing runs, nothing refuses, the call cannot be
+    /// formed.
+    ///
+    /// ```compile_fail,E0277
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn lane_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve_nurbs_lane(e, c, tol);
+    /// }
+    /// ```
+    ///
+    /// The DEFAULT door is open to it, which is the capability this
+    /// separation exists to keep — the two rows differ in one
+    /// identifier and every path either names resolves, so the failing
+    /// one is failing on the bound:
+    ///
+    /// ```
+    /// use geom_core::{Dual64, Tol};
+    /// use topo::{Body, EdgeCurveSpec, entity::EdgeKey};
+    /// fn default_door(b: &mut Body<Dual64>, e: EdgeKey, c: EdgeCurveSpec<Dual64>, tol: Tol) {
+    ///     let _ = b.set_edge_curve(e, c, tol);
+    /// }
+    /// ```
+    ///
     /// # Errors
     ///
     /// As [`Body::set_edge_curve`].

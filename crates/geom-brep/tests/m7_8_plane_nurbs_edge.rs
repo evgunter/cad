@@ -325,3 +325,46 @@ fn the_laneless_door_still_refuses_a_described_nurbs_operand() {
         "the laneless door's refusal is unchanged by M7-8"
     );
 }
+
+/// **The at-rest seam: who may re-derive this class, and who must not
+/// claim to have.** The M7-8 certificate exists only through the
+/// injected lane, so a pass whose bound does not admit the lane cannot
+/// re-derive the class — and `Unimplemented` after the fact cannot be
+/// told from a genuine failure, which is why
+/// `EdgeCurve::needs_nurbs_lane` asks first. All three facts on one
+/// certified edge: the predicate answers yes, the lane-injected
+/// re-derivation succeeds, and the lane-free one refuses with the
+/// class's standing refusal rather than with anything about geometry.
+#[test]
+fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
+    let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
+    let ends = (carrier.eval(0.0), carrier.eval(1.0));
+    let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
+    let edge = EdgeCurve::certify_nurbs_lane(spec, ends.0, ends.1, &arena, band())
+        .expect("the stated carrier certifies through the attach door");
+
+    assert!(
+        edge.needs_nurbs_lane(&arena),
+        "a plane x described-NURBS Intersection is exactly the class that needs the lane"
+    );
+
+    let with_lane = edge.recertify_via(
+        ends.0,
+        ends.1,
+        &arena,
+        band(),
+        Some(&geom_brep::plane_nurbs_limbs::<f64>),
+    );
+    assert!(
+        with_lane.is_ok(),
+        "the lane-injected at-rest pass re-derives the certificate: {with_lane:?}"
+    );
+
+    match edge.recertify_via(ends.0, ends.1, &arena, band(), None) {
+        Err(CertifyError::Unimplemented) => {}
+        other => panic!(
+            "without the lane this class has no re-derivation at all, and the refusal is the \
+             standing one: {other:?}"
+        ),
+    }
+}

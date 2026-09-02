@@ -816,6 +816,13 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         // is the curve-record confirm pass, which names its witness
         // EDGE — a carried `CurveContact`, never a minted one.
         //
+        // `CensusLaneUnsupported` is a fact about the RUN's scalar —
+        // the conformal arm had no certified overlap lane at all — so
+        // it is not a verdict on any declaration and no mate can
+        // answer for it. Its recourse is to replay the document at a
+        // certifying scalar, which is the document's business and not
+        // a mate's.
+        //
         // `CensusUndecidable` cannot name a minted declaration in
         // either of its two arms. The cross-solid face-pair arm skips
         // a pair the records declare (in both orientations) and leaves
@@ -829,6 +836,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
                 | topo::StaleDeclaration::VertexOnFace { .. },
         }
         | ValidationError::CensusEscalated { .. }
+        | ValidationError::CensusLaneUnsupported { .. }
         | ValidationError::CensusUnsupported {
             entity:
                 topo::EntityId::Solid(_)

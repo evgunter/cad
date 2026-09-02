@@ -201,12 +201,56 @@ impl core::fmt::Display for PlaneNurbsRefusal {
     }
 }
 
-/// The certified lane's body, shared by every bracket-carrying scalar.
+/// **The certified plane × NURBS derivation** — the whole of what a
+/// scalar with certification rights can prove about this edge class,
+/// and the function the doors inject ([`crate::certify::NurbsLane`]).
 ///
 /// The operand ORDER is load-bearing exactly as it is in the fitted
 /// pcurve lane: the NURBS wall is operand **b**, because
 /// `certify_branch` reads the chart image of `b`, and the image this
 /// lane derives is the carrier's foot path on the wall.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal`], carrying the measured bound whenever one
+/// exists. Every refusal here is about the GEOMETRY: a scalar that may
+/// not certify does not receive one, because it cannot name this
+/// function. The bound is the split, and a dual fails it on
+/// [`geom_core::CertifiedEnclosure`] — it has carried
+/// [`geom_core::Bounds`] since D1 (2026-08-19) and that is not the
+/// right to mint a C9-ring bound:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Band, Dual64};
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &NurbsCurve3<Dual64>,
+///     plane: &Surface<Dual64>,
+///     wall: &NurbsSurface<Dual64>,
+///     extent: Dual64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+///
+/// The row above fails on the BOUND and not on a path or a spelling,
+/// and the row below is what says so: it differs in the scalar alone,
+/// every name resolving the same way.
+///
+/// ```
+/// use geom_core::Band;
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn certified(
+///     carrier: &NurbsCurve3<f64>,
+///     plane: &Surface<f64>,
+///     wall: &NurbsSurface<f64>,
+///     extent: f64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
 pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     plane: &Surface<T>,

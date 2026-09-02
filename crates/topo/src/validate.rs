@@ -923,6 +923,25 @@ pub enum ValidationError {
         /// The unsupported entity.
         entity: EntityId,
     },
+    /// Tier 3′: the SCALAR has no certified chart-overlap lane, so the
+    /// conformal face-pair arm could not examine this candidate —
+    /// a fact about the run, not about the geometry.
+    ///
+    /// Distinct from [`ValidationError::CensusUnsupported`] on
+    /// purpose, and the distinction is the recourse: that one says
+    /// *this* record or candidate is outside the certified inventory
+    /// and wants the geometry declared, certified through a supported
+    /// lane, or separated; this one says the same candidate would be
+    /// examined at `f64`, the telemetry probe or the interval scalar
+    /// and wants the body replayed at one of them. The two used to be
+    /// the same variant on the same face, which made a run-wide fact
+    /// read as a per-pair geometric refusal.
+    /// [`ValidationError::ApproxLaneUnsupported`] is the same shape
+    /// one pass over.
+    CensusLaneUnsupported {
+        /// The candidate's first face — the arm's own subject.
+        entity: EntityId,
+    },
     /// Tier 3′ (M9-2 union fix, the conservative loudness backstop):
     /// a cross-solid candidate pair the census can neither examine
     /// nor definitely clear — refused loudly as UNDECIDABLE instead
@@ -1581,6 +1600,14 @@ impl fmt::Display for ValidationError {
                  extension is the named follow-up). Refused rather than \
                  sampled; declare and certify through a supported lane, or \
                  separate the geometry"
+            ),
+            Self::CensusLaneUnsupported { entity } => write!(
+                f,
+                "tier-3′ census: this scalar has no certified chart-overlap lane, so the \
+                 conformal face-pair arm could not examine the candidate at {entity} — a fact \
+                 about the RUN and not about the geometry, refused rather than skipped. Replay \
+                 the body at f64, the telemetry probe or the interval scalar to get the \
+                 candidate examined"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
@@ -5659,7 +5686,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 69;
+        const VARIANTS: usize = 70;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -5686,6 +5713,7 @@ mod tests {
                 ValidationError::ContactContradicted { .. } => 19,
                 ValidationError::CensusEscalated { .. } => 20,
                 ValidationError::CensusUnsupported { .. } => 21,
+                ValidationError::CensusLaneUnsupported { .. } => 69,
                 ValidationError::CensusUndecidable { .. } => 22,
                 ValidationError::DanglingTopology { .. } => 23,
                 ValidationError::DanglingGeometry { .. } => 24,
@@ -5938,6 +5966,9 @@ mod tests {
                 cause: indeterminate(),
             },
             ValidationError::CensusUnsupported {
+                entity: EntityId::Face(t.face_a),
+            },
+            ValidationError::CensusLaneUnsupported {
                 entity: EntityId::Face(t.face_a),
             },
             ValidationError::CensusUndecidable {
