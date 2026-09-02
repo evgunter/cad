@@ -432,3 +432,5 @@ fn the_eps_inventory_is_pinned() {
         "the crate has six terminal ε reads; the operation columns must sum to them"
     );
 }
+#[path = "r2_mesh7_probes.rs"]
+mod r2_mesh7_probes;
