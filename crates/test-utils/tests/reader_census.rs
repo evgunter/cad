@@ -123,6 +123,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/geom-core/tests/bounds_census.rs",
+        disposition: Shared, // sole-bracket-bound roster, code view
+    },
+    Entry {
         path: "crates/geom-core/tests/flagged_census.rs",
         disposition: Shared, // call census, code view + offsets
     },

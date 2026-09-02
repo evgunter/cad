@@ -177,3 +177,41 @@ not a shortfall) is the cycle's model. One dispatch correction
 recorded orchestrator-side. Issue 433 stays open for the raw-door
 half. Slate next: BOOL-11 (spec first; §4/verb-table hold for Evan
 again), then BOOL-9; BOOL-4/5/6/7/10 and the Q-track queue behind.
+
+## BOOL-11 merged (2026-09-02) — continue_to lands; the seam wall's departure half ends; three rulings out of one measurement
+
+PR 1520 at the re-merged head, after Evan's in-chat sign-off of the
+§3 verb-table row and the unit's three decisions (which ε — the run
+band's ε_input edge through the ordinary trilean funnel; no lever;
+D2 row 1). Gates: three green heads spanning interval/1e-12 and
+interval/1e-6 (asked); the final head re-gated at merge. The declared
+point-target continuation is one transition-table row on BOOL-8's
+shared kernel; `Start` as target is the structural closer. Issue 433
+stays open for the raw-door half.
+
+**The unit's real product was measurement that produced rulings.**
+(1) The closer ends the DEPARTURE half of the seam wall (32 of 64
+lily rings now close) but not the family: the two sections' corners
+sit at opposite parity while the loft pins one rotation, so one
+section always seams mid-carrier — PQ4. Evan reopened PQ4 for the
+DECLARED case and, on the follow-up question, widened it to the
+declared-arrival family (straight + tangent seams): BOOL-12. (2) The
+wire spelling was DEFERRED with a measured reason (a trial bump broke
+52 rows; main took v20 mid-cycle) — which surfaced that the schema
+version machinery exists only to reassure agents pre-release: Evan
+ruled option C strong form, no hand-maintained version at all —
+BOOL-13, before BOOL-12. (3) The `TangentLineClose{Departure}`
+refusal was `JunctionTangent` under a second name, a uniformity leak
+predating this program; Evan ruled it collapsed — the addendum, which
+found and collapsed a third same-shaped fork.
+
+**The dual (ordinal 1104, sample at the row)**: R1 A-W-F with one
+mutation-proven MAJOR (the roster's falsifiability row did not
+falsify — fixed with a witness chain through the lifting door), R2
+mergeable-on-sign-off; bilateral at split severity, no tally
+candidate; pair COUNTS. Both lanes verified the band to the ulp and
+attacked the no-lever choice hard before upholding it; the parity
+wall survived a 1600-case hunt. One overruled finding (the author
+identity), one dispatch correction (K = 1.0 is rejected, not a
+floor). Slate next: BOOL-13 (schema demolition; away-channel
+announcement first) → BOOL-12 → BOOL-9 → BOOL-10.

@@ -368,6 +368,15 @@ wanted LGPL off the default path. OQ8's sign-off adds *"doubling as the
 seed of the eventual inari replacement"*, which #127 discharged three
 days later by a different route.
 
+**Handed to this finding, 2026-09-02, from a closed neighbour**:
+`copysign`'s placement inside a consumer
+(`crates/geom-core/src/interval.rs:356`, re-derive against the tree) is
+Tier 1 and belongs here rather than with the interval backend's
+one-directional residue, which is what the finding it arrived from was
+about. It was recorded there as a fact rather than a decision — that
+`copysign` is on the `Real` surface but not in the backend `src` — and
+the placement question is still open.
+
 ## S2. `T: Real` genericity costs friction everywhere and monomorphizes at one-and-a-half types
 
 - **Where**: `crates/editor-core/src/eval/mod.rs:865`,
@@ -2058,17 +2067,17 @@ it only makes the six locally-argued rules legible as six.
   `crates/geom/tests/surfaces/s32_jet_projection.rs` (the pin)
 - **Confidence**: sure
 
-**The class's curve-side member is filed, not fixed** — §D row **C24**.
-`Curve3::deriv`/`deriv2` are the identical shape one file over, and
-`topo/src/splitting/neighborhood.rs` calls both at the same `t` under a
-comment naming the result *"the base-endpoint jet"*. That call site is the
-**analytic** member of the class, not the NURBS one — it sits in the
-`Circle | Ellipse` arm and repeats an azimuthal frame, while the arm above
-routes `Curve3::Nurbs` elsewhere entirely; C24 carries both members
-separately, and says which is which. **C-R6 does not reach it** even though it
-is the same crate: the surface side had a ratified `SurfaceJet` to project
-onto, and the curve side has no `CurveJet` at all, so that work is minting a
-public type — a design element, C-R19 tier two.
+**The class's analytic curve-side member is filed, not fixed** — §D row
+**C24**. `Curve3::deriv`/`deriv2` are the identical shape one file over on
+the analytic arms, and `topo/src/splitting/neighborhood.rs` calls both at
+the same `t` under a comment naming the result *"the base-endpoint jet"* —
+the call sits in the `Circle | Ellipse` arm and repeats an azimuthal frame,
+two `sin_cos` for one jet. **C-R6 does not reach it** even though it is the
+same crate: the surface side had a ratified `SurfaceJet` to project onto,
+and the curve enum has no `CurveJet` at all, so that work is minting a
+public type — a design element, C-R19 tier two. (The NURBS payload's own
+jet doors, `NurbsCurve3::ders` and `ders1_in_span`, are what such an arm
+would have to read; whether it does is the design question.)
 
 **Two shapes on the surface side are noted and deliberately not fixed:**
 `SurfaceJet` lives in the NURBS arm's module though it is the enum-wide
@@ -2090,28 +2099,6 @@ only two any production path walks, `metric_floor` being the sole production
 caller of any of the rest and asking for the jet. Recorded because it will
 decide a future question and nobody will re-measure it cheaply; it is not a
 mandate to delete them.
-
-**Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
-baffle me with how they ever happened." Postmortem pass commissioned.
-
-## S33. Neither geometry enum can lift itself to another scalar
-
-- **Where**: `crates/geom/src/curves.rs:818`, `:908`,
-  `crates/geom/src/surfaces.rs:653`, `:1057`,
-  `crates/sweep/src/skin.rs:774` — paths re-anchored by #705's crate
-  merge; the finding is unchanged
-- **Confidence**: sure
-
-`DESIGN.md` makes "evaluate the same function with a different scalar
-type" the reason the geometry layer is generic over `T`, but `Curve3<T>`
-and `Surface<T>` have no `map_scalar`/`lift`. Every place needing
-`Curve3<f64> → Curve3<Dual64>` or `→ Curve3<Interval>` writes its own
-per-variant ladder: twice inside `geom/src/curves.rs` alone (the
-dual and interval versions differing only in the scalar conversion),
-twice again in `geom/src/surfaces.rs`, and roughly ten more across `topo`,
-`mesh` and test modules, plus one production copy in `sweep`. Each must
-be kept exhaustive by hand as variants are added, and each silently maps
-`Nurbs(_)` to the placeholder rather than lifting the payload.
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). On this batch: "huh these ones also
 baffle me with how they ever happened." Postmortem pass commissioned.
@@ -3908,27 +3895,6 @@ costume"*. The SSI seam is that shape and got no such treatment.
 
 **Verdict:**
 
-## S85. The `Bounds` trait's headline still calls it the certification door, and its ledger grew 50% under the fix meant to retarget it
-
-`crates/geom-core/src/real.rs:350`'s first line still reads *"Bound
-extraction for **certification and driver code**"*, unchanged since the
-base. The same PR corrected precisely this wording on `Enclosure`
-(`:625`: *"Not 'certification helpers', which is what this said before
-#643 — and the word matters more since D1"*) and on
-`CertifiedEnclosure`'s implementor list. The trait D1 explicitly demoted
-out of the certification role kept the sentence — the sweep fixed the
-siblings and left the anchor. Also worth reading: `interval.rs`'s
-`Bounds` impl doc and `Bounds::lo`/`hi`'s own method docs.
-
-Meanwhile the doc block went from 156 lines to **234**. Three entries
-were edited in place *and* had a paragraph appended explaining what the
-edited sentence used to say (`:385`, `:414`, `:441`), so the file now
-carries both the corrected text and prose about the text it replaced. A
-234-line doc block on a two-method trait is past the point where a
-reader finds the rule. (C5, still running.)
-
-**Verdict:**
-
 ## S87. A fifth lane trait exists, blanket-implemented, and D1 never looked at it
 
 `crates/profile/src/path/arc_fillet.rs:593-595`:
@@ -4131,7 +4097,7 @@ blanket impl above says the same thing about its own trait and points at
 such door is invisible the day it is written. **A disclosed blind spot is
 a work order**: that is **S210**, unstaffed, with the cost of closing it.
 
-### The structural half, and what it costs `S85`
+### The structural half, and what it costs the `Bounds` doc block
 
 **`{NurbsCurve2, NurbsCurve3, NurbsSurface}::{project, project_from_seed}`
 bind `T: CertifiedBounds`**, so the wrong tangent is UNREACHABLE rather than
@@ -4154,22 +4120,24 @@ in-tree. The eviction itself is pinned by `compile_fail,E0277` rows in
 collected — and `S216` is why those rows demonstrate the eviction without
 guarding it.
 
-**This work grew `real.rs`'s `Bounds` block, which is `S85`'s subject**: what
-the block now carries includes an open question of the rule's own (#643's
-`separation` half) answered in the rule, and corrections to two entries that
-had become false. `S85`'s subject is the block's *undirected* growth, not its
-content — a doc block that may not grow to answer a question posed inside it
-is not a doc block — so the measurement belongs to `S85`, taken against the
-block as it stands rather than transcribed from here.
+**This work grew `real.rs`'s `Bounds` block**: what the block carries
+includes an open question of the rule's own (#643's `separation` half)
+answered in the rule, and corrections to two entries that had become
+false. A doc block that may not grow to answer a question posed inside it
+is not a doc block; the growth that is a defect is the UNDIRECTED kind.
+The rule and the contract are the trait's doc, and the ledger of ratified
+seams — the part that grows — is `geom_core::real::bounds_allowlist`.
 
 ### Handed off, not taken
 
 - **Open, no row** (`crates/profile/`, Track V's territory):
   `fillet_select.rs::nearest_joint`
-  (`:169`) is the sole-bound door. **The finding's `:98` is a doc line,
-  not a door** — re-derive against the tree. `path/arc_fillet.rs:361`'s
+  (`:179`) is the sole-bound door. **The finding's `:98` is a doc line,
+  not a door** — re-derive against the tree. `path/arc_fillet.rs:379`'s
   `map_refusal<T: Bounds>` is a second sole-bound door the finding does
-  not name; the rest of that file is the ratified `Decide + Bounds` seam.
+  not name (both citations re-derived 2026-09-02, from `:169` and `:361`;
+  `crates/geom-core/tests/bounds_census.rs` keys the roster on the SYMBOL
+  for this reason); the rest of that file is the ratified `Decide + Bounds` seam.
 - **`crates/geom-brep/`** (Track Q's `ssi*` ground; no row names these):
   `ssi.rs:218`'s `impl<T: Bounds> TubeScale<T>` — **the finding's `:1187`
   is `certify_rung3`'s doc, and `certify_rung3` is shut at a dual by its
@@ -4183,37 +4151,34 @@ block as it stands rather than transcribed from here.
   `Decide + Bounds` with **no** `CertifiedEnclosure` — instantiable at a
   dual for want of that term, the same shape as `topo::separation` and
   `chart_region_overlap`. Not a sole-bound site, and not S210's subject.
-- **`crates/bvh/`** (Track M's ground since the repartition; `H10` carries
-  `S211`'s unowned `bvh` member and this is the same file): `aabb.rs:87`'s
+- **`crates/bvh/`** (Track M's ground since the repartition): `aabb.rs:87`'s
   `Aabb::from_points<T: Bounds>` — a payload read, sound by delegation,
-  and the one door every `geom` box constructor funnels into.
+  and the one door every `geom` box constructor funnels into. No CI grep
+  watches this crate's `Bounds` reads: the sole form is the allowlist
+  gate's planted must-not-fire case, so `crates/bvh/` cannot be added to
+  its filters, and the crate's module header says so.
 
-## S89. The one-home fix for the ring crossing minted three local aliases and a hand-counted tally
+## S89. The one-home fix for the ring crossing minted three local aliases
 
 `RingInterval::from_certified` is the declared one home, and three
-private one-line wrappers now sit on top of it — `bracket`
-(`ring_interval.rs:160`), `ring` (`geom-brep/src/ssi/enclose.rs:195`),
-`br` (`topo/src/props.rs:494`) — each carrying its own multi-paragraph
-restatement of the same rule, two of them sharing a verbatim sentence
-and the third restating it differently. The door's doc also carries a
-**prose census of its callers** (*"five call it directly, and the rest
-go through…"*) which nothing enforces and which already needed a
-correcting commit (`88616177`, "S41: correct `from_certified`'s own
-count of its call sites").
+private one-line wrappers sit on top of it, each carrying its own
+multi-paragraph restatement of the same rule — two of them sharing a
+verbatim sentence and the third restating it differently. **Citations
+re-derived 2026-09-01**, because none of the three was where the finding
+said: `bracket` is `crates/geom-core/src/spline/hull.rs:116` (Track N's
+ground, not `ring_interval.rs`), `ring` is
+`crates/geom-brep/src/ssi/enclose.rs:195` (Track Q's), `br` is
+`crates/topo/src/props.rs:1174`, which the finding cited as `:494`.
 
-A unit that unifies duplicates minting three named copies plus a
-hand-maintained count is the fix reproducing what it closed.
+A unit that unifies duplicates minting three named copies is the fix
+reproducing what it closed.
 
-Related: the suite named after the split,
-`crates/geom-core/tests/decoration_seam.rs:21`, claims its rows pin
-*"that the three C9-ring crossings follow the second door"*; every
-executable row reaches the ring through one crossing,
-`hull::domain_hull` via `hull_bound` (`:139`). **Two independent agents
-hit this** (the geom-core auditor and the new-tests auditor). The
-new-tests agent adds that `trv()`/`healthy()` and the whole
+Also open: `trv()`/`healthy()` and the whole
 `the_fixture_is_a_finite_bracket_that_cannot_certify` row are restated
 verbatim in three test files, two of which share a filename in sibling
-directories and run in the same `geom` binary.
+directories and run in the same `geom` binary
+(`crates/geom/tests/{curves,surfaces}/decoration_ring_coords.rs`, and
+`topo/src/props.rs`'s `bracket_seam_tests`).
 
 **Verdict:**
 
@@ -4348,26 +4313,6 @@ crate-merge dedup moved it into a helper that has `CHANNELS` and
 `channel(d)` in scope and did not widen it. This is the one place the
 merge picked a half's behaviour and landed it under a doc describing the
 other half's.
-
-**Verdict:**
-
-## S100. `scalar_lift` is named for the job it explicitly declines to do
-
-S33's ~14 hand-written per-variant ladders are the thing called "scalar
-lift" everywhere else in this programme;
-`crates/geom/src/scalar_lift.rs:1` deduplicates only the four leaf
-point/vec converters and says so in its header (*"the per-variant
-*ladders* … stay where they are"*). The result is a module whose name is
-the concept and whose contents are not, in the same crate as four
-surviving ladders (`curves.rs:818`, `:908`, `surfaces.rs:653`, `:1057`),
-each still spelling `Nurbs(_) => nurbs_placeholder()` — the exact silent
-substitution S33 named.
-
-The merge also put two spellings of one operation side by side that were
-previously in different crates: `lift_to_dual` (curves) vs `lift_dual`
-(surfaces), plus two unrelated `lift` functions. A reader looking for
-"where does this crate lift a `Surface<f64>` to `Interval`" will open
-`scalar_lift.rs` and not find it.
 
 **Verdict:**
 
@@ -5170,45 +5115,6 @@ gradient. **They are gated now** (`cd demos/tour && cargo test
 --release`, ci.yml and `ci-local.sh` both), so the gradient is inside a
 running suite and the members above are worth more attention than when
 they were written, not less.
-
-## S134. What is still one-directional in the interval backend, after #786 made most of it two-sided
-
-#786 gave the pads an upper constraint in both tiers. Three things it
-did not close, gathered so that they are a register entry rather than
-four sentences in a PR body:
-
-- **`powi`'s tightness ceiling is a deferral, not an unguardable.**
-  `certify.rs` passes `None` because the steps `powi` is entitled to are
-  a function of its exponent rather than a constant — which argues
-  against a *constant* ceiling and concedes that an exponent-dependent
-  one is derivable. Something downstream computes with that width:
-  `crates/geom-core/tests/review_m0_pr4.rs`'s
-  `powi_f64_lane_is_contained_by_the_padded_enclosure` pins the kernel's
-  f64 lane inside this enclosure. Measured worst ratio moves with the
-  seed (117 at effort 1, 122 at effort 2, |n| ≤ 31), which is exactly
-  why fitting a constant would be the wrong answer.
-- **The oracle tier's upper constraint is a RATIO, and a ratio is
-  scale-free.** `pad_contract.rs` now covers wide boxes for the monotone
-  operations, but a fixed absolute over-widening on a non-monotone shape
-  with a large oracle width still moves no ratio and matches no fixture.
-  A per-endpoint oracle-relative bound is the obvious instrument and
-  #786 declined it for a stated reason — extremum capture, huge-argument
-  degradation, pole and branch-cut refusals all make it fire on sound
-  output — so what is owed is a bound that excludes those paths from the
-  INPUT rather than from the output.
-- **The consumer-side half of the `Trv`-on-every-input caveat.**
-  The caveat that `intersection` returns `Trv` on every input is now at
-  `lib.rs`, in the backend.
-  `crates/geom-core/src/interval.rs:135-143` is the other place a
-  consumer meets it and does not carry it; that file is outside the
-  backend's workspace and was outside #786's fence.
-
-Not on this list, deliberately: `copysign`'s placement inside a consumer
-(`crates/geom-core/src/interval.rs:356`). That is **S1**'s, it is Tier 1,
-and the placement question was handed the fact — that `copysign` is on the
-`Real` surface but not in the backend `src` — rather than deciding it.
-
-**Verdict:** ACCEPTED, unstaffed. §D row **D78**.
 
 ---
 
@@ -6063,14 +5969,27 @@ seam whose third term is missing*, which the scope rule already tracks by
 name and which the gate does see. Two different holes; conflating them
 makes the census unbuildable.
 
-**What is not censused.** S88 covers `geom-core` (no generic door; one
-blanket impl, above) and `geom` (five modules). Enumerated but handed off
-rather than taken: `geom-brep/src/ssi.rs:218`,
-`ssi/certify.rs:{271,277,289}`; `profile/src/{fillet_select.rs:169,
-path/arc_fillet.rs:361}`; `bvh/src/aabb.rs:87`. Nobody has walked
-`topo/`, `sweep/`, `editor-core/`, `mesh/` or `step-*` for the shape at
-all, and the doors that matter are the ones nobody would think to look
-for, since they never mention a dual.
+**What is censused, and by what.** S88 covers `geom-core` (no generic
+door; one blanket impl, above) and `geom` (five modules). Enumerated but
+handed off rather than taken: `geom-brep/src/ssi.rs`,
+`ssi/certify.rs`'s three private helpers;
+`profile/src/{fillet_select.rs, path/arc_fillet.rs}`;
+`bvh/src/aabb.rs`. **The whole-tree walk those handoffs implied now
+exists and is executable**: `crates/geom-core/tests/bounds_census.rs`
+walks every `crates/*/src` through the shared source reader and pins the
+roster with a disposition per door, keyed on the SYMBOL rather than on a
+line number. Taking it found six doors nobody had walked for, all
+private and all in `topo` — the box brackets under `boolean/` and the
+three exact-structure reads in `chart_region.rs` — and none at all in
+`sweep/`, `editor-core/`, `mesh/` or `step-*`.
+
+**What that does NOT close, which is why this row stands.** The roster is
+a textual walk, so it cannot see a bound reached by a supertrait
+obligation (the gate's KNOWN GAP 2, and `S213`'s subject), a renamed
+import, an `impl Bounds` in argument position, or a bound a macro
+assembles; the suite states each of those at its own site. The doors that
+matter are still the ones nobody would think to look for, since they
+never mention a dual.
 
 **What would close it, and what it costs.** Not a bigger regex — the
 gate's own KNOWN GAPs 1–4 are the proof, and a sole-bound matcher has a
@@ -6090,21 +6009,6 @@ true.
 Track C's (`geom-brep/`), Track I's (`mesh/`) and `bvh/`, which no track
 owns — so a schedule row for it is an orchestrator's act, not a lane's,
 and one is deliberately not minted here.
-
-## S211. The `bvh` member of the sole-`T: Bounds` census
-
-`bvh/src/lib.rs:56-61` says its `Bounds` reads are ratified *"(the CI
-discipline grep allowlists exactly these seams)"*. `crates/bvh` appears
-nowhere in `scripts/gates/bounds-allowlist.sh`'s filters, and **cannot be
-added to them**: `aabb.rs:87` writes a **sole** `T: Bounds`, which is that
-gate's planted must-not-fire case. So the sentence tells a reader that a gate
-is watching this file — the direction that costs most, and the same class as
-`bounds-allowlist.sh`'s own retracted GAP-4 mitigation, *"a false mitigation
-is worse than a disclosed hole because it tells the next author the door is
-shut"*. One clause, and whoever next opens that crate should take it.
-
-`crates/bvh/` is **Track M**'s, whose `H10` carries this. **This row does not
-retire until someone takes it.**
 
 ## S234. The door inventory computes the roster's KEYS and none of its content — the direction column, which is the whole argument
 
@@ -7063,6 +6967,7 @@ a place where a reasonable reader would think the fence ambiguous:
 
 | # | What | Was |
 |---|---|---|
+| **D209** | **`S211`'s two residues, filed by CERT-M1**: (i) `bounds-allowlist.sh`'s header restates the ratified seam ledger at length while `geom_core::real::bounds_allowlist` (the ledger's home since CERT-M1) says the gate *holds the file list and points there for the reasons* — trim the header's per-seam prose to pointers, keeping the three items it is the one home for (the 2026-08-29 negative results). (ii) The 2026-07-29 amendment licenses `crates/bvh/` to write `T: Decide + Bounds`, and the crate is not on the gate's file allowlist, so a compound bound there fires today (CERT-M1 planted one and measured it) — add the file or record that the absence is deliberate; `bvh/src/lib.rs` states the current behaviour meanwhile | CERT-M1 (PR 1533), filed |
 | **D102** | The compound-`Bounds` gate anchors on `+`, which is not how Rust expresses a compound bound — `where T: A, T: B` is silent, and so is the multi-line form `rustfmt` converges on (S158) | Track F |
 | **D103** | The allowlist is file-granular while its justifications are per-seam, so a second unrelated bound in an allowlisted file inherits the first's ratification silently (S159) | Track F |
 | **D106** | `bounds-allowlist.sh` is a 204-line header in front of a 20-line function, grown three times for three honest reasons — split the ratification ledger out of the script | Track F |
@@ -7084,18 +6989,16 @@ a place where a reasonable reader would think the fence ambiguous:
 
 **Fence:** `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`,
 `interval-transcendentals/`, `crates/bvh/`. **Block:** `D220`–`D239` /
-`S290`–`S309`. **Seven items, and it is the largest track by blast radius**
+`S290`–`S309`. **The largest track by blast radius**
 — `H5` alone is 535 refs across 15 files and is expected to split into two or
 three sub-lanes inside the track.
 
 | # | What | Was |
 |---|---|---|
+| **D223** | **`topo/src/props.rs` argues from a premise CERT-N1 invalidated (filed by CERT-N1; in CERT-M2's drawn fence with `D222`)**: four sites state "the fit door is `f64`-only, so no other scalar can hold an `ApproxSurface`" — `:700–706` (the trait doc's "vacuous today"), `:782`, `:820`, `:862` (the `Probe`, `Interval` and `Dual<T>` impls' comments; `:719` restates it). `ApproxSurface::map_scalar` is public, so an `ApproxSurface<Interval>` or `<Dual<T>>` is representable and can reach tier 3; the CODE stays right (each impl answers `None`; tier 3 reports `ApproxLaneUnsupported`), the prose does not — rewrite the four comments to say the lane refuses because no re-derivation exists at that scalar, not because no value can arrive. Class member on Track R's ground: `geom-brep/src/offset_fit.rs:432–437` should say the door is `f64`-only and the RECORD travels with a lift | CERT-N1 (PR 1536), filed |
+| **D222** | **`S89`'s third alias, on ground no track's fence names**: `crates/topo/src/props.rs:1166-1176`'s private `fn br<T: CertifiedEnclosure>` restates `from_certified`'s rule in its own words. `props.rs` is in neither Track P's list nor Track Q's; the partition rule says the fence is drawn first — and the natural drawer is CERT-M2, which takes `S213` (`PropsQuadLane`'s supertrait obligation) in this same file. Inline, delete the restatement, keep `bracket_seam_tests` pinning the crossing | CERT-M1 (PR 1533), filed; fence to CERT-M2 |
 | **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12) | Track H |
-| **H3+H4** | The `Bounds` trait's headline still calls it the certification door and its ledger grew 50% under the fix meant to retarget it (S85); the one-home fix for the ring crossing minted three local aliases and a hand-counted tally (S89). **One lane — both sit on `real.rs` and `from_certified`** | Track H |
-| **H10** | A rule with no instrument (S210): `real.rs`'s `Bounds` scope rule governs the sole-`T: Bounds` class and the allowlist gate cannot see it. **Carries `S211`'s unowned `bvh` member.** The gate-side half is Track K's `D68`/`D103` and is not this row | Track H |
 | **S213** | `topo::validate_geometric` carries the `Bounds` obligation by SUPERTRAIT (`PropsQuadLane: … + geom_brep::EdgeNurbsLane`), which is `bounds-allowlist.sh`'s KNOWN GAP 2 — a certification bound no instrument counts. **Not a doc edit**: the `real.rs` sentence that misdescribed the attach door beside it is corrected; this half is the bound itself | unrowed |
-| **D78** | What is still one-directional in the interval backend after G1 — `powi`'s tightness ceiling, the oracle tier's scale-free ratio, and `interval.rs:135-143`'s consumer-side caveat (S134) | Track G |
-| **D221** | `real.rs`'s `abs_properties` carries `prop_assert!(Real::abs(x) >= 0.0)` beside a `prop_assert_eq!(Real::abs(x), if x < 0.0 { -x } else { x })` that pins the exact value and therefore implies it — a sibling of the row `D220` closed, one file over in this same fence. **Not the same edit**: non-negativity is named in the test's own doc header (*"abs is even, non-negative, and value-preserving in magnitude"*), so deleting the assertion changes what the row says it covers and owes the header edit with it. Decide which of the two the header should describe before deleting anything | unrowed |
 | **S90-impl** | The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** | Track H |
 
 ## Track N — `geom`, and the spline and linalg substrate
@@ -7105,15 +7008,12 @@ three sub-lanes inside the track.
 
 | # | What | Was |
 |---|---|---|
-| **H2** | One merge's residue, six findings, and it wants ONE lane — `S99`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
+| **D244** | **`S89`'s first alias, filed by CERT-M1**: `crates/geom-core/src/spline/hull.rs:113-118`'s private `fn bracket<E: CertifiedEnclosure>` is `RingInterval::from_certified` under another name, with an eight-line restatement of the door's rule above it. Inline it at its call sites and delete the restatement; the rule's one home is `from_certified`'s own doc, which (since CERT-M1) carries no caller census either. `geom-core/tests/decoration_seam.rs`'s header names this crossing; keep that sentence true when the alias goes | CERT-M1 (PR 1533), filed |
+| **H2** | One merge's residue, five findings, and it wants ONE lane — `S99`, `S101`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
 | **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
 | **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
 | **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
-| **C24** | S32's class on the curve side, which S32 does not name — `NurbsCurve::deriv_in_span`/`deriv2_in_span` each run a full order-2 basis and discard | Track C |
-| **D240** | Neither geometry enum can lift itself to another scalar (`S33`) — `Curve3<T>` and `Surface<T>` have no `map_scalar`/`lift`, so every caller writes its own per-variant ladder: four in `geom/src/{curves,surfaces}.rs` and roughly ten more across `topo`, `mesh` and test modules. Each is kept exhaustive by hand and each silently maps `Nurbs(_)` to the placeholder rather than lifting the payload. **The one production copy outside this fence, `sweep/src/skin.rs:774`, is Track T's `D320`** | unrowed |
-| **D241** | `geom/src/scalar_lift.rs` is named for the job it declines to do (`S100`) — it deduplicates the four leaf point/vec converters and says in its own header that the per-variant ladders stay where they are, in the same crate as four surviving ladders. `lift_to_dual` (curves) and `lift_dual` (surfaces) sit beside two unrelated `lift` functions. **`D240` is the work; this row is the name, and they want one lane** | unrowed |
-| **D242** | **`ControlPoint::channel`'s two `unreachable!` arms are row 0's own *yes* side** (`D96`'s small-domain pair, re-homed by Track T's `T-c` when that row's in-fence members were disposed; citations re-derived 2026-08-31 — `crates/geom/src/net.rs:63` and `:88`, which read `:64`/`:86` when `D96` was written). The trait is `pub(crate)` with two impls and two call sites, one of them already `for d in 0..P::CHANNELS`, so a `channels()` iterator deletes both arms with **no public API change**. The trait's own rustdoc states the precondition it cannot carry — *"`d >= CHANNELS` is a caller bug, not an input"* — which is the newtype argument written as prose | `D96`, via `T-c` |
-| **D243** | **`insert_once_ring`'s interior-knot guard announces a caller precondition a type could carry** (`D96`'s third small-domain member, re-homed by `T-c`; citation re-derived 2026-08-31 — `crates/geom-core/src/spline/compose.rs:315`, which read `:314`). `if !(u > knots[p] && u < knots[knots.len() - p - 1]) { unreachable!(…) }`, where the site's own comment says the only caller draws `u` either from `interior_knots` — strictly interior by the `KnotVector` invariant — or from extras it filters to the open domain. That is an `InteriorKnot` newtype spelled as a comment. **Row 0's question here is the propagation and not the arm**: the newtype reaches the filter and the caller, not only this function | `D96`, via `T-c` |
+| **C24** | The analytic curve-side member of S32's discarded-jet class — `Curve3::deriv`/`deriv2` on the `Circle`/`Ellipse` arms each rebuild the azimuthal frame, and `topo/src/splitting/neighborhood.rs`'s conic arm calls both at one `t` for *"the base-endpoint jet"* (two `sin_cos` for one jet). The enum has no jet door: minting a `CurveJet` is a public type — a design element, C-R19 tier two (the NURBS payload's own jet doors, `NurbsCurve3::ders` / `ders1_in_span`, are what an arm would read; the design decides whether). The `neighborhood.rs` call site is Track Q's | Track C |
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -7147,6 +7047,8 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 
 | # | What | Was |
 |---|---|---|
+| **D290** | **`edge_nurbs.rs`'s `on_carrier_domain` (`:568–581`) is two operations spelled as one (filed by CERT-N1)**: a knot RESCALE to `[t0, t1]` (structure, `f64`) and a scalar lift of the control net through `from_f64`, pushed back through `NurbsCurve2::new(..).ok()` so a count error that cannot occur is swallowed into `None` alongside the knot validation that can. Split it: rescale the knots as a `KnotVector` operation at `f64`, then `NurbsCurve2::map_scalar(T::from_f64)`; the `.ok()` then covers only the knot door | CERT-N1 (PR 1536), filed |
+| **D289** | **`S89`'s second alias, filed by CERT-M1**: `crates/geom-brep/src/ssi/enclose.rs:192-197`'s private `fn ring<T: CertifiedEnclosure>` is `RingInterval::from_certified` under another name — inline it, delete the restatement (it shares a verbatim sentence with the `spline/hull.rs` copy, which is the finding's point). This crossing is pinned by NO row the decoration-seam header names (CERT-M1's fix pass says so); add the pin with the inlining | CERT-M1 (PR 1533), filed |
 | **G9** | Two operand gates with different admitted kind sets and a doc that describes only one (S95), plus `chord_join`'s placement argument contradicted by its own imports from `splitting/` (S96). **Both sides of the old Track C fence are inside this track now** | Track G |
 | **S173** | The curved generalization of the one door lives inside `boolean/`, which is exactly what the door's own header argues against. The fix is a move, not a sentence | unrowed |
 | **H11** | A postcondition stated in four voices, one normative (S212) — `CertifiedEnclosure`'s *"a `Some` never carries a NaN end"* has a home and at least three doors re-derive it, two of them here | Track H |
@@ -7178,6 +7080,7 @@ because `mesh` is what consumes it; Q keeps the four paths it names.
 
 | # | What | Was |
 |---|---|---|
+| **D306** | **`offset_fit.rs:432–437`'s certificate-record note beside the fit door (filed by CERT-N1, `D223`'s class member)**: it should say the DOOR is `f64`-only and that the record travels with a scalar lift (`ApproxSurface::map_scalar` carries it as provenance the validator never trusts) — the note currently implies no lifted value exists. Beside it, `props/loop_area.rs:163–164` calls `eval_in_span` then `deriv_in_span` at one `(span, t)`: two basis passes for a point and a tangent that `NurbsCurve3::ders1_in_span` (CERT-N1's order-1 jet door, bit-identical to both, 336 ns vs 399 ns at degree 2) answers in ONE pass — one call, destructure the pair; the order-2 `ders_in_span` is NOT the door (it would discard `C″`) | CERT-N1 (PR 1536), filed |
 | **C3** | `props/quad.rs`'s four independent quadrature engines with a triplicated convergence block (S27). **Takeable since CERT-1's merge closed #723** (the gate this row carried until 2026-08-29); the lane is described in a comment on #723, and C-m's recorded questions are answered in CERT-1's and CERT-5's PR bodies. **Sequenced behind S-CERT's remaining `quad.rs` work (CERT-10)** — same file, live claimant | Track C |
 | **D30** | `quad.rs` holds a second span search and a second index clamp, because `KnotVector` cannot represent what the module needs. **Same file as `C3` and sequenced with it** | Track C |
 | **C11** | #726 and #727 — fold the iso-rectangle SHAPE question onto the named predicate, and decide which door owns the refusal now that `mesh` and the boolean are protected only transitively | Track C |
@@ -7203,10 +7106,11 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 | # | What | Was |
 |---|---|---|
+| **D321** | **`sweep/src/loft.rs:215`'s `lift_affine` is `Affine3::map(T::from_f64)` (filed by CERT-N1, beside `D320`)** — `geom_core::linalg` now carries the leaf maps one type over from `Vec3::map` (`Mat3::map`, `Affine3::map`); the eight-line hand spelling goes | CERT-N1 (PR 1536), filed |
 | **D322** | **`crates/sweep/src/blend/surgery.rs:1712`'s `pub fn ring_clearance` is production API with no production caller** (`S111(b)`, re-homed by `D124`; verified standing 2026-08-31 against the renamed tree). Its only caller outside the module is `crates/sweep/tests/m6_surgery.rs:447`, and its own doc says so — *"Public for exactly that trio"*. Every other item in that file is `pub(super)` or private. **The remedy already exists in this crate**: `S111(b)`'s own text names the `feature = "test-support"` gate, and `crates/sweep/src/test_support.rs` is now the cross-crate home for exactly this shape, so the conversion is a visibility change plus a re-export rather than a new mechanism. **Blocked while a BLEND lane is live in `blend/`** (T-R1's class; the live one is BLEND-4, PR #1360, which edits this very file — `T-R7`) | `S111(b)`, via `D124` |
 | **D323** | **`blend::naming::Retired` still has no face channel** (`S111(d)`, re-homed by `D124`; verified standing). `crates/sweep/src/blend/naming.rs:115` carries `edges` and `vertices` only, so the one thing the record exists to catch — a source entity destroyed without a record — is structurally uncatchable for faces, which is `S15`'s hole unchanged. **What is new since the finding was written** is that the consumer now argues the hole away rather than leaving it silent: `crates/editor-core/src/names/emit_blend.rs:259-262` says *"Faces are never retired — a support shrinks, it does not die"*. So the row is a decision, not a patch: either that argument is the answer and belongs at `Retired` itself, or it is not and the channel is owed. **Cheaper taken with `D324`** — same file, same subject. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S111(d)`, via `D124` |
 | **D324** | **`naming.rs`'s *"What consumes these rows"* header is false about its one consumer** (`S112(a)`, re-homed by `D124`; verified standing, and the rename moved the name it cites). `crates/sweep/src/blend/naming.rs:38-40` says `editor-core`'s `names::emit_blend` *"reads every field EXCEPT [`Retired`]"*; `crates/editor-core/src/names/emit_blend.rs:242-243,259-260` builds `retired_e`/`retired_v` out of `rec.dead` and consults them on every row. **Sharper than the finding recorded**: the consuming site cites *"(module docs)"* straight back at the paragraph that denies it, so the two halves of one claim contradict each other across the crate boundary and each points at the other as its authority. One paragraph, and it is the same file as `D323`. **Blocked while a BLEND lane is live in `blend/`** (BLEND-4, PR #1360 — `T-R7`) | `S112(a)`, via `D124` |
-| **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
+| **D320** | `sweep/src/skin.rs:760`'s `lift_surface` — the one production copy of the scalar lift outside `geom/` (citation re-derived 2026-09-02; the `:774` it was filed at is now a section comment). It rebuilds the control net by hand and goes back through `NurbsSurface::new`, so it returns a `Result` whose error is unreachable for a surface that already validated, and `sweep/src/loft.rs:348` maps that error into `LoftError::Skin(SkinError::Structure)`. `NurbsSurface::map_scalar(T::from_f64)` is the infallible, exact lift the payload now carries: the function, its `Result`, the `loft.rs` mapping and the four `sweep/tests/` callers' `.expect("lifts")` go with it | Track N, filed |
 | **D325** | **The corner fusion's `first_arc` is this fence's last `EmptyChain`-shaped arm** (`D96`'s ninth in-fence member, re-homed when `T-c` disposed of the other eight). `crates/sweep/src/blend/surgery.rs` holds `let Some(arc) = first_arc else { unreachable!(…) }` in the corner fusion, and its proof — *a corner's incidence list holds at least the link that discovered it* — is already a fact of the TYPE one level up: `CornerLinks::first` returns a link rather than an `Option`. **Row 0's answer is therefore yes**, and the cost is what put it outside `T-c`: `CornerLinks::sorted` hands back a `Vec`, so carrying the non-emptiness into the arc loop means a seeded return — `(first, rest)`, the shape `CornerLinks` already has in its own fields — plus hoisting a forty-line mutation body that holds `&mut Body`, across the three `sorted` call sites. **Cheaper taken with any lane that opens the corner fusion for another reason** | `D96`, via `T-c` |
 
 ## Track U — the exchange surface and the bindings
@@ -7230,6 +7134,7 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 
 | # | What | Was |
 |---|---|---|
+| **D368** | **`editor-core/src/eval/anchor.rs:238` lifts a `Vec3` by hand (filed by CERT-N1)** — it is `Vec3::map(T::from_f64)`, which `geom_core::linalg` carries since CERT-N1; the hand spelling goes | CERT-N1 (PR 1536), filed |
 | **G4** | `profile`'s fifth lane trait, blanket-implemented, which D1 never looked at — `ArcCarrierScalar` over `T: Decide + Bounds`, so `Dual64` carries the whole arc surface. **Per Evan's ruling this is mechanical**, both of its old gates have fallen (#791, #801), and **the collapse is proven mechanical** — executed and discarded under PR 1453 (49 sites plus two import lines; identical test counts; instantiation set identical by construction, the trait having no items and one blanket impl). **What holds it now**: the retirement reds `scripts/gates/bounds-allowlist.sh` (entries for `family.rs` and `program.rs`, plus KNOWN GAP 3's text, which names this trait as its example) — Track K's fence, so it lands as one piece with K's `D68` answer or an allowlist row filed there (UV-R8). It is also a breaking public-API removal: `pncad::profile` re-exports the trait. The gate-visibility half is Track K's `D68` and is not discharged by this row | Track G |
 | **D367** | **The D344 class's two `editor-core` members** (found by uv-j's sweep, verified by its review): `names/flush.rs::declare_all` returns `(applied.doc, id)` and `refactor.rs::rem_apply` takes `applied.doc` + `minted` — both drop `applied.maintenance`, so a caller composing either loses the maintenance record the edit performed. The fix shape is PR 1503's one-accept-funnel, one level down; check what each caller does with the record before assuming a stored mirror exists to go stale | uv-j, unrowed |
 | **D366** | **`D39` one door up, with a 48-arm parallel match waiting on it** (filed at PR 1490's close, both halves verified by its review): `NodeErrorKind` is `#[derive(Debug)]` only — its doc says kernel errors are carried UNALTERED, so it inherits every kernel error's derive poverty — and `pncad-py`'s `node_error_tag` is an exhaustive 48-arm parallel match on it (#1480's shape again; **the `pncad-py` half rides by the same fence exception `D75` carried**). The unit that takes it also decides, uniformly for BOTH kind mirrors, whether a `transition_table!`-style single declaration replaces the hand mirror — PR 1490's review showed the hand shape leaves the phantom-variant direction red only downstream. The `topo::BooleanError` sibling is #1491, Track Q's | uv-e, unrowed |
@@ -7248,6 +7153,8 @@ its own tests in its own PR, as always.
 
 | # | What | Was |
 |---|---|---|
+| **D385** | **Hand-written payload lifts in test crates, one class (filed by CERT-N1)** — a NURBS control net rebuilt coordinate by coordinate through `from_f64` and pushed back through `new(..).expect(..)`: `topo/tests/fixture/mod.rs:249` (`lift3`) and `:258` (`lift2`), `topo/tests/review_ssiflat_r1_probes.rs:113`, `topo/tests/review_ssiflat_r2_probes.rs:103`, `topo/tests/m6_3_chart_completion.rs:124`, `geom-brep/tests/review_m5_pr3_e2e.rs:99`; and the profile-vertex form at `profile/tests/common/mod.rs:40`, `generic_replay.rs:49`, `guided_replay.rs:332`, `cert4r1_e2e.rs:28`, `editor-core/tests/m10_p_fence.rs:397`, `cert3r1_dump.rs:97`. Each is `NurbsCurve2/3::map_scalar(T::from_f64)` / `NurbsSurface::map_scalar` or `Point2::map(T::from_f64)` — infallible and exact, so the `expect` goes with the hand spelling. Reviewer-authored batteries whose independence from `map_scalar` is their stated regression value are exempt (CERT-N1's retain/retire criterion): the `fixture/`, `common/` and `*_replay` files are fixtures, the rest batteries — decide per file | CERT-N1 (PR 1536), filed |
+| **D384** | **`S89`'s rides-along, three copies**: `trv()`/`healthy()` and the whole `the_fixture_is_a_finite_bracket_that_cannot_certify` row are restated verbatim in `crates/geom/tests/{curves,surfaces}/decoration_ring_coords.rs` (same filename in sibling directories, one `geom` binary) and a third time in `crates/topo/src/props.rs`'s `bracket_seam_tests` (unowned ground — `D222`'s fence question applies before that copy moves). One fixture home, three consumers | CERT-M1 (PR 1533), filed |
 | **D113** | Decide what an intra-doc link in a `tests/` file is (S135): `cargo doc` builds no test targets, so every one is inert on every tier and nine are already broken. **Closes on a decision plus its mechanism** | Track G |
 | **H12** | Eleven `compile_fail` doctests in `geom-core/tests/` have never been collected (S214) — each asserts the compiler rejects a specific program, so each is a negative proof no tier has ever run | Track H |
 | **S216** | The repo has ~39 `compile_fail` rows and not one verifies what it claims — 28 of the 36 collected ones carry an error code that is never compared to anything. **The generalisation of `H12`, and the two want one lane** | unrowed |
@@ -7852,8 +7759,9 @@ Count: S59 (the ruling swept to two gates, not the third, in the same
 directory), S60 (`volume_pad` fixed, `area_pad` twelve lines away not),
 S63 (same), S68 (`split_edge`'s discards ten lines below the same diff's
 `unreachable!` conversions), S74 (markers deleted at the copy sites), S80,
-S84, S85 (`Enclosure` and `CertifiedEnclosure` corrected, `Bounds`'
-headline not), S101 (the sweep deleted the fact rather than re-aiming
+S84, the `Bounds` headline (`Enclosure` and `CertifiedEnclosure`
+corrected by the same sweep, the trait D1 demoted out of the role left
+saying it), S101 (the sweep deleted the fact rather than re-aiming
 the pointer), S102, S110(b), S114(f), S116(m). (`S110` has since
 closed, with #1329; the citation is to what it recorded, which is how
 every closed number in this list reads.)
@@ -8022,7 +7930,8 @@ edit `docs/prompts/reviewer-style-lane.md`):
 ## C25. Documentation growth is still the default response to a finding
 
 C5 measured this in the first scan; it has not turned. Measured this
-round: `real.rs`'s `Bounds` block 156 → 234 lines (S85);
+round: `real.rs`'s `Bounds` block 156 → 234 lines, and 399 by the time a
+lane took it;
 `crates/mesh/src/curved.rs` 243 → 712 production lines, 60% comments,
 with ~180 doc lines over ~55 lines of guard code (S116g);
 `SAFE_ASPECT`'s doc ~20 → ~50 lines while the constant did not move

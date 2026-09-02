@@ -887,6 +887,72 @@ transition_table! {
             }
         }
     }
+    #[doc = " `continue_to(target)` — the DECLARED straight continuation"]
+    #[doc = " landing on a named point; `Start` is the structural closer."]
+    verb ContinueTo(Target<T>) bind (target) rows {
+        row {
+            /// **The declared point-target continuation** (`directed point →
+            /// directed point`, and `→ closed loop` for [`Start`]): the same
+            /// leg the straight-continuation row emits, with its extent said
+            /// as an authored POINT instead of a length. The departure is the
+            /// directed point's own tangent — the RAY inherited bitwise, no
+            /// authored direction, no junction to classify — and the target
+            /// says where the leg stops.
+            ///
+            /// **The declaration is the verb.** `line_to(p)` computes a
+            /// direction toward `p` and classifies it, which is why a
+            /// collinear target refuses there: reading "this was meant to be
+            /// straight" off a direction that happened to land in band is the
+            /// value inference the ladder refuses. Here nothing is read off
+            /// the target's position: the leg is straight because the verb
+            /// says so, and the target is CHECKED against the ray it declared
+            /// — authored data verified against authored intent, the arc
+            /// verbs' consistency class. A target that misses refuses
+            /// [`PathError::ContinuationTargetOffRay`]; one behind the
+            /// departure is a non-positive leg, exactly as for `line(len)`.
+            ///
+            /// The check is BANDED, as every check here is (ruled 2026-09-01):
+            /// coincident with the ray below ε_precision, definitely off it
+            /// above ε_input, escalating in between. It is the declaration
+            /// that makes the band legal — with the intent authored there is
+            /// no coincidence to read intent from.
+            ///
+            /// The minted vertex is the AUTHORED TARGET, not its projection
+            /// onto the ray (§4 item 3: every authored point lies on the final
+            /// path). For [`Start`] that is what closing MEANS — the loop
+            /// reaches its entry vertex exactly — and it is why the closer can
+            /// end a run the tangent-arc close and the rotation cannot: those
+            /// two need a carrier to turn onto, and an all-sides-subdivided
+            /// outline has none.
+            ///
+            /// Closing runs the SEAM check unchanged: the junction between
+            /// this leg and the entry's own departure is the loop's, and PQ4
+            /// still wants a corner there
+            /// ([`PathError::SeamTangent`] when it is not one — a refusal
+            /// only a seam can produce). What the closer removes is the
+            /// DEPARTURE half of the old wall, which is the half a rotation
+            /// could never fix; that half is now an ordinary
+            /// [`PathError::JunctionTangent`], the same refusal any other
+            /// departure gets.
+            ///
+            /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
+            /// point this authors a line tangent to that arc and declares
+            /// nothing, legal to write and refused at the data gate
+            /// ([`crate::ProfileError::UndeclaredTangency`]), exactly as the
+            /// length form is.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn continue_to [<Tgt: super::ContinueTarget<T>>(
+                self,
+                target: Tgt,
+                tol: Tol,
+            ) -> Tgt::Out] {
+                <Tgt as super::ContinueTarget<T>>::continue_from(self, target, tol)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, tol),
+            }
+        }
+    }
     #[doc = " `arc_to(spec)` — the sharp arc leg, every mode in the one"]
     #[doc = " unified [`ArcData`] record; the mode the author wrote is"]
     #[doc = " what is kept, because the VQ contracts rely on it."]
@@ -1851,6 +1917,17 @@ fn do_line_to<T: Decide, F: Flavor>(
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
+    }
+}
+
+fn do_continue_to<T: Decide>(
+    p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+    t: Target<T>,
+    tol: Tol,
+) -> Applying<T> {
+    match t {
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.continue_to(q, tol)?))),
+        Target::Start => Ok(Applied::Closed(p.continue_to(Start, tol)?)),
     }
 }
 

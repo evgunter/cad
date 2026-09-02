@@ -718,3 +718,165 @@ Slate: the defect cluster is clear (CERT-1..10 all merged). Next the
 CERT-M/CERT-N track lanes (CERT-M1 in flight, CERT-N1 dispatching from
 this merge), the blinded tally adjudication (CERT-1×2, CERT-6×1,
 CERT-10×1), and the exit walk.
+
+### CERT-M1 — Track M's trait-ground rows (D221, H3+H4, H10+S211, D78) — MERGED
+
+PR 1533; spec `docs/CERT-M1-SPEC.md` (cert/orchestrator bacc06e2); block
+CERT-B3 slot 2 (byte 27, fable at 3 → OPUS); ordinal 709 claimed at
+dispatch (main 60cf4883a); sample number at merge. The first absorbed
+SMELL track: no kernel behaviour moves, so the two track questions and
+§D rule 5 carried the review.
+
+Delivered head ef27ed03a (six commits on 75e98361; +586/−546 over nine
+files). Its gate drew k-lint's probe+interval row and redded on a
+MAIN-SIDE breakage — two independent `display_unit` fixes (PRs 1523 and
+1526) had both merged and the file kept both lines — so the frozen review
+head 1318b6d10 is the delivered head plus one orchestrator-direct two-line
+dedupe port (fixed on main by PR 1534, a no-op since); disclosed in the
+amended method note (cert/ab-state da4e9eb1a). Gate 33572738826 green,
+both ε=1e-12 lanes trailer-pinned.
+
+Dual (v6, sequential; byte 112 parity 0 ⇒ R1 OPUS + R2 FABLE): R1 A-W-F
+1/8/6 — MAJOR by execution: `powi`'s derived ceiling used a normal-range
+relative bound while `WINDOWS[1] = (-1074, -960)` is entirely subnormal
+and ceiling-carrying, and `powi[n=-1]` measured 14 → 17 → 18 against 25
+across efforts, the one ceiling in the file with no stated margin; R2
+A-W-F 0/7/~8 (rubric 4/3/3/4/3) found the SAME substance by a probe at
+x = 2⁻¹⁰²⁴ (9 endpoint steps where the derivation entitles 6; "binade
+factor of 2" not the mechanism) and rated it MIN — severity divergence on
+converged substance again (the third unit), so NO clean unilateral
+executed MAJOR and no tally candidate; the pair's coding is deferred to
+the blinded adjudication. R2 re-took the 23-site sole-bound census
+independently (identical roster) and R1 did too (22 + the where-clause
+impl); both executed the bvh sentence's two halves by planting bounds.
+Bilateral: the H3 deviation argument wrong on both legs (a nested doc-only
+module needs no lib.rs line; the out-of-fence pointers name entries by
+label); S134's copysign→S1 handoff sentence vanished with the finding;
+the huge-window exclusion unargued (R1: the endpoint half; R2: the n>0
+half). R2-unilateral: the induction as written yields e(2) ≤ 3u, not the
+2u its own walk lists; the rule "No general projection helper exists, by
+this ruling" lost in the cut; the decoration-seam header still wrong
+(five crossings, enclose::ring pinned by nothing named); the doc's own
+deletion convention unmet (S85 still cited twice); S210 gained a
+line-numbered roster while the body claimed none. R1-unilateral: Track W's
+fence already covers geom-core/tests/, so the H10 filing was avoidable;
+the stale profile citations left in S88; `max_endpoint_steps: None`
+enforced by nothing; sweep 3 over-claimed.
+
+Fix pass (implementer-inherited, all 12 items taken, none declined): the
+derivation's DOMAIN stated and the subnormal arm scored per draw against
+`powi_subnormal_entitlement` (26 vs measured 9 at R2's corner; n=−1 now
+4.2× and no longer moves with the seed; tightest margin 3.0× at n=31);
+the induction rewritten to the recurrence the numbers come from, with the
+4·pad+1 conversion given one home; the huge window excluded by mechanism
+(five unary functions now score endpoints there); `Bound<T> = Scored |
+Divergent(&'static str)` on all five ceiling dimensions, no `None`
+anywhere; the ledger moved into `geom_core::real::bounds_allowlist`
+(the `Bounds` doc block 399 → 261 → 94 lines) with the lost rule and the
+`r1_dual_probes` back-pointer restored; the decoration-seam header naming
+all five crossings and what pins each; H10 CLOSED WITH THE INSTRUMENT —
+`crates/geom-core/tests/bounds_census.rs` pins the 23-site roster with a
+disposition per door under a one-line orchestrator fence widening (its
+`reader_census.rs` ledger line), planted `fn planted_probe<T: Bounds>`
+reds it; S1 carries the copysign handoff; whole-file citation sweep for
+the deleted findings 0 hits (two more re-aimed); both reviewer probe
+suites adopted with authorship preserved (cert/m1r1-probes,
+cert/m1r2-probes pushed). Then a clean main merge (58 files, none in
+fence). Final head 8fd550efc: run 33580836185 all green, both lanes at
+1e-12 by trailer.
+
+Filings landed on main by the orchestrator after merge (SMELL-SCAN):
+S89's three aliases — Track N (`spline/hull.rs:113-118` `bracket`),
+Track Q (`ssi/enclose.rs:192-197` `ring`), unowned `topo/src/props.rs:
+1166-1176` `br` (fence to be drawn; natural owner whoever takes S213);
+Track W's verbatim-fixture rides-along (three copies, incl.
+`props.rs::bracket_seam_tests`); Track K's two S211 residues
+(bounds-allowlist.sh header trim; the bvh allowlist/amendment
+reconciliation). The Track W instrument filing is WITHDRAWN — landed.
+
+Slate: CERT-N1 (PR 1536, ordinal 710) in its dual; then CERT-M2/M3 and
+CERT-N2/N3 under a new block, the blinded tally adjudication (CERT-1×2,
+CERT-6×1, CERT-10×1), and the exit walk.
+
+### CERT-N1 — Track N's scalar-lift lane (D240, D241, D242, D243, C24) — MERGED
+
+PR 1536; spec `docs/CERT-N1-SPEC.md` (cert/orchestrator bacc06e2); block
+CERT-B3 slot 3 (byte 27, fable at 3 → FABLE); ordinal 710 claimed at
+dispatch (main 789149665); sample number at merge. Branched off
+a654dc6a2 (main after CERT-10) so `TensorNet` was live in the fence.
+
+Delivered and frozen head 836af9de0 (six commits; +785/−654 over
+seventeen files, all in fence plus the SMELL-SCAN landing). D240
+red-first: four rows red on the old ladders (`lifted x = NaN vs source
+2`), green after `Curve3::map_scalar`/`Surface::map_scalar` — one
+exhaustive match per enum with the conversion as the parameter, the
+payload lifts homed with their types; D241 the same diff; D242
+(`ControlPoint::channels`) and D243 (`InteriorKnot`) row-0 deletions;
+C24's NURBS member measured (a 35–45% discard) and fixed bit-identically
+(150,000 components). The lane disclosed one verification gap (geom-brep's
+integration suite not run locally); gate 33575803948 green, both ε=1e-12
+lanes trailer-pinned.
+
+Dual (v6, sequential; byte 142 parity 0 ⇒ R1 OPUS + R2 FABLE; R2
+stalled once on a background wait of its own making and was resumed by
+the orchestrator with the same brief): R1 A-W-F 0/4/2 — the lift
+UPHELD by execution (an adversarial battery: degree 5 at multiplicity
+p−1, weights 1e-8..1e8, a rational full circle, a 2-D curve, a (3,2)
+sheet; dual value channel bit-identical, tangents to 1e-11, interval
+enclosures degenerate at the control points; a weight-dropping mutation
+reds; a 103,401-component cross-commit bit dump for C24), and the
+geom-brep suite run in full in both lanes; its MINs: the red-first
+fixtures have NO interior knots, so a knot-perturbing mutation left the
+whole suite green (executed); `topo/src/props.rs:700`'s "no other scalar
+can hold an ApproxSurface" falsified by the public lift and unfiled;
+S33's out-of-fence population claim deleted on a false premise (five
+topo/tests + one profile/tests hand payload lifts remain);
+review_m2_pr1's "verbatim" header stale. R2 A-W-F 0/4/~9 (rubric
+5/4/3/4/5) — the lift upheld again (11,760 cross-commit components; a
+knots_v := knots_u mutation reds — via an index panic, which became an
+item), the composition bit-identical to the retired hand spelling; its
+MINs: the Track R draft would RE-MINT C24 (the order-2 jet discards C″;
+measured ~50% slower than two passes); the same props.rs premise (four
+copies); the same unfiled lifts plus `edge_nurbs.rs:576-581` and
+`loft.rs:215`; `map_scalar` as a second constructor bypassing `new`'s
+checks. Three bilateral substances, no MAJOR either arm ⇒ NO tally
+candidate.
+
+Fix pass (implementer-inherited, all 12 items taken, none declined):
+structure-pinning rows with interior knots up to p−1 and extreme
+weights, red under a knot-shifting mutation in both lanes (38/2 per
+lane) and green after; every payload lift through a private
+`from_validated_parts` door that says why `new`'s check is redundant
+(row 5 debug_assert on the counts); `ders1_in_span` exposed — one
+order-1 pass, 336 ns vs 399 (two passes) vs 573 (the discarding jet) at
+degree 2, pinned bit-identical (60,000 components), `deriv_in_span` its
+projection; the sweep re-run with BOTH shapes and the "roughly ten"
+population found (hand payload lifts in topo/profile/editor-core/
+geom-brep tests, `edge_nurbs.rs`'s rescale-plus-lift, `loft.rs`'s
+`lift_affine`, `anchor.rs`'s `Vec3` lift) and filed per owning track,
+with `Mat3::map`/`Affine3::map` minted so the T row is a one-liner; the
+props.rs premise filed (D223, in CERT-M2's drawn fence — the running
+lane told to take it); `InteriorKnot` pub(crate) with the
+privacy-plus-type proof stated; the header, the criterion stated once,
+`#[must_use]` uniform, one home for the poison argument; both probe
+suites adopted with authorship preserved (cert/n1r1-probes,
+cert/n1r2-probes pushed). Then the main merge carrying CERT-M1 (one
+SMELL-SCAN conflict at the Track N table, resolved keeping D244 and the
+H2 edit); ε sweep 560/560/560 and 722/722/722; geom-brep 465/0. One
+deviation: the trailer head is an `--allow-empty` commit atop the merge
+(the filter reads the head commit only; Evan authorized dummy commits as
+CI kicks on 2026-09-01). Final head 0899de802: run 33584286425 green,
+both lanes at 1e-12 by trailer.
+
+Filings landed on main by the orchestrator after merge (SMELL-SCAN):
+Track W D385 (the hand-payload-lift class in test crates), Track Q D290
+(`edge_nurbs.rs`'s two-operations-as-one), Track T D321 (`lift_affine`),
+Track V D368 (`anchor.rs`'s `Vec3` lift), Track M D223 (the props.rs
+premise; CERT-M2's fence), Track R D306 (`offset_fit.rs:432-437`'s note
+and `loop_area.rs:163-164`'s one-call rewrite through `ders1_in_span`).
+Track N's surviving rows: H2 (CERT-N2), S235/D98/D31/D244/C24 (CERT-N3).
+
+Slate: CERT-M2 in implementation (block CERT-B4 slot 0); CERT-N2 next
+(slot 1); CERT-M3 after M2 (slot 2); CERT-N3 after N2 (slot 3); then the
+blinded tally adjudication (CERT-1×2, CERT-6×1, CERT-10×1) and the exit
+walk.

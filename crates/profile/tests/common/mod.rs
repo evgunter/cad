@@ -505,6 +505,41 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
+    // 13. The DECLARED point-target continuation and its structural
+    //     CLOSER: a square whose every side is subdivided at one
+    //     interior vertex — four corners said on eight — with the seam
+    //     cut at a corner and the last side crossing it. Each
+    //     subdivision names the point it lands on and is checked
+    //     against the ray it declared; the closer names `Start`. This
+    //     is the shape the ruling was for, and the only chain here in
+    //     which a straight run crosses the seam.
+    let subdivided_square = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(2.0, 2.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(0.0, 2.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(Start, Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -520,6 +555,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         eye,
         lune,
         mode_legs,
+        subdivided_square,
         circle,
         split,
     ]

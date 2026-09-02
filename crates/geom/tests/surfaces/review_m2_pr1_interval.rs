@@ -9,8 +9,14 @@
 //!
 //! Runs in CI's interval lane (`--features interval`; the workspace's
 //! x86-64-v3 floor applies). Promotion adaptations (mechanical only):
-//! the standard test-lint allows below; everything else is verbatim.
-//! Placement rationale: see `review_m2_pr1.rs`.
+//! the standard test-lint allows below. One later edit is NOT
+//! mechanical and is the one exception to "verbatim": the reviewer's
+//! hand-written `Surface<f64> → Surface<Interval>` ladder and its
+//! `Dual<Interval>` re-spelling were retired for `Surface::map_scalar`,
+//! under the rule that a scalar-EMBEDDING helper carrying the
+//! `Nurbs(_) => nurbs_placeholder()` substitution is retired while a
+//! battery's independent DERIVATION stays. Every derivation in this
+//! file is untouched. Placement rationale: see `review_m2_pr1.rs`.
 #![cfg(feature = "interval")]
 #![allow(
     clippy::unwrap_used,
@@ -300,83 +306,6 @@ fn basis_interval_contains_f64() {
 // 5. Evaluators: enclosure containment sweeps + decoration chains
 // ---------------------------------------------------------------------
 
-fn lift_surface(s: &Surface<f64>) -> Surface<Interval> {
-    let ip = |p: Point3<f64>| {
-        Point3::new(
-            Interval::from_f64(p.x),
-            Interval::from_f64(p.y),
-            Interval::from_f64(p.z),
-        )
-    };
-    let ivc = |v: Vec3<f64>| {
-        Vec3::new(
-            Interval::from_f64(v.x),
-            Interval::from_f64(v.y),
-            Interval::from_f64(v.z),
-        )
-    };
-    match *s {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => Surface::Plane {
-            origin: ip(origin),
-            normal: ivc(normal),
-            u_ref: ivc(u_ref),
-        },
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: ip(origin),
-            axis: ivc(axis),
-            radius: Interval::from_f64(radius),
-            u_ref: ivc(u_ref),
-        },
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => Surface::Cone {
-            apex: ip(apex),
-            axis: ivc(axis),
-            half_angle: Interval::from_f64(half_angle),
-            u_ref: ivc(u_ref),
-        },
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => Surface::Sphere {
-            center: ip(center),
-            radius: Interval::from_f64(radius),
-            axis: ivc(axis),
-            u_ref: ivc(u_ref),
-        },
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => Surface::Torus {
-            center: ip(center),
-            axis: ivc(axis),
-            major_radius: Interval::from_f64(major_radius),
-            minor_radius: Interval::from_f64(minor_radius),
-            u_ref: ivc(u_ref),
-        },
-        // The corpus below is analytic; neither spline kind has an
-        // interval fixture to lift.
-        Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
-    }
-}
-
 fn surfaces() -> Vec<(&'static str, Surface<f64>)> {
     let c = Point3::new(-0.5, 4.0, 1.25);
     let axis = Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0);
@@ -443,7 +372,7 @@ fn wide_box_images_contain_sampled_f64_images() {
         (iv(6.0, 6.6), iv(0.0, 0.1)),  // 2π-straddling u
     ];
     for (name, s) in surfaces() {
-        let si = lift_surface(&s);
+        let si = s.map_scalar(Interval::from_f64);
         for (ub, vb) in boxes {
             let img = si.eval(ub, vb);
             let du = si.deriv_u(ub, vb);
@@ -520,7 +449,7 @@ fn tier3_interval_certification() {
 /// an empty input stays poison through the same chain.
 #[test]
 fn decoration_chain_through_reduce_and_eval() {
-    let ci = match lift_surface(&surfaces()[1].1) {
+    let ci = match surfaces()[1].1.map_scalar(Interval::from_f64) {
         s @ Surface::Cylinder { .. } => s,
         _ => unreachable!(),
     };
@@ -561,36 +490,11 @@ fn decoration_chain_through_reduce_and_eval() {
 /// seam (unbounded where the reduction jumps).
 #[test]
 fn dual_interval_consumer_chain() {
-    let ci = match lift_surface(&surfaces()[1].1) {
+    let ci = match surfaces()[1].1.map_scalar(Interval::from_f64) {
         s @ Surface::Cylinder { .. } => s,
         _ => unreachable!(),
     };
-    let cd: Surface<DualInterval> = match &ci {
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Surface::Cylinder {
-            origin: Point3::new(
-                Dual::constant(origin.x),
-                Dual::constant(origin.y),
-                Dual::constant(origin.z),
-            ),
-            axis: Vec3::new(
-                Dual::constant(axis.x),
-                Dual::constant(axis.y),
-                Dual::constant(axis.z),
-            ),
-            radius: Dual::constant(*radius),
-            u_ref: Vec3::new(
-                Dual::constant(u_ref.x),
-                Dual::constant(u_ref.y),
-                Dual::constant(u_ref.z),
-            ),
-        },
-        _ => unreachable!(),
-    };
+    let cd: Surface<DualInterval> = ci.map_scalar(Dual::constant);
     // Away from the seam: reduce then evaluate; tangent finite and the
     // value channel identical to the plain run.
     let theta = Dual::new(Interval::from_f64(7.0), Interval::from_f64(1.0));

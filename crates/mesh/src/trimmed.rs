@@ -528,13 +528,21 @@ pub(crate) fn tessellate_trimmed(
             //
             // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The chart
             // half is checked at the lane choice, which runs for BOTH
-            // lanes. The column half is checked at the cylinder arm's
-            // `nu`, and this emit pass also runs for NURBS — where
-            // there is no `nu`, because the candidates come from the
-            // cell grid rather than a uniform division, so the
-            // "single interior column" the fan needs has no analogue
-            // to test. That is the argument for the NURBS half, and it
-            // is an ARGUMENT: only the cylinder half is checked.
+            // lanes. The INGREDIENT half — a repeated id with a single
+            // interior column between the entries — is checked at the
+            // cylinder arm's `nu`, and this emit pass also runs for
+            // NURBS, where there is no `nu`: the candidates come from
+            // the cell grid rather than a uniform division, so the
+            // "single interior column" has no analogue to test. That
+            // arm's ingredient check is therefore still an ARGUMENT
+            // and not a check.
+            //
+            // ITS EMISSION IS NOT (issue 897). The census after this
+            // loop re-derives the CONCLUSION over the emitted patch,
+            // and it needs no `nu` — it counts uses of the edges
+            // incident to a repeated id, which both arms have. So the
+            // NURBS arm, which had neither half, now has the half that
+            // actually observes the defect.
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
@@ -652,6 +660,29 @@ pub(crate) fn tessellate_trimmed(
             }));
             break 'retry;
         }
+        // D2 addendum row 5, the same re-derivation `curved`'s emit
+        // pass makes and for the same class (issue 897): an edge
+        // incident to a vertex this walk placed at two distinct UV
+        // locations, used more than twice inside ONE patch, is the
+        // non-manifold state the duplicate-id drop above is claimed
+        // never to produce. This lane's only source of such a vertex
+        // is the full-2π seam double-traversal — no chart singularity
+        // reaches it — so on every other face the set is empty and the
+        // census returns on one branch.
+        #[cfg(debug_assertions)]
+        {
+            let identified =
+                crate::walk::ids_at_two_uvs(polygon.iter().map(|&(u, v, id)| (u, v, id)));
+            let over = crate::walk::overused_identified_edge_in(&identified, &triangles);
+            debug_assert!(
+                over.is_none(),
+                "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
+                 patch; the duplicate-id drop left something other than a fan — see \
+                 curved::pole_columns, issue #678",
+                over.map(|(e, _)| e),
+                over.map_or(0, |(_, n)| n)
+            );
+        }
         positions.extend(staged);
         outcome = Some(Ok(triangles));
         break 'retry;
@@ -717,21 +748,12 @@ pub(crate) fn tessellate_trimmed(
 /// (`curved::pole_columns` carries the argument; the first ingredient
 /// is a single interior column between them).
 ///
-/// **"Different" means what SPADE means by it**, which is why this
-/// compares `f64`s and not their bits. Spade's vertex lookup is
-/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0`
-/// are ONE spade vertex and two bit patterns. A `to_bits` compare
-/// would report "apart" exactly where spade dedupes, which is this
-/// file's own complaint (an invariant restated in a spelling that
-/// disagrees with the module it is about) converted rather than
-/// closed. Two entries spade merges are one CDT vertex and cannot be
-/// fanned apart; two it keeps can.
-#[allow(clippy::float_cmp)]
+/// The rule for "different" is spade's and is stated once, at
+/// [`crate::walk::ids_at_two_uvs`], which both lanes call. This
+/// function is that set's emptiness, named for the question the
+/// cylinder arm's `debug_assert` asks.
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
-    polygon
-        .iter()
-        .any(|&(u, v, id)| seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)))
+    !crate::walk::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim

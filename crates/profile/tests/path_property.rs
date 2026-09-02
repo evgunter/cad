@@ -480,7 +480,7 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
 }
 
 #[test]
-fn tangent_line_close_refuses_always() {
+fn the_seam_tangent_close_refuses_always() {
     // The seam junction of a straight closer within the tangent band:
     // the closing line arrives at Start along the entry departure —
     // the PQ4 mid-side seam, refused with the two structural
@@ -496,7 +496,7 @@ fn tangent_line_close_refuses_always() {
         .line_to(p2(-2.0, 0.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness());
-    assert!(matches!(refused, Err(PathError::TangentLineClose { .. })));
+    assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
 }
 
 #[test]
@@ -1980,40 +1980,51 @@ fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
     validate_ok(&declared);
 }
 
-/// **Where the continuation stops: the seam.** (Ruled since, 2026-09-01:
-/// the declared point-target continuation and its `Start` closer end
-/// this wall — BOOL-11. These rows pin the wall as it stands and become
-/// that unit's red-first evidence.)
+/// **Where the continuation stops — and where it no longer does.**
+/// (BOOL-8 pinned this as a two-rotation WALL; the ruling's declared
+/// closer landed, and the row records what actually moved.)
 ///
-/// BOTH rotations refuse the same KIND, `TangentLineClose`, but they
-/// fire at DIFFERENT call sites, and the fixtures isolate which by
-/// construction rather than by reading the payload: the refusal type
-/// carries only a margin, so kind is all an assertion can name. In
-/// rotation 1 the seam junction is a kite TIP — a definite corner,
-/// asserted below — so only the closer's departure check can be in
-/// band; in rotation 2 the closer departs that same definite corner, so
-/// only the seam check can be. One in-band junction each, and a
-/// different one.
+/// The fixture is lily's section: four corners, every side subdivided
+/// at one interior vertex, eight vertices on a four-corner outline (the
+/// loft's vertex budget). Interior subdivisions authored fine already;
+/// the side that CROSSES the seam is what this row is about, and the
+/// two rotations were never the same refusal wearing one name.
 ///
-/// What forces the wall is the strict corner/subdivision ALTERNATION
-/// that one subdivision per side produces: the seam junction and the
-/// junction the closer departs are always adjacent, hence always of
-/// different kinds. An outline free to spend the same vertex budget
-/// unevenly has spellings that close; this one is not free, because the
-/// loft pins which vertex sits where.
+/// - **Rotation 1 — seam at a CORNER.** The closer departs the run's
+///   subdivision vertex, so the junction in band is the CLOSER'S OWN
+///   departure. Undeclared, that still refuses
+///   (now an ordinary `JunctionTangent`): `line_to(Start)` computed
+///   a direction and found it collinear, and reading intent off that is
+///   the inference the ladder refuses. DECLARED, it closes —
+///   `continue_to(Start)` takes the departing point's own ray and
+///   checks `Start` against it. This half of the wall is over.
+/// - **Rotation 2 — seam at the SUBDIVISION vertex.** The closer
+///   departs the corner asserted below, and the junction in band is the
+///   SEAM'S. That is a mid-carrier seam, PQ4, and no spelling of the
+///   closing leg moves it: `line_to(Start)` refuses
+///   `SeamTangent`, and the declared closer does
+///   not apply at all — the leg departs a CORNER here, so `Start` is
+///   off its ray and the verb refuses that first.
 ///
-/// The lily section is the
-/// shape the ruling was for — four corners, every side subdivided at
-/// one interior vertex, eight vertices on a four-corner outline (the
-/// loft's vertex budget). Interior subdivisions author fine; the side
-/// that CROSSES the seam does not, in either rotation, because the
-/// closer's direction is authored (through `Start`) at a junction that
-/// is a straight continuation. Seam at a corner: the closer departs
-/// the subdivision vertex. Seam at a subdivision vertex: the seam's
-/// own junction is the straight one, which PQ4 (no mid-carrier seam)
-/// refuses by construction. Pinned as the residual, not as a wish.
+/// The premise both rotations rest on — that the tip `right` is a
+/// DEFINITE corner — is measured here rather than argued, because it is
+/// what makes each rotation have exactly ONE in-band junction. The site
+/// The two mechanisms are separable at the REFUSAL rather than only
+/// through the fixture that provoked each — which was BOOL-8's ask —
+/// and they are separable by TYPE: `JunctionTangent` for a departure,
+/// `SeamTangent` for a seam. That is strictly better than the payload
+/// tag an earlier draft used. A tag has to be read and can be ignored
+/// by a `{ .. }` pattern; two types cannot be confused by a caller,
+/// cannot be matched by accident, and let each refusal carry only the
+/// payload its own recourse needs.
+///
+/// The departure half is an ORDINARY refusal now, and deliberately so:
+/// a tangent departure on a closing leg is geometrically identical to
+/// one mid-chain, and since the declared closer landed the recourse is
+/// identical too — so a close-only second name for it was uniformity
+/// debt, against PATHS' rule that `Start` goes through ordinary verbs.
 #[test]
-fn a_straight_run_across_the_seam_still_refuses_in_both_rotations() {
+fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
     let right = p2(1.0, 0.0);
     let ridge = p2(0.0, 1.5);
     let left = p2(-1.0, 0.0);
@@ -2021,10 +2032,6 @@ fn a_straight_run_across_the_seam_still_refuses_in_both_rotations() {
     let mid = |a: Point2<f64>, b: Point2<f64>| p2(0.5 * (a.x + b.x), 0.5 * (a.y + b.y));
     let half = |a: Point2<f64>, b: Point2<f64>| 0.5 * (b - a).norm_squared().sqrt();
     let t = Tol::witness();
-    // The premise both rotations rest on: the tip `right` is a DEFINITE
-    // corner (the junction that is NOT in band in either rotation), so
-    // each rotation has exactly one in-band junction and they are
-    // different ones. Measured here rather than asserted in prose.
     let m3 = mid(keel, right);
     let into_right = (right.x - m3.x, right.y - m3.y);
     let out_of_right = (ridge.x - right.x, ridge.y - right.y);
@@ -2033,8 +2040,6 @@ fn a_straight_run_across_the_seam_still_refuses_in_both_rotations() {
         turn_at_right.abs() > 0.5,
         "the seam corner must be definitely sharp, not near-tangent: {turn_at_right}"
     );
-    // Rotation 1 — seam at the tip `right`: three sides subdivide, and
-    // the closer refuses at the fourth side's subdivision vertex.
     let side = |chain: PartialPath<f64, HasPos<WithIncoming>, profile::path::NoAng>,
                 from: Point2<f64>,
                 to: Point2<f64>| {
@@ -2047,38 +2052,64 @@ fn a_straight_run_across_the_seam_still_refuses_in_both_rotations() {
             .line(half(from, to), t)
             .unwrap()
     };
-    let d0 = ridge - right;
-    let first = Open
-        .at(right)
-        .toward(d0.x, d0.y, t)
-        .unwrap()
-        .line(half(right, ridge), t)
-        .unwrap()
-        .line(half(right, ridge), t)
-        .unwrap();
-    let at_m3 = side(side(first, ridge, left), left, keel)
-        .toward(right.x - keel.x, right.y - keel.y, t)
-        .unwrap()
-        .line(half(keel, right), t)
-        .unwrap();
+    // Rotation 1 — seam at the tip `right`: three sides subdivide, and
+    // the closer departs the fourth side's subdivision vertex.
+    let at_m3 = || {
+        let d0 = ridge - right;
+        let first = Open
+            .at(right)
+            .toward(d0.x, d0.y, t)
+            .unwrap()
+            .line(half(right, ridge), t)
+            .unwrap()
+            .line(half(right, ridge), t)
+            .unwrap();
+        side(side(first, ridge, left), left, keel)
+            .toward(right.x - keel.x, right.y - keel.y, t)
+            .unwrap()
+            .line(half(keel, right), t)
+            .unwrap()
+    };
     assert!(matches!(
-        at_m3.line_to(Start, t),
-        Err(PathError::TangentLineClose { .. })
+        at_m3().line_to(Start, t),
+        Err(PathError::JunctionTangent { .. })
     ));
+    let closed = pinned(
+        at_m3()
+            .continue_to(Start, t)
+            .expect("the declared closer ends the run that crosses the seam"),
+    );
+    assert_eq!(closed.vertices().len(), 8);
+    assert!(closed.tangent_joints().is_empty());
+    validate_ok(&closed);
     // Rotation 2 — seam at the subdivision vertex `mid(keel, right)`:
     // the closer departs the corner asserted above, and the SEAM
-    // junction is the straight one.
+    // junction is the straight one. PQ4, unmoved by either spelling.
     let d = right - m3;
-    let round = Open
-        .at(m3)
-        .toward(d.x, d.y, t)
-        .unwrap()
-        .line(half(m3, right), t)
-        .unwrap();
-    let back_at_keel = side(side(side(round, right, ridge), ridge, left), left, keel);
+    let round = || {
+        Open.at(m3)
+            .toward(d.x, d.y, t)
+            .unwrap()
+            .line(half(m3, right), t)
+            .unwrap()
+    };
+    let back_at_keel = || side(side(side(round(), right, ridge), ridge, left), left, keel);
     assert!(matches!(
-        back_at_keel.line_to(Start, t),
-        Err(PathError::TangentLineClose { .. })
+        back_at_keel().line_to(Start, t),
+        Err(PathError::SeamTangent { .. })
+    ));
+    // The declared closer does not even APPLY here, and that is the
+    // sharper half: in this rotation the closing leg departs a corner,
+    // so it is not a continuation of anything — `Start` is off the ray
+    // the departing point defines, and the verb says so before the seam
+    // is ever classified. The seam refusal above is what the spelling
+    // that IS applicable gets. (A fixture where the closer is a
+    // continuation AND the seam is straight needs two consecutive
+    // subdivisions on one side, which strict alternation forbids;
+    // `bool11_probes` builds one and pins `site: Seam` from this verb.)
+    assert!(matches!(
+        back_at_keel().continue_to(Start, t),
+        Err(PathError::ContinuationTargetOffRay { .. })
     ));
 }
 // ==================================================================
@@ -2163,11 +2194,14 @@ fn r2_probe_arc_continuations_never_pass_validate() {
 }
 
 /// PROBE 3 (claim 5): third-spelling search for the lily seam wall,
-/// rotation 1 fixture (seam at the corner `right`). Every candidate
-/// closer the surface offers from the run's subdivision vertex
-/// refuses, and the continuation dead-ends structurally:
+/// rotation 1 fixture (seam at the corner `right`). Every UNDECLARED
+/// candidate closer refuses from the run's subdivision vertex, and the
+/// continuation dead-ends structurally. (The declared closer is the one
+/// that gets through, and the row above pins that; what this row keeps
+/// is that nothing in the undeclared alphabet does, which is what makes
+/// the declaration load-bearing rather than decorative.)
 ///  (a) `.tangent()` + tangent arc to Start — degenerates onto the
-///      carrier (TangentLineClose);
+///      carrier (SameCarrierJunction);
 ///  (b) the REVERSED traversal — same alternation, same wall;
 ///  (c) continuing `line(half)` to land exactly ON Start's
 ///      coordinates — a directed point, not a closure; the zero-length
@@ -2211,7 +2245,7 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
     // (a) declared + tangent arc to Start: degenerate onto the carrier.
     assert!(matches!(
         at_m3().tangent().tangent_arc_to(Start, t),
-        Err(PathError::TangentLineClose { .. })
+        Err(PathError::SameCarrierJunction { .. })
     ));
     // (b) reversed traversal (right -> keel -> left -> ridge -> right):
     // the closer still departs a subdivision vertex.
@@ -2231,7 +2265,7 @@ fn r2_probe_lily_seam_third_spellings_all_refuse() {
         .unwrap();
     assert!(matches!(
         rev_at_last_mid.line_to(Start, t),
-        Err(PathError::TangentLineClose { .. })
+        Err(PathError::JunctionTangent { .. })
     ));
     // (c) the continuation lands ON Start's coordinates but mints a
     // directed point, not a closure; the leftover closer is

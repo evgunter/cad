@@ -312,11 +312,13 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
         # `turn(0)` lands in the tangent band by construction.
         self.refuses("junction_tangent", lambda: east.turn(0 * deg))
 
-    def test_the_tangent_line_close_refuses_always(self):
+    def test_the_collinear_tangent_arc_close_refuses_always(self):
         # A ray that hits Start is a VALUE coincidence, and the ladder
-        # never infers from values.
+        # never infers from values. The refusal is carrier identity --
+        # the same one a non-closing collinear tangent arc gets, since
+        # targeting Start does not change what the geometry is.
         self.refuses(
-            "tangent_line_close",
+            "same_carrier_junction",
             lambda: Open.at(ORIGIN)
             .line_to((1 * m, 0 * m))
             .tangent()
