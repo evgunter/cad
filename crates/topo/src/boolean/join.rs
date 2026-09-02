@@ -926,6 +926,7 @@ pub(super) fn pair_section_frame<T: Decide>(
 /// IS implemented and marches it. When the parameter-identity channel
 /// (#1372) lands, the declaration enters HERE, at this call's third
 /// argument, and the `Declared` path below is what it reaches.
+#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn cs_pair_frame<T: Decide>(
     cyl: &geom::Surface<T>,
     sph: &geom::Surface<T>,
