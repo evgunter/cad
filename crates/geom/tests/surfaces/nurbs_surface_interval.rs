@@ -53,27 +53,6 @@ fn nurbs_cylinder() -> NurbsSurface<f64> {
     NurbsSurface::new(knots_u, knots_v, control, weights).unwrap()
 }
 
-fn lift(s: &NurbsSurface<f64>) -> NurbsSurface<Interval> {
-    let ctrl = s
-        .control()
-        .iter()
-        .map(|p| {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        })
-        .collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        ctrl,
-        s.weights().to_vec(),
-    )
-    .unwrap()
-}
-
 fn contains(e: Interval, v: f64) -> bool {
     e.lo() <= v && v <= e.hi()
 }
@@ -83,7 +62,7 @@ fn contains(e: Interval, v: f64) -> bool {
 #[test]
 fn interval_surface_eval_contains_f64() {
     let n = nurbs_cylinder();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     for (ulo, uhi) in [(0.05, 0.2), (0.2, 0.3), (0.45, 0.8)] {
         for (vlo, vhi) in [(0.25, 1.0), (1.5, 2.75)] {
             let ui = Interval::from_bounds(ulo, uhi);
@@ -114,7 +93,7 @@ fn interval_surface_eval_contains_f64() {
 #[test]
 fn surface_poison_propagates() {
     let n = nurbs_cylinder();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     let p = ni.eval(Interval::from_f64(f64::NAN), Interval::from_f64(1.0));
     assert!(p.x.lo().is_nan());
     let mut ctrl = n.control().to_vec();
