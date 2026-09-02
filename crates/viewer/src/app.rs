@@ -223,8 +223,13 @@ fn tip_mark(loops: &[sketch::PreviewLoop]) -> f64 {
 
 /// The share of a preview's diagonal one tip mark spans — small enough
 /// that a dense chain does not become a field of crosses, large enough
-/// to read against the geometry it sits on.
-const TIP_MARK_FRACTION: f64 = 0.025;
+/// to read against the geometry it sits on. The heading tick is twice
+/// this again, because a direction has to be long enough to have one.
+///
+/// Set by looking: at 0.025 it was under a pixel on a profile filling
+/// a third of the viewport, which is a mark nobody can see — and a
+/// sketch plane seen at a grazing angle foreshortens whatever is left.
+const TIP_MARK_FRACTION: f64 = 0.07;
 
 /// **Which way the chain leaves the vertex at `at`** — a unit vector,
 /// or `None` where there is no next point to take one from.
@@ -2495,12 +2500,31 @@ impl ViewerBehavior<'_> {
                 // a second thing to get wrong.
                 for &at in &polyline.vertices {
                     let here = points[at];
-                    let (mx, my) = (tick * 0.5, tick * 0.5);
-                    segment([here[0] - mx, here[1] - my], [here[0] + mx, here[1] + my]);
-                    segment([here[0] - mx, here[1] + my], [here[0] + mx, here[1] - my]);
-                    if let Some([dx, dy]) = heading(points, at, polyline.closed) {
-                        segment(here, [here[0] + dx * tick * 2.0, here[1] + dy * tick * 2.0]);
-                    }
+                    let Some([dx, dy]) = heading(points, at, polyline.closed) else {
+                        continue;
+                    };
+                    // Both marks are drawn ACROSS the heading, never
+                    // along it. A tick that ran along the chain would
+                    // lie on the leg already drawn there and be
+                    // invisible on every vertex but an open chain's
+                    // last — which is the one place a reader needs it
+                    // least.
+                    let (nx, ny) = (-dy, dx);
+                    let at_offset = |along: f64, across: f64| {
+                        [
+                            here[0] + dx * along * tick + nx * across * tick,
+                            here[1] + dy * along * tick + ny * across * tick,
+                        ]
+                    };
+                    // The position: a tick through the point, square
+                    // to the path.
+                    segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
+                    // The direction: an arrowhead just ahead of it,
+                    // opening backward, so the pair reads as "here,
+                    // going that way".
+                    let tip = at_offset(1.0, 0.0);
+                    segment(tip, at_offset(0.2, 0.45));
+                    segment(tip, at_offset(0.2, -0.45));
                 }
             }
         }
@@ -3479,16 +3503,32 @@ impl ViewerBehavior<'_> {
                         for option in PathVerb::ALL {
                             chain[index] = option.fresh();
                             let refusal = sketch::admits_at(&chain, index, notation, tol).err();
-                            let mut chosen = verb;
-                            let row = ui.add_enabled_ui(refusal.is_none(), |ui| {
-                                ui.selectable_value(&mut chosen, option, option.label())
-                            });
-                            if let Some((state, refused)) = refusal {
-                                row.response.on_hover_text(format!(
-                                    "{refused:?} is not well-typed at a {state:?} tip"
-                                ));
-                            } else if chosen != verb {
-                                rebind = Some((index, option));
+                            // `add_enabled` on the widget itself, not
+                            // an `add_enabled_ui` around it: the
+                            // reason a choice is greyed out is told
+                            // through `on_disabled_hover_text`, and
+                            // that is a `Response`'s door — a region's
+                            // response shows nothing.
+                            let row = ui.add_enabled(
+                                refusal.is_none(),
+                                egui::Button::selectable(option == verb, option.label()),
+                            );
+                            match refusal {
+                                Some((state, _refused)) => {
+                                    // The label the combo shows, not
+                                    // the kernel verb's `Debug`: the
+                                    // sentence is about the row a
+                                    // reader is looking at.
+                                    row.on_disabled_hover_text(format!(
+                                        "{} is not well-typed here — the tip is {}",
+                                        option.label(),
+                                        sketch::tip_state_words(state),
+                                    ));
+                                }
+                                None if row.clicked() && option != verb => {
+                                    rebind = Some((index, option));
+                                }
+                                None => {}
                             }
                         }
                     });

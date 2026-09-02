@@ -604,12 +604,14 @@ impl core::fmt::Display for PreviewError {
             } => match verb {
                 Some(verb) => write!(
                     f,
-                    "loop {loop_} step {step}: {verb:?} is not well-typed at a {state:?} tip"
+                    "loop {loop_} step {step}: {verb:?} is not well-typed there — the tip is {}",
+                    tip_state_words(*state)
                 ),
                 None => write!(
                     f,
-                    "loop {loop_} ends at a {state:?} tip without closing — the last verb has \
-                     to target the start"
+                    "loop {loop_} never closes — it ends with the tip {}, and the last verb \
+                     has to target the start",
+                    tip_state_words(*state)
                 ),
             },
             Self::Geometry {
@@ -755,6 +757,33 @@ pub fn preview(
         loops: polylines,
         invalid,
     })
+}
+
+/// **A lattice tip state in words.**
+///
+/// [`TipState`]'s own `Debug` is the variant name — `PlainPoint`,
+/// `RadiusArrivalDir` — which is the right thing in a backtrace and
+/// the wrong thing in a tooltip: it names the state without saying
+/// what about the chain put it there. One home for the phrasing,
+/// because both places a reader meets a tip state (this module's
+/// refusal sentence and the form's greyed-out verbs) have to call the
+/// same state the same thing.
+pub fn tip_state_words(state: TipState) -> &'static str {
+    match state {
+        TipState::Entry => "at the entry, before any verb",
+        TipState::Open => "a freshly opened arrival side, with nothing bound",
+        TipState::Angle => "a bound direction with no position yet",
+        TipState::PlainPoint => "a bound position with no incoming tangent",
+        TipState::DirectedPoint => "a leg end, with an incoming tangent",
+        TipState::DirectedPlain => "a bound position and direction, over a plain point",
+        TipState::DirectedIncoming => "a leg end with a direction bound over it",
+        TipState::RadiusArrival => "a radius arrival still awaiting both binders",
+        TipState::RadiusArrivalAt => "a radius arrival with its anchor bound",
+        TipState::RadiusArrivalDir => "a radius arrival with its director bound",
+        TipState::ViaArrival => "a via arrival awaiting its director",
+        TipState::ViaArrivalStart => "a via close awaiting its director",
+        TipState::Closed => "a closed loop, which no verb may follow",
+    }
 }
 
 /// **Is the step at `steps[at]` well-typed where the chain leaves
