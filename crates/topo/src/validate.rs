@@ -159,6 +159,15 @@
 //! check list, gate, and the honest not-yet-checked list live on
 //! [`validate_geometric`].
 //!
+//! **The tier is two functions.** Eight of its nine checks are answerable
+//! by any deciding scalar; the ninth reads a certified volume enclosure,
+//! which is an act of certification rather than a measurement. So
+//! [`validate_geometric_structural`] runs the eight and
+//! [`validate_geometric`] is that call followed by the certified one,
+//! carrying the union of their bounds — a scalar without certification
+//! rights takes the structural door, and cannot write the composed call
+//! at all.
+//!
 //! # All failures, not the first
 //!
 //! [`validate`] collects **every** failure before returning: a validator
