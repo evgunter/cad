@@ -238,9 +238,20 @@ fn derived_offset<P>(
     let triple = |es: &[crate::expr::Expr; 3]| -> Result<Vec3<f64>, Box<MateFault>> {
         Ok(Vec3::new(scalar(&es[0])?, scalar(&es[1])?, scalar(&es[2])?))
     };
-    // The evaluation's own direction normalization (the shared
+    // The evaluation's own direction normalization (the
     // `eval_direction_norm` door), decided — never a raw comparison,
     // never a silent zero direction.
+    //
+    // It normalizes BOTH rules' directions here, and for the circular
+    // rule that means a DATUM's axis direction: this derivation reads
+    // the recipe node and re-derives from the expressions, rather than
+    // taking the evaluated `DatumValue` whose `UnitVec3` already
+    // normalized the same triple under `datum_unit_norm`. So one datum
+    // direction is decided under two predicate names depending on
+    // which road reaches it — same arithmetic, same refusal shape,
+    // different name in the K census. Whether the two roads should
+    // meet is a family question, homed at issue 1570; nothing is
+    // migrated here.
     let unit = |v: Vec3<f64>| -> Result<Vec3<f64>, Box<MateFault>> {
         crate::eval::unit_direction(v, "pattern direction", band).map_err(|e| match e {
             crate::eval::NodeErrorKind::Escalated { source, .. } => {

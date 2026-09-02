@@ -21,6 +21,14 @@
 # payloads, i.e. enclosure consumers of exactly the quadrature's
 # class.
 #
+# `crates/verbs/src/run.rs` is on the list for a different reason from
+# every seam above: it DECIDES NOTHING and READS NO BRACKET. It is the
+# verb vocabulary's one dispatch site, and its bound is the blend
+# doors' own, satisfied so the call type-checks. SEAT-4's entry in the
+# scope rule carries the necessity argument (the weakest bound that
+# works, with the tighter one shown breaking its dual-instantiated
+# caller); this is a pointer, not a restatement.
+#
 # The fillet seam is the one allowlisted seam with NO refusing lane
 # behind it; the written reason it needs none is the DELEGATION RULE
 # (DUAL-DESIGN DL5) recorded in ONE home: geom-core/src/real.rs, the
@@ -292,7 +300,8 @@ gate() {
     | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-    | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$')
+    | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' \
+    | gate_grep -vE '^crates/verbs/src/run\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"

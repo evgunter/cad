@@ -444,12 +444,12 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mesh::register(m)?;
     value::register(m)?;
 
-    // Schema/provenance surface: the version the persistence doors
-    // speak, behind `Doc.save`/`load`.
+    // Build-provenance surface. The persistence format carries no
+    // schema version to publish here (the persist module docs say
+    // why): a file this build cannot read refuses `unreadable`.
     let meta = PyDict::new(py);
     meta.set_item("f64_only", true)?;
     meta.set_item("abi3", "py38")?;
-    meta.set_item("schema_version", pncad::document::SCHEMA_VERSION)?;
     m.add("__build_info__", meta)?;
 
     Ok(())

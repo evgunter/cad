@@ -21,9 +21,7 @@
 //!    ruling other crates cite when they need a payload type and find
 //!    its owner does not re-export it: the answer is a direct edge on
 //!    the owning crate, never a new re-export added to somebody
-//!    else's root. The one stated exception is `MigrationStep`, whose
-//!    signature speaks `serde_json::Value`; [`document`] records why
-//!    it stays out. `tests/all.rs` is the pin: it matches on the
+//!    else's root. `tests/all.rs` is the pin: it matches on the
 //!    cross-crate payloads using only `pncad::` paths, and a guard
 //!    test there reads its own source and fails if any kernel crate
 //!    is named outside one.

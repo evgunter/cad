@@ -260,12 +260,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(origin);
-                        d.v3(normal);
+                        d.v3(&normal.get());
                     }
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(origin);
-                        d.v3(dir);
+                        d.v3(&dir.get());
                     }
                     ValuePayload::Datum(DatumValue::Point { position }) => {
                         d.u64(12);

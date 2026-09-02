@@ -459,6 +459,54 @@ pub trait Real:
 /// lives beside this trait rather than inside this doc because it is the
 /// part that grows — see that module's own header.
 ///
+/// **Extension (SEAT-4, authorized under the M7-8 precedent;
+/// retroactive Evan review per the self-merge convention):**
+/// `verbs::run` — the verb vocabulary's single dispatch site — joins
+/// the compound allowlist as the narrowest possible extension of the
+/// PR 12 edge-blend seam, on the M7-8 argument verbatim: it adds no
+/// obligation because it DELEGATES to the already-listed doors
+/// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`), passing
+/// its operand and parameters through unchanged, and therefore
+/// inherits their signature rather than widening the rule's reach.
+///
+/// **It clears the first thing an entry owes** — that its reads stay
+/// on the prune/report side — vacuously and checkably: the file
+/// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
+/// comparison; the bound appears exactly once, as an INLINE bound on
+/// the `impl<T: Decide + Bounds + PcurveFittedLane> Verb<T>` header
+/// (not a `where` clause — the earlier wording of this entry said
+/// `where`-position and was simply wrong about the syntax), purely so
+/// the callee's bound is satisfiable. Nothing there decides anything,
+/// in or out of the trilean.
+///
+/// **That "no read at all" clearance is a REVIEW-TIME MEASUREMENT, not
+/// a guarded invariant**, and the distinction is worth the sentence
+/// because the entry's whole force rests on it. The gate script
+/// (`scripts/gates/bounds-allowlist.sh`) checks that a compound
+/// `Bounds` bound appears only in allowlisted FILES; it does not check
+/// that an allowlisted file abstains from reading brackets. So a later
+/// edit could add a `lo()`/`hi()` comparison to this file and no row
+/// anywhere would redden — the abstention was verified by reading the
+/// file at ratification and holds only as long as someone keeps
+/// reading it. Every entry in this allowlist carries that same
+/// exposure; this one states it rather than leaving a reader to assume
+/// the gate is stronger than it is.
+///
+/// **On the second — the WEAKEST bound that works, with the next
+/// tighter one shown failing.** Dropping [`Bounds`] does not compile:
+/// the callees require it. The next tighter bound,
+/// `Decide + `[`CertifiedBounds`]` + PcurveFittedLane`, compiles in
+/// this crate and BREAKS its caller — `editor_core::eval::wire`'s
+/// blend lowering runs beneath `evaluate<T>`, a mixed pass
+/// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
+/// `Dual` implements [`CertifiedEnclosure`]. This is the `separation`
+/// entry's discriminator, not the M9-2 one: a generic mixed pass does
+/// call this door, so it keeps its lane rather than tightening.
+///
+/// The seam did not widen here; it acquired a file. The refusing-lane
+/// question is answered where it was already answered: the PR 12 entry
+/// above, under the delegation rule, for the doors this one calls.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
