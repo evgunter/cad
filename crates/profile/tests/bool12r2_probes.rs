@@ -198,6 +198,44 @@ fn r2_the_new_keys_inherit_the_junction_escalation_template() {
 // 3. The lever, attacked.
 // ------------------------------------------------------------------
 
+/// **The LEVER is not pinned by the shipped suite.** Replace both
+/// `Margin::levered(x, arm)` in `seam_arrival_check` with
+/// `Margin::of(x)` — dropping the unit's headline design decision
+/// entirely — and every row in `bool12_probes` stays GREEN, the
+/// dimension-honesty row included: at arms 1 and 4 the levered and the
+/// unlevered margins land on the SAME side of the band, and the row's
+/// `margin`/`arm` assertions read a payload computed outside the
+/// decision. What separates the two designs is an arm far from 1.
+///
+/// This row is that separator in the direction that matters (the other
+/// is the degenerate arm below): a 1000 m closing leg whose ARRIVAL
+/// misses by `100 * eps` of DISPLACEMENT is an angle of `0.1 * eps`,
+/// which an unlevered check calls Zero and ACCEPTS. Levered, it refuses.
+#[test]
+fn r2_the_lever_only_bites_at_an_arm_far_from_one() {
+    let (eps, k_eps) = band();
+    let off = 100.0 * eps;
+    assert!(off > k_eps, "the miss is past the input tolerance");
+    let refused = tilted_close(off, 1000.0);
+    match refused {
+        Err(PathError::SeamArrivalOffDirection { margin, arm }) => {
+            println!("R2: long-arm miss -> margin {margin} arm {arm}");
+            assert!(
+                (margin.abs() - off).abs() <= 1e-2 * off,
+                "margin {margin} is not the authored displacement {off} (to 1%)"
+            );
+            assert!(arm > 900.0, "arm {arm}");
+            // The ANGLE this displacement subtends is well below eps, so
+            // an unlevered check would have called it Zero and closed.
+            assert!(
+                margin.abs() / arm < eps,
+                "the angle is sub-eps by construction"
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
 /// **The degenerate closing leg.** `junction_check` names this case at
 /// its own site — "a Zero here means the arm itself is degenerate (both
 /// components sub-ε) — refused as the tangent class" — and refuses it.
