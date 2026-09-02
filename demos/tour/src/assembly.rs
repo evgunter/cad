@@ -295,8 +295,10 @@ fn prism_part(
         &mut doc,
         Node::Datum(Datum::Frame {
             origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
-            u: [pe("1", &scope), pe("0", &scope), pe("0", &scope)],
-            v: [pe("0", &scope), pe("1", &scope), pe("0", &scope)],
+            // A bare integer parses as a Count; the frame's axes are
+            // Scalars, so they are spelled as decimals.
+            u: [pe("1.0", &scope), pe("0.0", &scope), pe("0.0", &scope)],
+            v: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
         }),
         tol,
     );

@@ -1464,9 +1464,11 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
-    let (next, plane) = common::inserted(&doc, common::xy_frame(), tol);
+    // Named apart from the datum PLANE below, which is a different
+    // node kind with a confusingly similar name.
+    let (next, sketch_frame) = common::inserted(&doc, common::xy_frame(), tol);
     doc = next;
-    let (next, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
+    let (next, profile) = common::inserted(&doc, common::square(sketch_frame, 0.02), tol);
     doc = next;
     // A parallel plane one centimetre up: its own frame, because it is
     // its own plane.
@@ -1491,7 +1493,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: sketch_frame,
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
         }),
         tol,
@@ -1563,7 +1565,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 position: [common::len(0.0), common::len(0.0), common::len(0.0)],
             }),
         ),
-        ("profile", common::square(plane, 0.01)),
+        ("profile", common::square(sketch_frame, 0.01)),
         (
             "extrude",
             Node::Extrude {

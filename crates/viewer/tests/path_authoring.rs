@@ -206,9 +206,11 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
         "the door refuses it too: {:?}",
         out.refusal,
     );
-    assert!(
-        session.committed_doc().order().is_empty(),
-        "and nothing landed",
+    assert_eq!(
+        session.committed_doc().order(),
+        &[plane][..],
+        "and nothing landed — the frame the profile would have named is \
+         all the document holds",
     );
 }
 
@@ -267,9 +269,11 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
         "the door still refuses a chain that does not close: {:?}",
         out.refusal,
     );
-    assert!(
-        session.committed_doc().order().is_empty(),
-        "and nothing landed",
+    assert_eq!(
+        session.committed_doc().order(),
+        &[plane][..],
+        "and nothing landed — the frame the profile would have named is \
+         all the document holds",
     );
 }
 

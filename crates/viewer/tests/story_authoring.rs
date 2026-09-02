@@ -87,9 +87,11 @@ const CUT2_LIFT: f64 = 0.0004;
 const DRUM_H2: f64 = 0.009;
 
 /// History states from `NewDocument` to the carved rook: the root
-/// plus seventeen committed edits.
-const CARVED_STATES: usize = 18;
-/// Edits on the FINAL saved path: the seventeen carving edits
+/// plus twenty-two committed edits. Five of those are sketch FRAMES:
+/// the rook is drawn on five different heights up its axis, and a
+/// profile names the plane it sits on.
+const CARVED_STATES: usize = 23;
+/// Edits on the FINAL saved path: the twenty-two carving edits
 /// (`CARVED_STATES` less the root) plus the taller-drum edit. Equal to
 /// `CARVED_STATES` only because one root and one drum edit cancel —
 /// the two constants count different quantities (states vs edits).
@@ -506,7 +508,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         doc.node(axis).is_some() && doc.node(block_profile).is_some(),
         "nodes that only FED the target survive as roots of their own"
     );
-    assert_eq!(session.history().len(), CARVED_STATES + 5);
+    assert_eq!(session.history().len(), CARVED_STATES + 6);
 
     // One undo brings the WHOLE cone back — the cascade was one
     // action, so it is one step.
@@ -531,14 +533,16 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── The undo/redo walk: back to the carved rook, part-way
     //    forward, back again — the tree keeps every state ────────────
-    for _ in 0..4 {
+    // Five: the branch is axis, sketch frame, profile, extrude,
+    // pattern.
+    for _ in 0..5 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
     assert!(
         session.committed_doc().bit_eq(&carved_doc),
-        "four undos land exactly on the carved rook"
+        "five undos land exactly on the carved rook"
     );
-    for _ in 0..2 {
+    for _ in 0..3 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     let doc = session.committed_doc();
@@ -547,13 +551,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "redo walks forward along the branch it left"
     );
     assert!(doc.node(block).is_none(), "…but only as far as asked");
-    for _ in 0..2 {
+    for _ in 0..3 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&carved_doc));
     assert_eq!(
         session.history().len(),
-        CARVED_STATES + 5,
+        CARVED_STATES + 6,
         "the walk destroyed nothing"
     );
 
@@ -575,7 +579,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let history = session.history();
     assert_eq!(
         history.len(),
-        CARVED_STATES + 6,
+        CARVED_STATES + 7,
         "a sibling, not a truncation"
     );
     assert_eq!(

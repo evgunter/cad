@@ -368,7 +368,10 @@ fn the_parametric_living_walk() {
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 10, "ten features, top to bottom");
+    // Thirteen: the ten features, and the three sketch frames they are
+    // drawn on — a plane is a feature of the document now, and the
+    // tree says so.
+    assert_eq!(rows.len(), 13, "ten features and three frames");
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),
         "every row green: {rows:?}"

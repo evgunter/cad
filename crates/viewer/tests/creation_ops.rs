@@ -244,12 +244,15 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(session.committed_doc().node(extrude).is_none());
     assert!(session.committed_doc().node(profile).is_some());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    // Four creations now, not three: the sketch frame is a node the
+    // profile names, so authoring it was its own undoable step.
+    for _ in 0..3 {
+        assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    }
     assert!(session.committed_doc().order().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
     assert!(matches!(at_root.refusal, Some(Refusal::NothingToDo)));
-    for _ in 0..3 {
+    for _ in 0..4 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");
@@ -560,11 +563,13 @@ fn the_rectangle_template_is_the_centred_polygon() {
 fn profile_refusals_are_typed_at_the_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    // The frame lands FIRST and is not part of what this row measures:
+    // the states counted are the ones a REFUSED profile might leave.
+    let plane = common::xy_frame_in(&mut session);
     let states = session.history().len();
 
     // No loops: the profile layer's own refusal ("no loops — nothing
     // to sweep"), through the edit door.
-    let plane = common::xy_frame_in(&mut session);
     let empty = session.perform(SessionOp::AddProfile {
         plane,
         loops: vec![],
@@ -578,7 +583,6 @@ fn profile_refusals_are_typed_at_the_door() {
     // Degenerate loops — zero and negative radius — refuse the same
     // way; no rule about them is restated in the session.
     for radius in [0.0, -0.01] {
-        let plane = common::xy_frame_in(&mut session);
         let degenerate = session.perform(SessionOp::AddProfile {
             plane,
             loops: vec![shape(&ProfileShape::Circle {
