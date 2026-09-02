@@ -229,5 +229,11 @@ mod mesh10r1_probes;
 mod mesh10r2_probes;
 #[path = "mesh11_arc_branch.rs"]
 mod mesh11_arc_branch;
+#[path = "mesh11r1_probes.rs"]
+mod mesh11r1_probes;
+#[path = "mesh11r2_base_probes.rs"]
+mod mesh11r2_base_probes;
+#[path = "mesh11r2_probes.rs"]
+mod mesh11r2_probes;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;

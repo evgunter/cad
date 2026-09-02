@@ -96,11 +96,11 @@ use geom_core::{Band, Tol};
 /// [`SizingTols::band`] — props' `Band`, ε AND K, minted from the same
 /// `Tol` — and leaves it unread: `mesh` hands it to
 /// `geom_brep::props::require_iso_rectangle` and
-/// `require_one_chart_branch` and decides nothing against it. The inventory pin counts `eps` identifier carriers and
-/// the four method reads per file; it does not count `band`, `Band`
-/// or K, so a decision written against the band in this crate would
-/// be a bypass the pin cannot see. None exists; the field's doc is the
-/// obligation.
+/// `require_one_chart_branch`, and decides nothing against it. The
+/// inventory pin counts `eps` identifier carriers and the four method
+/// reads per file; it does not count `band`, `Band` or K, so a
+/// decision written against the band in this crate would be a bypass
+/// the pin cannot see. None exists; the field's doc is the obligation.
 ///
 /// **The scalar is not sealed in, and the honest bound is narrower
 /// than "no way back".** [`Display`](core::fmt::Display) emits a
