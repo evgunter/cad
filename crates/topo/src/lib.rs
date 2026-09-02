@@ -134,12 +134,14 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod census;
+pub mod chart;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
 // `splitting/` for the reason its own docs give. Non-doc comment for
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
+pub mod coherence;
 pub mod contact;
 pub mod entity;
 pub mod euler;
@@ -294,6 +296,11 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
+pub use chart::{Chart, ChartKind};
+pub use coherence::{
+    CoherenceCondition, CoherenceFinding, CoherenceReport, Unexaminable, Unexamined,
+    examine_chart_coherence,
+};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
 };

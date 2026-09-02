@@ -56,9 +56,10 @@
 //! was closed by an ε-scaled snap. Imported geometry can make that gap
 //! nonzero (it is source-coordinate rounding, not accumulation), which
 //! is what made a tolerance look necessary. Taking the vertex's own
-//! value makes the quantity identically zero instead, and the
-//! comparison survives inside [`closing_column`] as a `debug_assert!`
-//! measuring the INPUT's quality rather than a bar the mesh depends on.
+//! value makes the quantity identically zero instead. How far the
+//! carrier's own azimuth was is a fact about the SOURCE and not about
+//! the mesh, and it is measured from the body by
+//! `topo::coherence`'s `MeridianClosure` rather than here.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
 //! sampled): a pole/apex is always an edge **endpoint** (valence 2). A
@@ -106,7 +107,6 @@
 use std::collections::HashMap;
 
 use geom::Curve3;
-use geom::Surface;
 use geom_brep::EdgeDescription;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
@@ -114,228 +114,12 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
 use crate::sizing::Eps;
 use crate::types::TessellateError;
 
-/// A curved surface's chart data for inversion (everything but the
-/// plane, which takes the planar path).
-pub(crate) struct Chart {
-    /// The revolution/extrusion axis.
-    pub axis: Vec3<f64>,
-    /// The seam direction (u = 0).
-    pub u_ref: Vec3<f64>,
-    /// `axis × u_ref` (the frame convention).
-    pub v_ref: Vec3<f64>,
-    /// A point on the axis (apex/center/origin).
-    pub anchor: Point3<f64>,
-    /// Kind-specific inversion data.
-    pub kind: ChartKind,
-}
-
-/// The kind payload of a [`Chart`].
-pub(crate) enum ChartKind {
-    /// Cylinder of radius `r`; v = axial meters.
-    Cylinder {
-        /// The radius.
-        r: f64,
-    },
-    /// Cone; v = slant meters from the apex.
-    Cone {
-        /// The half-angle α.
-        half_angle: f64,
-    },
-    /// Sphere of radius `r`; v = latitude.
-    Sphere {
-        /// The radius.
-        r: f64,
-    },
-    /// Torus; v = minor angle (periodic).
-    Torus {
-        /// The major radius R.
-        major: f64,
-        /// The minor radius r.
-        minor: f64,
-    },
-}
-
-impl Chart {
-    /// Builds the chart for a curved surface (`None` for planes;
-    /// `Nurbs` is refused upstream).
-    pub(crate) fn of(surface: &Surface<f64>) -> Option<Chart> {
-        match *surface {
-            // Both spline kinds are refused upstream: the tessellator
-            // meshes them through their own net, not through an
-            // analytic chart.
-            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => Some(Chart {
-                axis,
-                u_ref,
-                v_ref: axis.cross(u_ref),
-                anchor: origin,
-                kind: ChartKind::Cylinder { r: radius },
-            }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => Some(Chart {
-                axis,
-                u_ref,
-                v_ref: axis.cross(u_ref),
-                anchor: apex,
-                kind: ChartKind::Cone { half_angle },
-            }),
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => Some(Chart {
-                axis,
-                u_ref,
-                v_ref: axis.cross(u_ref),
-                anchor: center,
-                kind: ChartKind::Sphere { r: radius },
-            }),
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => Some(Chart {
-                axis,
-                u_ref,
-                v_ref: axis.cross(u_ref),
-                anchor: center,
-                kind: ChartKind::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-            }),
-        }
-    }
-
-    /// Raw azimuth of a point, in (−π, π].
-    pub(crate) fn azimuth(&self, p: Point3<f64>) -> f64 {
-        let w = p - self.anchor;
-        w.dot(self.v_ref).atan2(w.dot(self.u_ref))
-    }
-
-    /// Distance of a point from the chart axis — the lever arm that
-    /// converts an angular u-discrepancy into a spatial one (arc
-    /// length `r·δu`). `(u_ref, v_ref, axis)` is orthonormal by
-    /// construction (`v_ref = axis × u_ref`), so this is just the
-    /// in-plane component's length.
-    ///
-    /// Kind-free on purpose: it reads the POINT, not the surface
-    /// parameters, so the cone — whose radius varies along the loop as
-    /// `v·sin α` rather than sitting in `ChartKind` — needs no special
-    /// case, and a point on the axis correctly reports 0.
-    pub(crate) fn radial(&self, p: Point3<f64>) -> f64 {
-        let w = p - self.anchor;
-        w.dot(self.u_ref).hypot(w.dot(self.v_ref))
-    }
-
-    /// Raw chart u of a point, in (−π, π] — the azimuth, **except on a
-    /// cone's mirror nappe** (v < 0, i.e. below the apex along the
-    /// axis), where `S(u, v) = apex + axis·(v cos α) + radial(u)·(v sin α)`
-    /// has a *negative* radial coefficient: the point at chart u sits
-    /// at spatial azimuth u + π, so inversion subtracts the π back.
-    /// (Revolve places every surface with the shared +a₃ axis, so
-    /// downward-opening cone walls live on the mirror nappe — PR 5.)
-    pub(crate) fn u_of(&self, p: Point3<f64>) -> f64 {
-        let az = self.azimuth(p);
-        if matches!(self.kind, ChartKind::Cone { .. }) && (p - self.anchor).dot(self.axis) < 0.0 {
-            if az > 0.0 {
-                az - core::f64::consts::PI
-            } else {
-                az + core::f64::consts::PI
-            }
-        } else {
-            az
-        }
-    }
-
-    /// The non-periodic-or-raw v coordinate of a point.
-    pub(crate) fn v_of(&self, p: Point3<f64>) -> f64 {
-        let w = p - self.anchor;
-        let h = w.dot(self.axis);
-        match self.kind {
-            ChartKind::Cylinder { .. } => h,
-            ChartKind::Cone { half_angle } => h / half_angle.cos(),
-            ChartKind::Sphere { r } => (h / r).clamp(-1.0, 1.0).asin(),
-            ChartKind::Torus { major, .. } => {
-                let rho = (w - self.axis * h).norm();
-                h.atan2(rho - major)
-            }
-        }
-    }
-
-    /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
-    /// one unit of the chart's v coordinate displaces a point by.
-    ///
-    /// Constant per kind because v is either already a length
-    /// (cylinder — axial metres; cone — slant metres, both
-    /// `|∂S/∂v| = 1`) or an angle turning on a fixed radius (sphere —
-    /// latitude on `r`; torus — minor angle on `r`). u needs the point
-    /// because its lever arm is the *distance from the axis*, which
-    /// varies over a cone and a sphere; v's does not, so this takes
-    /// none.
-    ///
-    /// Together `(radial(p), v_lever())` convert a UV discrepancy into
-    /// metres, which is the only honest unit to compare against ε — the
-    /// argument `curved`'s domain guard makes, and the one
-    /// [`gap_is_noise`] makes for the closure detector — one
-    /// predicate, named there.
-    pub(crate) fn v_lever(&self) -> f64 {
-        match self.kind {
-            ChartKind::Cylinder { .. } | ChartKind::Cone { .. } => 1.0,
-            ChartKind::Sphere { r } => r,
-            ChartKind::Torus { minor, .. } => minor,
-        }
-    }
-
-    /// Whether v is a periodic coordinate (torus minor angle).
-    pub(crate) fn v_periodic(&self) -> bool {
-        matches!(self.kind, ChartKind::Torus { .. })
-    }
-
-    /// The chart's pole points with their v values (sphere poles, cone
-    /// apex; empty otherwise).
-    pub(crate) fn poles(&self) -> Vec<(Point3<f64>, f64)> {
-        match self.kind {
-            ChartKind::Sphere { r } => vec![
-                (self.anchor + self.axis * r, core::f64::consts::FRAC_PI_2),
-                (self.anchor - self.axis * r, -core::f64::consts::FRAC_PI_2),
-            ],
-            ChartKind::Cone { .. } => vec![(self.anchor, 0.0)],
-            ChartKind::Cylinder { .. } | ChartKind::Torus { .. } => Vec::new(),
-        }
-    }
-
-    /// The (raw) v of a rim from its carrier circle's center and
-    /// radius — one value per EDGE, which two sub-edges of ONE carrier
-    /// circle already agreed on bitwise (same center, same radius) but
-    /// two DISTINCT `Circle` carriers stating the same analytic circle
-    /// (what an exporter emits for a split rim) did not. That was the
-    /// module header's "once per edge is not once per side" caveat,
-    /// issue #653, on the v axis; [`iso_side_starts`] closes it by
-    /// giving the whole run the first edge's value, which is what makes
-    /// the row bitwise straight whatever carries it.
-    pub(crate) fn rim_v(&self, center: Point3<f64>, radius: f64) -> f64 {
-        let h = (center - self.anchor).dot(self.axis);
-        match self.kind {
-            ChartKind::Cylinder { .. } => h,
-            ChartKind::Cone { half_angle } => h / half_angle.cos(),
-            ChartKind::Sphere { .. } => h.atan2(radius),
-            ChartKind::Torus { major, .. } => h.atan2(radius - major),
-        }
-    }
-}
+// The chart's closed forms live in `topo` (`topo::chart`), where the
+// body-side coherence examination reads the same expressions this walk
+// does. What stays here is every CLASSIFICATION built on them: which
+// boundary edges are rims and which meridians, which of them open an
+// iso side, which junction is identified with a pole.
+pub(crate) use topo::chart::{Chart, ChartKind};
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
 /// walking direction, plus its iso classification.
@@ -615,14 +399,14 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// a length — the only unit the two are honestly comparable in. A
 /// scale-free radian constant necessarily mis-ranks features, because a
 /// fixed source-coordinate error subtends a larger angle on a smaller
-/// one (see [`closing_column`]'s trace: 21 pm reads as 3.6e-9 rad on a
-/// 0.117-inch hole). At `lever == 0` the coordinate carries no length
+/// one (`topo::coherence` keeps the trace: 21 pm reads as 3.6e-9 rad
+/// on a 0.117-inch hole). At `lever == 0` the coordinate carries no length
 /// at all, so every gap is noise — the correct limit, reached without a
 /// special case or a division. The comparison is
 /// [`Eps::dominates`](crate::sizing::Eps::dominates) — a strict `<`,
 /// band excluded — so a NaN gap or lever is never noise: a poisoned
-/// coordinate stays a refusal (`curved`) or an assertion failure
-/// (`closing_column`) rather than being admitted. The strictness is
+/// coordinate stays a refusal (`curved`) rather than being admitted.
+/// The strictness is
 /// also what makes a ZERO band admit nothing, which is the exact form
 /// `curved`'s band fixtures compare this predicate against.
 ///
@@ -638,184 +422,57 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// from the axis, so a cone and a sphere get a varying one) and
 /// [`Chart::v_lever`] (v — constant per kind).
 ///
-/// # Consumers
+/// # The one consumer
 ///
-/// - [`closing_column`]'s `debug_assert!` — the loop-closure DETECTOR.
-///   It decides nothing: the closure is exact by construction and the
-///   column is the closing vertex's own azimuth either way. What it
-///   measures is INPUT quality, and it is this project's only detector
-///   for a class of defective source coordinates (S22).
-/// - [`crate::curved`]'s walk-consistency check
-///   (`entries_off_bbox`) — decides whether a face is REFUSED. #648
-///   compared exactly there, on the then-false premise that every iso
-///   side is bitwise straight, and false-refused valid parts. #653
-///   made the premise true, so the band is now a backstop that no
-///   in-tree fixture needs; the row that witnesses it is synthetic.
-/// - `loop_polygon`'s two ISO-SIDE CONTINUATION detectors (#653), one
-///   per axis. Consecutive sub-edges of one side are each other's
-///   float-path twins the way the closure's two paths were; the run's
-///   first coordinate is used for all of them, and these
-///   `debug_assert!`s report — and gate nothing on — how far the
-///   discarded value was.
+/// [`crate::curved`]'s walk-consistency check (`entries_off_bbox`) —
+/// which decides whether a face is REFUSED. #648 compared exactly
+/// there, on the then-false premise that every iso side is bitwise
+/// straight, and false-refused valid parts. #653 made the premise
+/// true, so the band is now a backstop that no in-tree fixture needs;
+/// the row that witnesses it is synthetic.
 ///
-/// [`iso_side_starts`] is NOT in that list, and the distinction is
+/// **It used to have four**, and the other three were `debug_assert!`
+/// DETECTORS reachable by input — a loop-closure detector and two
+/// iso-side continuation detectors, all measuring how far one of the
+/// body's two accounts of a chart coordinate was from the other, none
+/// of them able to change a single mesh byte. That is a fact about the
+/// BODY, computable from the body alone with no mesh state and no δ,
+/// so it is stated about the body: `topo::coherence` carries all three
+/// conditions as a non-gating findings report, and this crate stopped
+/// being a lint for other people's data. What remains here is the one
+/// consumer that decides something.
+///
+/// [`iso_side_starts`] is NOT a consumer either, and the distinction is
 /// narrow enough to be worth stating rather than leaving to the
 /// absence: it does not read THIS PREDICATE — which traversals share a
 /// side is decided by kind and by a pole test, not by a gap-against-a-
 /// lever band — but it does read **ε**, through
 /// [`Eps::separates`](crate::sizing::Eps::separates), and its read
 /// DECIDES which `f64` the entries of a side carry. A reader taking
-/// the four consumers above for the crate's ε ledger would be short by
-/// three: this list is `gap_is_noise`'s callers and nothing wider.
+/// the consumer above for the crate's ε ledger would be short by one:
+/// this list is `gap_is_noise`'s callers and nothing wider.
 /// [`crate::sizing::Eps`] carries the four operations every ε read in
 /// this crate is spelled with; the inventory of where they are is
 /// computed by `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned`.
 ///
 /// It is deliberately NOT named for the closure any more: it was
-/// `closure_is_snappable` while a snap read it, and three of its four
-/// consumers are not closures.
+/// `closure_is_snappable` while a snap read it, and the closure is no
+/// longer among its consumers at all.
 ///
-/// # What the three DETECTORS are, under D2
+/// # Its own D2 row
 ///
-/// All three are `debug_assert!`s that gate nothing, and all three are
-/// reachable by INPUT — a defective source file, not a kernel bug. By
-/// the letter of D9's D2 addendum that is row 1/3 territory and
-/// `debug_assert` is reserved for row 5, so **this is a deviation, and
-/// it is named as one** rather than filed under "re-derivation". The
-/// ledger for it, both ways, is written once at [`closing_column`] and
-/// covers all three.
-///
-/// Two things bound the cost, and one does not:
-///
-/// - the bar is SPATIAL, not angular, everywhere. The only real file
-///   that ever tripped a detector in this crate
-///   (`nist_ftc_09_asme1_rd.stp`, 3.56e-9 rad) tripped a bare-radian
-///   bar; in metres its gap is 1.6e6x inside that file's own ε and
-///   nothing fires.
-/// - none of them can make debug and release disagree about the MESH:
-///   the coordinate is the same either way.
-/// - what does NOT bound it: `crates/mesh` has no dev-dependency on
-///   `step-import`, and no test in this repo tessellates the wild or
-///   FreeCAD corpora. The input class these are about is untested by
-///   construction, so "it fires nowhere" means nowhere anything looks.
-///   A typed warning channel would dominate all three; there is none,
-///   and building one is **issue #868** — the scheduled work that
-///   would retire this deviation. Until it lands the deviation stands
-///   as written, at the cost the two bullets above state.
+/// **Row 1.** The one consumer left refuses a face typed
+/// ([`TessellateError::UnsupportedCurvedDomain`]), so the predicate is
+/// part of a reachable-by-input, invalid-state decision and needs no
+/// deviation ledger. The one it used to need — three detectors wearing
+/// row 5's `debug_assert` over row 1/3 territory, disclosed as a
+/// deviation because no typed channel existed to dominate them — went
+/// with the detectors, and the argument it recorded (the bar is
+/// SPATIAL, not angular, because a fixed source-coordinate error
+/// subtends a larger angle on a smaller feature) is kept where the
+/// conditions now live.
 pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
     eps.dominates(gap * lever)
-}
-
-/// The column of a rim-anchored loop's FINAL meridian: the closing
-/// `anchor` (`out[0].u`) itself, bitwise.
-///
-/// `out[0]` lies on this meridian's plane by construction, so its
-/// azimuth IS this column's — the exact value, whatever skew the
-/// source geometry carries. Returning it verbatim makes the loop close
-/// bitwise (`loop_polygon` asserts that after the walk) and the
-/// closing polygon side exactly vertical before the CDT sees it as a
-/// constraint.
-///
-/// The BRANCH rule is unchanged and is why `anchor` rather than
-/// `prev_u` is the input at all: continuity toward `prev_u` picks the
-/// wrong 2πk for wedge angles θ > 3π/2 (the 2π − θ < π/2 shortcut).
-/// `unwrap_near(u_raw, anchor)` — what this used to return — selects
-/// `anchor`'s branch and then differs from `anchor` only WITHIN it, so
-/// dropping it cannot change which branch is taken. It drops exactly
-/// the float difference an ε-scaled snap used to absorb after the
-/// walk, and with it this crate's second structural read of ε (S22).
-///
-/// # The retained detector
-///
-/// `u_raw` is [`mid_azimuth`]: the same analytic azimuth reached from
-/// the carrier MIDPOINT. Analytically `carrier == anchor`; a gap
-/// between them is a statement about the INPUT, and this assertion is
-/// the only place the project ever sees it. It gates nothing — the
-/// column is `anchor` either way — so what it measures is **data
-/// quality**, which is what it was always really about.
-///
-/// MEASURED, and what the measurement is FOR is the deviation ledger
-/// below: the assertion's cost is only bearable if the input class it
-/// fires on is rare. It is. Nonzero closures are confined to imported
-/// files, and the values repeat at a single radius, so they are one
-/// geometric feature instanced many times rather than accumulated
-/// error; in-tree the only nonzero closures are 1 ulp, from the one
-/// obliquely-placed fixture. **Nothing re-measures that**, and no
-/// figure is kept here for it to drift from: this crate has no
-/// dev-dependency on `step-import` and no test in this repo tessellates
-/// the wild corpus, so the input class is untested by construction.
-///
-/// TRACED — the one file that matters, kept here because it is the
-/// argument for the bar's UNIT and not a census figure. Those closures
-/// are `nist_ftc_09_asme1_rd.stp` hole generators whose two endpoints
-/// the FILE states non-co-azimuthally:
-///
-/// ```text
-/// p0 = (-3.1330000001, +0.0896, -4.2499999992) inch
-/// p1 = (-3.1330000000,  0.0,    -4.2500000000) inch
-/// ```
-///
-/// The line runs along the hole axis and should hold x and z fixed;
-/// the file's ~10-digit coordinates differ in the last one. That is
-/// 21.4 pm PERPENDICULAR to the axis, subtending 7.2e-9 rad at
-/// r = 2.9718e-3 m — and the gap is half that spread, because `anchor`
-/// reads a vertex azimuth while `u_raw` reads the midpoint's.
-///
-/// THE BAR IS SPATIAL, NOT ANGULAR, and that trace is why: the angle
-/// is displacement / radius, so a fixed coordinate-rounding error in
-/// the source produces a LARGER angle on a SMALLER feature. A
-/// scale-free radian constant (this once read `< 1e-9`) necessarily
-/// mis-ranks small features — it flagged the 0.117-inch holes while
-/// passing the same physical error elsewhere. In metres the invariant
-/// quantity shows: 21 pm, 1.6e6x inside that file's own ε. The band
-/// itself is [`gap_is_noise`].
-///
-/// # What the assertion costs, both ways
-///
-/// D9's D2 addendum reserves `debug_assert` for row 5 — a kernel bug
-/// detectable only by re-derivation — and D9's footnote calls
-/// debug_asserts unreachable by input. **This one is not.**
-/// `import_step` + `tessellate` on `nist_ftc_09_asme1_rd.stp` reaches
-/// it, on a file whose mesh is correct and bitwise identical in both
-/// profiles. So the honest ledger is:
-///
-/// - FOR: debug and release can no longer DISAGREE about the mesh.
-///   Under the old shape the assertion and the snap read the same bar,
-///   so a residue over it disabled both — debug screamed while release
-///   silently shipped an unsnapped, possibly self-crossing polygon
-///   (#481). Now the polygon is the same in both profiles whatever the
-///   assertion says.
-/// - AGAINST, two of them. A debug build now PANICS on a file whose
-///   mesh is fine; the residue is a data-quality remark, not a defect
-///   in the output, and `tessellate` returning is a different question
-///   from the mesh being right. And release now has NO detector at all
-///   for the defective-source class: under the old shape a large
-///   residue left the polygon unsnapped, which the CDT pre-check would
-///   refuse typed. On source data nothing above 3.6e-9 rad has been
-///   seen; two π-rad witnesses exist, both a meridian ARC that crosses
-///   a pole mid-edge (issue 723's half-cap through import; issue 1571's
-///   Euler-door body, which the shape door admits) — the carrier
-///   midpoint then sits a half-turn from the closing vertex, and this
-///   assertion is what announces it in a debug build. The practical
-///   risk on ordinary data is small — but it is a trade, not a free
-///   win.
-///
-/// A typed warning channel would dominate both; there is none, and
-/// building one is **issue #868** — which is why the trade is where it
-/// is, and what would retire it.
-fn closing_column(u_raw: f64, anchor: f64, radius: f64, eps: Eps) -> f64 {
-    let carrier = unwrap_near(u_raw, anchor);
-    let gap = (carrier - anchor).abs();
-    debug_assert!(
-        gap_is_noise(gap, radius, eps),
-        "the closing meridian's carrier-midpoint azimuth {carrier} and its closing \
-         vertex's {anchor} disagree by {gap} rad at radius {radius} m — {} m of arc, \
-         over eps {eps}. The mesh does not depend on this (the column is the vertex's \
-         own azimuth either way); it says the SOURCE states one line's endpoints \
-         off-axis.",
-        gap * radius
-    );
-    anchor
 }
 
 /// Which traversals OPEN an iso side, cyclically (issue #653).
@@ -1053,9 +710,10 @@ fn walk_anchor(travs: &[Trav], starts: &[bool]) -> Option<usize> {
 /// side. It differs exactly when the LAST iso side is carried by
 /// several edges, and that is the condition both of its consumers need:
 ///
-/// - `loop_polygon`'s meridian arm applies [`closing_column`] at
-///   `k == closing_side`, not at `k == m - 1`, so the rule belongs to
-///   the side; the continuations after it repeat that column bitwise.
+/// - `loop_polygon`'s meridian arm takes the closing vertex's own
+///   azimuth at `k == closing_side`, not at `k == m - 1`, so the rule
+///   belongs to the side; the continuations after it repeat that
+///   column bitwise.
 /// - the pole-to-pole band seeds `prev_u` with `band_u[closing_side]`.
 ///   Seeding with `band_u[m - 1]` — the last traversal's OWN value —
 ///   was wrong for a rimless band whose last iso side is carried by
@@ -1372,21 +1030,11 @@ pub(crate) fn loop_polygon(
                     // for the whole side, bitwise (#653). The two
                     // values are the same analytic v down two float
                     // paths (two carrier circles' centres), so the
-                    // difference is a statement about the INPUT — the
-                    // detector below, in metres, is the only place the
-                    // project sees it, and it gates nothing. Its D2
-                    // classification is `gap_is_noise`'s, and the
-                    // ledger for it is `closing_column`'s.
-                    let gap = (v_own - prev_v).abs();
-                    let lever = chart.v_lever();
-                    debug_assert!(
-                        gap_is_noise(gap, lever, eps),
-                        "two edges of one rim row disagree by {gap} in v at a {lever} m/unit \
-                         lever arm — {} m, over eps {eps}. The mesh does not depend on this \
-                         (the row is the run's first edge's v either way); it says the two \
-                         carrier circles are not the same circle.",
-                        gap * lever
-                    );
+                    // difference the substitution discards is a
+                    // statement about the INPUT and not about the mesh,
+                    // which is the same row either way. It is measured
+                    // where such statements belong, from the body:
+                    // `topo::coherence`'s `RimContinuation`.
                     prev_v
                 };
                 let ju = if k == 0 {
@@ -1451,19 +1099,26 @@ pub(crate) fn loop_polygon(
                                 // the loop's closing vertex (`out[0]`
                                 // lies on this meridian plane), so the
                                 // column is that vertex's own azimuth,
-                                // exactly — see `closing_column` for the
-                                // branch rule it keeps and the detector
-                                // it retains. `closing_side` is `m - 1`
+                                // EXACTLY — `anchor` itself, bitwise,
+                                // whatever skew the source geometry
+                                // carries. That is what makes the loop
+                                // close bitwise (asserted after the
+                                // walk) and the closing polygon side
+                                // exactly vertical before the CDT sees
+                                // it as a constraint. `u_raw` is
+                                // deliberately unread here: taking the
+                                // vertex's own azimuth one level up is
+                                // what makes the closure residue
+                                // identically zero, so there is no
+                                // branch to select and no snap to
+                                // absorb. `closing_side` is `m - 1`
                                 // unless that side is carried by several
                                 // edges, in which case the rule belongs
                                 // to the SIDE and not to its last edge;
                                 // the continuations below then repeat
                                 // this column bitwise, so the closure
                                 // assertion after the loop still holds.
-                                // The lever arm is `out[0]`'s, the same
-                                // point the assertion is about.
-                                let radius = chart.radial(positions[first.id as usize]);
-                                closing_column(u_raw, anchor, radius, eps)
+                                anchor
                             } else {
                                 unwrap_tie(u_raw, prev_u, anchor)
                             }
@@ -1475,21 +1130,12 @@ pub(crate) fn loop_polygon(
                     // is the substitution the loop closure makes at the
                     // seam, one level over — the sub-edges are each
                     // other's float-path twins the way the closure's
-                    // two paths are. The detector below measures the
-                    // gap in metres and gates nothing; its D2
-                    // classification is `gap_is_noise`'s, and the
-                    // ledger for it is `closing_column`'s.
-                    let own = unwrap_near(u_raw, prev_u);
-                    let gap = (own - prev_u).abs();
-                    let radius = chart.radial(positions[jid as usize]);
-                    debug_assert!(
-                        gap_is_noise(gap, radius, eps),
-                        "two edges of one meridian column disagree by {gap} rad at radius \
-                         {radius} m — {} m of arc, over eps {eps}. The mesh does not depend \
-                         on this (the column is the run's first edge's either way); it says \
-                         the SOURCE states one iso side's carriers off-axis.",
-                        gap * radius
-                    );
+                    // two paths are. `u_raw` is the twin discarded
+                    // here, and how far it was is a statement about the
+                    // INPUT and not about the mesh, which is the same
+                    // column either way. It is measured where such
+                    // statements belong, from the body:
+                    // `topo::coherence`'s `MeridianContinuation`.
                     prev_u
                 };
                 if let Some(vp) = jpole {
@@ -1547,7 +1193,7 @@ pub(crate) fn loop_polygon(
         }
     }
     // CLOSURE, exact by construction. If the walk ends in a meridian,
-    // `out[0]` is that column's junction — and `closing_column` took
+    // `out[0]` is that column's junction — and the meridian arm took
     // the column from `out[0].u` itself, so the two agree bitwise and
     // the closing polygon side is exactly vertical.
     //
@@ -1562,12 +1208,12 @@ pub(crate) fn loop_polygon(
     // the residue identically zero.
     //
     // WHAT THIS ASSERTION IS: a REVERT DETECTOR, not a runtime guard.
-    // `closing_column` returns `anchor`, which is `out[0].u`, and
-    // nothing mutates `out[0]` afterwards — so this compares `out[0].u`
-    // with itself and CANNOT go red for any input, however defective.
+    // the closing column IS `anchor`, which is `out[0].u`, and nothing
+    // mutates `out[0]` afterwards — so this compares `out[0].u` with
+    // itself and CANNOT go red for any input, however defective.
     // What reds it is a SOURCE EDIT that puts the column back on a
-    // derived value, and it does that job well: reverting
-    // `closing_column` to `unwrap_near(u_raw, anchor)` reds this on
+    // derived value, and it does that job well: putting
+    // `unwrap_near(u_raw, anchor)` back in that arm reds this on
     // #648's obliquely-placed split frustum wedge at 1 ulp, through the
     // whole-body path rather than through a unit row written for it.
     // Keep it as the acceptance criterion made executable; do not read
@@ -1586,24 +1232,7 @@ pub(crate) fn loop_polygon(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn cone_mirror_nappe_u_of() {
-        let chart = Chart {
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            v_ref: Vec3::new(0.0, 1.0, 0.0).cross(Vec3::new(1.0, 0.0, 0.0)),
-            anchor: Point3::new(0.0, 1.0, 0.0),
-            kind: ChartKind::Cone {
-                half_angle: core::f64::consts::FRAC_PI_4,
-            },
-        };
-        let u = chart.u_of(Point3::new(0.5, 0.5, 0.0));
-        assert!(
-            (u - core::f64::consts::PI).abs() < 1e-12,
-            "expected pi, got {u}"
-        );
-    }
+    use geom::Surface;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {
@@ -1615,33 +1244,6 @@ mod tests {
             v_ref: axis.cross(u_ref),
             anchor: Point3::new(0.0, 0.0, 0.0),
             kind,
-        }
-    }
-
-    /// The lever arm is the distance from the axis, and sliding a point
-    /// ALONG the axis does not change it.
-    #[test]
-    fn radial_is_the_distance_from_the_axis() {
-        let c = z_chart(ChartKind::Cylinder { r: 2.0 });
-        for z in [-10.0, 0.0, 7.5] {
-            let d = c.radial(Point3::new(3.0, 4.0, z));
-            assert!((d - 5.0).abs() < 1e-15, "expected 5, got {d} at z = {z}");
-        }
-    }
-
-    /// `radial` reads the POINT, not `ChartKind` — which is what makes
-    /// the cone work without a special case. A cone's radius is not in
-    /// its kind payload at all (only the half-angle is); it varies along
-    /// the loop, so one chart must yield different lever arms at
-    /// different points. On a 45° cone from the origin, radius = height.
-    #[test]
-    fn radial_varies_along_a_cone_whose_kind_carries_no_radius() {
-        let c = z_chart(ChartKind::Cone {
-            half_angle: core::f64::consts::FRAC_PI_4,
-        });
-        for h in [3.0, 9.0] {
-            let d = c.radial(Point3::new(0.0, h, h));
-            assert!((d - h).abs() < 1e-15, "expected {h}, got {d}");
         }
     }
 
@@ -1683,19 +1285,18 @@ mod tests {
         assert!(gap_is_noise(core::f64::consts::PI, 0.0, Eps::exactly(1e-9)));
     }
 
-    /// **THE REGRESSION ROW for the closing column** (S22). It must
-    /// return the anchor ITSELF, bitwise — not merely the 2πk branch
-    /// nearest it. Reverting to `unwrap_near(u_raw, anchor)` lands in
-    /// the same branch, so no branch-level or approximate test can see
-    /// the difference; only an exact comparison can, and that exactness
-    /// is the whole point (it is what makes the loop closure identically
-    /// zero and the ε snap unnecessary).
-    ///
-    /// Both halves are pinned: the column is `anchor` to the last bit,
-    /// AND the value the revert would produce sits in `anchor`'s own
-    /// branch, so the wedge rule for θ > 3π/2 is untouched. The raws
-    /// are a whole number of turns from the anchor plus a hair inside
-    /// the branch — the shape imported geometry produces.
+    /// **THE BRANCH HALF of the closing-column rule** (S22). The column
+    /// is `anchor` itself, bitwise, and the value the replaced form
+    /// would have produced sits in `anchor`'s OWN branch — so dropping
+    /// that form cannot change which 2πk is taken and the wedge rule
+    /// for θ > 3π/2 is untouched. This row pins the branch half; the
+    /// bitwise half is pinned where it is observable, by the loop
+    /// closure `debug_assert_eq!` after the walk, which compares the
+    /// emitted column against `out[0].u` over a whole body and reds on
+    /// #648's obliquely-placed split frustum wedge if the arm is put
+    /// back on a derived value. The raws here are a whole number of
+    /// turns from the anchor plus a hair inside the branch — the shape
+    /// imported geometry produces.
     ///
     /// `skew` is an ABSOLUTE radian offset, not a count of ulps: an
     /// earlier form of this row called it `ulps` and multiplied by
@@ -1705,7 +1306,7 @@ mod tests {
     /// the non-vacuity counter below is what checks that), so the
     /// honest spelling is the offset itself.
     #[test]
-    fn the_closing_column_is_the_anchor_bitwise_and_in_its_branch() {
+    fn the_replaced_closing_column_form_stays_in_the_anchors_branch() {
         let mut skewed = 0_u32;
         const E: f64 = f64::EPSILON;
         for anchor in [0.0, 0.7, -2.4, core::f64::consts::PI, 5.9] {
@@ -1716,15 +1317,6 @@ mod tests {
                     assert!(
                         (carrier - anchor).abs() < TAU / 2.0,
                         "the replaced form already selects the anchor's branch \
-                         (anchor {anchor}, turns {turns}, skew {skew} rad)"
-                    );
-                    // eps/radius chosen so the detector stays quiet: the
-                    // widest skew here is ~9.1e-13 rad, 9.1e-13 m of arc.
-                    // The row that makes it fire is the next one.
-                    let column = closing_column(raw, anchor, 1.0, Eps::exactly(1e-9));
-                    assert_eq!(
-                        column, anchor,
-                        "the closing column must be the anchor bitwise \
                          (anchor {anchor}, turns {turns}, skew {skew} rad)"
                     );
                     if carrier != anchor {
@@ -1740,43 +1332,6 @@ mod tests {
             skewed >= 20,
             "fixture must exercise real skews; only {skewed} rows differed"
         );
-    }
-
-    /// **THE DETECTOR'S RED ROW.** Every other row in this file tests
-    /// [`gap_is_noise`] as a predicate; none of them touched the
-    /// `debug_assert!` that is its only production consumer, and the
-    /// one row that did call [`closing_column`] picked its eps and
-    /// radius *so the detector stays quiet*. Deleting that
-    /// `debug_assert!` outright left the whole crate green — the same
-    /// "the guard has no red row anywhere" shape S22 is about.
-    ///
-    /// This is that row: a gap far over the spatial bar must panic, and
-    /// the message must carry the arc length, because the arc length is
-    /// what a reader has to see to classify the file.
-    ///
-    /// That it was untested was not an oversight anyone could have
-    /// caught by running the suite: the assertion cannot change a
-    /// returned value (the column is `anchor` either way), so removing
-    /// it could only red a row that observes the PANIC — and until this
-    /// one there was no `#[should_panic]` anywhere in `crates/mesh`.
-    ///
-    /// One thing no row can pin: `gap_is_noise`'s first two arguments
-    /// multiply, so swapping them at the call site is undetectable by
-    /// construction, not merely untested. What IS pinned here is that
-    /// the assertion exists, is wired to the predicate, and fires.
-    ///
-    /// Gated on `debug_assertions` because that is what compiles the
-    /// assertion in; a `--release` test run would otherwise see the
-    /// function return normally and fail the `should_panic`.
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "m of arc")]
-    fn the_closure_detector_fires_when_the_gap_clears_the_spatial_bar() {
-        // 3.56e-9 rad — `nist_ftc_09`'s own residue, which is noise on
-        // its 2.97 mm hole — read at a 100 km lever arm, where the same
-        // angle is 3.56e-4 m of arc, five orders over eps.
-        let anchor = 0.7_f64;
-        let _ = closing_column(anchor + 3.56e-9, anchor, 1e5, Eps::exactly(1e-9));
     }
 
     // ---- iso-side runs (#653) -----------------------------------
