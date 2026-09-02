@@ -37,8 +37,8 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::profile::{
-    ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayErrorKind, SketchPlane, TipState,
-    Verb, replay,
+    ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayError, ReplayErrorKind,
+    SketchPlane, Step, Target, TipState, Verb, replay,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
@@ -475,20 +475,52 @@ pub fn form_plane() -> SketchPlane<f64> {
     SketchPlane::xy()
 }
 
+/// **One drawn loop of a preview**: its polyline, and whether the
+/// chain it came from actually closed.
+///
+/// The pair is one value because the two facts are one drawing
+/// decision. A closed loop's last point joins its first, which is what
+/// [`ProfileLoop`] means by being closed by construction; an OPEN
+/// one's must not, and a consumer handed a bare point list has nothing
+/// to read that from — it would either invent a leg nobody authored or
+/// drop one that was.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PreviewLoop {
+    /// The flattened polyline, in sketch-plane metres.
+    ///
+    /// For an open chain these are exactly the authored legs' vertices:
+    /// the provisional closing leg contributes no point of its own, so
+    /// declining to wrap is all it takes to leave it undrawn.
+    pub points: Vec<[f64; 2]>,
+    /// Where in [`PreviewLoop::points`] the loop's OWN vertices sit —
+    /// the leg ends, as against the subdivisions a flattened arc adds
+    /// between them.
+    ///
+    /// Ascending, and `vertices[0]` is always `0`. It is carried
+    /// because a consumer cannot recover it: an arc's interior points
+    /// look exactly like its ends once they are a list of numbers.
+    /// What it buys is the directed point at each step — a mark AT the
+    /// tip, pointing the way the chain leaves it.
+    pub vertices: Vec<usize>,
+    /// Whether the authored chain closes on its own.
+    ///
+    /// `false` is a chain still being written — every template shape
+    /// closes by construction, so only the path form can produce one.
+    pub closed: bool,
+}
+
 /// **A candidate profile, replayed and flattened** — the picture a
 /// form shows of the loops in front of it, before any of it is a
 /// document.
 ///
-/// Sketch-plane coordinates in metres, one CLOSED polyline per loop:
-/// the last point is joined back to the first by the consumer, which
-/// is the same thing [`ProfileLoop`] means by being closed by
-/// construction. Nothing here knows where the sketch plane is; the
-/// caller places the points ([`SketchPlane::to_world`]) because the
-/// caller is the one drawing them.
+/// Sketch-plane coordinates in metres, one polyline per loop. Nothing
+/// here knows where the sketch plane is; the caller places the points
+/// ([`SketchPlane::to_world`]) because the caller is the one drawing
+/// them.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProfilePreview {
-    /// One closed polyline per loop, in authoring order.
-    pub loops: Vec<Vec<[f64; 2]>>,
+    /// One polyline per loop, in authoring order.
+    pub loops: Vec<PreviewLoop>,
     /// What validation said about the replayed loops — `None` when it
     /// passed.
     ///
@@ -499,7 +531,22 @@ pub struct ProfilePreview {
     /// needs to look at to see what is wrong with it. The commit door
     /// still refuses it; this only declines to make that refusal a
     /// blank pane.
+    ///
+    /// Always `None` while any loop is OPEN: validation is a verdict
+    /// on a profile, and a chain that has not closed is not one yet.
+    /// The provisional close this module draws it under is the
+    /// viewer's, not the author's, so validating through it would
+    /// report on a shape nobody wrote.
     pub invalid: Option<ProfileError>,
+}
+
+impl ProfilePreview {
+    /// Whether any drawn chain has not closed yet — the state a commit
+    /// must wait on, asked once here rather than spelled at each
+    /// caller.
+    pub fn has_open_chain(&self) -> bool {
+        self.loops.iter().any(|drawn| !drawn.closed)
+    }
 }
 
 /// Why a preview could not be drawn at all.
@@ -591,11 +638,26 @@ impl core::error::Error for PreviewError {}
 /// the loops themselves are exact, and this only decides how many
 /// points are drawn along them.
 ///
+/// **A chain that has not closed yet is drawn, not refused.** The
+/// driver's contract is that a program is a loop, so a path being
+/// typed in fails its replay at the end-of-program arm — and refusing
+/// the whole preview there left the viewport blank until the last step
+/// landed, which is exactly when nobody needs to look at it any more.
+/// Such a chain is replayed again under a PROVISIONAL `line_to Start`
+/// (this module's, never recorded) and the resulting
+/// [`PreviewLoop`] is marked `closed: false`, which tells the consumer
+/// not to draw the leg back to the start. Every other replay refusal
+/// blames a step somebody actually wrote and is still reported.
+///
 /// # Errors
 ///
 /// [`PreviewError`], per arm — everything that leaves no geometry to
 /// draw. A profile that replays and fails VALIDATION is a success
-/// here, carrying its refusal in [`ProfilePreview::invalid`].
+/// here, carrying its refusal in [`ProfilePreview::invalid`]. An
+/// unclosed chain whose provisional close is itself ill-typed — a tip
+/// with a direction and no position, an arc arrival still waiting for
+/// a binder — reports the ORIGINAL end-of-program refusal, never one
+/// belonging to the appended step.
 pub fn preview(
     plane: SketchPlane<f64>,
     shapes: &[ProfileShape],
@@ -622,28 +684,163 @@ pub fn preview(
         .resolve(&env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
     let mut loops: Vec<ProfileLoop<f64>> = Vec::with_capacity(resolved.len());
+    let mut closed_flags: Vec<bool> = Vec::with_capacity(resolved.len());
     for (index, steps) in resolved.iter().enumerate() {
-        let replayed = replay(steps, tol).map_err(|error| match error.kind {
-            ReplayErrorKind::Transition { state, verb } => PreviewError::Transition {
-                loop_: index,
-                step: error.step,
-                state,
-                verb,
-            },
-            ReplayErrorKind::Path(ref source) => PreviewError::Geometry {
-                loop_: index,
-                step: error.step,
-                rendered: source.to_string(),
-            },
-        })?;
-        loops.push(replayed);
+        match replay(steps, tol) {
+            Ok(replayed) => {
+                loops.push(replayed);
+                closed_flags.push(true);
+            }
+            // **A chain that has not closed YET still draws.**
+            //
+            // `replay` requires a closing verb — a program is a LOOP,
+            // and half a loop is not one — so a path being typed in
+            // refused the whole preview and the viewport stayed blank
+            // until the last step landed, which is precisely when a
+            // person no longer needs to see it.
+            //
+            // The end-of-program arm (`verb: None`) is the only one
+            // that means "unfinished" rather than "wrong": every other
+            // refusal blames a step that was authored. So that arm,
+            // and only it, is retried under a PROVISIONAL closing leg
+            // — `line_to Start`, appended here and never recorded
+            // anywhere — which is enough to make the driver hand back
+            // the geometry it already walked. The leg itself is not
+            // drawn: it contributes no vertex, so a consumer that
+            // declines to wrap an open polyline draws exactly the legs
+            // that were authored and nothing else.
+            //
+            // Nothing about the lattice is re-implemented to do it.
+            // The provisional close goes through the same `replay` as
+            // everything else, and when it is ill-typed at the tip
+            // (a bound direction with no position, an arc arrival
+            // still waiting for a binder) the ORIGINAL refusal is
+            // reported — never one belonging to a step nobody wrote.
+            Err(error) if matches!(error.kind, ReplayErrorKind::Transition { verb: None, .. }) => {
+                let mut provisional = steps.clone();
+                provisional.push(Step::LineTo(Target::Start));
+                match replay(&provisional, tol) {
+                    Ok(replayed) => {
+                        loops.push(replayed);
+                        closed_flags.push(false);
+                    }
+                    Err(_) => return Err(refusal(index, &error)),
+                }
+            }
+            Err(error) => return Err(refusal(index, &error)),
+        }
     }
-    let polylines = loops.iter().map(|lp| flatten(lp, chord)).collect();
-    let invalid = Profile::new(plane, loops).validate(tol).err();
+    let open = closed_flags.iter().any(|closed| !closed);
+    let polylines = loops
+        .iter()
+        .zip(&closed_flags)
+        .map(|(lp, closed)| {
+            let (points, vertices) = flatten(lp, chord);
+            PreviewLoop {
+                points,
+                vertices,
+                closed: *closed,
+            }
+        })
+        .collect();
+    // A profile is what validation has a verdict about, and an
+    // unfinished chain is not one. Validating the provisional close
+    // would report on a leg the author never wrote.
+    let invalid = if open {
+        None
+    } else {
+        Profile::new(plane, loops).validate(tol).err()
+    };
     Ok(ProfilePreview {
         loops: polylines,
         invalid,
     })
+}
+
+/// **Is the step at `steps[at]` well-typed where the chain leaves
+/// it?** — asked OF THE LATTICE, by replaying the prefix through it.
+///
+/// `Err` carries the tip's state and the verb the lattice refused
+/// there, which is the sentence a form greys a choice out with.
+/// Everything else is `Ok`: a chain that closes, one that simply has
+/// not closed yet, a leg whose NUMBERS have no answer (the fields of a
+/// freshly offered step are placeholders, and refusing a verb because
+/// its default radius is wrong would be judging the wrong thing), and
+/// a prefix that is already ill-typed before `at` — that refusal is
+/// the prefix's own and the form is already showing it.
+///
+/// **This is not a table.** The transition lattice is `profile`'s and
+/// stays there; what this does is put a candidate step in front of the
+/// same `replay` the commit door runs and report what it said. A
+/// second copy of the lattice kept in step by hand is exactly what the
+/// step list's docs refuse, and this is how the form offers only legal
+/// verbs without becoming one.
+///
+/// # Errors
+///
+/// The tip's state and the refused verb, when the lattice refuses the
+/// step at `at` for being ill-typed there.
+pub fn admits_at(
+    steps: &[PathStep],
+    at: usize,
+    notation: Notation,
+    tol: Tol,
+) -> Result<(), (TipState, Verb)> {
+    let mut programs = Vec::with_capacity(steps.len());
+    for step in steps {
+        // A field that is not a number is not a lattice question, and
+        // the form reports it through the preview beside this.
+        let Ok(lowered) = program_step(step, notation) else {
+            return Ok(());
+        };
+        programs.push(lowered);
+    }
+    let program = ProfileProgram {
+        plane: form_plane(),
+        loops: vec![LoopProgram::Chain(programs)],
+    };
+    let resolved: Vec<Vec<Step<f64>>> = match program.resolve(&ParamEnv::default()) {
+        Ok(resolved) => resolved,
+        // An expression that will not resolve is likewise not a
+        // lattice question.
+        Err(_) => return Ok(()),
+    };
+    let Some(chain) = resolved.first() else {
+        return Ok(());
+    };
+    match replay(chain, tol) {
+        Err(ReplayError {
+            step,
+            kind:
+                ReplayErrorKind::Transition {
+                    state,
+                    verb: Some(verb),
+                },
+        }) if step == at => Err((state, verb)),
+        _ => Ok(()),
+    }
+}
+
+/// One replay refusal as this module's own, naming the loop it came
+/// from.
+///
+/// Extracted because it is now read from two places — the plain
+/// refusal and the one a provisional close failed to rescue — and two
+/// copies of a mapping are two places for it to drift.
+fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
+    match error.kind {
+        ReplayErrorKind::Transition { state, verb } => PreviewError::Transition {
+            loop_,
+            step: error.step,
+            state,
+            verb,
+        },
+        ReplayErrorKind::Path(ref source) => PreviewError::Geometry {
+            loop_,
+            step: error.step,
+            rendered: source.to_string(),
+        },
+    }
 }
 
 /// **The most points one flattened arc is allowed.**
@@ -663,12 +860,19 @@ const MAX_ARC_POINTS: usize = 256;
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it
 /// and invents no second convention.
-fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Vec<[f64; 2]> {
+fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> (Vec<[f64; 2]>, Vec<usize>) {
     let vertices = loop_.vertices();
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
+    // Where each real vertex landed among the subdivisions. A caller
+    // that wants to mark the loop's own points cannot recover this
+    // afterwards — an arc's interior points are geometrically
+    // indistinguishable from its ends — so the flattener, which is the
+    // one place that knows, says it.
+    let mut at: Vec<usize> = Vec::with_capacity(vertices.len());
     for (index, vertex) in vertices.iter().enumerate() {
         let from = vertex.pos();
         let to = vertices[(index + 1) % vertices.len()].pos();
+        at.push(out.len());
         out.push([from.x, from.y]);
         let bulge = vertex.bulge();
         if bulge == 0.0 {
@@ -696,11 +900,14 @@ fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Vec<[f64; 2]> {
         ];
         let start = (from.y - centre[1]).atan2(from.x - centre[0]);
         for point in 1..arc_points(radius, theta, chord) {
-            let at = start + theta * (point as f64) / (arc_points(radius, theta, chord) as f64);
-            out.push([centre[0] + radius * at.cos(), centre[1] + radius * at.sin()]);
+            let angle = start + theta * (point as f64) / (arc_points(radius, theta, chord) as f64);
+            out.push([
+                centre[0] + radius * angle.cos(),
+                centre[1] + radius * angle.sin(),
+            ]);
         }
     }
-    out
+    (out, at)
 }
 
 /// How many chords one arc of `radius` sweeping `theta` needs to sag

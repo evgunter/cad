@@ -609,12 +609,14 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// As [`PickIndex::scene`]. Hiding EVERYTHING is not an error:
-    /// when the index has parts and the view hides all of them, the
-    /// answer is [`SceneMesh::empty`] — an honest blank picture whose
+    /// As [`PickIndex::scene`]. **Drawing nothing is never an error
+    /// here**, and there are two ways to draw nothing. Hiding
+    /// EVERYTHING gives [`SceneMesh::empty`] — a blank picture whose
     /// bounds are the hidden geometry's, so the camera keeps a real
-    /// extent to frame against and the picture is never left stale
-    /// behind a refusal.
+    /// extent to frame against. An index with NO PARTS AT ALL — an
+    /// emptied document, or one that holds only datums and profiles —
+    /// gives [`SceneMesh::nothing`], which has no extent to carry.
+    /// Either way the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         self.scene_focused(display, &std::collections::BTreeSet::new())
     }
@@ -648,7 +650,28 @@ impl PickIndex {
                 probe: display.moved_roots.get(&part.node()).copied(),
             });
         }
-        if parts.is_empty() && !self.parts.is_empty() {
+        if parts.is_empty() {
+            // Nothing is drawn, and there are two ways to arrive here.
+            // Every part hidden by the display view keeps its
+            // geometry's box, so a camera still has a real extent to
+            // frame against (the case the docs above state).
+            //
+            // An index with NO PARTS is the other, and it is what
+            // deleting the last feature leaves — as does a document
+            // that has only datums or profiles in it yet. That used to
+            // fall through to `build_parts_focused`, which counts zero
+            // triangles and refuses `EmptyMesh`; the refusal left the
+            // PREVIOUS picture on screen under an error line, so an
+            // emptied document went on showing the body it no longer
+            // has. An empty document is a state, not a fault, and
+            // [`SceneMesh::nothing`] is the picture of it.
+            if self.parts.is_empty() {
+                return Ok(SceneMesh::nothing(self.delta));
+            }
+            // Parts that exist but offer no point to bound is still a
+            // refusal, and deliberately still this one: that is a
+            // tessellation that produced nothing, which is the fault
+            // `EmptyMesh` has always named.
             let bounds = bvh::Aabb::from_points(
                 self.parts
                     .iter()
