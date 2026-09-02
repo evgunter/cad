@@ -4651,13 +4651,6 @@ see §C.
   payloads are ignored. So the `set_edge_curve(e, spec)` that
   `split_site`'s doc justifies at length is not checked by the property
   it was written for; delete it and the roundtrip still passes.
-- (s) `crates/geom/tests/surfaces/m5_pr7_surface_projection.rs:224-228`
-  and `crates/geom/tests/curves/projection.rs:219` — both new overflow
-  rows are built around *"Finite inputs throughout"*, which is the
-  load-bearing half of the claim; the surface row checks
-  `p.x.is_finite() && p.z.is_finite()` and skips `y`, the coordinate
-  that actually varies across the fixture, and the curve row checks `x`
-  alone.
 - (u) Residue: `crates/sweep/tests/m5_pr12_refusals.rs:518` has a
   leftover `let p = Point3::new(0.0,0.0,0.0); let _ = p;`.
   `interval-transcendentals`' `2^-960` vs the literature's `~2^-969` is

@@ -216,9 +216,14 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
 
     // Finite inputs throughout: the curve's own coordinates and the
     // query point are all representable.
-    assert!(curve.control().iter().all(|p| p.x.is_finite()));
+    assert!(
+        curve
+            .control()
+            .iter()
+            .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite())
+    );
     let p = Point3::new(0.0, 0.0, 0.0);
-    assert!(p.x.is_finite());
+    assert!(p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
 
     // The residual itself is what overflows.
     let d = curve.eval(0.0) - p;
