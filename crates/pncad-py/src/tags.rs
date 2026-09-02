@@ -284,6 +284,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
+        NodeErrorKind::NonFiniteDirection { .. } => "non_finite_direction",
         NodeErrorKind::Band { .. } => "band",
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
         NodeErrorKind::Escalated { .. } => "escalated",

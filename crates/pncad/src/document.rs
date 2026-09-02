@@ -126,9 +126,14 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
+// `UnitVec3`/`UnitVec3Error` ride with `DatumValue` because they are
+// its field type: a consumer cannot read a datum's normal, or build a
+// datum at all, without naming the type that makes it unit — and the
+// constructor's refusal is the only way a datum direction is rejected.
 pub use editor_core::{
     BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
+    ValuePayload, evaluate,
 };
 
 // Persistence: the doors, verbatim.

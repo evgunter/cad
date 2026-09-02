@@ -508,11 +508,19 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A named `const &str` rather than a literal at the site.** Five,
+3. **A named `const &str` rather than a literal at the site.** Six,
    not the three previously recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
    `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
-   const in `topo/src/query.rs`, re-exported by `editor-core`) and
+   const in `topo/src/query.rs`, re-exported by `editor-core`),
+   `DATUM_UNIT_NORM` (`datum_unit_norm` — since SEAT-DV a `pub` const
+   beside it, the length decision inside `UnitVec3::new`; the datum
+   arms of `editor-core`'s evaluation reach the funnel through that
+   constructor rather than through their own `eval_direction_norm`
+   site, which stays for the directions the evaluation layer owns —
+   note that `mate/solve.rs` re-derives a circular pattern's DATUM axis
+   from the recipe and decides it under `eval_direction_norm`, so one
+   datum direction carries two names by road, issue 1570) and
    `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
    (`fillet3_ring_clearance`).
 4. **A struct field or a local table.** `ray_parity::ParityRows` (the
@@ -1432,6 +1440,23 @@ carries **231**. No other predicate's name, margin, band or outcome
 changes. The M7 addendum's own "233" is left as written — it describes
 the committed snapshot, which still says 233 because it still contains
 the six old names.
+
+**And SEAT-DV adds one: 232 at a sweep cut after it.**
+`datum_unit_norm` is the length decision inside `topo::query`'s
+`UnitVec3::new`, which is where a datum's normal or axis direction is
+now normalized. It does not REPLACE `eval_direction_norm`, which keeps
+the directions the evaluation layer owns (a transform's rotation axis,
+a linear pattern's direction) — so this is one name in, none out. The
+population it takes is small and it moves rather than grows: the datum
+arms of `editor-core`'s `wire_datum` used to emit `eval_direction_norm`
+and now emit `datum_unit_norm`. **One triple is emitted under BOTH
+names depending on the road**: `mate/solve.rs`'s derived-offset
+derivation re-reads a circular pattern's datum-axis node from the
+recipe and normalizes that same direction through `eval_direction_norm`
+(same arithmetic, same refusal shape, different name in this census).
+That is a family question, not a defect of either site, and it is homed
+at issue **1570** — this paragraph is the census-side record of it, and
+neither road was migrated.
 
 **Effect on the emitted stream.** Margins, order, bands and outcomes are
 bit-identical; only the `predicate` column changes, and only for these
