@@ -1195,6 +1195,13 @@ was considered and declined — the relaxation touches the
 same-carrier discipline (one authored side = one carrier), which
 germ matching and the merge ladders lean on. Revisit only with a
 concrete authoring need, as a revision to this section.
+**REOPENED (Evan, in-chat, 2026-09-01) — relaxed for the DECLARED
+case only, on BOOL-11's measured need (the block-quote below):
+a closing leg may declare that it arrives straight into the
+entry's first side, checked within ε through the funnel;
+undeclared mid-side closes keep refusing. Mechanism, spelling and
+the loop-start reading of the two consumers named above ride
+BOOL-12's PR as a revision to this entry.**
 
 > **A concrete authoring need is now on the table (§4, BOOL-11, open —
 > Evan-gated).** The declared closer made a seam at a CORNER sufficient,

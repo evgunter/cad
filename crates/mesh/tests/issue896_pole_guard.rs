@@ -70,7 +70,7 @@ fn band_body(rho: f64) -> Result<Body<f64>, RevolveError> {
 /// it).
 #[test]
 fn a_rim_inside_the_pole_band_refuses_at_the_certified_axis_bars() {
-    let eps = Tol::witness().get().eps;
+    let eps = common::eps();
     let pinned = band_body(0.9 * eps).map(|_| ());
     assert!(
         matches!(pinned, Err(RevolveError::NonManifoldAxisContact { .. })),
