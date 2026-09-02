@@ -574,8 +574,11 @@ fn direct_validation_door_behavior_at_dual64() {
     let ev = eval::<Dual64>(&planar.doc);
     let body = corpus::body_of(&ev, planar.result.unwrap());
     // `die` carries filleted (cylindrical/spherical) faces — curved but
-    // closed-form; what matters here is the door RUNS and answers.
-    let direct = topo::validate_geometric(body, tol);
+    // closed-form; what matters here is that the door a dual CAN take
+    // runs and answers. That door is the structural half: the composed
+    // entry carries the +V invariant's certified bound and cannot be
+    // called at a dual at all.
+    let direct = topo::validate_geometric_structural(body, tol);
     let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
     assert_eq!(
         policy,
@@ -587,14 +590,22 @@ fn direct_validation_door_behavior_at_dual64() {
     {
         let ev_n = eval::<Dual64>(&nurbs.doc);
         let body_n = corpus::body_of(&ev_n, result);
-        assert!(
-            topo::validate_geometric(body_n, tol).is_err(),
-            "a NURBS-walled body must refuse typed through the dual's quad lane"
+        // MEASURED, and the reverse of what this row asserted before the
+        // validator split: a NURBS-walled body PASSES the structural
+        // half at a dual. Its only refusal was the +V invariant's
+        // `VolumeUncomputable`, raised by the dual's refusing quadrature
+        // arm — the certified half, which a dual cannot call at all now.
+        // Nothing the structural checks consult refuses this body.
+        assert_eq!(
+            topo::validate_geometric_structural(body_n, tol),
+            Ok(()),
+            "a NURBS-walled body passes the door a dual can take; its refusal was \
+             the certified half's"
         );
     }
     // Record the die outcome either way — the row's value is the pair
     // of spellings being on the record, not a particular verdict.
-    eprintln!("direct validate_geometric::<Dual64>(die) = {direct:?}");
+    eprintln!("direct validate_geometric_structural::<Dual64>(die) = {direct:?}");
 }
 
 /// EVIDENCE-ONLY (review record; retire freely): `ContentBits::feed`

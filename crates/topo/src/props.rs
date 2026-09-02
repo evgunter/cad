@@ -172,6 +172,34 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     mass_properties_impl(body, band, T::quad_cut_face, tol)
 }
 
+/// [`mass_properties`] at a scalar that may CERTIFY — the certified
+/// quadrature NAMED, not selected.
+///
+/// The difference from [`mass_properties_with`] is where the
+/// quadrature comes from and therefore which scalars can call this at
+/// all. `mass_properties_with` asks the scalar's lane which quadrature
+/// it has, and a scalar with none answers `Ok(None)`; here the
+/// certified body is handed in directly, so the bound is the one the
+/// quadrature itself carries and a scalar that may not certify cannot
+/// form the call. That is [`crate::validate_geometric`]'s certified
+/// half: the +V invariant is a claim about an enclosure, and a claim
+/// no bracket can be certified for is not a weaker claim, it is not
+/// this claim.
+pub(crate) fn mass_properties_certified<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(
+        body,
+        band,
+        |body, surface, outer, hes, band, tol| {
+            quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
+        },
+        tol,
+    )
+}
+
 /// The closed-form-only variant for the boolean engine's INTERNAL
 /// backstops (`volume_backstop`, `at_infinity_side`): plain
 /// `T: Decide`, no quadrature dispatch — on a conic-trimmed face the
@@ -1082,7 +1110,7 @@ mod at_rest_policy_tests {
         b
     }
 
-    fn certifying_arms_are_the_doors<T: AtRestPolicy>() {
+    fn certifying_arms_are_the_doors<T: AtRestPolicy + geom_core::CertifiedBounds>() {
         let tol = Tol::witness();
         let b = refusing_body::<T>();
         let door = crate::validate::validate_geometric(&b, tol);
@@ -1122,13 +1150,22 @@ mod at_rest_policy_tests {
     /// The dual arm on the SAME refusing subject: the gate does not run
     /// and says so — [`AtRestOutcome::NotRunAtThisScalar`], never a
     /// verdict about geometry the door itself refuses.
+    ///
+    /// The direct door is no longer part of this row's contrast, and
+    /// the reason is the point: `validate_geometric` cannot be CALLED
+    /// at a dual — the composed entry carries the certified half's
+    /// bound, so there is no refusal left to observe here. What a dual
+    /// can still do is the structural half, and this row pins that
+    /// instead: the seed body's placeholder surface is a check-1
+    /// failure, which is structural, so the dual sees the same refusal
+    /// the certifying scalars see through the same checks.
     #[test]
     fn dual_gate_is_absent_not_a_verdict() {
         let tol = Tol::witness();
         let b = refusing_body::<geom_core::Dual64>();
         assert!(
-            crate::validate::validate_geometric(&b, tol).is_err(),
-            "the direct door still refuses at a dual"
+            crate::validate::validate_geometric_structural(&b, tol).is_err(),
+            "the structural half still runs, and still refuses, at a dual"
         );
         assert_eq!(
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),

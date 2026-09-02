@@ -248,12 +248,26 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // upgrade first (M2 PR 4 fix pass: the transverse cube chords must
     // carry Intersection at rest), so the compared certificates are the
     // upgraded Intersection re-certifications.
+    //
+    // The dual goes through the STRUCTURAL half, which is where every
+    // certificate compared below is produced — checks 1-6, 8 and 9 all
+    // run, and the one check that does not is the +V volume invariant,
+    // which reads an enclosure a dual may not certify and reads no
+    // certificate this row compares. The f64 lane's own composed-door
+    // rows are elsewhere in this file.
     use geom_core::{Dual, Dual64};
     let mut f = geometric_cube::<f64>();
     let mut d = geometric_cube::<Dual64>();
     describe_as_intersections(&mut f.body);
     describe_as_intersections(&mut d.body);
-    assert_eq!(validate_geometric(&d.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate_geometric_structural(&d.body, Tol::witness()),
+        Ok(())
+    );
+    // And the same body at f64 passes the COMPOSED door, so the
+    // structural pass above is not a weaker subject standing in for one
+    // that would have failed.
+    assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
     let f_certs: Vec<f64> = f
         .body
         .curves()

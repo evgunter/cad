@@ -725,6 +725,37 @@ pub mod bounds_allowlist {
     //! the registry and record that the call cannot be written; that is the
     //! only shape in which an unwritable call can be checked.
     //!
+    //! **2026-09-02 — `topo::validate_geometric` and the two `topo::shell`
+    //! verbs**, the certified at-rest validator and the one verb that
+    //! validates what it built. Tier 3's battery is nine checks, eight of
+    //! which any deciding scalar answers and one of which — the +V global
+    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
+    //! battery is therefore two functions, `validate_geometric_structural`
+    //! at `T: PropsQuadLane` and a private certified half at
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
+    //! composition, so its bound is the union and IS the compound one this
+    //! file ratifies. `shell`/`shell_open` take the same bound because their
+    //! last act is that entry.
+    //!
+    //! **It clears "brackets never decide" at the door being ratified**: no
+    //! `lo`/`hi` call appears in `validate.rs`, and the certified half's own
+    //! bracket read is `props`' certified quadrature, already ratified at the
+    //! `props.rs` seam. The weakest bound that works is this one, checked
+    //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! alone does NOT compile, because the certified quadrature reads
+    //! [`Bounds`](super::Bounds) as well.
+    //!
+    //! **Why the obligation had to become literal at all**, since the door
+    //! was already closed to a dual before this row and by construction: it
+    //! was not closed. `T: PropsQuadLane` ADMITS a dual — the lane answers
+    //! "no certified quadrature" and the +V check reported that refusal at
+    //! run time — so the certification duty rode a trait name that spells
+    //! none of this gate's, invisible to every instrument. What changed is
+    //! the mechanism, not the strictness: the refusal is retired and the
+    //! call a dual cannot honour is unwritable instead. A dual keeps the
+    //! structural half, which is where every certificate its bit-identity
+    //! rows compare is produced.
+    //!
     //! **What a future row owes instead of citing this one.** Two negative
     //! results carried its first draft and neither reaches the question: that
     //! `topo::PropsQuadLane` does not imply [`Bounds`](super::Bounds) (true, checked by
