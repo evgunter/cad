@@ -54,6 +54,8 @@ mod chrome_labels;
 mod combine_ops;
 #[path = "creation_ops.rs"]
 mod creation_ops;
+#[path = "datum_draw.rs"]
+mod datum_draw;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
