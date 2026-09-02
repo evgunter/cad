@@ -90,29 +90,33 @@ fn cone_patch(scale: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
     let u1 = core::f64::consts::FRAC_PI_2;
     // Generator direction at azimuth u (unit: axis·cosα + radial·sinα).
     let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
-    let rim = |v: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, v * cos_a),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: Probe(v * sin_a),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        t0: Probe(0.0),
-        t1: Probe(u1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let rim = |v: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: p(0.0, 0.0, v * cos_a),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: Probe(v * sin_a),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            Probe(0.0),
+            Probe(u1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
-    let meridian = |u: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier: Curve3::Line {
-            origin: p(0.0, 0.0, 0.0),
-            dir: gen_dir(u),
-        },
-        t0: Probe(va),
-        t1: Probe(vb),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let meridian = |u: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Line {
+                origin: p(0.0, 0.0, 0.0),
+                dir: gen_dir(u),
+            },
+            Probe(va),
+            Probe(vb),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
     // Chart-CCW: rim va (+u), meridian u1 (+v), rim vb (−u),
     // meridian 0 (−v). The rim closure takes the SLANT level v
@@ -220,29 +224,33 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
     let vm = va + vm_frac * (vb - va);
     let (u1, u2) = (0.6_f64, 1.2_f64);
     let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
-    let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, v * cos_a),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: Probe(v * sin_a),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        t0: Probe(t0),
-        t1: Probe(t1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: p(0.0, 0.0, v * cos_a),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: Probe(v * sin_a),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            Probe(t0),
+            Probe(t1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
-    let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier: Curve3::Line {
-            origin: p(0.0, 0.0, 0.0),
-            dir: gen_dir(u),
-        },
-        t0: Probe(t0),
-        t1: Probe(t1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Line {
+                origin: p(0.0, 0.0, 0.0),
+                dir: gen_dir(u),
+            },
+            Probe(t0),
+            Probe(t1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
     let edges = vec![
         rim(va, 0.0, u1, true, (0, 1)),
@@ -272,31 +280,35 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
     let (va, vb) = (0.2_f64, 0.8_f64);
     let vm = va + vm_frac * (vb - va);
     let (u1, u2) = (0.6_f64, 1.2_f64);
-    let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, scale * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: Probe(scale * v.cos()),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        t0: Probe(t0),
-        t1: Probe(t1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: p(0.0, 0.0, scale * v.sin()),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: Probe(scale * v.cos()),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            Probe(t0),
+            Probe(t1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
-    let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: Probe(scale),
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        t0: Probe(t0),
-        t1: Probe(t1),
-        forward,
-        start: tags.0,
-        end: tags.1,
+    let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: p(0.0, 0.0, 0.0),
+                axis: v3(u.sin(), -u.cos(), 0.0),
+                radius: Probe(scale),
+                u_ref: v3(u.cos(), u.sin(), 0.0),
+            },
+            Probe(t0),
+            Probe(t1),
+            forward,
+            tags.0,
+            tags.1,
+        )
     };
     let edges = vec![
         rim(va, 0.0, u1, true, (0, 1)),

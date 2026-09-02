@@ -7,7 +7,11 @@
 //! - the issue-1571 body at δ = 0.5, its outcome PRINTED and the one
 //!   thing asserted being that no panic there is the deleted
 //!   assertion's — run with `walk.rs` at the merge base this row goes
-//!   red, which is the BEFORE half of the relocation's evidence;
+//!   red, which is the BEFORE half of the relocation's evidence. Since
+//!   MESH-11 that body no longer reaches the walk at all: the branch
+//!   door (`props::require_one_chart_branch`) refuses it typed at
+//!   every δ, so what this row now prints is that refusal, and the
+//!   assertion — no panic — holds for a second reason;
 //! - a sub-ε closure wobble built THROUGH THE EULER DOORS, which the
 //!   unit's test header says cannot be constructed: a meridian stated
 //!   as a circle whose plane is tilted a hair out of the meridian

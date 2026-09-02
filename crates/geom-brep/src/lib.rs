@@ -95,9 +95,9 @@ pub use implicit::{
 };
 pub use intersect::{
     EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
-    RadiusEvidence, Rung, SectionError, SphereSphereSection, SurfaceKind,
+    PlaneTorusSection, RadiusEvidence, Rung, SectionError, SphereSphereSection, SurfaceKind,
     cylinder_cylinder_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
-    route, sphere_sphere_section,
+    plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
@@ -118,6 +118,7 @@ pub use pcurve_cache::{
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
+    require_one_chart_branch,
 };
 pub use ssi::{
     Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,

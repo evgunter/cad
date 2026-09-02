@@ -260,11 +260,26 @@ fn r2r_the_wobble_scale_sweep() {
 // (claims 5 and 8)
 // ---------------------------------------------------------------
 
-/// **Issue 1571's witness, re-derived here** — one of four declared
-/// copies; `topo/tests/mesh8_coherence.rs` carries the reason there is
-/// no single home (ADOPTION NOTE, not the reviewer's). A unit sphere with a rim
+/// **Issue 1571's witness, re-derived here.** A unit sphere with a rim
 /// at `z = 0.5` and ONE great-circle arc from the rim's `u = π` end
 /// OVER the north pole to its `u = 0` end.
+///
+/// **Citation corrected (MESH-11):** this used to call itself "one of
+/// four declared copies" and point at an ADOPTION NOTE in
+/// `topo/tests/mesh8_coherence.rs` giving the reason there is no
+/// single home. No such note exists there — the pointer was to a
+/// document that was never written. What is true, and countable: the
+/// body is declared as a `Body` in three places — `mesh/tests/common/
+/// witness_bodies.rs` (the shared home MESH-11 made, which
+/// `mesh7r1_probes` and `mesh11_arc_branch` both use), this file's
+/// copy, and `topo/tests/mesh8_coherence.rs`'s — plus twice as
+/// hand-built `LoopEdge` loops for the props doors
+/// (`geom-brep/tests/cert1_sphere_polar.rs`,
+/// `geom-brep/tests/mesh11_arc_branch.rs`), which are a different
+/// thing and cannot share the `Body` home. The reason THIS copy stays
+/// separate is the reviewer's own and is stated where it belongs: an
+/// independent instrument that re-derives its subject is evidence in
+/// a way one that imports it is not.
 fn pole_crossing_half_cap() -> Body<f64> {
     let tol = Tol::witness();
     let rim_r = (1.0f64 - 0.25).sqrt();

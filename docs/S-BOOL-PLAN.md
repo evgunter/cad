@@ -371,6 +371,31 @@ this program's files — see Q3 below.
    body — the conversation opens by putting that proposal (or its
    correction) up for the ruling rather than re-deriving one. Not
    implemented until ruled.
+   **Ruled (Evan, in-chat, 2026-09-02, sixth round — the subdivision
+   concept leaves the lattice): "Every zero-turn joint is a declared
+   tangent joint. The lattice checks directions and never asks whether
+   the carriers are the same."** Consequences: the seam takes ONE
+   arrival token (`Start.arrives_tangent()`); `arrives_straight()` and
+   the subdivision-vs-tangent distinction retire from the authoring
+   layer; the carrier-identity exception in the junction rules retires
+   — `SameCarrierJunction` (BOOL-11's addendum arm) and `validate`'s
+   `TangencyContradicted { same_carrier }` go, because a declared
+   tangency onto an identical carrier is simply tangent; the first
+   round's rationale "collinear line/line is carrier identity, legal
+   undeclared" is re-stated as "the continuation verbs (`line(len)`,
+   `continue_to`) DECLARE their zero-turn joint" — the spelling stands,
+   and those joints now enter `tangent_joints`; the fifth round's
+   "declared subdivision point" reads "declared tangent joint"; an
+   UNDECLARED zero-turn junction keeps refusing (`JunctionTangent` /
+   `SeamTangent`, and `UndeclaredTangency` at the data gate). The
+   structural fact "these pieces are one curve" is NOT abolished — it
+   lives where §2c puts the bookkeeping: the emission layer and the
+   lowering (split lineage, `GeomSource`), where props' parses, the
+   mesh walk, naming and the merge ladder consume it (issue 1568 is
+   that question at the lowering). Lands as BOOL-12's addendum before
+   its sign-off; BOOL-10's "declared subdivision on the arc leg" is the
+   same feature under its true name — declared tangent joints on one
+   circle.
 2. **Q2 — RULED (Evan, in-chat, 2026-09-01): decide now — Helix
    is coming.** The shape: a per-slab stacking fold with margin =
    min over slabs, replacing the ends-only statement whose wall is
