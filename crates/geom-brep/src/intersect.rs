@@ -1374,8 +1374,16 @@ pub fn cylinder_sphere_section<T: Decide>(
     // 2-3. The degeneracy guard, on the FULL convention: two questions,
     // two margins. Neither is implied by the reach trilean below.
     for (name, margin, what) in [
-        ("cs_cylinder_radius", r, "the cylinder's radius is not definitely positive"),
-        ("cs_sphere_radius", big_r, "the sphere's radius is not definitely positive"),
+        (
+            "cs_cylinder_radius",
+            r,
+            "the cylinder's radius is not definitely positive",
+        ),
+        (
+            "cs_sphere_radius",
+            big_r,
+            "the sphere's radius is not definitely positive",
+        ),
     ] {
         match decide(name, Margin::of(margin), band).map_err(SectionError::Escalated)? {
             Sign::Positive => {}

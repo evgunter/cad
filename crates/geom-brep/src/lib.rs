@@ -97,8 +97,7 @@ pub use intersect::{
     CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PairRoute, PlaneConeSection,
     PlaneCylinderSection, PlaneSphereSection, RadiusEvidence, Rung, SectionError,
     SphereSphereSection, SurfaceKind, cylinder_cylinder_section, cylinder_sphere_section,
-    plane_cone_section, plane_cylinder_section, plane_sphere_section, route,
-    sphere_sphere_section,
+    plane_cone_section, plane_cylinder_section, plane_sphere_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};

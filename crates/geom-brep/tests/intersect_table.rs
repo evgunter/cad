@@ -11,8 +11,8 @@ use geom_brep::implicit_residual;
 use geom_brep::intersect::{
     CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PlaneConeSection,
     PlaneCylinderSection, RadiusEvidence, Rung, SectionError, SurfaceKind,
-    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
-    plane_cylinder_section, route,
+    cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
+    route,
 };
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
@@ -739,7 +739,11 @@ fn circle_samples(
 #[test]
 fn declared_coaxial_crossing_is_two_circles() {
     for (label, cyl, sph) in [
-        ("direct", coaxial_pair(1.0, 1.5, 0.0).0, coaxial_pair(1.0, 1.5, 0.0).1),
+        (
+            "direct",
+            coaxial_pair(1.0, 1.5, 0.0).0,
+            coaxial_pair(1.0, 1.5, 0.0).1,
+        ),
         (
             "re-posed twin",
             posed(&coaxial_pair(1.0, 1.5, 0.0).0),
@@ -785,7 +789,11 @@ fn declared_coaxial_crossing_is_two_circles() {
 #[test]
 fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
     for (label, cyl, sph) in [
-        ("direct", coaxial_pair(1.0, 1.0, 0.0).0, coaxial_pair(1.0, 1.0, 0.0).1),
+        (
+            "direct",
+            coaxial_pair(1.0, 1.0, 0.0).0,
+            coaxial_pair(1.0, 1.0, 0.0).1,
+        ),
         (
             "re-posed twin",
             posed(&coaxial_pair(1.0, 1.0, 0.0).0),
@@ -833,7 +841,11 @@ fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
 #[test]
 fn declared_coaxial_short_sphere_is_empty() {
     for (label, cyl, sph) in [
-        ("direct", coaxial_pair(1.0, 0.5, 0.0).0, coaxial_pair(1.0, 0.5, 0.0).1),
+        (
+            "direct",
+            coaxial_pair(1.0, 0.5, 0.0).0,
+            coaxial_pair(1.0, 0.5, 0.0).1,
+        ),
         (
             "re-posed twin",
             posed(&coaxial_pair(1.0, 0.5, 0.0).0),
@@ -841,10 +853,7 @@ fn declared_coaxial_short_sphere_is_empty() {
         ),
     ] {
         let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
-        assert!(
-            matches!(s, CylinderSphereSection::Empty),
-            "{label}: {s:?}"
-        );
+        assert!(matches!(s, CylinderSphereSection::Empty), "{label}: {s:?}");
     }
 }
 
@@ -854,7 +863,11 @@ fn declared_coaxial_short_sphere_is_empty() {
 #[test]
 fn coaxiality_is_never_inferred_from_the_measured_distance() {
     for (label, cyl, sph) in [
-        ("direct", coaxial_pair(1.0, 1.5, 0.0).0, coaxial_pair(1.0, 1.5, 0.0).1),
+        (
+            "direct",
+            coaxial_pair(1.0, 1.5, 0.0).0,
+            coaxial_pair(1.0, 1.5, 0.0).1,
+        ),
         (
             "re-posed twin",
             posed(&coaxial_pair(1.0, 1.5, 0.0).0),
@@ -904,7 +917,10 @@ fn declared_coaxiality_is_verified() {
         ("re-posed twin", posed(&cyl), posed(&off(3.0 * eps()))),
     ] {
         let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
-        assert!(matches!(err, SectionError::Escalated(_)), "{label}: {err:?}");
+        assert!(
+            matches!(err, SectionError::Escalated(_)),
+            "{label}: {err:?}"
+        );
     }
 }
 
@@ -960,7 +976,10 @@ fn the_reach_trilean_escalates_in_band() {
         ),
     ] {
         let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
-        assert!(matches!(err, SectionError::Escalated(_)), "{label}: {err:?}");
+        assert!(
+            matches!(err, SectionError::Escalated(_)),
+            "{label}: {err:?}"
+        );
     }
 }
 
@@ -1212,7 +1231,6 @@ mod interval {
             "{err:?}"
         );
     }
-
 }
 
 // ---------------------------------------------------------------------
