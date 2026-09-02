@@ -227,7 +227,7 @@ empty token live (disjoint-intersect fixture, red-first + reproduced
 on the extracted pre-change main) and carried the VerbArity payload
 types through the facade and Python censuses (two intermediate CI
 reds, both censuses working as designed). Full row: MODEL-AB-LOG
-SEAT5 (ordinal 1005, sample #107 at merge).
+SEAT5 (ordinal 1005, sample #109 at merge — corrected from #107, a concurrent-recorder collision ruled by main's merge order).
 
 Next: SEAT-6 (the ParamSource channel; the issue-1372 handoff note to
 VERBS rides the dispatch per the plan) on block SEAT-B2's next slot.
