@@ -52,8 +52,14 @@ fn r1_lifting_door_lifts_continue_to() {
         .filter(|s| matches!(s, ProgramStep::ContinueTo(_)))
         .collect();
     assert_eq!(arms.len(), 2, "{steps:?}");
-    assert!(matches!(arms[0], ProgramStep::ContinueTo(ProgramTarget::Point(_))));
-    assert!(matches!(arms[1], ProgramStep::ContinueTo(ProgramTarget::Start)));
+    assert!(matches!(
+        arms[0],
+        ProgramStep::ContinueTo(ProgramTarget::Point(_))
+    ));
+    assert!(matches!(
+        arms[1],
+        ProgramStep::ContinueTo(ProgramTarget::Start)
+    ));
 }
 
 /// And the `Start` arm alone lifts too (the closer, with no interior

@@ -863,18 +863,14 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
         // `line_to` where it turns there, the ARRIVAL with the target
         // where the run continues through `ring[0]` and plain `Start`
         // where it turns.
-        Closer::ArrivesStraight => {
-            match (straight_at(n - 1), straight_at(0)) {
-                (false, false) => chain.line_to(Start, t).map_err(|_| ())?,
-                (false, true) => chain
-                    .line_to(Start.arrives_straight(), t)
-                    .map_err(|_| ())?,
-                (true, false) => chain.continue_to(Start, t).map_err(|_| ())?,
-                (true, true) => chain
-                    .continue_to(Start.arrives_straight(), t)
-                    .map_err(|_| ())?,
-            }
-        }
+        Closer::ArrivesStraight => match (straight_at(n - 1), straight_at(0)) {
+            (false, false) => chain.line_to(Start, t).map_err(|_| ())?,
+            (false, true) => chain.line_to(Start.arrives_straight(), t).map_err(|_| ())?,
+            (true, false) => chain.continue_to(Start, t).map_err(|_| ())?,
+            (true, true) => chain
+                .continue_to(Start.arrives_straight(), t)
+                .map_err(|_| ())?,
+        },
     };
     let lp = pinned(lp);
     Profile::new(SketchPlane::xy(), vec![lp])

@@ -252,6 +252,14 @@ coordinates value-matching.
 - Sharp seam: `line_to(Start)` / `arc_to(Start, bulge)` — an
   ordinary leg targeting Start; the seam's junction check runs
   with both directions known.
+- Declared seam (§6's revised PQ4): the seam's own junction is the
+  one declaration that cannot ride a departing leg, because the
+  arriving leg is authored last. It rides the TARGET —
+  `line_to(Start.arrives_straight())` /
+  `continue_to(Start.arrives_straight())` for a straight arrival
+  into the entry's first side, `tangent_arc_to(Start.arrives_tangent())`
+  for a G1 one — and is CHECKED, never inferred. Undeclared, those
+  seams refuse exactly as before.
 - Tangent seam: `.tangent().tangent_arc_to(Start)`. (A tangent
   LINE close is overdetermined — direction inherited AND through
   Start — and refuses ALWAYS, exact collinearity included: a ray
@@ -807,7 +815,7 @@ typestate, and it retires:
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
 | `line(len)` | Directed → Point; directed point → directed point | off a directed point, the straight continuation: the leg departs along the point's own intrinsic tangent. Binding bits only; there is no junction (no authored direction exists to classify) and nothing is declared. The minted vertex is a structural subdivision of the carrier — the loft vertex-budget shape. |
-| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, so PQ4 still wants a corner there, refusing `SeamTangent` when it is not one. The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
+| `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and not a corner; `Start.arrives_straight()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
 | `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
@@ -817,7 +825,9 @@ typestate, and it retires:
 | arrival `Center{c, w, p}` | (open fillet) → directed Point; `p: Start` → complete loop | complete at the verb; interior `p` is a HARD anchor (run emitted, ordinary directed point); `Start` keeps the entry vertex |
 | arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
 | arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes | anchor in the spec; one director pending |
-| `Start` | directed-point VALUE | targeting it closes, structurally |
+| `Start` | directed-point VALUE | targeting it closes, structurally; the seam's junction is classified and, UNDECLARED, a tangent one refuses `SeamTangent` from every closing verb |
+| `Start.arrives_straight()` | target of `line_to` / `continue_to` → complete loop | the DECLARED STRAIGHT ARRIVAL (§6's revised PQ4): the closing leg says it arrives straight into the entry's first side, so the seam is a declared SUBDIVISION point of one carrier. The kernel CHECKS the entry's outgoing direction against the arriving one, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input and `JunctionCusp` for a reversed arrival. Independent of the DEPARTURE declaration, which is still the verb's: `line_to` where the closing leg turns at its own start, `continue_to` where it continues. Declares no tangency — one carrier continues through the seam. |
+| `Start.arrives_tangent()` | target of `tangent_arc_to` → complete loop | the DECLARED G1 ARRIVAL: the closing ARC says it arrives tangent to the entry's outgoing direction. The arc is still constructed from the DEPARTURE, so one end constructs and the other is checked — nothing is overdetermined — and the same banded check runs on the arc's end tangent with `radius.min(chord)` as the lever. Joint 0 carries the declared flag, re-verified at the gate. A shape no circular arc can serve at both ends refuses, naming the seam FILLET, which constructs both. Not a `line_to` target: a straight leg's arrival direction is its own, so "straight" is that fact's one spelling. |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-subdivision closed carrier: `n` equal arcs from `phase`, structural subdivisions of one carrier — the same no-seam story as `circle`, with the count and phase authored |
@@ -881,7 +891,11 @@ non-positive sweep/arc-length); `ArcCenterNotEquidistant`;
 `DegenerateArcCenter`; `FarEndAnchorWithoutFillet`;
 `CircleSplitCount`; `ArcContinueNeedsArcCarrier` and
 `ArcContinueOffCarrier` (no incoming arc carrier to continue; an
-authored target off it — authored points never re-project).
+authored target off it — authored points never re-project);
+`SeamArrivalOffDirection` (a DECLARED seam arrival that definitely
+does not continue the entry's outgoing direction — the levered
+miss and its lever in the payload; a REVERSED one is
+`JunctionCusp`).
 RETIRED with the §2b register: `ArcCarrierSpelling` and the doctrine-level
 `FilletCarrierUnsupported` — under the §2c axiom a carrier-keyed
 refusal is unwritable (contact ON a carrier is the fused verb;
@@ -963,10 +977,12 @@ the vertex table is the materialized form intensional recipes
 evaluate into. The units: this half is **BOOL-8**, the
 `arc_continue` retirement **BOOL-10**, the declared point-target
 continuation and its closer **BOOL-11**, the raw-door demotion
-**BOOL-9** (resequenced behind BOOL-11). **The LATTICE half has now
-landed in full** — the interior continuation (BOOL-8) and the declared
-point-target form with its structural closer (BOOL-11); the RAW DOOR
-remains (BOOL-9), and #433 closes when it lands.
+**BOOL-9** (resequenced behind BOOL-11), the seam's declared arrival
+**BOOL-12**. **Both lattice halves and the SEAM have landed** — the
+interior continuation (BOOL-8), the declared point-target form with its
+structural closer (BOOL-11), and the declared arrival that admits a
+subdivision or G1 seam (BOOL-12, §6's revised PQ4); the RAW DOOR remains
+(BOOL-9), and #433 closes when it lands.
 
 **The seam, measured here and RULED (third round, Evan, in-chat,
 2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
@@ -1090,16 +1106,80 @@ rotation that gives every section a corner at its seam. So the lily
 demo does NOT migrate here: its remaining wall is PQ4's, reached by the
 one section whose seam is forced onto a subdivision vertex.
 
-**That leaves a question this document does not answer, and it is
-Evan's.** BOOL-8 already made a side legal with two authored vertices
-on one carrier, so "one authored side, one carrier" is not what PQ4 is
-protecting any more. Whether a DECLARED subdivision vertex is an
-admissible seam — the loop cut where the author said the carrier
-continues, rather than mid-segment where nobody said anything — is the
-question the lily family raises and this unit did not take: the ruling
-said PQ4 stands unchanged, and it stands. Until it is asked and
-answered, an outline whose corner set moves between its own sections is
-authored as loop DATA, and the lily demo says so at its own site.
+**That question was asked and RULED, and the other half of the wall is
+gone too (fifth round, Evan, in-chat, 2026-09-01; landed by BOOL-12).**
+A DECLARED subdivision vertex IS an admissible seam — the loop cut where
+the author said the carrier continues — and so is a DECLARED G1 joint.
+PQ4's revised entry in §6 carries the rule, the loop-start reading of
+its two named consumers, and the uniformity argument; what belongs here
+is the mechanism and its three decisions.
+
+**The declaration rides the TARGET**, not the verb, because the seam is
+the one junction whose ARRIVING leg is the later-authored one. Every
+other declaration in this document rides the departing leg, and at the
+seam there is no departing leg to ride: the entry's first side is
+authored at the front, where §2's entry rule makes the seam's content
+ill-typed. So `Start` gains two declaring siblings —
+`Start.arrives_straight()` for a straight closer and
+`Start.arrives_tangent()` for the tangent-arc one — and the closing
+verbs are the ordinary ones, unchanged, each still one
+`transition_table!` row. Admissibility is the §2c matrix discipline: a
+straight leg's arrival direction IS its own direction, so
+`Start.arrives_tangent()` has no `LineTarget` impl and the pair is
+unrepresentable rather than refused; at the wire it is the replay
+driver's `Transition` class.
+
+**The two declarations on a closing leg are INDEPENDENT**, and lily's
+own section needs three of the four combinations. `continue_to`
+declares the DEPARTURE (this leg continues its run); the target declares
+the ARRIVAL (it continues the entry's first side). A closing leg
+departing a corner and arriving straight declares only the second; one
+that does both declares both; one that turns at each end declares
+neither and is the plain `line_to(Start)` it always was. Folding the
+arrival into `continue_to` would have made the middle case unspellable.
+
+- **Which ε: the run's own linear band, refusing edge ε_input**, for the
+  reason `continue_to`'s target check uses it — the question is about
+  authored INPUT, whether the direction the author's points produce
+  agrees with the intent the author declared. Zero accepts, the band
+  ESCALATES, past ε_input refuses typed.
+- **The LEVER: the arriving leg's own arm, and here there IS one.** The
+  datum is `sin` of the turn between the arriving direction and the
+  entry's outgoing one — dimensionless, and comparing it against a
+  length tolerance is a category error. §4 item 1 levers its turn margin
+  for exactly this reason, and this is the same junction at the same
+  vertex, so it uses the same lever: the emitted leg's length for a
+  straight closer, `radius.min(chord)` for an arc one. The product is
+  the lateral displacement the misalignment opens at the seam, which is
+  the point deviation the tolerance is defined about — so the threshold
+  is on the DISPLACEMENT and does not drift with leg length. This is the
+  mirror of `continue_to`'s decision to lever NOTHING: there the datum
+  was already a length, and levering it would have invented an angle.
+- **The D2 row: 1 (reachable by input, invalid) — typed error.** Row 0
+  again answers NO out loud: whether two runtime directions are parallel
+  is a value fact. Row 3 (poison) would be wrong — a misaligned arrival
+  is well-formed input disagreeing with itself, not a domain degeneracy.
+
+Two more contracts came with it. A declared arrival that REVERSES the
+entry's outgoing direction has a near-zero turn too, and it is a CUSP:
+it refuses `JunctionCusp`, the name it carries at every other junction —
+one fact, one refusal. And a declared G1 arrival DECLARES joint 0
+tangent in the lowered loop, so the verify layer re-checks the flag,
+while a declared straight arrival declares nothing: one carrier
+continues through the seam, and the #433 ruling is that data like that
+claims no tangency.
+
+**Every seam ARRIVAL is now classified as a seam.** `line_to(Start)`
+already passed `junction_check`'s seam flag; the two ARC closers did
+not, so a stadium closed with `.tangent().tangent_arc_to(Start)`
+refused `JunctionTangent` — a departure's name for the loop's own
+junction, measured before this unit built anything. The flag is the only
+thing that says "this junction is the seam", and a seam arrival has a
+recourse no departure has (the entry cannot carry `.tangent()`), so
+naming it as a departure sent the reader to a spelling the seam does not
+have. Both arc closers pass `true` now. BOOL-11's collinear tangent-arc
+close is untouched and still refuses `SameCarrierJunction` in both
+directions: carrier identity does not become a seam fact.
 
 **The band's guarantee is PER LEG, and the run-level certifier is the
 data gate** (recorded after review; a limit, not a hole). Each
@@ -1187,35 +1267,95 @@ second-order wedge arm) with the authoring verb banked at #941 —
 cusps refuse here until it ships; there is no
 path-concatenation operator (builder functions instead).
 
-**PQ4 — mid-carrier seams: DECIDED (Evan, in-session,
-2026-08-01), as recommended.** The v1 rule stands: a closed
-loop's seam sits at a junction or fillet only; closing mid-side
-is refused. The M2 closed-carrier conventional-split precedent
-was considered and declined — the relaxation touches the
-same-carrier discipline (one authored side = one carrier), which
-germ matching and the merge ladders lean on. Revisit only with a
-concrete authoring need, as a revision to this section.
-**REOPENED (Evan, in-chat, 2026-09-01) — relaxed for the DECLARED
-case only, on BOOL-11's measured need (the block-quote below):
-a closing leg may declare that it arrives straight into the
-entry's first side, checked within ε through the funnel;
-undeclared mid-side closes keep refusing. Mechanism, spelling and
-the loop-start reading of the two consumers named above ride
-BOOL-12's PR as a revision to this entry.**
+**PQ4 — mid-carrier seams: REVISED (Evan, in-chat, 2026-09-01,
+the Q1 fifth round; implemented by BOOL-12).** The v1 rule was
+that a closed loop's seam sits at a junction or fillet only and
+closing mid-side is refused; the M2 closed-carrier
+conventional-split precedent was considered and declined, because
+the relaxation was thought to touch the same-carrier discipline
+(one authored side = one carrier) that germ matching and the merge
+ladders lean on. The rule now reads:
 
-> **A concrete authoring need is now on the table (§4, BOOL-11, open —
-> Evan-gated).** The declared closer made a seam at a CORNER sufficient,
-> which is what closed the departure half of the seam wall; it did not
-> reach the lily leaf family, because that family's two sections put
-> their corners at disjoint stations (tips vs shoulders) while a loft
-> pins one rotation for all sections, so one section always seams at a
-> subdivision vertex. §4 asks whether a DECLARED subdivision vertex — the
-> loop cut where the author said the carrier continues — is an admissible
-> seam, given that BOOL-8 already made a side legal with two authored
-> vertices on one carrier, which is the "one authored side = one carrier"
-> premise this entry rests on. The question is filed there, not answered;
-> this pointer exists so a reader of the register finds it, per this
-> entry's own "as a revision to this section".
+> A closed loop's seam may sit at a DECLARED subdivision point or a
+> DECLARED G1 joint. The declaration rides the closing verb's
+> TARGET — `Start.arrives_straight()` for a straight leg continuing
+> the entry's first side, `Start.arrives_tangent()` for a closing
+> arc meeting it tangentially — and the kernel CHECKS it within
+> ε_input through the funnel, refusing
+> `SeamArrivalOffDirection` when the arriving direction definitely
+> does not continue the entry's outgoing one. An UNDECLARED
+> mid-carrier or tangent seam keeps refusing `SeamTangent`, and
+> nothing is inferred from a value: `Start` alone reads exactly as
+> it always did.
+
+**Why the seam has a spelling the interior does not, and why that
+is not a leak of the `Start`-goes-through-ordinary-verbs rule.**
+Every declaration that elsewhere rides the DEPARTING leg —
+`.tangent()` for a G1 junction, `line(len)`/`continue_to` for a
+straight continuation — has no departing leg to ride at the seam:
+the entry's first side is authored FIRST, at the front, where the
+seam's content is ill-typed by §2's entry rule (neither adjacent
+carrier is bound there). The seam is the one junction whose
+arriving leg is the later-authored one, so an arrival-side
+declaration has no interior counterpart to be uniform WITH. The
+verbs are the ordinary ones; what is new is a target value, which
+is the same mechanism `Start` itself has always been.
+
+**The loop-start reading the ruling required before the build**
+(BOOL-12, reported before implementation). PQ4's recorded
+rationale named two consumers. Neither distinguishes a seam vertex
+from an interior subdivision vertex, and neither carries the
+one-authored-side-one-carrier premise:
+
+- **Germ matching** (`crates/topo/src/boolean/mod.rs`'s `HalfGerm`,
+  matched in `boolean/join.rs`) keys a null-edge half by its
+  `(A-face, B-face)` pair and its 3-D direction — "never by slot
+  position or dynamic face lookups", as its own doc says. It never
+  sees a profile loop, a side, a carrier or a vertex index, so it
+  cannot tell the two vertices apart. Its real premise is one
+  A-face and one B-face per germ line, i.e. MAXIMAL-FACED operands,
+  which a different gate enforces.
+- **That gate**, `gate_maximal_faces` in `boolean/reduce.rs`, walks
+  EDGES: two distinct parent faces with the same surface key and a
+  planar surface refuse `NonMaximalFaces`, and otherwise the planes
+  are compared with `declared: false`. Edge-keyed; no loop, no
+  vertex index, no seam.
+- **The merge ladder** (`crates/topo/src/merge_faces.rs`) merges
+  adjacent faces on the same surface KEY, the same `GeomSource`, or
+  a declared pair verified by `oriented_plane_eq`. The numeric rung
+  is retired: coincidence is never inferred from values. Face-
+  adjacency keyed, seam-blind.
+- **The loop start is an ORIGIN OF INDEXING downstream and nothing
+  else.** `sweep/src/loft.rs` raises a strut for every vertex
+  `j in 0..n` and re-describes every one of them identically in its
+  phase 6; `profile/src/validate.rs`'s `judge_joints` walks joints
+  with `prev = (joint + n − 1) % n`. `j = 0` is not a case in
+  either. The adjacency a seam subdivision creates is walls
+  `n−1 / 0` — the same modular adjacency an interior subdivision
+  creates at `j / j+1`.
+- **BOOL-8 already crossed whatever there was to cross**, in the
+  interior: since the `line(len)` ruling the algebra has emitted
+  loops whose consecutive segments share a carrier, so every
+  downstream consequence of a subdivided side already exists. The
+  seam adds no new KIND of adjacency, only the same one at the index
+  pair the ring wraps at.
+
+A forward observation from that reading, filed as issue 1568 and
+not acted on here: a subdivided side lowers to two coplanar walls,
+which the merge ladder will merge only on a structural or declared
+rung, so whether the sweep lowering gives them one surface key or
+one `GeomSource` is a live question BOOL-8's ruling opened. It is
+seam-independent and belongs to sweep/topo.
+
+**What is still refused.** An undeclared mid-carrier seam
+(`SeamTangent`); an undeclared tangent seam, from every closing
+verb — the two arc closers classify the seam under the seam's own
+name now, not the departure's; a DECLARED arrival the check
+refuses (`SeamArrivalOffDirection`); and a declared arrival that
+REVERSES the entry's outgoing direction, which is a cusp and says
+so. A circular arc cannot generically carry a tangency at both
+ends, so a closing arc asked for both gets the check's refusal with
+the seam FILLET named as the spelling that constructs them.
 
 ## 7. Explicitly out of scope
 

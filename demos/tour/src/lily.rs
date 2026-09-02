@@ -907,9 +907,9 @@ impl Section {
         // Does the outline TURN at vertex `i`? Even indices are tips.
         let turns = |i: usize| {
             if self.shoulder == 0.0 {
-                i % 2 == 0
+                i.is_multiple_of(2)
             } else if self.shoulder == 1.0 {
-                i % 2 == 1
+                !i.is_multiple_of(2)
             } else {
                 true
             }

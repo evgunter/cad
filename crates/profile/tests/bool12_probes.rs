@@ -441,10 +441,7 @@ fn the_declaration_is_what_separates_the_two_seam_spellings() {
         Err(PathError::SeamTangent { .. })
     ));
     assert!(stadium(true).is_ok());
-    assert!(matches!(
-        stadium(false),
-        Err(PathError::SeamTangent { .. })
-    ));
+    assert!(matches!(stadium(false), Err(PathError::SeamTangent { .. })));
 }
 
 /// The seam flag flipped on BOTH arc closers, so the SHARP arc seam

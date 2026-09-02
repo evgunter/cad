@@ -1946,9 +1946,9 @@ fn do_line_to<T: Decide, F: Flavor>(
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
-        Target::StartArriving(Arrival::Straight) => Ok(Applied::Closed(
-            p.line_to(Start.arrives_straight(), tol)?,
-        )),
+        Target::StartArriving(Arrival::Straight) => {
+            Ok(Applied::Closed(p.line_to(Start.arrives_straight(), tol)?))
+        }
         // A straight leg's arrival direction IS its own direction, so
         // the G1 declaration has no straight spelling: the typed
         // surface has no impl and the wire pair is a lattice violation.
