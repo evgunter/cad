@@ -1191,24 +1191,31 @@ mod tests {
         let n: Surface<f64> = Surface::nurbs_placeholder();
         let nd: Surface<Dual64> = n.map_scalar(Dual::constant);
         assert!(matches!(&nd, Surface::Nurbs(p) if p.is_placeholder()));
-        assert!(
-            nd.eval(Dual::constant(0.5), Dual::constant(0.5))
-                .x
-                .value
-                .is_nan()
-        );
+        let p = nd.eval(Dual::constant(0.5), Dual::constant(0.5));
+        assert!(p.x.value.is_nan() && p.y.value.is_nan() && p.z.value.is_nan());
     }
 
+    /// The placeholder's own doc promises an ALL-poison answer, so
+    /// every channel is read: a first-channel assertion here passes on
+    /// an answer poisoned in `x` and finite in `y`/`z`, which is
+    /// exactly the state the placeholder has to be distinguishable
+    /// from.
     #[test]
     fn nurbs_placeholder_evaluates_to_poison() {
         let n: Surface<f64> = Surface::nurbs_placeholder();
-        assert!(n.eval(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_u(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_v(0.5, 0.5).x.is_nan());
-        assert!(n.normal(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_uu(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_uv(0.5, 0.5).x.is_nan());
-        assert!(n.deriv_vv(0.5, 0.5).x.is_nan());
+        let all_poison = |x: f64, y: f64, z: f64| x.is_nan() && y.is_nan() && z.is_nan();
+        let p = n.eval(0.5, 0.5);
+        assert!(all_poison(p.x, p.y, p.z));
+        for v in [
+            n.deriv_u(0.5, 0.5),
+            n.deriv_v(0.5, 0.5),
+            n.normal(0.5, 0.5),
+            n.deriv_uu(0.5, 0.5),
+            n.deriv_uv(0.5, 0.5),
+            n.deriv_vv(0.5, 0.5),
+        ] {
+            assert!(all_poison(v.x, v.y, v.z));
+        }
     }
 
     #[test]
@@ -1436,7 +1443,10 @@ mod tests {
             let p = si.eval(Interval::from_f64(f64::NAN), Interval::zero());
             assert!(p.x.lo().is_nan());
             let n: Surface<Interval> = Surface::nurbs_placeholder();
-            assert!(n.eval(Interval::zero(), Interval::zero()).x.lo().is_nan());
+            // All-poison, not first-channel-poison: the placeholder's
+            // promise is the whole point.
+            let q = n.eval(Interval::zero(), Interval::zero());
+            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
     }
 }
