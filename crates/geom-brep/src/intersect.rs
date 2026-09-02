@@ -272,8 +272,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: true,
             note: "exact-degenerate cases only: an axis-containing plane cuts the \
                    two meridian Circles, an axis-normal plane the two concentric \
-                   Circles (or the tangency circle — classification data, refused \
-                   as a carrier) (plane_torus_section); everything tilted — the \
+                   Circles (or the tangency circle — classification data, not a \
+                   carrier; no production consumer takes it yet) \
+                   (plane_torus_section); everything tilted — the \
                    axis-parallel offset plane's spiric section and the bitangent \
                    Villarceau pair included — routes to the general rung with the \
                    ℝ³ IMPLICIT-PAIR trace shape, blocked on the torus's exact \
@@ -311,7 +312,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
                    trace shape (the general-rung marcher); blocked on the torus's exact \
-                   meters conversion, as plane×torus is",
+                   meters conversion, as plane×torus's tilted residue still is (that \
+                   pair's exact-degenerate half closed in VERBS-C5ARMS)",
         },
         (Cone, Cone) => PairRoute {
             rung: Rung::General,
@@ -460,7 +462,9 @@ pub enum SectionError {
     /// intersection curve.
     CoincidentSurfaces,
     /// The torus operand violates the ring convention `R > r > 0` (a
-    /// spindle or horn torus): its meridian circles meet or cross on
+    /// spindle or horn torus, or a nonpositive tube radius — both
+    /// inequalities are decided, `pt_tube_guard` then `pt_ring_guard`):
+    /// its meridian circles meet or cross on
     /// the axis, so no closed form here is well-posed. Every validated
     /// body already upholds the convention (`sweep::revolve` refuses
     /// degenerate tori at construction; tier-3 reports
@@ -1387,7 +1391,11 @@ pub enum PlaneTorusSection<T: Real> {
     /// Axis-normal plane at `|h| = r`: the tangency circle of radius
     /// `R` — **classification data, not a constructible edge** (the
     /// `TangentLine`/`TangentPoint` lineage, C7: the transversality
-    /// margin dies along the whole locus; consumers refuse typed).
+    /// margin dies along the whole locus). No production consumer of
+    /// this arm exists yet (tests only); when one arrives, the
+    /// pattern is the sphere-pair join dispatch's — match the
+    /// tangency variant and refuse typed (`topo::boolean/join.rs`'s
+    /// "is not a locus" refusal).
     TangentCircle(Curve3<T>),
     /// Axis-normal plane at `|h| > r`: no intersection.
     Empty,
@@ -1397,14 +1405,21 @@ pub enum PlaneTorusSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pt_ring_guard` — margin `R − r` (meters), decided before any
-///    classification: a spindle/horn torus's meridian circles meet or
-///    cross on the axis, so no closed form below is well-posed on one.
-///    The invariant `R > r > 0` already holds on every validated body
-///    (`sweep::revolve` refuses degenerate tori at construction;
-///    tier-3 reports `DegenerateTorus` at rest), so this refusal
-///    ([`SectionError::DegenerateTorus`]) is insurance against
-///    pre-validate operands, not a missing invariant.
+/// 1. `pt_tube_guard` — margin `r` (meters) — then `pt_ring_guard` —
+///    margin `R − r` (meters), decided before any classification: the
+///    ring convention `R > r > 0` is TWO inequalities and each gets
+///    its own named trilean, because `R − r` alone waves through a
+///    nonpositive tube radius whenever the difference stays positive
+///    (`r = −0.3` against `R = 0.75` has `R − r = 1.05`, and the
+///    unguarded arm minted a negative-radius meridian circle — the
+///    fix-pass red probe). A spindle/horn torus's meridian circles
+///    meet or cross on the axis, so no closed form below is
+///    well-posed on one. The invariant already holds on every
+///    validated body (`sweep::revolve` refuses degenerate tori at
+///    construction; tier-3 reports `DegenerateTorus` at rest), so
+///    these refusals ([`SectionError::DegenerateTorus`]) are
+///    insurance against pre-validate operands, not a missing
+///    invariant.
 /// 2. `pt_axis_in_plane` — margin `(a·n)·extent` (the axis' angle off
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
@@ -1459,11 +1474,27 @@ pub fn plane_torus_section<T: Decide>(
         return Err(wrong());
     };
 
+    // The ring convention `R > r > 0` is TWO margins, each decided by
+    // name (doc item 1): a tube radius that is definitely a positive
+    // length, then a major radius that definitely clears it.
+    match decide("pt_tube_guard", Margin::of(r), band).map_err(SectionError::Escalated)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
+    }
     match decide("pt_ring_guard", Margin::of(big_r - r), band).map_err(SectionError::Escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
 
+    // Lever CONDITION, measured (fix-pass R2): just inside the Zero
+    // band the raw sine can be as large as ε/extent, so the meridian
+    // circles minted below can sit off their own PLANE by up to
+    // r·ε/extent — 27ε measured at extent = 0.01 (the TORUS residual
+    // stays machine-zero: the circles are on the torus, tilted off
+    // the plane). This cannot bite with a real operand: the extent is
+    // the operand extent, ≥ R + r for any plane that reaches the
+    // torus, so r/extent < 1 and the planarity error stays under ε.
+    // The predicate-dimension-audit row carries the same caveat.
     match decide("pt_axis_in_plane", Margin::levered(a.dot(n), extent), band)
         .map_err(SectionError::Escalated)?
     {
