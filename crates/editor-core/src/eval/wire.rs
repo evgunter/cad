@@ -141,21 +141,17 @@ where
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(
-                program,
-                profile_plane_f64(doc, program.plane, tol)?,
-                profile_pre,
-                env.lane,
-                tol,
-            )?,
+            wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.lane, tol),
-        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, env.lane, tol),
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, results, vals, env.lane, tol),
+        Node::Sweep { profile, path, .. } => {
+            wire_sweep(*profile, *path, doc, results, vals, env.lane, tol)
+        }
         Node::Fillet {
             target, selection, ..
         } => wire_blend(
@@ -586,6 +582,45 @@ pub(crate) fn profile_plane_f64(
     ))
 }
 
+/// **The sketch plane at the LANE scalar** — the frame's landed value,
+/// which is where a parameter driving the frame is still carried.
+///
+/// The f64 read above is for STRUCTURE, and it is the whole answer only
+/// while a frame's components are literals. They are `Expr`s, so a
+/// document parameter can drive a frame's origin — and under an
+/// interval or dual run that parameter has a non-degenerate value.
+/// Embedding the f64 placement into `T` (which is what this pass did
+/// while the plane was inline literal floats, and was exact then)
+/// would drop that parameter's width from the plane while carrying it
+/// correctly through every other slot: an enclosure that does not
+/// enclose.
+///
+/// So the lane pass reads what the frame's own evaluation landed, at
+/// the lane's scalar. Structure stays f64-pinned and lane-identical;
+/// magnitudes stay lane-live. That is the same split the profile's own
+/// program has had since M10-P, applied to the input it just gained.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::WrongOperand`] when the landed value is not a
+/// frame — the kind door, at the lane where the value is read.
+fn frame_plane_lane<T: Decide>(
+    results: &Results<T>,
+    plane: RecipeNodeId,
+) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
+    let v = value_of(results, plane)?;
+    let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found: v.payload.kind_name(),
+        });
+    };
+    // Unit and perpendicular by the datum's own construction, which is
+    // `SketchPlane::from_frame`'s stated obligation on its caller.
+    Ok(profile::SketchPlane::from_frame(*origin, u.get(), y.get()))
+}
+
 /// **A frame's authored pair, made orthonormal** — the one spelling of
 /// it, and the one door its two refusals come out of.
 ///
@@ -726,7 +761,7 @@ pub(crate) fn prepare_profile(
 /// the record, so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    plane: profile::SketchPlane<f64>,
+    plane: profile::SketchPlane<T>,
     lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
@@ -761,7 +796,6 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    let plane = profile::SketchPlane::new(anchor::embed_affine::<T>(&plane.placement));
     profile::Profile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
@@ -769,7 +803,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    plane: profile::SketchPlane<f64>,
+    results: &Results<T>,
     pre: Option<&ProfilePre>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -788,7 +822,13 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
             .validate(tol)
             .map_err(NodeErrorKind::Profile)?,
-        super::ProfileLift::Guided => lane_profile::<T>(program, plane, lane, pre, tol)?,
+        super::ProfileLift::Guided => lane_profile::<T>(
+            program,
+            frame_plane_lane(results, program.plane)?,
+            lane,
+            pre,
+            tol,
+        )?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -2114,6 +2154,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 /// encloses the SAME surface the `f64` lane defines.
 fn section_of<T: Decide + geom_core::Bounds>(
     doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -2151,7 +2192,13 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // parameter box the extrude ladder refuses to certify is refused
     // here as well, and by the same predicate.
     if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(program, plane, lane, &pre, tol)?;
+        lane_profile::<T>(
+            program,
+            frame_plane_lane(results, program.plane)?,
+            lane,
+            &pre,
+            tol,
+        )?;
     }
     let place = pre.profile_f64.plane.placement;
     // The sections are the REPLAYED loops (program order — exactly
@@ -2173,6 +2220,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
     vals: &SlotValues<T>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -2182,7 +2230,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     let mut places = Vec::with_capacity(profiles.len());
     let mut first_naming = ProfileNaming::default();
     for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, *pid, lane, tol)?;
+        let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
         if i == 0 {
@@ -2230,14 +2278,15 @@ fn wire_sweep<T: Decide + geom_core::Bounds>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
     vals: &SlotValues<T>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let _stations = need_count(vals, SlotId::Stations)?;
     let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of::<T>(doc, profile, lane, tol)?;
-    let _ = section_of::<T>(doc, path, lane, tol)?;
+    let _ = section_of::<T>(doc, results, profile, lane, tol)?;
+    let _ = section_of::<T>(doc, results, path, lane, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })
