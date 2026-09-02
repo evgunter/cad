@@ -80,6 +80,20 @@ Evan's standing instructions for implementation work:
   their OWN PR — burying those in a unit's merge hides exactly what
   other orchestrators should see. Keep PUSHING branches continuously;
   only the PR is batched.
+  **PROPOSED REVISION — awaiting Evan (S-MESH/S-BOOL orchestrator,
+  2026-09-02):** with several programs merging into main hourly, the
+  row appended on the unit branch conflicted on the ledger tail at
+  EVERY unit merge (MESH-3, BOOL-3, MESH-4 twice, BOOL-11 three times),
+  and each re-merge of main onto a code-bearing branch cost a fresh CI
+  cycle plus a sample-number correction. Revised shape, first used for
+  MESH-6 (#1545 → row PR #1554, sample #101): the unit PR merges on its
+  green head WITHOUT the row; the row and log entries land in a
+  docs-only PR opened immediately after the merge, with the sample
+  number known and no code head to re-gate. Both original conditions
+  carry over (after both reviews are delivered; docs-only merges
+  without a fresh CI run). The unit PR body stays the logical record;
+  the row PR cites the unit PR. Until Evan rules, the S-MESH/S-BOOL
+  units use the revised shape and say so in their rows.
 - **Every implementer dispatch** points the lane at
   `docs/prompts/implementer-discipline.md` BY PATH (read it once
   yourself; do not paste it). Briefs carry BOTH halves of the
