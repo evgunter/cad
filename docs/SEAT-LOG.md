@@ -124,3 +124,16 @@ with the blend pair; VS-Q1/Q2/Q5 elaborated from the ratified
 recommendations; deviations from those recommendations, if any,
 are Evan-gated). SEAT-4 is block SEAT-B1's last slot; its merge
 publishes the block-close record and the draw byte.
+
+## ORDINAL 1003 CLAIMED — SEAT-4 dual (2026-09-02)
+
+SEAT-4 (PR 1547, the Verb substrate carried by the blend pair)
+implementation delivered and green (lane=interval ASKED via
+trailer, eps 1e-6 drawn; run 33591161974). No Evan-gated stop
+triggered — the three ledger answers land as recommended; one
+deviation (the compound-Bounds allowlist row for verbs/run.rs) is
+flagged for retroactive review per the self-merge convention. Pin
+evidence includes a differential of the digest suite against
+extracted main. v6 dual dispatches on frozen head 6f4fdea6: parity
+byte 40 → **R1 opus + R2 fable**. Difficulty L was logged pre-draw.
+Full row recorded at merge; block SEAT-B1 closes at that row.
