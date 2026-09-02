@@ -3150,6 +3150,16 @@ The PR is HELD for Evan's sign-off (PATHS §6 PQ4 / §4 / verb table —
 design surface); merge follows the dual + sign-off. Sample number at
 merge; row in the docs PR after the merge.
 
+MESH-11 (PR #1599) ordinal FIXED AT DISPATCH (2026-09-02):
+**ordinal 1209** (S-MESH band 1200–1299). v6 dual: parity byte **188**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `d8b4e6c67`
+(run 33682696653 verified at dispatch: head SHA matches, 21 checks —
+17 success + 4 skipped; gate point lane=interval × eps 1e-12, both
+ASKED by trailer), R2 isolated from R1, briefs symmetric, no
+relaxations granted. Implementer difficulty M (pre-logged at the spec,
+pre-draw). Sample number at merge; the row rides the unit branch as its
+last commit.
+
 MESH-10 (PR #1595) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1208** (S-MESH band 1200–1299). v6 dual: parity byte **216**,
 parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `9dc6ec5aa`
