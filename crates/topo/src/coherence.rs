@@ -630,3 +630,125 @@ pub fn examine_chart_coherence(body: &Body<f64>, tol: Tol) -> CoherenceReport {
     }
     report
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// **The bar is SPATIAL, not angular.** The gap that falsified the
+    /// bare-radian form this predicate replaced —
+    /// `nist_ftc_09_asme1_rd.stp` closes at 3.56e-9 rad on a 2.97 mm
+    /// hole — is noise at any real lever arm, and stops being noise
+    /// only at an absurd one. A scale-free radian constant cannot
+    /// express that, which is the whole reason the unit is metres.
+    #[test]
+    fn the_bar_is_spatial_not_angular() {
+        let gap = 3.56e-9;
+        assert!(
+            is_noise(gap, 0.05, 3.38e-5),
+            "3.56e-9 rad at 50 mm displaces ~1.8e-10 m — far under the band"
+        );
+        assert!(
+            !is_noise(gap, 1e5, 3.38e-5),
+            "the same gap must NOT pass at a 100 km lever arm"
+        );
+    }
+
+    /// Growing the lever arm tightens the angular bar proportionally —
+    /// the property a bare radian constant did not have.
+    #[test]
+    fn the_bar_tightens_as_the_lever_arm_grows() {
+        assert!(is_noise(1e-6, 1.0, 1e-5), "1e-6 m is under the band");
+        assert!(
+            !is_noise(1e-6, 100.0, 1e-5),
+            "1e-4 m is over it — the same angle, a hundred times the arc"
+        );
+    }
+
+    /// On the axis the coordinate carries no length, so every gap is
+    /// noise. A plain comparison reaches that limit; a division would
+    /// have to special-case it.
+    #[test]
+    fn on_the_axis_every_gap_is_noise() {
+        assert!(is_noise(core::f64::consts::PI, 0.0, 1e-9));
+    }
+
+    /// The band is EXCLUDED at both ends it can be excluded at: a zero
+    /// band calls nothing noise (so a zero-lever gap is reported rather
+    /// than swallowed), and a gap exactly ON the band is reported. The
+    /// two edges together are what make "every finding satisfies
+    /// `metres >= eps`" true as written.
+    #[test]
+    fn the_band_is_excluded_at_both_edges() {
+        assert!(!is_noise(1.0, 0.0, 0.0), "a zero band dominates nothing");
+        assert!(
+            !is_noise(1.0, 1e-9, 1e-9),
+            "exactly on the band is reported"
+        );
+        assert!(is_noise(1.0, 1e-9, 1.000_001e-9), "just inside it is not");
+    }
+
+    /// A NaN coordinate is never noise: a poisoned carrier surfaces as
+    /// a finding rather than passing as quiet, which is the direction
+    /// this comparison has to fail in.
+    #[test]
+    fn a_poisoned_gap_is_not_noise() {
+        assert!(!is_noise(f64::NAN, 1.0, 1e-9));
+        assert!(!is_noise(1.0, f64::NAN, 1e-9));
+    }
+
+    /// A periodic coordinate's disagreement is measured after
+    /// reduction, so a whole number of turns is AGREEMENT and the
+    /// answer never exceeds half a period. Reporting the reduction
+    /// itself would be reporting the branch and not the data.
+    #[test]
+    fn a_whole_turn_of_skew_is_no_disagreement() {
+        for turns in [-2.0_f64, -1.0, 1.0, 2.0] {
+            let a = 0.7 + turns * TAU;
+            assert!(wrapped(a, 0.7) < 1e-15, "{turns} turns read as a gap");
+        }
+        let half = wrapped(core::f64::consts::PI, 0.0);
+        assert!((half - core::f64::consts::PI).abs() < 1e-15, "{half}");
+        assert!(
+            wrapped(core::f64::consts::PI + 0.1, 0.0) <= core::f64::consts::PI,
+            "never more than half a period"
+        );
+    }
+
+    /// The lever arms are the chart's own, and the two axes take
+    /// different ones for a reason the type carries: u's varies over a
+    /// cone and a sphere because it is the point's distance from the
+    /// axis, and v's does not.
+    #[test]
+    fn the_two_axes_take_the_levers_their_charts_state() {
+        let sphere = Chart::of(&geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 3.0,
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        })
+        .unwrap();
+        assert!((sphere.v_lever() - 3.0).abs() < 1e-15);
+        assert!((sphere.radial(Point3::new(3.0, 0.0, 0.0)) - 3.0).abs() < 1e-15);
+        assert!(
+            sphere.radial(Point3::new(0.0, 0.0, 3.0)).abs() < 1e-15,
+            "a pole"
+        );
+    }
+
+    /// A plane is OUT OF DOMAIN, not unexamined: it carries no chart,
+    /// so there is no coordinate for two statements to differ about
+    /// and nothing to report either way.
+    #[test]
+    fn a_plane_is_out_of_domain_rather_than_unexamined() {
+        assert!(
+            Chart::of(&geom::Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            })
+            .is_none()
+        );
+    }
+}

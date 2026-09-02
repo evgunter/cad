@@ -38,6 +38,9 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "mesh8_corpus_coherence.rs"]
+mod mesh8_corpus_coherence;
+
 #[path = "cert10r1_assembly_accounting.rs"]
 mod cert10r1_assembly_accounting;
 
@@ -214,28 +217,35 @@ fn every_suite_file_is_aggregated() {
 ///   measurement field — at every call, monotonically. The block is
 ///   absent from a default build (`budget` feature). The one token and
 ///   the one call are the same expression.
-/// - **`walk.rs` — 14 carriers, 5 reads (1 `separates`, 3
-///   `coincident`, 1 `dominates`).** **Four** `eps` parameters
-///   (`gap_is_noise`, `closing_column`, `iso_side_starts`,
-///   `loop_polygon`), **five** hand-offs (`closing_column`'s and
-///   `loop_polygon`'s two `gap_is_noise` calls, `loop_polygon`'s calls
-///   to `iso_side_starts` and `closing_column`), and **five** terminal
-///   reads: `gap_is_noise`'s `dominates(gap * lever)` (one predicate,
-///   four call sites — the domain guard above plus three
-///   `debug_assert` detectors that gate nothing), `iso_side_starts`'
-///   `separates(radial)`, `pole_index`'s `coincident(norm)` (the
-///   pole-membership find — the ONE home both `pole_v` and the
-///   issue-896 guard consume), `loop_polygon`'s
+/// - **`walk.rs` — 9 carriers, 5 reads (1 `separates`, 3
+///   `coincident`, 1 `dominates`).** **Three** `eps` parameters
+///   (`gap_is_noise`, `iso_side_starts`, `loop_polygon`), **one**
+///   hand-off (`loop_polygon`'s call to `iso_side_starts`), and
+///   **five** terminal reads: `gap_is_noise`'s
+///   `dominates(gap * lever)` (one predicate, and since issue 868 one
+///   call site — `curved`'s domain guard, which refuses a face),
+///   `iso_side_starts`' `separates(radial)`, `pole_index`'s
+///   `coincident(norm)` (the pole-membership find — the ONE home both
+///   `pole_v` and the issue-896 guard consume), `loop_polygon`'s
 ///   `coincident_declared` closure, whose `coincident(d)` asks
 ///   whether two DECLARED vertices of one loop are the same point,
 ///   and the issue-896 guard's own `coincident(gap)`, asking whether
 ///   a junction × pole pair the classification passes over coincides.
-///   4 + 5 + 5 = 14 carriers; 1 + 3 + 1 + 0 = 5 reads.
+///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
-/// Nine carrier sites and **six terminal reads across the crate** —
-/// `walk.rs`'s five plus `trimmed.rs`'s `pad`, which is the whole of
-/// the read column and sums to the same six the operation totals do
-/// (1 `separates` + 3 `coincident` + 1 `dominates` + 1 `pad`).
+///   **What issue 868 took out**, since the drop from 14 is the whole
+///   of the movement: `closing_column` and its `eps` parameter, that
+///   function's hand-off to `gap_is_noise`, `loop_polygon`'s two
+///   further `gap_is_noise` hand-offs, and `loop_polygon`'s call to
+///   `closing_column` — five carriers, no reads. The three conditions
+///   they served are stated from the body now
+///   (`topo::coherence`), which carries its OWN band and is not on
+///   this crate's inventory at all.
+///
+/// **Six terminal reads across the crate** — `walk.rs`'s five plus
+/// `trimmed.rs`'s `pad`, which is the whole of the read column and
+/// sums to the same six the operation totals do (1 `separates` +
+/// 3 `coincident` + 1 `dominates` + 1 `pad`).
 ///
 /// # Why the operation column is the pin that matters
 ///
@@ -360,7 +370,7 @@ fn the_eps_inventory_is_pinned() {
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
         ("trimmed.rs", 1, [0, 0, 0, 1]),
-        ("walk.rs", 14, [1, 3, 1, 0]),
+        ("walk.rs", 9, [1, 3, 1, 0]),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let needle = concat!("e", "ps");

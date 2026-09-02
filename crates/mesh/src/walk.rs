@@ -776,8 +776,8 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
 /// 5. `band_u` — for a rimless pole-to-pole band only, every column
 ///    precomputed from the loop's 3-D area vector.
 /// 6. the emission loop — per traversal, take the run's coordinate (a
-///    continuation repeats it bitwise, with a detector on the gap it
-///    discards) and unwrap the other axis by continuity.
+///    continuation repeats it bitwise, discarding its own) and unwrap
+///    the other axis by continuity.
 /// 7. the closure assertion — a revert detector, not a runtime guard.
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
@@ -1080,14 +1080,9 @@ pub(crate) fn loop_polygon(
                             //
                             // Stated as `unreachable!` rather than as a
                             // default: D2 addendum row 4, a kernel bug
-                            // the code can observe in a branch. The
-                            // default this replaces was `0.0` for the
-                            // lever arm, which would have made
-                            // `gap * 0 < eps` true for every gap and
-                            // silently disabled the detector — a dead
+                            // the code can observe in a branch. A dead
                             // branch is still a place to state the
-                            // invariant, and fail-open was the wrong way
-                            // to state it.
+                            // invariant.
                             let Some(first) = out.first() else {
                                 unreachable!(
                                     "a rim-anchored loop reaches its meridians with a non-empty polygon"

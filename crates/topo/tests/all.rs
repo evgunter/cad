@@ -38,6 +38,9 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "mesh8_coherence.rs"]
+mod mesh8_coherence;
+
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]

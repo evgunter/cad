@@ -245,11 +245,15 @@ impl Eps {
     /// to metres is small enough beside it to be float noise. Band
     /// excluded, so a zero band dominates nothing; false on a NaN.
     ///
-    /// Its callers split across two D2-addendum rows, which
-    /// [`crate::walk::gap_is_noise`] states in full: **row 1** for
+    /// **D2 addendum row 1**, for its one caller:
     /// [`crate::curved`]'s swept-rectangle domain guard, which refuses
-    /// a face typed, and **row 5** for the three detectors, which is
-    /// named there as a deviation from rows 1/3 with its own ledger.
+    /// a face typed. It had three more until issue 868 —
+    /// `debug_assert` detectors measuring the quality of a body's own
+    /// coordinates, which is row 1/3 territory wearing row 5's
+    /// clothes and was disclosed as a deviation for exactly that
+    /// reason. The conditions are stated from the body now, by
+    /// `topo::coherence`, which carries its own band; this one has no
+    /// deviation left to record.
     pub(crate) fn dominates(self, scaled: f64) -> bool {
         scaled < self.0
     }
