@@ -308,7 +308,7 @@ fn declare_error_tags_are_stable() {
 /// **Scope: the literal-construction door only.** It is one of TWO
 /// doors that reach the document layer's `DimensionError`; the other
 /// is `load`, and
-/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal`
+/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal`
 /// below is its half. Read the two together — either alone is a
 /// premise that excludes the mode the other covers.
 #[test]
@@ -351,12 +351,14 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// with no new binding at all — six of them, executed here.
 ///
 /// Today they arrive in Python as `PersistError` with `variant ==
-/// "parse"`, because the deserializer `Debug`-formats the structured
-/// refusal into a serde message. That is a real misrouting and it is
-/// **issue #694**, not this crate's to fix: a dimension mismatch is
-/// not a parse failure, and a `format!("{err:?}")` message is not the
-/// "typed exception carrying the structured error" this crate's
-/// taxonomy promises.
+/// "unreadable"` — the persistence door's one refusal for valid JSON
+/// its types reject, recourse attached — because the deserializer
+/// `Debug`-formats the structured refusal into a serde message and
+/// serde classifies that as data it could not place. That is a real
+/// misrouting and it is **issue #694**, not this crate's to fix: a
+/// dimension mismatch is not "vocabulary this build lacks", and a
+/// `format!("{err:?}")` message is not the "typed exception carrying
+/// the structured error" this crate's taxonomy promises.
 ///
 /// What this test is for is the DECISION the fix will force. When
 /// #694 gives these a typed class, this assertion goes red, and
@@ -365,7 +367,7 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// a `LiteralError` (nothing about it is a literal) and it is not the
 /// quantity boundary's `DimensionError` either.
 #[test]
-fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
     let tol = Tol::witness();
     use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
     use pncad::prelude::SketchPlane;
@@ -435,7 +437,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
             persist_error_tag(&err),
-            "parse",
+            "unreadable",
             "{arm}: the load path's dimension refusal has changed class \
              (#694). It is neither a literal-value refusal nor the \
              quantity boundary's operator check — decide which typed \
