@@ -355,8 +355,8 @@ fn a_boolean_document_round_trips_byte_identical() {
     let first = persist::save(&snapshot, &doc.edits, tol()).expect("the document saves");
     let loaded = persist::load(&first, tol()).expect("its own bytes load back");
     assert_eq!(loaded.edits, doc.edits, "the edit log did not survive");
-    let second =
-        persist::save(&loaded.snapshot, &loaded.edits, tol()).expect("the loaded document re-saves");
+    let second = persist::save(&loaded.snapshot, &loaded.edits, tol())
+        .expect("the loaded document re-saves");
     assert_eq!(
         first, second,
         "a boolean document does not round-trip byte-identically"
@@ -367,24 +367,39 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// through the two-operand verb lowering — the SEAT-4 differential
 /// method on the boolean's own channels.
 ///
-/// The two documents split the semantics between them:
+/// The three documents split the semantics between them:
 /// `crossing_slots` runs subtract twice, once with a DECLARED rest
-/// contact (so `resolve_declarations`, the declared-contact carry and
-/// the tier-3′ record survive under pin) and once undeclared;
-/// `heat_sink` runs the union chain. The digest feeds the boolean
-/// value's kind and contacts beside the stamped body and the name
-/// table, so the constants cover exactly what `wire_boolean` writes.
+/// contact (so `resolve_declarations`' face-pair arm exercises under
+/// pin) and once undeclared; `heat_sink` runs the union chain;
+/// `kiss_carry` is the one whose boolean values carry NON-EMPTY
+/// surviving contacts (a discovered corner kiss, then the same record
+/// re-entered through `resolve_declarations`' carried-v-v arm). The
+/// digest feeds the boolean value's kind and contacts beside the
+/// stamped body and the name table, so the constants cover exactly
+/// what `wire_boolean` writes.
 ///
-/// The numbers were taken on this branch and re-taken on a PRE-CHANGE
-/// tree with this same file copied onto it — the whole suite passes
-/// unchanged there. That differential is what "nothing observable
-/// moved" means here; without it the constants would only say the
-/// branch agrees with itself.
+/// `kiss_carry` is load-bearing for the contacts half, MEASURED: on
+/// the other two documents alone, replacing the lowering's contact
+/// carry with `ContactRecords::default()` leaves every constant
+/// standing (their surviving records are empty — declared REST
+/// contacts are consumed into seam structure), so the channel was fed
+/// but dead. With `kiss_carry` pinned that same mutation reds its
+/// row (the other two constants stand, re-measured); deleting the
+/// `stamp_minted` write reds the suite at `crossing_slots` already.
+///
+/// The first two numbers were taken on this branch and re-taken on a
+/// PRE-CHANGE tree with this same file copied onto it — the whole
+/// suite passes unchanged there (`kiss_carry` is this unit's own
+/// document, so its row is a fresh mint on the same differential
+/// tree, not a pre-change reproduction). That differential is what
+/// "nothing observable moved" means here; without it the constants
+/// would only say the branch agrees with itself.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
         ("crossing_slots", 0x7865_325e_8719_d6a0_u64),
         ("heat_sink", 0x4c79_8719_cbc2_5c5a),
+        ("kiss_carry", 0x6dd7_1fcd_ed94_9fff),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -392,9 +407,15 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
             .expect("the document is registered");
         let ev = corpus::eval::<f64>(&doc.doc);
         let failures = corpus::failures(&ev);
-        assert!(failures.is_empty(), "{name} failed to evaluate: {failures:?}");
+        assert!(
+            failures.is_empty(),
+            "{name} failed to evaluate: {failures:?}"
+        );
         let got = digest(&ev);
         println!("seat5 {name}: {got:#018x}");
-        assert_eq!(got, want, "{name}'s evaluation moved — body, value or name table");
+        assert_eq!(
+            got, want,
+            "{name}'s evaluation moved — body, value or name table"
+        );
     }
 }

@@ -54,6 +54,7 @@ pub mod die_tool;
 pub mod heatsink;
 pub mod heatsink_union;
 pub mod islands;
+pub mod kiss_carry;
 pub mod loft_prism;
 pub mod measured_web;
 pub mod plate_param;
@@ -194,6 +195,14 @@ pub fn documents() -> Vec<CorpusDoc> {
         // tour's three fillets the document leaves out.
         die_composed_tour::document(),
         plate_param::document(),
+        // `kiss_carry` (SEAT-5): the one corpus boolean whose result
+        // carries NON-EMPTY surviving contacts — the discovered
+        // corner kiss, then the same record re-entered by name through
+        // a Declare (the carried v-v arm of `resolve_declarations`,
+        // reached nowhere else in the corpus). Registered so a pin can
+        // tell a lowering that carries the tier-3′ records from one
+        // that drops them.
+        kiss_carry::document(),
     ]
 }
 

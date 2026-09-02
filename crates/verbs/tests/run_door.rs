@@ -171,7 +171,10 @@ fn the_boolean_dispatch_is_the_boolean_door() {
         panic!("a boolean run produced another family's record");
     };
     assert_eq!(door.kind, kind, "the result classification is carried");
-    assert_eq!(door.contacts, contacts, "the surviving contacts are carried");
+    assert_eq!(
+        door.contacts, contacts,
+        "the surviving contacts are carried"
+    );
     assert_eq!(
         format!("{:?}", door.naming),
         format!("{naming:?}"),

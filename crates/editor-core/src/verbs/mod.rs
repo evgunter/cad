@@ -11,8 +11,11 @@
 //! vocabularies, and this module is where it now lives, one declaration
 //! per verb: which [`SlotId`] feeds which verb parameter, which payload
 //! selection feeds the key list, which emitter mints the names. The
-//! lowering in [`mod@crate::eval`] is generic over it — one body of code
-//! for every verb that has a declaration here.
+//! lowering in [`mod@crate::eval`] is generic over it — one body of
+//! code per declared operand arity (`wire_blend` for the one-operand
+//! verbs, `wire_boolean`'s two-operand shape for the pair family),
+//! each driven by the declarations here rather than matching a verb
+//! vocabulary of its own.
 //!
 //! [`Expr`]: crate::expr::Expr
 //! [`StableName`]: crate::names::StableName

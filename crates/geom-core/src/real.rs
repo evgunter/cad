@@ -461,13 +461,15 @@ pub trait Real:
 ///
 /// **Extension (SEAT-4, authorized under the M7-8 precedent;
 /// retroactive Evan review per the self-merge convention):**
-/// `verbs::run` — the verb vocabulary's single dispatch site — joins
+/// `verbs::run` — the verb vocabulary's dispatch site — joins
 /// the compound allowlist as the narrowest possible extension of the
 /// PR 12 edge-blend seam, on the M7-8 argument verbatim: it adds no
-/// obligation because it DELEGATES to the already-listed doors
-/// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`), passing
-/// its operand and parameters through unchanged, and therefore
-/// inherits their signature rather than widening the rule's reach.
+/// obligation because it DELEGATES to already-listed doors
+/// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`; since the
+/// boolean's migration also `topo::boolean_op_with`, itself listed
+/// under the M5 PR 8 BVH candidate-generation allowance), passing
+/// its operands and parameters through unchanged, and therefore
+/// inherits their signatures rather than widening the rule's reach.
 ///
 /// **It clears the first thing an entry owes** — that its reads stay
 /// on the prune/report side — vacuously and checkably: the file
