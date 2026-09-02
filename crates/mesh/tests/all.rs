@@ -452,3 +452,6 @@ fn the_eps_inventory_is_pinned() {
 }
 #[path = "r2_mesh7_probes.rs"]
 mod r2_mesh7_probes;
+
+#[path = "mesh11_probe.rs"]
+mod mesh11_probe;

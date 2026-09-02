@@ -178,7 +178,10 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 
-pub use curved::{MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle};
+pub use curved::{
+    MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle,
+    require_one_chart_branch,
+};
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of
@@ -323,6 +326,29 @@ pub enum PropsError {
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
     NappeSpanning,
+    /// A boundary edge's traversed **arc** leaves one branch of the
+    /// chart, though its CARRIER is a certified iso curve: the arc's
+    /// stored parameter span contains a chart singularity in its
+    /// interior, so the chart coordinate the edge is supposed to hold
+    /// constant jumps by π mid-edge.
+    ///
+    /// Raised only by [`require_one_chart_branch`], which is a
+    /// different question from [`Self::NotIsoRectangle`]'s and is
+    /// asked by a different set of consumers: the flux lane's extent
+    /// derivation FOLDS the singularity in and measures such a face
+    /// exactly, while a lane that reads one chart coordinate per edge
+    /// cannot read this edge at all. Valid input, unbuilt lane (D2
+    /// addendum row 2): the recourse is to state the meridian as two
+    /// edges meeting at the singularity, which every consumer reads.
+    NotOneChartBranch {
+        /// Which boundary edge, as its index in the loop slice the
+        /// caller handed in — the same order `topo::props::loop_edges`
+        /// flattens the half-edge cycle into.
+        edge: usize,
+        /// Which chart branch boundary the span crosses (static
+        /// description).
+        what: &'static str,
+    },
     /// The face's parameter extent is coincident with zero — a
     /// degenerate (zero-area) face, refused rather than integrated.
     ///
@@ -386,6 +412,13 @@ impl core::fmt::Display for PropsError {
                 "integral properties: face boundary outside the iso-rectangle inventory ({what})"
             ),
             Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
+            Self::NotOneChartBranch { edge, what } => write!(
+                f,
+                "integral properties: boundary edge {edge}'s traversed arc leaves one chart \
+                 branch ({what}) — its carrier is an iso curve but its stored span crosses \
+                 the singularity, where the coordinate it holds constant jumps by π; state \
+                 the side as two edges meeting there"
+            ),
             Self::DegenerateFace => write!(
                 f,
                 "integral properties: face parameter extent is degenerate (zero area) — {}",
