@@ -720,25 +720,34 @@ mod interval_tests {
     }
 
     /// An enclosure that CONTAINS unit length is a direction: the
-    /// widths interval arithmetic carries are not a reason to refuse.
+    /// widths interval arithmetic carries are not a reason to refuse —
+    /// and one that is decidedly OFF unit length comes back on it, so
+    /// the normalization is not skipped at this scalar either.
     #[test]
     fn an_enclosure_containing_unit_length_passes() {
-        let z = Vec3::new(
+        let wobbled = Vec3::new(
             Interval::from_bounds(-1e-6, 1e-6),
             Interval::from_bounds(-1e-6, 1e-6),
             Interval::from_bounds(0.999, 1.001),
         );
-        let u = UnitVec3::new(z, band())
-            .expect("an enclosure with a length")
-            .get();
-        // What comes out is not DEFINITELY off-unit — the property a
-        // signed plane distance downstream needs, and the strongest
-        // one an enclosure can carry.
-        let off = u.norm() - Interval::from_f64(1.0);
-        assert!(
-            !matches!(off.sign_within(band()), Ok(Sign::Positive | Sign::Negative)),
-            "normalized enclosure decided off-unit: {off:?}"
+        let scaled = Vec3::new(
+            Interval::from_bounds(-1e-3, 1e-3),
+            Interval::from_f64(3e4),
+            Interval::from_bounds(3.999e4, 4.001e4),
         );
+        for v in [wobbled, scaled] {
+            let u = UnitVec3::new(v, band())
+                .expect("an enclosure with a length")
+                .get();
+            // What comes out is not DEFINITELY off-unit — the property
+            // a signed plane distance downstream needs, and the
+            // strongest one an enclosure can carry.
+            let off = u.norm() - Interval::from_f64(1.0);
+            assert!(
+                !matches!(off.sign_within(band()), Ok(Sign::Positive | Sign::Negative)),
+                "normalized enclosure decided off-unit: {off:?}"
+            );
+        }
     }
 
     /// A DECIDED zero length refuses; an enclosure that straddles the
