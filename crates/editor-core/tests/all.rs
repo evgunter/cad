@@ -282,8 +282,6 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
-#[path = "schema_ledger.rs"]
-mod schema_ledger;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
 #[path = "switch_display_units.rs"]
