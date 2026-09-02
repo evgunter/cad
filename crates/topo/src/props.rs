@@ -202,6 +202,34 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     mass_properties_impl(body, band, T::quad_cut_face, tol)
 }
 
+/// [`mass_properties`] at a scalar that may CERTIFY — the certified
+/// quadrature NAMED, not selected.
+///
+/// The difference from [`mass_properties_with`] is where the
+/// quadrature comes from and therefore which scalars can call this at
+/// all. `mass_properties_with` asks the scalar's lane which quadrature
+/// it has, and a scalar with none answers `Ok(None)`; here the
+/// certified body is handed in directly, so the bound is the one the
+/// quadrature itself carries and a scalar that may not certify cannot
+/// form the call. That is [`crate::validate_geometric`]'s certified
+/// half: the +V invariant is a claim about an enclosure, and a claim
+/// no bracket can be certified for is not a weaker claim, it is not
+/// this claim.
+pub(crate) fn mass_properties_certified<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(
+        body,
+        band,
+        |body, surface, outer, hes, band, tol| {
+            quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
+        },
+        tol,
+    )
+}
+
 /// The closed-form-only variant for the boolean engine's INTERNAL
 /// backstops (`volume_backstop`, `at_infinity_side`): plain
 /// `T: Decide`, no quadrature dispatch — on a conic-trimmed face the
@@ -658,11 +686,15 @@ pub fn classify_shells<T: PropsQuadLane>(
 /// quadrature machinery only ever instantiates for CERTIFYING scalars
 /// (bracket-carrying is no longer the distinguishing property — a dual
 /// carries a bracket since D1, 2026-08-19); the `Dual` impl contains
-/// **no quadrature code at all** — it answers "no lane", the
-/// closed-form pass's typed refusal stands, and tier 3's check 7
-/// reports `VolumeUncomputable` there. The dual lane validates what is
-/// its business; volume certification is proven by the certified
-/// lanes.
+/// **no quadrature code at all** — it answers "no lane", and the
+/// closed-form pass's typed refusal stands. Where tier 3's check 7 then
+/// reports `VolumeUncomputable` depends on which pass asked: the mixed
+/// passes that keep this lane ([`crate::validate_pseudomanifold`],
+/// [`crate::contact_marks`], [`mass_properties`]) report it at every
+/// scalar, while [`crate::validate_geometric`] runs check 7 in its
+/// certified half and is not callable at a scalar with no lane at all.
+/// The dual lane validates what is its business; volume certification is
+/// proven by the certified lanes.
 ///
 /// # Why the pcurve lane rides along (M6-2)
 ///
@@ -733,11 +765,15 @@ pub trait PropsQuadLane:
     /// the ratified one. The stored tolerance stays what it always
     /// was: the MINT's parameter, and the fit door's own gate.
     ///
-    /// `None` = this scalar has no re-derivation lane. That is not a
-    /// pass: tier 3 reports it, because a surface certificate is the
-    /// one claim this kernel refuses to leave unchecked. It is also
-    /// vacuous today — the fit door is `f64`-only, so no other scalar
-    /// can hold an `ApproxSurface` in the first place.
+    /// `None` = this scalar has no re-derivation lane. That is a
+    /// statement about the DERIVATION, never about which values can
+    /// arrive: [`geom::ApproxSurface::certify`] is generic in the
+    /// scalar and takes its certifier as an argument, so an
+    /// `ApproxSurface<Self>` is representable at every scalar and such
+    /// a face reaches this arm. `None` is not a pass — tier 3 reports
+    /// it as [`ValidationError::ApproxLaneUnsupported`](crate::ValidationError),
+    /// because a surface certificate is the one claim this kernel
+    /// refuses to leave unchecked.
     ///
     /// # Errors
     ///
@@ -754,8 +790,10 @@ pub trait PropsQuadLane:
     ///
     /// `None` = this scalar has no fit lane. That is not a pass: a
     /// caller that cannot mint the offset refuses, exactly as tier 3
-    /// refuses a certificate it cannot re-derive. The fit door is
-    /// `f64`-only, so `None` is every other scalar's honest answer.
+    /// refuses a certificate it cannot re-derive. The fit itself is
+    /// derived at `f64` only, so `None` is every other scalar's honest
+    /// answer — the absence of a derivation, not of a representable
+    /// operand.
     ///
     /// # Errors
     ///
@@ -818,9 +856,12 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // The offset fit is derived at `f64` only, so this scalar has no
+    // re-derivation lane. That is the whole reason, and it is about the
+    // derivation: an `ApproxSurface<Self>` is representable here —
+    // `ApproxSurface::certify` is scalar-generic and takes its
+    // certifier as an argument — so such a face does reach this arm and
+    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -856,9 +897,9 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // No re-derivation lane at this scalar; the reason has one home, on
+    // [`PropsQuadLane::recertify_approx`], and it is about the
+    // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -898,9 +939,9 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // No re-derivation lane at this scalar; the reason has one home, on
+    // [`PropsQuadLane::recertify_approx`], and it is about the
+    // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -1106,7 +1147,7 @@ mod at_rest_policy_tests {
         b
     }
 
-    fn certifying_arms_are_the_doors<T: AtRestPolicy>() {
+    fn certifying_arms_are_the_doors<T: AtRestPolicy + geom_core::CertifiedBounds>() {
         let tol = Tol::witness();
         let b = refusing_body::<T>();
         let door = crate::validate::validate_geometric(&b, tol);
@@ -1146,13 +1187,22 @@ mod at_rest_policy_tests {
     /// The dual arm on the SAME refusing subject: the gate does not run
     /// and says so — [`AtRestOutcome::NotRunAtThisScalar`], never a
     /// verdict about geometry the door itself refuses.
+    ///
+    /// The direct door is no longer part of this row's contrast, and
+    /// the reason is the point: `validate_geometric` cannot be CALLED
+    /// at a dual — the composed entry carries the certified half's
+    /// bound, so there is no refusal left to observe here. What a dual
+    /// can still do is the structural half, and this row pins that
+    /// instead: the seed body's placeholder surface is a check-1
+    /// failure, which is structural, so the dual sees the same refusal
+    /// the certifying scalars see through the same checks.
     #[test]
     fn dual_gate_is_absent_not_a_verdict() {
         let tol = Tol::witness();
         let b = refusing_body::<geom_core::Dual64>();
         assert!(
-            crate::validate::validate_geometric(&b, tol).is_err(),
-            "the direct door still refuses at a dual"
+            crate::validate::validate_geometric_structural(&b, tol).is_err(),
+            "the structural half still runs, and still refuses, at a dual"
         );
         assert_eq!(
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),
@@ -1202,18 +1252,6 @@ mod quad_lane {
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
     }
 
-    /// Bracket a scalar into the C9 ring through the **certified** door.
-    ///
-    /// Fallible, which is the whole point: the static lane split above
-    /// guarantees only that a *bracket-carrying* scalar reaches this
-    /// module, and a sound bracket can still be inadmissible —
-    /// `sqrt([−1, 4]) + 1` is `[1, 3]` at `Trv`. Such a scalar becomes
-    /// ring poison here rather than a plausible bound nothing downstream
-    /// can question. See `bracket_seam_tests` below.
-    fn br<T: CertifiedEnclosure>(x: T) -> RingInterval {
-        RingInterval::from_certified(x)
-    }
-
     /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
     /// recovered algebraically from the carrier frame and the interval
     /// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
@@ -1239,9 +1277,11 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref)) / br(*radius);
-                let s = br(w.dot(v_ref)) / br(*radius);
-                let pad = (RingInterval::point(eps) / br(*radius)).mag();
+                let c = RingInterval::from_certified(w.dot(*u_ref))
+                    / RingInterval::from_certified(*radius);
+                let s = RingInterval::from_certified(w.dot(v_ref))
+                    / RingInterval::from_certified(*radius);
+                let pad = (RingInterval::point(eps) / RingInterval::from_certified(*radius)).mag();
                 Ok((clamp(c, pad), clamp(s, pad)))
             }
             Curve3::Ellipse {
@@ -1253,10 +1293,12 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref)) / br(*major);
-                let s = br(w.dot(v_ref)) / br(*minor);
-                let pad_c = (RingInterval::point(eps) / br(*major)).mag();
-                let pad_s = (RingInterval::point(eps) / br(*minor)).mag();
+                let c = RingInterval::from_certified(w.dot(*u_ref))
+                    / RingInterval::from_certified(*major);
+                let s = RingInterval::from_certified(w.dot(v_ref))
+                    / RingInterval::from_certified(*minor);
+                let pad_c = (RingInterval::point(eps) / RingInterval::from_certified(*major)).mag();
+                let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
@@ -1277,10 +1319,10 @@ mod quad_lane {
         cl: T,
     ) -> Result<HarmChan, PropsError> {
         Ok(HarmChan {
-            c0: br(c0),
-            ca: br(ca),
-            cb: br(cb),
-            cl: br(cl),
+            c0: RingInterval::from_certified(c0),
+            ca: RingInterval::from_certified(ca),
+            cb: RingInterval::from_certified(cb),
+            cl: RingInterval::from_certified(cl),
         })
     }
 
@@ -1319,7 +1361,7 @@ mod quad_lane {
         };
         let eps = tol.eps();
         let va = loop_vector_area(outer, *origin)?;
-        let o_dot_va = br((*origin - Point3::origin()).dot(va));
+        let o_dot_va = RingInterval::from_certified((*origin - Point3::origin()).dot(va));
         let mut edges = Vec::with_capacity(outer.len());
         for (le, he) in outer.iter().zip(hes) {
             let Some(cache) = body.pcurve(*he) else {
@@ -1355,14 +1397,20 @@ mod quad_lane {
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: br(t0),
-                t1: br(t1),
+                t0: RingInterval::from_certified(t0),
+                t1: RingInterval::from_certified(t1),
                 forward: le.forward,
                 trig0,
-                env: br(cache.certificate().envelope),
+                env: RingInterval::from_certified(cache.certificate().envelope),
             });
         }
-        quad::cylinder_cut_face::<T>(br(*radius), o_dot_va, &edges, eps, band)
+        quad::cylinder_cut_face::<T>(
+            RingInterval::from_certified(*radius),
+            o_dot_va,
+            &edges,
+            eps,
+            band,
+        )
     }
 
     /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since
@@ -1433,8 +1481,14 @@ mod quad_lane {
             let (t0, t1) = cache.params();
             let a = cache.pcurve().eval(t0);
             let b = cache.pcurve().eval(t1);
-            let (ax, ay) = (exact(br(a.x))?, exact(br(a.y))?);
-            let (bx, by) = (exact(br(b.x))?, exact(br(b.y))?);
+            let (ax, ay) = (
+                exact(RingInterval::from_certified(a.x))?,
+                exact(RingInterval::from_certified(a.y))?,
+            );
+            let (bx, by) = (
+                exact(RingInterval::from_certified(b.x))?,
+                exact(RingInterval::from_certified(b.y))?,
+            );
             if ax != bx && ay != by {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
@@ -1450,18 +1504,22 @@ mod quad_lane {
             }
             // Metric boundary length bound + the map-residual defect.
             let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (br(dir.norm()) * br(t1 - t0)).mag(),
+                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                    * RingInterval::from_certified(t1 - t0))
+                .mag(),
                 geom::Curve3::Nurbs(c) => {
                     let mut l = RingInterval::zero();
                     for w in c.control().windows(2) {
-                        l = l + br(w[0].distance(w[1]));
+                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
                     }
                     l.mag()
                 }
                 // An ARC cap rim on a rational wall (M8-3): the metric
                 // length is exactly `r·Δθ` — the carrier's own
                 // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (br(*radius) * br(t1 - t0)).mag(),
+                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                    * RingInterval::from_certified(t1 - t0))
+                .mag(),
                 _ => {
                     return Err(PropsError::QuadratureUnsupported {
                         what: "a NURBS-face boundary carrier outside the loft inventory \
@@ -1470,7 +1528,8 @@ mod quad_lane {
                 }
             };
             perimeter += len;
-            boundary_defect += len * br(cache.certificate().envelope).mag();
+            boundary_defect +=
+                len * RingInterval::from_certified(cache.certificate().envelope).mag();
         }
         // The rectangle certificate: hull of the traversal polygon,
         // every vertex on a corner, and the shoelace equal to ±the
@@ -1512,7 +1571,13 @@ mod quad_lane {
         let control: Vec<quad::RVec3> = payload
             .control()
             .iter()
-            .map(|p| [br(p.x), br(p.y), br(p.z)])
+            .map(|p| {
+                [
+                    RingInterval::from_certified(p.x),
+                    RingInterval::from_certified(p.y),
+                    RingInterval::from_certified(p.z),
+                ]
+            })
             .collect();
         let out = quad::nurbs_patch_face::<T>(
             payload.knots_u(),
@@ -1566,9 +1631,10 @@ mod quad_lane {
         #[cfg(feature = "interval")]
         #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
         mod bracket_seam_tests {
+            use geom_core::ring_interval::RingInterval;
             use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
-            use super::super::{br, chan};
+            use super::super::chan;
 
             /// Finite, strictly positive, and unable to certify — the case
             /// where the laundered answer is a *usable* number.
@@ -1584,25 +1650,26 @@ mod quad_lane {
             }
 
             #[test]
-            fn br_refuses_a_violated_scalar() {
-                let r = br(trv_pos());
+            fn the_certified_door_refuses_a_violated_scalar() {
+                let r = RingInterval::from_certified(trv_pos());
                 assert!(
                     r.is_poison(),
                     "a domain-violated scalar crossed into the ring as {r:?} —                  the bracket door does not read decorations, so the                  quadrature lane certifies a flux built from it"
                 );
                 // Non-vacuity: a certified scalar crosses with its endpoints.
-                let ok = br(Interval::from_bounds(1.0, 4.0).sqrt());
+                let ok = RingInterval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());
                 assert_eq!((ok.lo(), ok.hi()), (1.0, 2.0));
             }
 
             /// Where a violated scalar would have to come FROM. Every
-            /// scalar this lane hands to `br` is either read straight off
+            /// scalar this lane hands to [`RingInterval::from_certified`]
+            /// is either read straight off
             /// the stored body or built from it by `dot`, `norm`,
             /// `distance` and arithmetic — and none of those can
             /// manufacture a domain violation: a norm is the square root of
             /// a sum of squares, which is never partly negative, so it
             /// certifies even where it is zero and the vector degenerate.
-            /// A `Trv` reaching `br` therefore has to have been STORED in
+            /// A `Trv` reaching the door therefore has to have been STORED in
             /// the body, not produced here. That is a property of the
             /// arithmetic, not of any guard, so it is pinned rather than
             /// assumed.
@@ -1623,7 +1690,7 @@ mod quad_lane {
                         v.norm().certified_bracket().is_some(),
                         "a norm certified nothing for {v:?}"
                     );
-                    assert!(!br(v.norm()).is_poison());
+                    assert!(!RingInterval::from_certified(v.norm()).is_poison());
                 }
             }
 

@@ -300,3 +300,51 @@ import's at-rest promise on tier 3.
 
 Slate next: MESH-8 (#868, the coherence-detector relocation) draws
 MESH-B3 slot 1.
+
+## MESH-8 merged (2026-09-02) — issue 868 closed; the detectors become topo's examination
+
+PR 1585 at head 26ddeeaaf (run 33645902263 green; lane default and
+ε 1e-12 both asked, so the point the module decides at is CI-gated).
+Under the Q2 ruling (option (d), relocation) the three input-quality
+`debug_assert!`s in `mesh::walk` are deleted and their conditions
+re-derived body-side as `topo::coherence::examine_chart_coherence` —
+a non-gating findings report, deterministic in (body, ε), explicitly
+outside D9's mesh-byte contract. The door was decided before the
+build: `topo`, because only it can see both π-rad witnesses (issue
+1571's Euler-door body never touches a STEP file; issue 723's half-cap
+arrives through import) with no new crate edge. The walk's chart
+closed forms and, after the reviews, its iso classification were
+hoisted verbatim into `topo` so the two consumers run one set of
+expressions — the D9 digest identical at every step (63/63, 99/99,
+162/162; three ε rows) is the receipt. Both witnesses report; the
+corpus and forty more bodies stay quiet; two measured negatives are
+recorded (rim continuation unreachable through `tessellate` on any
+natively constructible body; meridian continuation never fired first).
+
+**The dual (ordinal 1207, sample #110)**: both arms mergeable after
+MINORs, no MAJOR, no tally candidate; pair COUNTS. The reviews' real
+product: the classification had been COPIED into topo rather than
+moved (fixed by extending the hoist), the sub-ε-not-constructible
+claim was false (a tilted meridian circle opens any gap), and the
+`unexamined` half of the new surface had no red row.
+
+**Stated plainly.** A debug build no longer panics in the walk on the
+π-rad bodies; the loudness passes to the issue-897 census and to
+`CertificateExceeded`. On merge day the examination has zero
+production callers — wiring it into editor-core's checks and
+step-import's diagnostics is issue 1587 (a consumer decision on other
+programs' ground: recorded as a cross-program seam); the
+rim-continuation condition's missing natively-constructible witness is
+issue 1588. SMELL S115(d) was already retired from the roll-up when
+issue 868 became its schedule; nothing to edit there.
+
+**Seam entry — the container restarted mid-battery.** Every commit had
+been pushed; the lane and target survived; the implementer re-ran the
+battery in the foreground (~7 min lost). The one red hosted job on the
+interim head was rustdoc — two intra-doc links the hoists left
+dangling — now part of every head's local battery, not the first
+head's only.
+
+Slate next: MESH-10 (issue 1562) dispatched from this merge (MESH-B3
+slot 2; the block is exhausted — MESH-11 draws MESH-B4); MESH-11 (issue
+1571) after it; MESH-9 stays parked on its trigger.

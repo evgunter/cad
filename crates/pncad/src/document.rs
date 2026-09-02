@@ -130,10 +130,14 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // its field type: a consumer cannot read a datum's normal, or build a
 // datum at all, without naming the type that makes it unit — and the
 // constructor's refusal is the only way a datum direction is rejected.
+// `VerbKind`/`Arity` ride with `NodeErrorKind` for the same reason:
+// they are `VerbArity`'s payload, so a consumer can match the variant
+// but not name what it caught without them (the prelude's `BlendKind`
+// rule — the discriminant crosses with the refusal).
 pub use editor_core::{
-    BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
+    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
     NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
-    ValuePayload, evaluate,
+    ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

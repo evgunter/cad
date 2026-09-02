@@ -96,6 +96,13 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// arrives without one. A kernel bug either way; the sentence names
     /// the door that produced it.
     pub(crate) no_records: &'static str,
+    /// What a WRONG-FAMILY record is called when this verb's result
+    /// arrives carrying another family's channel
+    /// (`verbs::VerbRecord`). The same class of kernel bug as
+    /// `no_records` — a blend body whose blend records cannot be read —
+    /// and unreachable while the doors and the correspondences agree;
+    /// the sentence names the door so the refusal does too.
+    pub(crate) foreign_record: &'static str,
 }
 
 /// The fillet's kernel payload. A named function rather than a closure
@@ -121,6 +128,7 @@ pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
         selection_label: BlendKind::Fillet,
         size_slot: SlotId::Radius,
         no_records: "the fillet returned a body with no birth records",
+        foreign_record: "the fillet returned a record that is not a blend's",
     }
 }
 
@@ -132,6 +140,7 @@ pub(crate) fn chamfer<T: geom_core::Real>() -> BlendVerb<T> {
         selection_label: BlendKind::Chamfer,
         size_slot: SlotId::ChamferDistance,
         no_records: "the chamfer returned a body with no birth records",
+        foreign_record: "the chamfer returned a record that is not a blend's",
     }
 }
 
@@ -180,5 +189,9 @@ mod tests {
             "both verbs label refusals identically"
         );
         assert_ne!(f.no_records, c.no_records, "both verbs share one sentence");
+        assert_ne!(
+            f.foreign_record, c.foreign_record,
+            "both verbs share one wrong-family sentence"
+        );
     }
 }

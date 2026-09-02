@@ -288,7 +288,8 @@ fn n1r2_one_poisoned_point_lifts_to_a_described_poisoned_net() {
     // Where it is inside: poison, on both sides.
     assert!(e.eval(0.9).x.is_nan());
     assert!(ed.eval(Dual::variable(0.9)).x.value.is_nan());
-    // Only-first-channel poisoned point: `is_placeholder` reads channel 0.
+    // A net poisoned in ONE channel at every point, the mirror of the
+    // masquerade `net_placeholder_width.rs` pins.
     let mut control2: Vec<Point3<f64>> = (0..5).map(|i| Point3::new(i as f64, 1.0, 0.0)).collect();
     for p in &mut control2 {
         p.y = f64::NAN;
@@ -299,9 +300,9 @@ fn n1r2_one_poisoned_point_lifts_to_a_described_poisoned_net() {
     )
     .unwrap();
     let c2 = NurbsCurve3::new(knots, control2, vec![1.0; 5]).unwrap();
-    // H2's ground: every point has a poisoned SECOND channel and a finite
-    // first one — the first-channel rule answers "described" before and
-    // after the lift, identically.
+    // Every point has a poisoned SECOND channel and a finite first one:
+    // corrupt described geometry, never the benign placeholder, before
+    // and after the lift identically.
     assert!(!c2.is_placeholder());
     assert!(!c2.map_scalar(Dual::constant).is_placeholder());
 }

@@ -665,7 +665,17 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
         Tol::witness(),
     )
     .unwrap();
-    assert_eq!(validate_geometric(&d.body, Tol::witness()), Ok(()));
+    // The dual takes the structural half: checks 1-6, 8 and 9, which is
+    // where the certificates compared below are produced. The one check
+    // it does not run is the +V volume invariant, whose enclosure a
+    // dual may not certify — and the f64 row beside it runs the
+    // composed door on the same construction, so this is a narrower
+    // assertion about the same body rather than a weaker subject.
+    assert_eq!(
+        topo::validate_geometric_structural(&d.body, Tol::witness()),
+        Ok(())
+    );
+    assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
     let f_res: Vec<f64> = f
         .body
         .curves()

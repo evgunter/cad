@@ -507,11 +507,19 @@ fn report_band_arm_under_the_runs_eps() {
 /// two-face body — the props-side finding on the issue; 4π/3 for the
 /// three-face split); the walk's premise — each traversed arc on ONE chart meridian
 /// — does not hold for that edge, `mid_azimuth` reads the pole's `u`,
-/// and the closing column disagrees by π: at δ = 0.5 the
-/// `closing_column` debug assertion fires (recorded, not asserted here
-/// — a `debug_assert` is not a contract to pin a `should_panic` on),
-/// and at δ = 0.1 the face refuses `CertificateExceeded`; with debug
-/// assertions off the δ = 0.5 walk returns an `Ok` NON-watertight mesh.
+/// and the closing column disagrees by π. At δ = 0.1 the face refuses
+/// `CertificateExceeded`, which is what this row asserts. At δ = 0.5
+/// the walk produces a NON-watertight mesh, and what says so is the
+/// cross-face identification census (issue 897): in a debug build it
+/// panics there, and with debug assertions off the walk returns that
+/// mesh `Ok`. Recorded, not asserted — a `debug_assert` is not a
+/// contract to pin a `should_panic` on.
+///
+/// The π itself is REPORTED rather than asserted on, by
+/// `topo::examine_chart_coherence` (issue 868): the walk stopped being
+/// the place that measures the quality of a body's coordinates, and
+/// `topo/tests/mesh8_coherence.rs` is where this body's half-turn is
+/// pinned as a value.
 /// The door does not establish the arc premise and this row says so;
 /// the fix (arc-span verification in the walk or in props) flips it.
 #[test]

@@ -1390,10 +1390,16 @@ handle still gets its row-1/2/3 disposition — the tripwire
 supplements, never replaces it; (iii) each such assertion documents
 its calibration in-file — the population measured and the margin
 observed — so a firing one reads as evidence to investigate.
-`mesh::walk`'s `closing_column` is the precedent, in both directions:
-its firing is how #723's wrong certificate announced itself in a
-debug build, and its recorded estimate being off by nine orders on
-that input is what an uncalibrated ceiling costs.
+`geom_brep::props::quad`'s area gauge is the live precedent, in both
+directions: it is a debug-only ceiling on the WIDTH of a certified
+bracket, calibrated in-file at three named margins, and its own docs
+carry the cautionary half — the retired `mesh::walk` closure detector,
+whose recorded estimate was off by nine orders on issue 723's input,
+which is what an uncalibrated ceiling costs. That detector is no
+longer the exemplar because it is no longer an assertion: issue 868
+moved its condition to `topo::coherence`, where the same measurement
+is a reported value rather than a tripwire — the disposition this rule
+prefers wherever the state is reachable by input.
 
 *Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
 `MarginDiag` is `Value` (f64 margin in the ambiguity band) or an

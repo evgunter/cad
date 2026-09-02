@@ -247,7 +247,8 @@ bucket: Dual-at-certified-gates semantics, `dual.rs`, the
 lift are **M10's** (the ratified fold); `orthonormal_basis` is
 P-2's until #1177 lands; #1018–#1020 are OFF-D's under VERBS;
 `props/quad.rs` consolidation is Track R's C3, gated behind CERT-1;
-S-MESH's future owner inherits the `closing_column` assertion note.
+the `closing_column` assertion note was S-MESH's and is discharged
+(issue 868: the condition is `topo::coherence`'s report now).
 
 ## Rulings (Evan, in-chat, 2026-08-29)
 

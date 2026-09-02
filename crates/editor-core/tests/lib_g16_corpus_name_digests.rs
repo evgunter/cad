@@ -120,6 +120,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_composed", 0xc801_9fd6_e360_ce3e),
     ("die_composed_tour", 0x2813_3d38_1e83_f02d),
     ("plate_param", 0x3bfe_3e78_5eec_a227),
+    ("kiss_carry", 0xe4c5_64dd_af60_08ce),
 ];
 
 #[test]

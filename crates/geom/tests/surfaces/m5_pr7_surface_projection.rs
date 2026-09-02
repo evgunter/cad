@@ -191,7 +191,7 @@ fn seeding_is_bit_deterministic() {
 /// `tests/curves/projection.rs`'s overflow row.
 ///
 /// The two rows are not two facts. They pin **one** property of a
-/// shared helper: `crate::projection::mid` is `x + ½(x − x)`, the
+/// shared helper: `crate::projection_policy::mid` is `x + ½(x − x)`, the
 /// identity on every finite `x` and **NaN at ±∞**, and that
 /// non-totality is *load-bearing at every caller* — it is what turns an
 /// overflowed residual into the typed refusal instead of a converged
@@ -224,10 +224,10 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
     assert!(
         s.control()
             .iter()
-            .all(|p| p.x.is_finite() && p.z.is_finite())
+            .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite())
     );
     let p = Point3::new(0.0, 0.0, 0.0);
-    assert!(p.x.is_finite());
+    assert!(p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
 
     // The residual itself is what overflows. Asserted BEFORE the
     // refusal: a fixture that stopped reaching its own precondition

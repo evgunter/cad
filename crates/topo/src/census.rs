@@ -3415,4 +3415,109 @@ mod tests {
             "a refuted cylinder declaration is stale typed: {errors:?}"
         );
     }
+    // ---- CERT-N2 R2 reviewer probes (not for merge) ----
+
+    /// The masquerade with the placeholder's own structure: every
+    /// control point poisoned in `x`, finite in `y`/`z`.
+    fn masquerade_like_placeholder() -> Surface<f64> {
+        let ph = geom::NurbsSurface::<f64>::placeholder();
+        let control = ph
+            .control()
+            .iter()
+            .enumerate()
+            .map(|(i, _)| Point3::new(f64::NAN, i as f64, 2.0))
+            .collect();
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(
+                ph.knots_u().clone(),
+                ph.knots_v().clone(),
+                control,
+                ph.weights().to_vec(),
+            )
+            .unwrap(),
+        ))
+    }
+
+    fn swap_placeholders(body: &mut Body<f64>) -> Vec<FaceKey> {
+        let seeds: Vec<FaceKey> = body
+            .faces()
+            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Nurbs(p)) if p.is_placeholder()))
+            .map(|(k, _)| k)
+            .collect();
+        for &f in &seeds {
+            body.set_face_surface(f, FaceSurface::New(masquerade_like_placeholder()))
+                .unwrap();
+        }
+        seeds
+    }
+
+    /// Class 7 executed: `face_reach` on the masquerade, and whether the
+    /// census's containment arm now DECIDES on the finite lanes (near
+    /// versus a kilometre away must give byte-identical refusals if no
+    /// extent comparison happens).
+    #[test]
+    fn n2r2_class7_face_reach_partial_box_and_census_decision() {
+        let run = |z0: f64, z1: f64| -> (Vec<String>, Vec<String>) {
+            let mut body = Body::<f64>::new();
+            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+            let seeds = swap_placeholders(&mut body);
+            assert_eq!(seeds.len(), 2);
+            let mut reaches = Vec::new();
+            for &f in &seeds {
+                let r = face_reach(&body, f);
+                reaches.push(format!("{r:?}"));
+                let b = crate::boolean::boxes::face_box(&body, f, 1e-9);
+                reaches.push(format!("face_box: {b:?}"));
+            }
+            let errs = census_and_certify(&body, &ContactRecords::default(), band())
+                .into_iter()
+                .map(|e| format!("{e:?}"))
+                .collect();
+            (reaches, errs)
+        };
+        let (near_reach, near) = run(0.3, 0.7);
+        let (far_reach, far) = run(1000.3, 1000.7);
+        eprintln!("[class 7] near face_reach/face_box: {near_reach:#?}");
+        eprintln!("[class 7] far  face_reach/face_box: {far_reach:#?}");
+        eprintln!("[class 7] near census errors ({}): {near:#?}", near.len());
+        eprintln!("[class 7] far  census errors ({}): {far:#?}", far.len());
+        eprintln!("[class 7] near == far ? {}", near == far);
+    }
+
+    /// The sibling discriminator-free fold: `face_box` (boolean lane)
+    /// on the masquerade, and whether its partially poisoned box PRUNES
+    /// against a box that is disjoint on a finite axis.
+    #[test]
+    fn n2r2_face_box_partial_poison_prunes_on_finite_axes() {
+        let mut body = Body::<f64>::new();
+        let (_w1, _cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        let seeds = swap_placeholders(&mut body);
+        let b = crate::boolean::boxes::face_box(&body, seeds[0], 1e-9).unwrap();
+        eprintln!("[face_box] masquerade box = {b:?}");
+        let far = bvh::Aabb::from_points([
+            Point3::new(0.0, 100.0, 100.0),
+            Point3::new(1.0, 101.0, 101.0),
+        ])
+        .unwrap();
+        let near = bvh::Aabb::from_points([Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)])
+            .unwrap();
+        eprintln!(
+            "[face_box] overlaps(far y/z-disjoint box) = {}  overlaps(near box) = {}",
+            b.overlaps(&far),
+            b.overlaps(&near)
+        );
+        // EXPECTATION UPDATED BY THE FIX PASS, and this is the row that
+        // records the repair: the probe was written when this fold
+        // answered a box poisoned in x and finite in y/z, which pruned
+        // against `far`. The door it calls is `geom`'s
+        // `nurbs_surface_aabb`, which now screens on poison ANYWHERE, so
+        // the box is poison on every axis and prunes against neither.
+        assert!(
+            b.overlaps(&far) && b.overlaps(&near),
+            "the boolean lane's face box must not prune on a net it cannot bound"
+        );
+    }
 }

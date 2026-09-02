@@ -195,21 +195,27 @@ const GLYPH_DOWN: &str = "⬇";
 /// Marks a product root in the feature tree — see [`GLYPH_REMOVE`].
 const GLYPH_ROOT: &str = "»";
 
-/// **The picture's own size**, in metres: the diagonal of the scene's
-/// bounding box, which is what a datum is drawn relative to.
+/// **What a datum is drawn against**: where the eye is, and how much
+/// world one pixel of this window spans.
 ///
-/// Zero for a scene with no geometry — an emptied document, or one
-/// holding only datums — and `datums::draws` turns that into its own
-/// fallback rather than this function inventing one. Two places would
-/// be two answers to "how big is nothing".
-fn scene_extent(scene: &SceneMesh) -> f64 {
-    let bounds = scene.bounds();
-    let span = |axis| bounds.max(axis) - bounds.min(axis);
-    let (x, y, z) = (span(bvh::Axis::X), span(bvh::Axis::Y), span(bvh::Axis::Z));
-    (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
+/// The one place the camera and the pane's pixel size become
+/// `datums::View`, so the module below stays a value over two numbers
+/// rather than a borrow of the renderer. The scale is the vertical
+/// field of view over the vertical pixel count — one pixel's angular
+/// share — which at one metre from the eye is that many metres.
+fn datum_view(camera: &Camera, viewport: ViewportSize) -> datums::View {
+    let height = viewport.height_px.max(1.0);
+    datums::View {
+        eye: camera.eye(),
+        look_at: camera.target(),
+        metres_per_pixel_at_one_metre: 2.0 * (camera.fov_y() * 0.5).tan() / height,
+        // The LARGER side: a patch that covered the height of a wide
+        // window would still be pannable off sideways.
+        viewport_px: viewport.width_px.max(height),
+    }
 }
 
-/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane
 /// metres: a fraction of the whole preview's extent.
 ///
 /// Relative rather than absolute because a preview has no fixed scale
@@ -356,6 +362,16 @@ struct Drafts {
     datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
     datum_direction: [f64; 3],
+    /// The FRAME form's two in-plane axes, sketch +x then +y
+    /// (unitless; ignored by every other kind).
+    ///
+    /// Their own fields rather than a reuse of `datum_direction`,
+    /// because a form's default has to mean something: a plane opens
+    /// facing +z, and a frame opens as the world xy frame — which the
+    /// same buffer cannot say twice.
+    datum_u: [f64; 3],
+    /// The frame form's sketch +y axis.
+    datum_v: [f64; 3],
     /// **The unit every creation form's LENGTH field is written in.**
     ///
     /// ONE choice for all the forms, not one per form. The panel's
@@ -467,6 +483,8 @@ impl Default for Drafts {
             datum_kind: DatumKind::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
+            datum_u: [1.0, 0.0, 0.0],
+            datum_v: [0.0, 1.0, 0.0],
             length_unit: quantity::M,
             angle_unit: quantity::PI,
             profile_shape: None,
@@ -685,12 +703,19 @@ enum DatumKind {
     Axis,
     /// A point datum.
     Point,
+    /// A sketch frame — an oriented plane.
+    Frame,
 }
 
 impl DatumKind {
     /// Every kind with its radio label, in form order.
-    const ALL: [(Self, &'static str); 3] = [
+    ///
+    /// The frame sits next to the plane because that is the choice a
+    /// reader is actually making: the same surface, with or without a
+    /// stated direction on it.
+    const ALL: [(Self, &'static str); 4] = [
         (Self::Plane, "plane"),
+        (Self::Frame, "frame"),
         (Self::Axis, "axis"),
         (Self::Point, "point"),
     ];
@@ -2488,11 +2513,12 @@ impl ViewerBehavior<'_> {
         // point.
         // **The document's construction geometry**, drawn before the
         // preview so a form composing something over a datum reads on
-        // top of it. Sized against the scene's own extent
-        // (`datums::draws`), so a datum is the same size relative to
-        // the part whatever the part's scale is.
+        // top of it. Sized against the VIEW (`datums::draws`): a datum
+        // has no size of its own, and one sized against the model
+        // opens into a hole the moment the camera is closer than a
+        // grid cell is wide.
         if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
-            for drawn in datums::draws(doc, evaluation, scene_extent(self.scene)) {
+            for drawn in datums::draws(doc, evaluation, datum_view(self.camera, viewport)) {
                 for point in drawn.segments {
                     edges
                         .datums
@@ -3255,7 +3281,7 @@ impl ViewerBehavior<'_> {
                 ui,
                 match kind {
                     DatumKind::Point => "position",
-                    DatumKind::Plane | DatumKind::Axis => "origin",
+                    DatumKind::Plane | DatumKind::Axis | DatumKind::Frame => "origin",
                 },
                 self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
@@ -3276,6 +3302,16 @@ impl ViewerBehavior<'_> {
                 UNIT_DRAG_SPEED,
                 &mut self.drafts.datum_direction,
             ),
+            DatumKind::Frame => {
+                vec3_row(ui, "x axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_u);
+                vec3_row(ui, "y axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_v);
+                // What the form does to the y axis before it becomes a
+                // datum, said where it is being typed: a reader who
+                // enters a y that is not square to x gets a frame that
+                // is, and a silent correction is the kind a person
+                // discovers by measuring the model.
+                ui.label("y is squared against x; the normal is x × y");
+            }
             DatumKind::Point => {}
         }
         if ui.button("Add datum").clicked() {
@@ -3293,6 +3329,11 @@ impl ViewerBehavior<'_> {
                         direction: scalars(self.drafts.datum_direction)?,
                     },
                     DatumKind::Point => DatumSpec::Point { position: origin },
+                    DatumKind::Frame => DatumSpec::Frame {
+                        origin,
+                        u: scalars(self.drafts.datum_u)?,
+                        v: scalars(self.drafts.datum_v)?,
+                    },
                 })
             })();
             match datum {
