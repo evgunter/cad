@@ -100,6 +100,10 @@ resolution is always "the version is gone."
   NOT: the `Verb`/`ProgramStep`/`WireStep` VOCABULARY itself
   (BOOL-12 grows it), the content-key hashers, `docs/MODEL-AB-LOG.md`
   / `docs/S-BOOL-*.md` / SMELL edits. Track V's `crates/editor-core`
-  fence: `persist/` is not among its rows' subjects — if a row's
-  file is reached, disclose it.
+  fence: **CORRECTED post-merge (both reviews caught it)** — row
+  C6's S4 anchors ARE `persist/wire.rs` (`WireStep`), `program.rs`
+  (`ProgramStep`) and `node.rs` (`StepArg`); the original sentence
+  said `persist/` was not among Track V's subjects, which pointed
+  the implementer's disclosure the wrong way. Doc-comment edits in
+  all three were reached and are disclosed in the PR.
 - Re-merge main before opening the PR.
