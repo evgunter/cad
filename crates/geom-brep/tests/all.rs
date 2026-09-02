@@ -225,3 +225,6 @@ mod cert_n2r2_class56_probes;
 mod iso_rectangle_door;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+
+#[path = "mesh10r1_probes.rs"]
+mod mesh10r1_probes;
