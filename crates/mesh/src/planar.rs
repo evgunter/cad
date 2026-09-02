@@ -709,7 +709,7 @@ mod tests {
         for t in tris {
             for k in 0..3 {
                 let (a, b) = (t[k], t[(k + 1) % 3]);
-                *uses.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+                *uses.entry(crate::walk::edge_key(a, b)).or_insert(0) += 1;
             }
         }
         for ids in loops {
@@ -718,7 +718,7 @@ mod tests {
                 if a == b {
                     continue;
                 }
-                let key = (a.min(b), a.max(b));
+                let key = crate::walk::edge_key(a, b);
                 assert_eq!(
                     uses.get(&key).copied().unwrap_or(0),
                     1,

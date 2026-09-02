@@ -226,3 +226,41 @@ within a minute, no cross-lane source contact).
 Slate next: MESH-6 (#897) and MESH-7 (#727/#726) per lane budget;
 MESH-8 holds the corrected halfcap witness. Issue 1513 carries the
 sibling class from MESH-5.
+
+## MESH-6 merged (2026-09-02) — issue 897 closed; S65's two cases become censuses
+
+PR 1545 at head 6261f8646 (gate 33595370207 green; lane default,
+ε default drawn). Both of issue 897's uncovered S65 cases — the
+full-2π seam and cross-face identification — now have a mechanical
+`cfg(debug_assertions)` census, priced inside one release binary
+(seam +5–12% of `tessellate` on the donut, chord −8…+1%, the pair
++13–15%); `check_mesh` as the cross-face guard was measured and
+rejected on the donut rows and footprint, with the sub-millisecond
+rows honestly discounted as noise. The `pole_columns` argument was
+verified as arithmetic and read per arm: the torus floor is
+protective, the cylinder's vacuous. The fix pass covered the
+trimmed NURBS arm too, factored the shared rules into `walk`, and
+gated the new rows so the crate compiles with debug-assertions off
+— finding one pre-existing `walk.rs` row (issue 896's) that fails
+in that configuration, reported not touched.
+
+**The dual (ordinal 1205, sample #101 — the row landed in this
+docs PR after the merge, the first unit under the new mechanics:
+no ledger append on the unit branch)**: R1 mergeable-with-MINORs,
+R2 mergeable-after-MINORs with ONE unilateral executed MAJOR (the
+`check_mesh` price sentence contradicting the PR's own table) —
+a tally candidate. Pair COUNTS.
+
+**Spec-wording correction, recorded.** `docs/MESH-6-SPEC.md`'s
+deliverable 3 said the censuses are "compiled out of every shipping
+build". That was the spec's phrase, not the measurement's: the
+workspace's PRE-PUBLISH `[profile.release] debug-assertions = true`
+stanza makes every `cfg(debug_assertions)` guard LIVE in today's
+release builds, so both censuses ship at the measured +13–15% on
+the donut until that stanza flips. The S65 ruling's intended state
+is cfg-conditional ("no unconditional shipped guard"), which is
+what landed; the dispatch brief that attributed the phrase to the
+PR was the orchestrator's error, symmetric across both reviews.
+
+Slate next: MESH-7 (#727/#726) draws MESH-B3 (MESH-B2 exhausted);
+MESH-8 holds the corrected halfcap witness.

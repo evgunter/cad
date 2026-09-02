@@ -13,7 +13,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::persist::MigrationError;
 use editor_core::{
     AssemblyError, CapEnd, DeclareError, Diagnosis, Dimension, DimensionError, DocParamValue,
     EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateSide, MeshPickError,
@@ -383,31 +382,6 @@ fn parse_error_display_names_its_content_not_its_struct() {
     for (err, wants) in cases {
         assert_f6(&err, &wants, &dumps);
     }
-}
-
-#[test]
-fn migration_error_display_names_its_content_not_its_struct() {
-    let err = MigrationError {
-        from: 3,
-        reason: "the body carries no `nodes` array".to_string(),
-    };
-    let shown = err.to_string();
-    for want in [
-        "version 3",
-        "4",
-        "the body carries no `nodes` array",
-        "migration step",
-    ] {
-        assert!(
-            shown.contains(want),
-            "{err:?} renders as {shown:?}, missing {want:?}"
-        );
-    }
-    assert!(
-        !shown.contains("MigrationError") && !shown.contains("from:") && !shown.contains("reason:"),
-        "{err:?} renders as {shown:?} — that is the struct dump"
-    );
-    assert_ne!(shown, format!("{err:?}"));
 }
 
 /// Every rendering of a [`Dimension`] a user can reach, in one place.

@@ -325,7 +325,8 @@ pub use provenance::Provenance;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use query::{
-    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DatumValue, SEL_DATUM_DISTANCE, SurfaceKindSet,
+    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, SEL_DATUM_DISTANCE,
+    SurfaceKindSet, UnitVec3, UnitVec3Error,
 };
 pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};

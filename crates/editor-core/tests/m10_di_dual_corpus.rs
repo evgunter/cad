@@ -150,12 +150,12 @@ fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
                     ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.point3(*origin);
-                        d.vec3(*normal);
+                        d.vec3(normal.get());
                     }
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.point3(*origin);
-                        d.vec3(*dir);
+                        d.vec3(dir.get());
                     }
                     ValuePayload::Datum(DatumValue::Point { position }) => {
                         d.u64(12);

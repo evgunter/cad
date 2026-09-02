@@ -33,7 +33,7 @@
 //!
 //! Document parameters are the remaining asymmetry, and it is now the
 //! PANEL's rather than the storage's: `DocParam::Continuous` carries an
-//! authored unit (schema v20), and nothing here reads it — a parameter
+//! authored unit, and nothing here reads it — a parameter
 //! row still shows the canonical unit, and the create-parameter
 //! affordance still authors one. Stated rather than papered over; the
 //! storage is ready for the row that renders it.
