@@ -153,15 +153,14 @@
 //!    solid refuses `CurvedShellClassification` — the KNOWN standing
 //!    gate of OFFSET-DESIGN O6's demo-gates list, recorded here and
 //!    never worked around.
-//! 8. **Edge selection by adjacent surface kinds is document-layer
-//!    only.** `select_where` + `GeomPred::AdjacentKinds` is the
-//!    ratified way to say "the cone×cylinder corners" (the die scene
-//!    says exactly that), but it takes an `Evaluation`, so a body
-//!    built by calling `revolve` directly has no selector at all:
-//!    [`corner_edges`] below is a hand-rolled scan over
-//!    `body.edges()` reading `get_surface(..)` through two
-//!    back-pointers. NOT a probe: it is a gap in reach, not a
-//!    refusal.
+//! 8. **Edge selection by adjacent surface kinds works at BOTH
+//!    seats.** `select_where` + `GeomPred::AdjacentKinds` says "the
+//!    cone×cylinder corners" over an `Evaluation` (the die scene says
+//!    exactly that); a body built by calling `revolve` directly says
+//!    the same thing through the kernel query seat —
+//!    [`corner_edges`] below is `query::all_edges` filtered by
+//!    `query::edge_adjacent_matches`, the one implementation the
+//!    document door delegates to.
 //! 9. **A valid body the tessellator refused, at ordinary
 //!    proportions — CLOSED, and wall 7 retired with it.**
 //!    `mesh::planar`'s module docs used to bank exactly one uncovered
@@ -227,7 +226,7 @@ use core::f64::consts::PI;
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point3, Tol};
-use pncad::prelude::{Open, ProfileLoop, Start, circle};
+use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
@@ -511,26 +510,18 @@ fn bottle<S: Scalar>(tol: Tol) -> [Body<S>; 3] {
     ]
 }
 
-/// Every edge of `body` whose two faces are a cone and a cylinder.
-///
-/// Finding 8: this is what `select_where(&ev, node, &edges,
-/// &[GeomPred::AdjacentKinds(cone, cylinder)], &params)` says in one
-/// line at the document layer — and there is no kernel-level door for
-/// it, so a directly-built body scans its own arena through two
-/// back-pointers instead.
+/// Every edge of `body` whose two faces are a cone and a cylinder
+/// (finding 8): the kernel query seat's adjacent-kind predicate over
+/// its materializer — what `select_where(&ev, node, &edges,
+/// &[GeomPred::AdjacentKinds(cone, cylinder)], &params)` says at the
+/// document layer, said in keys at the body layer through the same
+/// one implementation.
 fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
-    let kind_at = |he| {
-        let l = body.get_half_edge(he)?.parent_loop;
-        let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface)
-            .map(SurfaceKind::of)
-    };
-    body.edges()
-        .filter(|(_, e)| {
-            let (ka, kb) = (kind_at(e.he_plus), kind_at(e.he_minus));
-            (ka, kb) == (Some(a), Some(b)) || (ka, kb) == (Some(b), Some(a))
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| {
+            query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
         })
-        .map(|(k, _)| k)
         .collect()
 }
 

@@ -1254,8 +1254,10 @@ pub enum CensusContact {
         edge: EdgeKey,
     },
     /// An edge piercing a face transversally at both interiors — a
-    /// proper crossing, categorically undeclarable (3′ allows touching,
-    /// never crossing).
+    /// transverse dive, interpenetration at rest: categorically
+    /// undeclarable until the C6 interference-fit era's recorded
+    /// gate-skips exist (the MATE-4b staging defers this class to
+    /// that era by name).
     EdgeFacePierce {
         /// The piercing edge.
         edge: EdgeKey,
@@ -1263,7 +1265,12 @@ pub enum CensusContact {
         face: FaceKey,
     },
     /// Two edges crossing at both interiors (coplanar or skew-with-
-    /// contact) — a proper crossing, categorically undeclarable.
+    /// contact). Backable at the census's unified strength when the
+    /// crossing lies in a declared pair's verified overlap region
+    /// with material on opposite sides of the shared carrier (an
+    /// overhanging seat — `census.rs`'s crossing rung); otherwise a
+    /// hard finding, the refusal naming the side verdict where a
+    /// region-holding pair answered one.
     EdgeEdgeCross {
         /// The lower-arena-order edge.
         a: EdgeKey,

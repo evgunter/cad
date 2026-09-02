@@ -322,11 +322,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "table",
             caption: String::new(),
             // Montage cell RETIRED by the montage-v3 curation (Evan,
-            // 2026-08-30). Its one visual claim is corner-ALIGNED legs
-            // — and the assembly layer's table next door is now the
-            // same geometry, four legs on the corners, so the picture
-            // is the same picture and this cell adds nothing the sheet
-            // can see. What is NOT duplicated is this scene's four
+            // 2026-08-30). The reason first written here was that the
+            // assembly layer's furniture is "the same geometry, four
+            // legs on the corners" — it is NOT, and converting it would
+            // cost more than this cell is worth: `assembly`'s bench is
+            // two posts FLUSH with the shelf's ends and deliberately
+            // INSET in depth, because a bench top overhangs and a post
+            // is not the depth of the shelf, and that inset is what
+            // carries the flush-seat story (including SEAT_B's 1.11e-16
+            // residue, narrated as measured evidence). The true reason
+            // is simpler: what this cell shows is a table, and a table
+            // is not a fact the sheet is short of. What is NOT
+            // duplicated is this scene's four
             // narrated union variants (coplanar-undeclared refusing at
             // the coincidence door; inset overlap; the straddle
             // workaround; the shipped declared-flush rung) — narration,

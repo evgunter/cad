@@ -4,8 +4,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::{TubeWindow, tube_along_arc};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
 
 const TUBE: f64 = 0.06;
@@ -26,14 +28,9 @@ fn full_torus(major: f64) -> Body<f64> {
 }
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Torus { .. })
-            )
-        })
-        .map(|(k, _)| k)
+    query::all_faces(body)
+        .into_iter()
+        .filter(|&f| query::face_surface_matches(body, f, SurfaceKindSet::just(SurfaceKind::Torus)))
         .collect()
 }
 

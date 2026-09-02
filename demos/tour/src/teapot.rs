@@ -157,7 +157,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
-use pncad::prelude::{Open, Start, fillet_edges};
+use pncad::prelude::{Open, Start, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc};
 use pncad::topo::{Body, BooleanError, EdgeKey, FaceKey, Operand, ReplaceFaceError, ShellError};
@@ -205,6 +205,27 @@ const FIT_TOL: f64 = 1e-6;
 const LIFT: f64 = 1.0 / 32.0;
 /// The lid's underside plane.
 const LID_BASE: f64 = Y_MOUTH + LIFT;
+/// The flange's outer radius — the lid overhangs its mouth. With the
+/// dome's foot at [`R_NECK`], the skirt between them is a cone of
+/// `Δr = −2/256` over `Δy = +6/256`.
+///
+/// **That slope is a CONVEXITY constraint, not a taste.** The dome's
+/// foot is the sphere's 5-12-13 point, where the meridian's own slope
+/// is `|dy/dr| = 12/5 = 2.4`. A cone shallower than that meets the
+/// sphere in a VALLEY, and a concave chain adds material where a
+/// closed-rim carve only removes it — measured, not reasoned: a 45°
+/// skirt (`Δr = −4` over `Δy = +4`) authors and builds, and the fillet
+/// arm refuses its foot `UnsupportedChain { edge, detail: "a concave
+/// chain adds material, which no closed-rim carve builds — not
+/// implemented" }` while the flange's own rim and the knob's COMPOSE in
+/// the same breath. (That variant keeps the dome's 5-12-13 junctions
+/// exact by putting `DOME_C` at `LID_BASE − 1/256`; a 45° skirt against
+/// THIS centre would refuse one door earlier, at the arc's own
+/// equidistance check.) At `|dy/dr| = 3` the junction is convex and all
+/// three roll.
+const R_FLANGE: f64 = 14.0 / 256.0;
+/// Where the conical flange ends and the dome's sphere begins.
+const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
 /// The dome's sphere radius, and its centre's station: the 5-12-13
 /// triple. What that buys is not that any of these decimals is a
 /// binary-exact float — 3/64 and 13/256 are, 0.6 and 0.8 would not be
@@ -212,19 +233,21 @@ const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// rim and for the knob's foot evaluate to 0.0 in f64, so the arc door
 /// has nothing to round when it checks equidistance.
 const DOME_R: f64 = 13.0 / 256.0;
-/// The dome sphere's centre, BELOW the lid's underside.
-const DOME_C: f64 = LID_BASE - 5.0 / 256.0;
+/// The dome sphere's centre, one unit ABOVE the lid's underside —
+/// the flange lifts the dome's foot, and the centre with it.
+const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
 /// The knob's radius — the 5-12-13 point of the dome circle.
 const R_KNOB: f64 = 5.0 / 256.0;
 /// Where the dome ends and the knob's wall begins.
-const Y_KNOB: f64 = LID_BASE + 7.0 / 256.0;
+const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
 /// The knob's top.
-const Y_TOP: f64 = LID_BASE + 12.0 / 256.0;
+const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// The steam vent bored through the finial — which is also what makes
 /// the lid's profile ANNULAR, and therefore what makes its latitude
 /// rims closed edges. See the module docs' finding 3.
 const R_VENT: f64 = 1.0 / 256.0;
-/// The roll on the knob's top rim.
+/// The roll, asked once for all three of the lid's rims — the radius
+/// is per REQUEST, not per edge.
 const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------
@@ -348,12 +371,26 @@ fn vessel_meridian(tol: Tol) -> ProfileLoop<f64> {
         .into()
 }
 
-/// **The lid's meridian**: underside annulus, dome, knob wall, knob
-/// top annulus, vent bore.
+/// **The lid's meridian**: underside annulus, conical flange, dome,
+/// knob wall, knob top annulus, vent bore.
+///
+/// The flange is what a lid has and is also what puts the CURVED-support
+/// fillet family on this part: it mints two closed latitude rims whose
+/// supports are a plane and a cone, and a cone and a sphere. With the
+/// knob's cylinder × plane rim that is three DIFFERENT coaxial arms on
+/// one body — the three `bud` records, on a part rather than on a study.
+///
+/// Every station stays dyadic, which is what keeps the arc door's
+/// equidistance residuals exactly zero: the flange runs `14/256 → 12/256`
+/// over `40/256 → 46/256`, and the dome's centre sits at `41/256` so
+/// its two junctions are still the sphere's own 5-12-13 points —
+/// `(12, 46)` is `(12, 5)` from the centre and `(5, 53)` is `(5, 12)`.
 fn lid_meridian(tol: Tol) -> ProfileLoop<f64> {
     Open.at(Point2::new(R_VENT, LID_BASE))
-        .line_to(Point2::new(R_NECK, LID_BASE), tol)
-        .expect("the underside seats on the mouth rim")
+        .line_to(Point2::new(R_FLANGE, LID_BASE), tol)
+        .expect("the underside overhangs the mouth rim")
+        .line_to(Point2::new(R_NECK, Y_FLANGE), tol)
+        .expect("the conical flange rises to the dome's foot")
         .arc_to(
             Center {
                 c: Point2::new(0.0, DOME_C),
@@ -406,27 +443,37 @@ fn spout_placement() -> Affine3<f64> {
 /// meridians, so the mouth is two half-discs sharing one plane, and
 /// `shell_open` lifts a chart as one (`ShellError::OpenFaceChartPartial`
 /// is what a half designation gets).
+///
+/// The kernel query seat materializes the candidates; the station is
+/// this scene's own read of the carrier — a numeric description the
+/// scene states in its authored coordinates.
 fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
-                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+    query::all_faces(body)
+        .into_iter()
+        .filter(|&f| {
+            matches!(
+                body.get_face(f).and_then(|face| body.get_surface(face.surface)),
+                Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12
+            )
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
 /// The one closed latitude rim of `body` whose circle sits at station
-/// `y` with radius `r` — the selection said BY DESCRIPTION, by hand,
-/// because a directly revolved body has no selector (the register's
-/// standing gap; `bud::rims_between` and `klein::corner_edges` are the
-/// same scan).
+/// `y` with radius `r` — the selection said BY DESCRIPTION at the body
+/// seat: the kernel query seat materializes the candidates
+/// (`bud::rims_between` and `klein::corner_edges` say their kind
+/// halves through the seat's predicates), and the carrier match here
+/// is this scene's own read — a numeric description stated in the
+/// authored coordinates, which no kind predicate answers, with the
+/// circle kind subsumed by the same match.
 fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
+    let hits: Vec<EdgeKey> = query::all_edges(body)
+        .into_iter()
+        .filter(|&k| {
             let Some(c) = body
-                .get_curve_geom(body.get_edge(*k).expect("the edge").curve)
+                .get_edge(k)
+                .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(|g| g.certified())
             else {
                 return false;
@@ -434,7 +481,6 @@ fn rim_at(body: &Body<f64>, y: f64, r: f64) -> EdgeKey {
             matches!(*c.carrier(), Curve3::Circle { center, radius, .. }
                 if (center.y - y).abs() < 1e-12 && (radius - r).abs() < 1e-12)
         })
-        .map(|(k, _)| k)
         .collect();
     assert_eq!(
         hits.len(),
@@ -747,79 +793,186 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             plain_lid.edges().count(),
             plain_lid.faces().count(),
         ),
-        (5, 10, 5),
-        "an ANNULAR profile mints ONE full wall per segment — five walls, five closed \
-         latitude rims and five seam meridians — where the pot's axis-touching profile \
+        (6, 12, 6),
+        "an ANNULAR profile mints ONE full wall per segment — six walls, six closed \
+         latitude rims and six seam meridians — where the pot's axis-touching profile \
          mints half-walls and open arcs"
     );
-    let knob_rim = rim_at(&plain_lid, Y_TOP, R_KNOB);
-    let rolled = fillet_edges(&plain_lid, &[knob_rim], ROLL, tol)
-        .unwrap_or_else(|e| panic!("the knob's cylinder x plane top rim rolls, got {e:?}"));
+    // THREE rims, THREE DIFFERENT coaxial arms, ONE call. The lid is
+    // the tour's carrier of the curved-support fillet family now that
+    // `bud` is off the sheet: the flange rim is cone × plane(⊥), the
+    // dome's foot is sphere × cone, and the knob's top is
+    // cylinder × plane. All three are closed latitude circles because
+    // the profile is ANNULAR — which is what the steam vent buys, and
+    // the reason an axis-touching profile has no candidate at all.
+    //
+    // One call rather than three, as `bud` establishes: the radius is
+    // per REQUEST, not per edge, and #935 re-reads each later rim's
+    // seam-piece identities against the partially-carved body, so the
+    // convenient spelling is the door's grain.
+    let rims = [
+        (
+            "the flange's rim (cone x plane)",
+            rim_at(&plain_lid, LID_BASE, R_FLANGE),
+        ),
+        (
+            "the dome's foot (sphere x cone)",
+            rim_at(&plain_lid, Y_FLANGE, R_NECK),
+        ),
+        (
+            "the knob's top (cylinder x plane)",
+            rim_at(&plain_lid, Y_TOP, R_KNOB),
+        ),
+    ];
+    // Each rim asked for ON ITS OWN first, and the answer printed. A
+    // one-call refusal names ONE edge, and on a body where three rims
+    // are new that is not enough to say which arm the door turned away
+    // — so the scene asks three questions whose answers are each about
+    // one rim.
+    for (what, e) in &rims {
+        println!(
+            "   {what}: {}",
+            describe(&fillet_edges(&plain_lid, &[*e], ROLL, tol))
+        );
+    }
+    let keys: Vec<EdgeKey> = rims.iter().map(|(_, e)| *e).collect();
+    let rolled = fillet_edges(&plain_lid, &keys, ROLL, tol)
+        .unwrap_or_else(|e| panic!("the lid's three coaxial rims roll, got {e:?}"));
     assert_eq!(
         (
             rolled.body.vertices().count(),
             rolled.body.edges().count(),
             rolled.body.faces().count(),
         ),
-        (6, 12, 6),
-        "the annulus band's own census delta: +1 vertex, +2 edges, +1 face"
+        (9, 18, 9),
+        "three annulus bands, each the same census delta: +1 vertex, +2 edges, +1 face"
     );
-    assert_eq!(rolled.band_faces.len(), 1, "one rim, one band");
-    let (band_major, band_minor) = {
-        let f = rolled.band_faces[0];
-        match rolled
-            .body
-            .get_surface(rolled.body.get_face(f).expect("the band face").surface)
-        {
-            Some(Surface::Torus {
+    assert_eq!(rolled.band_faces.len(), 3, "three rims, three bands");
+    for f in &rolled.band_faces {
+        assert!(
+            matches!(
+                rolled
+                    .body
+                    .get_surface(rolled.body.get_face(*f).expect("a band face").surface),
+                Some(Surface::Torus { .. })
+            ),
+            "every coaxial band is a TORUS — that is what sharing an axis of revolution \
+             buys: the rolling ball's centre is confined to the meridian half-plane"
+        );
+    }
+    // EACH band re-derived from its own two tangency conditions rather
+    // than read back from the arm that minted it. Coaxial supports
+    // confine the rolling ball's centre to the meridian half-plane,
+    // where each support cuts a LINE or a CIRCLE and the centre is the
+    // crossing of the two offset traces — so every one of these is a
+    // closed form, and they are three DIFFERENT ones.
+    //
+    // Bands are selected by their spine station, never by index: the
+    // arm is free to mint them in any order.
+    let band = |y: f64| -> (f64, f64) {
+        let mut hit = None;
+        for f in &rolled.band_faces {
+            let Some(Surface::Torus {
                 major_radius,
                 minor_radius,
                 center,
                 ..
-            }) => {
-                assert!(
-                    center.x.abs() < 1e-12
-                        && center.z.abs() < 1e-12
-                        && (center.y - (Y_TOP - ROLL)).abs() < 1e-12,
-                    "the band's spine circle sits one roll below the knob's top, on the \
-                     axis: got {center:?}"
-                );
-                (*major_radius, *minor_radius)
+            }) = rolled
+                .body
+                .get_surface(rolled.body.get_face(*f).expect("a band face").surface)
+            else {
+                panic!("every coaxial band is a torus");
+            };
+            assert!(
+                center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
+                "a coaxial band's spine circle is centred ON the axis: got {center:?}"
+            );
+            if (center.y - y).abs() < 1e-12 {
+                assert!(hit.is_none(), "two bands share the spine station {y}");
+                hit = Some((*major_radius, *minor_radius));
             }
-            other => panic!("a coaxial cylinder x plane band is a torus, got {other:?}"),
+            assert!(
+                rolled
+                    .body
+                    .get_face(*f)
+                    .expect("a band face")
+                    .rings
+                    .is_empty(),
+                "a curved band is ring-free: one cycle, two closed trim circles and a slit"
+            );
         }
+        hit.unwrap_or_else(|| panic!("no band has its spine at {y}"))
     };
-    // The band re-derived from the two tangency conditions rather than
-    // read back from the arm that minted it: on a cylinder of radius
-    // R_KNOB the rolling ball's centre rides at R_KNOB - r; on a plane
-    // normal to the axis it rides r below it. Both are lines in the
-    // meridian half-plane, and they cross once.
+
+    // (1) cylinder x plane, at the knob's top. On a cylinder of radius
+    // R_KNOB the centre rides at R_KNOB - r; on a plane normal to the
+    // axis it rides r below it. Two lines, one crossing.
+    let (knob_major, knob_minor) = band(Y_TOP - ROLL);
     assert!(
-        (band_minor - ROLL).abs() < 1e-12 && (band_major - (R_KNOB - ROLL)).abs() < 1e-12,
-        "the band is the torus (R_KNOB - roll, roll) = ({}, {ROLL}); got ({band_major}, \
-         {band_minor})",
+        (knob_minor - ROLL).abs() < 1e-12 && (knob_major - (R_KNOB - ROLL)).abs() < 1e-12,
+        "the knob band is the torus (R_KNOB - roll, roll) = ({}, {ROLL}); got \
+         ({knob_major}, {knob_minor})",
         R_KNOB - ROLL
     );
+
+    // The flange's half-angle from the axis, and its inward offset
+    // trace: a line parallel to the generator, one roll into the
+    // material.
+    let alpha = ((R_FLANGE - R_NECK) / (Y_FLANGE - LID_BASE)).atan();
+    let (sin_a, cos_a) = alpha.sin_cos();
+    let off0 = (R_FLANGE - ROLL * cos_a, LID_BASE - ROLL * sin_a);
+    let dir = (-sin_a, cos_a);
+
+    // (2) cone x plane(perp), at the flange's rim. The underside's own
+    // offset is y = LID_BASE + roll; walk the cone's offset line to
+    // that height and read the radius off it.
+    let (flange_major, flange_minor) = band(LID_BASE + ROLL);
+    let flange_want = R_FLANGE - ROLL * (1.0 + sin_a) / cos_a;
     assert!(
-        rolled
-            .body
-            .get_face(rolled.band_faces[0])
-            .expect("the band face")
-            .rings
-            .is_empty(),
-        "a curved band is ring-free: one cycle, two closed trim circles and a slit"
+        (flange_minor - ROLL).abs() < 1e-12 && (flange_major - flange_want).abs() < 1e-12,
+        "the flange band is the torus (R_FLANGE - roll(1 + sin a)/cos a, roll) = \
+         ({flange_want}, {ROLL}); got ({flange_major}, {flange_minor})"
+    );
+
+    // (3) sphere x cone, at the dome's foot — the arm no plane-supported
+    // scene reaches. The cone's offset is the same line as above; the
+    // sphere's is the circle of radius DOME_R - roll about the dome
+    // centre. A line and a circle: one quadratic, and the root inside
+    // the flange's span is the one the ball rolls in.
+    let rho = DOME_R - ROLL;
+    // |off0 + u*dir - (0, DOME_C)|^2 = rho^2, solved in u.
+    let (px, py) = (off0.0, off0.1 - DOME_C);
+    let b = px * dir.0 + py * dir.1;
+    let c = px * px + py * py - rho * rho;
+    let disc = b * b - c;
+    assert!(
+        disc > 0.0,
+        "the cone's offset line must cut the sphere's offset circle twice"
+    );
+    let u = -b + disc.sqrt();
+    let (foot_r, foot_y) = (off0.0 + u * dir.0, off0.1 + u * dir.1);
+    let (foot_major, foot_minor) = band(foot_y);
+    assert!(
+        (foot_minor - ROLL).abs() < 1e-12 && (foot_major - foot_r).abs() < 1e-12,
+        "the dome-foot band is the torus ({foot_r}, {ROLL}) — the cone's offset line \
+         meeting the sphere's offset circle at y = {foot_y}; got ({foot_major}, \
+         {foot_minor})"
     );
 
     // The SHARP lid against its closed forms — the dome's area by
     // Archimedes, the rest by the stack — and the roll then bounded
     // against that twin rather than against a remembered number.
-    let (v_dome, a_dome) = zone(DOME_R, DOME_C, LID_BASE, Y_KNOB);
-    let v_lid = v_dome + stack_volume(&[(R_KNOB, Y_TOP - Y_KNOB)])
+    let flange_h = Y_FLANGE - LID_BASE;
+    let (v_dome, a_dome) = zone(DOME_R, DOME_C, Y_FLANGE, Y_KNOB);
+    let v_lid = v_dome
+        + frustum_volume(R_FLANGE, R_NECK, flange_h)
+        + stack_volume(&[(R_KNOB, Y_TOP - Y_KNOB)])
         - stack_volume(&[(R_VENT, Y_TOP - LID_BASE)]);
     let a_lid = a_dome
+        + frustum_lateral(R_FLANGE, R_NECK, flange_h)
         + 2.0 * PI * R_KNOB * (Y_TOP - Y_KNOB)
         + annulus(R_KNOB, R_VENT)
-        + annulus(R_NECK, R_VENT)
+        + annulus(R_FLANGE, R_VENT)
         + 2.0 * PI * R_VENT * (Y_TOP - LID_BASE);
     let sharp_lid_props = pncad::topo::mass_properties(&plain_lid, tol).expect("the lid's props");
     assert!(
@@ -834,11 +987,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let lid_props = pncad::topo::mass_properties(&rolled.body, tol).expect("the rolled lid");
     let dv_lid = sharp_lid_props.volume - lid_props.volume;
-    let pappus_cap = 2.0 * PI * R_KNOB * ROLL * ROLL;
+    // Three convex rims now, so the bound is the three corner squares
+    // swept round their own rims.
+    let pappus_cap = 2.0 * PI * ROLL * ROLL * (R_KNOB + R_FLANGE + R_NECK);
     assert!(
         dv_lid > 0.0 && dv_lid < pappus_cap,
-        "a convex rim's roll removes material, and less than the corner square swept \
-         round the rim: ΔV = {dv_lid} against the bound {pappus_cap}"
+        "each convex rim's roll removes material, and less than the corner square swept \
+         round it: ΔV = {dv_lid} against the bound {pappus_cap}"
     );
 
     // ---- the spout: built about its own axis, then placed ----
@@ -1100,8 +1255,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 so what the montage shows is four bodies sitting where a teapot's parts \
                 sit, not a teapot",
         ops: "revolve(meridian, +y, Full) -> shell_open(pot, t = 7.8125 mm, the mouth's \
-              chart) for the vessel; revolve + fillet_edges(the knob's top rim) for the \
-              lid; revolve + transform_rigid for the spout; tube_along_arc for the \
+              chart) for the vessel; revolve + fillet_edges(flange rim + dome foot + \
+              knob top, ONE call) for the lid; revolve + transform_rigid for the spout; tube_along_arc for the \
               handle. Three walls pinned: a torus-bellied pot's hollow and both unions",
         delta: DELTA,
         note: Some(format!(
@@ -1159,17 +1314,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              CurvedShellClassification — and a cup is ONE shell. That gate keeps three \
              live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
              scene is no longer one of them, because the body it ships no longer \
-             reaches it. THE LID. 5/10/5 sharp — an \
-             ANNULAR profile mints one FULL wall per segment where the pot's \
-             axis-touching profile mints half-walls — and 6/12/6 rolled, the annulus \
-             band's own (+1, +2, +1). The band is the ring-free torus ({band_major}, \
-             {band_minor}), which is ({}, {ROLL}) re-derived here from the two tangency \
-             lines rather than read back from the arm that minted it, centred one roll \
-             below the knob's top. ΔV = {dv_lid:.9} m³, inside the corner-square bound \
-             {pappus_cap:.9}. The steam vent is what makes that rim a CLOSED edge at \
-             all: bore the finial and the profile is annular; leave it solid and the rim \
-             is two arcs over two half-discs, which the one-edge annulus band does not \
-             carve. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
+             reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \
+             lives on this tour. 6/12/6 sharp — an ANNULAR profile mints one FULL wall \
+             per segment where the pot's axis-touching profile mints half-walls — and \
+             9/18/9 rolled, three annulus bands each carrying the same (+1, +2, +1). \
+             THREE closed latitude rims roll in ONE call, and their supports are three \
+             DIFFERENT coaxial arms: the flange's rim is cone x plane(perp), the dome's \
+             foot is SPHERE x CONE — the arm no plane-supported scene reaches — and the \
+             knob's top is cylinder x plane. Every band is a ring-free TORUS, which is \
+             what sharing an axis buys, and each is re-derived here from its OWN two \
+             tangency traces rather than read back from the arm that minted it: two \
+             lines for the knob ({knob_major}, {ROLL}), two lines for the flange \
+             ({flange_major}, {ROLL}), and for the dome's foot a line meeting a circle \
+             ({foot_major}, {ROLL}) at the crossing y = {foot_y}. ΔV = {dv_lid:.9} m³, \
+             inside the three corner squares' bound {pappus_cap:.9}. The steam vent is \
+             what makes those rims CLOSED edges at all: bore the finial and the profile \
+             is annular; leave it solid and each rim is two arcs over two half-discs, \
+             which the annulus band does not carve. NO MATE IS AUTHORED — the lid renders {LIFT} m above the mouth and \
              the two bodies are strangers to the kernel; declared contact is M9's. THE \
              SPOUT AND THE HANDLE. Both build and both check against closed forms — the \
              spout as a difference of cone frusta, asserted AFTER `transform_rigid` \
@@ -1191,7 +1352,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             planes.len(),
             genus(&cup),
             cup_props.volume,
-            R_KNOB - ROLL,
         )),
         // The pot's axis is +y and its spout, handle and lid knob all
         // lie in the world z = 0 plane, so a camera near -z sees the

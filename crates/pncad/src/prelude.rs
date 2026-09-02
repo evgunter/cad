@@ -213,3 +213,13 @@ pub use crate::select::{
     attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame,
     face_name, find_flush_candidates, select, select_where, vertex_position,
 };
+// The KERNEL query seat (`topo::query`): the same selection
+// vocabulary as a pure function of a `Body`, for the caller who holds
+// arena keys and no document. Re-exported as the MODULE, not its
+// items, because the two seats' materializers deliberately share
+// names — `all_edges` above answers names from an evaluation,
+// `query::all_edges` answers keys from a body — and a prelude must
+// not make one shadow the other. The vocabulary types the doors speak
+// (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
+// already above, one definition re-exported upward.
+pub use topo::query;

@@ -111,9 +111,12 @@ DECIDED one with its own `sel_*` K-funnel row and in-band refusal.
 (margin = the lever-folded sine against the pull direction,
 trilean, in-band refusal per the selection ladder) lands as a small
 co-requisite unit, proposed as a SELECT-DESIGN amendment in the same
-PR that implements it. Kernel-direct callers keep the hand-scan
-(the register's "selection is document-layer only" note stands; the
-predicate at least gives the document layer the natural spelling).
+PR that implements it. Kernel-direct callers say the EXACT half
+through `topo::query` since SEAT-2 (the register's
+"document-layer only" note is retired), but a leaning-normal test is
+a DECIDED atom, which at that seat is only the datum-distance door —
+the predicate proposed here at least gives the document layer the
+natural spelling.
 
 ## DR4 — Neutral plane: bare point+normal, no datum machinery
 

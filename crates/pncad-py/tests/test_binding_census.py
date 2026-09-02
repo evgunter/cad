@@ -990,6 +990,14 @@ NOT_BOUND = {
     "cascade_delete_order": SHAPE,
     "p2": SHAPE,
     "p3": SHAPE,
+    # The kernel query seat (`topo::query`): its doors answer over a
+    # `Body` and arena keys — the vocabulary the curation keeps
+    # unnameable in Python (see `EdgeKey`/`FaceKey` above). The Python
+    # spelling of the same questions is the document door:
+    # `Evaluation.select_where` with `GeomPred.curve_kind` /
+    # `GeomPred.surface_kind` / `GeomPred.adjacent_kinds`, and the
+    # `Evaluation.all_edges`/`all_faces` materializers.
+    "query": SHAPE,
     "real": SHAPE,
     "v2": SHAPE,
     "v3": SHAPE,

@@ -27,7 +27,7 @@ use sweep::blend::{
     FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::cube;
-use topo::{Body, EdgeKey};
+use topo::query;
 
 const L: f64 = 1.0;
 const R: f64 = 0.1;
@@ -51,10 +51,6 @@ const ALL: [(&str, &str); 12] = [
     ("ring", FILLET3_RING_RECOURSE),
     ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
 ];
-
-fn edges_of(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// Assert that the rendered refusal carries `expect` (or nothing, when
 /// `expect` is `None`) and NO other recourse sentence.
@@ -86,7 +82,7 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
 #[test]
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
     let body = cube(L, Tol::witness());
-    let edges = edges_of(&body);
+    let edges = query::all_edges(&body);
     let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
@@ -107,7 +103,7 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
 #[test]
 fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
     let body = cube(L, Tol::witness());
-    let edges = edges_of(&body);
+    let edges = query::all_edges(&body);
     let mut req = edges.clone();
     req.push(edges[0]);
     let err = fillet_edges(&body, &req, R, Tol::witness()).expect_err("a repeated edge");
@@ -128,7 +124,7 @@ fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
         .expect("a disjoint graft");
-    let edges = edges_of(&body);
+    let edges = query::all_edges(&body);
     let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(

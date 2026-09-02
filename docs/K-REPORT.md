@@ -508,11 +508,13 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A module-private `const &str`.** Five, not the three previously
-   recorded: `sector_shape.rs`'s `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
-   `editor-core/src/names/geompred.rs`'s `SEL_DATUM_DISTANCE`
-   (`sel_datum_distance`) and `sweep/src/fillet/surgery.rs`'s
-   `RING_CLEARANCE` (`fillet3_ring_clearance`).
+3. **A named `const &str` rather than a literal at the site.** Five,
+   not the three previously recorded: `sector_shape.rs`'s
+   module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
+   `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
+   const in `topo/src/query.rs`, re-exported by `editor-core`) and
+   `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
+   (`fillet3_ring_clearance`).
 4. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element

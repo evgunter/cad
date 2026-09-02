@@ -112,8 +112,9 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
-    PcurveCheck, PcurveFittedLane, chart_pcurve,
+    ChartStretchInf, ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate,
+    PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve, chart_stretch_inf,
+    chart_stretch_sup,
 };
 pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
 pub use ssi::{

@@ -323,6 +323,47 @@ escalation, their residue restated per kind at the refusal site
 is the same certified everywhere-within-ε enclosure shape, pending
 each kind's arm bounds (and, for the torus, the #968 lane).
 
+**REVISION (MATE-4b ruling, ratified 2026-09-01; landed with the
+MATE-9 crossing rung) — the UNIFIED backing strength.** The census's
+backing rungs — the arms by which a declared face pair answers for
+the vertex-granular events subordinate to it — hold ONE ruled
+strength: **a declared pair answers exactly for its verified
+interface — the overlap region, with material opposition being what
+"interface" means for a crossing.** The `EdgeEdgeCross` rung is that
+strength's first instance (`census.rs`'s `ee_cross_backed`,
+planar-first): a declared pair backs a crossing of two coplanar
+boundary edges iff the crossing point lies within the pair's verified
+overlap region (this section's Door-2 machinery, witness rung
+included) and the side test — the tier-3 wedge pass's own sense
+algebra, `classify_material_pairing` — answers OPPOSITE-SIDES. The
+side verdict is deliberately three-valued (opposite-sides /
+same-side / undecided): SAME-SIDE refuses with the verdict named and
+is the declared-interpenetration hook (a future C6 class consumes it
+as admission evidence — no bool may foreclose that); UNDECIDED
+escalates typed. `EdgeFacePierce` stays categorical: a transverse
+dive is interpenetration until C6's interference-fit era, deferred to
+that era by name (the ruling's stage 2). Issue 973 stays open over
+that pierce arm.
+
+*Grandfather note (shrinks as migrations land, each MEASURED).* The
+legacy region-unconfined rungs, by name, all in `census.rs`:
+`vv_face_backed` (the v-v sweep), `vf_face_backed` (the v-on-f
+sweep), `ve_face_backed` (the v-on-e sweep), `ee_bound_backed`'s
+face-pair arms (collinear-overlap bounds), and `ef_bound_backed`'s
+face-pair arms (edge-on-face overlap bounds). Each backs an event on
+entities the declared pair holds even where the event lies outside
+the pair's own overlap region (the demonstrated reach:
+`review_mate4a_r2_probes`, an unrelated — even refuted — pair backing
+the ef bound). `ef_bound_backed` is the first MEASURED migration
+candidate, and its measurement kept it grandfathered: the confined
+variant refuses the overlap lane's cell bounds wherever the cut
+schedule's reach gap (the D3 rule's stated looseness) places a bound
+outside the interface — the declared straddle seat's own dive cell is
+bounded at its edge's far endpoints — so that migration waits, by
+name, on the lane learning boundary-crossing cuts, scheduled as issue
+1500; the measurement is recorded in MATE-9's PR. Design of record
+for the end state and the staging: `docs/MATE-4B-CROSSING-DESIGN.md`.
+
 *Alternative — area-sampled patch certification*: rejected; sampling
 can miss a trim hole and certify a contact that is not there — the
 missed-small-loop disaster the SSI-completeness principle kills.

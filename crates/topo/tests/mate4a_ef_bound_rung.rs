@@ -16,16 +16,19 @@
 //! The rung consults DECLARATIONS only: the bare seat and a seat
 //! declared between the wrong faces both stay as loud as before.
 //!
-//! Straddling crossings (`EdgeEdgeCross`) are a different question and
-//! are untouched here — the fence row pins that configuration's
-//! findings character for character.
+//! Straddling crossings (`EdgeEdgeCross`) were fenced OFF from this
+//! unit's claims while issue 973 part (b) was open; the fence row is
+//! now RE-BLESSED onto the crossing rung's outcome (MATE-9): the
+//! declared straddle seat's two crossings are backed at the unified
+//! strength and the seat certifies outright. The bare-straddle
+//! control beside it pins that the rung reads declarations only.
 //!
-//! Only ONE of the four rows below is a claim about the new arm: the
-//! declared-seat row. The other three are CONTROLS and pass on main
-//! unchanged — the bare seat, the wrong-pair seat and the (b) fence all
-//! describe behaviour this unit did not move, which is exactly their
-//! job. A mutation of the rung reds the declared-seat row here and the
-//! re-blessed lemma probe, and nothing else.
+//! Only ONE of the rows below is a claim about the MATE-4a arm: the
+//! declared-seat row. The bare seat and the wrong-pair seat are
+//! CONTROLS describing behaviour that unit did not move. A mutation
+//! of the ef-bound rung reds the declared-seat row here and the
+//! re-blessed lemma probe; a mutation of the crossing rung reds the
+//! re-blessed straddle row and `mate9_crossing_rung`'s suite.
 //!
 //! ε posture: every coincidence is a shared f64 literal (the cap's
 //! vertices sit on `y = 0.30` exactly, the two cap faces on `z = 0.5`
@@ -78,25 +81,14 @@ fn overhang_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey) {
     (body, post.top_face, shelf_bottom, shelf_top)
 }
 
-/// Issue 973's section (b) configuration, verbatim: a rectangular cap
-/// `[0.30, 0.60] x [0.20, 0.42]` straddling the shelf's `y = 0.30`
-/// boundary edge, declared. Its two cap side edges cross that edge
+/// Issue 973's section (b) configuration — [`common::straddle_seat`],
+/// the ONE builder this file shares with `mate9_crossing_rung` (the
+/// two suites assert complementary things about the same seat). Its
+/// two cap side edges cross the shelf's `y = 0.30` boundary edge
 /// properly; nothing here reaches the bound rung.
 fn straddle_seat() -> (Body<f64>, FaceKey, FaceKey) {
-    let post: common::Prism<f64> = common::prism_z(
-        &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
-        0.0,
-        0.5,
-    );
-    let shelf: common::Prism<f64> = common::prism_z(
-        &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
-        0.5,
-        0.54,
-    );
-    let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
-    let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
-    (body, post.top_face, shelf_bottom)
+    let seat = common::straddle_seat();
+    (seat.body, seat.post_top, seat.shelf_bottom)
 }
 
 fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
@@ -218,22 +210,56 @@ fn a_wrong_pair_backs_no_ef_bound() {
     );
 }
 
-/// **The fence.** Issue 973's section (b) — the straddling cap's two
-/// proper `EdgeEdgeCross` findings — is a separate design question and
-/// is NOT this unit's. The whole error list is pinned character for
-/// character, witnesses included, so a leak into (b) cannot pass
-/// silently: not a finding gained, not a finding lost, not a witness
-/// moved.
+/// **The fence, RE-BLESSED onto the crossing rung's outcome** (issue
+/// 973 part (b), stage 1). While (b) was open this row pinned the
+/// declared straddle seat's two `EdgeEdgeCross` findings character
+/// for character; the crossing rung answers them now — each crossing
+/// point lies in the declared pair's verified overlap region (a
+/// corner of the `[0.30,0.60] × [0.20,0.30]` interface) and the
+/// material lies on opposite sides of the shared `z = 0.5` carrier
+/// (cap below, shelf above: the legal overhang) — and the shelf
+/// edge's dive through the cap's face certifies through the
+/// (grandfathered) ef-bound rung as before, so NOTHING of the
+/// declared seat is left: the seat a user draws by dragging a part
+/// until it overhangs certifies outright.
 #[test]
-fn the_straddle_crossings_are_untouched() {
+fn the_declared_straddle_seat_certifies() {
     let (body, post_top, shelf_bottom) = straddle_seat();
     let found = errors(&body, &declared(post_top, shelf_bottom));
+    assert!(
+        found.is_empty(),
+        "the declared straddle seat's crossings are backed at the \
+         unified strength and the seat certifies: {found:?}"
+    );
+}
+
+/// The crossing rung reads DECLARATIONS only: bare, the straddle
+/// seat's WHOLE error list is pinned character for character —
+/// witnesses included, byte-identical to what it was before the rung
+/// existed (the old fence's discipline, kept: not a finding gained,
+/// not a finding lost, not a witness moved on the undeclared
+/// document). The two `EdgeEdgeCross` witnesses are PLAIN — no
+/// verdict is named where no declared pair answered.
+#[test]
+fn the_bare_straddle_seat_is_untouched() {
+    let (body, _, _) = straddle_seat();
+    let found = errors(&body, &ContactRecords::default());
     assert_eq!(
         format!("{found:?}"),
-        "[UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
+        "[UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
+         face: FaceKey(8v1) }, witness: \"Point3 { x: 0.3, y: 0.2, z: 0.5 }\" }, \
+         UndeclaredContact { contact: VertexOnFace { vertex: VertexKey(6v1), \
+         face: FaceKey(8v1) }, witness: \"Point3 { x: 0.6, y: 0.2, z: 0.5 }\" }, \
+         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(9v1), \
+         face: FaceKey(8v1) }, witness: \"Point3 { x: 0.44999999999999996, \
+         y: 0.2, z: 0.5 }\" }, \
+         UndeclaredContact { contact: EdgeFaceOverlap { edge: EdgeKey(15v1), \
+         face: FaceKey(1v1) }, witness: \"Point3 { x: 0.45, y: 0.3, z: 0.5 }\" }, \
+         UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
          b: EdgeKey(15v1) }, witness: \"Point3 { x: 0.6, y: 0.3, z: 0.5 }\" }, \
          UndeclaredContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
          b: EdgeKey(15v1) }, witness: \"Point3 { x: 0.3, y: 0.3, z: 0.5 }\" }]",
-        "issue 973 part (b) stays exactly as it was"
+        "the bare straddle seat's whole census reads exactly as it \
+         always did"
     );
 }
