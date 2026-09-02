@@ -431,16 +431,16 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 /// true, so the band is now a backstop that no in-tree fixture needs;
 /// the row that witnesses it is synthetic.
 ///
-/// **It used to have four**, and the other three were `debug_assert!`
-/// DETECTORS reachable by input — a loop-closure detector and two
-/// iso-side continuation detectors, all measuring how far one of the
-/// body's two accounts of a chart coordinate was from the other, none
-/// of them able to change a single mesh byte. That is a fact about the
-/// BODY, computable from the body alone with no mesh state and no δ,
-/// so it is stated about the body: `topo::coherence` carries all three
-/// conditions as a non-gating findings report, and this crate stopped
-/// being a lint for other people's data. What remains here is the one
-/// consumer that decides something.
+/// # Where the COHERENCE conditions are, which is not here
+///
+/// A gap between two of a BODY's own accounts of one chart coordinate
+/// — a carrier's midpoint azimuth against its own endpoint vertex's,
+/// two sub-edges of one iso side against each other — is measured
+/// nowhere in this crate. It is a fact about the body, computable from
+/// the body alone with no mesh state and no δ, and it cannot move a
+/// mesh byte: `topo::coherence` states all three such conditions as a
+/// non-gating findings report, with the ledger and the two π-rad
+/// witnesses. A tessellator is not a lint for other people's data.
 ///
 /// [`iso_side_starts`] is NOT a consumer either, and the distinction is
 /// narrow enough to be worth stating rather than leaving to the
@@ -461,16 +461,10 @@ fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
 ///
 /// # Its own D2 row
 ///
-/// **Row 1.** The one consumer left refuses a face typed
-/// ([`TessellateError::UnsupportedCurvedDomain`]), so the predicate is
-/// part of a reachable-by-input, invalid-state decision and needs no
-/// deviation ledger. The one it used to need — three detectors wearing
-/// row 5's `debug_assert` over row 1/3 territory, disclosed as a
-/// deviation because no typed channel existed to dominate them — went
-/// with the detectors, and the argument it recorded (the bar is
-/// SPATIAL, not angular, because a fixed source-coordinate error
-/// subtends a larger angle on a smaller feature) is kept where the
-/// conditions now live.
+/// **Row 1**, wholly: its one consumer refuses a face typed
+/// ([`TessellateError::UnsupportedCurvedDomain`]), so every read of
+/// this predicate disposes of a reachable-by-input INVALID state and
+/// there is no deviation to record.
 pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
     eps.dominates(gap * lever)
 }
