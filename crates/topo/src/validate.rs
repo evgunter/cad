@@ -2320,7 +2320,7 @@ fn structural_declared_via<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
-    nurbs_lane: Option<geom_brep::certify::NurbsLane<'_, T>>,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> Result<(), Vec<ValidationError>> {
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
@@ -2727,7 +2727,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
     plus_v: PlusVCheck<'_, T>,
-    nurbs_lane: Option<geom_brep::certify::NurbsLane<'_, T>>,
+    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
