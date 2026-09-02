@@ -16,6 +16,7 @@ use geom_core::{Point3, Vec3};
 
 fn line(a: Point3<f64>, b: Point3<f64>, s: u32, e: u32) -> LoopEdge<f64> {
     LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Line {
             origin: a,
             dir: b - a,
@@ -45,6 +46,7 @@ fn quadratic_bezier_area_is_exact() {
     .unwrap();
     let edges = vec![
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
             t0: 0.0,
             t1: 1.0,
@@ -89,6 +91,7 @@ fn quintic_multispan_area_is_exact() {
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 6]).unwrap();
     let edges = vec![
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
             t0: 0.0,
             t1: 1.0,
@@ -133,6 +136,7 @@ fn multispan_alternating_bumps_cancel_exactly() {
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 9]).unwrap();
     let edges = vec![
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
             t0: 0.0,
             t1: 4.0,
@@ -172,6 +176,7 @@ fn partial_interval_span_clip_is_exact() {
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 9]).unwrap();
     let edges = vec![
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
             t0: 0.0,
             t1: 1.0,
@@ -199,6 +204,7 @@ fn degree_six_refuses_typed() {
     let control: Vec<Point3<f64>> = (0..7).map(|i| Point3::new(i as f64, 0.0, 0.0)).collect();
     let curve = NurbsCurve3::new(kv, control, vec![1.0; 7]).unwrap();
     let edges = vec![LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
         t0: 0.0,
         t1: 1.0,
@@ -227,6 +233,7 @@ fn rational_carrier_refuses_typed() {
     )
     .unwrap();
     let edges = vec![LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
         t0: 0.0,
         t1: 1.0,
@@ -258,6 +265,7 @@ fn reference_point_invariance() {
     .unwrap();
     let edges = vec![
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Nurbs(std::sync::Arc::new(curve)),
             t0: 0.0,
             t1: 1.0,

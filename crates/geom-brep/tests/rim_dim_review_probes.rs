@@ -55,6 +55,7 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
         u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim = |z: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),
             axis: v3(0.0, 0.0, 1.0),
@@ -68,6 +69,7 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
         end: tags.1,
     };
     let meridian = |u: f64, z0: f64, z1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Line {
             origin: p(r * u.cos(), r * u.sin(), 0.0),
             dir: v3(0.0, 0.0, 1.0),

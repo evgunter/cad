@@ -177,6 +177,7 @@ mod tests {
         let d = b - a;
         let len = d.norm();
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Line {
                 origin: a,
                 dir: d * (1.0 / len),
@@ -207,6 +208,7 @@ mod tests {
     fn full_circle_vector_area_is_pi_r_squared_axis() {
         let r = 2.0;
         let e = LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Circle {
                 center: Point3::new(1.0, 2.0, 3.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),

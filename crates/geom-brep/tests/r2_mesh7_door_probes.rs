@@ -41,6 +41,7 @@ fn band() -> Band {
 fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
     LoopEdge {
+        carrier_id: None,
         carrier,
         t0,
         t1,

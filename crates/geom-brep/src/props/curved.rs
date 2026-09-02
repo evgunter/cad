@@ -17,7 +17,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
+use super::{CarrierId, FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 
 /// The flux and area of a curved face from its **outer** loop (curved
@@ -259,14 +259,18 @@ pub fn boundary_material_sign<T: Decide>(
 /// whose walk assumes each edge stays on one iso curve — `mesh`'s —
 /// still inherits that premise rather than receiving it from here.
 ///
-/// **It inherits the extent derivations' limitations, and says so.**
-/// The door decides shape from rim structure against the extremes
-/// each kind derives; where a derivation mis-reads the extent, the
-/// answer is a false "not at an extreme", not a shape verdict. The
-/// torus is the known case (issue 1562): its extent is the FIRST
-/// meridian's stored span, so a meridian carried by two edges — a
-/// split seam — reads half the extent and refuses a face that is a
-/// rectangle. The flux lane refuses that face by the same name.
+/// **It inherits the extent derivations, and says so.** The door
+/// decides shape from rim structure against the extremes each kind
+/// derives; where a derivation mis-read the extent, the answer would
+/// be a false "not at an extreme", not a shape verdict. Each derivation
+/// is total over the boundary inventory its parse admits: the linear
+/// kinds' extremes are `min_max` over endpoint levels, the sphere's
+/// fold each arc's pole extremes in, and the torus's is its anchor
+/// meridian's whole stored span, the pieces of a split edge folded
+/// into that meridian first ([`fold_torus_meridians`]). What no
+/// derivation sees is a meridian an importer states as several edges
+/// on one curve entity: those carry no split lineage, stay several
+/// meridians, and the torus refuses the far rim by `props_rim_level`.
 ///
 /// **A rimless sphere band is a chart rectangle and PASSES.** A lune
 /// between two meridians is `[u0, u1] × [−π/2, π/2]` whatever
@@ -367,9 +371,10 @@ fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Resu
 /// the prologue every torus consumer runs before deciding anything —
 /// the flux lane, [`boundary_material_sign`] and
 /// [`require_iso_rectangle`] — in one place, so the refusal names and
-/// their order are one. The anchor is the FIRST meridian the parse
-/// met; the extent it carries is that one edge's stored span, which is
-/// the issue-1562 limitation every consumer inherits alike.
+/// their order are one. The anchor is the FIRST meridian in loop
+/// order after [`torus_boundary`] has folded the pieces of a split
+/// edge into the meridian they carry, so its span is the meridian's
+/// whole span however many edges carry it.
 struct TorusParse<T: Real> {
     rims: Vec<Rim<T>>,
     anchor: TorusMeridian<T>,
@@ -1664,8 +1669,11 @@ fn torus<T: Decide>(
     Ok(FaceContribution { flux, area })
 }
 
-/// A torus minor-circle boundary edge (iso-`u` meridian): its carrier
-/// frame, stored parameter span, and traversal-start anchor.
+/// A torus minor-circle boundary meridian (iso-`u`) as the parse
+/// consumes it: its carrier frame, the parameter span the meridian
+/// covers on that carrier, and the anchor at the interval's `t0` end.
+/// One meridian is carried by one edge, or by the pieces of one split
+/// edge folded back into it ([`fold_torus_meridians`]).
 struct TorusMeridian<T: Real> {
     n_c: Vec3<T>,
     c_c: Point3<T>,
@@ -1674,9 +1682,32 @@ struct TorusMeridian<T: Real> {
     anchor_tag: u32,
 }
 
+/// One meridian ARC as one boundary edge carries it — the fold's
+/// input: the carrier frame, the edge's identity in its owning body,
+/// its traversal direction, its stored interval, and the point and
+/// vertex tag at the interval's `t0` end.
+struct TorusArc<T: Real> {
+    n_c: Vec3<T>,
+    c_c: Point3<T>,
+    carrier_id: Option<CarrierId>,
+    forward: bool,
+    t0: T,
+    t1: T,
+    p0: Point3<T>,
+    tag0: u32,
+}
+
+/// A torus boundary edge classified, in loop order, before the fold.
+enum TorusEdge<T: Real> {
+    Rim(Rim<T>),
+    Arc(TorusArc<T>),
+}
+
 /// Classify a torus face's boundary into (rims, meridians) — the
-/// shared parse consumed by both the flux closed form and
-/// [`boundary_material_sign`].
+/// shared parse consumed by the flux closed form,
+/// [`boundary_material_sign`] and the shape door. Every edge is
+/// certified rim-or-meridian in loop order first; the arcs that carry
+/// one meridian are then folded into it.
 #[allow(clippy::type_complexity)]
 fn torus_boundary<T: Decide>(
     center: Point3<T>,
@@ -1686,8 +1717,7 @@ fn torus_boundary<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(Vec<Rim<T>>, Vec<TorusMeridian<T>>), PropsError> {
-    let mut rims: Vec<Rim<T>> = Vec::new();
-    let mut meridians: Vec<TorusMeridian<T>> = Vec::new();
+    let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -1719,14 +1749,14 @@ fn torus_boundary<T: Decide>(
                     band,
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
-                rims.push(Rim {
+                classified.push(TorusEdge::Rim(Rim {
                     d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless minor-angle direction pair.
                     level: RimLevel::Unit(sin_v, cos_v),
                     tags: (e.start, e.end),
-                });
+                }));
             }
             Sign::Zero => {
                 let w = c_c - center;
@@ -1748,17 +1778,105 @@ fn torus_boundary<T: Decide>(
                     Margin::of(n_c.dot(w - axis * h)),
                     band,
                 )?;
-                meridians.push(TorusMeridian {
+                classified.push(TorusEdge::Arc(TorusArc {
                     n_c,
                     c_c,
-                    dt: e.t1 - e.t0,
-                    anchor: e.p0(),
-                    anchor_tag: e.tag_at_t0(),
-                });
+                    carrier_id: e.carrier_id,
+                    forward: e.forward,
+                    t0: e.t0,
+                    t1: e.t1,
+                    p0: e.p0(),
+                    tag0: e.tag_at_t0(),
+                }));
             }
         }
     }
-    Ok((rims, meridians))
+    Ok(fold_torus_meridians(classified))
+}
+
+/// Fold the arcs that carry ONE meridian into it; rims pass through
+/// in loop order.
+///
+/// Two loop-adjacent arcs are pieces of one meridian iff they carry
+/// equal [`CarrierId`]s — pieces of one original edge, whose split
+/// children keep its carrier and partition its interval — and are
+/// traversed the same way. Identity is the whole test: `None` matches
+/// nothing, and two arcs from distinct edges stay two meridians
+/// however their stored circles compare as values (two carriers
+/// meeting at a vertex are a corner, never a subdivision, and the
+/// door then refuses the far rim as it always did). A meridian an
+/// importer states as several edges on one curve entity carries no
+/// split lineage and does not fold here.
+///
+/// The folded interval is `[lowest t0, highest t1]` over the chain —
+/// on one parametrisation, the original edge's own stored interval,
+/// bitwise, whatever the split fractions — and the anchor is the arc
+/// at its `t0` end, so a meridian carried by one edge folds to exactly
+/// the record that edge produces alone. A chain may straddle the
+/// loop's first edge: the walk starts at an edge no chain continues
+/// into, so it never cuts one.
+fn fold_torus_meridians<T: Real>(
+    mut edges: Vec<TorusEdge<T>>,
+) -> (Vec<Rim<T>>, Vec<TorusMeridian<T>>) {
+    fn continues<T: Real>(a: &TorusArc<T>, b: &TorusArc<T>) -> bool {
+        a.forward == b.forward
+            && matches!((a.carrier_id, b.carrier_id), (Some(x), Some(y)) if x == y)
+    }
+    let n = edges.len();
+    // A loop of arcs that all continue one another (a full minor
+    // circle in pieces) has no chain boundary and starts anywhere.
+    let start = (0..n)
+        .find(|&i| match (&edges[(i + n - 1) % n], &edges[i]) {
+            (TorusEdge::Arc(a), TorusEdge::Arc(b)) => !continues(a, b),
+            _ => true,
+        })
+        .unwrap_or(0);
+    edges.rotate_left(start);
+    let mut rims = Vec::new();
+    let mut meridians = Vec::new();
+    let mut chain: Vec<TorusArc<T>> = Vec::new();
+    for e in edges {
+        match e {
+            TorusEdge::Rim(r) => {
+                if !chain.is_empty() {
+                    meridians.push(fold_chain(core::mem::take(&mut chain)));
+                }
+                rims.push(r);
+            }
+            TorusEdge::Arc(a) => {
+                if chain.last().is_some_and(|last| !continues(last, &a)) {
+                    meridians.push(fold_chain(core::mem::take(&mut chain)));
+                }
+                chain.push(a);
+            }
+        }
+    }
+    if !chain.is_empty() {
+        meridians.push(fold_chain(chain));
+    }
+    (rims, meridians)
+}
+
+/// One chain of arcs — non-empty, loop-consecutive, one carrier, one
+/// traversal direction — as the meridian they carry. Traversal runs up
+/// the parametrisation on a forward chain and down it on a reversed
+/// one, so the `t0` end is the first arc or the last.
+fn fold_chain<T: Real>(chain: Vec<TorusArc<T>>) -> TorusMeridian<T> {
+    let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
+        unreachable!("a torus meridian chain is folded only when non-empty")
+    };
+    let (lo, hi) = if first.forward {
+        (first, last)
+    } else {
+        (last, first)
+    };
+    TorusMeridian {
+        n_c: lo.n_c,
+        c_c: lo.c_c,
+        dt: hi.t1 - lo.t0,
+        anchor: lo.p0,
+        anchor_tag: lo.tag0,
+    }
 }
 
 /// Chart orientation of the anchor meridian: `v` winds right-handed

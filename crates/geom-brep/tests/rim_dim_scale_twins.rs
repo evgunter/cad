@@ -91,6 +91,7 @@ fn cone_patch(scale: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
     // Generator direction at azimuth u (unit: axis·cosα + radial·sinα).
     let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
     let rim = |v: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, v * cos_a),
             axis: v3(0.0, 0.0, 1.0),
@@ -104,6 +105,7 @@ fn cone_patch(scale: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
         end: tags.1,
     };
     let meridian = |u: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Line {
             origin: p(0.0, 0.0, 0.0),
             dir: gen_dir(u),
@@ -221,6 +223,7 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
     let (u1, u2) = (0.6_f64, 1.2_f64);
     let gen_dir = |u: f64| v3(u.cos() * sin_a, u.sin() * sin_a, cos_a);
     let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, v * cos_a),
             axis: v3(0.0, 0.0, 1.0),
@@ -234,6 +237,7 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
         end: tags.1,
     };
     let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Line {
             origin: p(0.0, 0.0, 0.0),
             dir: gen_dir(u),
@@ -273,6 +277,7 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
     let vm = va + vm_frac * (vb - va);
     let (u1, u2) = (0.6_f64, 1.2_f64);
     let rim = |v: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, scale * v.sin()),
             axis: v3(0.0, 0.0, 1.0),
@@ -286,6 +291,7 @@ fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdg
         end: tags.1,
     };
     let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| LoopEdge {
+        carrier_id: None,
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, 0.0),
             axis: v3(u.sin(), -u.cos(), 0.0),

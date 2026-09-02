@@ -155,7 +155,8 @@
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
 //!   kind's own derivation does. The torus's ends are the anchor
-//!   meridian's stored span. The cylinder's and cone's are `min_max`
+//!   meridian's stored span, the pieces of a split edge folded into
+//!   that meridian first. The cylinder's and cone's are `min_max`
 //!   over edge ENDPOINT levels, exact because their meridians are
 //!   lines, monotone in `v`. The sphere's meridians are great-circle
 //!   arcs whose latitude peaks at a pole the arc may contain in its
@@ -202,6 +203,15 @@ pub use loop_area::loop_vector_area;
 pub struct LoopEdge<T: Real> {
     /// The edge's carrier locus.
     pub carrier: Curve3<T>,
+    /// The identity of the edge this one is a piece of, when the
+    /// owning body records one ([`CarrierId`]); `None` for a loop
+    /// built without a body. Two edges with equal ids lie on ONE
+    /// carrier under ONE parametrisation and partition its interval,
+    /// which is what lets a parse fold them into the edge they came
+    /// from ([`curved`]'s torus meridian fold). Equality of ids is the
+    /// only identity test props runs; two edges carrying the same
+    /// locus as VALUES are never inferred to be one edge.
+    pub carrier_id: Option<CarrierId>,
     /// Certified interval start (`he_plus`-forward, `t0 < t1`).
     pub t0: T,
     /// Certified interval end.
@@ -232,6 +242,16 @@ impl<T: SpanLocate> LoopEdge<T> {
         if self.forward { self.start } else { self.end }
     }
 }
+
+/// The identity of the original edge a boundary edge is a piece of —
+/// the root of its split lineage in the owning body, opaque here.
+/// Minted by `topo`'s loop flattening, which chases each edge's split
+/// provenance to the edge that was never itself minted by a split; a
+/// split keeps the parent's carrier and partitions its interval, so
+/// equal ids assert one carrier and one parametrisation by
+/// construction rather than by any comparison of stored geometry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CarrierId(pub u64);
 
 /// A face's closed-form contribution to the body integrals.
 #[derive(Clone, Copy, Debug)]
@@ -402,6 +422,7 @@ mod tests {
         let d = b - a;
         let len = d.norm();
         LoopEdge {
+            carrier_id: None,
             carrier: Curve3::Line {
                 origin: a,
                 dir: d * (1.0 / len),

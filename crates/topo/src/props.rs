@@ -29,12 +29,18 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_brep::props::{
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
+};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use slotmap::Key;
 
 use crate::body::Body;
 use crate::boolean::ContactRecords;
-use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
+use crate::entity::{
+    EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey,
+};
+use crate::provenance::Provenance;
 use crate::validate::ValidationError;
 
 /// Exact-B-rep integral properties of a body.
@@ -456,6 +462,7 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
+            carrier_id: Some(CarrierId(split_root(body, he.edge).data().as_ffi())),
             t0,
             t1,
             forward: he_key == edge.he_plus,
@@ -464,6 +471,24 @@ pub fn loop_edges<T: Decide>(
         });
     }
     Ok((edges, hes))
+}
+
+/// The edge `edge` is a piece of: its split lineage chased to the edge
+/// that was never itself minted by a split. `split_edge` keeps the
+/// parent's key for the first child and records the parent on the
+/// second, so every piece of one original edge reaches the same root;
+/// the chase is bounded by the edge count (a lineage is a chain of
+/// older edges, and a cycle in it would be a corrupt provenance
+/// record, not an infinite one).
+fn split_root<T: Real>(body: &Body<T>, edge: EdgeKey) -> EdgeKey {
+    let mut root = edge;
+    for _ in 0..body.edges.len() {
+        match body.edge_provenance_of(root) {
+            Some(Provenance::SplitEdge { edge: parent }) => root = *parent,
+            _ => break,
+        }
+    }
+    root
 }
 
 /// The derived outer/void designation of one shell. The shell list

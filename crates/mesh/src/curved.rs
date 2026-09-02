@@ -1562,29 +1562,21 @@ mod tests {
     /// The #653 row's totals, measured. They are asserted so that a
     /// change in the fixture list is VISIBLE rather than silent — the
     /// row's actual guarantee is its per-fixture floor, not these.
-    const TOTAL_MESHED: usize = 250;
-    /// Typed refusals in the same sweep, two kinds: four
-    /// `CertificateExceeded` on the mirror nappe, whose split geometry
-    /// exceeds the chord certificate at δ = 0.1 (identically before
-    /// and after #653), and four `UnsupportedCurvedShape { props_rim_level }`
-    /// on the donut with a SEAM MERIDIAN split (either torus face, at
-    /// either pattern). The second kind is a recorded FINDING, not a
-    /// notch: the domain is a chart rectangle and the walk meshed it
-    /// before the shape door ran, but props' torus arm takes the face's
-    /// `v`-extent from the FIRST meridian's stored span
-    /// (`props::curved::torus_ends`), so a meridian carried by two
-    /// edges reads half the extent and the far rim is "not at an
-    /// extreme" — `topo::mass_properties` refuses the same body by the
-    /// same name. The door is props' predicate and is not softened
-    /// here; the limitation is props' extent derivation and is filed
-    /// against it as issue 1562 — its fix returns these totals to
-    /// (254, 4), and `tests/iso_rectangle_door.rs` pins the limitation
-    /// itself so the flip is visible. Splitting a RIM is fine on both
-    /// sides. Reach: `split_edge` on a torus seam directly, or a blend
-    /// whose surgery splits a torus meridian (`sweep::blend::surgery`
-    /// splits seam and meridian edges in production; whether one lands
-    /// on a torus is unmeasured), then `tessellate`.
-    const TOTAL_REFUSED: usize = 8;
+    const TOTAL_MESHED: usize = 254;
+    /// Typed refusals in the same sweep: four `CertificateExceeded` on
+    /// the mirror nappe, whose split geometry exceeds the chord
+    /// certificate at δ = 0.1. The donut contributes none — a split
+    /// SEAM MERIDIAN is folded back into the meridian it carries by
+    /// props' torus parse (identity through the split lineage, never
+    /// through the stored circle's values), so the shape door answers
+    /// for the pieces what it answers for the edge;
+    /// `tests/iso_rectangle_door.rs` pins that body to every consumer,
+    /// and a split RIM was always fine. Reach of a split meridian in
+    /// production: `split_edge` on a torus seam directly, or a blend
+    /// whose surgery splits one (`sweep::blend::surgery` splits seam
+    /// and meridian edges; whether one lands on a torus is
+    /// unmeasured).
+    const TOTAL_REFUSED: usize = 4;
 
     /// **The premise, swept.** Every curved face this build can put in
     /// front of [`tessellate_curved`] walks to a UV polygon that IS its
