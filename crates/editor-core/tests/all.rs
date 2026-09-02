@@ -306,6 +306,8 @@ mod switch_program_vocabulary;
 mod switch_slots;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "unreadable_by_this_build.rs"]
+mod unreadable_by_this_build;
 
 /// Guards the `autotests = false` hazard: a suite file added under
 /// `tests/` but not declared above would silently stop being compiled
