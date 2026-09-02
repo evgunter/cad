@@ -41,6 +41,9 @@
 #[path = "mesh8_corpus_coherence.rs"]
 mod mesh8_corpus_coherence;
 
+#[path = "mesh8r1_probes.rs"]
+mod mesh8r1_probes;
+
 #[path = "cert10r1_assembly_accounting.rs"]
 mod cert10r1_assembly_accounting;
 
