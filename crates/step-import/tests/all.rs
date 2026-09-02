@@ -48,9 +48,10 @@ mod curve_promotion_report;
 mod freecad;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
-
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "mesh8r2_probes.rs"]
+mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
 #[path = "p1b_r1_import_scan.rs"]

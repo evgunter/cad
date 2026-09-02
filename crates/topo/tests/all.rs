@@ -38,9 +38,6 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
-#[path = "mesh8_coherence.rs"]
-mod mesh8_coherence;
-
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
@@ -93,7 +90,6 @@ mod m5_s1_rest_zip;
 mod m6_2_fitted_at_rest;
 #[path = "m6_3_chart_completion.rs"]
 mod m6_3_chart_completion;
-
 #[path = "m9_1_contact_vocabulary.rs"]
 mod m9_1_contact_vocabulary;
 #[path = "m9_2_census_door.rs"]
@@ -112,11 +108,10 @@ mod mate5_cyl_eps_rung;
 mod mate8_witness_schedule;
 #[path = "mate9_crossing_rung.rs"]
 mod mate9_crossing_rung;
-#[path = "review_mate9_r2_probes.rs"]
-mod review_mate9_r2_probes;
-
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "mesh8_coherence.rs"]
+mod mesh8_coherence;
 #[path = "r1_mate4a_probes.rs"]
 mod r1_mate4a_probes;
 #[path = "r1_mate5_interval_probe.rs"]
@@ -169,6 +164,8 @@ mod review_m9_1_r2_probes;
 mod review_mate4a_r2_probes;
 #[path = "review_mate9_r1_probes.rs"]
 mod review_mate9_r1_probes;
+#[path = "review_mate9_r2_probes.rs"]
+mod review_mate9_r2_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]

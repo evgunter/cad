@@ -38,14 +38,10 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
-#[path = "mesh8_corpus_coherence.rs"]
-mod mesh8_corpus_coherence;
-
-#[path = "cert10r1_assembly_accounting.rs"]
-mod cert10r1_assembly_accounting;
-
 #[path = "budget_meter.rs"]
 mod budget_meter;
+#[path = "cert10r1_assembly_accounting.rs"]
+mod cert10r1_assembly_accounting;
 #[path = "errors.rs"]
 mod errors;
 #[path = "exact_vs_mesh.rs"]
@@ -54,15 +50,14 @@ mod exact_vs_mesh;
 mod fitted_refusals;
 #[path = "genus.rs"]
 mod genus;
-#[path = "issue111_az_needle.rs"]
-mod issue111_az_needle;
-#[path = "issue303_signed_volume_recentring.rs"]
-mod issue303_signed_volume_recentring;
-
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
+#[path = "issue111_az_needle.rs"]
+mod issue111_az_needle;
 #[path = "issue1362_band_placement.rs"]
 mod issue1362_band_placement;
+#[path = "issue303_signed_volume_recentring.rs"]
+mod issue303_signed_volume_recentring;
 #[path = "issue555_subfloor_cap.rs"]
 mod issue555_subfloor_cap;
 #[path = "issue685_nu1_sizing.rs"]
@@ -81,6 +76,12 @@ mod m5_s11_concave_sense;
 mod m7_nurbs_trimmed;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
+#[path = "mesh8_corpus_coherence.rs"]
+mod mesh8_corpus_coherence;
+#[path = "mesh8r1_probes.rs"]
+mod mesh8r1_probes;
+#[path = "mesh8r2_probes.rs"]
+mod mesh8r2_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
 #[path = "prisms.rs"]
@@ -233,14 +234,11 @@ fn every_suite_file_is_aggregated() {
 ///   a junction × pole pair the classification passes over coincides.
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
-///   **What issue 868 took out**, since the drop from 14 is the whole
-///   of the movement: `closing_column` and its `eps` parameter, that
-///   function's hand-off to `gap_is_noise`, `loop_polygon`'s two
-///   further `gap_is_noise` hand-offs, and `loop_polygon`'s call to
-///   `closing_column` — five carriers, no reads. The three conditions
-///   they served are stated from the body now
-///   (`topo::coherence`), which carries its OWN band and is not on
-///   this crate's inventory at all.
+///   The band that `topo::coherence` reads is NOT on this inventory
+///   and cannot be: it is that crate's own `f64`, not an [`Eps`], and
+///   this row walks `crates/mesh/src` alone. The two spellings are
+///   held together by `walk::tests::the_two_spellings_of_the_band_
+///   agree` instead.
 ///
 /// **Six terminal reads across the crate** — `walk.rs`'s five plus
 /// `trimmed.rs`'s `pad`, which is the whole of the read column and

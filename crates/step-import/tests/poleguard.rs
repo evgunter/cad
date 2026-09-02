@@ -176,11 +176,9 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
 ///   measured by the door that measures rather than by an assertion
 ///   that panics.
 ///
-/// Until issue 868 the second half was `walk::closing_column`'s
-/// `debug_assert` — a tessellator asserting about the quality of a
-/// file's coordinates, which panicked a debug build on a body whose
-/// mesh was fine wherever it had one. Issue 1571 still owns FIXING
-/// the arc premise; this row owns seeing it.
+/// Issue 1571 owns FIXING the arc premise; this row owns seeing it,
+/// and it is the only row in tree that sees it through the door
+/// defective coordinates actually arrive at.
 #[test]
 fn the_halfcap_eps7_witness_is_band_shaped() {
     let eps = Tol::witness().get().eps;
@@ -241,7 +239,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         );
         assert!(
             report.findings.is_empty(),
-            "a half-turn at a lever arm of {nearest:e} m opens {:e} m of arc, which              this band calls noise: {:?}",
+            "a half-turn at a lever arm of {nearest:e} m opens {:e} m of arc, which this band calls noise: {:?}",
             core::f64::consts::PI * nearest,
             report.findings
         );
@@ -262,7 +260,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
             kinds
                 .iter()
                 .any(|c| matches!(c, topo::CoherenceCondition::MeridianContinuation { .. })),
-            "and the file's two sub-edges of that column disagree by the same              half-turn: {kinds:?}"
+            "and the file's two sub-edges of that column disagree by the same half-turn: {kinds:?}"
         );
         for f in &report.findings {
             assert!(

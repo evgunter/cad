@@ -439,12 +439,12 @@ fn two_carriers_for_one_rim_row_report_their_v_gap() {
     let exact = RIM_Z.atan2(rim_r()) - RIM_Z.atan2((rim_r() * rim_r() + c * c).sqrt());
     assert!(
         (0.5 * want..2.0 * want).contains(&exact.abs()),
-        "the offset was aimed at ~{want} m from the run's own band; the closed          form says {exact} rad"
+        "the offset was aimed at ~{want} m from the run's own band; the closed form says {exact} rad"
     );
     for f in &rims {
         assert!(
             (f.metres - exact.abs()).abs() < exact.abs() * 1e-9,
-            "expected the closed form {} m, got {} (gap {} rad of latitude,              lever {} m)",
+            "expected the closed form {} m, got {} (gap {} rad of latitude, lever {} m)",
             exact.abs(),
             f.metres,
             f.gap,

@@ -14,14 +14,33 @@
 //! finding about a body we already assert a correct mesh for. Every
 //! one reports ZERO findings and nothing unexamined.
 //!
-//! **What this row cannot say.** It is a statement about bodies this
-//! workspace MINTS, not about bodies it could receive: the input class
-//! the three conditions are actually about arrives through import at
-//! an adoption tolerance looser than ε, and no test in this repo
-//! examines the wild or FreeCAD corpora — the same blind spot the
-//! deleted detectors disclosed and this row inherits unchanged. The
-//! `demos/tour` corpus is a separate cargo project and is not reachable
-//! from a workspace suite either.
+//! **What this row cannot say**, in three directions.
+//!
+//! 1. It is a statement about bodies this workspace MINTS, not about
+//!    bodies it could receive. The input class the three conditions
+//!    are actually about arrives through import at an adoption
+//!    tolerance looser than ε, and no test in this repo examines the
+//!    wild or FreeCAD corpora — the same blind spot the deleted
+//!    detectors disclosed and this row inherits unchanged. The
+//!    `demos/tour` corpus is a separate cargo project and is not
+//!    reachable from a workspace suite either.
+//! 2. **Every body here goes through the ISO WALK, and the
+//!    examination has no shape door.** It reads faces the walk never
+//!    walks, and `zero findings` says nothing about those. The
+//!    TRIMMED lane is the live case: a face whose outer loop carries a
+//!    conic or spline trim carrier is not examined at all, and each
+//!    such face's loops land in `unexamined` — measured at exactly two
+//!    per body on the tilted cylinder halves of
+//!    `mesh8r2_probes::r2r_the_examination_on_bodies_outside_the_units
+//!    _corpus`, which mesh watertight and report nothing either way.
+//!    A corpus row asserting `unexamined.is_empty()` over trimmed
+//!    bodies would be asserting the opposite of the truth.
+//! 3. On a face the walk never walks, the classification the
+//!    conditions are read through is a nearest fit rather than the
+//!    face's own premise — so a finding there measures a premise that
+//!    face never had. Where the carrier is conic or spline that is
+//!    visible in `unexamined`; where it is a line or a circle that
+//!    happens not to be iso, it is not.
 //!
 //! It rides the run's ambient ε, so the three-ε matrix asks the
 //! question three times: the band is the only thing that decides

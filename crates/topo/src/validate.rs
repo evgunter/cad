@@ -397,7 +397,7 @@ pub enum ValidationError {
     /// carries a singular point the chart machinery has no
     /// representation for (`geom::Surface::Torus`'s own contract: the
     /// chart normal derivation assumes `R + r·cos v > 0`, and
-    /// `mesh::walk::Chart::poles` is empty for a torus because a ring
+    /// `crate::chart::Chart::poles` is empty for a torus because a ring
     /// torus has none).
     ///
     /// This is the net every door that can mint a torus passes through,

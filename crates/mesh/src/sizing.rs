@@ -247,13 +247,11 @@ impl Eps {
     ///
     /// **D2 addendum row 1**, for its one caller:
     /// [`crate::curved`]'s swept-rectangle domain guard, which refuses
-    /// a face typed. It had three more until issue 868 —
-    /// `debug_assert` detectors measuring the quality of a body's own
-    /// coordinates, which is row 1/3 territory wearing row 5's
-    /// clothes and was disclosed as a deviation for exactly that
-    /// reason. The conditions are stated from the body now, by
-    /// `topo::coherence`, which carries its own band; this one has no
-    /// deviation left to record.
+    /// a face typed. Nothing else in this crate reads it, and in
+    /// particular nothing reads it to measure the quality of a body's
+    /// own coordinates: that question is `topo::coherence`'s, and it
+    /// carries its own band. So this operation has no deviation to
+    /// record.
     pub(crate) fn dominates(self, scaled: f64) -> bool {
         scaled < self.0
     }

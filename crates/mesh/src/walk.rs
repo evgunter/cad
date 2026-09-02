@@ -1281,13 +1281,11 @@ mod tests {
     /// exceed π. A selector that overshot by a turn would make that
     /// examination report 2π-sized gaps on bodies that agree exactly.
     ///
-    /// `skew` is an ABSOLUTE radian offset, not a count of ulps: it is
-    /// 2.22e-16 rad flat, a quarter of an ulp at `anchor = 5.9` and
-    /// ~1e36 ulps at `anchor = 0.0`. The row does not depend on the
-    /// count — its job is to be a real difference, and the non-vacuity
-    /// counter below is what checks that — so the honest spelling is
-    /// the offset itself. The raws are a whole number of turns from
-    /// the anchor plus a hair inside the branch, the shape imported
+    /// `skew` is an ABSOLUTE radian offset and not a count of ulps,
+    /// because the row does not depend on the count: its job is to be
+    /// a real difference, and the non-vacuity counter below is what
+    /// checks that. The raws are a whole number of turns from the
+    /// anchor plus a hair inside the branch, the shape imported
     /// geometry produces.
     #[test]
     fn unwrap_near_lands_within_half_a_period_of_its_anchor() {
