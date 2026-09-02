@@ -361,7 +361,14 @@ def audit_gap_ids():
 #:   taking a `BooleanOp` — the arm split moved from the verb to an
 #:   argument.
 #: - **A type became the door that reads it.** `DatumValue` is what
-#:   `Value.datum` answers; `NodeValue` IS `Value` and
+#:   `Value.datum` answers, and `UnitVec3` — the type that makes a
+#:   datum's normal unit, so that an unnormalized one has no spelling
+#:   in Rust either — is what `Datum.direction` answers, as the plain
+#:   triple it always was; its constructor's refusal crosses the way
+#:   every other typed refusal does, as the `degenerate_direction` tag
+#:   on `EvaluationError.kind` (Python builds datums through
+#:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
+#:   `NodeValue` IS `Value` and
 #:   `ValuePayload`'s discriminant is `Value.kind`; `NodeErrorKind`'s
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
@@ -385,6 +392,8 @@ BOUND_AS = {
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     "UnevaluatedReason": "Verdict.reason",
+    "UnitVec3": "Datum.direction",
+    "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
