@@ -31,7 +31,12 @@ fn probe_huge_window_split_by_sign() {
         }
         let mine = x.powi(n);
         let oracle = to_inari(&x).powi(n);
-        assert_contains(&format!("powi huge case {i} x={x:?} n={n}"), &mine, &oracle, false);
+        assert_contains(
+            &format!("powi huge case {i} x={x:?} n={n}"),
+            &mine,
+            &oracle,
+            false,
+        );
         if n > 0 { &mut pos } else { &mut neg }.record(&mine, &oracle);
     }
     pos.report("powi[huge-window, n>0]", None);
@@ -59,7 +64,10 @@ fn probe_subnormal_reciprocal_corner() {
             // `mine_unbounded_oracle_bounded` class of `Tightness`.
             println!(
                 "PROBE n=-1 x=2^-1024+{k}steps: MINE UNBOUNDED [{:e},{:e}] vs oracle [{:e},{:e}]",
-                mine.lo(), mine.hi(), iv.inf(), iv.sup()
+                mine.lo(),
+                mine.hi(),
+                iv.inf(),
+                iv.sup()
             );
             continue;
         }
@@ -67,7 +75,10 @@ fn probe_subnormal_reciprocal_corner() {
         let ratio = (mine.hi() - mine.lo()) / iv.wid();
         println!(
             "PROBE n=-1 x=2^-1024+{k}steps: mine=[{:e},{:e}] oracle=[{:e},{:e}] lo_steps={lo_steps} hi_steps={hi_steps} ratio={ratio}",
-            mine.lo(), mine.hi(), iv.inf(), iv.sup()
+            mine.lo(),
+            mine.hi(),
+            iv.inf(),
+            iv.sup()
         );
     }
 }
