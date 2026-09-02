@@ -1205,3 +1205,121 @@ fn inset(pts: &[(f64, f64)], t: f64) -> Vec<(f64, f64)> {
         })
         .collect()
 }
+
+// ---------------------------------------------------------------------
+// CERT-M2 R2 review probe (not part of the unit): does the composed
+// door's new `?` gating DROP an error the old battery reported?
+//
+// `contact_marks` runs the OLD battery verbatim (checks 1-6, then
+// check 7 gated on `errors.is_empty()`, then checks 8 and 9), so its
+// error vector IS the pre-split `validate_geometric` vector. The
+// composed door now runs checks 1-6, 8, 9 and only reaches check 7 if
+// all of them are silent. Any body failing check 8 or 9 that also had
+// a check-7 error therefore loses it.
+// ---------------------------------------------------------------------
+#[test]
+fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
+    let tol = Tol::witness();
+    let t = 0.05;
+    for (what, body, y) in [
+        ("an axis-touching cap", vessel(0.5, 0.4), 0.4),
+        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40),
+    ] {
+        let mut sealed = topo::shell(&body, t, FIT_TOL, tol).expect("the sealed shell");
+        let mouth = plane_chart_at_y(&sealed, y);
+        let counterpart = plane_chart_at_y(&sealed, y - t);
+        let plane_of =
+            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+                other => panic!("{what}: a non-planar cap: {other:?}"),
+            };
+        let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+        let (o_onto, _) = plane_of(&sealed, mouth[0]);
+        let back = (o_onto - o_from).dot(n_from);
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, FIT_TOL, band(), tol)
+            .expect("the counterpart chart lifts onto the mouth plane");
+        for (&rim, &source) in mouth.iter().zip(&counterpart) {
+            sealed.kfmrh(rim, source).expect("the raw glue");
+        }
+        let new_door = topo::validate_geometric(&sealed, tol).expect_err("must refuse");
+        let old_door = topo::contact_marks(&sealed, tol).expect_err("must refuse");
+        let names = |v: &[topo::ValidationError]| -> Vec<String> {
+            v.iter()
+                .map(|e| format!("{e:?}").split_whitespace().next().unwrap().to_string())
+                .collect()
+        };
+        println!("R2PROBE {what}");
+        println!("R2PROBE   composed(new) = {:?}", names(&new_door));
+        println!("R2PROBE   battery(old)  = {:?}", names(&old_door));
+        let vol = |v: &[topo::ValidationError]| {
+            v.iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        topo::ValidationError::NegativeVolume
+                            | topo::ValidationError::VolumeUncomputable { .. }
+                    )
+                })
+                .count()
+        };
+        println!(
+            "R2PROBE   check-7 errors: new={} old={}  (lost={})",
+            vol(&new_door),
+            vol(&old_door),
+            vol(&old_door) - vol(&new_door)
+        );
+    }
+}
+
+/// CERT-M2 R2 probe: dump `validate_pseudomanifold` and `contact_marks`
+/// verdicts over a corpus, so the "byte-identical" claim can be diffed
+/// between the merge base and the head.
+#[test]
+fn r2_probe_other_two_passes_dump() {
+    let tol = Tol::witness();
+    let t = 0.05;
+    let mut corpus: Vec<(String, Body<f64>)> = Vec::new();
+    corpus.push(("vessel".into(), vessel(0.5, 0.4)));
+    corpus.push(("tube".into(), tube(0.30, 0.50, 0.40)));
+    corpus.push((
+        "vessel_sealed".into(),
+        topo::shell(&vessel(0.5, 0.4), t, FIT_TOL, tol).expect("sealed"),
+    ));
+    corpus.push((
+        "tube_sealed".into(),
+        topo::shell(&tube(0.30, 0.50, 0.40), t, FIT_TOL, tol).expect("sealed"),
+    ));
+    for (what, body, y) in [
+        ("corrupt_vessel", vessel(0.5, 0.4), 0.4),
+        ("corrupt_tube", tube(0.30, 0.50, 0.40), 0.40),
+    ] {
+        let mut sealed = topo::shell(&body, t, FIT_TOL, tol).expect("sealed");
+        let mouth = plane_chart_at_y(&sealed, y);
+        let counterpart = plane_chart_at_y(&sealed, y - t);
+        let plane_of =
+            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+                other => panic!("non-planar: {other:?}"),
+            };
+        let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+        let (o_onto, _) = plane_of(&sealed, mouth[0]);
+        let back = (o_onto - o_from).dot(n_from);
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, FIT_TOL, band(), tol)
+            .expect("lift");
+        for (&rim, &source) in mouth.iter().zip(&counterpart) {
+            sealed.kfmrh(rim, source).expect("glue");
+        }
+        corpus.push((what.into(), sealed));
+    }
+    for (name, b) in &corpus {
+        println!("R2DUMP {name} pseudomanifold {:?}", topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), tol));
+        println!(
+            "R2DUMP {name} contact_marks {:?}",
+            topo::contact_marks(b, tol).map(|m| m.len())
+        );
+        println!(
+            "R2DUMP {name} contact_marks_err {:?}",
+            topo::contact_marks(b, tol).err()
+        );
+    }
+}
