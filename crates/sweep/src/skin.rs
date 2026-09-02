@@ -411,40 +411,9 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
             }
         })
         .collect::<Result<_, _>>()?;
-    // §5.3: the union knot vector — every distinct interior value at
-    // the greatest multiplicity any section gives it.
-    let mut union: Vec<(f64, usize)> = Vec::new();
-    for c in &elevated {
-        for (value, mult) in c.knots().interior_knots() {
-            match union.iter_mut().find(|(v, _)| *v == value) {
-                Some((_, m)) => *m = (*m).max(mult),
-                None => union.push((value, mult)),
-            }
-        }
-    }
-    union.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let merged: Vec<NurbsCurve3<f64>> = elevated
-        .iter()
-        .map(|c| {
-            let own: Vec<(f64, usize)> = c.knots().interior_knots().collect();
-            let mut add: Vec<f64> = Vec::new();
-            for (value, want) in &union {
-                let have = own
-                    .iter()
-                    .find(|(v, _)| *v == *value)
-                    .map_or(0, |(_, m)| *m);
-                for _ in have..*want {
-                    add.push(*value);
-                }
-            }
-            if add.is_empty() {
-                Ok(c.clone())
-            } else {
-                c.refine_knots(&add).map_err(SkinError::KnotAlgebra)
-            }
-        })
-        .collect::<Result<_, _>>()?;
-    Ok(merged)
+    // §5.3: one common knot vector — the union, at one degree and on
+    // one domain by the two checks above.
+    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
 }
 
 // ---------------------------------------------------------------------

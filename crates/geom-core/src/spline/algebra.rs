@@ -25,7 +25,7 @@
 //! the two projective coefficients sum to 1 by construction. Weights
 //! stay `f64` forever; only points are generic.
 
-use super::knots::{KnotVector, SplineError};
+use super::knots::{InteriorKnot, KnotVector, SplineError};
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -373,6 +373,61 @@ pub fn refine_plan(
         }
     }
     Ok(plans)
+}
+
+/// **Knot merging (Book §5.3), the structure half: per vector, the
+/// copies [`refine_plan`] must insert to land it on the UNION of
+/// `vectors`.** The union knot vector carries every distinct interior
+/// value at the GREATEST multiplicity any input gives it; entry `i` of
+/// the result lists, ascending with ties consecutive, what vector `i`
+/// still lacks — empty when it is already there. Refining every input
+/// by its entry puts them all on one bit-identical knot vector, which
+/// is what "compatible" means for a skin and what a same-structure
+/// deviation bound needs of its two operands.
+///
+/// Interior values are compared on exact `f64` identity — the
+/// multiplicity rule of [`KnotVector::interior_knots`], never a
+/// tolerance — and the union is read through the typed
+/// [`KnotVector::interior_knot_runs`], so every value returned is
+/// interior to the vector it was read from. It is NOT thereby interior
+/// to every OTHER vector: inputs on different domains, or at different
+/// degrees, are representable here, and the entries then name
+/// insertions [`refine_plan`] refuses typed (`ParameterOutsideDomain`,
+/// `MultiplicityOverflow`) when applied. That is why the entries are
+/// plain `f64` and not [`InteriorKnot`]s — the type's proof stops at
+/// its own vector, and the boundary where it stops is this return.
+/// A caller making sections compatible elevates to one degree and
+/// checks one domain first; a caller comparing two curves of one
+/// pipeline has both by construction.
+///
+/// Total, and structure only: no control point is read. Empty input
+/// yields empty output.
+pub fn union_refinements(vectors: &[&KnotVector]) -> Vec<Vec<f64>> {
+    let mut union: Vec<(InteriorKnot, usize)> = Vec::new();
+    for kv in vectors {
+        for (knot, mult) in kv.interior_knot_runs() {
+            match union.iter_mut().find(|(k, _)| k.value() == knot.value()) {
+                Some((_, m)) => *m = (*m).max(mult),
+                None => union.push((knot, mult)),
+            }
+        }
+    }
+    union.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
+    vectors
+        .iter()
+        .map(|kv| {
+            let own: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            let mut add: Vec<f64> = Vec::new();
+            for (knot, want) in &union {
+                let have = own
+                    .iter()
+                    .find(|(k, _)| k.value() == knot.value())
+                    .map_or(0, |(_, m)| *m);
+                add.extend(core::iter::repeat_n(knot.value(), want.saturating_sub(have)));
+            }
+            add
+        })
+        .collect()
 }
 
 /// One bounded-removal pass: the removal plan plus the **reinsertion**

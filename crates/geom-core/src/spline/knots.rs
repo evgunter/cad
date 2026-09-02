@@ -169,13 +169,23 @@ pub struct KnotVector {
 /// carries no borrow of its vector: a knot interior to vector A handed
 /// to vector B's raw list IS representable, so the type alone does not
 /// make the insertion guard unnecessary. What does is the type PLUS the
-/// privacy of the one consumer: `compose::insert_once_ring` is a
-/// private function whose only caller mints every `InteriorKnot` from
-/// the very `KnotVector` it read the raw list from, and mutates that
-/// list without touching either clamp run — so the domain the knot was
-/// minted against is the list's domain at every step. The type is
-/// therefore crate-private until a second consumer exists; a public
-/// one would need the pairing argument `Span` carries.
+/// privacy of its consumers, of which there are two, and they use it
+/// in opposite ways:
+///
+/// - `compose::insert_once_ring` is a private function whose only
+///   caller mints every `InteriorKnot` from the very `KnotVector` it
+///   read the raw list from, and mutates that list without touching
+///   either clamp run — so the domain the knot was minted against is
+///   the list's domain at every step. Here the type IS the guard.
+/// - [`super::algebra::union_refinements`] reads several vectors' runs
+///   and hands each vector the values it lacks from the OTHERS — the
+///   one place a knot crosses vectors. It therefore returns plain
+///   `f64`, not this type: the proof stops at the vector the knot came
+///   from, and the insertion is re-validated by [`super::algebra::refine_plan`]
+///   against the vector it lands in.
+///
+/// The type stays crate-private; a public one would need the pairing
+/// argument `Span` carries.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct InteriorKnot(f64);
 

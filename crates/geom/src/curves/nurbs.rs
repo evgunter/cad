@@ -418,6 +418,38 @@ macro_rules! nurbs_curve {
                 Ok(self.apply_plans(&plans))
             }
 
+            /// Knot merging (§5.3): every curve refined onto the UNION
+            /// of their knot vectors — each distinct interior value at
+            /// the greatest multiplicity any of them gives it — so that
+            /// afterwards all share one bit-identical knot vector, and
+            /// (at one degree) one control-point count. The structure
+            /// half is [`spline::algebra::union_refinements`]; each
+            /// curve is then [`Self::refine_knots`], so the result is
+            /// evaluation-invariant in ℝ and a curve already on the
+            /// union comes back as itself. Same order as the input.
+            ///
+            /// # Errors
+            ///
+            /// As [`Self::refine_knots`] — curves at different degrees
+            /// or on different domains name insertions their vector
+            /// refuses (`MultiplicityOverflow`,
+            /// `ParameterOutsideDomain`); a caller that wants them
+            /// compatible elevates and checks the domain first.
+            pub fn refine_to_union<'a>(
+                curves: impl IntoIterator<Item = &'a Self>,
+            ) -> Result<Vec<Self>, KnotAlgebraError>
+            where
+                T: 'a,
+            {
+                let curves: Vec<&Self> = curves.into_iter().collect();
+                let vectors: Vec<&KnotVector> = curves.iter().map(|c| c.knots()).collect();
+                curves
+                    .iter()
+                    .zip(spline::algebra::union_refinements(&vectors))
+                    .map(|(c, add)| c.refine_knots(&add))
+                    .collect()
+            }
+
             /// Bounded knot removal (§5.4): removes `times` copies of
             /// the interior knot `u` and returns the rewritten curve
             /// **with a sup-norm error bound** `B` such that
