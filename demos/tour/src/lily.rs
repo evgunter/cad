@@ -871,29 +871,56 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP (LIB-RETTAIL, 2026-08-12) — the one place in the tour
-        // the presented surface cannot say what the demo means, recorded
-        // rather than worked around (main.rs's purpose block).
+        // NAMED GAP — the one place in the tour the presented surface
+        // cannot say what the demo means, recorded rather than worked
+        // around (main.rs's purpose block). Both halves the ruling
+        // named are closed; what is left is a third thing, and it is
+        // about THIS SECTION FAMILY rather than about the lattice.
         //
-        // At `shoulder = 0` the shoulder IS the midpoint of two tips, so
-        // three consecutive vertices are EXACTLY collinear — deliberately,
-        // because a loft matches segment j to segment j and the 4-tip and
-        // 8-corner sections must be spelled on one vertex budget. The PATHS
-        // lattice refuses that junction at authoring
-        // (`JunctionTangent { margin: 0.0 }`), while `Profile::validate`
-        // ACCEPTS it: collinear line/line is carrier IDENTITY, legal
-        // undeclared (`ProfileLoop::tangent_joints`' normative semantics).
-        // So the two junction rules disagree on same-carrier continuation,
-        // and the lattice is the stricter one — a library finding, not a
-        // demo defect. Until the lattice gains a same-carrier continuation
-        // verb (vocabulary, out of this unit's fence), the PRESENTED
-        // surface has no spelling for this loop at all: `ProfileLoop`'s
-        // fields are sealed, so the only route left is the kernel's raw
-        // door, `profile::RawLoop`, which `pncad::profile` deliberately
+        // This outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and attachment
+        // sections must be spelled on one vertex budget. So one junction
+        // per side is a straight run subdivided, at both ends of the
+        // shoulder parameter: at `shoulder = 0` each shoulder is the
+        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
+        // lies ON the rectangle edge its two neighbouring corners span —
+        // collinear with them, though only the ridge and keel tips are
+        // that edge's midpoint (the margins sit at y = 0 on an edge
+        // spanning [-keel, ridge], and no section here has keel = ridge).
+        // Only the eased sections in between turn at every vertex.
+        //
+        // CLOSED: those junctions are carrier IDENTITY, legal
+        // undeclared, and the lattice spells them — `line(len)` off a
+        // directed point for an interior subdivision, `continue_to(p)`
+        // where the subdivision lands on a named point, and
+        // `continue_to(Start)` for a run that crosses the seam. A
+        // single section of this family authors end to end today.
+        //
+        // OPEN, and measured (`bool8_r1_probes`): the closer needs the
+        // seam cut at a CORNER, and this family's corners MOVE. In the
+        // kite the corners are the tips, so the sections whose seam is
+        // a tip author — starts 0, 2, 4, 6 of the ring below. In the
+        // rectangle the corners are the shoulders, so those sections
+        // want starts 1, 3, 5, 7. The two sets are disjoint, and not by
+        // accident: the kite's corner set IS its tips and the
+        // rectangle's IS its shoulders, which are disjoint points of
+        // the outline whatever budget is spent on it. A loft matches
+        // segment j of every section to segment j of every other, so
+        // every section here must be authored at ONE rotation — and
+        // `leaf_a_plan` carries a `shoulder = 1` base AND a
+        // `shoulder = 0` belly, so no rotation gives all of them a
+        // corner at the seam. The section that misses out closes on a
+        // subdivision vertex, which is a mid-carrier seam: PATHS §6
+        // PQ4, deliberately left standing by the ruling.
+        //
+        // So this loop is still raw-authored: `ProfileLoop`'s fields
+        // are sealed, and the only route left is the kernel's raw door,
+        // `profile::RawLoop`, which `pncad::profile` deliberately
         // omits. That is why this crate carries a second kernel
-        // dependency — the tour reaches around its own façade here, and
-        // the gap is loud in the dependency graph instead of hidden in a
-        // struct literal.
+        // dependency — the gap stays loud in the dependency graph
+        // instead of hidden in a struct literal. What would close it is
+        // a ruling on whether a DECLARED subdivision vertex is an
+        // admissible seam; the question is put in PATHS §4.
         let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![RawLoop::new(vec![
             v(right),
@@ -2283,6 +2310,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     here, face pair by face pair, because the author knows which
     //     wall meets which.
     //
+    //     Face pair by face pair is what the SCOPE of the flush
+    //     detector leaves: `topo::flush::find_flush_candidates` (which
+    //     `crate::booleans::flush_declarations` now runs for every
+    //     planar mate in this file) enumerates over the planar door,
+    //     and this mate has no planar contact anywhere on it. That is
+    //     a limit of the detector, not of the verification the
+    //     declarations below get — `twopeg::seat3_measurements`
+    //     measures the carrier ladder verifying a cylindrical
+    //     cosurface pair, and reporting one as would-verify in its
+    //     detector posture.
+    //
     //     It refuses one door short of the zip, and the door is the
     //     reduction's curved-face arm rather than the declaration
     //     gate: an edge lying ON the shared carrier decides zero
@@ -3007,8 +3045,21 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
-            ("lily_leaf_b", 2e-3, 468),
-            ("lily_leaf_c", 2e-3, 414),
+            // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the
+            // patch-hull consolidation folded the whole-face bound
+            // over `patch_bound`'s cells, which tightens or holds, and
+            // these two leaves are where it bites hardest in the tour.
+            // Per face, merge base -> now: leaf_b `mvv` 0.548115 ->
+            // 0.518406 (0.9458x) and `mv1` 1.367961 -> 1.305420
+            // (0.9543x); leaf_c `mvv` 0.385360 -> 0.346893 (0.9002x)
+            // and `mv1` 1.099628 -> 1.001095 (0.9104x). A tighter
+            // Hessian buys a longer step, so the whole-patch chord
+            // schedule coarsens (leaf_b's `nv` 46 -> 45, leaf_c's 40 ->
+            // 37) and the counts fall with it: 468 -> 454, 414 -> 384.
+            // Nothing about the leaves moved — same charts, same trim
+            // boxes, same delta; the bound got honester.
+            ("lily_leaf_b", 2e-3, 454),
+            ("lily_leaf_c", 2e-3, 384),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read

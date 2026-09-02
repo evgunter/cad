@@ -8,10 +8,10 @@
 //! coplanarity/sense predicates, and two of its three callers are
 //! outside this module (`chord_join`'s section chooser, twice) against
 //! one inside it (`apply_rule_a`) — a shared core hosted inside the
-//! minority consumer. §H14 is where that cost showed: the function's
-//! error contract was extended, documented on the function, and
-//! discarded by both outside callers, which `map_err` it into their
-//! own refusals. Named here rather than moved; moving it is a
+//! minority consumer. **That cost has already shown once**: the
+//! function's error contract was extended, documented on the function,
+//! and discarded by both outside callers, which `map_err` it into
+//! their own refusals. Named here rather than moved; moving it is a
 //! placement decision with its own callers to re-audit.
 //!
 //! # Rule (a) — coplanar sectors, derived
@@ -400,7 +400,7 @@ mod tests {
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 
-    // ============ §H14: the lever arm may not be under-claimed ============
+    // ============ The lever arm may not be under-claimed ============
 
     /// **An unbounded face has no lever arm.** `mvfs` seeds a face
     /// whose OUTER loop is a lone vertex, so the face's locus is the

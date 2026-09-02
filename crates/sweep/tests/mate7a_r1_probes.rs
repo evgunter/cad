@@ -12,8 +12,10 @@
 
 mod revolve_common;
 
+use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::{TubeWindow, tube_along_arc};
+use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
 
 const STEM_TUBE: f64 = 0.060;
@@ -110,21 +112,21 @@ fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
 }
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Torus { .. })
-            )
-        })
-        .map(|(k, _)| k)
+    query::all_faces(body)
+        .into_iter()
+        .filter(|&f| query::face_surface_matches(body, f, SurfaceKindSet::just(SurfaceKind::Torus)))
         .collect()
 }
 
 /// The scene's flush plane declaration, reproduced: the ONE coplanar
 /// cross pair (stem end cap against arch start cap), declared `Rest` —
-/// the weld's whole declared contact, exactly as
-/// `demos/tour/src/booleans.rs::flush_declarations` would find it.
+/// the weld's whole declared contact, the pair
+/// `topo::flush::find_flush_candidates` reports there (which is what
+/// the scene's own helper now runs).
+///
+/// The selection here is by POSITION, not by flushness: it picks the
+/// caps at the fork and lets the op verify them, which is why it is
+/// not a second spelling of the detector's decisions.
 fn weld_declarations(stem: &Body<f64>, arch: &Body<f64>) -> (BooleanDeclarations, usize) {
     let fork = arch_frame().fork;
     let mut decls = BooleanDeclarations::none();

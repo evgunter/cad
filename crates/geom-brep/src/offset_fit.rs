@@ -168,7 +168,7 @@ use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Point3, ring_interval::RingInterval};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down, sqrt_up};
-use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational, net_d_u, net_d_v};
+use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
@@ -1222,20 +1222,18 @@ struct Composite {
 /// A row-major ring net of one spatial channel of a control net,
 /// optionally weighted (the homogeneous `A^c = w·P^c`).
 ///
-/// `patch_bound::comp_nets` is the same extraction in the nested
-/// `Net` shape that module's windowed hulls index, and [`flat`] /
-/// [`nest`] exist only to bridge the two. They are NOT unified,
-/// deliberately and narrowly: the row-major slice is what
-/// `PatchSpans::decompose` consumes and the nested form is what
-/// `window_hull` indexes, so a single home would still hand one
-/// caller the wrong shape. What is shared is the arithmetic —
-/// `weight · coordinate`, in that order — and the two sites are
-/// cross-referenced so a change to it is a change to both. Where they
-/// differ is WHEN the recentring happens: this one folds the centre
-/// into the net, because the net feeds polynomial products formed
-/// once for the whole patch; `patch_bound` applies it at the hull
-/// read, because it reads a cell-local centre off the cell's own
-/// control window.
+/// `patch_bound::comp_nets` is the same extraction, and the two now
+/// share one storage shape: `geom_core::spline::net::TensorNet` is
+/// row-major and hands out both a flat slice (what
+/// `PatchSpans::decompose` consumes) and indexed windows (what
+/// `window_hull` reads), so the flat/nested bridge the two used to
+/// need is gone. What is shared is also the arithmetic — `weight ·
+/// coordinate`, in that order — and a change to it is a change to
+/// both. Where they still differ is WHEN the recentring happens: this
+/// one folds the centre into the net, because the net feeds
+/// polynomial products formed once for the whole patch; `patch_bound`
+/// applies it at the hull read, because it reads a cell-local centre
+/// off the cell's own control window.
 ///
 /// **Recentred**, on the shared `centre` all of the composite's nets
 /// are built against: the entry is `w·(P − centre)`, so the net
@@ -1335,18 +1333,6 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
     Origin(out)
 }
 
-/// A row-major flat net from the `Net` (u-major nested) shape.
-fn flat(net: &Net) -> Vec<RingInterval> {
-    net.iter().flat_map(|row| row.iter().copied()).collect()
-}
-
-/// The `Net` (u-major nested) shape from a row-major flat net.
-fn nest(grid: &[RingInterval], nu: usize, nv: usize) -> Net {
-    (0..nu)
-        .map(|i| grid[i * nv..(i + 1) * nv].to_vec())
-        .collect()
-}
-
 /// Componentwise cross product of two triples of channels.
 fn cross_spans(a: &[PatchSpans; 3], b: &[PatchSpans; 3]) -> [PatchSpans; 3] {
     [
@@ -1431,8 +1417,18 @@ impl Composite {
             .collect();
         let ku1 = derived_knots(ku)?;
         let kv1 = derived_knots(kv)?;
-        let du = |g: &[RingInterval]| flat(&net_d_u(ku, &nest(g, nu, nv)));
-        let dv = |g: &[RingInterval]| flat(&net_d_v(kv, &nest(g, nu, nv)));
+        let du = |g: &[RingInterval]| {
+            Net::from_flat(nu, nv, g.to_vec())
+                .diff_u_knots(ku)
+                .as_flat()
+                .to_vec()
+        };
+        let dv = |g: &[RingInterval]| {
+            Net::from_flat(nu, nv, g.to_vec())
+                .diff_v_knots(kv)
+                .as_flat()
+                .to_vec()
+        };
         let a: [PatchSpans; 3] = [
             dec(ku, kv, &a_grid[0]),
             dec(ku, kv, &a_grid[1]),

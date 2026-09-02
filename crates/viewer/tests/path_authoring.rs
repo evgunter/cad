@@ -19,7 +19,7 @@
 
 mod common;
 
-use common::insert;
+use common::{insert, len, shape};
 use pncad::document::{Doc, ValuePayload};
 use pncad::geom_core::Tol;
 use pncad::profile::{ArcSide, ArcSweep, SketchPlane, TipState, Verb};
@@ -66,8 +66,12 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     assert_eq!(drawn.loops.len(), 1);
     // Four corners and no subdivision: a straight leg has no sag to
     // answer for, so the flattener adds nothing between its ends.
+    assert!(
+        drawn.loops[0].closed,
+        "the square's chain closes on its own"
+    );
     assert_eq!(
-        drawn.loops[0],
+        drawn.loops[0].points,
         vec![[0.0, 0.0], [side, 0.0], [side, side], [0.0, side]],
     );
 
@@ -76,14 +80,14 @@ fn a_line_chain_previews_and_authors_the_same_square() {
         &mut session,
         SessionOp::AddProfile {
             plane: SketchPlane::xy(),
-            loops: vec![square(side)],
+            loops: vec![shape(&square(side))],
         },
     );
     let extrude = insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,
-            distance: 0.01,
+            distance: len(0.01),
         },
     );
     session.pump();
@@ -106,7 +110,7 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
     let tol = Tol::witness();
     let radius = 0.01;
     // A half turn: b = tan(θ/4) = tan(π/4) = 1 over the diameter.
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![
             PathStep::At([-radius, 0.0]),
             PathStep::ArcTo(ArcSpec::Bulge {
@@ -116,8 +120,14 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
             PathStep::LineTo(PathTarget::Start),
         ],
     };
-    let drawn = preview(SketchPlane::xy(), &[shape], tol, CHORD).expect("the half disc closes");
-    let points = &drawn.loops[0];
+    let drawn = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect("the half disc closes");
+    let points = &drawn.loops[0].points;
     assert!(
         points.len() > 8,
         "a half circle is subdivided, not chorded: {} points",
@@ -161,11 +171,16 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
 #[test]
 fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let tol = Tol::witness();
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![PathStep::At([0.0, 0.0]), PathStep::Tangent],
     };
-    let refusal = preview(SketchPlane::xy(), core::slice::from_ref(&shape), tol, CHORD)
-        .expect_err("a tangent off a plain point is ill-typed");
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a tangent off a plain point is ill-typed");
     assert!(
         matches!(
             refusal,
@@ -182,7 +197,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let mut session = session(tol);
     let out = session.perform(SessionOp::AddProfile {
         plane: SketchPlane::xy(),
-        loops: vec![shape],
+        loops: vec![shape(&template)],
     });
     assert!(
         matches!(out.refusal, Some(Refusal::Edit(_))),
@@ -195,22 +210,97 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     );
 }
 
-/// **A chain that never closes is a chain that ends in the wrong
-/// state**, and the refusal says so with no verb to blame — the
-/// end-of-program arm.
+/// **A chain that has not closed yet DRAWS, and is still not
+/// committable.**
+///
+/// The two halves are the point. A path is written one step at a time,
+/// so refusing to draw it until the last step lands is a preview that
+/// arrives when it is no longer needed — the chain is therefore
+/// replayed under a provisional close and marked open, and the legs
+/// that were authored are exactly the legs that come back. What does
+/// NOT move is the door: a program that does not close is not a loop,
+/// and the edit refuses it as it always did.
 #[test]
-fn an_unclosed_chain_names_the_state_it_ended_in() {
+fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     let tol = Tol::witness();
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![
             PathStep::At([0.0, 0.0]),
             PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
+            PathStep::LineTo(PathTarget::Point([0.01, 0.01])),
         ],
     };
-    let refusal =
-        preview(SketchPlane::xy(), &[shape], tol, CHORD).expect_err("the chain never closes");
+    let drawn = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect("an unfinished chain still draws what it has");
+    assert_eq!(drawn.loops.len(), 1);
     assert!(
-        matches!(refusal, PreviewError::Transition { verb: None, .. }),
+        !drawn.loops[0].closed,
+        "the chain has no closing verb, and the preview says so",
+    );
+    assert!(drawn.has_open_chain());
+    // The authored vertices, and ONLY those: the provisional
+    // `line_to Start` contributes no point of its own, so the polyline
+    // is the three legs the person wrote.
+    assert_eq!(
+        drawn.loops[0].points,
+        vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
+    );
+    // An unfinished chain is not a profile, so there is no validation
+    // verdict to report about it.
+    assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
+
+    let mut session = session(tol);
+    let out = session.perform(SessionOp::AddProfile {
+        plane: SketchPlane::xy(),
+        loops: vec![shape(&template)],
+    });
+    assert!(
+        matches!(out.refusal, Some(Refusal::Edit(_))),
+        "the door still refuses a chain that does not close: {:?}",
+        out.refusal,
+    );
+    assert!(
+        session.committed_doc().order().is_empty(),
+        "and nothing landed",
+    );
+}
+
+/// **A chain whose provisional close is itself ill-typed reports the
+/// ORIGINAL refusal.**
+///
+/// `angle` binds a direction and leaves the position pending, and no
+/// `line_to` is well-typed there — so the close this module appends to
+/// draw an unfinished chain cannot be walked either. The refusal a
+/// reader gets is the end-of-program one, about the program they
+/// wrote, never one about a step nobody authored.
+#[test]
+fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![PathStep::At([0.0, 0.0]), PathStep::Angle(0.0)],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a bound direction with no position cannot be closed");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Transition {
+                loop_: 0,
+                step: 2,
+                verb: None,
+                ..
+            }
+        ),
         "{refusal}",
     );
 }
@@ -243,7 +333,7 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let mut session = session(tol);
     let out = session.perform(SessionOp::AddProfile {
         plane: SketchPlane::xy(),
-        loops: overlapping,
+        loops: overlapping.iter().map(shape).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");
 }
@@ -338,8 +428,7 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
         "the vocabulary is bigger than this row covers — see `ordinal`'s obligation",
     );
 
-    viewer::sketch::loop_program(&ProfileShape::Path { steps })
-        .expect("every verb's fields are finite numbers of its own dimension");
+    shape(&ProfileShape::Path { steps });
 }
 
 /// Each verb's position in the vocabulary, as an exhaustive match —
@@ -378,10 +467,15 @@ fn ordinal(step: &PathStep) -> usize {
 /// this layer judges.
 #[test]
 fn a_non_finite_field_refuses_at_the_lowering() {
-    let shape = ProfileShape::Path {
+    let template = ProfileShape::Path {
         steps: vec![PathStep::At([f64::NAN, 0.0])],
     };
-    let refusal = preview(SketchPlane::xy(), &[shape], Tol::witness(), CHORD)
-        .expect_err("NaN is not a coordinate");
+    let refusal = preview(
+        SketchPlane::xy(),
+        std::slice::from_ref(&template),
+        Tol::witness(),
+        CHORD,
+    )
+    .expect_err("NaN is not a coordinate");
     assert!(matches!(refusal, PreviewError::Dimension(_)), "{refusal}",);
 }

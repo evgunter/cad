@@ -51,7 +51,9 @@
 //! `FromTarget` of an unrelated entity — and whether that misnaming
 //! got caught would depend on whether the real owner of the name
 //! happened to collide at insertion. That is luck, not a guarantee.
-//! Same posture as `wire_fillet`'s refusal of `naming: None`.
+//! Same posture as `wire_blend`'s refusal of `naming: None` (the one
+//! generic blend lowering, which `wire_fillet` and `wire_chamfer`
+//! collapsed onto).
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!
@@ -350,12 +352,6 @@ mod tie_tests {
         out
     }
 
-    /// Every edge of the cube, in arena order — the whole-body request
-    /// `die_fillet` authors, which the assembly's front door admits.
-    fn all_edges(body: &Body<f64>) -> Vec<topo::EdgeKey> {
-        body.edges().map(|(k, _)| k).collect()
-    }
-
     /// **A planted upstream tie flows through the deferral** — the
     /// #708 row, executed rather than described.
     ///
@@ -372,7 +368,7 @@ mod tie_tests {
     #[test]
     fn a_planted_upstream_tie_reaches_the_output_table_as_a_tie() {
         let (body, table) = cube();
-        let edges = all_edges(&body);
+        let edges = topo::query::all_edges(&body);
         let (a, b) = (edges[0], edges[1]);
         let planted = with_tie(
             &table,

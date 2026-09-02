@@ -107,6 +107,10 @@ mod mate4a_ef_bound_rung;
 mod mate5_cyl_eps_rung;
 #[path = "mate8_witness_schedule.rs"]
 mod mate8_witness_schedule;
+#[path = "mate9_crossing_rung.rs"]
+mod mate9_crossing_rung;
+#[path = "review_mate9_r2_probes.rs"]
+mod review_mate9_r2_probes;
 
 #[path = "merge_skip.rs"]
 mod merge_skip;
@@ -160,6 +164,8 @@ mod review_m9_1_probes;
 mod review_m9_1_r2_probes;
 #[path = "review_mate4a_r2_probes.rs"]
 mod review_mate4a_r2_probes;
+#[path = "review_mate9_r1_probes.rs"]
+mod review_mate9_r1_probes;
 #[path = "review_s1_controls.rs"]
 mod review_s1_controls;
 #[path = "review_s1_probes.rs"]
@@ -174,6 +180,8 @@ mod review_ssiflat_r2_probes;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "seat3_flush_detector.rs"]
+mod seat3_flush_detector;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "solid_separation.rs"]

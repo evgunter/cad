@@ -762,7 +762,6 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::EvalOutcome>>(None);
     named::<Option<pncad::document::Loaded>>(None);
     named::<Option<pncad::document::PersistError>>(None);
-    named::<Option<pncad::document::MigrationError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
     named::<Option<pncad::document::ProgramFault>>(None);
     named::<Option<pncad::document::SnapshotError>>(None);
@@ -941,10 +940,9 @@ fn the_persist_doors_round_trip_through_the_facade() {
     assert_eq!(volume, 6.0);
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let header = format!("schema: {}", pncad::document::SCHEMA_VERSION);
     assert!(
-        text.starts_with(&header),
-        "the file speaks the current schema"
+        text.starts_with(&format!("id: {}\n", doc.id())),
+        "the file's header names the document"
     );
 
     let loaded = pncad::document::load(&text, Tol::witness()).expect("the file loads");
@@ -1308,7 +1306,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v19.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1356,7 +1354,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v19.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1379,7 +1377,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v19.pncad")),
+        sans_epsilon(include_str!("plate_param.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -2784,9 +2782,6 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can reach, and `NodePick` is not merely the
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
-/// - **`MigrationStep`**: the stated exception in the crate docs —
-///   its signature speaks `serde_json::Value`, which does not cross
-///   the curated surface.
 /// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
 ///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
 ///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
@@ -2807,7 +2802,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the certified scalar — so a façade row for it would be a
 ///   conditional door, which this surface does not have and should
 ///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 102] = [
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2848,7 +2843,6 @@ const NOT_CARRIED: [&str; 102] = [
     "MetaError",
     "MetaValue",
     "MetaVersionError",
-    "MigrationStep",
     "MintRefusal",
     "NamingError",
     "NamingKey",

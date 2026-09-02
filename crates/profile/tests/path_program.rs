@@ -74,6 +74,7 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::Turn(_)
             | Step::Line(_)
             | Step::LineTo(_)
+            | Step::ContinueTo(_)
             | Step::TangentArcTo(_)
             | Step::ArcContinue(_)
             | Step::Fillet { .. }
@@ -722,6 +723,37 @@ fn unclosed_trailing_and_empty_programs_are_the_transition_class() {
         1,
         TipState::Closed,
         Some(Verb::At),
+    );
+}
+
+/// A lattice refusal renders the (tip state, verb) pair as the
+/// transition table's own spellings, each introduced by the noun it
+/// is. The pair is a COORDINATE — the row a reader looks up next — so
+/// a prose paraphrase of either half would name nothing findable; this
+/// pin is what makes the `Debug` spelling a decision rather than an
+/// oversight, and it fails if either half is worded away.
+#[test]
+fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
+    let unwalkable = replay(&[Step::Fillet { radius: 0.5 }], Tol::witness())
+        .expect_err("a leading fillet binds nothing, so it is off the lattice");
+    assert_eq!(
+        unwalkable.to_string(),
+        "step 0: the Fillet verb is not a legal continuation of tip state Entry \
+         (lattice violation — no authoring surface can produce this program)"
+    );
+
+    let unclosed = replay(
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::LineTo(Target::Point(p2(1.0, 0.0))),
+        ],
+        Tol::witness(),
+    )
+    .expect_err("a chain that never returns to Start does not close");
+    assert_eq!(
+        unclosed.to_string(),
+        "step 2: the program ends at tip state DirectedPoint without closing the loop \
+         (lattice violation — a chain must end at Start)"
     );
 }
 

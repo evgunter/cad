@@ -89,6 +89,15 @@ mod cert7_r1_probes;
 #[path = "cert7_r2_probes.rs"]
 mod cert7_r2_probes;
 
+#[path = "cert10_r1_probes.rs"]
+mod cert10_r1_probes;
+
+#[path = "cert10r2_probes.rs"]
+mod cert10r2_probes;
+
+#[path = "r2_quad_digit_probe.rs"]
+mod r2_quad_digit_probe;
+
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
@@ -202,3 +211,7 @@ mod r2_cert6_probes;
 
 #[path = "cert6_gauge_rows.rs"]
 mod cert6_gauge_rows;
+#[path = "iso_rectangle_door.rs"]
+mod iso_rectangle_door;
+#[path = "r2_mesh7_door_probes.rs"]
+mod r2_mesh7_door_probes;

@@ -15,10 +15,10 @@
 //! never sees it: a meter of 1e-300 satisfies every soundness clause
 //! in this file forever. `the_meter_lower_bounds_the_real_speed` also
 //! states how much the assembly may give away; the derivation of that
-//! number, and the population it was measured against, are on the row.
-//! The other rows here return `m / true_min` and use it for
+//! number, and the population it was measured against, are on the
+//! method. The other rows here return `m / true_min` and use it for
 //! scale-covariance rather than for tightness, which is a different
-//! claim — see the class row in `docs/SMELL-SCAN-2026-08.md`.
+//! claim: **a ratio used for covariance bounds nothing.**
 //!
 //! **M7: rational carriers now state a real bound.** The original
 //! third row asserted that a rational carrier poisons. It no longer

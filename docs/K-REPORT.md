@@ -508,23 +508,39 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A module-private `const &str`.** Five, not the three previously
-   recorded: `sector_shape.rs`'s `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
-   `editor-core/src/names/geompred.rs`'s `SEL_DATUM_DISTANCE`
-   (`sel_datum_distance`) and `sweep/src/fillet/surgery.rs`'s
-   `RING_CLEARANCE` (`fillet3_ring_clearance`).
+3. **A named `const &str` rather than a literal at the site.** Six,
+   not the three previously recorded: `sector_shape.rs`'s
+   module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
+   `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
+   const in `topo/src/query.rs`, re-exported by `editor-core`),
+   `DATUM_UNIT_NORM` (`datum_unit_norm` — since SEAT-DV a `pub` const
+   beside it, the length decision inside `UnitVec3::new`; the datum
+   arms of `editor-core`'s evaluation reach the funnel through that
+   constructor rather than through their own `eval_direction_norm`
+   site, which stays for the directions the evaluation layer owns —
+   note that `mate/solve.rs` re-derives a circular pattern's DATUM axis
+   from the recipe and decides it under `eval_direction_norm`, so one
+   datum direction carries two names by road, issue 1570) and
+   `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
+   (`fillet3_ring_clearance`).
 4. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
 5. **The scan root — a scope error in the method, not a missed site.**
    The pattern greps `crates/*/src`, while the corpus the gate is fed
-   from is not confined to it: `demos/tour/src/booleans.rs` decides
+   from is not confined to it: `demos/tour/src/booleans.rs` decided
    `demo_flush_{offset,orient,parallel}` through the same funnel, and
-   `k_probe_sweep.sh` records them into the very CSV `k-lint` reads. A
+   `k_probe_sweep.sh` recorded them into the very CSV `k-lint` reads. A
    roster method that sweeps one tree and calls itself complete, while
    the gated corpus is fed from two, is wrong by construction — no
    amount of care at the sites it does scan would have found these.
+   Those three sites left the tree at SEAT-3, when the demo's hand
+   declarer was replaced by the library flush detector, and the demo
+   tree today decides nothing at all: the method's scope error is
+   unchanged, and it currently has no live instance. That is a fact
+   about this tree, not a repair — the next demo-side `decide` is
+   invisible to the pattern exactly as these were.
 
 **Both halves have a blind spot, and the union is the roster.** The
 code scan misses names not written as a literal at a funnel site (the
@@ -565,13 +581,30 @@ against `docs/predicate-dimension-audit.md`, which carries
 | `contact_at_shared_vertex` | `profile` | wrapper |
 | `side_planes_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
 | `side_cylinders_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
-| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root |
-| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root |
-| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
+| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
+| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
 
 They are recorded here rather than folded into the M3 crop above: that
 crop is a dated era snapshot of what M3 added, and back-filling it
-would make it describe something it never described.
+would make it describe something it never described. The three
+`demo_flush_*` rows are annotated rather than deleted for the same
+reason: the measurement above was taken at `ff5ad78e` and a row struck
+out of it would make the count of seven unreadable. They no longer
+name a live site — the demo's hand declarer became a call to the
+library flush detector, which decides at the verifier's own
+`bool_plane_*` sites — and the K sweep's CSV has carried no
+`demo_flush_*` row since.
+
+**That retirement moved a population, not just a name.** Every margin
+the tour's flush contacts used to contribute under `demo_flush_*` now
+enters the K stream under `bool_plane_parallel` /
+`bool_plane_orient` / `bool_plane_offset`, alongside the boolean's
+own. Those three rows therefore carry more samples than before, drawn
+from the same geometry through a different door — a distribution
+change to READ rather than a threshold to restore, and the first
+`k-lint` sweep after the merge is what reads it (SEAT-3 asked for one
+with a `klint=dev-probe` head trailer).
 
 **Maintenance: this roster is a RECORD, and stays hand-maintained.**
 The decision is on what the roster is *for*, and the evidence is that
@@ -1407,6 +1440,23 @@ carries **231**. No other predicate's name, margin, band or outcome
 changes. The M7 addendum's own "233" is left as written — it describes
 the committed snapshot, which still says 233 because it still contains
 the six old names.
+
+**And SEAT-DV adds one: 232 at a sweep cut after it.**
+`datum_unit_norm` is the length decision inside `topo::query`'s
+`UnitVec3::new`, which is where a datum's normal or axis direction is
+now normalized. It does not REPLACE `eval_direction_norm`, which keeps
+the directions the evaluation layer owns (a transform's rotation axis,
+a linear pattern's direction) — so this is one name in, none out. The
+population it takes is small and it moves rather than grows: the datum
+arms of `editor-core`'s `wire_datum` used to emit `eval_direction_norm`
+and now emit `datum_unit_norm`. **One triple is emitted under BOTH
+names depending on the road**: `mate/solve.rs`'s derived-offset
+derivation re-reads a circular pattern's datum-axis node from the
+recipe and normalizes that same direction through `eval_direction_norm`
+(same arithmetic, same refusal shape, different name in this census).
+That is a family question, not a defect of either site, and it is homed
+at issue **1570** — this paragraph is the census-side record of it, and
+neither road was migrated.
 
 **Effect on the emitted stream.** Margins, order, bands and outcomes are
 bit-identical; only the `predicate` column changes, and only for these

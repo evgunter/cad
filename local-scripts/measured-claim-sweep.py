@@ -134,12 +134,12 @@ SURFACES THIS INSTRUMENT IS READY FOR AND THAT NOBODY HAS SWEPT — the
 blind-spot list's other half, because a surface deferred without a
 recorded reason is indistinguishable from a surface forgotten:
 
-  * `crates/*/tests` — DEFERRED, AND NOT THIS SWEEP'S TO TAKE. It is
-    Track W's ground: `docs/SMELL-SCAN-2026-08.md` §Track W fences
-    `crates/*/tests/` in every crate plus `crates/test-utils/`, and the
-    track owns test-side MECHANISMS, which is exactly what a pinned
-    literal nothing re-takes is. Its live rows already reach into this
-    class — D383's undisclosed duplicate slack, seven copies across three
+  * `crates/*/tests` — DEFERRED, AND NOT THIS SWEEP'S TO TAKE. The
+    test-side surface (`crates/*/tests/` in every crate, plus
+    `crates/test-utils/`) is a body of work of its own, and a pinned
+    literal nothing re-takes is exactly a test-side MECHANISM rather
+    than a claim in the code under test. Known instances already sit
+    there — an undisclosed duplicate slack, seven copies across three
     files with no derivation, is a measured-claim row in all but name.
     The class home for anything found there stays issue 651.
     The instrument needs no new variant for it:

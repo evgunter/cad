@@ -87,7 +87,7 @@ fn swept_elbow_tessellates_watertight_and_volume_sane() {
 #[test]
 fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
     let body = loft_prism();
-    let eps = Tol::witness().get().eps;
+    let eps = common::eps();
     let coarse = 3e-2;
     let fine = 6e-3;
     let measure = |delta: f64| -> (f64, usize) {

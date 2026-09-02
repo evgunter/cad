@@ -61,11 +61,18 @@ pub use geom_core::{
 // surface and must not become it. Scope: the prelude carries the
 // value types + the six unit constants + the formatter; the unit
 // TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
-// `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
-// per the corpus-measured prelude rule (module docs above).
+// `MILLI`, `CENTI`, `ONE`) stay one module hop away at
+// `pncad::quantity`, per the corpus-measured prelude rule (module
+// docs above).
+// `WrittenLength`/`WrittenAngle` are value types by the same rule and
+// ride here for the same reason `Length` does: they are what an
+// authored quantity IS at this boundary — a magnitude plus the
+// notation it was written in — and `Expr::written_length` is the door
+// they open, which is how a library recipe records `300 mm` rather
+// than `0.3` for a reader to interpret.
 pub use quantity::{
     Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, PI, RAD,
-    fmt_angle, fmt_length,
+    WrittenAngle, WrittenLength, fmt_angle, fmt_length,
 };
 
 // --- 2. Profile authoring -------------------------------------
@@ -94,8 +101,9 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError,
-    PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcLen, ArcSide, Bulge, Center, ClosedLoop, ContinueTarget, LineTarget, Open, PartialPath,
+    PathError, PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle,
+    circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -205,3 +213,24 @@ pub use crate::select::{
     attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame,
     face_name, find_flush_candidates, select, select_where, vertex_position,
 };
+// The KERNEL query seat (`topo::query`): the same selection
+// vocabulary as a pure function of a `Body`, for the caller who holds
+// arena keys and no document. Re-exported as the MODULE, not its
+// items, because the two seats' materializers deliberately share
+// names — `all_edges` above answers names from an evaluation,
+// `query::all_edges` answers keys from a body — and a prelude must
+// not make one shadow the other. The vocabulary types the doors speak
+// (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
+// already above, one definition re-exported upward.
+pub use topo::query;
+// The KERNEL flush seat (`topo::flush`): the same detect/declare
+// protocol as a pure function of two `Body`s, for the caller who holds
+// arena keys and no document. A MODULE for the reason `query` is one,
+// and more sharply — all three door names collide with the document
+// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
+// which answer names from an evaluation where `flush::` answers keys
+// from a body. The finding vocabulary the doors speak
+// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
+// already above, one definition re-exported upward: `FlushFinding` is
+// literally the same type at both seats, over each seat's pair.
+pub use topo::flush;

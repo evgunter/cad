@@ -358,3 +358,41 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
         geom_core::Vec3::new(0.0, 1.0, 0.0),
     )
 }
+
+/// **The containment suites' probe offset**, in one home.
+///
+/// A probe has two jobs — definitely outside the ambiguity band, and
+/// definitely inside (or outside) the body it means — and every
+/// containment door suite has needed the same expression for the first
+/// of them. It had four copies before this was written; what varies
+/// between suites is not the expression but the SHELL each one has to
+/// clear, which stays with the suite that measures it.
+///
+/// The shared part of the argument:
+///
+/// * it scales with ε, because a probe that does not is a probe that
+///   means something different in each tolerance row;
+/// * the FLOOR keeps it clear of the escalation shells, which are wider
+///   than `K·ε` wherever a discriminant decays to a multiple root (the
+///   cone's apex shell goes as `√ε`; the torus's tangency shell as the
+///   cube root);
+/// * the CEILING keeps it inside a unit-sized body: an offset scaling
+///   freely with ε reaches 1.0 at the 1e-6 row, and a probe "just inside
+///   the wall" at that distance is out the other side.
+///
+/// **The clamp saturates at every shipped ε row** — `1e6·ε` lands inside
+/// `[1e-3, 0.1]` only for `ε ∈ (1e-9, 1e-7)` and no row of the matrix
+/// draws one — so what governs the offsets the gated rows actually use
+/// is the clamp, not the ε-scaling. The scaling is kept because it is
+/// the right law between the bounds, not because a gated run exercises
+/// it.
+///
+/// Two suites deliberately do NOT call this and should not be pointed at
+/// it: `bool2_r2_probes` re-derives the expression twice because it is a
+/// reviewer probe CHECKING it (one that called the code under test would
+/// check nothing), and `bool2_r1_probes` uses a `√`-scaled variant with
+/// its own bounds, sized to the cone's apex shell rather than to the
+/// band. `m5_pr9c_sphere_doors` uses a different expression entirely.
+pub fn probe_offset() -> f64 {
+    (1e6 * Tol::witness().get().eps).clamp(1e-3, 0.1)
+}

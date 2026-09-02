@@ -1,0 +1,14 @@
+R2 MUTANT M2 (applied, run once, reverted): the closer's seam refusal
+misattributed.
+
+--- a/crates/profile/src/path.rs
++++ b/crates/profile/src/path.rs
+@@ continue_to_start_kernel
+             start_ang,
+-            Some(CloseSite::Seam),
++            Some(CloseSite::Departure), // R2 MUTANT M2
+             tol,
+         )?;
+
+Result: a_seam_at_a_subdivision_vertex_still_refuses_as_a_mid_carrier_seam
+FAILED (CloseSite assertion).

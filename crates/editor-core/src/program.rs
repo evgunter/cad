@@ -1019,7 +1019,18 @@ fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
                 phase: pb,
             },
         ) => pair_bit_eq(ca, cb) && ra.bit_eq(rb) && na == nb && pa.bit_eq(pb),
-        _ => false,
+        // Different variants are unequal — spelled over the whole
+        // vocabulary by first element rather than swept up by a
+        // catch-all. That is what makes the answer for a variant added
+        // to `LoopProgram` a compile error here: under a catch-all it
+        // would compare unequal to ITSELF, and the D7 replay identity
+        // and the document diff both read this answer, so a program
+        // that never changed would report as changed. The same holds
+        // for the three functions below.
+        (
+            LoopProgram::Chain(_) | LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -1031,7 +1042,7 @@ fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        _ => false,
+        (ProgramTarget::Start | ProgramTarget::Point(_), _) => false,
     }
 }
 
@@ -1081,7 +1092,15 @@ fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
                 len: lb,
             },
         ) => ra.bit_eq(rb) && sa == sb && la.bit_eq(lb),
-        _ => false,
+        (
+            S::Radius { .. }
+            | S::Bulge { .. }
+            | S::Via { .. }
+            | S::Center { .. }
+            | S::Sweep { .. }
+            | S::ArcLen { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -1134,7 +1153,26 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
                 spec2: s2b,
             },
         ) => spec_bit_eq(sa, sb) && ra.bit_eq(rb) && spec_bit_eq(s2a, s2b),
-        _ => false,
+        (
+            P::At(_)
+            | P::Angle(_)
+            | P::Toward { .. }
+            | P::Tangent
+            | P::Cusp
+            | P::Turn(_)
+            | P::Line(_)
+            | P::LineTo(_)
+            | P::ArcTo(_)
+            | P::TangentArcTo(_)
+            | P::ArcContinue(_)
+            | P::Fillet(_)
+            | P::FilletArc { .. }
+            | P::ArcFillet { .. }
+            | P::ArcFilletArc { .. }
+            | P::FarEndTo(_)
+            | P::CloseTo,
+            _,
+        ) => false,
     }
 }
 
@@ -1225,6 +1263,21 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
+    /// **A verb the DOCUMENT vocabulary does not spell yet.** The
+    /// authoring algebra and this crate's document form are separate
+    /// vocabularies (G1 layering: `profile` has neither expressions nor
+    /// serde), and the hop back from a recorded program is where the
+    /// difference becomes visible. A verb the table gains reaches this
+    /// arm until the document form — and, with it, the persisted form —
+    /// grows to match.
+    ///
+    /// One verb sits here today: `continue_to`, the declared
+    /// point-target continuation. Spelling it in the document is a WIRE
+    /// change (the checked-in corpus regenerates; the format carries no
+    /// schema version), which is its own unit; the census in
+    /// `tests/switch_program_vocabulary.rs` carries the gap as a named
+    /// exception so it stays loud rather than quiet.
+    VerbNotInDocumentVocabulary(profile::Verb),
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1243,6 +1296,12 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
+            Self::VerbNotInDocumentVocabulary(verb) => write!(
+                f,
+                "the authoring verb {verb:?} has no document spelling: the document and \
+                 persisted vocabularies grow by a format change that regenerates the \
+                 corpus, and this one has not landed yet"
+            ),
         }
     }
 }
@@ -1370,6 +1429,11 @@ impl LoopProgram {
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
+                Step::ContinueTo(_) => {
+                    return Err(RecordedProgramError::VerbNotInDocumentVocabulary(
+                        profile::Verb::ContinueTo,
+                    ));
+                }
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),

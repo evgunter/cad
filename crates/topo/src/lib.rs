@@ -137,8 +137,8 @@ pub(crate) mod census;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
-// `splitting/` for the reason its own docs give (S5). Non-doc comment
-// for the same rustdoc reason as the sector modules below.
+// `splitting/` for the reason its own docs give. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
 pub mod contact;
 pub mod entity;
@@ -152,6 +152,7 @@ pub mod euler_ring;
 pub(crate) mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
+pub mod flush;
 // This crate's own sources, read as source. A sibling of `fixtures`
 // rather than a section of it: that module's subject is canonical
 // bodies, this one's is a Rust reader. Non-doc comment for the
@@ -172,6 +173,7 @@ pub mod offset_together;
 pub mod pcurves;
 pub mod props;
 pub mod provenance;
+pub mod query;
 pub(crate) mod ray_parity;
 pub mod readback;
 pub mod replace_face;
@@ -196,7 +198,7 @@ mod review_m1_pr4;
 pub(crate) mod review_m1_pr5_internal;
 // The shared vertex-neighborhood sector modules — top-level siblings
 // of `boolean/` and `splitting/` on purpose: both lanes ask these
-// questions, so neither hosts them (S5). Each module's own docs carry
+// questions, so neither hosts them. Each module's own docs carry
 // the placement argument. Non-doc comments deliberately: an outer
 // `///` here would merge into the module's own `//!` docs and make
 // rustdoc resolve their intra-doc links in THIS module's scope instead
@@ -317,6 +319,13 @@ pub use props::{
     ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
 };
 pub use provenance::Provenance;
+// The query VOCABULARY rides at the root like every other type;
+// the query DOORS (materializers, predicates) keep their module
+// identity, like `readback`'s.
+pub use query::{
+    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, SEL_DATUM_DISTANCE,
+    SurfaceKindSet, UnitVec3, UnitVec3Error,
+};
 pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;

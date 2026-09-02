@@ -24,7 +24,7 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset, offset_point};
+use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset, fit_offset, offset_point};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::spline::KnotVector;
@@ -184,8 +184,23 @@ fn r1_a_fit_for_the_wrong_sign_refuses() {
             "a fit of the OPPOSITE offset certified against +d with hull_sup {}",
             cert.hull_sup
         ),
-        Err(OffsetFitError::Limb { .. } | OffsetFitError::Meter(_)) => {}
-        Err(e) => panic!("refused, but not at a limb or meter: {e}"),
+        // The limb and the bound's SHAPE are pinned, not merely the
+        // fact of a refusal (issue 1322): a regression that changed
+        // which limb spoke, or that refused with a nonsense finite
+        // bound attached, is the failure this row exists to catch.
+        // `tol = 10.0` is far above the true residual, so limb 1
+        // cannot be what speaks — the sign witness fails, the cell
+        // answers `+inf`, and limb 2 refuses naming `HullSup`. Same
+        // spelling as the sibling row at `offset_fit.rs`'s
+        // `a_fit_for_the_wrong_distance_is_refused_by_the_certifying_limb`.
+        Err(OffsetFitError::Limb { limb, bound, .. }) => {
+            assert_eq!(limb, OffsetLimb::HullSup);
+            assert!(
+                bound.is_infinite(),
+                "the unproved sign witness must answer +inf, not {bound}"
+            );
+        }
+        Err(e) => panic!("refused, but not at the certifying limb: {e}"),
     }
 }
 

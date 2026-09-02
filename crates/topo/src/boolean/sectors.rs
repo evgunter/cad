@@ -152,8 +152,7 @@ pub(super) fn build_sectors<T: Decide>(
         // argument needs < 180°) — are [`crate::sector_shape`]: ONE
         // implementation, called from here and from the splitting
         // lane's neighborhood walk, under the one pooled set of K names
-        // (smell scan S5; #652 pooled them). This is a call, not a
-        // copy.
+        // (pooled in #652). This is a call, not a copy.
         //
         // The sense-invariance argument for the `normal` passed here is
         // NOT restated: it is the contract of `sector_shape`'s `normal`
@@ -210,7 +209,7 @@ pub(super) fn build_sectors<T: Decide>(
 ///
 /// The walk and the normals are [`crate::sector_face`] — ONE
 /// implementation, called from here and from the splitting lane's
-/// sector walk (smell scan S5). What stays here is this lane's
+/// sector walk. What stays here is this lane's
 /// adaptation of it, and only that: the boolean error type, whose
 /// every arm carries the [`Operand`] the shared walk has no notion of.
 /// All three wired arms — `Plane`, `Cylinder`, `Sphere` (M5 PR 9) —

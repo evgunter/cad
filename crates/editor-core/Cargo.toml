@@ -20,6 +20,7 @@ interval = [
     "profile/interval",
     "sweep/interval",
     "topo/interval",
+    "verbs/interval",
 ]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. Same shape
@@ -35,6 +36,7 @@ probe = [
     "profile/probe",
     "sweep/probe",
     "topo/probe",
+    "verbs/probe",
 ]
 
 [dependencies]
@@ -76,6 +78,10 @@ profile = { path = "../profile" }
 quantity = { path = "../quantity" }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
+# The kernel's verb vocabulary. This crate is its only consumer — the
+# enum names ops that live in `sweep` and `topo`, so it sits above both
+# and below this one, and the kernel crates gain no edge to it.
+verbs = { path = "../verbs" }
 # D6: rayon idiom-1 parallelism over independent DAG nodes (the D9
 # addendum's sanctioned idiom) — a runtime switch, so the determinism
 # cross-check can compare both schedules in one test run.

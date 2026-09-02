@@ -12,9 +12,13 @@
 //!
 //! The at-rest badge tells the truth twice: the mated base CERTIFIES
 //! (its one contact is a declared, nested rest), and the finished
-//! windmill REFUSES — the sails overhang the hub's walls, the census
-//! finds the crossings, and no door in the vocabulary can declare
-//! them. Both verdicts are asserted as the values they are.
+//! windmill CERTIFIES TOO — the sails overhang the hub's walls, the
+//! census finds the crossings, and the crossing rung answers them
+//! from the mates the user already declared: each crossing point lies
+//! in its declared pair's verified overlap region with material on
+//! opposite sides of the shared carrier (the legal overhang; the
+//! rung's same-side and undecided verdicts still refuse). Both
+//! verdicts are asserted as the values they are.
 //!
 //! One test, deliberately, in the exit walk's shape: the story reads
 //! top-to-bottom as a session a real user could have had, each stage a
@@ -29,7 +33,7 @@ mod common;
 use std::path::Path;
 
 use common::asm;
-use common::{body_volume, insert, near};
+use common::{body_volume, insert, len, near, shape};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
@@ -93,14 +97,14 @@ fn author_box_part(
         session,
         SessionOp::AddProfile {
             plane: pncad::profile::SketchPlane::xy(),
-            loops: vec![ProfileShape::Rectangle { width, height }],
+            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );
     let extrude = insert(
         session,
         SessionOp::AddExtrude {
             profile,
-            distance: depth,
+            distance: len(depth),
         },
     );
     assert!(
@@ -684,11 +688,16 @@ fn the_windmill_story() {
 
     // ── 11. THE FINISHED WINDMILL: seven rows all ok, both sail
     // frames landed where their mates declare, the blades CROSSED.
-    // And the at-rest badge now REFUSES, honestly: the long blades
-    // overhang the hub's walls, the census finds the undeclared
-    // crossings, and the vocabulary has no door to declare them — the
-    // gate's verdict is the truth about this design, shown on the
-    // draw path rather than saved for an export.
+    // And the at-rest badge CERTIFIES, honestly: the long blades
+    // overhang the hub's walls, the census finds the crossings, and
+    // the crossing rung backs each one from the sail's own declared
+    // mate — the crossing point is inside the pair's verified overlap
+    // region and the material lies on opposite sides of the shared
+    // wall carrier, which is exactly what an overhanging seat is. An
+    // overhang is ordinary authoring; the declaration the user
+    // already made says the faces rest, once, for everything the seat
+    // induces — the gate's verdict is the truth about this design,
+    // shown on the draw path rather than saved for an export.
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 7, "four instances and three mates");
     for row in &rows {
@@ -722,15 +731,11 @@ fn the_windmill_story() {
         blade_a_dir.dot(blade_b_dir).abs() < 1e-9,
         "the turned roll reference crosses the blades: {blade_a_dir:?} vs {blade_b_dir:?}"
     );
-    match session.at_rest() {
-        Some(AtRestBadge::Refused { message }) => {
-            assert!(
-                message.contains("undeclared contact"),
-                "the census names the overhanging blades' crossings: {message}"
-            );
-        }
-        other => panic!("the overhanging blades refuse certification, got {other:?}"),
-    }
+    assert_eq!(
+        session.at_rest(),
+        Some(&AtRestBadge::Certified { minted: 3 }),
+        "the declared overhanging blades certify through the crossing rung"
+    );
 
     // ── 12. SAVE AND REOPEN THE WORKSPACE. The document round-trips
     // with its mates; the fresh session re-resolves every instance
@@ -752,8 +757,9 @@ fn the_windmill_story() {
     }
     assert!(reopened.display().hidden().is_empty());
     assert!(reopened.display().free_move_of(hub_i).is_none());
-    assert!(
-        matches!(reopened.at_rest(), Some(AtRestBadge::Refused { .. })),
+    assert_eq!(
+        reopened.at_rest(),
+        Some(&AtRestBadge::Certified { minted: 3 }),
         "the reopened census reads the same design: {:?}",
         reopened.at_rest()
     );

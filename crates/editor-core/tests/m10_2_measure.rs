@@ -1,6 +1,6 @@
 //! **M10-2 — measurement sinks and assertions**, evaluated.
 //!
-//! The schema half lives in `m10_2_schema_v17.rs`; this suite is about
+//! The wire half lives in `m10_2_measure_wire.rs`; this suite is about
 //! what a measure MEANS. Its spine is the worked example of
 //! ERROR-DESIGN's two-hole plate: a plate with two circular holes, a
 //! measure of the web between their walls, and an assertion that the
@@ -15,6 +15,7 @@
 #[path = "fixture/mod.rs"]
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
     DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
@@ -69,6 +70,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.2,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
             },
         },
@@ -676,6 +678,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
+                display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
             },
         },
@@ -735,6 +738,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
+                display_unit: UnitSym::canonical_for(Dimension::Scalar),
                 distribution: None,
             },
         },

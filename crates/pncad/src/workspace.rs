@@ -88,8 +88,8 @@ pub enum WorkspaceError {
         /// The path that repeated the id.
         second: PathBuf,
     },
-    /// A file's header refused (no/malformed `schema:` or `id:` line,
-    /// or a pre-v5 schema), naming the file.
+    /// A file's header refused (no or malformed `id:` line), naming
+    /// the file.
     Header {
         /// The refusing file.
         path: PathBuf,
@@ -238,9 +238,8 @@ impl Workspace {
     /// # Errors
     ///
     /// [`WorkspaceError::Io`] naming the failing path,
-    /// [`WorkspaceError::Header`] for an unreadable header (including
-    /// pre-v5 schemas), [`WorkspaceError::DuplicateId`] naming both
-    /// claimants.
+    /// [`WorkspaceError::Header`] for an unreadable header,
+    /// [`WorkspaceError::DuplicateId`] naming both claimants.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, WorkspaceError> {
         let root = dir.as_ref().to_path_buf();
         let io = |path: &Path| {
@@ -484,16 +483,14 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         PersistError::ToleranceConflict { .. } => ResolveFault::EpsilonSeam,
         PersistError::NonFinite { .. }
         | PersistError::Distribution { .. }
+        | PersistError::DisplayUnit { .. }
         | PersistError::ProfileProgram { .. }
         | PersistError::Serialize { .. }
-        | PersistError::Header { .. }
         | PersistError::HeaderId { .. }
         | PersistError::IdMismatch { .. }
-        | PersistError::UnknownSchema { .. }
-        | PersistError::SchemaTooOld { .. }
         | PersistError::Parse { .. }
+        | PersistError::Unreadable { .. }
         | PersistError::EditReplay { .. }
-        | PersistError::Migration(_)
         | PersistError::Snapshot(_)
         | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }

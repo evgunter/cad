@@ -91,6 +91,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/src/eval/mod.rs",
+        disposition: Shared, // node-tag-space census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -103,10 +107,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
-        path: "crates/editor-core/tests/schema_ledger.rs",
-        disposition: Shared, // doc-comment ledger, prose view
-    },
-    Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -117,6 +117,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/geom-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/geom-core/tests/bounds_census.rs",
+        disposition: Shared, // sole-bracket-bound roster, code view
     },
     Entry {
         path: "crates/geom-core/tests/flagged_census.rs",
@@ -213,6 +217,14 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/verbs/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/verbs/tests/layer_guard.rs",
+        disposition: Shared, // the crate's src/ directory walk, for the file-list pin
     },
     Entry {
         path: "crates/viewer/tests/all.rs",

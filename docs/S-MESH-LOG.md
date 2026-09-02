@@ -160,3 +160,143 @@ adoption transversality bar — the site now says so.
 Slate next: MESH-5 (#685) dispatches on lane-budget room; MESH-8
 inherits the corrected halfcap witness. Issue 881 carries the two
 new measurements as MESH-4 substrate.
+
+## MESH-5 merged (2026-09-01) — issue 685 closed by measurement; one strip is right
+
+PR 1507 at fix head `c79609f7`. Gates: impl head drew interval/1e-12,
+fix head default/default — both compile lanes spanned. The nu==1
+sizing intent is DECIDED, not patched: the two-build δ-sweep showed
+the honoured schedule multiplies the cone patch 5–9× at
+bitwise-identical deviation (the binding deviation is the rim
+chord's azimuthal sagitta — boundary geometry no interior row can
+touch), and the post-fix site cites the structural proof (cert_cone's
+worst-triangle bound is row-invariant). grid_counts' cone arm
+returns (1,1) at a single column and no longer computes the
+schedule it discarded. The S29 instance retires at the site.
+
+**The dual (ordinal 1203, sample at the row)**: R2 APPROVE, R1
+A-W-F, both arms uninterrupted — the pair COUNTS. The load-bearing
+find was bilateral at split severity (no tally candidate): the
+removed ResolutionOverflow edge IS publicly reachable (extreme-aspect
+frusta / a needle cone through revolve), so the refusal→served
+change is now stated, characterized by the true binding parameter
+(the aspect, not half-angle), and pinned red-first by an adopted
+probe. The sibling class (one-element grid axes dropping the other
+axis' schedule — sphere/torus nu==1, the nv==1 mirror,
+uniform_candidates) is scheduled as issue 1513.
+
+Slate next: MESH-4 (#881 named-ε ops) or MESH-6/7 per lane budget;
+MESH-8 holds its corrected halfcap witness from MESH-3.
+
+## MESH-4 merged (2026-09-01) — issue 881 closed; the ε inventory becomes the methods
+
+PR 1517 at the re-rolled head (fix content 51b03b3c6 + the main
+repair below). Gates: impl head lane=both asked/1e-12 drawn; the
+fix head's only red was main's own break (below); final head green
+at merge. The mesh-local Eps newtype carries the four named ops
+and every terminal read; the binding gate — no mesh byte moves —
+was proved twice by the unit and twice more by the reviews (a
+superset digest including the budget leg; a 242,040-check bitwise
+differential), and the fix pass made the evidence TRUE rather than
+trimmed: the budget third leg added, pad's execution proven by
+panic plant, the instrument's splice artifact fixed. The one-arg
+API deviation is disclosed with its byte-preserving reason; the
+unearned derives dropped; R1's band-edge parity probe now runs in
+CI. #741 coordinated by comment, corrected once (carriers survive
+for the weaker reason).
+
+**The dual (ordinal 1204, sample at the row)**: R2 APPROVE, R1
+A-W-F, no MAJOR, pair COUNTS. The reviews' real product was
+evidence-honesty: everything the PR claimed was TRUE of the code
+and slightly false of what the instruments had seen.
+
+**Seam entry — one main repair orchestrator-direct en route** (the
+PR-1428 precedent): PR 1516's authored-literals change missed the
+probe,interval-gated initializer in editor-core, redding EVERY PR
+that merged main on the k-lint gate (first seen here; BOOL-11's
+lane hit and locally patched the same break independently).
+Repaired at PR 1523 with the file's false "neither hosted lane
+builds that pair" coverage sentence corrected — the stale claim
+that invited the skip. Issue 1525 filed for the geom-brep
+--all-features sibling (VERBS' ground). Reviewer-brief discipline
+tightened: lane-private uniquely-prefixed scratch paths (a
+same-named-script collision in the shared scratchpad, caught
+within a minute, no cross-lane source contact).
+
+Slate next: MESH-6 (#897) and MESH-7 (#727/#726) per lane budget;
+MESH-8 holds the corrected halfcap witness. Issue 1513 carries the
+sibling class from MESH-5.
+
+## MESH-6 merged (2026-09-02) — issue 897 closed; S65's two cases become censuses
+
+PR 1545 at head 6261f8646 (gate 33595370207 green; lane default,
+ε default drawn). Both of issue 897's uncovered S65 cases — the
+full-2π seam and cross-face identification — now have a mechanical
+`cfg(debug_assertions)` census, priced inside one release binary
+(seam +5–12% of `tessellate` on the donut, chord −8…+1%, the pair
++13–15%); `check_mesh` as the cross-face guard was measured and
+rejected on the donut rows and footprint, with the sub-millisecond
+rows honestly discounted as noise. The `pole_columns` argument was
+verified as arithmetic and read per arm: the torus floor is
+protective, the cylinder's vacuous. The fix pass covered the
+trimmed NURBS arm too, factored the shared rules into `walk`, and
+gated the new rows so the crate compiles with debug-assertions off
+— finding one pre-existing `walk.rs` row (issue 896's) that fails
+in that configuration, reported not touched.
+
+**The dual (ordinal 1205, sample #101 — the row landed in this
+docs PR after the merge, the first unit under the new mechanics:
+no ledger append on the unit branch)**: R1 mergeable-with-MINORs,
+R2 mergeable-after-MINORs with ONE unilateral executed MAJOR (the
+`check_mesh` price sentence contradicting the PR's own table) —
+a tally candidate. Pair COUNTS.
+
+**Spec-wording correction, recorded.** `docs/MESH-6-SPEC.md`'s
+deliverable 3 said the censuses are "compiled out of every shipping
+build". That was the spec's phrase, not the measurement's: the
+workspace's PRE-PUBLISH `[profile.release] debug-assertions = true`
+stanza makes every `cfg(debug_assertions)` guard LIVE in today's
+release builds, so both censuses ship at the measured +13–15% on
+the donut until that stanza flips. The S65 ruling's intended state
+is cfg-conditional ("no unconditional shipped guard"), which is
+what landed; the dispatch brief that attributed the phrase to the
+PR was the orchestrator's error, symmetric across both reviews.
+
+Slate next: MESH-7 (#727/#726) draws MESH-B3 (MESH-B2 exhausted);
+MESH-8 holds the corrected halfcap witness.
+
+## MESH-7 merged (2026-09-02) — issues 727 and 726 closed; explicit iso-rectangle doors
+
+PR 1565 at head 5ea2a87d1 (gate 33621048246 green; lane=both asked,
+ε 1e-6 drawn). Under the Q3 ruling `mesh` now cites props' shape
+predicate before the walk through a public, flux-free door, and the
+spatial check keeps only the walk-consistency question; the 12-row
+door census records who leaned on whom and who still does (tier-3
+check 7: redundant for `mesh`, load-bearing for import, the editor
+checks, pncad and the tour). The oblique-lens qualification at
+`walk::iso_side_starts` is closed AS WORDED, and the review made the
+unit say exactly that much and no more: the walk's arc premise is
+still inherited (issue 1571 — a pole-crossing great-circle arc passes
+the door, which certifies carriers, not arcs). D9 held to the byte
+across two builds and three ε rows, and the one body class that
+meshed on main and refuses now is a props extent defect (issue 1562,
+the split-seam donut), pinned as a limitation rather than softened.
+
+**The dual (ordinal 1206, sample #106 — row in this docs PR after the
+merge)**: R1 one unilateral EXECUTED MAJOR — the PR's central
+"premise established" claim falsified by a constructed body — the
+pair's tally candidate; R2 mergeable with MINORs, independently
+re-deriving the digest and the finding. Pair COUNTS. The union fix
+pass retracted the claim at four sites, factored the torus prologue
+the door had copied (C11's own mechanism, caught by R2), replaced a
+cross-crate `unreachable!` with a narrowed error type, and
+demonstrated the zero-width slit it had only argued.
+
+SMELL §D row C11 retired with this record. Slate grows by two units
+from the unit's own findings: MESH-10 (issue 1562, S) and MESH-11
+(issue 1571, M), both after MESH-8. Residues on issue 727 at close:
+the boolean's frontier door and volume backstop (S-BOOL's), and
+import's at-rest promise on tier 3.
+
+Slate next: MESH-8 (#868, the coherence-detector relocation) draws
+MESH-B3 slot 1.

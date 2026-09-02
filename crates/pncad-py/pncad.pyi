@@ -192,7 +192,8 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`, `malformed_real`, `topology`,
+    `declaration_unresolved`, `vertex_without_point`,
+    `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
@@ -1310,7 +1311,13 @@ class Doc:
         """The cluster-record maintenance the LAST accepted edit
         performed. Empty after an edit that moved no mate graph, and
         on a document that has applied none; a REFUSED edit leaves it
-        untouched, as it leaves the document untouched."""
+        untouched, as it leaves the document untouched.
+
+        The reading begins at the load boundary: a Doc from
+        `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
+        empty even where the replayed history's last edit performed
+        maintenance, so "the last accepted edit" means the last one
+        accepted through this object."""
 
     @property
     def roots(self) -> list[NodeId]:

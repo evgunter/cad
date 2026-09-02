@@ -50,6 +50,12 @@ mod bool2_cone_doors_interval;
 mod bool2_r1_probes;
 #[path = "bool2_r2_probes.rs"]
 mod bool2_r2_probes;
+#[path = "bool3_r1_probes.rs"]
+mod bool3_r1_probes;
+#[path = "bool3_torus_doors.rs"]
+mod bool3_torus_doors;
+#[path = "bool3_torus_doors_interval.rs"]
+mod bool3_torus_doors_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -90,6 +96,10 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "torax_axial.rs"]
+mod torax_axial;
+#[path = "torax_interval.rs"]
+mod torax_interval;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -121,6 +131,8 @@ mod blend_tworims;
 mod cert5_offgrid_knot_rational;
 #[path = "cert5_r1_e2e_probes.rs"]
 mod cert5_r1_e2e_probes;
+#[path = "cert8_r1_probes.rs"]
+mod cert8_r1_probes;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -409,6 +421,9 @@ mod m8_4_intersection_iso;
 
 #[path = "m9_2_chart_region_loft.rs"]
 mod m9_2_chart_region_loft;
+
+#[path = "r2_probe_cert8.rs"]
+mod r2_probe_cert8;
 
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;

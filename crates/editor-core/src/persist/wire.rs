@@ -38,12 +38,12 @@ pub(crate) enum WireExpr {
         value: f64,
         /// The literal's dimension.
         dim: Dimension,
-        /// The display-unit symbol (quantity's closed table), absent
-        /// for canonically-authored literals. Optional ON THE WIRE
-        /// (`deny_unknown_fields` kept — absence is legal, an unknown
-        /// FIELD still refuses); an unknown SYMBOL refuses at rebuild.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        unit: Option<String>,
+        /// The display-unit symbol (quantity's closed table). Always
+        /// written, because every literal names the notation it was
+        /// authored in — the dimensionless row's symbol is the empty
+        /// string, which is what a `Scalar` literal carries. An unknown
+        /// symbol refuses typed at rebuild.
+        unit: String,
     },
     /// An exact integer Count literal.
     Count(i64),
@@ -87,7 +87,7 @@ impl From<&Expr> for WireExpr {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
                 dim: e.dim(),
-                unit: lit.unit_def().map(|u| u.symbol().to_string()),
+                unit: lit.unit_def().symbol().to_string(),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
             ExprKind::Param(name) => WireExpr::Param {
@@ -116,18 +116,15 @@ impl WireExpr {
     pub(crate) fn rebuild(&self) -> Result<Expr, crate::expr::DimensionError> {
         let b = |x: &WireExpr| x.rebuild();
         match self {
-            WireExpr::Literal { value, dim, unit } => match unit {
-                None => Expr::literal(*value, *dim),
-                // Strict door: the symbol must be in quantity's closed
-                // table and its quantity must match the dimension —
-                // both re-checked by the same constructor authoring
-                // uses (never a field-by-field trust).
-                Some(symbol) => match quantity::unit_by_symbol(symbol) {
-                    None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
-                        symbol: symbol.clone(),
-                    }),
-                    Some(u) => Expr::literal_with_unit(*value, *dim, u),
-                },
+            // Strict door: the symbol must be in quantity's closed
+            // table and its quantity must match the dimension — both
+            // re-checked by the same constructor authoring uses (never
+            // a field-by-field trust).
+            WireExpr::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
+                None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
+                    symbol: unit.clone(),
+                }),
+                Some(u) => Expr::literal_with_unit(*value, *dim, u),
             },
             WireExpr::Count(v) => Ok(Expr::count(*v)),
             WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
@@ -251,11 +248,12 @@ impl WireTarget {
 }
 
 /// One chain step on the wire — `ProgramStep`'s structural mirror, and
-/// the vocabulary's last stop. A verb reaching here is a SCHEMA
-/// change, not a mapping: v8 and v9 are both bumps for exactly this
-/// enum's vocabulary (see [`crate::persist::SCHEMA_VERSION`]), so this
-/// enum going quietly short is worse than its being a third spelling
-/// — a spelling can be reconciled later, a shipped format cannot.
+/// the vocabulary's last stop. A verb reaching here is a FORMAT
+/// change, not a mapping (the checked-in corpus regenerates; see the
+/// persist module docs), so this enum going quietly short is worse
+/// than its being a third spelling — a spelling can be reconciled
+/// later; a format that has reached someone's disk (Band 4, once a
+/// document ships) cannot.
 ///
 /// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
 /// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
@@ -327,7 +325,7 @@ enum WireStep {
 
 /// An arc spec on the wire (`ProgramArcData`'s structural mirror), and
 /// the arc-mode vocabulary's last stop — a mode reaching here is a
-/// schema change for the same reason a verb is.
+/// format change for the same reason a verb is.
 ///
 /// It cannot go short of `ProgramArcData`: [`WireArcData::from_spec`]
 /// and [`WireArcData::into_spec`] are exhaustive on the document type

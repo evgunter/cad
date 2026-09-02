@@ -19,7 +19,7 @@
 //! is that value with two roles and a commit door, exactly as the four
 //! combining tools are.
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Expr, ProfileProgram, RecipeNodeId};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::SessionOp;
@@ -72,15 +72,15 @@ impl RevolveTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// revolve node through the ordinary commit door, at `angle`
-    /// radians (the chrome's default is a full turn).
+    /// revolve node through the ordinary commit door, at `angle` (the
+    /// chrome's default is a full turn).
     ///
     /// # Errors
     ///
     /// [`SeatError::Empty`] until both seats are filled. Node KINDS are
     /// not judged here — the session door refuses a wrong-kind pick
     /// typed.
-    pub fn op(&self, angle: f64) -> Result<SessionOp, SeatError> {
+    pub fn op(&self, angle: Expr) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddRevolve {
             profile: self.seats.require(0)?,
             axis: self.seats.require(1)?,

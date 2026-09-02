@@ -148,9 +148,12 @@ emission-layer bookkeeping). So the undeclared-collinear body
 demonstrably builds, with the same topology as the slightly-off
 case; the discipline's verdicts move *acceptance* (and F7's
 `NonMaximalFaces` door downstream), never the solid. The
-lattice/`validate` divergence on exact collinearity is OPEN as
-**#433** (disposition Evan's) — a live in-repo instance of exactly
-this grade's authoring-gate vs data-gate structure. Likewise the
+lattice/`validate` divergence on exact collinearity is RULED
+(**#433**, 2026-09-01): they agree — the authoring door was missing
+its spelling, which is now the straight continuation and its declared
+point-target form; both lattice halves have landed, and the issue's
+remaining half is the raw-door demotion. It remains the clearest in-repo instance of this grade's
+authoring-gate vs data-gate structure. Likewise the
 smooth-vs-transverse fork (MappedCurve vs Intersection descriptions,
 wedge legality, prefer-intrinsic) resolves from sampled geometry,
 not from the declaration.
@@ -193,8 +196,8 @@ Consequences, each load-bearing:
   "Run-global" survives as the semantic posture (one config governs
   a run's report, nothing per-body), not as storage. Persisting
   expectations (an AppearanceMap-shaped, StableName-keyed store) is
-  a named later unit priced at a schema bump; DS-Q1's
-  document-demanded strictness rides with it.
+  a named later unit (a format change — the corpus regenerates);
+  DS-Q1's document-demanded strictness rides with it.
 
 This invariant is the sharp boundary of the design: anything that
 can hold it is knob-eligible; the identification disciplines (DS2)

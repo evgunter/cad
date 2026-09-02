@@ -34,6 +34,7 @@ a reader entering here should know all of them exist.
 | `docs/DRAFT-DESIGN.md` | RATIFIED (#908) | Draft, the molding taper, DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming; NOT YET IMPLEMENTED (VERBS) |
 | `docs/ARMS3-DESIGN.md` | RATIFIED (#992) | ARMS-3, A3-1…A3-3: the general sphere×sphere fillet arm, the valence-4 "corner" that is not a corner, and what a run-out at a seam vertex IS; implemented at #1028, the recourse's missing door is #1022 (VERBS) |
 | `docs/ENCLOSING-TANGENCY-DESIGN.md` | RATIFIED (#1210) | The enclosing (ρ < 0) fillet tangency: the class is permanently unreachable — no door emits it — and a radius demanding it refuses typed (closes #827); implemented at S-BLEND's BLEND-7 |
+| `docs/VERB-SEAT-DESIGN.md` | RATIFIED (#1388, 2026-08-31) | The kernel query seat, one verb vocabulary, and lowered parameter identity (the issue-1345 conversation, with the issue-757 producer gap and the issue-1372 channel): §1 the query doors at `topo` with `select_where` delegating; §2 the per-verb kernel `Verb` declaration, commitments as owner-held stable-tag matches; §3 the opaque per-field `ParamSource` channel (`GeomSource` one level finer). Executed by the SEAT program (`docs/SEAT-PLAN.md` / `docs/SEAT-LOG.md`); §1 implemented at SEAT-1/SEAT-2/SEAT-3 |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with its prerequisites; worked in dependency order by the VERBS program (`docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`). The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
@@ -1090,6 +1091,22 @@ dimensional types inside. The public API uses hand-rolled newtypes
 (`Length`, `Angle`, …) that convert on entry. Hand-rolled rather than
 `uom`: uom's dimensional generics fight the scalar-type parameter and we
 need ~five quantities, not the SI lattice.
+
+**D6 addendum — a stored literal always names its notation (ratified
+2026-09-01, in conversation with Evan).**
+Units erase at the accessor doors because the kernel wants them gone.
+One consumer wants them kept: a document records what a person *wrote*,
+so it can be read back that way. Every continuous literal therefore
+carries a display unit — a row of `quantity::UNITS`, presentation
+metadata excluded from expression identity, keys and evaluation — and
+that unit is **not optional**: the table carries a dimensionless row
+(`ONE`, symbol the empty string, factor 1.0) so a `Scalar` literal
+names its notation, writing no suffix, rather than declining to name
+one. `Count` needs no row: a count is an integer, not a quantity. A
+value crossing into a document therefore carries the unit it was
+written in, never a bare number for a reader to interpret — which is
+why the GUI's creation ops carry `Expr`, and what
+`quantity::WrittenLength`/`WrittenAngle` are the library spelling of.
 
 ### D7 (agreed): Import is adoption, not admission
 
@@ -2174,9 +2191,20 @@ named.
 
 ### Band 4 — product-grade infrastructure
 
-- **Recipe schema versioning/migration from the first persisted
+- **Recipe schema versioning/migration from the first RELEASED
   file** (D8 is the save format), autosave/crash recovery, and
   embedded derived caches so opening a model isn't a full rebuild.
+  *Ruled 2026-09-01 (Evan, in-chat): pre-release there is NO
+  hand-maintained schema version, no migration chain and no bump
+  coordination — schema breaks are not a problem at all because
+  nothing is released and no document exists outside this repo;
+  every checked-in document is a regenerable artifact. The one
+  door that stays: a file this build cannot read refuses TYPED,
+  by the deserializer's own rejection of unknown or missing
+  vocabulary wrapped in the regenerate recourse, so an additive
+  vocabulary change invalidates nothing and a breaking one names
+  the field. Versioning returns as Band-4 work the day a document
+  ships to someone. Executed by S-BOOL's BOOL-13.*
 - **Performance at scale**: hundreds of features / thousands of
   faces; the parallel-evaluation story under D9's fixed reduction
   shapes deserves early thought.

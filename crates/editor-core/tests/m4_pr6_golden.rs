@@ -1,14 +1,16 @@
-//! M4 PR 6 review MINOR-3 — the committed GOLDEN v1 fixture.
+//! M4 PR 6 review MINOR-3 — the committed GOLDEN fixture.
 //!
 //! D6.1's round-trip row proves save∘load is a fixpoint, but a
 //! fixpoint is BLIND to format drift: rename a field and save/load
-//! stay self-consistent while every existing v1 file breaks. This row
+//! stay self-consistent while every existing file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v19_golden.cad`): the fixture document must save to
-//! exactly those bytes, and the bytes must load. Any change to either
-//! is a format change and demands a ratified schema bump + migration
-//! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
-//! regenerate, and say so loudly in the PR).
+//! (`tests/golden/golden.cad`): the fixture document must save to
+//! exactly those bytes, and the bytes must load. A change to either is
+//! a FORMAT CHANGE — deliberate, never in passing: re-bless (run with
+//! `M4_PR6_BLESS_GOLDEN=1`), regenerate the rest of the checked-in
+//! corpus the same way, and say so in the PR. The format carries no
+//! schema version (the persist module docs say why), so the re-bless
+//! IS the whole procedure.
 //!
 //! ε note: the golden snapshot PINS ε = 1e-9 via `SetTolerance` (a
 //! committed byte stream cannot record the ambient ε — it varies by
@@ -22,6 +24,7 @@
 
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
     Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
     LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
@@ -31,8 +34,8 @@ use editor_core::{
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v19_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v19_golden.cad";
+const GOLDEN: &str = include_str!("golden/golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -70,6 +73,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::TruncatedNormal {
                     sigma: 0.002,
                     lo: -0.005,
@@ -279,7 +283,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // primitive: the golden must evaluate GREEN, and a primitive over
     // this document's only well-known name (a whole BODY) has no
     // closed form. The primitive leaves' wire forms are pinned by
-    // round-trip in `m10_2_schema_v17.rs`, where a document with real
+    // round-trip in `m10_2_measure_wire.rs`, where a document with real
     // carriers can be built.
     doc = push(
         &doc,
@@ -345,13 +349,13 @@ fn golden_bytes_are_frozen() {
         )
         .expect("bless writes");
         panic!(
-            "golden re-blessed — commit the file WITH its ratified schema change, then rerun without the env var"
+            "golden re-blessed — commit the file WITH the format change it records, then rerun without the env var"
         );
     }
     assert_eq!(
         text, GOLDEN,
         "wire bytes drifted from the committed golden — this is a FORMAT \
-         CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
+         CHANGE: re-bless deliberately and regenerate the corpus with it, never in passing"
     );
 }
 

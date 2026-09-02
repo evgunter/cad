@@ -381,6 +381,12 @@ impl Verdict {
 }
 
 /// The F1 dimension as the one spelling this surface uses.
+///
+/// Capitalized on purpose: this is the Python-facing type name a
+/// `Measurement` repr reads back as, not prose. The other two
+/// spellings of the same word list are the kernel's prose rendering
+/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
+/// (the lowercase FFI tag, pinned equal to that rendering).
 fn dimension_name(dim: d::Dimension) -> &'static str {
     match dim {
         d::Dimension::Length => "Length",
@@ -492,16 +498,22 @@ impl Value {
     /// The datum this value denotes.
     fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
         match &self.payload {
-            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => Ok(Datum {
-                kind: "plane",
-                origin: lengths(*origin),
-                direction: Some((normal.x, normal.y, normal.z)),
-            }),
-            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => Ok(Datum {
-                kind: "axis",
-                origin: lengths(*origin),
-                direction: Some((dir.x, dir.y, dir.z)),
-            }),
+            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => {
+                let n = normal.get();
+                Ok(Datum {
+                    kind: "plane",
+                    origin: lengths(*origin),
+                    direction: Some((n.x, n.y, n.z)),
+                })
+            }
+            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => {
+                let v = dir.get();
+                Ok(Datum {
+                    kind: "axis",
+                    origin: lengths(*origin),
+                    direction: Some((v.x, v.y, v.z)),
+                })
+            }
             d::ValuePayload::Datum(d::DatumValue::Point { position }) => Ok(Datum {
                 kind: "point",
                 origin: lengths(*position),

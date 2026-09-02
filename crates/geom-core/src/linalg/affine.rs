@@ -36,6 +36,16 @@ impl<T: Real> Affine3<T> {
         Self::from_parts(Mat3::identity(), Vec3::zero())
     }
 
+    /// The same affine map read at another scalar: the linear part
+    /// through [`Mat3::map`], the translation through [`Vec3::map`]. A
+    /// structural map — no arithmetic, so exact whenever `f` is
+    /// (`Real::from_f64` carries a stored `f64` placement to any
+    /// evaluation scalar).
+    #[must_use]
+    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Affine3<U> {
+        Affine3::from_parts(self.linear.map(&f), self.translation.map(&f))
+    }
+
     /// The pure translation by `v` (identity linear part).
     pub fn translation(v: Vec3<T>) -> Self {
         Self::from_parts(Mat3::identity(), v)

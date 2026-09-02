@@ -200,8 +200,8 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// assertion messages say NURBS for that reason. The gap is real and
 /// is not this row's to close: giving the meter a cylinder row means a
 /// `FaceMeasure` whose NURBS-only columns have no meaning, which is a
-/// change to the consumer contract in `tools/`. Recorded as **S236**
-/// in `docs/SMELL-SCAN-2026-08.md`, unowned.
+/// change to the consumer contract in `tools/`. **Known and unfixed** —
+/// do not read this row's silence about cylinders as coverage.
 #[test]
 fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     let body = loft_prism();
@@ -216,7 +216,13 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
     // transcribed: the floor's applicability test is a comparison
     // against it, and CI drives this suite at one leg while the ε
     // battery drives the crate at three.
-    let eps = geom_core::Tol::witness().get().eps;
+    //
+    // A BARE f64 where production code would name an operation on
+    // `sizing::Eps`: the reason is `common::eps`'s doc, and it is that
+    // `tests/` cannot see a `pub(crate)` type. The comparison below
+    // (`worst_cert > eps`) is an `Eps::separates` in every sense but
+    // the spelling.
+    let eps = common::eps();
     for m in &measures {
         assert!(m.dev_samples > 0, "resampling ran: {m:?}");
         // The falsification, in the one form that carries it:

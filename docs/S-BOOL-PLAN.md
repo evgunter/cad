@@ -169,8 +169,8 @@ logged pre-draw per the protocol.
   the lattice only); migrate writers per the ruling (fixtures →
   lattice or dev-only door, LoopBuilder precedent; step-import
   marked as materialization); `validate` remains the data checker
-  for materialized loops. After BOOL-8 (lily needs the continuation
-  first).
+  for materialized loops. After BOOL-12 (lily leaves `RawLoop` only
+  once the declared mid-side seam lands).
 - **BOOL-10 — the arc_continue retirement (L; under the Q1
   extension).** Remove the verb, its program step, eval arm,
   profile lift, and refusal family (`ArcContinueNeedsArcCarrier`
@@ -181,8 +181,84 @@ logged pre-draw per the protocol.
   coordinated on the away channel — schema is contended ground);
   narrow the sealed verb-module signatures to bare state values so
   chain-state-consuming verbs are unwritable (lever arm + identity
-  data confined to emission-layer types). After BOOL-8; BOOL-9's
-  raw-door survey runs beside it.
+  data confined to emission-layer types). After BOOL-13 there is
+  no schema bump to coordinate: the wire vocabulary changes and the
+  corpus regenerates. After BOOL-13; BOOL-9's raw-door survey runs
+  beside it.
+- **BOOL-11 — the declared point-target continuation and the
+  structural closer (M; under the Q1 third-round extension).** The
+  variant declaring a leg the straight continuation landing on a
+  named point — ANY authored point, CHECKED (target on the
+  departing ray, refusing when false) never inferred from a value;
+  the closer (`Start` as target) is the special case that closes
+  the seam wall. BOOL-8's seam-wall rows flip from refusal pins to
+  the demonstration; lily's section leaves `RawLoop` (the named
+  gap's remaining half — the demo is the ruling's demonstration,
+  as BOOL-8's was for the interior half); §4's Residual paragraph
+  re-records as ruled and the verb-table row lands. The f64
+  meaning of "on the ray" is RULED (fourth round, below): within
+  ε, as ever; the band's selection (which ε, its lever, the D2
+  row) and the past-band refusal are the unit's to state. PATHS
+  §4 / verb table is design surface: the unit's PR carries the
+  text for Evan's eyes before merge. After BOOL-8's merge; before
+  BOOL-9.
+- **BOOL-12 — the declared ARRIVAL at the seam: the mid-side seam
+  and the tangent seam (M; under the Q1 fifth-round ruling, PQ4
+  reopened for the declared case; the tangent half raised by Evan
+  in-chat 2026-09-01 — "join-tangent-to-end").** The seam is the one
+  junction whose next leg was authored first, so every declaration
+  that rides the departing leg elsewhere (`.tangent()`, the
+  structural continuation) needs an arrival-side spelling there.
+  ONE family, one design surface: the closing leg declares how it
+  arrives into the entry's first side — STRAIGHT (the seam is a
+  subdivision point; the arrival-continuation check banded through
+  the funnel) or TANGENT (a G1 seam: the arc that arrives tangent
+  to the entry's outgoing direction with a sharp departure — the
+  mirror of `tangent_arc_to` and of the NURBS closer's existing
+  tangent-seam form `Pn−1 := Start.pos − len_end·Start.dir`; the
+  both-ends-tangent case stays the seam fillet's, a circular arc
+  cannot generically carry both). FIRST, measured: a stadium closed
+  with `.tangent().tangent_arc_to(Start)` today — does the seam
+  refuse the G1 arrival as undeclared? — reported with the
+  loop-start reading below before the build. Spelling is the unit's
+  design surface (closer variants or an entry-side declaration),
+  argued for Evan's eyes with the §6 PQ4 revision; undeclared
+  collinear and undeclared tangent seams still refuse (red-first
+  both sides of each band);
+  FIRST a written reading of what germ matching and the merge
+  ladders do at the loop start (PQ4's rationale), reported before
+  the build; lily's section finally authors through the lattice in
+  every rotation the loft pins, `RawLoop` and the second kernel
+  dependency leave `demos/tour`, the named gap retires; BOOL-11's
+  parity-wall rows flip to the demonstration. Carries BOOL-11's
+  deferred `ContinueTo` wire spelling (trivial once BOOL-13 has
+  landed — an additive vocabulary change; the lifting door's typed
+  refusal and its `NOT_IN_DOCUMENT` witness roster retire with it)
+  since the persisted tour document authors through it. After
+  BOOL-13; before BOOL-9.
+- **BOOL-13 — the schema demolition (S/M; ruled — Evan, in-chat,
+  2026-09-01, option C strong form).** Delete the hand-maintained
+  `SCHEMA_VERSION`, the version door and its `SchemaTooOld` family,
+  the ratified-empty migration chain, the thirteen per-version
+  break-fixture test files and their `schema_version_is_current`
+  equality pins, and the bump-coordination convention. What stays:
+  ONE typed refusal — a file this build cannot read refuses with
+  the regenerate recourse — carried by the deserializer's own
+  rejection of unknown or missing vocabulary (the unit VERIFIES
+  that rejection is typed and name-carrying before leaning on it;
+  if it is not, the fallback is the one-tag-plus-one-generic-row
+  shape, reported before building) — so an additive change
+  invalidates no document and a breaking one names the field. The
+  persist module header rewrites to say, in as many words, that
+  schema breaks are not at all a problem because this is not
+  released yet, no document exists outside the repo, and every
+  checked-in document is a regenerable artifact; versioning is
+  Band-4 work for the first released file (DESIGN.md's roadmap
+  line, revised in the same ruling). Corpus regeneration through
+  the release tour build if the header format changes. Schema is
+  contended ground: announce on the away channel before landing
+  (in-flight bumps elsewhere conflict once — the last time). After
+  BOOL-11's merge; before BOOL-12.
 - **BOOL-Q — track Q's topo rows as track lanes** after the defect
   cluster clears, sequenced by the track's own table: G9, S173, H11
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
@@ -238,7 +314,56 @@ this program's files — see Q3 below.
    bookkeeping legitimately lives. The enforcement Evan believed
    already existed becomes real: the sealed verb module's
    signatures narrow to the bare state values only, so a verb
-   needing chain state is unwritable. BOOL-10.** Three stances are in
+   needing chain state is unwritable. BOOL-10.**
+   **Extended (Evan, in-chat, 2026-09-01, third round — on BOOL-8's
+   measured residual, the seam wall): the straight continuation
+   gains a DECLARED POINT-TARGET form — a variant declaring the
+   leg the straight continuation landing on a named point; the
+   kernel CHECKS that the target lies on the departing directed
+   point's ray (a declared structural fact, verified — never
+   inferred from a value coincidence) and refuses when it does
+   not. The target is ANY authored point, per Evan's own widening
+   ("valid to want a line to a specific point with vertices along
+   it"); the structural CLOSER is the special case where the
+   target is `Start`, which closes the seam wall. Axiom-clean: it
+   consults the directed point's binding bits, the authored
+   target, and (for the closer) `Start`, which is the chain's own
+   emission-layer bookkeeping (§2c's parenthetical already homes
+   identity data there). PQ4 (no mid-carrier seam) stands
+   unchanged; the closer makes the corner cut sufficient for an
+   all-sides-subdivided outline. Scheduled as BOOL-11; §4's
+   Residual paragraph re-records as ruled when it lands.**
+   **Ruled (Evan, in-chat, 2026-09-01, fourth round — the f64
+   question): "target lies on the ray" means, as ever, TO WITHIN
+   ε. Exact-or-refuse is out. The declaration is what makes the
+   banded check legal: with the intent authored, the ε comparison
+   is authored-data CONSISTENCY — the same class as the arc verbs'
+   consistency refusals — not the value-inference the ladder
+   refuses, which reads intent OFF a coincidence no one declared.
+   Past the band the leg refuses typed (inconsistent authored
+   data). Which ε (the input-quality band is the natural home),
+   its lever, and the D2 row remain the unit's to state at the
+   site and in the §4 text for Evan's eyes.**
+   **Ruled (Evan, in-chat, 2026-09-01, fifth round — PQ4 reopened on
+   BOOL-11's measured parity wall): closing mid-side is ADMISSIBLE
+   FOR THE DECLARED CASE ONLY. The lily leaf family's two sections
+   put their corners at disjoint stations (tips vs shoulders) while
+   the loft pins one rotation for all sections, so one section
+   always seams at a subdivision vertex — today refused as the
+   seam's undeclared zero-turn junction (PQ4 surfacing through
+   `junction_check`'s tangent arm). The relaxation: a closing leg
+   may DECLARE that it arrives straight into the entry's first side
+   — the seam is a declared subdivision point — and the kernel
+   CHECKS, within ε through the funnel exactly as the point-target
+   continuation does, that the entry's outgoing direction continues
+   the arriving one; an UNDECLARED collinear seam keeps refusing,
+   nothing inferred. PQ4's recorded rationale (the same-carrier
+   discipline germ matching and the merge ladders lean on) was
+   already crossed in the interior by the line(len) ruling; the
+   implementing unit reads what those two consumers do at the loop
+   START before building and puts that reading in front of Evan
+   with the §6 revision. Scheduled as BOOL-12; BOOL-9 resequenced
+   behind it (lily leaves RawLoop there).** Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
    disagreement intentional and state it at both sites). Evan's
    ProfileLoop-seals ruling already shrank it to a kernel-internal

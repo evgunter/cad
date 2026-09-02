@@ -29,6 +29,27 @@ fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Scalar), "scalar");
 }
 
+/// The FFI tag and the kernel's prose word are two spellings of one
+/// closed list. This crate owns the tag, so they are free to differ —
+/// but they do not, and a silent divergence between a refusal a user
+/// reads and the tag they branch on is worth a test rather than a
+/// convention.
+#[test]
+fn dimension_tags_match_the_kernel_prose() {
+    for dim in [
+        Dimension::Length,
+        Dimension::Angle,
+        Dimension::Count,
+        Dimension::Scalar,
+    ] {
+        assert_eq!(
+            dimension_tag(dim),
+            dim.to_string(),
+            "the FFI tag and the kernel's prose word have drifted apart"
+        );
+    }
+}
+
 #[test]
 fn canonical_units_match_the_gq5_ratification() {
     // GQ5 / §L4: canonical metres and radians underneath.
@@ -287,7 +308,7 @@ fn declare_error_tags_are_stable() {
 /// **Scope: the literal-construction door only.** It is one of TWO
 /// doors that reach the document layer's `DimensionError`; the other
 /// is `load`, and
-/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal`
+/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal`
 /// below is its half. Read the two together — either alone is a
 /// premise that excludes the mode the other covers.
 #[test]
@@ -330,12 +351,14 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// with no new binding at all — six of them, executed here.
 ///
 /// Today they arrive in Python as `PersistError` with `variant ==
-/// "parse"`, because the deserializer `Debug`-formats the structured
-/// refusal into a serde message. That is a real misrouting and it is
-/// **issue #694**, not this crate's to fix: a dimension mismatch is
-/// not a parse failure, and a `format!("{err:?}")` message is not the
-/// "typed exception carrying the structured error" this crate's
-/// taxonomy promises.
+/// "unreadable"` — the persistence door's one refusal for valid JSON
+/// its types reject, recourse attached — because the deserializer
+/// `Debug`-formats the structured refusal into a serde message and
+/// serde classifies that as data it could not place. That is a real
+/// misrouting and it is **issue #694**, not this crate's to fix: a
+/// dimension mismatch is not "vocabulary this build lacks", and a
+/// `format!("{err:?}")` message is not the "typed exception carrying
+/// the structured error" this crate's taxonomy promises.
 ///
 /// What this test is for is the DECISION the fix will force. When
 /// #694 gives these a typed class, this assertion goes red, and
@@ -344,7 +367,7 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// a `LiteralError` (nothing about it is a literal) and it is not the
 /// quantity boundary's `DimensionError` either.
 #[test]
-fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
     let tol = Tol::witness();
     use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
     use pncad::prelude::SketchPlane;
@@ -414,7 +437,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
             persist_error_tag(&err),
-            "parse",
+            "unreadable",
             "{arm}: the load path's dimension refusal has changed class \
              (#694). It is neither a literal-value refusal nor the \
              quantity boundary's operator check — decide which typed \
@@ -449,10 +472,13 @@ fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value
 fn persist_error_tags_are_stable() {
     let header =
         pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
-    assert_eq!(persist_error_tag(&header), "header");
-    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness())
-        .expect_err("a future schema refuses");
-    assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+    assert_eq!(persist_error_tag(&header), "header_id");
+    let unreadable = pncad::document::load(
+        "id: 00000000000000000000000000000000\n{\"snapshot\": {\"no_such_field\": 1}}",
+        Tol::witness(),
+    )
+    .expect_err("a body this build cannot read refuses");
+    assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -519,8 +545,11 @@ fn path_error_tags_are_stable() {
         .expect("a leg east")
         .tangent()
         .tangent_arc_to(Start, Tol::witness())
-        .expect_err("a tangent LINE close refuses always");
-    assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
+        .expect_err("a collinear tangent-arc close refuses always");
+    // Carrier identity, and it does not become a different fact because
+    // the target is `Start`: the close-only second name for this was
+    // removed with the seam wall's departure half.
+    assert_eq!(path_error_tag(&overdetermined), "same_carrier_junction");
 }
 
 /// The prose rule's guard, checked against what it actually guards

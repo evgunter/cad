@@ -476,8 +476,8 @@ fn a_hand_written_nominal_outside_support_refuses_at_load() {
 
 /// **Strict serde reaches INSIDE the new type.** A hand-written
 /// distribution carrying a field its form has no name for — a `sigma`
-/// on a `Band`, a stray key on a `Normal` — refuses at parse rather
-/// than being dropped on the floor.
+/// on a `Band`, a stray key on a `Normal` — is unreadable by this
+/// build rather than being dropped on the floor.
 #[test]
 fn an_unknown_key_inside_a_distribution_refuses_at_load() {
     let text = saved_normal();
@@ -488,8 +488,8 @@ fn an_unknown_key_inside_a_distribution_refuses_at_load() {
         assert_ne!(corrupt, text, "the corruption must land");
         let got = load(&corrupt, Tol::witness());
         assert!(
-            matches!(got, Err(PersistError::Parse { .. })),
-            "a mis-shaped distribution must refuse in PARSE terms, got {got:?}"
+            matches!(got, Err(PersistError::Unreadable { .. })),
+            "a mis-shaped distribution must refuse as unreadable, got {got:?}"
         );
     }
 }
@@ -510,7 +510,7 @@ fn a_distribution_on_a_count_param_refuses_at_load() {
     assert_ne!(corrupt, text, "the corruption must land");
     let got = load(&corrupt, Tol::witness());
     assert!(
-        matches!(got, Err(PersistError::Parse { .. })),
+        matches!(got, Err(PersistError::Unreadable { .. })),
         "a Count carrying a distribution has no spelling, got {got:?}"
     );
 }
@@ -716,6 +716,7 @@ fn the_value_door_carries_the_declaration_forward() {
         DocParam::Continuous {
             dim,
             value,
+            display_unit: _,
             distribution,
         } => {
             assert_eq!(value, 0.004, "the number moved");

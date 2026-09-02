@@ -18,7 +18,7 @@
 //!
 //! `bench-stand` is the assembled object: two posts and a shelf, the
 //! shelf seated on the posts by mates. `bench-layout` is the same two
-//! parts laid out flat for shipping — four posts on their side (one
+//! parts laid out flat for shipping — two posts on their side (one
 //! instance, patterned) and the shelf beside them, nothing touching.
 //! Both are real things a user models, and between them they cover
 //! the two halves of A5's validity story: the layout is DISJOINT and
@@ -95,6 +95,11 @@ use crate::{SceneBody, Stop, View};
 // is evidence about the library, so nothing in the library may depend
 // on what this scene happens to measure.
 
+/// How far along +x the flat-pack sits from the assembled bench, so
+/// the two share ONE montage cell at one camera and one scale. The
+/// bench is `SHELF_LENGTH` = 0.9 long, so 1.4 leaves half a metre of
+/// clear air.
+const FLAT_PACK_GAP: f64 = 1.4;
 /// The post's square section and its length.
 const POST_SECTION: f64 = 0.12;
 const POST_HEIGHT: f64 = 0.5;
@@ -355,8 +360,17 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
 
 // ---- The assembly documents ----
 
-/// The flat-pack: four posts on their side (ONE instance, patterned)
+/// The flat-pack: two posts on their side (ONE instance, patterned)
 /// and the shelf laid beside them. Nothing touches.
+///
+/// Every placement carries [`FLAT_PACK_GAP`] along +x, which is how the
+/// flat-pack sits BESIDE the assembled bench in their shared montage
+/// cell. It is AUTHORED into the frames rather than applied to the
+/// gathered body, and that is not a preference: both furniture bodies
+/// carry declared contacts, and `transform_rigid` re-mints face keys,
+/// so a moved product would carry `ContactRecords` naming faces that
+/// no longer exist. A common offset on every placement moves the
+/// product and changes nothing else about it.
 fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
@@ -371,7 +385,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             frame: Frame::rotate_then_translate(
                 [0.0, 1.0, 0.0],
                 -PI / 2.0,
-                [POST_HEIGHT, 0.0, 0.0],
+                [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
             ),
         },
         tol,
@@ -380,7 +394,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         &mut doc,
         Node::Pattern {
             input: post_i,
-            count: pe("4", &scope),
+            count: pe("2", &scope),
             kind: PatternKind::Linear {
                 direction: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
                 spacing: pe("200 mm", &scope),
@@ -393,7 +407,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         &mut doc,
         &DocEdit::SetPlacement {
             node: shelf_i,
-            frame: Frame::translation([0.0, 0.9, 0.0]),
+            frame: Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
         },
         tol,
     );
@@ -524,18 +538,25 @@ fn workspace(dir: &Path, tol: Tol) -> (Workspace, Parts) {
 
 // ---- The scenes ----
 
-/// The flat-pack layout: five disjoint solids, and A5's disjoint half
+/// The flat-pack layout: three disjoint solids, and A5's disjoint half
 /// — the at-rest gate passes outright.
+///
+/// TWO posts, the same count the bench assembles, so "the same parts,
+/// flat-packed" is true of the PARTS and not only of the documents. Two
+/// is also what the name lookup below needs: it asks for instance 1,
+/// the first NON-IDENTITY instance — `Node::Pattern` may hand back the
+/// prototype verbatim for index 0, so i = 0 need not exercise a
+/// placement at all, and i = 1 is the first that must.
 fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: Tol) -> SceneBody {
     let ev = run(doc, &with_store(ws), tol);
     let (body, names) = product_of(doc, &ev, tol);
 
     assert_eq!(
         body.shells().count(),
-        5,
-        "one instance, patterned four ways, plus the shelf"
+        3,
+        "one instance, patterned twice, plus the shelf"
     );
-    let want = 4.0 * POST_VOLUME + SHELF_VOLUME;
+    let want = 2.0 * POST_VOLUME + SHELF_VOLUME;
     let props = pncad::topo::mass_properties(&body, tol).expect("mass properties");
     assert!(
         (props.volume - want).abs() < 1e-12,
@@ -544,13 +565,13 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     );
     println!(
         "   [layout] {} instantiated solid(s) from 2 part documents; V = {:.6} m^3 \
-         (4 x post + shelf, exact); {} product names",
+         (2 x post + shelf, exact); {} product names",
         body.shells().count(),
         props.volume,
         names.iter().count()
     );
 
-    // A name lookup a user actually does: "where is the third
+    // A name lookup a user actually does: "where is the second
     // patterned post's end face?" The answer is one instance-qualified
     // name away — the pattern's `Instance(i)` segment wrapping the
     // part's own cap name (N1 x the GQ4 wrapper).
@@ -573,26 +594,26 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     );
     let indexed: Vec<&StableName> = caps
         .iter()
-        .filter(|n| matches!(n.path.first(), Some(RoleSeg::Instance { i: 2, .. })))
+        .filter(|n| matches!(n.path.first(), Some(RoleSeg::Instance { i: 1, .. })))
         .collect();
     assert_eq!(
         indexed.len(),
         1,
-        "instance 2 has exactly one post top cap: {caps:?}"
+        "instance 1 has exactly one post top cap: {caps:?}"
     );
     let pose = pncad::select::face_frame(&ev, pattern, indexed[0])
         .expect("the named face answers with its frame");
     println!(
-        "   [layout] name lookup: pattern instance 2's post cap sits at \
+        "   [layout] name lookup: pattern instance 1's post cap sits at \
          ({:.3}, {:.3}, {:.3}) m",
         pose.origin.x, pose.origin.y, pose.origin.z
     );
-    // Two 200 mm pattern steps along +y put instance 2's post between
-    // y = 0.4 and y = 0.4 + section; its cap frame's origin lies on
+    // One 200 mm pattern step along +y puts instance 1's post between
+    // y = 0.2 and y = 0.2 + section; its cap frame's origin lies on
     // that face.
     assert!(
-        (0.4..=0.4 + POST_SECTION).contains(&pose.origin.y),
-        "the third post is two 200 mm steps along +y, measured {}",
+        (0.2..=0.2 + POST_SECTION).contains(&pose.origin.y),
+        "the second post is one 200 mm step along +y, measured {}",
         pose.origin.y
     );
 
@@ -1443,7 +1464,7 @@ fn post_pin_of(doc: &ProfileDoc, node: RecipeNodeId) -> pncad::document::Content
 
 // ---- The round trip ----
 
-/// Saves each assembly through the current schema, loads it back, and
+/// Saves each assembly through the persistence door, loads it back, and
 /// evaluates the loaded document: same census, same volume bits, same
 /// gate verdict. A document is a value on disk, or it is not a
 /// document.
@@ -1479,10 +1500,9 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
         );
     }
     println!(
-        "   [{label}] {} bytes through schema v{}: reloaded and re-evaluated identically \
-         ({} names, V bit-equal)",
+        "   [{label}] {} bytes through the persistence door: reloaded and re-evaluated \
+         identically ({} names, V bit-equal)",
         text.len(),
-        pncad::document::SCHEMA_VERSION,
         names.iter().count()
     );
 }
@@ -1548,54 +1568,47 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     update_door(&mut ws, &stand, parts.shelf, tol);
 
-    vec![
-        Stop {
-            name: "bench",
-            caption: "the bench (2 parts, 2 mates)".to_string(),
-            montage: true,
-            story: "an ASSEMBLY document: two instances of a post document and one of a \
-                    shelf document, the shelf SEATED on both by mates — only the gauge \
-                    post carries an authored frame, the other two poses are solved",
-            ops: "post.pncad + shelf.pncad -> InstantiatePart x3 (pinned) -> Mate x2 \
-                  (Rest, frame-coincidence) -> constructive solve -> A10 product gather",
-            delta: 4e-3,
-            note: Some(format!(
-                "3 solids, V = {:.6} m^3; the mates mint their Rest declarations into the \
-                 product's contact record set, and the A5 at-rest gate CERTIFIES them — \
-                 each post is seated flush with a shelf end, and a declared planar pair \
-                 with no shared chart is answered on the two descriptions' world carrier",
-                2.0 * POST_VOLUME + SHELF_VOLUME
-            )),
-            view: View {
-                elev: 20.0,
-                azim: -58.0,
-                up: 'z',
-            },
-            bodies: vec![stand_body],
+    // ONE cell for both framings. The assembled bench and the flat-pack
+    // are the same two part documents answering two questions — what
+    // the mates solve, and what ships — and two independently-scaled
+    // panels make them look like two subjects. The flat-pack's offset
+    // is AUTHORED into its placements (see `layout_doc`), where a
+    // layout's placements are its subject.
+    vec![Stop {
+        name: "bench",
+        caption: "the bench — assembled, and flat-packed".to_string(),
+        montage: true,
+        story: "an ASSEMBLY document: two instances of a post document and one of a \
+                shelf document, the shelf SEATED on both by mates — only the gauge post \
+                carries an authored frame, the other two poses are solved. Beside it \
+                the same two part documents laid out for shipping: ONE post instance \
+                patterned TWICE plus the shelf, nothing touching, which is A5's \
+                disjoint half where the at-rest gate passes outright — the SAME two \
+                parts the bench assembles, so 'the same parts, flat-packed' is true of \
+                the parts and not only of the documents",
+        ops: "post.pncad + shelf.pncad -> InstantiatePart x3 (pinned) -> Mate x2 \
+              (Rest, frame-coincidence) -> constructive solve -> A10 product gather; \
+              and InstantiatePart (explicit rotated frame) -> LinearPattern(2) + \
+              InstantiatePart (explicit frame) -> A10 product gather -> assemble",
+        delta: 4e-3,
+        note: Some(format!(
+            "ASSEMBLED: 3 solids, V = {:.6} m^3; the mates mint their Rest \
+             declarations into the product's contact record set, and the A5 at-rest \
+             gate CERTIFIES them — each post is seated flush with a shelf end, and a \
+             declared planar pair with no shared chart is answered on the two \
+             descriptions' world carrier. FLAT-PACKED: 4 solids, V = {:.6} m^3; every \
+             product entity answers to an instance-qualified name (the pattern's \
+             Instance(i) over the part's own)",
+            2.0 * POST_VOLUME + SHELF_VOLUME,
+            2.0 * POST_VOLUME + SHELF_VOLUME
+        )),
+        view: View {
+            elev: 22.0,
+            azim: -60.0,
+            up: 'z',
         },
-        Stop {
-            name: "benchlayout",
-            caption: "the same parts, flat-packed".to_string(),
-            montage: true,
-            story: "the same two documents laid out for shipping — ONE post instance \
-                    patterned four ways plus the shelf, nothing touching: A5's disjoint \
-                    half, where the at-rest gate passes outright",
-            ops: "InstantiatePart (explicit rotated frame) -> LinearPattern(4) + \
-                  InstantiatePart (explicit frame) -> A10 product gather -> assemble",
-            delta: 4e-3,
-            note: Some(format!(
-                "5 solids, V = {:.6} m^3; every product entity answers to an \
-                 instance-qualified name (the pattern's Instance(i) over the part's own)",
-                4.0 * POST_VOLUME + SHELF_VOLUME
-            )),
-            view: View {
-                elev: 26.0,
-                azim: -62.0,
-                up: 'z',
-            },
-            bodies: vec![layout_body],
-        },
-    ]
+        bodies: vec![stand_body, layout_body],
+    }]
 }
 
 /// The four AUTHORED documents of this scene, written into `dir` as a
