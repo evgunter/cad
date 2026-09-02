@@ -6,8 +6,8 @@ metadata:
 ---
 
 **A refusal's text — or any prose naming a blocker — is not evidence
-of its cause. The payload and the raising site are.** Six instances
-by 2026-08-28, each found the same way (someone measured
+of its cause. The payload and the raising site are.** Seven instances
+by 2026-09-01, each found the same way (someone measured
 instead of trusting the sentence) and each with the same tell: the
 assumed fix had nothing to act on.
 
@@ -38,6 +38,17 @@ assumed fix had nothing to act on.
    diagnosis. The cross-orchestrator corollary: the lesson applies to
    PEER filings exactly as to one's own — an ack that repeats a
    claim is a second publication of it.
+7. #1057's own filing, refuted by the VERBS-C5ARMS survey — the
+   second instance caught in a spec's OPENING rather than a probe:
+   all three of the issue's premises measured FALSE ("blocking the
+   Klein wall-pair debt" — the walls it cites are the boolean
+   operand gate, which never reads `route`; "the flare adds
+   cone×cylinder" — the bulb meridian has no such adjacency; the
+   teapot-spout consumer — skew, gated, and against a SPHERE since
+   the bellied pot). And the dispatch-time measurement then moved
+   the target again: the flip's next door was `ReanchorOffCarrier`
+   (real 0.85–6.1 mm per-chart corner errors), which TORAX had to
+   retire before the arm had a consumer at all.
 
 **How to apply:** the measure-first checkpoint is mandatory before
 building against any stated blocker — run the failing operation, read
