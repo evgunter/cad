@@ -199,40 +199,44 @@ pub enum TessellateError {
     },
     /// A curved face's boundary walk does not trace its own UV
     /// bounding rectangle: some walk entry lies strictly inside the
-    /// box, so the domain is notched / L-shaped rather than the swept
-    /// UV rectangle the `curved` lane's interior grid assumes.
+    /// box, by more than the band, on a face whose domain the SHAPE
+    /// door ([`Self::UnsupportedCurvedShape`]) has already certified
+    /// as an iso-rectangle.
     ///
-    /// Valid input, unbuilt lane (D2 addendum row 2), NOT corruption.
-    /// The grid runs the open ranges `1..nu` × `1..nv` over the walk's
-    /// own bounding box, which is strictly interior **iff the polygon
-    /// IS that box**; on a notched domain the grid instead splits
-    /// boundary constraints and `inner_faces()` emits triangles
-    /// outside the face — a silently wrong mesh (a 3-D T-junction plus
-    /// ghost geometry), which is what this refusal replaces. It is the
-    /// `curved`-chart twin of [`Self::SelfTouchingTrimLoop`].
+    /// **This is the WALK-CONSISTENCY question, and only that.** The
+    /// shape question is asked first, on rim structure, through
+    /// `geom_brep::props::require_iso_rectangle`; what is left for this
+    /// arm is a polygon that should be a rectangle and is not. The grid
+    /// runs the open ranges `1..nu` × `1..nv` over the walk's own
+    /// bounding box, which is strictly interior **iff the polygon IS
+    /// that box**; on one that is not, the grid instead splits boundary
+    /// constraints and `inner_faces()` emits triangles outside the face
+    /// — a silently wrong mesh (a 3-D T-junction plus ghost geometry),
+    /// which is what this refusal replaces. It is the `curved`-chart
+    /// twin of [`Self::SelfTouchingTrimLoop`].
     ///
-    /// No at-rest construction in tree mints a genuinely NOTCHED such
-    /// domain today: the boolean refuses `CurvedPierceUnsupported` and
-    /// `import_step`'s tier-3 gate refuses `NotIsoRectangle`.
-    /// Both of those are *other modules'* limits; this arm is the
-    /// check at the site that makes the assumption.
+    /// **Two things can still trip it, and the payload separates
+    /// them.** A walk that failed to keep an iso side straight lands a
+    /// hair inside its box — sub-ε is absorbed by the band, and above
+    /// it [`Self::UnsupportedCurvedDomain::max_distance`] near ε is a
+    /// kernel bug report. An iso-bounded loop the rim predicate cannot
+    /// see lands a FEATURE width inside it: a zero-width slit (two
+    /// meridians up and down one column to an interior level) has
+    /// every rim at an extreme and passes the shape door, and its tip
+    /// is a walk entry strictly inside the box. That is valid input in
+    /// a lane not built for it (D2 addendum row 2), and re-authoring
+    /// the face is the recourse.
     ///
-    /// **Those gates are not why the arm stays quiet, and an earlier
-    /// form of this doc claimed otherwise.** Bodies whose walk landed
-    /// microscopically off their own UV box passed both gates freely
+    /// **The band, and why it stays.** Bodies whose walk landed
+    /// microscopically off their own UV box passed every upstream gate
     /// and reached this lane every day — a swept body plus
     /// `topo::Body::split_edge`, or a STEP file stating one face
-    /// boundary as two collinear `EDGE_CURVE`s (what an exporter emits
-    /// whenever a vertex lands on that edge), either one placed
+    /// boundary as two collinear `EDGE_CURVE`s, either one placed
     /// obliquely. An iso side carried by several edges was only
-    /// *analytically* straight, so on those an EXACT comparison
-    /// refused valid parts — measured false refusals at 1e-17 m
-    /// (issue #653). The comparison is therefore BANDED, in metres,
-    /// against the run's ε, and
-    /// [`Self::UnsupportedCurvedDomain::max_distance`] is what says
-    /// which side of that band a refusal came from.
-    ///
-    /// **#653's option 2 then fixed the wobble at its source**
+    /// *analytically* straight, so on those an EXACT comparison refused
+    /// valid parts — measured false refusals at 1e-17 m (issue #653).
+    /// The comparison is therefore BANDED, in metres, against the run's
+    /// ε. Issue 653's option 2 then fixed the wobble at its source
     /// (`walk::iso_side_starts`: one coordinate per iso side, not per
     /// edge), so every walk this build produces sits on its box
     /// bitwise and the band no longer separates anything in tree. It
@@ -256,6 +260,62 @@ pub enum TessellateError {
         /// means the kernel handed this lane a domain it should have
         /// kept rectangular, and is a bug report.
         max_distance: f64,
+    },
+    /// A curved face's domain is not an iso-parameter rectangle, by
+    /// props' named shape predicate — `geom_brep::props::
+    /// require_iso_rectangle`, the S58 single home of `props_rim_level`
+    /// and of the per-kind rim/meridian classification under it. The
+    /// `source` is props' own refusal, carrying the `what` the flux
+    /// lane would report for the same face.
+    ///
+    /// **This is the SHAPE question**, asked on the face's rim structure
+    /// BEFORE the boundary walk runs. The swept-rectangle lane cites the
+    /// predicate itself (issue 727): the line that changes when the
+    /// certified-quadrature lane learns notched domains is
+    /// `curved::require_iso_rectangle_face`'s call in this crate, not a
+    /// floor in the boolean or in tier 3 that could vanish without a
+    /// line of `mesh` moving. [`Self::UnsupportedCurvedDomain`] is the
+    /// other question — did the walk trace the rectangle the door
+    /// certified — and is asked after.
+    ///
+    /// Valid input, unbuilt lane (D2 addendum row 2): a keyway or a
+    /// milled flat on a cylinder is iso-bounded and not a rectangle,
+    /// and the lane that would mesh it is the one that would measure
+    /// it, the certified-quadrature lane. An `Escalated` source is the
+    /// same refusal one band-width away (D4: escalate, never guess).
+    ///
+    /// Naming: this arm is the SHAPE question and
+    /// [`Self::UnsupportedCurvedDomain`] the WALK question, though
+    /// "domain" would read as the shape. The older arm keeps its name
+    /// because it is public API with a stable python tag
+    /// (`unsupported_curved_domain`) and pinned rows in three crates;
+    /// renaming it would move all of that for a word. The two docs
+    /// carry the distinction instead.
+    UnsupportedCurvedShape {
+        /// The offending face.
+        face: FaceKey,
+        /// props' refusal: which structural expectation failed.
+        source: geom_brep::props::PropsError,
+    },
+    /// The run's tolerance cannot form props' linear decision band —
+    /// K·ε overflows. A configuration failure of the run rather than a
+    /// statement about the body (the twin of
+    /// `topo::MassPropsError::Band`), surfaced typed because the shape
+    /// door decides against that band.
+    ///
+    /// Reachable only from the environment: ε within a factor K of
+    /// `f64::MAX` (`CAD_TOLERANCE_EPS`), and then on EVERY body, the
+    /// empty one included, because the band is minted once at
+    /// operation entry (its documented calling convention) rather
+    /// than on the first curved face. Minting lazily would let an
+    /// all-planar body mesh under an ε no predicate could decide with,
+    /// and make the refusal depend on face order; a run configured
+    /// past `f64` is refused before it meshes anything, uniformly.
+    /// Kept as a typed arm because `Band::linear` is fallible by
+    /// contract and `Tol` promises only a finite positive ε.
+    Band {
+        /// The band construction failure.
+        error: geom_core::BandError,
     },
 }
 
@@ -352,10 +412,27 @@ impl core::fmt::Display for TessellateError {
                  own UV rectangle — {off_bbox} walk entries lie strictly \
                  inside it, the first at chart (u = {u:e}, v = {v:e}), by up to \
                  {max_distance:e} m. The interior grid assumes the swept \
-                 rectangle, so a notched domain is refused rather than meshed \
-                 with ghost triangles: a feature-sized distance means the face \
-                 really is notched — re-author it, or wait for the lane — while \
-                 a distance near ε is a kernel bug report",
+                 rectangle, so a polygon that is not one is refused rather \
+                 than meshed with ghost triangles. The face's rim structure \
+                 passed props' iso-rectangle door, so a feature-sized distance \
+                 means an iso-bounded loop that predicate cannot see (a \
+                 zero-width slit) — re-author it — while a distance near ε is \
+                 a kernel bug report",
+            ),
+            Self::UnsupportedCurvedShape { source, .. } => write!(
+                f,
+                "tessellate: a curved face's domain is not an iso-parameter \
+                 rectangle by props' shape predicate ({source}) — the \
+                 swept-rectangle lane meshes chart rectangles only, and a \
+                 notched or L-shaped iso domain waits for the certified-\
+                 quadrature lane; split the face into rectangles or re-author \
+                 it",
+            ),
+            Self::Band { error } => write!(
+                f,
+                "tessellate: the run's tolerance cannot form the decision band \
+                 props classifies with ({error}) — a configuration failure of \
+                 the run, not a statement about the body",
             ),
         }
     }

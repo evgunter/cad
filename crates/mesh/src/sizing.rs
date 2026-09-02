@@ -81,16 +81,26 @@
 //! refinement budgets.
 
 use crate::types::TessellateError;
-use geom_core::Tol;
+use geom_core::{Band, Tol};
 
 /// **The kernel ε, carried as a band with four named operations —
 /// this crate's whole ε vocabulary.**
 ///
 /// The band is a length in metres, in a private field, and the four
 /// methods below are the only operations on it — so **a `mesh` read of
-/// ε is one of the four or it does not compile**, and the crate's ε
-/// inventory IS those methods, which is what `mesh/tests/all.rs`'s
-/// `the_eps_inventory_is_pinned` counts.
+/// ε through this type is one of the four or it does not compile**,
+/// and the crate's ε inventory IS those methods, which is what
+/// `mesh/tests/all.rs`'s `the_eps_inventory_is_pinned` counts.
+///
+/// **The bound of that claim.** ε also reaches `mesh` as
+/// [`SizingTols::band`] — props' `Band`, ε AND K, minted from the same
+/// `Tol` — and leaves it unread: `mesh` hands it to
+/// `geom_brep::props::require_iso_rectangle` and decides nothing
+/// against it. The inventory pin counts `eps` identifier carriers and
+/// the four method reads per file; it does not count `band`, `Band`
+/// or K, so a decision written against the band in this crate would
+/// be a bypass the pin cannot see. None exists; the field's doc is the
+/// obligation.
 ///
 /// **The scalar is not sealed in, and the honest bound is narrower
 /// than "no way back".** [`Display`](core::fmt::Display) emits a
@@ -327,6 +337,15 @@ pub(crate) struct SizingTols {
     /// what its reads may do, [`Eps`] for the four they are spelled
     /// with, and `the_eps_inventory_is_pinned` for where they are.
     pub eps: Eps,
+    /// The linear decision band props classifies with, minted from
+    /// the same [`Tol`] as `eps` at operation entry (the calling
+    /// convention `Band::linear` prescribes). Consumed by exactly one
+    /// site — `curved`'s shape door, which hands it to
+    /// `geom_brep::props::require_iso_rectangle` — and by no rule of
+    /// this crate's own: `mesh` decides nothing against it, it carries
+    /// props' band to props' predicate. Not an ε read of this crate,
+    /// and the inventory pin does not count it as one.
+    pub band: Band,
 }
 
 /// The sizing target δ_s for a call's chordal tolerance δ.

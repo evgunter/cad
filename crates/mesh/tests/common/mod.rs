@@ -5,6 +5,10 @@
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
+/// The Euler-door witnesses the iso-rectangle shape door is measured
+/// on, shared with `curved`'s in-crate rows (its own header says how).
+pub mod witness_bodies;
+
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2};

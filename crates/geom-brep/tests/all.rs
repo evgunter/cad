@@ -220,3 +220,8 @@ mod cert_n2r2_class3_probes;
 
 #[path = "cert_n2r2_class56_probes.rs"]
 mod cert_n2r2_class56_probes;
+
+#[path = "iso_rectangle_door.rs"]
+mod iso_rectangle_door;
+#[path = "r2_mesh7_door_probes.rs"]
+mod r2_mesh7_door_probes;
