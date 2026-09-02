@@ -62,7 +62,7 @@
 
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId,
+    ProgramArrival, ProgramStep, ProgramTarget, SlotId,
 };
 use profile::{ArcMode, SketchPlane, Verb};
 
@@ -161,6 +161,10 @@ fn chain_steps() -> Vec<ProgramStep> {
         ProgramStep::Line(len(1.0)),
         ProgramStep::LineTo(point(1.0, 0.0)),
         ProgramStep::ContinueTo(point(2.0, 0.0)),
+        // The seam's two declared arrivals, so the corpus the wire
+        // round-trip and the slot bijection walk carries them.
+        ProgramStep::ContinueTo(ProgramTarget::StartArriving(ProgramArrival::Straight)),
+        ProgramStep::TangentArcTo(ProgramTarget::StartArriving(ProgramArrival::Tangent)),
     ];
     steps.extend(
         ArcMode::ALL
@@ -270,6 +274,103 @@ fn every_table_verb_is_a_document_program() {
          census ever carried (`ContinueTo`, waiting on a format change) landed with the \
          seam's declared arrival, and an empty escape hatch is a hatch that will be used"
     );
+}
+
+/// **The TARGET census**, on the mode census's model and for its
+/// reasons verbatim one level down.
+///
+/// `res_target` matches the document target vocabulary and CONSTRUCTS
+/// the kernel one, so an arm that builds a NEIGHBOUR's form is
+/// well-typed, ships, and silently re-authors the seam — a `Start` that
+/// resolved to `StartArriving(Straight)` would close a loop declaring
+/// something the author never wrote. Comparing the resolved form
+/// against the form asked for is what catches that, and it is exactly
+/// what the mode census does for `ArcData`.
+///
+/// The roster is a MATCH rather than a list, so a target form the
+/// kernel gains stops this file compiling instead of quietly not being
+/// censused. The corpus clause is the mode census's second half for the
+/// same reason: the wire round-trip and the slot bijection walk
+/// `corpus()`, and neither says anything about a form the corpus omits.
+#[test]
+fn every_target_form_is_a_document_program() {
+    /// Every document target, with the kernel form it must resolve to.
+    /// Exhaustive by construction: adding a `ProgramTarget` variant
+    /// without a witness here fails to compile at the match below.
+    fn witnesses() -> Vec<(ProgramTarget, &'static str)> {
+        let all = [
+            ProgramTarget::Point([
+                Expr::literal(1.0, Dimension::Length).unwrap(),
+                Expr::literal(2.0, Dimension::Length).unwrap(),
+            ]),
+            ProgramTarget::Start,
+            ProgramTarget::StartArriving(ProgramArrival::Straight),
+            ProgramTarget::StartArriving(ProgramArrival::Tangent),
+        ];
+        all.into_iter()
+            .map(|t| {
+                let name = match &t {
+                    ProgramTarget::Point(_) => "Point",
+                    ProgramTarget::Start => "Start",
+                    ProgramTarget::StartArriving(ProgramArrival::Straight) => "Straight",
+                    ProgramTarget::StartArriving(ProgramArrival::Tangent) => "Tangent",
+                };
+                (t, name)
+            })
+            .collect()
+    }
+
+    for (target, name) in witnesses() {
+        let program = ProfileProgram {
+            plane: SketchPlane::xy(),
+            loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(target)])],
+        };
+        let resolved = program
+            .resolve(&ParamEnv::<f64>::default())
+            .expect("a one-step target witness resolves at f64");
+        let profile::Step::LineTo(got) = &resolved[0][0] else {
+            panic!("the witness for {name} lifted to something other than a straight leg");
+        };
+        let got_name = match got {
+            profile::Target::Point(_) => "Point",
+            profile::Target::Start => "Start",
+            profile::Target::StartArriving(profile::Arrival::Straight) => "Straight",
+            profile::Target::StartArriving(profile::Arrival::Tangent) => "Tangent",
+        };
+        assert_eq!(
+            got_name, name,
+            "the document target {name} resolved to {got_name}"
+        );
+    }
+
+    // The corpus clause: which forms the generated corpus actually
+    // carries, so a form present in the vocabulary and absent from the
+    // corpus is visible rather than assumed.
+    let seen: Vec<&'static str> = corpus()
+        .resolve(&ParamEnv::<f64>::default())
+        .expect("the corpus resolves at f64")
+        .iter()
+        .flat_map(|loop_| loop_.iter())
+        .filter_map(|step| match step {
+            profile::Step::LineTo(t)
+            | profile::Step::ContinueTo(t)
+            | profile::Step::TangentArcTo(t) => Some(t),
+            profile::Step::ArcTo(spec) => spec.target(),
+            _ => None,
+        })
+        .map(|t| match t {
+            profile::Target::Point(_) => "Point",
+            profile::Target::Start => "Start",
+            profile::Target::StartArriving(profile::Arrival::Straight) => "Straight",
+            profile::Target::StartArriving(profile::Arrival::Tangent) => "Tangent",
+        })
+        .collect();
+    for form in ["Point", "Start", "Straight", "Tangent"] {
+        assert!(
+            seen.contains(&form),
+            "the corpus carries no {form} target: {seen:?}"
+        );
+    }
 }
 
 /// **The mode census.** Every arc mode the kernel vocabulary declares

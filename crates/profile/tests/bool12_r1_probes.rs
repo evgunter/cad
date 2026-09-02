@@ -79,7 +79,10 @@ fn r1_the_seam_arrival_escalation_inherits_the_junction_tail() {
     // is already made, and a LARGER tolerance is what admits the miss.
     assert!(msg.contains("the declaration is the target"), "{msg}");
     assert!(msg.contains("widen the input tolerance"), "{msg}");
-    assert!(msg.contains("LOWERING the tolerance is the wrong direction"), "{msg}");
+    assert!(
+        msg.contains("LOWERING the tolerance is the wrong direction"),
+        "{msg}"
+    );
 }
 
 // ------------------------------------------------------------------
@@ -203,10 +206,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     let refused = fan(true);
     println!("R1: straight arrival into an arc first side -> {refused:?}");
     assert!(
-        matches!(
-            refused,
-            Err(PathError::SeamArrivalNeedsStraightFirstSide)
-        ),
+        matches!(refused, Err(PathError::SeamArrivalNeedsStraightFirstSide)),
         "{refused:?}"
     );
     let msg = refused.unwrap_err().to_string();

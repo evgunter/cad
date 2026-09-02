@@ -386,9 +386,7 @@ fn the_levered_threshold_does_not_drift_with_leg_length() {
         let refused = tilted_close(100.0 * k_eps, arm);
         match refused {
             Err(PathError::SeamArrivalOffDirection {
-                margin,
-                arm: lever,
-                ..
+                margin, arm: lever, ..
             }) => {
                 assert!(
                     (margin.abs() - 100.0 * k_eps).abs() < 1e-9 * k_eps.max(1.0),

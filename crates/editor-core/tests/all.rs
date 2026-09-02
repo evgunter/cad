@@ -66,6 +66,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "bool12r2_ec_probe.rs"]
+mod bool12r2_ec_probe;
 #[path = "bool13_r1_probes.rs"]
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
@@ -248,8 +250,6 @@ mod mate6r2_probes;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
-#[path = "bool12r2_ec_probe.rs"]
-mod bool12r2_ec_probe;
 
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;

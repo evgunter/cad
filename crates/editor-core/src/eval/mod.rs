@@ -2901,6 +2901,52 @@ mod verb_tag_tests {
     /// [`profile::Verb::ALL`], so a verb the table gains is measured
     /// here the moment `verb_tag` grows an arm for it.
     #[test]
+    /// **The seam-arrival target tags are reachable and distinct.**
+    /// Tags 43 and 44 are appended past 42, the previous high-water
+    /// mark, rather than squeezed in beside `Start` (4) and `Point` (5),
+    /// because the space is append-only and renumbering re-keys every
+    /// program using the tags in between (D365).
+    ///
+    /// This EXECUTES them. Both hashers are otherwise reached only by
+    /// evaluating a document node that carries the new target, which
+    /// nothing in the tree does, so without this row the two arms are
+    /// compiled and never run — and two arms that write the same tag
+    /// would alias two different seams into one content key.
+    #[test]
+    fn the_seam_arrival_target_tags_are_distinct_and_executed() {
+        use super::memo::KeyHasher;
+        use super::{feed_lane_step, feed_step};
+        use profile::{Arrival, Step, Target};
+        let key = |t: Target<f64>| {
+            let mut h = KeyHasher::new();
+            feed_step(&mut h, &Step::LineTo(t));
+            h.finish()
+        };
+        let start = key(Target::Start);
+        let straight = key(Target::StartArriving(Arrival::Straight));
+        let tangent = key(Target::StartArriving(Arrival::Tangent));
+        assert_ne!(start, straight, "Start and a declared straight arrival");
+        assert_ne!(start, tangent, "Start and a declared G1 arrival");
+        assert_ne!(straight, tangent, "the two declared arrivals");
+        // The LANE hasher treats all three as structural — no lane data
+        // rides them — so its keys agree, which is the property that
+        // makes a bisecting lane's memo sound.
+        let lane = |t: Target<f64>| {
+            let mut h = KeyHasher::new();
+            feed_lane_step(&mut h, &Step::LineTo(t));
+            h.finish()
+        };
+        assert_eq!(
+            lane(Target::Start),
+            lane(Target::StartArriving(Arrival::Straight))
+        );
+        assert_eq!(
+            lane(Target::Start),
+            lane(Target::StartArriving(Arrival::Tangent))
+        );
+    }
+
+    #[test]
     fn verb_tags_are_injective() {
         let mut seen: Vec<(profile::Verb, u8)> = Vec::new();
         for verb in profile::Verb::ALL {

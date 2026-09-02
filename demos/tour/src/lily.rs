@@ -707,12 +707,14 @@ fn leaf_a_plan() -> Plan {
             ridge: 0.028,
             keel: 0.020,
             shoulder: 1.0,
+            corners: Corners::Shoulders,
         },
         belly: Section {
             width: 0.420,
             ridge: 0.034,
             keel: 0.016,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         belly_at: 0.22,
         tip: Section {
@@ -720,6 +722,7 @@ fn leaf_a_plan() -> Plan {
             ridge: 0.010,
             keel: 0.006,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         roll0: 0.0,
         twist: deg(160.0),
@@ -841,6 +844,45 @@ fn leaf<S: Scalar>(
 /// so the two shapes must be spelled on a common vertex budget. The
 /// collinear vertices at `shoulder = 0` are exact, not approximate —
 /// a midpoint of two authored points.
+/// Which vertices of a [`Section`]'s eight-vertex ring the outline
+/// actually TURNS at — a structural property of the section the PLAN
+/// authors, not a fact to be read back off its coordinates.
+///
+/// It has to be authored rather than derived, and the reason is
+/// measured: deriving it from `shoulder == 0.0` / `== 1.0` is an exact
+/// float compare on a LERPED parameter, and a section whose shoulder
+/// lands a hair off an endpoint has a junction inside the tangency band
+/// that the algebra correctly refuses. R2's review measured the knife
+/// edge (shoulder 1e-6 authors, 1e-8 refuses `JunctionTangent`), and it
+/// is pinned as a row in `profile`'s `bool12r2_probes`. So the plan
+/// says which sections are the kite and which the rectangle, and
+/// [`Section::lerp`] carries that forward only where it is structurally
+/// true — at the ends of a blend, and through a blend whose two ends
+/// agree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Corners {
+    /// The kite: each shoulder is the midpoint of two tips, so the
+    /// shoulders SUBDIVIDE and the tips turn.
+    Tips,
+    /// The bounding rectangle: each tip lies on the edge its two
+    /// neighbouring corners span, so the tips subdivide and the
+    /// SHOULDERS turn.
+    Shoulders,
+    /// The eased sections in between: every vertex turns.
+    Every,
+}
+
+impl Corners {
+    /// Does the outline turn at ring index `i`? Even indices are tips.
+    fn turns_at(self, i: usize) -> bool {
+        match self {
+            Corners::Tips => i.is_multiple_of(2),
+            Corners::Shoulders => !i.is_multiple_of(2),
+            Corners::Every => true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Section {
     /// Chord length, margin to margin.
@@ -851,6 +893,9 @@ struct Section {
     keel: f64,
     /// 0 = kite, 1 = the bounding rectangle.
     shoulder: f64,
+    /// Which vertices this section turns at — authored beside
+    /// `shoulder`, never derived from it.
+    corners: Corners,
 }
 
 impl Section {
@@ -889,10 +934,11 @@ impl Section {
         // is what lets this section finally author through the
         // presented surface instead of the kernel's raw door.
         //
-        // Nothing here is inferred from a coordinate. The section knows
-        // its own shoulder parameter, and that parameter is what decides
-        // which vertices are corners; every declaration it makes is then
-        // CHECKED by the kernel against the points it authored.
+        // Nothing here is inferred from a coordinate. The corner set is
+        // AUTHORED beside the shoulder parameter (`Corners`, whose doc
+        // says why it is not derived from it), and every declaration
+        // this makes is then CHECKED by the kernel against the points
+        // the section authored.
         let p = |(x, y): (f64, f64)| Point2::new(x, y);
         let ring = [
             right,
@@ -904,16 +950,6 @@ impl Section {
             keel,
             shoulder(keel, right),
         ];
-        // Does the outline TURN at vertex `i`? Even indices are tips.
-        let turns = |i: usize| {
-            if self.shoulder == 0.0 {
-                i.is_multiple_of(2)
-            } else if self.shoulder == 1.0 {
-                !i.is_multiple_of(2)
-            } else {
-                true
-            }
-        };
         // The entry authors the first side; from there each leg is
         // named by the junction it DEPARTS — `line_to` where the
         // outline turns, `continue_to` where the side continues onto a
@@ -923,7 +959,7 @@ impl Section {
             .line_to(p(ring[1]), tol)
             .expect("the section's first side");
         for (i, v) in ring.iter().enumerate().skip(2) {
-            path = if turns(i - 1) {
+            path = if self.corners.turns_at(i - 1) {
                 path.line_to(p(*v), tol).expect("a section corner")
             } else {
                 path.continue_to(p(*v), tol).expect("a section subdivision")
@@ -933,7 +969,7 @@ impl Section {
         // its ARRIVAL is the junction at the entry, and the two are
         // independent: this family reaches three of the four
         // combinations across its own shoulder range.
-        let closed = match (turns(7), turns(0)) {
+        let closed = match (self.corners.turns_at(7), self.corners.turns_at(0)) {
             (true, true) => path.line_to(Start, tol),
             (true, false) => path.line_to(Start.arrives_straight(), tol),
             (false, true) => path.continue_to(Start, tol),
@@ -942,7 +978,14 @@ impl Section {
         vec![closed.expect("the section's seam").into()]
     }
 
-    /// Linear blend, field by field.
+    /// Linear blend, field by field — except the corner set, which is
+    /// STRUCTURAL and does not interpolate.
+    ///
+    /// It carries through only where it is true: at either END of the
+    /// blend (`s` at its own bounds, not a compare on a blended value),
+    /// and across a blend whose two ends already agree. Anywhere else
+    /// the outline turns at every vertex, which is what a section
+    /// strictly between a kite and a rectangle does.
     fn lerp(self, other: Self, s: f64) -> Self {
         let f = |a: f64, b: f64| a + (b - a) * s;
         Self {
@@ -950,6 +993,15 @@ impl Section {
             ridge: f(self.ridge, other.ridge),
             keel: f(self.keel, other.keel),
             shoulder: f(self.shoulder, other.shoulder),
+            corners: if s <= 0.0 {
+                self.corners
+            } else if s >= 1.0 {
+                other.corners
+            } else if self.corners == other.corners {
+                self.corners
+            } else {
+                Corners::Every
+            },
         }
     }
 }
@@ -1364,12 +1416,14 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             ridge: 0.014,
             keel: 0.008,
             shoulder: 1.0,
+            corners: Corners::Shoulders,
         },
         belly: Section {
             width: 0.265,
             ridge: 0.017,
             keel: 0.008,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         belly_at: 0.30,
         tip: Section {
@@ -1377,6 +1431,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             ridge: 0.006,
             keel: 0.004,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         // Appressed at the base (the face lies on the globe), rolling
         // its face outward toward the tip.
