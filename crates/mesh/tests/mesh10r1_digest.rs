@@ -36,7 +36,10 @@ fn hash_body(body: &Body<f64>, delta: f64) -> u64 {
     match mesh::tessellate(body, delta, Tol::witness()) {
         Ok(m) => {
             fnv(&mut h, m.positions.len() as u64);
-            fnv(&mut h, m.patches.iter().map(|q| q.triangles.len()).sum::<usize>() as u64);
+            fnv(
+                &mut h,
+                m.patches.iter().map(|q| q.triangles.len()).sum::<usize>() as u64,
+            );
             for p in &m.positions {
                 fnv(&mut h, p.x.to_bits());
                 fnv(&mut h, p.y.to_bits());

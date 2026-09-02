@@ -20,9 +20,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::props::{
-    CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle,
-};
+use geom_brep::props::{CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 
@@ -139,7 +137,10 @@ fn a_gap_between_the_pieces_of_a_chain_is_invisible_to_the_fold() {
     let ctl = flux_bits(&control());
     println!("control            : {ctl:?}");
     println!("honest split @0.7  : {honest:?}");
-    assert_eq!(honest, ctl, "the unit's own claim: an honest split is the control");
+    assert_eq!(
+        honest, ctl,
+        "the unit's own claim: an honest split is the control"
+    );
     for (name, m0, m1) in [
         ("gap [0.5, 0.9]", 0.5, 0.9),
         ("gap [0.3, 1.1]", 0.3, 1.1),
@@ -190,15 +191,12 @@ fn a_chain_that_closes_on_itself_is_cut_at_index_zero() {
         println!("rotation {k}: {got:?}");
         verdicts.push(got);
     }
-    println!(
-        "distinct verdicts over the three rotations: {}",
-        {
-            let mut v = verdicts.clone();
-            v.sort_unstable_by_key(|r| format!("{r:?}"));
-            v.dedup();
-            v.len()
-        }
-    );
+    println!("distinct verdicts over the three rotations: {}", {
+        let mut v = verdicts.clone();
+        v.sort_unstable_by_key(|r| format!("{r:?}"));
+        v.dedup();
+        v.len()
+    });
 }
 
 /// **Only the `t0`-end piece's stored circle reaches the answer.**
@@ -215,5 +213,8 @@ fn only_the_t0_end_pieces_carrier_reaches_the_answer() {
     lying[2] = tmer(0.5, 0.7, V1, 2, 3, Some(1));
     let got = flux_bits(&lying);
     println!("middle piece on another minor circle: {got:?}");
-    println!("door: {:?}", require_iso_rectangle(&torus(), &lying, band()));
+    println!(
+        "door: {:?}",
+        require_iso_rectangle(&torus(), &lying, band())
+    );
 }

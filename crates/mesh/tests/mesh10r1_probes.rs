@@ -53,7 +53,8 @@ fn receipts(body: &Body<f64>) -> Vec<Receipt> {
             let sense = if f.sense { 1.0 } else { -1.0 };
             (
                 format!("{fk:?}"),
-                geom_brep::props::require_iso_rectangle(s, &outer, band()).map_err(|e| format!("{e:?}")),
+                geom_brep::props::require_iso_rectangle(s, &outer, band())
+                    .map_err(|e| format!("{e:?}")),
                 geom_brep::props::curved_face(s, &outer, sense, band())
                     .map(|c| (c.flux.to_bits(), c.area.to_bits()))
                     .map_err(|e| format!("{e:?}")),
@@ -158,8 +159,12 @@ fn r1_split_seam_donut_mesh_measured() {
             .fold(0.0_f64, f64::max);
         println!(
             "edge {i} @{fracs:?}: positions {} (unsplit {}), tris {} (unsplit {}), \
-             watertight={wt:?}, only-unsplit {only_a}, only-split {only_b}, off-torus {worst:e}"
-        , m.positions.len(), m0.positions.len(), tris(&m), tris(&m0));
+             watertight={wt:?}, only-unsplit {only_a}, only-split {only_b}, off-torus {worst:e}",
+            m.positions.len(),
+            m0.positions.len(),
+            tris(&m),
+            tris(&m0)
+        );
         assert!(wt.is_ok());
     }
 }
@@ -218,10 +223,21 @@ fn r1_a_reparametrised_split_child_still_folds() {
                 .unwrap();
             println!("child stored interval after: {:?}", c2.params());
             let mp = topo::mass_properties(&body, tol);
-            println!("mass_properties: {:?}", mp.as_ref().map(|m| (m.volume, m.surface_area)));
-            println!("tessellate: {:?}", mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len()).map_err(|e| format!("{e:?}")));
+            println!(
+                "mass_properties: {:?}",
+                mp.as_ref().map(|m| (m.volume, m.surface_area))
+            );
+            println!(
+                "tessellate: {:?}",
+                mesh::tessellate(&body, 0.1, tol)
+                    .map(|m| m.positions.len())
+                    .map_err(|e| format!("{e:?}"))
+            );
             for r in receipts(&body) {
-                println!("  face {}: door={:?} flux={:?} side={:?}", r.0, r.1, r.2, r.3);
+                println!(
+                    "  face {}: door={:?} flux={:?} side={:?}",
+                    r.0, r.1, r.2, r.3
+                );
             }
             let m = mp.expect("mass_properties answers - it does not refuse");
             println!("V ratio to the unsplit donut: {}", m.volume / mp0.volume);
@@ -256,7 +272,10 @@ fn r1_a_reparametrised_unsplit_edge_control() {
         Err(e) => println!("unsplit +2π span: set_edge_curve REFUSED: {e:?}"),
         Ok(_) => {
             let mp = topo::mass_properties(&body, tol);
-            println!("unsplit +2π span accepted; mass_properties {:?}", mp.map(|m| m.volume));
+            println!(
+                "unsplit +2π span accepted; mass_properties {:?}",
+                mp.map(|m| m.volume)
+            );
         }
     }
 }
@@ -285,7 +304,9 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
     for (name, make) in corpus {
         let base = make();
         let r0 = receipts(&base);
-        let mp0 = topo::mass_properties(&base, tol).map(|m| (m.volume.to_bits(), m.surface_area.to_bits())).map_err(|e| format!("{e:?}"));
+        let mp0 = topo::mass_properties(&base, tol)
+            .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
+            .map_err(|e| format!("{e:?}"));
         let n = base.edges().count();
         for i in 0..n {
             for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
@@ -308,7 +329,9 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                     continue;
                 }
                 let r = receipts(&body);
-                let mp = topo::mass_properties(&body, tol).map(|m| (m.volume.to_bits(), m.surface_area.to_bits())).map_err(|e| format!("{e:?}"));
+                let mp = topo::mass_properties(&body, tol)
+                    .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
+                    .map_err(|e| format!("{e:?}"));
                 let same = r == r0 && mp == mp0;
                 if !same {
                     println!("{name} edge {i} @{fracs:?}: MOVED  mp={mp:?} vs {mp0:?}");
