@@ -93,6 +93,13 @@ When you do run locally:
   count from sources that were not yours, once behind a green claim over ten
   broken assertions. Confirm a `Compiling <crate>` line appears before trusting
   any run.
+- **Keep that target directory OUTSIDE the worktree** (`/home/user/<lane>-target`,
+  not `.lane-target/` inside the checkout): the repo's `.gitignore` covers
+  `/target` and a few named roots, not an arbitrary in-tree name, and a lane
+  that `git add -A`'d its build directory pushed 114 files of incremental
+  artefacts into its branch history — unfixable under merge-only rules except
+  by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
+  `git status` before every `git add`; never add with `-A` unattended.
 - **A build is not a test.** `cargo build` cannot see a broken
   `assert!(msg.contains(…))`. A lane that rewrote text asserted anywhere and ran
   only builds has verified nothing about it.

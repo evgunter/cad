@@ -577,16 +577,41 @@ fn probe_the_junction_pattern_really_alternates() {
     }
 }
 
-/// The exhaustive attack on the impossibility argument: for the real
-/// lily kite AND the real lily rectangle, try to author the closed
-/// outline through the lattice from EVERY starting vertex in BOTH
-/// traversal directions, with every closer the lattice owns. The PR
-/// claims none of the 16 spellings per section closes. If ONE does, the
-/// deviation was avoidable and that is a MAJOR.
+/// **The exhaustive hunt, re-run with the declared closer in the
+/// alphabet.** (BOOL-8 ran this with `line_to(Start)` as the only
+/// straight closer the lattice owned and recorded ZERO closures over 32
+/// spellings — 2 sections x 2 shoulder values x 8 starts x 2
+/// directions. The alphabet has grown; the row now measures what the
+/// growth bought, and what it did not.)
+///
+/// Two claims come out, and the second is the one that matters for
+/// lily:
+///
+/// 1. **The undeclared closer still closes nothing.** Every one of the
+///    32 spellings refuses with `line_to(Start)`, exactly as measured
+///    before — the declaration is what changed, not the geometry.
+/// 2. **The declared closer closes exactly the spellings whose seam is
+///    a CORNER**, which is what "a seam at a corner is sufficient"
+///    means — and those spellings sit at OPPOSITE PARITY in the kite
+///    (`shoulder = 0`) and the rectangle (`shoulder = 1`). In the kite
+///    the corners are the TIPS (even indices); in the rectangle they
+///    are the SHOULDERS (odd). So no single starting vertex closes both
+///    sections.
+///
+/// That second measurement is a finding about LILY, not about the
+/// closer: a loft matches segment j of every section to segment j of
+/// every other, so all of a plan's sections must be authored at ONE
+/// rotation. A plan carrying both a `shoulder = 1` base and a
+/// `shoulder = 0` belly therefore has no rotation that gives every
+/// section a corner at its seam — the parity flips between them and a
+/// uniform rotation cannot follow it. The remaining wall is PQ4's
+/// (a seam at a subdivision vertex is mid-carrier), which the ruling
+/// left standing deliberately.
 #[test]
 fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
     let t = Tol::witness();
-    let mut successes: Vec<String> = Vec::new();
+    let mut undeclared: Vec<String> = Vec::new();
+    let mut declared: Vec<(f64, f64, usize, bool)> = Vec::new();
     let mut attempts = 0usize;
     for (w, r, k) in [(0.170, 0.028, 0.020), (0.420, 0.034, 0.016)] {
         for shoulder in [0.0_f64, 1.0] {
@@ -605,32 +630,69 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
                             base[idx]
                         })
                         .collect();
-                    // `line_to(Start)` is the ONLY closer that keeps
-                    // the side straight: `.tangent()` binds the angle
-                    // slot and `line_to` is not available on a
-                    // Directed tip, and every other closer the table
-                    // owns (`arc_to(Start)`, `tangent_arc_to(Start)`,
-                    // `fillet(..).to(Start)`) mints an ARC, which is
-                    // not this outline.
+                    // Two straight closers now: the undeclared one,
+                    // which computes a direction and classifies it, and
+                    // the declared one, which takes the ray. Every
+                    // other closer the table owns (`arc_to(Start)`,
+                    // `tangent_arc_to(Start)`, `fillet(..).to(Start)`)
+                    // mints an ARC, which is not this outline.
                     attempts += 1;
                     if let Ok(tag) = try_author(&ring, Closer::LineTo, t) {
-                        successes.push(format!(
+                        undeclared.push(format!(
                             "w={w} shoulder={shoulder} start={start} rev={rev} closer={tag}"
                         ));
+                    }
+                    if try_author(&ring, Closer::ContinueTo, t).is_ok() {
+                        declared.push((w, shoulder, start, rev));
                     }
                 }
             }
         }
     }
     println!(
-        "probe: {attempts} authoring attempts across the seam; {} closed",
-        successes.len()
+        "probe: {attempts} rings; undeclared closed {}, declared closed {}",
+        undeclared.len(),
+        declared.len()
     );
     assert!(
-        successes.is_empty(),
-        "MAJOR: a spelling DOES close the subdivided outline — the lily \
-         deviation was avoidable: {successes:?}"
+        undeclared.is_empty(),
+        "the UNDECLARED closer must still close nothing — the declaration is what \
+         changed: {undeclared:?}"
     );
+    assert!(
+        !declared.is_empty(),
+        "the declared closer must close the spellings whose seam is a corner"
+    );
+    // The parity measurement, per section width.
+    for w in [0.170_f64, 0.420] {
+        let starts = |shoulder: f64| -> Vec<usize> {
+            let mut v: Vec<usize> = declared
+                .iter()
+                .filter(|(ww, sh, _, _)| *ww == w && *sh == shoulder)
+                .map(|(_, _, start, _)| *start)
+                .collect();
+            v.sort_unstable();
+            v.dedup();
+            v
+        };
+        let kite = starts(0.0);
+        let rect = starts(1.0);
+        println!("probe: w={w} kite closes at {kite:?}, rectangle closes at {rect:?}");
+        assert!(!kite.is_empty() && !rect.is_empty());
+        assert!(
+            kite.iter().all(|i| i % 2 == 0),
+            "the kite's corners are its TIPS (even indices): {kite:?}"
+        );
+        assert!(
+            rect.iter().all(|i| i % 2 == 1),
+            "the rectangle's corners are its SHOULDERS (odd indices): {rect:?}"
+        );
+        assert!(
+            kite.iter().all(|i| !rect.contains(i)),
+            "no starting vertex closes BOTH sections — the parity flips, and a loft \
+             pins one rotation for all of them: kite {kite:?} vs rectangle {rect:?}"
+        );
+    }
 }
 
 /// **The positive control for the exhaustive hunt above, and the
@@ -714,6 +776,11 @@ fn probe_positive_control_and_the_uneven_distribution_that_escapes_the_wall() {
 #[derive(Clone, Copy)]
 enum Closer {
     LineTo,
+    /// The DECLARED structural closer (BOOL-11): the leg says it is the
+    /// straight continuation and names `Start` as where it lands, so
+    /// the departure is checked against the ray rather than inferred
+    /// from it.
+    ContinueTo,
 }
 
 /// Author `ring` as a closed loop: `toward` at every vertex whose
@@ -759,6 +826,7 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
     // The closer, departing ring[n-1] and landing on ring[0] == Start.
     let lp = match closer {
         Closer::LineTo => chain.line_to(Start, t).map_err(|_| ())?,
+        Closer::ContinueTo => chain.continue_to(Start, t).map_err(|_| ())?,
     };
     let lp = pinned(lp);
     Profile::new(SketchPlane::xy(), vec![lp])
@@ -766,13 +834,16 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
         .map_err(|_| ())?;
     Ok(match closer {
         Closer::LineTo => "line_to(Start)",
+        Closer::ContinueTo => "continue_to(Start)",
     })
 }
 
-/// Reproduce the PR's two measured seam refusals and PRINT the actual
-/// error values, so the review can check the quoted
-/// `TangentLineClose { margin: -7.85e-17 }` and the claim that the two
-/// rotations refuse for two DIFFERENT stated reasons.
+/// Reproduce the two measured seam refusals of the UNDECLARED closer
+/// and PRINT the actual error values, so the quoted
+/// the quoted margin -7.85e-17 stays checked rather than
+/// taken — and so the claim that the two rotations refuse for two
+/// different reasons is now readable off the payload, which carries
+/// the site (`Departure` in A, `Seam` in B).
 #[test]
 fn probe_reproduce_the_measured_seam_wall_in_both_rotations() {
     let t = Tol::witness();
@@ -787,17 +858,20 @@ fn probe_reproduce_the_measured_seam_wall_in_both_rotations() {
     let err_b = author_to_the_closer(&ring_b, t);
     println!("probe: rotation B (seam at a subdivision) -> {err_b:?}");
     assert!(
-        matches!(err_a, Some(PathError::TangentLineClose { .. })),
-        "rotation A must refuse TangentLineClose, got {err_a:?}"
+        matches!(err_a, Some(PathError::JunctionTangent { .. })),
+        "rotation A must refuse at the closer's DEPARTURE — as an ORDINARY \
+         departure refusal, the same one a mid-chain tangent departure gets, \
+         got {err_a:?}"
     );
     assert!(
-        matches!(err_b, Some(PathError::TangentLineClose { .. })),
-        "rotation B must refuse TangentLineClose, got {err_b:?}"
+        matches!(err_b, Some(PathError::SeamTangent { .. })),
+        "rotation B must refuse at the SEAM, and `SeamTangent` is a refusal \
+         only a seam can produce, got {err_b:?}"
     );
 }
 
 /// The PR body quotes a measured margin,
-/// `TangentLineClose { margin: -7.85e-17 }`, for the seam wall. Its
+/// a tangent-band refusal at margin -7.85e-17, for the seam wall. Its
 /// fixture is not the real lily section but the suite's stand-in kite
 /// (`right`/`ridge`/`left`/`keel` at 1, 1.5, 1). Reproduce THAT number
 /// against THAT fixture, so the quoted figure is checked rather than
@@ -820,8 +894,12 @@ fn probe_reproduce_the_quoted_margin_on_the_suites_own_fixture() {
     let rot: Vec<Point2<f64>> = (0..8).map(|j| ring[(1 + j) % 8]).collect();
     let err_b = author_to_the_closer(&rot, t);
     println!("probe: PR-fixture rotation B margin -> {err_b:?}");
-    assert!(matches!(err, Some(PathError::TangentLineClose { .. })));
-    assert!(matches!(err_b, Some(PathError::TangentLineClose { .. })));
+    // Rotation A is the closer's DEPARTURE, rotation B is the SEAM, and
+    // since the seam wall's departure half collapsed they are different
+    // TYPES rather than one type carrying a site tag — so this pins them
+    // by type and no payload needs reading.
+    assert!(matches!(err, Some(PathError::JunctionTangent { .. })));
+    assert!(matches!(err_b, Some(PathError::SeamTangent { .. })));
 }
 
 fn author_to_the_closer(ring: &[Point2<f64>], t: Tol) -> Option<PathError<f64>> {

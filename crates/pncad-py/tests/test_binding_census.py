@@ -735,8 +735,9 @@ FAMILIES = {
 #:   pair to name. `PartialPath` is the Rust lattice's one type where
 #:   Python has one CLASS PER STATE (`PathOpen`, `PathPoint`,
 #:   `PathDirectedPoint`, …), which is §L4's typestate translation.
-#:   `LineTarget` and `TangentArcTarget` are absorbed into the verbs
-#:   that take them, and `bulge_from_center`/`bulge_from_via` into the
+#:   `LineTarget`, `ContinueTarget` and `TangentArcTarget` are absorbed
+#:   into the verbs that take them, and
+#:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `DocParam.length`/`angle`/`count`/`scalar` choose between;
 #:   `SlotId` is what `DocEdit.bind_count_param` names implicitly;
@@ -909,6 +910,11 @@ NOT_BOUND = {
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
+    # `continue_to`'s target trait, absorbed into the verb exactly as
+    # `LineTarget` and `TangentArcTarget` are — and the verb itself is
+    # not bound in Python yet either (the Rust-side roster records
+    # that, `surface_census.rs`).
+    "ContinueTarget": SHAPE,
     "LoftError": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,

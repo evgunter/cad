@@ -354,10 +354,6 @@ enum Spelling {
     /// [`the_not_bound_roster_decays`] is the other half, and it is
     /// the half `test_binding_census.py`'s `test_the_rosters_decay`
     /// already models for its own `NOT_BOUND`.
-    #[allow(
-        dead_code,
-        reason = "the roster's second shape; armor for its first user, with no member unbound today"
-    )]
     NotBound {
         /// What a caller would write if this member were bound —
         /// checked to be ABSENT from the stub.
@@ -385,6 +381,17 @@ fn verb_spelling(verb: Verb) -> Spelling {
         Verb::Turn => Bound(&["PathDirectedPoint.turn"]),
         Verb::Line => Bound(&["PathDirected.line"]),
         Verb::LineTo => Bound(&["PathPoint.line_to", "PathDirectedPoint.line_to"]),
+        // The declared point-target continuation reaches the Rust
+        // authoring algebra and stops there: binding a verb in Python
+        // is its own surface work (the stub, its typing, and the
+        // binding suite), and the unit that added this one does not
+        // own that surface. Recorded here as ABSENT rather than left
+        // to be discovered — which is what this arm is for.
+        Verb::ContinueTo => Spelling::NotBound {
+            would_be: &["PathDirectedPoint.continue_to"],
+            reason: "the Rust authoring algebra gained the verb; the Python surface is bound \
+                     by its own units and has not caught up",
+        },
         Verb::ArcTo => Bound(&[
             "PathPoint.arc_to",
             "PathDirectedPoint.arc_to",

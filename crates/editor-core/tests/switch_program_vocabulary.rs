@@ -62,7 +62,7 @@
 
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId,
+    ProgramStep, ProgramTarget, RecordedProgramError, SlotId,
 };
 use profile::{ArcMode, SketchPlane, Verb};
 
@@ -261,11 +261,113 @@ fn every_table_verb_is_a_document_program() {
         .iter()
         .flat_map(|loop_| loop_.iter().map(profile::Step::verb))
         .collect();
-    let missing: Vec<&Verb> = Verb::ALL.iter().filter(|v| !seen.contains(v)).collect();
+    let missing: Vec<&Verb> = Verb::ALL
+        .iter()
+        .filter(|v| !seen.contains(v) && !NOT_IN_DOCUMENT.iter().any(|(n, _, _)| n == *v))
+        .collect();
     assert!(
         missing.is_empty(),
-        "the document step vocabulary is short of the transition table: {missing:?}"
+        "the document step vocabulary is short of the transition table: {missing:?} — \
+         either spell them in `ProgramStep` or, if the gap is deliberate and coordinated, \
+         name them in NOT_IN_DOCUMENT with the reason"
     );
+}
+
+/// **The verbs the document vocabulary deliberately does not spell**,
+/// each with the reason — the census's escape hatch, and the only one.
+///
+/// This exists because the gap is real and the alternative is worse
+/// than recording it. `ProgramStep` is matched exhaustively by the wire
+/// form, so a verb reaching the document reaches the PERSISTED
+/// vocabulary in the same commit, and that is a ratified schema-version
+/// break with in-tree corpus regeneration behind it — coordinated work,
+/// not a side effect of adding an authoring verb. What this list is NOT
+/// is a way to stay green. An entry costs three things, and the third
+/// is the one that makes the list DECAY:
+///
+/// 1. a REASON, in prose, naming the coordinated work the gap waits on;
+/// 2. the lifting door refusing the verb TYPED rather than dropping it
+///    (`RecordedProgramError::VerbNotInDocumentVocabulary`);
+/// 3. a WITNESS — a recorded chain carrying the verb — which
+///    [`the_document_vocabulary_exceptions_are_still_exceptions`] runs
+///    through that door and requires it to be refused.
+///
+/// The witness is what the first version of this roster lacked, and it
+/// is the whole point. A row asserting only "the reason is non-empty
+/// and the table still declares the verb" is satisfied by ANY verb,
+/// including one the document spells perfectly well — so a stale entry
+/// would sit here excusing the census above forever, which is exactly
+/// the quiet the census exists to prevent. R1's blinded review proved
+/// that by inserting `Verb::LineTo`: all five assertions passed. With
+/// the witness that insertion reds, because `LineTo`'s chain LIFTS and
+/// the door never refuses it.
+///
+/// This mirrors `pncad-py`'s `the_not_bound_roster_decays`, the sibling
+/// this design cites, which likewise asserts the would-be spelling is
+/// genuinely ABSENT rather than merely listed.
+type DocumentGapEntry = (Verb, &'static str, fn() -> Vec<profile::Step<f64>>);
+
+const NOT_IN_DOCUMENT: &[DocumentGapEntry] = &[(
+    Verb::ContinueTo,
+    "the declared point-target continuation (issue 433's lattice half): reaching the \
+     document means reaching the wire, which is a ratified schema bump and its own unit",
+    // Minimal on purpose: `At` establishes a position so the chain is
+    // well-formed, and the closer arm carries the verb under test.
+    || {
+        vec![
+            profile::Step::At(geom_core::Point2::new(0.0, 0.0)),
+            profile::Step::ContinueTo(profile::Target::Start),
+        ]
+    },
+)];
+
+/// **The exception list decays.** Every verb named in
+/// [`NOT_IN_DOCUMENT`] must ACTUALLY be unspellable as a document
+/// program, and this row proves it the only way that is proof: it runs
+/// the entry's own witness chain through the lifting door and requires
+/// the typed vocabulary refusal, naming that verb.
+///
+/// So the day the document vocabulary catches up, the witness lifts,
+/// the refusal does not arrive, and this row reds pointing at the stale
+/// entry — instead of that entry silently excusing
+/// [`every_table_verb_is_a_document_program`] forever.
+///
+/// The first three assertions are hygiene (a reason; a verb the table
+/// still declares; a witness that really carries that verb). The fourth
+/// is the falsifier, and it is the one the first version of this row
+/// was missing.
+#[test]
+fn the_document_vocabulary_exceptions_are_still_exceptions() {
+    for (verb, reason, witness) in NOT_IN_DOCUMENT {
+        assert!(
+            !reason.is_empty(),
+            "{verb:?} is excused from the census with no reason"
+        );
+        assert!(
+            Verb::ALL.contains(verb),
+            "{verb:?} is excused from the census but the table no longer declares it"
+        );
+        let steps = witness();
+        assert!(
+            steps.iter().any(|s| s.verb() == *verb),
+            "{verb:?}'s witness chain does not carry {verb:?}, so it proves nothing"
+        );
+        // THE DECAY HALF. Not "the reason is non-empty" — that is
+        // satisfied by any verb at all, including a document-spellable
+        // one. This asks the document layer itself, and takes its answer.
+        match LoopProgram::from_recorded(&steps) {
+            Err(RecordedProgramError::VerbNotInDocumentVocabulary(v)) => assert_eq!(
+                v, *verb,
+                "{verb:?}'s witness was refused, but for a DIFFERENT verb ({v:?})"
+            ),
+            other => panic!(
+                "{verb:?} is listed as having no document spelling, but its witness chain \
+                 did not reach the vocabulary door: {other:?}. If the document vocabulary \
+                 has caught up, DELETE the NOT_IN_DOCUMENT entry — that is what this row \
+                 is for."
+            ),
+        }
+    }
 }
 
 /// **The mode census.** Every arc mode the kernel vocabulary declares
@@ -326,6 +428,7 @@ fn every_arc_mode_is_a_document_program() {
             | profile::Step::Turn(_)
             | profile::Step::Line(_)
             | profile::Step::LineTo(_)
+            | profile::Step::ContinueTo(_)
             | profile::Step::TangentArcTo(_)
             | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }

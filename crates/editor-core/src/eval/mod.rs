@@ -2172,6 +2172,13 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::Turn => 15,
         V::Line => 16,
         V::LineTo => 17,
+        // 42 rather than 18: the low numbers were assigned in table
+        // order when this map was written, the space is APPEND-ONLY
+        // (retired numbers stay dead, above), and 41 — `Cusp`, the
+        // previous append — was the high-water mark. Renumbering to
+        // close the gap would re-key every program that uses the verbs
+        // in between, which is the one thing this map must never do.
+        V::ContinueTo => 42,
         V::ArcTo => 18,
         V::TangentArcTo => 21,
         V::Fillet => 22,
@@ -2297,7 +2304,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
-        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
         Step::ArcTo(data) => spec(h, data),
         Step::Fillet { radius } => f(h, *radius),
         Step::FilletArc { radius, spec: sp } => {
@@ -2407,7 +2414,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
             f(h, dy);
         }
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
-        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
         Step::ArcTo(s) => spec(h, s),
         Step::Fillet { radius } => f(h, radius),
         Step::FilletArc { radius, spec: s } => {
