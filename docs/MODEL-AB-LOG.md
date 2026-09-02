@@ -3078,6 +3078,21 @@ rustdoc gate (an ambiguous intra-doc link), disclosed. Sample number
 at merge. Row at merge.
 
 
+BOOL-13 (PR #1553) ordinal FIXED AT DISPATCH (2026-09-02):
+**ordinal 1105** (S-BOOL band 1100–1199). v6 dual: parity byte **141**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `caa3fd20e`
+(run 33596298893 verified at dispatch: head SHA matches, 21 checks —
+17 success + 4 skipped; gate point default lane × eps default, both
+DRAWN, no trailer; the prior head's one red — a pncad-py Rust unit row
+pinning issue 694's tag — fixed on this head, disclosed), R2 isolated
+from R1, briefs symmetric, no relaxations granted. Implementer
+difficulty S/M, recorded numeric M (pre-logged at the spec, pre-draw).
+The unit is a READINESS-then-STOP unit: schema is contended ground, so
+the merge follows the away-channel window after the dual. Sample
+number at merge; row in the docs PR after the merge (the no-append-on-
+branch mechanics).
+
+
 BOOL-11 REVIEWS DELIVERED + ROW (2026-09-01/02; CONCURRENT on frozen
 0d285cd3f per the fixed-at-dispatch record above; fix pass
 IMPLEMENTER-INHERITED via agent resume, plus one ruled addendum).
