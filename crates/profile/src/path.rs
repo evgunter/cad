@@ -37,12 +37,22 @@
 //!
 //! [`Start`] is a first-class directed-point value — the bound entry.
 //! Using it is closing, structurally: `line_to(Start)`,
-//! `arc_to(Start, b)`, `.tangent().tangent_arc_to(Start)`, and the
-//! seam fillet `.angle(θ).fillet(r).to(Start)`. There is deliberately
-//! no `close()` alias. The entry authors the first side; the seam is
-//! authored once, at the back, by the verb that targets `Start` — a
-//! leading `.fillet`/`.tangent()` is ill-typed (they need bits the
-//! entry Open lacks).
+//! `arc_to(Bulge { p: Start, b })`, `.tangent().tangent_arc_to(Start)`,
+//! and the seam fillet `.angle(θ).fillet(r).to(Start)`. There is
+//! deliberately no `close()` alias. The entry authors the first side;
+//! the seam is authored once, at the back, by the verb that targets
+//! `Start` — a leading `.fillet`/`.tangent()` is ill-typed (they need
+//! bits the entry Open lacks).
+//!
+//! The seam's own junction is the one declaration that cannot ride a
+//! departing leg, because the arriving leg is authored LAST. It rides
+//! the TARGET, and it is CHECKED, never inferred:
+//! [`Start::arrives_straight`] on the straight closers declares the
+//! seam a SUBDIVISION point of the entry's first side (which must
+//! therefore be a line), and [`Start::arrives_tangent`] on the arc
+//! closers declares it a G1 joint. Undeclared, a tangent seam refuses
+//! [`PathError::SeamTangent`] from every closing verb, exactly as
+//! before.
 //!
 //! # Lowering
 //!
@@ -625,12 +635,20 @@ pub enum PathError<T: Real> {
         /// The lever arm, meters.
         arm: T,
     },
-    /// **The SEAM's own junction is a straight continuation**, so the
-    /// loop closes MID-CARRIER: the arriving direction is within
-    /// ε_input of the entry's outgoing direction, and PQ4 (§6) refuses
-    /// a seam that is not at a junction or fillet — however the closing
-    /// leg is spelled. Start-only, because only a closing verb
-    /// classifies the seam at all.
+    /// **The SEAM's own junction is tangent and nothing declared it**:
+    /// the arriving direction is within ε_input of the entry's outgoing
+    /// direction. Start-only, because only a closing verb classifies
+    /// the seam at all, and raised by EVERY closing verb — the two arc
+    /// closers included, since a seam arrival has a recourse no
+    /// departure has.
+    ///
+    /// PQ4 (§6) no longer refuses the seam outright: since the
+    /// fifth-round ruling a DECLARED subdivision point and a DECLARED
+    /// G1 joint are both admissible seams, and what this variant names
+    /// is the UNDECLARED case — the one the ladder still refuses,
+    /// because reading "the author meant a subdivision" off two
+    /// directions that happen to agree is the inference nothing here
+    /// makes.
     ///
     /// The recourse is to DECLARE the arrival, or to move the seam.
     /// The arriving leg is the later-authored one, so the declaration

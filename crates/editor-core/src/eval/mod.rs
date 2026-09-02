@@ -2895,12 +2895,6 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
 mod verb_tag_tests {
     use super::{RETIRED_VERB_TAGS, verb_tag};
 
-    /// [`verb_tag`]'s two properties, computed over the transition
-    /// table's own census rather than reviewed: every live verb gets a
-    /// distinct tag, and none re-uses a retired number. Anchored on
-    /// [`profile::Verb::ALL`], so a verb the table gains is measured
-    /// here the moment `verb_tag` grows an arm for it.
-    #[test]
     /// **The seam-arrival target tags are reachable and distinct.**
     /// Tags 43 and 44 are appended past 42, the previous high-water
     /// mark, rather than squeezed in beside `Start` (4) and `Point` (5),
@@ -2946,6 +2940,11 @@ mod verb_tag_tests {
         );
     }
 
+    /// [`verb_tag`]'s two properties, computed over the transition
+    /// table's own census rather than reviewed: every live verb gets a
+    /// distinct tag, and none re-uses a retired number. Anchored on
+    /// [`profile::Verb::ALL`], so a verb the table gains is measured
+    /// here the moment `verb_tag` grows an arm for it.
     #[test]
     fn verb_tags_are_injective() {
         let mut seen: Vec<(profile::Verb, u8)> = Vec::new();
