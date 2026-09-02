@@ -273,13 +273,36 @@ coordinates value-matching.
   closes as `.tangent().tangent_arc_to(Start.arrives_tangent())`.
   A straight closing leg reaching a G1 seam says the same thing the
   same way: `line_to(Start.arrives_tangent())`.
-  (A tangent LINE close is still overdetermined — direction
-  inherited AND through Start — and refuses ALWAYS, exact
-  collinearity included: a ray hitting an independently-authored
-  point is a VALUE coincidence, and the ratified ladder never
-  infers from values. The refusal names the two structural
-  spellings: close with the tangent ARC instead, or rotate the
-  loop's authoring origin.)
+  A tangent LINE close remains impossible, and that part of the
+  2026-07-28 text stands: a line's direction cannot be both
+  INHERITED from the tip and aimed at an independently authored
+  point, so there is no such verb to reach — `.tangent()` leaves the
+  tip Directed, where the only straight leg is `line(len)`, which
+  has no target. Accepting it would mean reading "the author meant
+  this ray to hit Start" off a ray that happens to hit it, which is
+  the value inference the ladder refuses.
+- Straight-run seam: what an author reaching for a tangent line
+  close actually wants — a straight leg CONTINUING its run onto the
+  entry — is `continue_to(Start)` (§4, BOOL-11), and
+  it departs the very state `.tangent()` does: the two are the
+  alternatives at one tip. The verb DECLARES the continuation
+  instead of declaring a tangency, so nothing is inferred, and the
+  kernel then CHECKS that the target lies on the departing ray to
+  within ε_input — authored-data consistency, the arc verbs' class,
+  refusing `ContinuationTargetOffRay` past the band. Where the seam
+  is also MID-SIDE, the arrival token says so on the same verb:
+
+  ```text
+  Open.at((0, 0)).angle(north)
+      .line(2.0)
+      .arc_to(Bulge { p: (0, -2), b: 1.0 })
+      .line_to((0, -1))
+      .continue_to(Start.arrives_straight())
+  ```
+
+  — the D-shape, closing at a subdivision point of its own straight
+  side, pinned by `the_d_shape_closes_with_the_declared_straight_arrival`
+  in `profile`'s `bool12_probes`.
 - Seam fillet: `.angle(θ).fillet(r).to(Start)` — both carriers
   bound, nothing pending, loop closed.
 
@@ -878,7 +901,11 @@ Open.at(a).angle(d)
 **Refusals.** Compile-time, from the lattice and the §2c trait
 matrix: double director; `fillet`/legs from non-Directed tips;
 `.tangent()` on a plain point; leading `.fillet`/`.tangent` (§2
-entry rule); a NURBS leg targeting `Start`; every INADMISSIBLE
+entry rule); the overdetermined tangent-LINE close (§2's closure
+bullets — `.tangent()` leaves the tip Directed, where the only
+straight leg is `line(len)` and no targeting verb is in reach, so
+there is no verb to refuse at runtime); a NURBS leg targeting
+`Start`; every INADMISSIBLE
 (state, mode) pair of the `ArcData` matrix is a missing impl —
 unrepresentable, not refused (at the wire the same pair is the
 replay driver's Transition class). Typed runtime errors, from
@@ -892,9 +919,8 @@ fit-gating generalized, carrying the side's carrier kind; also
 checked for the entry point under a seam fillet);
 `SeamRetrimsArcFirstSide` (a `.to(Start)` seam needs a straight
 side 1 — closing onto a carrier while keeping the entry vertex is
-`fillet_arc(r, Center { c, winding, p: Start })`); the
-overdetermined tangent-line close; `TangencyContradicted` from the
-verify layer as today. From §2a and the spec family:
+`fillet_arc(r, Center { c, winding, p: Start })`);
+`TangencyContradicted` from the verify layer as today. From §2a and the spec family:
 `NonpositiveCircleRadius`; `ZeroDirection`; `ArcViaCollinear`;
 `DegenerateArcChord`; `DegenerateArcSpec` (a zero bulge, a
 non-positive sweep/arc-length); `ArcCenterNotEquidistant`;
