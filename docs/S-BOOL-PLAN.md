@@ -202,13 +202,29 @@ logged pre-draw per the protocol.
   §4 / verb table is design surface: the unit's PR carries the
   text for Evan's eyes before merge. After BOOL-8's merge; before
   BOOL-9.
-- **BOOL-12 — the declared mid-side seam (M; under the Q1
-  fifth-round ruling, PQ4 reopened for the declared case).** The
-  closing declaration that the seam is a subdivision point (spelling
-  is the unit's design surface — a closer variant or an entry-side
-  declaration — argued for Evan's eyes with the §6 PQ4 revision);
-  the arrival-continuation check banded through the funnel; the
-  undeclared collinear seam still refusing (red-first both sides);
+- **BOOL-12 — the declared ARRIVAL at the seam: the mid-side seam
+  and the tangent seam (M; under the Q1 fifth-round ruling, PQ4
+  reopened for the declared case; the tangent half raised by Evan
+  in-chat 2026-09-01 — "join-tangent-to-end").** The seam is the one
+  junction whose next leg was authored first, so every declaration
+  that rides the departing leg elsewhere (`.tangent()`, the
+  structural continuation) needs an arrival-side spelling there.
+  ONE family, one design surface: the closing leg declares how it
+  arrives into the entry's first side — STRAIGHT (the seam is a
+  subdivision point; the arrival-continuation check banded through
+  the funnel) or TANGENT (a G1 seam: the arc that arrives tangent
+  to the entry's outgoing direction with a sharp departure — the
+  mirror of `tangent_arc_to` and of the NURBS closer's existing
+  tangent-seam form `Pn−1 := Start.pos − len_end·Start.dir`; the
+  both-ends-tangent case stays the seam fillet's, a circular arc
+  cannot generically carry both). FIRST, measured: a stadium closed
+  with `.tangent().tangent_arc_to(Start)` today — does the seam
+  refuse the G1 arrival as undeclared? — reported with the
+  loop-start reading below before the build. Spelling is the unit's
+  design surface (closer variants or an entry-side declaration),
+  argued for Evan's eyes with the §6 PQ4 revision; undeclared
+  collinear and undeclared tangent seams still refuse (red-first
+  both sides of each band);
   FIRST a written reading of what germ matching and the merge
   ladders do at the loop start (PQ4's rationale), reported before
   the build; lily's section finally authors through the lattice in
