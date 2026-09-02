@@ -97,9 +97,12 @@ fn expect_parse(label: &str, text: &str) -> String {
 
 /// A top-level key this build has no name for (a field a NEWER build
 /// grew): `FileBody` is `deny_unknown_fields`, so it refuses Unreadable
-/// naming the key — and hands the reader the "regenerate with a current
-/// build" recourse, which for a newer file is advice about the wrong
-/// side of the seam. Recorded, not judged here.
+/// naming the key. That is the ruled behaviour for this direction of
+/// growth (the persist module docs, and the `Unreadable` variant's own
+/// doc): a stale reader must not silently drop data. The recourse it
+/// carries reads as advice about the wrong side of the seam for a
+/// NEWER file — pre-release there is no such file, and the day there
+/// is one is Band 4's.
 #[test]
 fn an_unknown_top_level_key_refuses_unreadable_naming_it() {
     let (header, mut v) = split(&small());
