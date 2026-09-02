@@ -27,7 +27,8 @@ use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, EdgeNurbsLane, PlaneNurbsRefusal,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal,
+    plane_nurbs_limbs,
 };
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
@@ -82,7 +83,7 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    let limbs = f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band())
+    let limbs = plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band())
         .expect("the true locus certifies");
     println!(
         "M7-8 quarter-cylinder ruling: on_locus_max = {:e} m, hull_sup = {:e} m, \
@@ -121,7 +122,7 @@ fn a_displaced_carrier_refuses_with_the_measured_residual() {
     // budget and the honest verdict is acceptance.
     let off = 1e3 * Tol::witness().get().eps;
     let carrier = segment(Point3::new(1.0, off, 0.0), Point3::new(1.0, off, 1.0));
-    match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
         Err(PlaneNurbsRefusal::Limb { limb, value }) => {
             println!(
                 "M7-8 displaced carrier: {} measured {value:e} m",
@@ -164,7 +165,7 @@ fn an_on_plane_off_wall_carrier_is_refused_by_the_nurbs_side() {
         let p = carrier.eval(f64::from(i) / 8.0);
         assert_eq!(p.y, 0.0, "the carrier stays exactly on the y = 0 plane");
     }
-    match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
         Err(PlaneNurbsRefusal::Limb { limb, value }) => {
             println!(
                 "M7-8 wall-side falsifier: {} measured {value:e} m (planted {off:e} m)",
@@ -192,7 +193,7 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
-    match f64::plane_nurbs_limbs(&carrier, &tangent, &wall, 1.0, band()) {
+    match plane_nurbs_limbs::<f64>(&carrier, &tangent, &wall, 1.0, band()) {
         Err(PlaneNurbsRefusal::NotTransverse { sample }) => {
             println!("M7-8 tangential plane: refused at interior sample {sample}");
         }

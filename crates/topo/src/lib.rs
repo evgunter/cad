@@ -301,7 +301,7 @@ pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
     CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
-    EdgeDescription, EdgeDescriptionSpec, EdgeNurbsLane, Pcurve, PcurveCache, PcurveCertifyError,
+    EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError,
     PcurveFittedLane,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};

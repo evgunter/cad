@@ -762,6 +762,56 @@ impl<T: Decide> EdgeCurve<T> {
     ) -> Result<Certificate<T>, CertifyError> {
         run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
     }
+
+    /// [`EdgeCurve::recertify`] with the plane × NURBS lane
+    /// ([`NurbsLane`]) taken as an ARGUMENT rather than read off the
+    /// scalar — the one door for a pass whose own bound says nothing
+    /// about certification rights.
+    ///
+    /// `None` re-derives exactly what [`EdgeCurve::recertify`] does;
+    /// `Some` re-derives exactly what [`EdgeCurve::recertify_nurbs_lane`]
+    /// does. The two named doors are this one with the argument
+    /// filled in, and the caller that can name the certified body is
+    /// the caller that supplies it.
+    ///
+    /// A caller holding `None` over an edge of the M7-8 class gets
+    /// [`CertifyError::Unimplemented`] — the class certifies only
+    /// through the lane, and there is no third outcome (see
+    /// [`NurbsLane`]). [`EdgeCurve::needs_nurbs_lane`] is how a pass
+    /// asks that question before it decides whether it is entitled to
+    /// make the claim at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`EdgeCurve::recertify`], plus the lane's own refusals when
+    /// one is injected.
+    pub fn recertify_via(
+        &self,
+        start: Point3<T>,
+        end: Point3<T>,
+        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
+        band: Band,
+        nurbs_lane: Option<NurbsLane<'_, T>>,
+    ) -> Result<Certificate<T>, CertifyError> {
+        run_checks(&self.spec(), start, end, &surfaces, nurbs_lane, band).map(|(cert, _)| cert)
+    }
+
+    /// Whether re-deriving this edge's certificate needs the injected
+    /// plane × NURBS lane (M7-8): an `Intersection` of a PLANE and a
+    /// described NURBS wall, the one class no door certifies without
+    /// it.
+    ///
+    /// The pairing rule is `run_checks`' own, asked here rather than
+    /// restated by a caller — a pass that cannot supply the lane needs
+    /// to distinguish *"this edge's claim is outside my rights"* from
+    /// *"this edge failed"*, and those are the same
+    /// [`CertifyError::Unimplemented`] after the fact.
+    pub fn needs_nurbs_lane(&self, surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>) -> bool {
+        let EdgeDescription::Intersection { s1, s2, .. } = self.description else {
+            return false;
+        };
+        plane_nurbs_pair(surfaces(s1), surfaces(s2)).is_some()
+    }
 }
 
 /// The **injected plane × NURBS lane** — the one certification duty
@@ -793,7 +843,7 @@ pub type NurbsLane<'a, T> = &'a dyn Fn(
     crate::edge_nurbs::PlaneNurbsRefusal,
 >;
 
-impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
+impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// [`EdgeCurve::certify`] **with the plane × NURBS lane wired in**
     /// ([`NurbsLane`]): the door for callers whose scalar can derive
     /// the declare-and-check certificate of an `Intersection` between
@@ -819,7 +869,7 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
             start,
             end,
             &surfaces,
-            Some(&T::plane_nurbs_limbs),
+            Some(&crate::edge_nurbs::plane_nurbs_limbs::<T>),
             band,
         )?;
         Ok(Self {
@@ -845,15 +895,13 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(
-            &self.spec(),
+        self.recertify_via(
             start,
             end,
-            &surfaces,
-            Some(&T::plane_nurbs_limbs),
+            surfaces,
             band,
+            Some(&crate::edge_nurbs::plane_nurbs_limbs::<T>),
         )
-        .map(|(cert, _)| cert)
     }
 }
 

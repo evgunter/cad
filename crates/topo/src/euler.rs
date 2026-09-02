@@ -2253,7 +2253,7 @@ impl<T: Decide> Body<T> {
 /// preconditions, identical adjacency rules, identical mutation. The
 /// default door keeps refusing the class exactly as before — there is
 /// no door that accepts it uncertified.
-impl<T: geom_brep::EdgeNurbsLane> Body<T> {
+impl<T: Decide + geom_core::CertifiedBounds> Body<T> {
     /// [`Body::set_edge_curve`] with the plane × NURBS lane wired in.
     ///
     /// # Errors

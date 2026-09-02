@@ -85,7 +85,7 @@ pub use dihedral::{
     DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral, classify_material_pairing,
     folded_lever_arm, material_kappa_rel,
 };
-pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
+pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
