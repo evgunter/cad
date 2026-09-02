@@ -213,3 +213,5 @@ mod r2_cert6_probes;
 mod cert6_gauge_rows;
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
+#[path = "r2_mesh7_door_probes.rs"]
+mod r2_mesh7_door_probes;
