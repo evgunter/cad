@@ -42,6 +42,8 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "bounds_census.rs"]
+mod bounds_census;
 #[path = "cert3r1_poison_detail.rs"]
 mod cert3r1_poison_detail;
 #[path = "cert3r1_probes.rs"]

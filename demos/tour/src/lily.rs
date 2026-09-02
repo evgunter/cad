@@ -2310,6 +2310,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     here, face pair by face pair, because the author knows which
     //     wall meets which.
     //
+    //     Face pair by face pair is what the SCOPE of the flush
+    //     detector leaves: `topo::flush::find_flush_candidates` (which
+    //     `crate::booleans::flush_declarations` now runs for every
+    //     planar mate in this file) enumerates over the planar door,
+    //     and this mate has no planar contact anywhere on it. That is
+    //     a limit of the detector, not of the verification the
+    //     declarations below get — `twopeg::seat3_measurements`
+    //     measures the carrier ladder verifying a cylindrical
+    //     cosurface pair, and reporting one as would-verify in its
+    //     detector posture.
+    //
     //     It refuses one door short of the zip, and the door is the
     //     reduction's curved-face arm rather than the declaration
     //     gate: an edge lying ON the shared carrier decides zero
