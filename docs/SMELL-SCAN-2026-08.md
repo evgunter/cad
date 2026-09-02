@@ -4294,86 +4294,6 @@ dependency graph does not support. S5's shape, one indirection later.
 
 **Verdict:**
 
-## S99. `net::is_placeholder` tests one channel while the crate doc promises all of them
-
-The hoisted predicate (`crates/geom/src/net.rs:142`) is
-`control.iter().all(|p| p.channel(0).is_poison())` — every point, but
-only channel 0. `crates/geom/src/lib.rs:71-78`, directly above it, says
-the discriminator is that *"a placeholder's every control point is
-all-poison"*, and that a described net carrying poison *"must fail
-loudly as such … never masquerade as the benign placeholder"*. A
-described net whose every control point has a poisoned `x` and finite
-`y`/`z` is precisely that masquerade, and it now reads as the benign
-placeholder at ~25 consumer sites (`step-export/src/writer.rs:44`,
-`topo/src/props.rs:660`, `mesh/src/trimmed.rs:186`,
-`geom-brep/src/certify.rs:999`, …).
-
-The single-channel form was inherited from the surface half; the
-crate-merge dedup moved it into a helper that has `CHANNELS` and
-`channel(d)` in scope and did not widen it. This is the one place the
-merge picked a half's behaviour and landed it under a doc describing the
-other half's.
-
-**Verdict:**
-
-## S101. The merge's prose sweep deleted a cross-reference instead of re-aiming it
-
-The pre-merge text at `crates/geom/src/curves/nurbs.rs:684-687` read
-*"(The opposite choice — dividing by the min-weight floor, as
-`geom_surfaces::recognize`'s conic-derivative work does — is the
-direction for an UPPER bound…)"*. The sweep removed the clause, leaving
-the claim without its precedent. The pointer was **already** mis-aimed —
-there is no `recognize` module in `geom-surfaces`; the actual site is
-`crates/step-import/src/recognize.rs:422`, which builds exactly the
-`/ w_min` upper bound the sentence contrasts against. A sweep whose
-stated job was "every stale crate name" resolved a stale *name* by
-deleting the *fact*, and the only record that these two bounds are
-deliberate opposites is gone.
-
-Look for the same shape at every other site that sweep touched: the
-pattern it matched was the identifier, and the identifier is what the
-sentence was hanging on. The same sweep also left *"the geometry
-**crates**"* standing at `crates/geom/src/curves/boxes.rs:8` and
-`surfaces/boxes.rs:4` while correcting the manifest comment
-(`Cargo.toml:26`) to the singular — it saw the argument and fixed only
-the instance carrying a literal crate name.
-
-**Verdict:**
-
-## S102. Two more copy-sites in `geom` that the merge's whole justification was about
-
-- `crates/geom/src/surfaces/nurbs.rs:4-11`: *"Data model, evaluation
-  contract, and fixed-association rules are the curve module's … the
-  conventions are **stated once there and once here**."* A copy-site
-  declaring itself, in the crate whose justification was that the two
-  halves stated one thing twice. The crate-doc hoist took the
-  *enum-level* conventions and left the *payload-level* ones duplicated.
-- `crates/geom/src/surfaces.rs:26-30`: a bullet titled *"The shared
-  helper"* spelling the `radial`/`tangential` formula, kept verbatim,
-  never naming the thing it calls the shared helper. The helper moved to
-  `crate::azimuth` and is now shared with the *curve* half too — the
-  merge's whole point. `azimuth.rs:1-20` claims to be the single home;
-  `curves.rs` carries no matching paragraph, so the two halves' headers
-  now disagree about who documents the frame.
-
-**Verdict:**
-
-## S103. The iso-curve placement rule now lives only in the code that already obeys it
-
-The merge deleted the acyclicity sentence that had been enforcing
-"iso-curve extraction belongs to the EdgeGeometry layer" and restated
-the rule as 23 lines of prose at
-`crates/geom-brep/src/nurbs_iso.rs:19-41` — honestly, including the
-admission that *"nothing stops this module moving down except the rule
-itself"*. But the restatement is in `geom-brep`, and the code that would
-violate it is in `geom`. Nothing in `geom/src/lib.rs`,
-`geom/src/surfaces.rs` or `geom/src/surfaces/nurbs.rs` mentions it, so
-the person who adds the next extractor next to the payload — the exact
-move the rule forbids, and the one the merge made structurally possible
-— will not encounter it.
-
-**Verdict:**
-
 ## S190. `attribute`'s decline lookup consults ONE of the pair's two faces, and arena order picks which
 
 **Found by lane G-e** closing S104; **filed as issue #855** rather than
@@ -4635,15 +4555,6 @@ see §C.
   that they are *"unguardable by construction"*. The `unreachable`
   family is deliberately outside the panic ban, so this is taste, not
   policy — but it is a hazard the abstraction introduced.
-- (b) `crates/geom/src/` now has three modules named `projection`, two
-  named `boxes` and two named `nurbs`; inside `surfaces/projection.rs`
-  the line `use crate::projection::{…}` and the module's own name refer
-  to different things. And `azimuth::frame` returns
-  `(radial, tangential)` — both `Vec3<T>`, so a transposed destructure
-  compiles silently, which `azimuth.rs:64-80` says and points at
-  indirect coverage — while the overwhelming majority of call sites take
-  `(radial, _)` or `(_, tangential)`. The header's two-door rationale
-  does not match what the arms need, which is three shapes.
 - (c) `crates/topo/src/sector_face.rs:118-123` — three things in one
   crate are named `sector_face`, and the shared module's doc concedes
   the collision in advance (*"so `sector_face` in prose means one thing
@@ -6995,6 +6906,7 @@ three sub-lanes inside the track.
 
 | # | What | Was |
 |---|---|---|
+| **S290** | **Two prose citations name a `geom` module that no longer exists (filed by CERT-N2).** `geom-core/src/dual.rs:792` and `real.rs:616,656` cite `geom::projection`'s `mid` (issue 874's class). `geom/src/` had three modules named `projection`; the private one holds the shared §6.1 policy rather than an implementation, and closing `S116(b)` renamed it `projection_policy`. `mid` itself did not move — only the module path — so this is one word in three sentences | CERT-N2, filed |
 | **D223** | **`topo/src/props.rs` argues from a premise CERT-N1 invalidated (filed by CERT-N1; in CERT-M2's drawn fence with `D222`)**: four sites state "the fit door is `f64`-only, so no other scalar can hold an `ApproxSurface`" — `:700–706` (the trait doc's "vacuous today"), `:782`, `:820`, `:862` (the `Probe`, `Interval` and `Dual<T>` impls' comments; `:719` restates it). `ApproxSurface::map_scalar` is public, so an `ApproxSurface<Interval>` or `<Dual<T>>` is representable and can reach tier 3; the CODE stays right (each impl answers `None`; tier 3 reports `ApproxLaneUnsupported`), the prose does not — rewrite the four comments to say the lane refuses because no re-derivation exists at that scalar, not because no value can arrive. Class member on Track R's ground: `geom-brep/src/offset_fit.rs:432–437` should say the door is `f64`-only and the RECORD travels with a lift | CERT-N1 (PR 1536), filed |
 | **D222** | **`S89`'s third alias, on ground no track's fence names**: `crates/topo/src/props.rs:1166-1176`'s private `fn br<T: CertifiedEnclosure>` restates `from_certified`'s rule in its own words. `props.rs` is in neither Track P's list nor Track Q's; the partition rule says the fence is drawn first — and the natural drawer is CERT-M2, which takes `S213` (`PropsQuadLane`'s supertrait obligation) in this same file. Inline, delete the restatement, keep `bracket_seam_tests` pinning the crossing | CERT-M1 (PR 1533), filed; fence to CERT-M2 |
 | **H5** | The lane-trait collapse, `RingInterval` vs an always-on `Interval`, and the scalar ladders — Track C's `C-l`, never started; carries `S1`, `S2`, `S3`, `S44`'s residue and `S55`. **The sub-lane that REWRITES `Dual` arithmetic rather than re-spelling it is ADV** (C-R12) | Track H |
@@ -7009,7 +6921,6 @@ three sub-lanes inside the track.
 | # | What | Was |
 |---|---|---|
 | **D244** | **`S89`'s first alias, filed by CERT-M1**: `crates/geom-core/src/spline/hull.rs:113-118`'s private `fn bracket<E: CertifiedEnclosure>` is `RingInterval::from_certified` under another name, with an eight-line restatement of the door's rule above it. Inline it at its call sites and delete the restatement; the rule's one home is `from_certified`'s own doc, which (since CERT-M1) carries no caller census either. `geom-core/tests/decoration_seam.rs`'s header names this crossing; keep that sentence true when the alias goes | CERT-M1 (PR 1533), filed |
-| **H2** | One merge's residue, five findings, and it wants ONE lane — `S99`, `S101`–`S103` plus `S116(b)`. **ADV**: `S99`'s widening changes what `net::is_placeholder` answers at ~25 consumer sites | Track H |
 | **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
 | **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
 | **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
@@ -7047,6 +6958,8 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 
 | # | What | Was |
 |---|---|---|
+| **S350** | **A described control net carrying poison gets a partially poisoned face box, and the finite lanes still decide (filed by CERT-N2 — a wrong answer, not a style row).** `topo/src/census.rs`'s `FaceBoxRule::ControlNet` arm folds `min`/`max` over the net and answers `Some((lo, hi))`. Its own comment argues, for the placeholder, that folding poison would return a box that is *"neither a claim nor a refusal"* and answers `None` instead — but the guard it argues behind is `is_placeholder`, and that predicate now reads every channel (the widening that closed `S99`), so a **described** net poisoned in ONE channel reaches the fold. The box that comes back carries poison in that channel and FINITE bounds in the others: a margin taken against it decides a sign on the finite lanes while the poisoned lane decides neither, and the typed *unclaimable extent* refusal never fires. The arm wants its own poison test on the fold's result — the crate contract's rule is that a described net carrying poison fails loudly, and this is the one consumer traced in the `S99` blast radius that does not. Constructible through `NurbsSurface::new` on a net whose every point has a poisoned `x`; `geom/tests/net_placeholder_width.rs` mints one | CERT-N2, filed |
+| **S351** | **`nurbs_iso`'s placement rule is now cited from two places in `geom` (filed by CERT-N2; pointer-only, and deliberately not made here).** Closing `S103` put pointers where the next extractor would be written — `geom/src/lib.rs`'s crate doc and `geom/src/surfaces/nurbs.rs`'s header — with the rule and its whole argument left at their one home, this track's `geom-brep/src/nurbs_iso.rs`. Nothing needs changing today. What the row buys is that a move or a rewrite of those lines re-aims two citations in another crate instead of silently orphaning them | CERT-N2, filed |
 | **D290** | **`edge_nurbs.rs`'s `on_carrier_domain` (`:568–581`) is two operations spelled as one (filed by CERT-N1)**: a knot RESCALE to `[t0, t1]` (structure, `f64`) and a scalar lift of the control net through `from_f64`, pushed back through `NurbsCurve2::new(..).ok()` so a count error that cannot occur is swallowed into `None` alongside the knot validation that can. Split it: rescale the knots as a `KnotVector` operation at `f64`, then `NurbsCurve2::map_scalar(T::from_f64)`; the `.ok()` then covers only the knot door | CERT-N1 (PR 1536), filed |
 | **D289** | **`S89`'s second alias, filed by CERT-M1**: `crates/geom-brep/src/ssi/enclose.rs:192-197`'s private `fn ring<T: CertifiedEnclosure>` is `RingInterval::from_certified` under another name — inline it, delete the restatement (it shares a verbatim sentence with the `spline/hull.rs` copy, which is the finding's point). This crossing is pinned by NO row the decoration-seam header names (CERT-M1's fix pass says so); add the pin with the inlining | CERT-M1 (PR 1533), filed |
 | **G9** | Two operand gates with different admitted kind sets and a doc that describes only one (S95), plus `chord_join`'s placement argument contradicted by its own imports from `splitting/` (S96). **Both sides of the old Track C fence are inside this track now** | Track G |
@@ -7153,6 +7066,7 @@ its own tests in its own PR, as always.
 
 | # | What | Was |
 |---|---|---|
+| **S450** | **One prose citation names a `geom` module that no longer exists (filed by CERT-N2).** `geom-core/tests/bounds_census.rs:73` cites `geom::projection`'s `mid` freeze (#874); that module is `projection_policy` since `S116(b)` closed. Track M's `S290` is the same edit on that crate's `src/` side | CERT-N2, filed |
 | **D385** | **Hand-written payload lifts in test crates, one class (filed by CERT-N1)** — a NURBS control net rebuilt coordinate by coordinate through `from_f64` and pushed back through `new(..).expect(..)`: `topo/tests/fixture/mod.rs:249` (`lift3`) and `:258` (`lift2`), `topo/tests/review_ssiflat_r1_probes.rs:113`, `topo/tests/review_ssiflat_r2_probes.rs:103`, `topo/tests/m6_3_chart_completion.rs:124`, `geom-brep/tests/review_m5_pr3_e2e.rs:99`; and the profile-vertex form at `profile/tests/common/mod.rs:40`, `generic_replay.rs:49`, `guided_replay.rs:332`, `cert4r1_e2e.rs:28`, `editor-core/tests/m10_p_fence.rs:397`, `cert3r1_dump.rs:97`. Each is `NurbsCurve2/3::map_scalar(T::from_f64)` / `NurbsSurface::map_scalar` or `Point2::map(T::from_f64)` — infallible and exact, so the `expect` goes with the hand spelling. Reviewer-authored batteries whose independence from `map_scalar` is their stated regression value are exempt (CERT-N1's retain/retire criterion): the `fixture/`, `common/` and `*_replay` files are fixtures, the rest batteries — decide per file | CERT-N1 (PR 1536), filed |
 | **D384** | **`S89`'s rides-along, three copies**: `trv()`/`healthy()` and the whole `the_fixture_is_a_finite_bracket_that_cannot_certify` row are restated verbatim in `crates/geom/tests/{curves,surfaces}/decoration_ring_coords.rs` (same filename in sibling directories, one `geom` binary) and a third time in `crates/topo/src/props.rs`'s `bracket_seam_tests` (unowned ground — `D222`'s fence question applies before that copy moves). One fixture home, three consumers | CERT-M1 (PR 1533), filed |
 | **D113** | Decide what an intra-doc link in a `tests/` file is (S135): `cargo doc` builds no test targets, so every one is inert on every tier and nine are already broken. **Closes on a decision plus its mechanism** | Track G |
