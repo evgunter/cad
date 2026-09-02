@@ -20,7 +20,7 @@ use topo::splitting::{SplitPlane, split};
 
 #[test]
 fn r2_split_door_near_pole() {
-    let eps = Tol::witness().get().eps;
+    let eps = common::eps();
     let mut lines = vec![format!("eps = {eps:e}")];
     for rho in [0.9 * eps, 5.0 * eps, 1e3 * eps, 1e-6, 1e-3, 0.01, 0.1] {
         let y0 = (1.0f64 - rho * rho).sqrt();

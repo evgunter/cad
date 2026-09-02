@@ -2191,9 +2191,20 @@ named.
 
 ### Band 4 — product-grade infrastructure
 
-- **Recipe schema versioning/migration from the first persisted
+- **Recipe schema versioning/migration from the first RELEASED
   file** (D8 is the save format), autosave/crash recovery, and
   embedded derived caches so opening a model isn't a full rebuild.
+  *Ruled 2026-09-01 (Evan, in-chat): pre-release there is NO
+  hand-maintained schema version, no migration chain and no bump
+  coordination — schema breaks are not a problem at all because
+  nothing is released and no document exists outside this repo;
+  every checked-in document is a regenerable artifact. The one
+  door that stays: a file this build cannot read refuses TYPED,
+  by the deserializer's own rejection of unknown or missing
+  vocabulary wrapped in the regenerate recourse, so an additive
+  vocabulary change invalidates nothing and a breaking one names
+  the field. Versioning returns as Band-4 work the day a document
+  ships to someone. Executed by S-BOOL's BOOL-13.*
 - **Performance at scale**: hundreds of features / thousands of
   faces; the parallel-evaluation story under D9's fixed reduction
   shapes deserves early thought.

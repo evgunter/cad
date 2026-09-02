@@ -88,3 +88,39 @@ materializer+filter truth.
 
 Next: SEAT-3 (the flush detector at the body seat, retiring the
 issue-757 producer gap) dispatches on the block's next slot.
+
+## ORDINAL 1002 CLAIMED — SEAT-3 dual (2026-09-02)
+
+SEAT-3 (PR 1531, the flush detector at the body seat) implementation
+delivered and green (lane=default ASKED via trailer, eps drawn; run
+33571617460; the one neutral check is main's inherited freecad
+render-drift baseline, re-rendered driftless). The cylindrical
+measurement answered YES — the Rest ladder already verifies curved
+rungs; the detector widening is a reported fork, not taken. v6 dual
+dispatches on frozen head 1cf1c377: parity byte 41 → **R1 fable + R2 opus**. Difficulty M was logged
+pre-draw. Full row recorded at merge.
+
+## SEAT-3 MERGED (2026-09-02, PR 1531) — WAVE 1 COMPLETE
+
+The flush detector landed at the body seat and the issue-757
+producer gap is retired: BooleanDeclarations has a geometric
+producer, the two hand-declarer twins are gone, and the anti-twin
+rule holds through the one shared verify chain (now stated
+correctly — the dual's top finding was the module prose naming the
+wrong link). The cylindrical widening is measured, one identifier
+away, and deliberately homed at issue 1537 rather than taken. Both
+review lanes independently executed the mechanism (round-trips,
+band sweeps, differential twins) and could not break it. Full row:
+MODEL-AB-LOG SEAT3 (ordinal 1002, sample #97 at merge).
+
+Wave 1 (design §1) is complete: the band drop (SEAT-1), the query
+seat (SEAT-2), the flush producer (SEAT-3). Every §1 acceptance in
+VERB-SEAT-DESIGN §6's sketch that Wave 1 owns is met; the demo
+frictions the montage recorded at the kernel seat are retired at
+their sites.
+
+Next: the SEAT-4 spec (docs/SEAT-4-SPEC.md — the Verb substrate
+with the blend pair; VS-Q1/Q2/Q5 elaborated from the ratified
+recommendations; deviations from those recommendations, if any,
+are Evan-gated). SEAT-4 is block SEAT-B1's last slot; its merge
+publishes the block-close record and the draw byte.

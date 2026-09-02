@@ -187,3 +187,42 @@ uniform_candidates) is scheduled as issue 1513.
 
 Slate next: MESH-4 (#881 named-ε ops) or MESH-6/7 per lane budget;
 MESH-8 holds its corrected halfcap witness from MESH-3.
+
+## MESH-4 merged (2026-09-01) — issue 881 closed; the ε inventory becomes the methods
+
+PR 1517 at the re-rolled head (fix content 51b03b3c6 + the main
+repair below). Gates: impl head lane=both asked/1e-12 drawn; the
+fix head's only red was main's own break (below); final head green
+at merge. The mesh-local Eps newtype carries the four named ops
+and every terminal read; the binding gate — no mesh byte moves —
+was proved twice by the unit and twice more by the reviews (a
+superset digest including the budget leg; a 242,040-check bitwise
+differential), and the fix pass made the evidence TRUE rather than
+trimmed: the budget third leg added, pad's execution proven by
+panic plant, the instrument's splice artifact fixed. The one-arg
+API deviation is disclosed with its byte-preserving reason; the
+unearned derives dropped; R1's band-edge parity probe now runs in
+CI. #741 coordinated by comment, corrected once (carriers survive
+for the weaker reason).
+
+**The dual (ordinal 1204, sample at the row)**: R2 APPROVE, R1
+A-W-F, no MAJOR, pair COUNTS. The reviews' real product was
+evidence-honesty: everything the PR claimed was TRUE of the code
+and slightly false of what the instruments had seen.
+
+**Seam entry — one main repair orchestrator-direct en route** (the
+PR-1428 precedent): PR 1516's authored-literals change missed the
+probe,interval-gated initializer in editor-core, redding EVERY PR
+that merged main on the k-lint gate (first seen here; BOOL-11's
+lane hit and locally patched the same break independently).
+Repaired at PR 1523 with the file's false "neither hosted lane
+builds that pair" coverage sentence corrected — the stale claim
+that invited the skip. Issue 1525 filed for the geom-brep
+--all-features sibling (VERBS' ground). Reviewer-brief discipline
+tightened: lane-private uniquely-prefixed scratch paths (a
+same-named-script collision in the shared scratchpad, caught
+within a minute, no cross-lane source contact).
+
+Slate next: MESH-6 (#897) and MESH-7 (#727/#726) per lane budget;
+MESH-8 holds the corrected halfcap witness. Issue 1513 carries the
+sibling class from MESH-5.

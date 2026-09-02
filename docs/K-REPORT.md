@@ -521,12 +521,18 @@ Five ways a name escapes the old pattern, all live today:
    `[(&'static str, T); 7]` array consumed by a loop variable.
 5. **The scan root — a scope error in the method, not a missed site.**
    The pattern greps `crates/*/src`, while the corpus the gate is fed
-   from is not confined to it: `demos/tour/src/booleans.rs` decides
+   from is not confined to it: `demos/tour/src/booleans.rs` decided
    `demo_flush_{offset,orient,parallel}` through the same funnel, and
-   `k_probe_sweep.sh` records them into the very CSV `k-lint` reads. A
+   `k_probe_sweep.sh` recorded them into the very CSV `k-lint` reads. A
    roster method that sweeps one tree and calls itself complete, while
    the gated corpus is fed from two, is wrong by construction — no
    amount of care at the sites it does scan would have found these.
+   Those three sites left the tree at SEAT-3, when the demo's hand
+   declarer was replaced by the library flush detector, and the demo
+   tree today decides nothing at all: the method's scope error is
+   unchanged, and it currently has no live instance. That is a fact
+   about this tree, not a repair — the next demo-side `decide` is
+   invisible to the pattern exactly as these were.
 
 **Both halves have a blind spot, and the union is the roster.** The
 code scan misses names not written as a literal at a funnel site (the
@@ -567,13 +573,30 @@ against `docs/predicate-dimension-audit.md`, which carries
 | `contact_at_shared_vertex` | `profile` | wrapper |
 | `side_planes_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
 | `side_cylinders_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
-| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root |
-| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root |
-| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
+| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
+| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
 
 They are recorded here rather than folded into the M3 crop above: that
 crop is a dated era snapshot of what M3 added, and back-filling it
-would make it describe something it never described.
+would make it describe something it never described. The three
+`demo_flush_*` rows are annotated rather than deleted for the same
+reason: the measurement above was taken at `ff5ad78e` and a row struck
+out of it would make the count of seven unreadable. They no longer
+name a live site — the demo's hand declarer became a call to the
+library flush detector, which decides at the verifier's own
+`bool_plane_*` sites — and the K sweep's CSV has carried no
+`demo_flush_*` row since.
+
+**That retirement moved a population, not just a name.** Every margin
+the tour's flush contacts used to contribute under `demo_flush_*` now
+enters the K stream under `bool_plane_parallel` /
+`bool_plane_orient` / `bool_plane_offset`, alongside the boolean's
+own. Those three rows therefore carry more samples than before, drawn
+from the same geometry through a different door — a distribution
+change to READ rather than a threshold to restore, and the first
+`k-lint` sweep after the merge is what reads it (SEAT-3 asked for one
+with a `klint=dev-probe` head trailer).
 
 **Maintenance: this roster is a RECORD, and stays hand-maintained.**
 The decision is on what the roster is *for*, and the evidence is that
