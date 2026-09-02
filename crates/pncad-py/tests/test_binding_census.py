@@ -1120,6 +1120,9 @@ NOT_BOUND = {
     # which the Rust-side surface census records as unbound for the same
     # reason (`surface_census.rs`'s `Spelling::NotBound`).
     "ArrivesStraight": f"{GAP}: G1 the seam's declared straight arrival",
+    # Its DOCUMENT mirror, which a Python author would need to read a
+    # profile program back and see which arrival a seam declared.
+    "ProgramArrival": f"{GAP}: G1 the seam's declared arrival, on the document side",
     "ArrivesTangent": f"{GAP}: G1 the seam's declared G1 arrival",
     # --- gap: the expression surface (audit G1 + census-owned) ----
     "EvalError": f"{GAP}: B-EXPR-READ an expression's value",
