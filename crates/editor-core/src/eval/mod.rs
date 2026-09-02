@@ -1753,6 +1753,36 @@ where
 /// not read the witness, so the recompute reproduces identical
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
+/// **The content-key tag of a MIGRATED verb** — the memoization
+/// commitment, held where memoization lives, matching on the kernel's
+/// own name for the verb.
+///
+/// The kernel says nothing about content keys; this crate says nothing
+/// about what a verb IS. What connects them is one exhaustive match
+/// over [`verbs::VerbKind`], so a variant added to the vocabulary
+/// breaks this file at compile rather than defaulting to a tag that
+/// already means something else.
+///
+/// **The numbers are the ones that were already here** and they do not
+/// move: they are the tags [`content_key`]'s match wrote inline before
+/// the vocabulary had a home, and `verb_content_tags_are_the_committed
+/// _numbers` pins each of them. Keys are process-internal and never
+/// persist, so a tag costs a memo invalidation and no schema — but an
+/// EXISTING tag must never be reused for a new meaning, which is the
+/// rule this whole tag space runs on.
+///
+/// It takes the fieldless [`verbs::VerbKind`] rather than a
+/// `&Verb<T>` because a content key is computed BEFORE the node's
+/// selection has resolved to arena keys or its slot to a scalar: at
+/// this point in evaluation there is no verb value to match on, only
+/// the verb's name — which is exactly what the tag is a function of.
+fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
+    match kind {
+        verbs::VerbKind::Fillet => 17,
+        verbs::VerbKind::Chamfer => 24,
+    }
+}
+
 // The two arguments past the seventh are both INPUTS to the key,
 // which is the one thing a content key is allowed to grow: the lift's
 // lane-resolved program, and the measurement vocabulary's
@@ -1849,8 +1879,10 @@ where
         // an EXISTING tag must never be reused for a new meaning.
         Node::Loft { .. } => 15,
         Node::Sweep { .. } => 16,
-        // M5 PR 12.
-        Node::Fillet { .. } => 17,
+        // M5 PR 12. The number is not written here: a migrated verb's
+        // tag is a function of the KERNEL's name for it, so it comes
+        // out of `verb_content_tag`.
+        Node::Fillet { .. } => verb_content_tag(verbs::VerbKind::Fillet),
         // ASM-2A.
         Node::InstantiatePart { .. } => 18,
         // LIB-PLACEDUNION (19 is `Pattern`'s explicit rule, above):
@@ -1867,8 +1899,9 @@ where
         Node::Mate { .. } => 23,
         // LIB-G16. Appended, never a reused tag: a chamfer and a
         // fillet of the same size on the same edges are different
-        // geometry, so they must not share a key.
-        Node::Chamfer { .. } => 24,
+        // geometry, so they must not share a key. Same home as the
+        // fillet's, for the same reason.
+        Node::Chamfer { .. } => verb_content_tag(verbs::VerbKind::Chamfer),
         // M10-2. Tags APPEND — an existing one must never be reused
         // for a new meaning. Both of these claimed 24 on their own
         // branches; LIB-G16 merged first, so they take the next free
@@ -2862,6 +2895,45 @@ mod verb_tag_tests {
             seen.push((*verb, tag));
         }
         assert_eq!(seen.len(), profile::Verb::ALL.len());
+    }
+}
+
+#[cfg(test)]
+mod verb_content_tag_tests {
+    use super::verb_content_tag;
+
+    /// **The migrated verbs' content tags are the numbers the inline
+    /// match already wrote**, pinned digit by digit.
+    ///
+    /// This is the load-bearing row of moving the match: a memo key is
+    /// a function of the tag, so a tag that moved would silently
+    /// re-key every document carrying that node — every blend
+    /// document in the corpus recomputing where it used to hit, and,
+    /// worse, no red anywhere to say so. The numbers below are read
+    /// off the pre-change source, not off the function.
+    #[test]
+    fn verb_content_tags_are_the_committed_numbers() {
+        assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
+        assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+    }
+
+    /// No two verbs share a tag — the property `verb_tag`'s injectivity
+    /// row asserts for the profile vocabulary, here for the node one,
+    /// computed over `VerbKind::ALL` so a verb the vocabulary gains is
+    /// measured the moment it has an arm.
+    #[test]
+    fn verb_content_tags_are_injective() {
+        let mut seen: Vec<(verbs::VerbKind, u8)> = Vec::new();
+        for kind in verbs::VerbKind::ALL {
+            let tag = verb_content_tag(*kind);
+            assert!(
+                !seen.iter().any(|(_, t)| *t == tag),
+                "{kind:?} shares content tag {tag} with {:?}",
+                seen.iter().find(|(_, t)| *t == tag).map(|(k, _)| *k)
+            );
+            seen.push((*kind, tag));
+        }
+        assert_eq!(seen.len(), verbs::VerbKind::ALL.len());
     }
 }
 

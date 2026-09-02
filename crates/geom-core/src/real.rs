@@ -795,6 +795,38 @@ pub trait Real:
 /// this rule: neither branches on a bracket, so neither is a terminal
 /// grant at all.
 ///
+/// **Extension (SEAT-4, authorized under the M7-8 precedent;
+/// retroactive Evan review per the self-merge convention):**
+/// `verbs::run` — the verb vocabulary's single dispatch site — joins
+/// the compound allowlist as the narrowest possible extension of the
+/// PR 12 edge-blend seam, on the M7-8 argument verbatim: it adds no
+/// obligation because it DELEGATES to the already-listed doors
+/// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`), passing
+/// its operand and parameters through unchanged, and therefore
+/// inherits their signature rather than widening the rule's reach.
+///
+/// **It clears the first thing an entry owes** — that its reads stay
+/// on the prune/report side — vacuously and checkably: the file
+/// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
+/// comparison; the bound appears once, in a `where`-position on the
+/// impl block, purely so the callee's bound is satisfiable. Nothing
+/// there decides anything, in or out of the trilean.
+///
+/// **On the second — the WEAKEST bound that works, with the next
+/// tighter one shown failing.** Dropping [`Bounds`] does not compile:
+/// the callees require it. The next tighter bound,
+/// `Decide + `[`CertifiedBounds`]` + PcurveFittedLane`, compiles in
+/// this crate and BREAKS its caller — `editor_core::eval::wire`'s
+/// blend lowering runs beneath `evaluate<T>`, a mixed pass
+/// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
+/// `Dual` implements [`CertifiedEnclosure`]. This is the `separation`
+/// entry's discriminator, not the M9-2 one: a generic mixed pass does
+/// call this door, so it keeps its lane rather than tightening.
+///
+/// The seam did not widen here; it acquired a file. The refusing-lane
+/// question is answered where it was already answered: the PR 12 entry
+/// above, under the delegation rule, for the doors this one calls.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For

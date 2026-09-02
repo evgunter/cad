@@ -767,6 +767,7 @@ dependencies = [
  "sweep",
  "test-utils",
  "topo",
+ "verbs",
 ]
 
 [[package]]
