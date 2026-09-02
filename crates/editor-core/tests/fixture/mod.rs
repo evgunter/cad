@@ -66,6 +66,18 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
     })
 }
 
+/// The world xy frame as a node — origin at the world origin, sketch
+/// +x along world +x, sketch +y along world +y.
+///
+/// The `SketchPlane::xy()` constant most of these suites used, spelled
+/// as the node a profile now names. One per document, shared by every
+/// sketch on it: that is what "the same plane" is once the plane is a
+/// node, where the constant left each profile holding its own copy of
+/// identical floats.
+pub fn xy_frame() -> Node<ProfileProgram> {
+    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+}
+
 /// A profile program on `plane`, from polygon corner lists.
 ///
 /// It takes the frame's NODE rather than an origin and two vectors: a

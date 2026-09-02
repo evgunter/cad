@@ -26,7 +26,6 @@ use editor_core::{
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
-use profile::SketchPlane;
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -125,10 +124,11 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(-0.6), len(0.4)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let (doc, profile) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![outer],
         }),
     );
@@ -416,14 +416,11 @@ fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, xy) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
-        doc,
+        &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                geom_core::Point3::new(0.0, 0.0, 0.0),
-                geom_core::Vec3::new(1.0, 0.0, 0.0),
-                geom_core::Vec3::new(0.0, 1.0, 0.0),
-            ),
+            plane: xy,
             loops: vec![meridian],
         }),
     );
@@ -486,9 +483,10 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
 /// `pin_r` offset by `off` along x.
 fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-cyl"), Tol::witness());
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64, r: f64| {
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -605,10 +603,17 @@ fn r1_cylinder_gap_role_swap_negates() {
 #[test]
 fn r1_skew_cylinder_axes_refuse_typed() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-skew"), Tol::witness());
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
+    // The pin is drawn on the YZ frame, so its axis is x̂ against the
+    // bore's ẑ — the skew this row is about. Two planes, two frames.
+    let (doc, yz) = insert(
+        &doc,
+        fixture::frame([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+    );
     let (doc, p1) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -625,7 +630,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, p2) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::yz(),
+            plane: yz,
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
@@ -1105,9 +1110,10 @@ fn r1_own_document_web_and_flip() {
             },
         },
     );
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Expr::param(ParamName::new("r"), Dimension::Length),
