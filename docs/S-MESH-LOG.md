@@ -387,3 +387,45 @@ fired on real assembly products through 1597's aliasing.
 Slate next: MESH-11 (issue 1571) dispatches from this merge and draws
 MESH-B4; MESH-9 stays parked; issues 1587/1588/1597 are the
 cross-program seams left open.
+
+## MESH-11 merged (2026-09-02) — issue 1571 closed; the walk's arc premise is verified at the door
+
+PR 1599 at head ce9af2bf2 plus this row (run 33693735802 green; lane
+interval and ε 1e-12 both asked). The premise every chart consumer
+inherited — each boundary edge traversed on one chart branch — is now
+verified at props by a SEPARATE named predicate,
+`require_one_chart_branch`, cited by `mesh` in front of the walk and
+NOT by the flux lane: CERT-1's four pole rows admit pole-crossing
+meridian arcs on purpose (the closed form measures them exactly),
+while the walk's one-column-per-edge model cannot read them. Two
+predicates, not two answers — the door/walk question the spec called
+a possible fork was ruled not one by the orchestrator, and the PR says
+so plainly for Evan to overrule. The pole-membership arithmetic has one
+home, shared with the CERT-1 fold, one sign apart. The cone turned out
+NOT immune (an apex-crossing generator passes the shape door and the
+walk mis-reads it) and is covered by the predicate's cone arm. Both
+π-rad witnesses refuse typed at every δ; the imported half-cap is
+band-shaped (refused only at 1e-12, where its ~1e-9 m overshoot clears
+the band); D9 identical.
+
+**The dual (ordinal 1209, sample #113)**: both arms mergeable after
+MINORs, no MAJOR, no tally candidate; pair COUNTS, both arms
+delivering across three container restarts. The reviews' product:
+the retired sentence's citers had not been swept, a doubled doc block
+on the hoisted helper, the floor is `escalate` not ε, the asked-for
+interval lane had compiled but not executed the new arithmetic, and
+R2 found a pre-existing flux-lane defect — a meridian span past 2π
+folds SHORT because the saturated clamp's sign still has a zero set
+(issue 1601; the door is unaffected).
+
+**Filed forward.** Issue 1598 (the L-shaped complement's volume 0.0 —
+equal-and-opposite flux from one parse handing both faces the same
+levels; not closable without retracting CERT-1); issue 1601 (the
+saturated-span fold, Track R); issue 1602 (whether a props refusal may
+carry its measured overshoot — `props/curved.rs` is not on the Bounds
+allowlist).
+
+Slate state: the defect cluster MESH-6/7/8/10/11 is cleared. MESH-9
+stays parked on its trigger. What remains on S-MESH's slate is the
+MESH-R track lanes and the cross-program follow-ons (1587, 1588, 1597,
+1598, 1601, 1602) — the next unit is a slate decision, put to Evan.

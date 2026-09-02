@@ -161,10 +161,15 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
 /// model meeting an arc that lies on two chart meridians — shows up
 /// TWICE, in the two places that own the two halves of it:
 ///
-/// - `mesh::tessellate` REFUSES the face typed
-///   (`CertificateExceeded`), because the chord certificate cannot
-///   be met on a face whose UV polygon the arc premise breaks. It is a
-///   refusal, not a panic and not a wrong mesh.
+/// - `mesh::tessellate` REFUSES the face typed. At 1e-12 the refusal
+///   NAMES the premise — `UnsupportedCurvedShape` carrying props'
+///   `NotOneChartBranch` (issue 1571) — because the crossing clears
+///   the band there. At 1e-9 the crossing overshoots the pole by the
+///   same ~1e-9 m as the vertex, which is sub-band: the arc ends at
+///   the pole as far as that run can tell, the branch door admits it
+///   as it must, and the chord certificate refuses downstream
+///   instead. Two typed refusals, one banded premise; neither is a
+///   panic and neither is a wrong mesh.
 /// - `topo::examine_chart_coherence` REPORTS the arc, naming the
 ///   half-turn: the carrier's mid-parameter azimuth against its own
 ///   endpoint (`MeridianClosure`), and the file's two sub-edges of
@@ -176,9 +181,10 @@ fn a_junction_inside_the_pole_band_cannot_enter_through_the_import_door() {
 ///   measured by the door that measures rather than by an assertion
 ///   that panics.
 ///
-/// Issue 1571 owns FIXING the arc premise; this row owns seeing it,
-/// and it is the only row in tree that sees it through the door
-/// defective coordinates actually arrive at.
+/// Issue 1571 fixed the arc premise at props; this row owns seeing it
+/// through the door defective coordinates actually arrive at, and it
+/// is the only row in tree that does. Re-aimed by that unit: the
+/// 1e-12 arm now expects the premise's own refusal.
 #[test]
 fn the_halfcap_eps7_witness_is_band_shaped() {
     let eps = Tol::witness().get().eps;
@@ -244,9 +250,32 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
             report.findings
         );
     } else if (0.99e-9..=1.01e-9).contains(&eps) || (0.99e-12..=1.01e-12).contains(&eps) {
-        let err = out.expect_err("the arc premise breaks the chord certificate");
+        let err = out.expect_err("the arc premise is not met at this band");
+        // The arc premise is verified at props now (issue 1571,
+        // `require_one_chart_branch`), and this witness shows the
+        // predicate's BAND, not a hole in it: the file's crossing
+        // overshoots the pole by the same ~1e-9 m as the vertex above,
+        // so it clears the band only at 1e-12. There it is refused at
+        // the door, naming the premise, before any mesh is minted; at
+        // 1e-9 that overshoot is sub-band — the arc ENDS at the pole
+        // as far as this run can tell, which is precisely the case the
+        // door must admit (CERT-1's split-vertex row) — and the
+        // refusal comes from the chord certificate downstream instead.
+        // Both are typed refusals, neither is a panic or a mesh; which
+        // one answers is the two-tolerance shape of a banded premise.
+        let expected_at_this_band = if (0.99e-12..=1.01e-12).contains(&eps) {
+            matches!(
+                err,
+                mesh::TessellateError::UnsupportedCurvedShape {
+                    source: geom_brep::props::PropsError::NotOneChartBranch { .. },
+                    ..
+                }
+            )
+        } else {
+            matches!(err, mesh::TessellateError::CertificateExceeded { .. })
+        };
         assert!(
-            matches!(err, mesh::TessellateError::CertificateExceeded { .. }),
+            expected_at_this_band,
             "a typed refusal, not a panic and not a mesh; got {err:?}"
         );
         let kinds: Vec<_> = report.findings.iter().map(|f| f.condition).collect();

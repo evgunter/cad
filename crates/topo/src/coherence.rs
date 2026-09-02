@@ -101,8 +101,19 @@
 //! endpoint: issue 723's half-cap through import — the committed
 //! fixture above, whose offending endpoint is 1.0e-9 m from the axis,
 //! so the half-turn opens 3.14 nm and the report is band-shaped across
-//! the ε rows — and issue 1571's Euler-door body. Issue 1571 owns
-//! FIXING the arc premise; this door owns seeing it.
+//! the ε rows — and issue 1571's Euler-door body.
+//!
+//! **The arc premise is now verified, at props, and that does not
+//! retire these rows** (issue 1571, closed by
+//! `geom_brep::props::require_one_chart_branch`, which `mesh`'s shape
+//! door cites). What changed is the mesh side: such a body is refused
+//! typed before the walk instead of reaching it. What did not change
+//! is this examination, and deliberately — it has no door in front of
+//! it (below), so it still reads and reports these faces, and the
+//! number it reports is the same half-turn. On a body the mesh door
+//! now refuses, a `MeridianClosure` finding is REDUNDANT with that
+//! refusal rather than the only account of it; on a body no consumer
+//! meshes it is still the only account there is.
 //!
 //! **What nothing re-measures.** No test in this repo examines the
 //! wild or FreeCAD corpora, so the input class these conditions are
@@ -134,6 +145,19 @@ pub enum CoherenceCondition {
     /// The edge's carrier-midpoint azimuth against `vertex`'s own —
     /// one of that edge's two endpoints. Gap in radians of u; lever
     /// [`Chart::radial`] at `vertex`.
+    ///
+    /// **A half-turn here is now redundant with a refusal, where a
+    /// consumer meshes the body at all** (issue 1571). An arc whose
+    /// span crosses a chart singularity puts its carrier's midpoint on
+    /// the far branch, which is what this condition measures — and it
+    /// is also exactly what `geom_brep::props::require_one_chart_
+    /// branch` refuses, so `mesh` never walks such a face and never
+    /// needed this report to know. The condition stays because it
+    /// measures more than that one shape (any disagreement between a
+    /// carrier and its own endpoint, at any size, on faces no lane
+    /// meshes) and because it is a MEASUREMENT rather than a verdict:
+    /// it reports the metres, where the door reports only that the
+    /// span crossed.
     MeridianClosure {
         /// The endpoint whose azimuth the carrier is compared with.
         vertex: VertexKey,

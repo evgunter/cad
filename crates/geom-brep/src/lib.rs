@@ -118,6 +118,7 @@ pub use pcurve_cache::{
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
+    require_one_chart_branch,
 };
 pub use ssi::{
     Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,
