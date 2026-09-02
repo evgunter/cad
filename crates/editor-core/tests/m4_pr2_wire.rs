@@ -316,6 +316,37 @@ fn typed_refusal_doors() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
+    // **Which NAME a good datum's length decision is recorded under.**
+    // Not decoration: `verdict_summary` keys its per-node populations
+    // by this string and serializes them for the cross-process ε
+    // audit, so the name is comparable data, and two summaries that
+    // straddle the move to the kernel constructor disagree about a
+    // datum node's population keys for that reason alone.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, good) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(0.0), scl(0.0), scl(2.0)],
+        }),
+    );
+    let ev = run(&doc);
+    let names: Vec<&str> = ev
+        .value(good)
+        .expect("the datum evaluates")
+        .verdicts
+        .iter()
+        .map(|v| v.predicate)
+        .collect();
+    assert!(
+        names.contains(&"datum_unit_norm"),
+        "the datum's length decision is the kernel constructor's, by name: {names:?}"
+    );
+    assert!(
+        !names.contains(&"eval_direction_norm"),
+        "and it is no longer the evaluation layer's: {names:?}"
+    );
+
     // Non-positive pattern count.
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     let (doc, cube) = unit_cube(doc, 0.0, 0.0);
