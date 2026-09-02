@@ -3015,3 +3015,18 @@ invariant by construction, both signed branches exercised).
 NO TALLY CANDIDATES — tally 1/8, candidates still 5 pending the
 blinded coding. Pair COUNTS. Union fix pass out (fable,
 implementer-inherited).
+## CYLSPH DISPATCHED (2026-09-02) — VERBS-8 slot 2, OPUS
+
+Spec ratified at ab991663e on the survey + Evan's two rulings
+(shape: exact coaxial arm + germ frame now, fitted window
+DEFERRED on the SPHSPH no-union-flips precedent; COAXIALITY
+DECLARED-ONLY — the RadiusEvidence sibling, #1372 the eventual
+carrier). The survey's central finding: the historical unit name
+was stale — the route arm has been implemented:true since M5
+PR 7; what remained was classification + frame + the #974
+tangent-locus arm + the deferred window. Guard lesson from
+ordinal 111 baked into the spec. Slot 2's arm read from the
+VERBS-8 per-slot line at dispatch: OPUS. Meanwhile C5-1 (ordinal
+111, sample #111) rides #1577 toward its merge; the RIMCAP and
+EXIT-WALK drafts sit in staging pending the C5ARMS/CYLSPH
+closures.
