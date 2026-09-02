@@ -49,10 +49,6 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
-/// A profile PROGRAM: polygon `loops` on the plane with the given
-/// frame (LIB-SWITCH §4i: the corpus's polygon choke point — under v4
-/// each loop is a chain program, `At(p0), LineTo(p1), …,
-/// LineTo(Start)`, the VQ5 expansion at literal points).
 /// The frame datum a profile is drawn on, as a node to insert.
 ///
 /// The components `desc` used to bake into a `SketchPlane` are the
@@ -78,7 +74,10 @@ pub fn xy_frame() -> Node<ProfileProgram> {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
-/// A profile program on `plane`, from polygon corner lists.
+/// A profile program on `plane`, from polygon corner lists
+/// (LIB-SWITCH §4i: the corpus's polygon choke point — under v4 each
+/// loop is a chain program, `At(p0), LineTo(p1), …, LineTo(Start)`,
+/// the VQ5 expansion at literal points).
 ///
 /// It takes the frame's NODE rather than an origin and two vectors: a
 /// profile's plane is a document node, so the caller inserts the frame

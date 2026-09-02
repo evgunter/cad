@@ -34,10 +34,8 @@
 //! against the pairwise Transform + Union chain it replaces.
 
 use editor_core::{BooleanOp, Datum, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
-use super::super::fixture::{ang, len, scl};
+use super::super::fixture::{ang, frame, len, scl, xy_frame};
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
 
@@ -82,8 +80,9 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ ----
     let square = LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)])
         .expect("the die's square");
+    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: cube_plane,
         loops: vec![square],
     }));
     let cube = r.insert(Node::Extrude {
@@ -96,12 +95,13 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
+    let ball_plane = r.insert(frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::from_frame(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ),
+        plane: ball_plane,
         loops: vec![half_disc_program()],
     }));
     let ball = r.insert(Node::Revolve {

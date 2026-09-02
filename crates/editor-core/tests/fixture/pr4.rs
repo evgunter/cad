@@ -13,7 +13,7 @@ use editor_core::{
     resolve, resolve_with_prior,
 };
 
-use super::{ang, desc, insert, len, scl, step};
+use super::{ang, desc, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
@@ -48,14 +48,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -217,13 +215,12 @@ where
     // ---- Scenario D: the symmetric U tie (Ambiguous). ----
     let docu = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (docu, up) = insert(
+    let (docu, up) = on_frame(
         docu,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
                 (2.0, 1.0),
                 (6.0, 1.0),
                 (6.0, 3.0),
@@ -233,7 +230,6 @@ where
                 (5.0, 1.5),
                 (2.0, 1.5),
             ]],
-        )),
     );
     let (docu, ub) = insert(
         docu,

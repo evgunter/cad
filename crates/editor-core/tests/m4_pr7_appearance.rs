@@ -240,14 +240,12 @@ fn multi_attribute_per_entity_and_clear_semantics() {
 #[test]
 fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     let doc0 = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
-    let (doc1, p) = insert(
+    let (doc1, p) = on_frame(
         doc0.clone(),
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     let (doc2, ext) = insert(
         doc1,

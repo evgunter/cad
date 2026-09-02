@@ -83,16 +83,6 @@ pub enum NonFiniteSite {
         /// which one rather than discarding the answer.
         field: Option<DistributionField>,
     },
-    /// A float of a profile node's PLANE PLACEMENT (snapshot), by
-    /// position among the 12 placement floats (columns c0, c1, c2,
-    /// translation; x, y, z each). Program arguments are `Expr`s and
-    /// carry the literal door's finiteness by construction.
-    Profile {
-        /// The profile node.
-        node: RecipeNodeId,
-        /// Index in the canonical float traversal.
-        index: usize,
-    },
     /// A float inside an appearance record's metadata (snapshot).
     Metadata {
         /// The attributed name.
@@ -101,13 +91,6 @@ pub enum NonFiniteSite {
         key: String,
         /// Path within the value tree (dot/index notation).
         path: String,
-    },
-    /// A float of a profile payload carried by an `InsertNode` edit
-    /// (the node id is minted only at replay, so the site is the
-    /// float's traversal index alone).
-    InsertedProfile {
-        /// Index in the canonical float traversal.
-        index: usize,
     },
     /// A float carried by an edit in the log; `index` is the edit's
     /// position, `inner` the site within that edit's payload.
@@ -137,18 +120,9 @@ impl core::fmt::Display for NonFiniteSite {
                 "document parameter {:?}, distribution field {field}",
                 name.0
             ),
-            Self::Profile { node, index } => write!(
-                f,
-                "float {index} of the sketch-plane placement on profile node {}",
-                node.0
-            ),
             Self::Metadata { name, key, path } => {
                 write!(f, "metadata {key:?} on the {name}, at {path}")
             }
-            Self::InsertedProfile { index } => write!(
-                f,
-                "float {index} of an inserted profile's sketch-plane placement"
-            ),
             Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
         }
     }

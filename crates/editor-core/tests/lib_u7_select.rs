@@ -48,14 +48,12 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 
 /// A unit box as an extruded square, and its extrude node.
 fn box_doc() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("lib_u7_select", Tol::witness()),
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     fixture::insert(
         doc,
@@ -111,14 +109,12 @@ fn the_siblings_return_canonical_order() {
 /// and the FILLET is where an empty selection refuses.
 #[test]
 fn the_siblings_and_the_selector_are_empty_for_a_valueless_node() {
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("lib_u7_select", Tol::witness()),
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let ev = eval(&doc);
     let absent = RecipeNodeId(999);

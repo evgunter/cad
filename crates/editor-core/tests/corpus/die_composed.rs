@@ -51,10 +51,8 @@ use editor_core::{
     ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
     RoleSeg, SegPat, SegTag, Selector, SlotId, StableName,
 };
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
-use super::super::fixture::{ang, len, prism_edges, scl};
+use super::super::fixture::{ang, frame, len, prism_edges, scl, xy_frame};
 use super::{CorpusDoc, Recorder};
 
 /// The die's side, meters.
@@ -213,8 +211,9 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ (die_pips' chain, verbatim) ----
     let square =
         LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
+    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: cube_plane,
         loops: vec![square],
     }));
     let cube = r.insert(Node::Extrude {
@@ -229,12 +228,13 @@ pub fn document() -> CorpusDoc {
     }));
     // die_pips' half-disc: the bulge-1 semicircle closed on-axis.
     let half_disc = half_disc_program();
+    let ball_plane = r.insert(frame(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::from_frame(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ),
+        plane: ball_plane,
         loops: vec![half_disc],
     }));
     let ball = r.insert(Node::Revolve {

@@ -25,7 +25,7 @@ use editor_core::{
     Node, ParamName, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
     SplitError, StableName, content_pin, evaluate, inline, load, product_named, save, split,
 };
-use fixture::{desc, insert, len, on_frame, square, step};
+use fixture::{desc, insert, len, on_frame, square, step, xy_frame};
 use geom_core::Tol;
 
 // ---- The stub store (the asm2a idiom: no files, full pin gate) ----
@@ -551,15 +551,12 @@ fn row3_uncut_param_reference_refuses() {
         },
     );
     let h = || Expr::param(ParamName::new("h"), editor_core::Dimension::Length);
-    let sq = |cx: f64| {
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, 0.5)],
-        ))
-    };
-    let (doc, p1) = insert(doc, sq(0.0));
+    // Each block draws on its OWN frame. A shared one would sever an
+    // edge at the cut below — the frame is a document input now — and
+    // that refusal would fire before the parameter question this row
+    // is about.
+    let (doc, f1) = insert(doc, xy_frame());
+    let (doc, p1) = insert(doc, Node::Profile(desc(f1, vec![square(0.0, 0.0, 0.5)])));
     let (doc, e1) = insert(
         doc,
         Node::Extrude {
@@ -567,7 +564,11 @@ fn row3_uncut_param_reference_refuses() {
             distance: h(),
         },
     );
-    let (doc, p2) = insert(doc, sq(10.0));
+    let (doc, f2) = insert(doc, xy_frame());
+    let (doc, p2) = insert(
+        doc,
+        Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])),
+    );
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
@@ -577,7 +578,7 @@ fn row3_uncut_param_reference_refuses() {
     );
     match split(
         &doc,
-        &BTreeSet::from([p1, e1]),
+        &BTreeSet::from([f1, p1, e1]),
         DocumentId::derive("n"),
         Tol::witness(),
     ) {
@@ -596,7 +597,7 @@ fn row3_uncut_param_reference_refuses() {
     // split is legal.
     let out = split(
         &doc,
-        &BTreeSet::from([p1, e1, p2, e2]),
+        &BTreeSet::from([f1, p1, e1, f2, p2, e2]),
         DocumentId::derive("n"),
         Tol::witness(),
     )

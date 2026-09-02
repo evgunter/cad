@@ -11,9 +11,8 @@
 //! validity + the ellipse pins are the oracles.
 
 use editor_core::{Datum, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
-use profile::SketchPlane;
 
-use super::super::fixture::{len, scl};
+use super::super::fixture::{len, scl, xy_frame};
 use super::{CorpusDoc, Recorder};
 
 /// The tilt angle (radians) of the cutting plane's normal off the
@@ -34,8 +33,9 @@ pub fn document() -> CorpusDoc {
     // way; only the program-order rotation differs, which is naming
     // substrate, not geometry).
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
+    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![disc],
     }));
     let cylinder = r.insert(Node::Extrude {

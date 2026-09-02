@@ -91,10 +91,21 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::continuous(Dimension::Length, 0.001),
         },
     );
+    // Every sketch in this fixture is drawn on the world xy plane, so
+    // ONE frame node (node 0) serves them all — a profile names its
+    // plane now, and four copies of the same frame would say four
+    // planes where the document has one.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+    );
+    let plane = editor_core::RecipeNodeId(0);
     // v4 re-authoring (content-preserving): the quad with one arc
     // segment authors as a chain whose arc step carries its AUTHORED
     // bulge — the same 0.25 the retired form stored on vertex 1.
-    let mut d = desc([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![]);
+    let mut d = desc(plane, vec![]);
     d.loops = vec![LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
@@ -115,16 +126,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(0),
+                profile: editor_core::RecipeNodeId(1),
                 distance: Expr::param(ParamName::new("depth"), Dimension::Length),
             },
         },
     );
     // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
-    // line/arc tangency (node 2 — the #100 bracket: the quarter arc
+    // line/arc tangency (node 3 — the #100 bracket: the quarter arc
     // leaving (1.5,1), bulge −(√2−1), is exactly tangent to both
     // neighboring lines; joints 3 and 4 declared BY HAND) and a
-    // fillet-CONSTRUCTED loop (node 3, joints declared by
+    // fillet-CONSTRUCTED loop (node 4, joints declared by
     // construction) — the wire's tangent_joints field is pinned by
     // the golden from day one. (#120: this replaced the original
     // COLLINEAR declaration, which the #101 same-carrier rule
@@ -152,7 +163,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane,
                 loops: vec![bracket],
             }),
         },
@@ -181,7 +192,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane,
                 loops: vec![fillet_loop],
             }),
         },
@@ -192,8 +203,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // pinned by no golden, against this fixture's shape-covering
     // charter.
     //
-    // It gets its OWN square prism (nodes 4 and 5) rather than reusing
-    // node 1, and the reason is the door rather than tidiness: node 1's
+    // It gets its OWN square prism (nodes 5 and 6) rather than reusing
+    // node 2, and the reason is the door rather than tidiness: node 2's
     // profile carries an ARC, so its barrel is a cylinder; the
     // chamfer's v1 door is plane-plane, and every closed edge chain on
     // that body runs into the curved lateral and refuses
@@ -208,9 +219,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // Appended, so every existing node id — and every name the
     // appearance rows above address — is untouched.
     let square = desc(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
+        plane,
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     doc = push(
@@ -223,7 +232,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(4),
+                profile: editor_core::RecipeNodeId(5),
                 distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
             },
         },
@@ -232,16 +241,16 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::chamfer(
-                editor_core::RecipeNodeId(5),
+                editor_core::RecipeNodeId(6),
                 Expr::literal(0.1, Dimension::Length).expect("finite"),
-                fixture::prism_edges(editor_core::RecipeNodeId(5), 4),
+                fixture::prism_edges(editor_core::RecipeNodeId(6), 4),
             ),
         },
     );
     doc = push(
         &doc,
         &DocEdit::ReWitness {
-            node: editor_core::RecipeNodeId(0),
+            node: editor_core::RecipeNodeId(1),
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x00, 0x7f, 0x80, 0xff],
@@ -250,7 +259,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     let body = StableName {
         kind: EntityKind::Body,
-        node: editor_core::RecipeNodeId(1),
+        node: editor_core::RecipeNodeId(2),
         path: vec![RoleSeg::OutputBody],
     };
     doc = push(
@@ -299,11 +308,11 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     ),
                 )
                 .expect("same-dimension subtraction"),
-                // Read at node 1, the extrude that owns the body: the
+                // Read at node 2, the extrude that owns the body: the
                 // reference is unindexed by this expression, so it is
                 // carried data the measure never reads.
                 vec![editor_core::MeasureRef::new(
-                    editor_core::RecipeNodeId(1),
+                    editor_core::RecipeNodeId(2),
                     body.clone(),
                 )],
             )
@@ -319,7 +328,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 // shifts this one — the insert door catches that
                 // typed (`AssertionTarget`) rather than letting a
                 // golden freeze an assertion over the wrong node.
-                measure: editor_core::RecipeNodeId(7),
+                measure: editor_core::RecipeNodeId(8),
                 bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
                 dir: editor_core::AssertionDir::AtLeast,
             },
@@ -330,7 +339,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // wire's per-literal `unit` field is pinned in the FROZEN bytes
     // (§4g: value canonical meters, `"unit": "mm"` on the wire).
     let edits = vec![DocEdit::SetParam {
-        node: editor_core::RecipeNodeId(1),
+        node: editor_core::RecipeNodeId(2),
         slot: editor_core::SlotId::Distance,
         expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),

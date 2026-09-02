@@ -63,9 +63,8 @@
 //! closed) and the face count.
 
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
-use profile::SketchPlane;
 
-use super::super::fixture::{len, prism_edges};
+use super::super::fixture::{len, prism_edges, xy_frame};
 use super::{CorpusDoc, Recorder};
 
 /// The blank's side, meters (dyadic).
@@ -81,8 +80,9 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
+    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![square],
     }));
     let cube = r.insert(Node::Extrude {
