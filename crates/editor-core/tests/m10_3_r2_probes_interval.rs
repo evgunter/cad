@@ -82,8 +82,16 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
             distribution: Some(dist),
         },
     });
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_0,
         loops: vec![unit_square()],
     }));
     r.insert(Node::Extrude {
@@ -640,8 +648,16 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 },
             });
         }
+        let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
+            origin: [0.0, 0.0, 0.0]
+                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+            u: [1.0, 0.0, 0.0]
+                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+            v: [0.0, 1.0, 0.0]
+                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        }));
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy_frame_1,
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),

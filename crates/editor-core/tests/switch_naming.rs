@@ -10,13 +10,14 @@
 
 use std::collections::BTreeSet;
 
+mod fixture;
+
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
     evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
 
 /// A quad whose LAST authored corner x is a document parameter: at
 /// x0 = 0.5 that corner (0.5, 1) is lex-min (canonical offset 3); at
@@ -43,11 +44,12 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Point([x0e(), lit(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, xy) = fixture::insert(doc, fixture::xy_frame());
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![loop_],
                 }),
             },
@@ -151,11 +153,15 @@ fn lex_min_swap_cannot_renumber_program_names() {
 #[test]
 fn circle_radius_edit_keeps_names() {
     let mk = |r: f64| {
-        let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+        let (doc, xy) = fixture::insert(
+            ProfileDoc::empty_derived("switch_naming", Tol::witness()),
+            fixture::xy_frame(),
+        );
+        let doc = doc
             .apply(
                 &DocEdit::InsertNode {
                     node: Node::Profile(ProfileProgram {
-                        plane: SketchPlane::xy(),
+                        plane: xy,
                         loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                     }),
                 },
@@ -276,11 +282,15 @@ fn hole_circle_anchor_recovers_reversal() {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
-    let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+    let (doc, xy) = fixture::insert(
+        ProfileDoc::empty_derived("switch_naming", Tol::witness()),
+        fixture::xy_frame(),
+    );
+    let doc = doc
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![outer, hole],
                 }),
             },

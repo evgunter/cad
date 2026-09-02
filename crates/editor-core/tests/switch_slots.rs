@@ -9,27 +9,36 @@
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod fixture;
+
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EditError, EvalOptions, Expr, ExprPath, LoopProgram,
     Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramRefusal,
     RecipeNodeId, SlotId, StepArg, ValuePayload, evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
 
 fn circle_doc(r: f64) -> ProfileDoc {
-    ProfileDoc::empty_derived("switch_slots", Tol::witness())
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
-                    loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
-                }),
+                node: fixture::xy_frame(),
             },
             Tol::witness(),
         )
         .unwrap()
-        .doc
+        .doc;
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: RecipeNodeId(0),
+                loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
+            }),
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .doc
 }
 
 fn radius_slot() -> SlotId {
@@ -235,8 +244,17 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
+                node: fixture::xy_frame(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let doc = doc
+        .apply(
+            &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: RecipeNodeId(1),
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Expr::literal(0.0, Dimension::Length).unwrap(),
@@ -286,7 +304,10 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
 #[test]
 fn insert_node_checks_program_dimensions() {
     let bad = ProfileProgram {
-        plane: SketchPlane::xy(),
+        // Any node id: this payload never enters a document. The
+        // dimension door refuses it before anything looks at what its
+        // plane denotes, which is the whole claim of the row.
+        plane: RecipeNodeId(0),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Expr::literal(0.0, Dimension::Length).unwrap(),
