@@ -1,7 +1,7 @@
 # QA-3 — the debt-charging class: the tools-scope k-lint path pin (#1023 + D183)
 
 Unit spec, S-QA program (`docs/S-QA-PLAN.md` §QA-3 and §Rulings Q1 —
-**Evan's ruling, 2026-08-29, is the charter here**). Binding alongside
+**Ev's ruling, 2026-08-29, is the charter here**). Binding alongside
 `docs/prompts/implementer-discipline.md` — read that in full first.
 
 ## Premise, and verify it before anything else

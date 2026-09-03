@@ -2,7 +2,7 @@
 
 Executes `docs/KERNEL-VERBS.md` (the register): the missing modeling
 verbs whose prerequisites are already ratified, in dependency order,
-plus the register's verb-gating defect rows. Kicked off by Evan
+plus the register's verb-gating defect rows. Kicked off by Ev
 in-chat 2026-08-21. Branch prefix **`verbs/`** (orchestrator worktree
 branch `mngr/kernel-verbs` predates the prefix and is armed
 alongside). Narrative record and live state: `work/verbs/log.md`'s
@@ -10,7 +10,7 @@ tail, never this file. The register stays the reference view; rows
 scheduled here are marked there only by this plan's existence — the
 register itself never schedules.
 
-**Kickoff rulings (Evan, in-chat 2026-08-21):**
+**Kickoff rulings (Ev, in-chat 2026-08-21):**
 
 - Wave order as below; an issue-scan subagent surveyed all open
   GitHub issues (2026-08-21) and its findings are folded in below —
@@ -24,7 +24,7 @@ register itself never schedules.
 - Design conversations open **as soon as the relevant info is
   available** — likely most now — rather than queuing behind their
   implementation waves. Each is a design-conversation PR per the
-  standing rule (Evan sign-off before merge).
+  standing rule (Ev sign-off before merge).
 - The C7 / declared-conformal row stays M9's. Helix: **stays
   blocked** — #222's closure records an executed measurement, not a
   fix (its own text: fix shape "segmented/rolled chord meter…,
@@ -82,7 +82,7 @@ ARMS-2 #962, ARMS-3 #1028, TUBEWALL #960, RING #933.
    ARMS-2 the coaxial arms (one shared torus derivation — and the
    C8 "cone" prose corrected: constant-radius rolls mint only
    torus/cylinder); ARMS-3 general sphere×sphere + the OQ6
-   valence-4 run-out door (a design conversation, Evan-gated).**
+   valence-4 run-out door (a design conversation, Ev-gated).**
 4. **VERBS-TUBEWALL (S)** — `tube_along_arc` grows a wall/inner-
    radius parameter so hollow tubes keep the door's exact-intent
    storage. No design record yet: the unit PR carries the (small)
@@ -170,7 +170,7 @@ surface machinery: intensional `Offset(S,d)`, fit, certified residual
 ≤ ε, at rest as `Surface::Approx`); **VERBS-OFF-D** (#1043 the
 face-replacement door, #1048 the shell verb — open-shell /
 face-removal vocabulary per D1 + the verb); and the **Utah teapot
-demo** (#1078, the verb's designated demo, Evan 2026-08-09).
+demo** (#1078, the verb's designated demo, Ev 2026-08-09).
 
 Wave-3 substrate the scan pins (the conversation must account for
 them): #453/#390 — rational-patch quadrature hull FLOORS the
@@ -216,7 +216,7 @@ opened by a MEASUREMENT on a shipped verb, not by a scan row.
     `docs/VERBS-SHELLFIX-SPEC.md` — the one VERBS spec sweep 3 kept,
     because it still binds.
 16. **VERBS-LILYWELD** — PR-1 #1109 re-authored the flower/arch junction
-    circle-coincident on Evan's content call; PR-2 #1127 closed as a
+    circle-coincident on Ev's content call; PR-2 #1127 closed as a
     MEASUREMENT that dissolved its own premise (the plan note below).
 17. **VERBS-F7POLE (#1131)** — #1031's POLE half, as a REPAIR in
     `merge_coplanar_faces`, not a gate narrowing. #1031 stays open for
@@ -227,7 +227,7 @@ wall-clearance window), #1056 (shell of an already-hollow body), #1058
 (curved-rim narrowing / winding predicate / per-call pcurve mint),
 #1018/#1019/#1020 (the `Approx` face's mesh, perf and transform lanes).
 
-## Design conversations (Evan-paced; open as info firms up)
+## Design conversations (Ev-paced; open as info firms up)
 
 - **Q8 offset/shell elaboration** — RATIFIED (#907,
   `docs/OFFSET-DESIGN.md`); Wave 3 executed it.
@@ -292,7 +292,7 @@ state-sync docs PRs at every pipeline seam.
 Wall 2's stated blocker (transverse curved×curved SSI — the
 banked germ-chord lane) is NOT the binding refusal, and neither is
 the operand KIND gate that refuses first (`op: None`,
-reduce.rs:341). Evan ruled the content question: the flower/arch
+reduce.rs:341). Ev ruled the content question: the flower/arch
 junction is authored circle-coincident (VERBS-LILYWELD, #1109).
 Measured there, the weld's declared contact is plane×plane and no
 declaration covers the cone×torus pair, so the #968-shaped gate
@@ -313,7 +313,7 @@ The measurement the unit opened with — does one maximal cap fall
 out of revolve/full.rs's own wire-case construction (half = θ/2,
 rot_pi), or does it require the role-ambiguous merge that
 merge_coplanar_faces refuses? — is TAKEN, and it falsifies the
-premise Evan's two recorded options share (his lean was (b),
+premise Ev's two recorded options share (his lean was (b),
 producers mint maximal caps; (a), the repair op, first if that is
 merge-shaped). A full revolve sweeps in TWO π-bands precisely so
 each pole ends valence-2: merging one meridian away leaves
@@ -330,16 +330,16 @@ admitted a shape it claimed to exclude, both falsified by fixtures
 already in the repo and both withdrawn; what shipped is a REPAIR in
 `merge_coplanar_faces` (`crates/topo/src/merge_faces.rs:794`),
 removing a redundant subdivision vertex on a shared collinear seam,
-which changes no locus. Evan's original repair-op steer was right.
+which changes no locus. Ev's original repair-op steer was right.
 #1031 stays open for the ordinary coplanar pair at a full-valence
 edge (the teapot cup's meridian plane, endpoints of valence 4).
-The deviation from the recorded steer is flagged for Evan's
+The deviation from the recorded steer is flagged for Ev's
 retroactive review; the plane-face interior-seam question is ruled
 permissible (a preference to avoid, not a wall).
 
 ## Plan note (2026-08-29, #1200's work-stream survey): VERBS' claims vs the streams
 
-Per Evan's ruling ("take everything that's naturally within your
+Per Ev's ruling ("take everything that's naturally within your
 work"): VERBS CLAIMS #347's remaining half (the germ-arms unit),
 #1031 half B, #1076, and #1077 — the S-BOOL anchors that were
 already Wave-4 queue items with drafted specs (spec-drafts/ in

@@ -25,7 +25,7 @@ these tracks were picked:
 
 ## Protocol for this session
 
-No A/B protocol (Evan, this session). Every unit gets a **style review**
+No A/B protocol (Ev, this session). Every unit gets a **style review**
 against `docs/prompts/reviewer-style-lane.md`, briefed with one standing
 emphasis: **does the defect the unit closed reappear in a slightly different
 form** — §D rule 5's finding, which held eight units out of eight on Track F
@@ -302,7 +302,7 @@ resolution. A Plane/Cylinder pair passes silently in debug and release, and the
 group's regime is then decided by **arena order**. Pre-existing, and worse as a
 documented proof than as silence.
 
-### `docs/DESIGN.md:483` is false about the shipped kernel — Evan's, not a lane's
+### `docs/DESIGN.md:483` is false about the shipped kernel — Ev's, not a lane's
 
 It says `merge_coplanar_faces` *"never elides vertices (collinear vertex chains
 survive)"* and that tier 3′'s strict record-drop rule is correct **because** of
@@ -314,7 +314,7 @@ public door. And the rule's justification is broken, not merely its sentence:
 key with no lineage row and its records drop as *"genuinely consumed"* — the R5
 record-carriage class `DESIGN.md` says is closed because of the false premise.
 Whether a declared contact vertex can land on such a junction is unconstructed.
-**Ratified design is a fork, so it waits for sign-off**; raised to Evan rather
+**Ratified design is a fork, so it waits for sign-off**; raised to Ev rather
 than fixed, and no lane touches `DESIGN.md`.
 
 ## `C15` landed — three review rounds, and what each one cost

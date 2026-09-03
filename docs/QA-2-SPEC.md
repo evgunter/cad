@@ -18,7 +18,7 @@ under specs daily.
   shard-cancellation setting and does not touch this.
 - **#1122 (RULED, 2026-08-29 — this deliverable was re-cut
   mid-flight; the ruling supersedes the earlier verify-the-pin
-  framing)**: Evan ruled the basename-substring half of
+  framing)**: Ev ruled the basename-substring half of
   `_forces_interval` (the `"interval" in basename` arm) is
   **removed** in favour of the manual-request convention — a
   change to interval semantics asks for its lane with
@@ -28,7 +28,7 @@ under specs daily.
   place of the dropped pin, the filter prints an ADVISORY when a
   changed file's basename contains `interval`: the diff touched
   `*interval*` files, and if interval semantics changed the lane
-  should be requested. **The load-bearing half (Evan): the
+  should be requested. **The load-bearing half (Ev): the
   convention lands in `docs/prompts/implementer-discipline.md`**,
   replacing its §2 paragraph that documents the basename rule —
   every lane reads that file, and a convention only a filter

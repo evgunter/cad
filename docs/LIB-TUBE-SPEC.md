@@ -1,7 +1,7 @@
 # LIB-TUBE — Node::Tube + Node::HollowTube (recipe doors for the tube pair; G2's tube half)
 
 **Status: spec under ratified `docs/RECIPE-DOORS-DESIGN.md` D1 + D4
-AS REVISED by the #1205 ruling (Evan, issue comment + in-chat
+AS REVISED by the #1205 ruling (Ev, issue comment + in-chat
 sign-off, 2026-08-29). Binding at dispatch. Full model-A/B protocol
 unit — a schema break is not mechanical. RECIPE-DOORS unit 2 of 3.**
 

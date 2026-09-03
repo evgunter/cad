@@ -2,7 +2,7 @@
 
 # §C. Process observations
 
-Evan's standing request (2026-08-18): *"i wonder how they happened; it'd be
+Ev's standing request (2026-08-18): *"i wonder how they happened; it'd be
 cool to get a 1-3 sentence postmortem on each covering the rationale and
 whether (per the associated pr description, A/B log, and/or orchestrator's log)
 the reviewer flagged it as an issue. i think this could be really useful for
@@ -61,7 +61,7 @@ at which this repo had no reviewer before this scan.
 
 #232's completeness MINOR could only be discharged by making the essay
 *longer* (nine more types plus a paragraph on why each was missed). Note the
-timing against Evan's own later standing brief line — *"comments state the
+timing against Ev's own later standing brief line — *"comments state the
 INVARIANT, not the history: no retired-type archaeology, no unit tags"*
 (2026-08-08) — which is exactly what `closure.rs:135` and `select.rs`'s
 unit-tagged sections violate, having been written days before it and never
@@ -409,7 +409,7 @@ their own programme, #632's not until a lane a day later ran an instrument
 of a different shape. Where a sweep's blind spot is unstated, *"the
 conclusion happened to survive anyway"* is itself an unverified claim.
 
-**Proposed in #666, awaiting Evan's sign-off** — it amends the review
+**Proposed in #666, awaiting Ev's sign-off** — it amends the review
 instrument, which is Protocol v5's territory. The rule text lives in
 `docs/prompts/reviewer-style-lane.md`; it is not restated here, because two copies of
 one rule is the shape this report exists to hunt.
@@ -517,7 +517,7 @@ malfunction — say so in the brief"*, and
 missing sentence is that the dispatch is a **hypothesis**, and that
 contradicting it is a first-class result. It cost nothing here; it will
 not always. (I have not edited either document — that is a ratified
-process artefact and the change is Evan's call.)
+process artefact and the change is Ev's call.)
 
 ## C19. The dominant defect shape is now "the fix pass had the file open"
 
@@ -627,7 +627,7 @@ drafted and dropped: it was written around giving skips *floors*, which
 concedes the skip, and the prior question — whether a test should be
 skipping at all — is the one to answer first. Recorded here so the
 next scan re-opens the question rather than re-proposing the floors
-(Evan, 2026-08-20).
+(Ev, 2026-08-20).
 
 **Cheapest mechanisation available:** for every enclosure-style
 acceptance row, require a *ceiling* alongside the containment. The
@@ -737,7 +737,7 @@ more honest account of the same undecided constant.
 None of this is dishonest — the opposite; it is unusually candid. But
 the brief's own rule (*"unusual justification length is mild evidence
 for a smell"*) now has a large, measured corpus behind it, and the
-question it raises is a policy one for Evan rather than a finding:
+question it raises is a policy one for Ev rather than a finding:
 **when a finding's honest answer is "we are not going to change this",
 what is the maximum acceptable length of that answer, and where does it
 live?** A 234-line trait doc and a 130-line gate header are both past
@@ -746,7 +746,7 @@ matters.
 
 ## C26. Never-versus-sometimes: the grade a CI defect actually deserves
 
-**Ruled by Evan, 2026-08-22, while Track J was grading four of these at
+**Ruled by Ev, 2026-08-22, while Track J was grading four of these at
 once:** *"it's very bad if an error can mean that a check **never** runs,
 but really not all that bad at all if an error means it only **sometimes**
 runs."*

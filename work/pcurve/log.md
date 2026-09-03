@@ -6,7 +6,7 @@ at merges, the tail is the live state.
 
 ## Opening state (2026-08-27, proposed)
 
-Opened at M9's close on Evan's direction ("having a pcurve track as
+Opened at M9's close on Ev's direction ("having a pcurve track as
 a concurrent program sounds good"), as a third concurrent program
 beside LIB and VERBS. The subject is what M9-D ratified and
 deliberately did not schedule.
@@ -30,7 +30,7 @@ certificate.
 
 Carried in from M9 by ratification rather than assumption: **Q3 is
 settled** — the authority record is per-edge KERNEL data, its
-pushback window having closed unexercised when Evan ratified the M9
+pushback window having closed unexercised when Ev ratified the M9
 exit walk (#1041). OQ4 is not re-opened.
 
 Sequencing note recorded at opening: M9-3 minted its emission shapes
@@ -39,7 +39,7 @@ would be mechanical at the join lane's seams. Whether that held is
 P-1's first measurement, and it is the cheapest early test of
 whether the design pass paid for itself.
 
-Next actions: Evan's ratification of the plan; then P-1's substrate
+Next actions: Ev's ratification of the plan; then P-1's substrate
 exploration before any spec.
 
 ## P-1a MERGED (#1073 at 9fa321d4, 2026-08-27) — one conventional description exists
@@ -123,7 +123,7 @@ licenses the choice is frame-invariance of the answer, and "exact" is
 too strong besides: `decide`'s `Ok(Zero)` is `|m| ≤ zero`, not
 bit-zero. The honest claim is **certified everywhere within ε**.
 
-**What lifting the scope constraint bought.** Evan cleared the lane to
+**What lifting the scope constraint bought.** Ev cleared the lane to
 edit M9-2's code; auditing the whole door then found TWO more
 asymmetries beyond the reviewer's one — `collinear_offset` also
 one-sided, and `overlap_of_regions`' containment arm refusing on one

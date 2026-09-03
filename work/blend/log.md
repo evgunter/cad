@@ -7,7 +7,7 @@ at merges, the tail is the live state.
 ## Opening state (2026-08-29)
 
 Opened by graduation of the ratified work-stream survey (#1200,
-merged after Evan's read with VERBS' cession recorded on its
+merged after Ev's read with VERBS' cession recorded on its
 thread), by a fresh orchestrator on a remote container.
 
 **Operational facts, recorded once (the M10 opening's shape, same
@@ -33,7 +33,7 @@ day, same container class):**
   unshallowed with a blob filter at opening.
 
 **Unilateral decisions at opening (per the orchestration model,
-recorded for Evan's retroactive read):**
+recorded for Ev's retroactive read):**
 
 1. **The survey's 918/708 listing is corrected to LIB-G16's claim.**
    RECIPE-DOORS (ratified same day) assigns the chamfer recipe door
@@ -47,8 +47,8 @@ recorded for Evan's retroactive read):**
    parallel instead.
 3. **BLEND-2's presumptive shape is the narrow seam-key refresh**
    (the issue's own alternative that keeps decide-before-mutate);
-   found insufficient ⇒ STOP, design fork to Evan.
-4. **Issue 987 recorded as double-gated** (OQ6 taxonomy is Evan's;
+   found insufficient ⇒ STOP, design fork to Ev.
+4. **Issue 987 recorded as double-gated** (OQ6 taxonomy is Ev's;
    consumer-gated) rather than scheduled.
 
 **Live gates being watched:** #1180 (SHELLFIX 2b — its merge lifts
@@ -95,11 +95,11 @@ at review dispatch. Row at merge.
 `blend/enclosing-tangency-design`): R1 (yes in principle,
 structurally spelled, consumer-gated) recommended over R2
 (permanent no), per the JunctionTangent precedent. Waits for
-Evan's 👍 — never self-merged. Pointer comment left on issue 827.
+Ev's 👍 — never self-merged. Pointer comment left on issue 827.
 
 **Live state**: BLEND-1 lane running (`blend/rimwhole`); watching
 PR 1180 (2b merge ⇒ track T claim + shell/offset keep-out lifts)
-and PR 1210 (Evan); LIB-G16's PR checked at check-ins (⇒ BLEND-5/6
+and PR 1210 (Ev); LIB-G16's PR checked at check-ins (⇒ BLEND-5/6
 unlock). Session check-ins armed ~hourly.
 
 ## SMELL TRACK T CLAIMED (2026-08-29, at SHELLFIX 2b's merge)
@@ -117,11 +117,11 @@ track N's D240); C-e/H13 gets its 779 contradiction verified
 before staffing. BLEND-1's lane owes a merge of main (2b + M10-P
 landed) before its PR opens; its brief already carries the rule.
 
-## ENCLOSING TANGENCY RULED (2026-08-29) — Evan, in-chat
+## ENCLOSING TANGENCY RULED (2026-08-29) — Ev, in-chat
 
 The 827 conversation resolved same-day: **the enclosing class is
 never allowed — "it is not a fillet of that corner and should be a
-refusal."** Evan's probe of the conversation's figures (the arc
+refusal."** Ev's probe of the conversation's figures (the arc
 visibly not touching the corner) surfaced the deciding ground —
 strict interiority: internal tangency at r > R puts the corner
 strictly inside the blend circle, so no door emitting the class
@@ -417,7 +417,7 @@ commit is the re-roll.
 
 **(Second re-roll:** run 33334073786's bootstrap jobs themselves
 died log-less at ~4 s — the Actions budget exhaustion window, per
-Evan; budget refreshed, this commit re-rolls.)
+Ev; budget refreshed, this commit re-rolls.)
 
 **(Final head:** the budget-re-roll's SHA drew `dev-probe` again —
 the filed 1296 red (M10's suite), 21/22 jobs green. Rather than
@@ -504,7 +504,7 @@ BLEND-2-precedent row, gating this tree's own demos changes).
 
 CI-Config: lane=default eps=default klint=dev-budget
 
-## BLEND-VOCAB RATIFIED (2026-08-30, Evan's 👍 on PR 1279)
+## BLEND-VOCAB RATIFIED (2026-08-30, Ev's 👍 on PR 1279)
 
 `docs/BLEND-VOCAB-DESIGN.md` ratified and merged (a9806624): V1
 (the G16 wrapper shape at the kernel doors), V2 (verb-neutral inner
@@ -741,7 +741,7 @@ verbs.
 
 ## 2026-08-31 — BLEND-5 residue on main: the probe prose tripped the reader-census needle (fixed by #1323, another session's PR)
 
-Evan relayed a sibling agent's report of main red after BLEND-5;
+Ev relayed a sibling agent's report of main red after BLEND-5;
 verified against the runs: main itself never went red (the merge
 commit's run was concurrency-cancelled and the commits after were
 docs-only), but the FIRST code-tier full-suite run since the merge
@@ -939,16 +939,16 @@ CONFIRMED by execution (both intermediate commits checked out; the
 red and the unit's six green; the volume re-derived twice). The
 MAJOR is a JUSTIFICATION defect with process weight: deviation 1
 cites the SeamVertex precedent BACKWARDS (ARMS3-DESIGN ratified it
-with Evan's sign-off the day BEFORE implementation), the new
+with Ev's sign-off the day BEFORE implementation), the new
 `CornerConfig::ThreeConcaveEdges` tag is NOT forced (a
 `(0, Chamfer)` arm widens the chamfer with the fillet's refusal
 byte-identical), and CURVED-DESIGN's ratified enumeration is what
 the tag extends. Disposition options recorded for adjudication:
 (a) drop the tag — strictly smaller diff, stays execution, file
 the fillet's misleading `MixedConvexity{convex:0}` label as a
-design-conversation issue for Evan (it is the misleading-name
+design-conversation issue for Ev (it is the misleading-name
 class, pre-existing); (b) keep it and take the vocabulary
-extension to Evan pre-merge. DECISION DEFERRED to the blinded
+extension to Ev pre-merge. DECISION DEFERRED to the blinded
 adjudication after R2. MINORs: the retired "convex links only"
 premise live at three surgery consumer sites (half-fix class);
 the composed refusal sentence self-contradicting under a comment
@@ -973,7 +973,7 @@ refusal pair. VERDICT SPLIT with R1 again.
 the tag not forced) is UNILATERAL — R2 examined the same deviation
 and judged it sound WITHOUT executing the ratification timeline.
 Orchestrator verified against the tree: ARMS3-DESIGN ratified by
-Evan 2026-08-25 under OQ6's explicit reservation; the SeamVertex
+Ev 2026-08-25 under OQ6's explicit reservation; the SeamVertex
 implementation landed 2026-08-26. **R1's finding STANDS —
 TALLY CANDIDATE #1 for the program's v6 duals** (unilateral MAJOR
 by judgment; the blinded adjudication codes it standing on
@@ -981,9 +981,9 @@ orchestrator-verified evidence). Disposition: **option (a)** —
 the fix pass DROPS `CornerConfig::ThreeConcaveEdges` (the chamfer
 widening needs no vocabulary; the fillet's refusal returns
 byte-identical to base), and the honest-label question goes to
-Evan as design-conversation **issue #1355** (options mapped; the
+Ev as design-conversation **issue #1355** (options mapped; the
 reviewed shape cited so a future mint is cheap). The unit stays
-execution-shaped; nothing blocks on Evan.
+execution-shaped; nothing blocks on Ev.
 
 Union dispatched to the implementer-inherited fix pass: the tag
 drop + its free consequences (the self-contradicting sentence, the

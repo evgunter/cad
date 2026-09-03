@@ -460,7 +460,7 @@ pub trait Real:
 /// part that grows — see that module's own header.
 ///
 /// **Extension (SEAT-4, authorized under the M7-8 precedent;
-/// retroactive Evan review per the self-merge convention):**
+/// retroactive Ev review per the self-merge convention):**
 /// `verbs::run` — the verb vocabulary's dispatch site — joins
 /// the compound allowlist as the narrowest possible extension of the
 /// PR 12 edge-blend seam, on the M7-8 argument verbatim: it adds no
@@ -625,7 +625,7 @@ pub mod bounds_allowlist {
     //! themselves; what the module buys is that keeping it costs the
     //! rule above nothing.
     //!
-    //! **What the rule is FOR**, in Evan's words: the gate exists "to avoid
+    //! **What the rule is FOR**, in Ev's words: the gate exists "to avoid
     //! the dangerous pattern when not necessary, so if it is necessary it's
     //! fine". The rule is not a budget on how many seams may exist, and an
     //! extension is not earned by RESEMBLING one already listed. What a
@@ -665,7 +665,7 @@ pub mod bounds_allowlist {
     //! states it. Whether an answer is *wrong* at a dual is a third question,
     //! homed at `geom::projection`'s `mid`, #874.)
     //!
-    //! **M5 PR 11 (Evan's lane-split ruling) — `topo::props`'s
+    //! **M5 PR 11 (Ev's lane-split ruling) — `topo::props`'s
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
     //! funnel margins) and reads brackets into the C9 ring. Its split from
     //! scalars that may not certify is STATIC and stands on two things:
@@ -674,7 +674,7 @@ pub mod bounds_allowlist {
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
-    //! precedent; retroactive Evan review per the self-merge convention) — the
+    //! precedent; retroactive Ev review per the self-merge convention) — the
     //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
     //! decides (its six `fillet3_*` funnel margins) and CONSUMES ENCLOSURES —
     //! a support's sup-normal-curvature hull through `curvature_lever_arm`, a
@@ -710,7 +710,7 @@ pub mod bounds_allowlist {
     //! without a lane would be a ratified REVERSAL of DL5 on its own
     //! evidence — not an entry this rule can grow.
     //!
-    //! **M6-2 (under the PR 11/PR 12 precedent; retroactive Evan review) — the
+    //! **M6-2 (under the PR 11/PR 12 precedent; retroactive Ev review) — the
     //! SSI rung-3 certificate**: `geom_brep::ssi` (the `certify_rung3` door),
     //! `geom_brep::ssi::certify` (the three limbs) and
     //! `geom_brep::pcurve_cache`'s fitted lane, deciding (its `ssi_on_locus`,
@@ -723,7 +723,7 @@ pub mod bounds_allowlist {
     //! `geom_brep::ssi::enclose` is deliberately absent: the ring machinery
     //! decides nothing and takes the sole bound the rule already allows.
     //!
-    //! **M7-8 (under Evan's #264 ruling) — `geom_brep::edge_nurbs`**, the
+    //! **M7-8 (under Ev's #264 ruling) — `geom_brep::edge_nurbs`**, the
     //! plane × NURBS declare-and-check edge lane and the narrowest possible
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
@@ -735,7 +735,7 @@ pub mod bounds_allowlist {
     //! the shared machinery. Injection moves a bound onto a narrower
     //! signature; it does not remove one.
     //!
-    //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Evan review) —
+    //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
     //! (its `chart_region_*` funnel margins) and reads exact-`f64` STRUCTURE
     //! through the bracket — the spec-mandated C6 inventory gate (a `Harmonic`
@@ -755,7 +755,7 @@ pub mod bounds_allowlist {
     //! is why `topo::separation`, whose caller is a mixed pass, was not
     //! tightened.
     //!
-    //! **2026-08-29 (ratified by Evan in conversation) — `editor_core::checks`,
+    //! **2026-08-29 (ratified by Ev in conversation) — `editor_core::checks`,
     //! the advisory-check registry**, the **second production caller** of
     //! `topo::separation`. Its bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds),
     //! **not** `Decide + `[`Bounds`](super::Bounds): nothing generic calls `run_checks` (its

@@ -2,7 +2,7 @@
 
 **STATUS: DRAFT (design conversation for the Rulings sought section;
 the ruling-independent units below are dispatchable pre-ratification).**
-Opened on Evan's direction (in-chat, 2026-08-31: "you can also take
+Opened on Ev's direction (in-chat, 2026-08-31: "you can also take
 S-BOOL if that's not claimed yet" — it was not; verified against docs,
 branches and open PRs at opening) from the ratified stream cut in
 `docs/WORK-STREAMS-2026-08.md` (§S-BOOL), by the S-MESH orchestrator
@@ -90,7 +90,7 @@ The fence is confirmed from the other side:
   `ssi/exhaust.rs:92` — "in the lane's own units"); the Q table itself
   is current (16, re-derived 2026-08-31; D285/D286 already left with
   CERT-2).
-- **Q-claim carve-outs**: `D283` is Evan's question, not a row to
+- **Q-claim carve-outs**: `D283` is Ev's question, not a row to
   work; `S83` and `D36` sit on the `ssi*`/`pcurve_cache` ground that
   waits for P-2 (#1177, in blinded review); `D36`'s `certify.rs` half
   is R's ground — a real seam, worked by coordination when reached.
@@ -143,7 +143,7 @@ logged pre-draw per the protocol.
   straddle-driving rows for spines past π; VERBS coordination on
   Helix timing (sweep-ground seam).
 - **BOOL-7 — #134, the vdiff shadow-exec rung (M; assigned by
-  Evan 2026-09-01, M10 dormant).** When the vdiff engine hits an
+  Ev 2026-09-01, M10 dormant).** When the vdiff engine hits an
   empty pair population on a verdict vanish, shadow-execute exactly
   the vanished pair's predicates from the prior evaluation's
   context and diff those — bounded, diagnosis-time-only, recovering
@@ -160,7 +160,7 @@ logged pre-draw per the protocol.
   migrates onto the lattice through the public surface in the same
   unit (the demo is the ruling's demonstration and the named-gap
   close). PATHS §4 is design surface: the unit's PR carries the
-  amended junction semantics for Evan's eyes before merge.
+  amended junction semantics for Ev's eyes before merge.
   `crates/profile` is SMELL track V fence ground — seam noted, the
   cut assigned the issue here.
 - **BOOL-9 — #433 half (ii), the RawLoop demotion (L;
@@ -176,7 +176,7 @@ logged pre-draw per the protocol.
   profile lift, and refusal family (`ArcContinueNeedsArcCarrier`
   et al.); re-spell the subdivision need as a declared-subdivision
   arc form (the `circle_split` precedent — exact spec shape rides
-  the unit's PR for Evan's eyes, PATHS §2c design surface); wire
+  the unit's PR for Ev's eyes, PATHS §2c design surface); wire
   documents carrying the step migrate at read (schema bump,
   coordinated on the away channel — schema is contended ground);
   narrow the sealed verb-module signatures to bare state values so
@@ -200,11 +200,11 @@ logged pre-draw per the protocol.
   ε, as ever; the band's selection (which ε, its lever, the D2
   row) and the past-band refusal are the unit's to state. PATHS
   §4 / verb table is design surface: the unit's PR carries the
-  text for Evan's eyes before merge. After BOOL-8's merge; before
+  text for Ev's eyes before merge. After BOOL-8's merge; before
   BOOL-9.
 - **BOOL-12 — the declared ARRIVAL at the seam: the mid-side seam
   and the tangent seam (M; under the Q1 fifth-round ruling, PQ4
-  reopened for the declared case; the tangent half raised by Evan
+  reopened for the declared case; the tangent half raised by Ev
   in-chat 2026-09-01 — "join-tangent-to-end").** The seam is the one
   junction whose next leg was authored first, so every declaration
   that rides the departing leg elsewhere (`.tangent()`, the
@@ -222,7 +222,7 @@ logged pre-draw per the protocol.
   refuse the G1 arrival as undeclared? — reported with the
   loop-start reading below before the build. Spelling is the unit's
   design surface (closer variants or an entry-side declaration),
-  argued for Evan's eyes with the §6 PQ4 revision; undeclared
+  argued for Ev's eyes with the §6 PQ4 revision; undeclared
   collinear and undeclared tangent seams still refuse (red-first
   both sides of each band);
   FIRST a written reading of what germ matching and the merge
@@ -236,7 +236,7 @@ logged pre-draw per the protocol.
   refusal and its `NOT_IN_DOCUMENT` witness roster retire with it)
   since the persisted tour document authors through it. After
   BOOL-13; before BOOL-9.
-- **BOOL-13 — the schema demolition (S/M; ruled — Evan, in-chat,
+- **BOOL-13 — the schema demolition (S/M; ruled — Ev, in-chat,
   2026-09-01, option C strong form).** Delete the hand-maintained
   `SCHEMA_VERSION`, the version door and its `SchemaTooOld` family,
   the ratified-empty migration chain, the thirteen per-version
@@ -266,7 +266,7 @@ logged pre-draw per the protocol.
   decides sentence-vs-row; if the row, `sweep/tests` is Track T's to
   file), D284, D287, D288; the ledger rows D57/D46/D281 (D281 is a
   per-row read, the row's own bold). Carve-outs per Substrate: D283
-  (Evan's), S83/D36 (wait on P-2). Rows land per §D's conventions.
+  (Ev's), S83/D36 (wait on P-2). Rows land per §D's conventions.
 
 Cross-program interfaces, named: germ arms, SPHSPH/CYLSPH, #1031 half
 B, #1076/#1077 are VERBS'; `ssi*`/`pcurve_cache` is Q-ground behind
@@ -274,9 +274,9 @@ P-2; `props/curved.rs` is R's fence (seam recorded both sides); #134's
 ground (`editor-core/resolve/vdiff.rs`) is M10-adjacent and outside
 this program's files — see Q3 below.
 
-## Rulings sought (Evan)
+## Rulings sought (Ev)
 
-1. **Q1 — RULED (Evan, in-chat, 2026-09-01), two halves.**
+1. **Q1 — RULED (Ev, in-chat, 2026-09-01), two halves.**
    (i) The lattice's zero-turn-forward refusal is corrected for the
    line-onto-line case: `junction_check` refuses every zero-turn
    forward junction as `JunctionTangent` (the undeclared-tangency
@@ -299,7 +299,7 @@ this program's files — see Q3 below.
    LoopBuilder→test_support precedent; step-import as a
    materialization door marked as such): BOOL-9, survey-first.
    #433 closes when both land, with both sites' prose updated.
-   **Extended (Evan, in-chat, 2026-09-01, second round): the
+   **Extended (Ev, in-chat, 2026-09-01, second round): the
    straight continuation is spelled `line(len)` off a directed
    point — no new verb (`line_continue` was drafted and dropped: a
    line is the one carrier the binding bits fully determine, and
@@ -311,18 +311,18 @@ this program's files — see Q3 below.
    the half-disc equator) re-spells as declared subdivision on the
    arc leg itself, the open-carrier analog of `circle_split`, with
    vertices minted at the chain's emission layer where the axiom's
-   bookkeeping legitimately lives. The enforcement Evan believed
+   bookkeeping legitimately lives. The enforcement Ev believed
    already existed becomes real: the sealed verb module's
    signatures narrow to the bare state values only, so a verb
    needing chain state is unwritable. BOOL-10.**
-   **Extended (Evan, in-chat, 2026-09-01, third round — on BOOL-8's
+   **Extended (Ev, in-chat, 2026-09-01, third round — on BOOL-8's
    measured residual, the seam wall): the straight continuation
    gains a DECLARED POINT-TARGET form — a variant declaring the
    leg the straight continuation landing on a named point; the
    kernel CHECKS that the target lies on the departing directed
    point's ray (a declared structural fact, verified — never
    inferred from a value coincidence) and refuses when it does
-   not. The target is ANY authored point, per Evan's own widening
+   not. The target is ANY authored point, per Ev's own widening
    ("valid to want a line to a specific point with vertices along
    it"); the structural CLOSER is the special case where the
    target is `Start`, which closes the seam wall. Axiom-clean: it
@@ -333,7 +333,7 @@ this program's files — see Q3 below.
    unchanged; the closer makes the corner cut sufficient for an
    all-sides-subdivided outline. Scheduled as BOOL-11; §4's
    Residual paragraph re-records as ruled when it lands.**
-   **Ruled (Evan, in-chat, 2026-09-01, fourth round — the f64
+   **Ruled (Ev, in-chat, 2026-09-01, fourth round — the f64
    question): "target lies on the ray" means, as ever, TO WITHIN
    ε. Exact-or-refuse is out. The declaration is what makes the
    banded check legal: with the intent authored, the ε comparison
@@ -343,8 +343,8 @@ this program's files — see Q3 below.
    Past the band the leg refuses typed (inconsistent authored
    data). Which ε (the input-quality band is the natural home),
    its lever, and the D2 row remain the unit's to state at the
-   site and in the §4 text for Evan's eyes.**
-   **Ruled (Evan, in-chat, 2026-09-01, fifth round — PQ4 reopened on
+   site and in the §4 text for Ev's eyes.**
+   **Ruled (Ev, in-chat, 2026-09-01, fifth round — PQ4 reopened on
    BOOL-11's measured parity wall): closing mid-side is ADMISSIBLE
    FOR THE DECLARED CASE ONLY. The lily leaf family's two sections
    put their corners at disjoint stations (tips vs shoulders) while
@@ -361,17 +361,17 @@ this program's files — see Q3 below.
    discipline germ matching and the merge ladders lean on) was
    already crossed in the interior by the line(len) ruling; the
    implementing unit reads what those two consumers do at the loop
-   START before building and puts that reading in front of Evan
+   START before building and puts that reading in front of Ev
    with the §6 revision. Scheduled as BOOL-12; BOOL-9 resequenced
    behind it (lily leaves RawLoop there).** Three stances are in
    the issue (loosen the junction check / tighten validate / rule the
-   disagreement intentional and state it at both sites). Evan's
+   disagreement intentional and state it at both sites). Ev's
    ProfileLoop-seals ruling already shrank it to a kernel-internal
    consistency question, and a proposal is recorded riding PR #576's
    body — the conversation opens by putting that proposal (or its
    correction) up for the ruling rather than re-deriving one. Not
    implemented until ruled.
-   **Ruled (Evan, in-chat, 2026-09-02, sixth round — the subdivision
+   **Ruled (Ev, in-chat, 2026-09-02, sixth round — the subdivision
    concept leaves the lattice): "Every zero-turn joint is a declared
    tangent joint. The lattice checks directions and never asks whether
    the carriers are the same."** Consequences: the seam takes ONE
@@ -396,16 +396,16 @@ this program's files — see Q3 below.
    its sign-off; BOOL-10's "declared subdivision on the arc leg" is the
    same feature under its true name — declared tangent joints on one
    circle.
-2. **Q2 — RULED (Evan, in-chat, 2026-09-01): decide now — Helix
+2. **Q2 — RULED (Ev, in-chat, 2026-09-01): decide now — Helix
    is coming.** The shape: a per-slab stacking fold with margin =
    min over slabs, replacing the ends-only statement whose wall is
    exactly π. Scheduled as **BOOL-6** (added to the slate): the
    fold, a consumer audit for anything reading the end-to-end value
    as a feature, straddle-driving rows, and VERBS coordination on
    Helix timing (`loft.rs` is sweep ground — seam recorded).
-3. **Q3 — RULED (Evan, in-chat, 2026-09-01): S-BOOL takes it — M10
+3. **Q3 — RULED (Ev, in-chat, 2026-09-01): S-BOOL takes it — M10
    is dormant.** Scheduled as **BOOL-7** (slate): the vdiff
-   shadow-exec rung under Evan's standing option-(a) ruling
+   shadow-exec rung under Ev's standing option-(a) ruling
    (2026-07-29), pure implementation. Keep-outs stay sharp:
    `editor-core/resolve/vdiff.rs` and its immediate callers only;
    M10's Dual arms in `product.rs` and the `AtRestPolicy` seam are

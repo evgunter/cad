@@ -1,6 +1,6 @@
 //! The promoted M1 PR 2 adversarial review suites (this module's
 //! shared helpers plus the five probe submodules). Adversarial e2e
-//! review artifact for M1 PR 2 (2026-07-16); promoted per Evan's
+//! review artifact for M1 PR 2 (2026-07-16); promoted per Ev's
 //! request (PR #17 thread).
 //!
 //! These are **independent derivations** — do not "simplify" them to

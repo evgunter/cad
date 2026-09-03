@@ -212,7 +212,7 @@ only number that differs.
 Profiles are closed loops on a sketch plane, and there is one way to
 say one: the PATHS algebra, where you walk the outline and the type
 system tracks what the tip has bound. (Raw `ProfileLoop` vertex tables
-are kernel vocabulary and not part of this surface — Evan's ruling on
+are kernel vocabulary and not part of this surface — Ev's ruling on
 #413. The lattice is not merely the nicer spelling; it is the one that
 classifies each junction as you author it, so a corner that is
 accidentally tangent or reversed refuses here rather than at

@@ -1,6 +1,6 @@
 # S-TCOST — test-suite cost (plan)
 
-**STATUS: OPEN (2026-09-02).** Opened on Evan's direction (in-chat,
+**STATUS: OPEN (2026-09-02).** Opened on Ev's direction (in-chat,
 2026-09-02): speed up the test suite "without too much cost to its
 power to detect defects", with the six levers in the charter below
 named as in scope, Opus subagents implementing, and the review split
@@ -16,7 +16,7 @@ tag `(S-TCOST orchestrator)`. A/B ordinal band **S-TCOST =
 same PR, per that entry's rule; implementer blocks are named
 `TCOST-B<n>` (unit names occupy `TCOST-<n>`).
 
-## Charter (Evan, in-chat, 2026-09-02 — in substance)
+## Charter (Ev, in-chat, 2026-09-02 — in substance)
 
 Make the suite cheaper while keeping its detection power. In scope, by
 name:
@@ -33,7 +33,7 @@ name:
 5. deleting tests already covered by other tests;
 6. making tests use simpler objects.
 
-Ruled with the charter (Evan, in-chat, same day, on the orchestrator's
+Ruled with the charter (Ev, in-chat, same day, on the orchestrator's
 three questions): units land as **their own PRs**, merged to main by
 this orchestrator; **build-side levers are in scope too** (what makes
 the test-binary build slow, under the same review split); the
@@ -141,7 +141,7 @@ the row that now owns each claim.
   this program unless a unit's measurement makes the case, and then
   it is its own PR with its own hosted measurement.
 
-## Review (Evan, in-chat, 2026-09-02)
+## Review (Ev, in-chat, 2026-09-02)
 
 Two tracks, decided per unit by what the diff touches:
 

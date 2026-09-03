@@ -79,7 +79,7 @@ every call site in the workspace constructs its margin through a
 blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
 `norm3`+`norm2` / `metered` / `over_lever`; an unused `rooted` door
 was dropped at the fix pass — dead surface, and `per_boundary` was
-RENAMED and re-scoped to `over_lever` when Evan's layering ruling moved
+RENAMED and re-scoped to `over_lever` when Ev's layering ruling moved
 the consistency backstops out of the seam, see below), and each row's
 "comparand" column is the door's justification (out-of-ledger crates —
 profile, sweep, editor-core's eval/naming, geom-curves — argue their
@@ -121,7 +121,7 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Evan's #213 layering ruling).** The consistency
+**The invariant lane (Ev's #213 layering ruling).** The consistency
 backstops — `volume_backstop` / `volume_backstop_operand` /
 `volume_backstop_violation`, inequalities between integral RESULTS
 (wrong-component detectors, never accuracy gates) — are outside the
@@ -352,7 +352,7 @@ which is what actually moves the number.
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Evan's #213 layering ruling — bare `T`, outside the length seam by design |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
 | boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |

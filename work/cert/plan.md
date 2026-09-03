@@ -1,9 +1,9 @@
 # S-CERT — certified-enclosure soundness (plan)
 
-**STATUS: RATIFIED (Evan's in-chat rulings, 2026-08-29, all four
-folded at Rulings below; the opening PR merges on Evan's sign-off of
+**STATUS: RATIFIED (Ev's in-chat rulings, 2026-08-29, all four
+folded at Rulings below; the opening PR merges on Ev's sign-off of
 the D9 row-5-boundary addendum text riding with it).** Opened on
-Evan's direction (in-chat, 2026-08-29: "can you orchestrate its
+Ev's direction (in-chat, 2026-08-29: "can you orchestrate its
 program") from the ratified stream cut in
 `docs/WORK-STREAMS-2026-08.md` (§S-CERT, merged at #1200 with the M10
 territory fold). The cut is the charter and is cited, not
@@ -132,7 +132,7 @@ dispatch; difficulty is logged pre-draw per the protocol.
   questions. Out of scope: `mesh::walk`'s `closing_column`
   debug_assert (reported to S-MESH's future owner via the issue),
   quad-engine consolidation (C3). S82's verdict line is answered by
-  this unit's record — flagged for Evan's eyes at ratification.
+  this unit's record — flagged for Ev's eyes at ratification.
 - **CERT-2 — #762 close-out and its guard residue (S).** Verify the
   main fix against the issue's four asks; fix `ssi/march.rs`'s
   sibling guard (D285: `StepCollapsed` on non-finite speed, by the
@@ -159,7 +159,7 @@ dispatch; difficulty is logged pre-draw per the protocol.
   rather than a `floor` over a straddling box, plus
   straddle-driving rows for the topo sites nothing currently
   exercises. The cession's f64-bit constraint is RESTATED
-  SEMANTICALLY (Evan, in-chat, 2026-08-29: bit preservation is not
+  SEMANTICALLY (Ev, in-chat, 2026-08-29: bit preservation is not
   the bar; a flipped classification is fine when semantically
   correct and the code cleaner): the unit may reformulate both
   lanes if that is the cleaner shape, PROVIDED the exact-fit
@@ -250,9 +250,9 @@ P-2's until #1177 lands; #1018–#1020 are OFF-D's under VERBS;
 the `closing_column` assertion note was S-MESH's and is discharged
 (issue 868: the condition is `topo::coherence`'s report now).
 
-## Rulings (Evan, in-chat, 2026-08-29)
+## Rulings (Ev, in-chat, 2026-08-29)
 
-1. **Q1 — RULED (Evan, in-chat, 2026-08-29)**: no always-on area
+1. **Q1 — RULED (Ev, in-chat, 2026-08-29)**: no always-on area
    metering — the intent is that any realized geometry everywhere
    within ε of correct is valid, so the wide-but-sound default
    bracket stands and no funnel target is built (the O(h) cost
@@ -266,7 +266,7 @@ the `closing_column` assertion note was S-MESH's and is discharged
    debug/CI-only. Purchasable tightness (a caller-requested area
    target with typed refusal) is a demand-triggered valve, filed
    not built. CERT-6 is cut to this ruling.
-2. **Q2 — RULED (Evan, in-chat, 2026-08-29)**: all three proceed —
+2. **Q2 — RULED (Ev, in-chat, 2026-08-29)**: all three proceed —
    shared home in `geom_core::spline`; the whole-face arm collapses
    into a fold over `patch_bound`'s cells (per-cell-then-union is
    tighter or equal, so the bound improves; fold cost measured
@@ -276,13 +276,13 @@ the `closing_column` assertion note was S-MESH's and is discharged
    (`memories/output-stability-as-justification.md` carries the
    stated principle); affected pinned rows are re-derived. Landed
    as CERT-10 in the slate.
-3. **Q3 — RULED (Evan, in-chat, 2026-08-29: not a design question,
+3. **Q3 — RULED (Ev, in-chat, 2026-08-29: not a design question,
    "do as you see fit")**: CERT-2 executes two Q-track rows
    (D285/D286) as #762's named residue; CERT-4's hit list crosses
    profile/topo fences wherever #1191's sites live. Both grounds
    have no live claimant and both issues are assigned here by the
    merged cut.
-4. **Q4 — RULED (Evan, in-chat, 2026-08-29)**: route 1, with
+4. **Q4 — RULED (Ev, in-chat, 2026-08-29)**: route 1, with
    knot-aligned composite cells as CERT-5's primary deliverable.
    Precision the ruling rests on, stated so it is not fudged:
    knot-aligned cells restore certified convergence to target

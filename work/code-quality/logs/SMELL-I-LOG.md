@@ -15,7 +15,7 @@ track waits on the other to start. Track H is live as **#865**.
 
 **This track runs entirely outside the model A/B experiment.** No Fable/Opus
 pairing, no ordinal, no row in `docs/MODEL-AB-LOG.md` — **nothing on this track
-reads or edits that file.** The experiment is paused on a model limit (Evan,
+reads or edits that file.** The experiment is paused on a model limit (Ev,
 2026-08-21); the cheapest guarantee that the pause stays clean is that this
 track never touches it. A lane that believes it needs to is wrong and should
 ask.
@@ -27,7 +27,7 @@ ask.
 
 ## Review policy for this track
 
-Not the full orchestrator protocol. Per Evan, 2026-08-21, and identical in
+Not the full orchestrator protocol. Per Ev, 2026-08-21, and identical in
 shape to Tracks F and G:
 
 - **Style review on every unit** — `docs/prompts/reviewer-style-lane.md`,
@@ -41,7 +41,7 @@ shape to Tracks F and G:
   2. Was it closed in the **best** way available, or merely in a way that
      compiles?
 - **Adversarial review only where the change carries meaningful risk.** The
-  criterion is Evan's (`SMELL-C-LOG` C-R12): *complex enough that there is a
+  criterion is Ev's (`SMELL-C-LOG` C-R12): *complex enough that there is a
   significant chance the change introduces a regression CI will not catch.*
   That is narrower than "this code is load-bearing", and narrower than §D's
   own advance guess.
@@ -62,12 +62,12 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
   characteristic hazard is the reverse of Track G's**: its ground is where the
   scan's *reachable wrong answers* live (#723, #862), so the temptation is to
   fix the defect while standing next to it. Don't. **A correctness defect does
-  not get fixed in a style pass** (Evan, 2026-08-21, correcting §D's own
+  not get fixed in a style pass** (Ev, 2026-08-21, correcting §D's own
   earlier draft of I1).
-- **An important design question** → a **PR asking Evan**, per
+- **An important design question** → a **PR asking Ev**, per
   `memories/git-workflow.md` — the doc edited to state the question, updated in
   place with the answer. Never a comment on a merged PR. **S65 is already known
-  to be one of these** (§D marks it Evan-only), and **S82** is a second
+  to be one of these** (§D marks it Ev-only), and **S82** is a second
   candidate the track must resolve rather than absorb.
 
 ## Recording convention
@@ -90,7 +90,7 @@ live orchestrators editing it. Resolve by merging `origin/main` — **never
 rebase, never force-push** — and keep both sides; the edits are to different
 findings and different rows. **If the only conflict was that document and CI
 was already green on the pre-merge head, merge without waiting for a second CI
-run** (Evan, 2026-08-20, carried forward).
+run** (Ev, 2026-08-20, carried forward).
 
 ---
 
@@ -98,7 +98,7 @@ run** (Evan, 2026-08-20, carried forward).
 
 | # | The question | Ruling | By |
 |---|---|---|---|
-| **I-R1** | §D says *"S64 and S65 are one conversation. S65 is Evan-only and S64 should not be closed without it."* Taken literally that stalls S64 — a false sentence in a shipped crate header — behind a decision nobody has asked Evan for yet. | **S64 lands; the mesh crate's ε story does not get to read as settled while S65 is open.** The lane fixes `lib.rs`'s false sentence and the stale three-consumer count **and, in the same PR, opens the S65 question to Evan** with the two options priced. What §D is protecting against is a reader who finishes the ε ledger believing the crate's ε/watertightness story is closed; a pointer at the claim site to the open decision discharges that, and holding a false sentence in the tree to preserve a coupling does not. **S64's `FIXED by` record names S65 as open and Evan's.** | orchestrator, 2026-08-21 |
+| **I-R1** | §D says *"S64 and S65 are one conversation. S65 is Ev-only and S64 should not be closed without it."* Taken literally that stalls S64 — a false sentence in a shipped crate header — behind a decision nobody has asked Ev for yet. | **S64 lands; the mesh crate's ε story does not get to read as settled while S65 is open.** The lane fixes `lib.rs`'s false sentence and the stale three-consumer count **and, in the same PR, opens the S65 question to Ev** with the two options priced. What §D is protecting against is a reader who finishes the ε ledger believing the crate's ε/watertightness story is closed; a pointer at the claim site to the open decision discharges that, and holding a false sentence in the tree to preserve a coupling does not. **S64's `FIXED by` record names S65 as open and Ev's.** | orchestrator, 2026-08-21 |
 | **I-R2** | S60 has two halves with very different owners: the acceptance row that cannot go red, and the fact that `area.width()` is read nowhere in `quad.rs`. Is the second one this track's? | **No — and #472 already said so in writing.** Its deviation says *"Metering against `area.lo()` is the certified-conservative gauge and deserves its own proposal with re-measured floors — not smuggling under a guard."* That is a kernel-logic proposal, and per the routing above it gets a **GitHub issue**, not a smell row and not a patch. **What this track owes it is the measurement that makes it answerable**: the lane measures the actual `area_pad`/`surface_area` ratios across the in-tree acceptance fixtures and attaches them to the issue. **The test ceiling is style and lands here** — `area_pad` gets a row that goes red when the enclosure *degrades*, which is S26's own stated lesson and the thing eight months of passes have walked past. | orchestrator, 2026-08-21 |
 | **I-R3** | S112(d) is listed under I1, and the frozen table tracks it at **C-m/C3** — a Track C row that is **struck** until #723 is fixed, on a **closed** track. | **It is I-a's, and it does not go down with C-m.** C-m is `quad.rs`'s four quadrature engines; S112(d) is a **sentence in `props/curved.rs`** (`cone_arm`'s doc on the `T::one()` fallback), which the consolidation neither owns nor touches. Leaving it pointed at a struck row on a closed track is §C3's exact failure — a deferral in a register that does not execute — and it is the third such cell this scan has found. **Routed to I-a**, whose file it already is; S112's ledger records the lane and PR that closed it, per G-R2's rule that a class row retires on the ledger, not on a member. | orchestrator, 2026-08-21 |
 | **I-R4** | I4 and I5 are separate §D rows. | **One lane.** Both are claims in `boolean/boxes.rs`'s module doc about `census.rs` — I5 *is* the citation that I4's *"looseness is free"* paragraph leans on. Splitting them puts two lanes in one header, and the second would be rewriting the first's sentence. The §D rows stay two and **both leave together**. | orchestrator, 2026-08-21 |
@@ -209,9 +209,9 @@ the qualifier that makes a claim exactly true, and scope your evidence out
 loud: a green `-p onecrate` run is evidence about one crate. **A measurement is
 a measurement of a tree** — name which tree each number came from.
 
-**Do not resolve an Evan-only decision.** **S65** (the watertightness backstop's
+**Do not resolve an Ev-only decision.** **S65** (the watertightness backstop's
 `cfg(debug_assertions)`) and **S82** (the sphere rim predicate's
-accepting-direction understatement) are Evan's, and both sit inside files this
+accepting-direction understatement) are Ev's, and both sit inside files this
 track edits. Fix what your row names and leave those alone; where your row
 makes one cheaper or harder to answer, say so.
 
@@ -254,7 +254,7 @@ consolidates and the fix comes first. The lane is described in a comment on
 | **I-c** | **#872** — **MERGED** `ecc1d492` (S64, S115(d), S116(g); issue **#868**; `S231`) | style only, per **I-R6** | **running.** Handed over as the load-bearing claim: **is the two-kind taxonomy exhaustive** — is there an ε read in `mesh` that is neither a refuse/report bar nor a classification picking an emitted `f64`? If a third kind exists the unit swapped a falsifiable wrong list for an **unfalsifiable wrong taxonomy**, which is worse than what it replaced. Also handed over: whether the `fixtures::code_only` unreachability that justifies not computing is real; whether *"for every body this build can mint"* is weaker than the evidence supports; and the lane's own disclosed blind spot, **three sites restating the #653 per-edge/per-side argument**, which the lane moved out of its report and into the PR body as falsification claim 6 so the reviewer meets it as a disclosure rather than never meeting it |
 | **I-b** | **#873** — **MERGED** `82887044` (S60; issue **#870** for the metering half; `S230` for the residue) | style only, per **I-R6** | **running.** The sharpest question is handed over in the lane's own words and unanswered by me: the m5 ceiling **bites on CI's ε = 1e-6 leg and not on the default leg**, where it absorbs ~1500× before firing — *is declining an ε-aware ceiling discipline, or the easier thing?* The lane's argument for declining is that a per-ε table in a test file is how a deferred metering rule gets smuggled past its deferral; the argument against is that a row which cannot fire on the leg a developer actually runs is uncomfortably near the defect S60 is about. Also handed over: whether `3e-4` is anchored on a **structural** maximum or on the one knob the lane turned, and whether the 3× / 1.5× headroom asymmetry is derived or fitted |
 
-## Track I — COMPLETE (2026-08-21), except two decisions in front of Evan
+## Track I — COMPLETE (2026-08-21), except two decisions in front of Ev
 
 **All five lanes landed the day the track was constituted.** I-a **#877**,
 I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**, plus the constitution
@@ -265,7 +265,7 @@ I-b **#873**, I-c **#872**, I-d **#876**, I-e **#887**, plus the constitution
 S112(d), S114(f), S115(d), S116(g). **Minted:** `S230`–`S237`. **Issues filed:**
 **#868**, **#870**, **#881**, **#882**, **#889** — and **#723 reopened twice**.
 
-### In front of Evan, and neighbours stall on them
+### In front of Ev, and neighbours stall on them
 
 **S65** and the **D9 ε promise** are both in **PR #884**, priced and stated.
 **S82** is named there too and is not asked; say if it should be.
@@ -748,7 +748,7 @@ is fixed", and merging it marked #723 fixed.**
 **Three schedules were parked behind that register while it read `completed`:**
 Track C's **C-m** (struck *until #723 is fixed*), Track I's **I1** (the style
 half, which stands on its own *because* the correctness defect is #723's), and
-**S82**, which is in front of Evan partly as *"is this a #723 sibling?"*.
+**S82**, which is in front of Ev partly as *"is this a #723 sibling?"*.
 
 This is **§C3** — *deferrals must land in a register that executes* — for at
 least the fourth time on this scan, and the first time where **the register was

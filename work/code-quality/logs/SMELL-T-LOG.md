@@ -19,7 +19,7 @@ no pairing, no ordinal, no row in `docs/MODEL-AB-LOG.md`; nothing on
 this track reads or edits that file. Stated honestly: the I-log's
 recorded REASON for the exclusion (the experiment pause of
 2026-08-21) has lapsed — the experiment is live again — so this is a
-precedent-following ruling, not a forced one, and Evan can reverse
+precedent-following ruling, not a forced one, and Ev can reverse
 it for later lanes if style work should be instrumented.
 
 ## Review policy (the F/G/I shape)
@@ -31,7 +31,7 @@ it for later lanes if style work should be instrumented.
   narrowed, not relocated; (2) was it closed the best available way,
   or merely a way that compiles.
 - **Adversarial review only where the change carries meaningful
-  risk** (Evan's C-R12 criterion: complex enough that there is a
+  risk** (Ev's C-R12 criterion: complex enough that there is a
   significant chance of a regression CI will not catch).
 
 ## Rulings
@@ -44,7 +44,7 @@ it for later lanes if style work should be instrumented.
 | **T-R5** | T-a review mode. | **T-a review mode: STYLE-ONLY per C-R12** (test rows + retirements; a row that reds is visible). Ruled at dispatch 2026-08-31, recorded here at close. | orchestrator, 2026-08-31 |
 | **T-R4** | D320 | Filed-not-takeable ahead of D240, per the row itself. Nothing to decide; recorded so the track's ledger is complete. | orchestrator, 2026-08-31 |
 | **T-R7** | Is `T-R1`'s keep-out still live? | **NO LIFT YET — it takes effect at BLEND-4's merge, not BLEND-3's.** This ruling was first recorded here as a LIFT, on the premise — stated in the orchestrator's dispatch brief for `T-c` and carried into the log by the lane without independent check — that the implementation slate had VACATED `crates/sweep/src/blend/` at BLEND-3's merge. **The premise is false**: BLEND-4 was dispatched into that same module in the same hour, and its **PR #1360 is open** against `main`, modifying `admit.rs`, `arms.rs`, `battery.rs`, `build.rs`, `mod.rs` and `surgery.rs`. Caught at `T-c`'s review, corrected here. **What follows:** `T-R1`'s class is still armed, so `D322` (whose `ring_clearance` lives in `surgery.rs`, which #1360 edits), `D323` and `D324` stay HELD until #1360 merges — their §D cells are restored to say so. `T-c`'s own two rows are unaffected: they were dispatched, executed and reviewed as a deliberate exception, and the collision is a merge to resolve rather than a rule to re-argue. **The wording slip the correction also fixes**: `T-R1` names *BLEND-6 (and later BLEND-3/-4)*, so "the last lane of the slate" was never BLEND-3's merge to be. The general lesson is `T-R3`'s in another dress — a keep-out is lifted by observing the module, not by citing the event a brief says vacated it | orchestrator's dispatch brief (erroneous premise), corrected at `T-c` review, 2026-08-31 |
-| **T-R6** | `L5`'s rule half — `S177`'s strike rule (*a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row*) — is a **document-wide convention**, and T-b filed it as a scheduled item rather than writing it. The style reviewer flagged the same thing from the other side: a lane writing a ledger-wide rule is arguably ratification territory, which is Evan's. | **TAKE IT — write the rule into §D's *"How to read a row"* now, and leave only the WALK on `L5`.** The T-a precedent decides it: that lane landed the deletion-sweep rule in the same conventions section, in a lane PR, without ratification. The distinction that makes it a lane's to write is that this is **not new policy** — it states how §D's existing *live rows only* rule must be applied so it stops destroying what it was never meant to touch. A rule that exists only as a scheduled item does not stop the accrual it describes, and `L5`'s walk has no slot. **The reviewer's reservation is recorded rather than dismissed**, and is noted in the ledger text itself: if Evan reads the convention as policy, it is one paragraph to revert and the walk is unaffected. | orchestrator, 2026-08-31 (T-b review adjudication) |
+| **T-R6** | `L5`'s rule half — `S177`'s strike rule (*a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row*) — is a **document-wide convention**, and T-b filed it as a scheduled item rather than writing it. The style reviewer flagged the same thing from the other side: a lane writing a ledger-wide rule is arguably ratification territory, which is Ev's. | **TAKE IT — write the rule into §D's *"How to read a row"* now, and leave only the WALK on `L5`.** The T-a precedent decides it: that lane landed the deletion-sweep rule in the same conventions section, in a lane PR, without ratification. The distinction that makes it a lane's to write is that this is **not new policy** — it states how §D's existing *live rows only* rule must be applied so it stops destroying what it was never meant to touch. A rule that exists only as a scheduled item does not stop the accrual it describes, and `L5`'s walk has no slot. **The reviewer's reservation is recorded rather than dismissed**, and is noted in the ledger text itself: if Ev reads the convention as policy, it is one paragraph to revert and the walk is unaffected. | orchestrator, 2026-08-31 (T-b review adjudication) |
 
 ## Lane state
 
@@ -166,7 +166,7 @@ note saying work completed, which §D deletes. The number is spent, not
 reusable. What is deliberately NOT carried forward is the expensive
 alternative the finding mentioned — a door that takes the
 correspondence explicitly — because it was named as an option, not as a
-defect; anyone who wants it is opening a design question for Evan, not
+defect; anyone who wants it is opening a design question for Ev, not
 re-raising this one.
 
 ### T-b — D124, C25, D91 (branch `smellt/b`)
@@ -451,7 +451,7 @@ itself. Removed at review. What row 0 actually says is a RANKING —
 available"* — and a lane's mixture is licensed by its other sentence,
 *"a 'no' is a complete answer and is recorded as the reason a row below
 applies, not as a defeat"*, which claims no parity with a deletion. If
-the per-site sentence deserves ratifying, that is a question for Evan
+the per-site sentence deserves ratifying, that is a question for Ev
 and it is asked in the PR, not answered in the doc.
 
 **A second correction of the same shape**, and it is worth recording

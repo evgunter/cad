@@ -7,7 +7,7 @@ tail is the live state.
 
 ## Opening state (2026-08-29)
 
-Opened on Evan's direction (in-chat: "can you orchestrate its
+Opened on Ev's direction (in-chat: "can you orchestrate its
 program", quoting the charter line naming #723/#893, interval-mode
 widening, unmetered enclosures, the offset_fit family, and SMELL
 tracks M/N), by a fresh orchestrator on a remote container. The plan
@@ -63,25 +63,25 @@ the fixtures are re-derived from the issue text.
 log rule):
 
 1. CERT-1 dispatches pre-ratification. Ground: both issues are
-   named in the charter Evan handed over in chat; the fix shapes
+   named in the charter Ev handed over in chat; the fix shapes
    are the issues' own recommendations (#723 option (2); #893's
    three asks); VERBS is staged behind it. The one design-flavored
    part — the rim lever's shape near the poles, S82's reserved
    verdict line — is stated in the spec with a recommendation and
-   flagged for Evan at plan ratification; if the ruling goes the
+   flagged for Ev at plan ratification; if the ruling goes the
    other way the lever change is local and the failing rows keep.
 2. The opening PR rides the harness session branch rather than
    `cert/orchestrator`, to respect the harness branch designation
    for this session's own pushes; unit lanes use `cert/` per the
-   cut. If Evan prefers the orchestrator branch spelling, it is a
+   cut. If Ev prefers the orchestrator branch spelling, it is a
    rename at the next seam.
 
 ## Seam: first rulings in from the opening conversation (2026-08-29)
 
-Evan, in-chat: **Q3 RULED** — not a design question, orchestrator's
+Ev, in-chat: **Q3 RULED** — not a design question, orchestrator's
 call; CERT-2 and CERT-4's fence seams proceed as planned. Q1/Q2/Q4
 got elaboration requests (answered in-chat; outcomes fold into the
-plan when ruled). Alongside Q2 Evan stated the general bar — a bit
+plan when ruled). Alongside Q2 Ev stated the general bar — a bit
 change ≪ ε is always acceptable when it buys cleaner code — now
 recorded in `memories/output-stability-as-justification.md`.
 Consequence for CERT-4: the interval-lane-only reformulation stays
@@ -98,7 +98,7 @@ block CERT-B1 slot 1). CERT-1 lane still running.
 
 ## Seam: Q2 and Q4 ruled (2026-08-29)
 
-Evan, in-chat. **Q2 RULED**: the #1006 trio proceeds (shared home,
+Ev, in-chat. **Q2 RULED**: the #1006 trio proceeds (shared home,
 whole-face-arm collapse — tighter or equal by per-cell-then-union —
 magnitude-reading retirement with the re-baseline owned); landed as
 CERT-10 in the slate, after CERT-5/CERT-7 which edit two of its
@@ -119,10 +119,10 @@ Lanes: CERT-1 and CERT-2 implementers both still running.
 
 ## Seam: Q1 ruled; plan RATIFIED (2026-08-29)
 
-Evan, in-chat: **Q1 RULED** — no always-on area metering (the
+Ev, in-chat: **Q1 RULED** — no always-on area metering (the
 ε-validity intent: any realized geometry everywhere within ε of
 correct is valid); the check is a hefty `debug_assert` on the A2
-gauge. In the same exchange Evan clarified the debug_assert doctrine
+gauge. In the same exchange Ev clarified the debug_assert doctrine
 — the instrument is right for expensive checks whose failure
 PROBABLY indicates a bug, not only for guaranteed ones, and they are
 on in release today (`debug-assertions = true`), eventually
@@ -130,7 +130,7 @@ debug/CI-only — ratified into DESIGN.md's D2 addendum as the
 row-5-boundary note in this branch. CERT-6 re-cut to the ruling
 (tripwire + calibration; the opt-in tightness door filed as a
 demand-triggered valve, not built). All four rulings are now in;
-the plan is marked RATIFIED, with the opening PR held for Evan's
+the plan is marked RATIFIED, with the opening PR held for Ev's
 sign-off of the D9 addendum wording it carries.
 
 ## CERT-2 merged (2026-08-29) — issue 762 closed; the program's first unit
@@ -223,7 +223,7 @@ deviations section (the CERT-1 lesson applied). Difficulty S/M,
 block CERT-B1 slot 2.
 
 **BLOCKER: the session's git auth did not survive a container
-restart** (known harness bug, Evan confirms no in-session fix): no
+restart** (known harness bug, Ev confirms no in-session fix): no
 lane can fetch or push, so CERT-3's blinded dual (next slot byte
 drawn at dispatch; ordinal 702 UNCLAIMED — claims happen at actual
 dispatch) cannot run from this session. GitHub API tools still
@@ -271,7 +271,7 @@ proportional-with-subnormal-slope (the fix pass corrected the
 
 **Handoff executed mid-unit**: the predecessor session lost git auth
 after delivery (previous entry); this successor session ran the dual
-and the close-out. Per Evan (in-chat, 2026-08-30, at the handoff):
+and the close-out. Per Ev (in-chat, 2026-08-30, at the handoff):
 **this unit's dual ran WITHOUT A/B experiment logging** — ordinal 702
 was never claimed, no arm records, no MODEL-AB-LOG row; the review
 itself was full-protocol (blinded, sequential, identical stored
@@ -564,7 +564,7 @@ twice-amended method note: the interval-square-allowlist catch on
 `chart_stretch_inf`'s `ratio * ratio` (1a2574b0, powi(2), value-identical)
 and the one `exact_arms` doc link the rename left dangling (bde7b17f, the
 CERT-7 class). Frozen review head bde7b17f. Its first hosted run died at a
-GitHub spending-limit startup failure (both root jobs, no runner); Evan
+GitHub spending-limit startup failure (both root jobs, no runner); Ev
 refreshed the budget and re-ran: 22/22 green, both ε=1e-12 lanes pinned.
 
 Dual (v6, sequential; byte 201 parity 1 ⇒ R1 FABLE + R2 OPUS): R1 A-W-F
@@ -864,7 +864,7 @@ cert/n1r2-probes pushed). Then the main merge carrying CERT-M1 (one
 SMELL-SCAN conflict at the Track N table, resolved keeping D244 and the
 H2 edit); ε sweep 560/560/560 and 722/722/722; geom-brep 465/0. One
 deviation: the trailer head is an `--allow-empty` commit atop the merge
-(the filter reads the head commit only; Evan authorized dummy commits as
+(the filter reads the head commit only; Ev authorized dummy commits as
 CI kicks on 2026-09-01). Final head 0899de802: run 33584286425 green,
 both lanes at 1e-12 by trailer.
 
@@ -909,7 +909,7 @@ Track M; D223 rewritten with a corrected premise (`ApproxSurface::certify`);
 H5's row carrying the three-trait census as CERT-M3's executable spec
 (EdgeNurbsLane splits free — already a closure parameter; PcurveFittedLane
 does not split — check 4 IS the certificate's envelope; ChartRegionLane
-splits only with a completeness contract for Evan); S90-impl re-read and
+splits only with a completeness contract for Ev); S90-impl re-read and
 still parked. **Two gate reds before review, neither in kernel code**:
 the render/k-lint lanes compile the EXCLUDED root `demos/tour`, where a
 twenty-first bound site lived (klein.rs:949 — fixed by the lane in

@@ -8,7 +8,7 @@ pipeline seams, unit entries at merges, the tail is the live state.
 
 ## Opening state (2026-08-27)
 
-Opened on Evan's go ("the program is ready to start whenever you
+Opened on Ev's go ("the program is ready to start whenever you
 want"), the same day the plan was ratified and merged (#1087). The
 program is the plan's six units GUI-0 … GUI-5 (GUI-5 optional,
 GUI-6 banked post-v1); every design decision the units lean on is
@@ -85,7 +85,7 @@ band makes the claim raceless and the record reaches main with the
 next merge that carries this branch. Design conversations,
 protocol amendments, and spec ratifications keep their own PRs.
 
-**Ruling — viewer CI posture (Evan, 2026-08-27, in-conversation,
+**Ruling — viewer CI posture (Ev, 2026-08-27, in-conversation,
 on his own proposal):** the GUI is treated as a third-party
 consumer of the API. Concretely, landing in the GUI-0 fix pass:
 
@@ -142,7 +142,7 @@ MODEL-AB-LOG row. The program-level outcomes:
 - **The seam-friction reading is provisional by design**: no §5
   fallback condition met, but the spike edits nothing — GUI-3
   re-takes the measurement where it counts.
-- **Evan's viewer-CI ruling is live**: seed-keyed toolkit gate
+- **Ev's viewer-CI ruling is live**: seed-keyed toolkit gate
   with a published skip axis, nightly viewer row, doc-gate split.
   The SKIP direction's first hosted exercise is the next
   kernel-only PR — whoever sees that run confirms the verdict
@@ -246,7 +246,7 @@ with no arm token, and the pre-push self-check for orchestrator
 log commits is `grep -i 'fable\|opus' docs/GUI-LOG.md` scoped to
 entries about units with unconcluded reviews.
 
-**Ruling — block-draw disclosure (Evan, 2026-08-28,
+**Ruling — block-draw disclosure (Ev, 2026-08-28,
 in-conversation, closing the #1112 thread):** verifiable
 precommitment of block draws is NOT required; hashes are permitted
 but optional. GUI adoption: block draws are recorded at draw time
@@ -268,15 +268,15 @@ why no single real document can carry the whole sequence. The
 admission verdict outlives commit (tree note + the once-per-landing
 A5 at-rest badge). Residue banked: #1117 (save-a-copy identity),
 the `SetPlacement` vocabulary gap (R1 n8 — issue at close), GUI-5
-(optional, Evan's call), GUI-6 (banked post-v1), #1097's hardware
+(optional, Ev's call), GUI-6 (banked post-v1), #1097's hardware
 first light. The unit's dual carried three disclosed blinding
 contamination sources (row has the accounting; the block-draw
 format ruling landed mid-review). v1 status: **GUI-0…GUI-4 all
 merged, samples #29–#33, ordinals 400–404; v6 tally 0 confirmed +
 1 candidate pending blinded coding.** Next: the exit walk with
-Evan.
+Ev.
 
-## Exit walk RATIFIED (2026-08-28 05:13Z — Evan merged #1121)
+## Exit walk RATIFIED (2026-08-28 05:13Z — Ev merged #1121)
 
 The v1 GUI's required path is complete and signed off:
 GUI-0…GUI-4 merged (samples #29–#33, ordinals 400–404), acceptance
@@ -284,13 +284,13 @@ evidenced on the real gallery hosted, the egui GO authoritative,
 residue banked (#1097, #1111, #1117, #1120, GUI-6). The walk's
 second question — **GUI-5 (the threaded web lane): dispatch,
 defer, or drop** — received no answer with the merge and stays
-OPEN as Evan's call; block GUI-B2 slot 2 stands ready, and the
+OPEN as Ev's call; block GUI-B2 slot 2 stands ready, and the
 block record's remaining-slot handling follows the branch-side
 ruling either way. Program state: idle on that one decision; no
 lanes running; the PR subscription and fallback watches are
 retired.
 
-## Program close (2026-08-28, Evan's GUI-5 ruling: DEFER)
+## Program close (2026-08-28, Ev's GUI-5 ruling: DEFER)
 
 GUI-5 (the threaded web lane) is DEFERRED post-v1, banked beside
 GUI-6 — the plan's posture ("skipping it costs v1 nothing")
@@ -306,7 +306,7 @@ program's final state; future GUI work opens its own log or
 reopens this one at a new seam.
 
 **Post-close maintenance (2026-08-28, PR #1125 — the first-light
-hardening bundle):** Evan's real-hardware run (WSLg) produced six
+hardening bundle):** Ev's real-hardware run (WSLg) produced six
 findings in one evening, all fixed here: explicit window sizing +
 WSL-detected X11 backend preference (WSLg's Wayland RAIL resize
 confirmed broken, X11 confirmed working); chrome panes scrollable
@@ -318,7 +318,7 @@ with the bindings and the CONFIRMED WSL troubleshooting chains
 (including the memorable one: dpkg claiming fonts-dejavu-core
 installed while the files were gone from disk — hex-box tofu via
 a Type 1 fallback Pango cannot shape). One gate-policy edit rides
-along, flagged for Evan's retroactive glance: `no-ambient-env.sh`
+along, flagged for Ev's retroactive glance: `no-ambient-env.sh`
 allowlists viewer frame.rs as the single door for the GUI shell's
 platform probes (environment-as-subject, argued in the gate
 header). No A/B ceremony per the post-close maintenance precedent
@@ -326,7 +326,7 @@ header). No A/B ceremony per the post-close maintenance precedent
 PR (queued behind this merge).
 
 **Post-close maintenance (2026-08-28, PR #1129 — the add-parameter
-affordance, Evan-requested):** the panel creates document
+affordance, Ev-requested):** the panel creates document
 parameters (name + dimension + value, one `SetDocParam`, one undo
 step) and the expression box's unknown-name refusal now OFFERS
 creation with the draft restored — the ratified
@@ -341,7 +341,7 @@ have hit it. Orchestrator-reviewed, no A/B ceremony (maintenance
 precedent).
 
 **Post-close maintenance (2026-08-29 — four display/editing tweaks,
-Evan-requested in chat):** all four asked for as GUI tweaks; each
+Ev-requested in chat):** all four asked for as GUI tweaks; each
 landed as values with headless rows, no A/B ceremony (maintenance
 precedent, #1108/#1125/#1129).
 
@@ -358,7 +358,7 @@ precedent, #1108/#1125/#1129).
    per-literal display unit is for ("here is how I want this
    number written"). `0.5 pi` parses and formats back bit-exactly
    through the existing machinery; nothing downstream
-   distinguishes it from `deg`. Evan's own framing, taken as
+   distinguishes it from `deg`. Ev's own framing, taken as
    stated: it is not a unit and the module docs say so.
 
 3. **The GUI's canonical-units ruling is SUPERSEDED** (GUI-PLAN's
@@ -406,7 +406,7 @@ precedent, #1108/#1125/#1129).
    no failure in reach says how far it looked, never "unbounded".
 
    **Sampling is a stand-in for a proof, and issue 1183 says so**
-   (Evan's framing, in the conversation that asked for this): the
+   (Ev's framing, in the conversation that asked for this): the
    kernel already runs `evaluate::<Interval>` over a whole `Doc`,
    and `Interval::from_bounds` is the subdivision driver's
    constructor, so replaying with the field WIDENED and
@@ -422,7 +422,7 @@ precedent, #1108/#1125/#1129).
    as issue 1143. `BoundsProbe` evaluates nothing itself precisely
    so the oracle can be replaced without the panel noticing.
 
-   **The two remaining open questions for Evan**: (a) inline is a
+   **The two remaining open questions for Ev**: (a) inline is a
    hitch of tens of evaluations on a button press — the resumable
    state machine makes moving it behind the eval seam or onto a
    per-frame drip mechanical if the hitch is felt; (b) the seed
@@ -476,7 +476,7 @@ fins unioned in the demo's `solidify()` and never in the recipe;
 **#1253** the status line cleared by every camera fold through `land`,
 which eats the product fault raised on an open and is why the budget's
 verdict is a badge. No A/B ceremony per the post-close maintenance
-precedent (#1108); reviewed by Evan in conversation, who directed each
+precedent (#1108); reviewed by Ev in conversation, who directed each
 merge — including the #1247 rework, which was his correction: the
 budget was a clamp until he said he had expected it to set a default.
 
@@ -492,10 +492,10 @@ notation died one field before it could be stored. Not GUI-only — the
 demos author with `Expr::literal` too, so the tour's 300 mm ring opened
 in the panel as `0.3 m`.
 
-Three rulings, all Evan's in the conversation that asked for it.
+Three rulings, all Ev's in the conversation that asked for it.
 
 1. **The creation ops carry `Expr`.** The first cut carried a
-   value-plus-notation carrier; Evan took the bigger version instead —
+   value-plus-notation carrier; Ev took the bigger version instead —
    "sounds like we'll need it eventually" — which is one vocabulary
    break rather than two, and is what an expression-driven creation
    form will want. `AddExtrude`, `AddRevolve`, `AddFillet`,
@@ -517,7 +517,7 @@ Three rulings, all Evan's in the conversation that asked for it.
 
 2. **A dimensionless row, and the display unit stops being
    optional.** The `Option` was defended on the grounds that `None`
-   and `Some(rad)` differ; Evan's answer was that an `Option` with an
+   and `Some(rad)` differ; Ev's answer was that an `Option` with an
    unclear interpretation is worse than a special case, and he was
    right for a reason better than the one offered: **two readers of
    this repository already disagreed about what `None` meant.**
@@ -536,7 +536,7 @@ Three rulings, all Evan's in the conversation that asked for it.
 
    The picker offers nothing for `Scalar`, which is the one place the
    dimensionless row is special-cased, and it is a chrome rule rather
-   than a storage one — Evan's own framing: not displaying an option
+   than a storage one — Ev's own framing: not displaying an option
    when only one unit is possible beats an `Option` at every use site.
 
 3. **Document parameters join.** `DocParam::Continuous` carries a
@@ -554,7 +554,7 @@ Three rulings, all Evan's in the conversation that asked for it.
 **Schema v20** carries all of it, and its ledger entry states the
 break honestly: there is no degenerate carry this time — a v19
 document and its v20 regeneration differ on nearly every literal.
-Evan: "it's fine to have a break that means old documents don't load
+Ev: "it's fine to have a break that means old documents don't load
 anymore". Every committed document was regenerated
 (`gallery_ring.v20.pncad`, `plate_param.v20.pncad`, the die and
 assembly corpora, `v20_golden.cad`); v19's golden stays on disk, as

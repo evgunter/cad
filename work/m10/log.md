@@ -7,9 +7,9 @@ merges, the tail is the live state.
 
 ## Opening state (2026-08-29)
 
-Opened on Evan's direction ("you'll be doing M10, error
+Opened on Ev's direction ("you'll be doing M10, error
 propagation"), by a fresh orchestrator on a remote container. The
-plan is a DRAFT design conversation — nothing dispatches until Evan
+plan is a DRAFT design conversation — nothing dispatches until Ev
 ratifies it; this entry records the operational facts that hold
 either way.
 
@@ -17,7 +17,7 @@ either way.
 
 - **Branch prefix (the #396 convention): `m10/`** — unit branches
   `m10/<unit>-<slug>`, orchestrator branch `m10/orchestrator`
-  (Evan authorized the prefix at opening; the harness-designated
+  (Ev authorized the prefix at opening; the harness-designated
   session branch `claude/m10-error-propagation-q3e7i8` is unused).
 - **A/B ordinal band: M10 = 500–599**, claimed in
   `docs/MODEL-AB-LOG.md`'s banding entry in the same commit that
@@ -32,7 +32,7 @@ either way.
   GitHub through MCP rather than `gh`. Disk ~29 G free is the
   binding constraint: lanes are worktrees sharing one object
   store, own `CARGO_TARGET_DIR` each, ≤ ~2 concurrent lane targets,
-  review targets reclaimed at report time (Evan, at opening:
+  review targets reclaimed at report time (Ev, at opening:
   subagents share fewer repo copies than the local-machine
   workflow assumes; the orchestrator checkout carries no target of
   its own). The build-slot mutex, per-lane target rule,
@@ -56,7 +56,7 @@ so E8's solver walls are vacuous in v1 — plan Q1).
 
 ## Ratification (2026-08-29)
 
-Evan ruled all five plan questions in-conversation the same day:
+Ev ruled all five plan questions in-conversation the same day:
 Q1 solver OUT, Q2 mass-prop Measures banked, Q3 MC lane rides
 M10-6, Q4 clean breaks, Q5 the #1055 arm in M10-5 as a STRETCH
 ("possibly ambitious" — the follow-up-unit valve is the answer to
@@ -80,10 +80,10 @@ expressions at f64 and lanes consume the elaborated segments via
 `embed`, so a Dual seed on a profile dimension propagates no
 tangent and an interval profile parameter does not widen the leaf
 replay — silent zeros/points exactly where E4/E6 need signal.
-PROFILES-V2 recorded the asymmetry and reserved it for Evan's
+PROFILES-V2 recorded the asymmetry and reserved it for Ev's
 eyes; M10 is where the same parameter feeds both slot kinds for
 real. Plan amended: unit **M10-P** added (design pass first, its
-design PR waits for Evan); M10-3/M10-4 carry the
+design PR waits for Ev); M10-3/M10-4 carry the
 magnitude-parameter dispatch valve. Amendment self-merged as a
 faithful elaboration (the ratified exit shape is unreachable
 without it); the design fork itself is reserved for M10-P's PR.

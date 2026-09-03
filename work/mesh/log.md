@@ -7,7 +7,7 @@ tail is the live state.
 
 ## Opening state (2026-08-31)
 
-Opened on Evan's direction (in-chat: "pick up S-MESH as the
+Opened on Ev's direction (in-chat: "pick up S-MESH as the
 orchestrator", with S-BOOL taken by the same instruction), by a fresh
 orchestrator on a remote container. The plan is a DRAFT design
 conversation for its **Rulings sought** section; MESH-1 is
@@ -400,7 +400,7 @@ meridian arcs on purpose (the closed form measures them exactly),
 while the walk's one-column-per-edge model cannot read them. Two
 predicates, not two answers — the door/walk question the spec called
 a possible fork was ruled not one by the orchestrator, and the PR says
-so plainly for Evan to overrule. The pole-membership arithmetic has one
+so plainly for Ev to overrule. The pole-membership arithmetic has one
 home, shared with the CERT-1 fold, one sign apart. The cone turned out
 NOT immune (an apex-crossing generator passes the shape door and the
 walk mis-reads it) and is covered by the predicate's cone arm. Both
@@ -428,7 +428,7 @@ allowlist).
 Slate state: the defect cluster MESH-6/7/8/10/11 is cleared. MESH-9
 stays parked on its trigger. What remains on S-MESH's slate is the
 MESH-R track lanes and the cross-program follow-ons (1587, 1588, 1597,
-1598, 1601, 1602) — the next unit is a slate decision, put to Evan.
+1598, 1601, 1602) — the next unit is a slate decision, put to Ev.
 
 ## Tracker migration (2026-09-03)
 

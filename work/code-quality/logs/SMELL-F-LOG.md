@@ -9,7 +9,7 @@ and incidents. **Live status is here and in §D, never in `memories/`.**
 **This track runs entirely outside the model A/B experiment.** No
 Fable/Opus pairing, no ordinal, no row in `docs/MODEL-AB-LOG.md` —
 **nothing on this track reads or edits that file.** The experiment is
-paused on a model limit (Evan, 2026-08-20); the cheapest guarantee that
+paused on a model limit (Ev, 2026-08-20); the cheapest guarantee that
 the pause stays clean is that this track never touches it. A lane that
 believes it needs to is wrong and should ask.
 
@@ -20,7 +20,7 @@ believes it needs to is wrong and should ask.
 
 ## Review policy for this track
 
-Not the full orchestrator protocol. Per Evan, 2026-08-20:
+Not the full orchestrator protocol. Per Ev, 2026-08-20:
 
 - **Style review on every unit** — `docs/prompts/reviewer-style-lane.md`,
   dispatched **by path** (read it once; never paste it), with the
@@ -34,7 +34,7 @@ Not the full orchestrator protocol. Per Evan, 2026-08-20:
      that compiles?
 - **Adversarial review only where the change carries meaningful risk** —
   a minority of the track, marked per lane in the roster. The criterion
-  is Evan's (`SMELL-C-LOG` C-R12): *complex enough that there is a
+  is Ev's (`SMELL-C-LOG` C-R12): *complex enough that there is a
   significant chance the change introduces a regression CI will not
   catch*. That is narrower than "this code is load-bearing".
 
@@ -54,7 +54,7 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
 - **A finding about the kernel's logic** → a **GitHub issue**, signed,
   never a smell-doc row. Track F fixes instruments; a logic defect is
   someone else's lane and needs a register that executes.
-- **An important design question** → a **PR asking Evan**, per
+- **An important design question** → a **PR asking Ev**, per
   `memories/git-workflow.md` — the doc edited to state the question,
   updated in place with the answer. Never a comment on a merged PR.
 
@@ -94,7 +94,7 @@ up: **grep the merged tree for what the convention requires, not your diff for
 what you changed.**; the edits are to
 different findings and different rows. **If the only conflict was that
 document and CI was already green on the pre-merge head, merge without
-waiting for a second CI run** (Evan, 2026-08-20).
+waiting for a second CI run** (Ev, 2026-08-20).
 
 ---
 
@@ -105,13 +105,13 @@ waiting for a second CI run** (Evan, 2026-08-20).
 | **F-R1** | **Is F8 gated on E-a (#753)?** §D's Track F preamble says *"Nothing in F1–F3 or F8 may open until that lands"* and calls the gate a **file-overlap** gate; F8's own scope cell says its file is *"neither of E-a's two files"*. The two sentences cannot both be operative. | **F8 stays gated, and the preamble is right for a reason it does not give.** #753's actual file set was read from the PR, not from the schedule: it is ten files, not two, and it includes `.github/workflows/ci.yml` and `local-scripts/ci-local.sh`. D44's defect is that `k_probe_sweep.sh` filters CI's probe run to 2 of 16 suites — a fix that makes CI run the other fourteen is an edit to the *invocation*, which lives in `ci.yml`. So the overlap is real; the scope cell simply counted E-a's files from §D's Scope column instead of from the branch. **Recorded as a finding, because the schedule cell is a claim site** (`SMELL-C-LOG` C-R11). | orchestrator, 2026-08-20 |
 | **F-R2** | **F4's S84 half is `crates/geom-brep/tests/m5_pr7_ssi.rs`, which is the single code file Track C's open #734 edits.** §D's Track F table names no edge here. | **F4 waits for #734.** Not split: S84 is one of four members of *one missing idiom*, and a lane that closes three and reports the fourth is the half-fix this document already records as §C13. The whole row sequences behind #734 rather than fragmenting the class. | orchestrator, 2026-08-20 |
 | **F-R3** | **F6 and issue #746 are the same file** — `tools/tess-lint/src/lib.rs`. #746 is Track C's **C15**, the positional-ordinal join, and F6's row explicitly excludes it as part 2 of S73. | **F6 opens, and declares the boundary rather than assuming it.** C15 is *unstaffed* — a row and an issue, no `C-` lane letter — so there is nothing to collide with today, and holding an edge-free row against an unstaffed one is how a register stops executing (§C3). The lane's brief fences it off `compare`'s key and off the `else { continue }` arm, and its PR says so, so that whoever takes #746 can see the boundary from the tree. | orchestrator, 2026-08-20 |
-| **F-R5** | **F8 / D44 — is 14-of-16 probe suites type-checked-but-never-run a cost posture or a defect?** Re-derived before asking: there are **16** probe-gated suites under `crates/*/tests`, and `k_probe_sweep.sh:91,94` executes exactly two module filters (`m4_pr8_k_probe::`, `k_report::`). Separately, `editor-core/tests/m5_pr5_corpus_probe.rs:21` is a plain `#[test] fn cut_cylinder_replays_at_probe()` with **no `#[ignore]`**, registered at `all.rs:153`, which has never executed in CI — the only thing that runs that crate's probe feature passes `--ignored m4_pr8_k_probe::`. | **SPLIT** (Evan, 2026-08-20) — **but read the caveat section below before acting on this cell: its DISPOSITIONS stand and were implemented by #844, while the population it describes does not exist, and the amendment's placement argument was WITHDRAWN by the orchestrator on 2026-08-20.** The thirteen `--ignored` dump harnesses are **posture**: they are opt-in instruments by design, and the deliverable there is documentary plus a **floor pinning the executed set** so it cannot silently shrink further — S61's ruling one file over, *a gate must be sited where it can fire on its own inputs*. The plain non-`#[ignore]`d test is **not** posture and gets run — **conditional on Evan's caveat: *"ensure the accidental-looking skipped test isn't, like, super compute intensive."*** See the note below; the measurement is F-h's, and it is a gate on the ruling, not a footnote to it. | Evan, 2026-08-20 |
-| **F-R6** | **F1 / S59 — widening the compound-`Bounds` matcher reds every site spelled `Decide + CertifiedBounds`, which `real.rs:787` says *"still needs ratification"*. The gate has been blind to that spelling, so none of them was ever ratified.** What happens to the pre-existing population? | **Convert what should exclude a dual; grandfather only the residue** (Evan, 2026-08-20) — the mechanical fix the S87/S88 ruling already describes, with an allowlist entry carrying a one-line reason for whatever genuinely remains, and only new sites coming to Evan. **With the caveat that is the operative half:** *"be careful with grandfathering; if it's semantically wrong or suggests that the relevant code should be moved into a different layer then that should be done instead."* So an allowlist entry is a **last** resort, not a default landing place, and the lane owes a per-site reason of a kind that survives being read back. See the note below. | Evan, 2026-08-20 |
+| **F-R5** | **F8 / D44 — is 14-of-16 probe suites type-checked-but-never-run a cost posture or a defect?** Re-derived before asking: there are **16** probe-gated suites under `crates/*/tests`, and `k_probe_sweep.sh:91,94` executes exactly two module filters (`m4_pr8_k_probe::`, `k_report::`). Separately, `editor-core/tests/m5_pr5_corpus_probe.rs:21` is a plain `#[test] fn cut_cylinder_replays_at_probe()` with **no `#[ignore]`**, registered at `all.rs:153`, which has never executed in CI — the only thing that runs that crate's probe feature passes `--ignored m4_pr8_k_probe::`. | **SPLIT** (Ev, 2026-08-20) — **but read the caveat section below before acting on this cell: its DISPOSITIONS stand and were implemented by #844, while the population it describes does not exist, and the amendment's placement argument was WITHDRAWN by the orchestrator on 2026-08-20.** The thirteen `--ignored` dump harnesses are **posture**: they are opt-in instruments by design, and the deliverable there is documentary plus a **floor pinning the executed set** so it cannot silently shrink further — S61's ruling one file over, *a gate must be sited where it can fire on its own inputs*. The plain non-`#[ignore]`d test is **not** posture and gets run — **conditional on Ev's caveat: *"ensure the accidental-looking skipped test isn't, like, super compute intensive."*** See the note below; the measurement is F-h's, and it is a gate on the ruling, not a footnote to it. | Ev, 2026-08-20 |
+| **F-R6** | **F1 / S59 — widening the compound-`Bounds` matcher reds every site spelled `Decide + CertifiedBounds`, which `real.rs:787` says *"still needs ratification"*. The gate has been blind to that spelling, so none of them was ever ratified.** What happens to the pre-existing population? | **Convert what should exclude a dual; grandfather only the residue** (Ev, 2026-08-20) — the mechanical fix the S87/S88 ruling already describes, with an allowlist entry carrying a one-line reason for whatever genuinely remains, and only new sites coming to Ev. **With the caveat that is the operative half:** *"be careful with grandfathering; if it's semantically wrong or suggests that the relevant code should be moved into a different layer then that should be done instead."* So an allowlist entry is a **last** resort, not a default landing place, and the lane owes a per-site reason of a kind that survives being read back. See the note below. | Ev, 2026-08-20 |
 | **F-R4** | **F7's members live in six crates' `tests/`, and Track E's open #763 rewrites `crates/*/tests/all.rs` in nine of them.** | **F7 opens, and does not delete test files.** Editing a member's body is disjoint from `all.rs`; *removing* one is not, because the aggregation module names it. Where F7's sort concludes a member should be deleted rather than repaired, the lane records the conclusion and leaves the deletion to a follow-up row — it does not take `all.rs` out from under #763. | orchestrator, 2026-08-20 |
 
 ### F-R5's caveat, and what F-h owes against it
 
-Evan's condition on running `cut_cylinder_replays_at_probe` is that it not be
+Ev's condition on running `cut_cylinder_replays_at_probe` is that it not be
 *"super compute intensive"*. Two costs, and they are not the same:
 
 - **Compile cost is already paid.** `--features probe` monomorphizes every
@@ -127,7 +127,7 @@ Evan's condition on running `cut_cylinder_replays_at_probe` is that it not be
   the lane runs in (`memories/perf-measurement-lane.md`: a timing is worth
   nothing without its box).
 
-**Amended by Evan, 2026-08-20, and the amendment is the better condition:**
+**Amended by Ev, 2026-08-20, and the amendment is the better condition:**
 *"test cost seems probably fine then, would just want to check that it isn't,
 like, the longest thing in some cluster so it increases total CI latency."* So
 the question is not *is it expensive* but **does it move the critical path**.
@@ -175,7 +175,7 @@ reproduced inside its own fix, and it is now foreseen rather than discovered.
 **D45 is withdrawn entirely and D85 replaces it**; F8's rows are **D84/D85**,
 not D44/D45.
 
-**DISCHARGED by Evan, 2026-08-20**, on the measurement above: *"ok yeah k lint
+**DISCHARGED by Ev, 2026-08-20**, on the measurement above: *"ok yeah k lint
 is consistently shorter, sounds like there's no worry about test time then."*
 So **the cost condition on F-R5 is settled and is no longer a gate on F-h.**
 The lane does not owe a re-measurement, and it does not owe the `#[ignore]`
@@ -193,7 +193,7 @@ tests assert is `failures(&ev).is_empty()` — **one-sided greenness at `Probe`,
 which is tolerance-dependent**, with no comparison against an f64 run anywhere.
 The ruling above was written from a doc comment and not from the assertion, in
 a track whose subject is guards whose prose outruns their code, and it was
-relayed to Evan as settled. **The conclusion survives; the reason given for it
+relayed to Ev as settled. **The conclusion survives; the reason given for it
 does not.** F-h re-decided the placement on the real facts and kept "once,
 outside the loop" on a different ground — **redundancy**: `run_doc`, inside the
 `#[ignore]`d dump the sweep has always run, asserts the same predicate over
@@ -228,7 +228,7 @@ runs `cargo test -p <crate> --features probe` at all, and several are the
 Probe-lane halves of ordinary suites rather than dumps. The lane did not decide
 their fate — that is **D111** — and it did not restate any total; it made the
 *accident* impossible instead, by requiring every censused suite to be either
-rostered as executed or to say so in its own header. **Evan may want to re-rule
+rostered as executed or to say so in its own header. **Ev may want to re-rule
 on the corrected population.** The lane also found a second live instance the
 ruling could not have seen: `m4_pr8_k_probe.rs`'s `corpus_evaluates_green_at_probe`,
 a plain `#[test]` inside the module the sweep DOES name, documented as
@@ -243,7 +243,7 @@ question**: both preconditions together are **2.60 s** of the sweep step's
 The ruling reads as *convert, then grandfather the residue*, but the caveat
 inverts which of those is the resting place. **An allowlist entry is a
 confession, not a disposition.** Before writing one, the lane asks two questions
-Evan named:
+Ev named:
 
 1. **Is the bound semantically wrong here?** If the site should exclude a dual,
    change the bound. That is the whole of the mechanical fix and needs no
@@ -486,14 +486,14 @@ the failure and having it committed at it.)
 
 **Two instances in one session, same shape, different artifact.** A lane
 dismissed a sibling site by reading the **row's name** (*"refuses typed"*) when
-the premise was in the body. The orchestrator ruled — and relayed to Evan as
+the premise was in the body. The orchestrator ruled — and relayed to Ev as
 settled — that two tests assert a bit-identical replay, because that is what
 their **docstrings** say; the assertions test one-sided greenness. In both cases
 **the prose was the artifact consulted and the code was three lines away.**
 
 **And the propagation is the dangerous half, not the original error.** The
 docstring claim survived a finding, an orchestrator ruling, an amendment, a
-relay to Evan and a lane brief — **five reads by three parties, none of which
+relay to Ev and a lane brief — **five reads by three parties, none of which
 opened the test body** — because each was reading the previous read. **A claim
 restated four times is not four times corroborated; it is one claim with three
 echoes.**
@@ -592,7 +592,7 @@ only execution against the OLD tree separates them. Struck from the record, the
 commit comment and the PR body.
 
 **CLEARED on the fix pass, 2026-08-20, and its one open design question is now
-answered: D109(a) is RULED YES** (Evan, 2026-08-21). The scaled square
+answered: D109(a) is RULED YES** (Ev, 2026-08-21). The scaled square
 `(k · x) · x` at `linalg/vec.rs`'s `b1` and `linalg/mat.rs`'s `rotation_about`
 may be reassociated into `k · (x²)`: **D9 is determinism at one kernel, not a
 pin on last year's output**, and `u_ref` is stored as data under D2 so existing
@@ -620,7 +620,7 @@ self-test cases were silently running the wrong half), and `test-aggregation.sh`
 is why S63's `ci-filter.py` half is **S164/D110** rather than closed, and why
 `bounds-allowlist.sh` keeps the old comment filter (**S163(b)**).
 
-**F-e went first because Track G's G4 is blocked on it** — per Evan's S87/S88
+**F-e went first because Track G's G4 is blocked on it** — per Ev's S87/S88
 ruling, the sentence that makes the `CertifiedBounds` conversion safe was false,
 and converting before the gate could see the spelling would leave the
 ratification requirement unenforced at exactly the moment new code starts
@@ -658,7 +658,7 @@ to place or decline.
   hitting the track that has to touch the scan most.
 
 **Sequencing inside wave 2.** F-e (F1) lands before **G4/S87–S88**, per
-Evan's S87/S88 ruling: the sentence that makes the `CertifiedBounds`
+Ev's S87/S88 ruling: the sentence that makes the `CertifiedBounds`
 conversion safe is *currently false*, and converting first would leave
 the ratification requirement unenforced at exactly the moment new code
 starts relying on it. Track G is not this track's, but the ordering
@@ -758,7 +758,7 @@ of something that then changed.
 Hosted CI was budget-blocked for roughly forty minutes. `change filter` failed
 in ~5 s with *"The job was not started because an Actions budget is preventing
 further use"*, and **every downstream job showed SKIPPED**. Repo-wide, not
-branch-specific; Evan restored it.
+branch-specific; Ev restored it.
 
 **The hazard is not the outage, it is what a red board looks like during one.**
 Two Track F lanes hit it independently and both diagnosed it correctly — jobs
@@ -778,7 +778,7 @@ than as a verdict on the branch.
 
 **F-R5's amendment told F-h:** *run it once, outside the ε loop, because the test
 asserts a **bit-identical replay**, not a margin distribution — there is nothing
-per-ε about it.* That was repeated to Evan as settled.
+per-ε about it.* That was repeated to Ev as settled.
 
 **It is false.** Both preconditions assert `failures(&ev).is_empty()` — **one-sided
 greenness at `Probe`**, which is tolerance-dependent. Neither compares against an
@@ -805,7 +805,7 @@ a **docstring**. The assertions test one-sided greenness at `Probe` and compare
 nothing against `f64`.
 
 **That false premise then survived, in order: a finding, an orchestrator ruling
-(F-R5), an amendment to that ruling, a relay to Evan as settled, and a lane
+(F-R5), an amendment to that ruling, a relay to Ev as settled, and a lane
 brief.** Five reads by three parties, every one of whom had reason to check, and
 none of which opened the test body. It was caught by a **style reviewer** reading
 the assertion.
@@ -955,7 +955,7 @@ billed job-minute per docs run, which honours *"cheap docs CI stays"*.
 | # | Ruling |
 |---|---|
 | **F-R12** | **S157's mechanism, and it is much larger than S157.** `set -euo pipefail` **aborts the gate before its own `gate_error`** whenever the diagnostic path runs a pipeline or command substitution — and `gate_selftest_case` runs each gate inside `if out=$(…)`, **where bash suppresses errexit**, so the self-test is *structurally incapable* of seeing it. **Every gate can die before its own error message, and every gate's self-test is blind to that by construction.** S157 is escalated to carry this. **F-f owns only the two instances in its own new code; the harness and the sweep are F-g's** — and *fifteen self-tests passing is not evidence here, because the harness is what hides it.* |
-| **F-R13** | **The re-siting invariant is unguarded, and the row's own defect is reproducible after the fix.** The reviewer hollowed `mirror` to checkout+echo and moved all three gate steps back into `discipline`: **all three gates stayed green.** The exact S61 state can be restored in one commit with nothing firing. Evan's ruling is a *rule* — *a gate must be sited where it can fire on its own inputs* — currently held as **prose in three headers**. A rule this repo has now paid for twice deserves a check. |
+| **F-R13** | **The re-siting invariant is unguarded, and the row's own defect is reproducible after the fix.** The reviewer hollowed `mirror` to checkout+echo and moved all three gate steps back into `discipline`: **all three gates stayed green.** The exact S61 state can be restored in one commit with nothing firing. Ev's ruling is a *rule* — *a gate must be sited where it can fire on its own inputs* — currently held as **prose in three headers**. A rule this repo has now paid for twice deserves a check. |
 
 **Three more that each break a stated claim.** Claim 2 is *stated as total and is
 not* — the job regex misses uppercase names, and a planted `buildXtra:` reading
@@ -1011,7 +1011,7 @@ retitled-around.
 | # | Ruling |
 |---|---|
 | **F-R8** | **The defect is reproduced one layer down, in the same file, by code the fix did not touch.** `public_fns`/`matching` carves the body that `code_only` then blanks — and **its own lexing is strictly weaker**: `'"'` reads as a string opener, block comments do not nest, raw strings are unknown. *Those are the exact three constructs `code_only` was written for.* Demonstrated: a door body containing `'"'` makes `public_fns` **lose the door entirely and corrupt the next one**. The row that should catch it, `a_call_is_still_a_call`, tests `code_only` **in isolation and never through the pipeline**. Not live today (161 = 161 over `topo/src`) — luck, not a guard. **Direction ruled, shape left to the lane: one home for *read Rust source past comments and literals*.** The unit argued exactly that for the door set — *"a guard against duplication should not be the next copy of its own walk"* — then left two lexers in one file with different competence. Riding with it: `br"x\"` **over-strips and erases a real call**; `char_literal_len`'s escape loop starts one byte past the escape (`'\''` short, `'\\'` returns `None`); and *"over-stripping is loud"* is true of the tier-1 guard and **false of the pcurve one**, where a door that stops reading as minting passes **silently**. |
-| **F-R9** | **The argument for staying textual does not exist in the tree.** A string-match classifier was replaced by a better string-match classifier, and three of the four disclosed blind spots are artefacts of reading text that a parser dissolves rather than documents. **The deliverable is the argument, not a particular answer:** if textual is right — build cost, `memories/review-and-dependency-policy.md`'s dependency-age rule, a guard that must run without compiling the crate — it goes **at the site**, because a reader today cannot learn why. If a parser is right, that is a **dependency decision and a design question** → a PR asking Evan, not an addition. **What the row cannot ship is the choice made silently for a third time.** |
+| **F-R9** | **The argument for staying textual does not exist in the tree.** A string-match classifier was replaced by a better string-match classifier, and three of the four disclosed blind spots are artefacts of reading text that a parser dissolves rather than documents. **The deliverable is the argument, not a particular answer:** if textual is right — build cost, `memories/review-and-dependency-policy.md`'s dependency-age rule, a guard that must run without compiling the crate — it goes **at the site**, because a reader today cannot learn why. If a parser is right, that is a **dependency decision and a design question** → a PR asking Ev, not an addition. **What the row cannot ship is the choice made silently for a third time.** |
 
 **Two lessons, and the second is about this document.**
 
@@ -1079,7 +1079,7 @@ send it.
 
 **Ruled and waiting on work, not on a decision:** **D109**(a) — reassociate the
 scaled square at `orthonormal_basis`'s `b1` and `mat.rs::rotation_about`; ruled
-YES by Evan, with the sequencing rule *convert the two sites, re-cut what moves,
+YES by Ev, with the sequencing rule *convert the two sites, re-cut what moves,
 then widen the matcher* recorded at S163(a), at D109 and in the gate header.
 **D105 / S160** — pin the split scan's continuous objective, with the lane's
 measurements written into the row so its taker inherits the argument.
@@ -1088,9 +1088,9 @@ measurements written into the row so its taker inherits the argument.
 S168 implies. **D115 / S169**, **D61 / S117**, **D63/D64**, **D68**, **D102/D103**,
 **D107/S161**, **D110**, **D113**.
 
-**Waiting on Evan:** **D111** — the fourteen unrun probe suites. F-R5's ruled
+**Waiting on Ev:** **D111** — the fourteen unrun probe suites. F-R5's ruled
 population does not exist, so they are undecided rather than decided-as-posture;
-the entry is in §D's *Decisions only Evan can make*.
+the entry is in §D's *Decisions only Ev can make*.
 
 **Not Track F's:** **D104** (the two hand-run diff artefacts, a test-suite-cost
 question) and **S127/D71** (`oracle-certify`'s missing local mirror, Track G's).
@@ -1135,7 +1135,7 @@ decision about reachability, not on a list.
      are on the executed side**. Every unexecuted suite is a plain `#[test]`,
      and several are the Probe-lane halves of ordinary suites rather than dump
      harnesses. The ruling's *dispositions* survive; its stated *criterion*
-     does not, and Evan may want to re-rule on that basis. Placed as **D111**,
+     does not, and Ev may want to re-rule on that basis. Placed as **D111**,
      not decided in lane.
   2. **A second instance sat inside the suite everyone counted as executed.**
      `m4_pr8_k_probe.rs` has two `#[test]`s and one `#[ignore]`, so the filter
@@ -1492,7 +1492,7 @@ halves.
 
 **What is worth carrying forward, beyond the row.**
 
-- **The docs-tier skip is untouched**, per Evan's ruling. The unit moved guards,
+- **The docs-tier skip is untouched**, per Ev's ruling. The unit moved guards,
   not the posture. `discipline` still skips on docs tier and still should.
 - **A hand-maintained roster gets a completeness check, not a longer list.**
   Both halves of this unit take that shape: the citation half's `CITING_FILES`

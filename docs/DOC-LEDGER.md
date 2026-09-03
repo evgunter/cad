@@ -128,7 +128,7 @@ after it are register items, all closed.
 - `LIB-RESPELL-SPEC.md` — LIB-RESPELL spec — the §2c fillet family, implemented (binding)
 - `LIB-RETTAIL-SPEC.md` — LIB-RETTAIL spec — the retirement's tail: ProfileLoop demotion, bowtie re-home, shim deletion (binding)
 - `LIB-RTABLE-SPEC.md` — LIB-RTABLE spec — the four-projection transition table (RESPELL-TABLE; binding)
-- `LIB-SEAL-SPEC.md` — LIB-SEAL spec — ProfileLoop seals: private fields + read accessors (ruled by Evan in-chat 2026-08-16; binding)
+- `LIB-SEAL-SPEC.md` — LIB-SEAL spec — ProfileLoop seals: private fields + read accessors (ruled by Ev in-chat 2026-08-16; binding)
 - `LIB-SEL1-SPEC.md` — LIB-SEL1 spec — geometric selectors PR-1 (binding)
 - `LIB-SWITCH-SPEC.md` — LIB-SWITCH spec — profiles-as-programs v2: the schema-v4 representation switch
 - `LIB-U1-SPEC.md` — LIB-U1 spec — the façade crate + prelude (binding)
@@ -173,7 +173,7 @@ unit is queued, not done.
 
 ### `docs/archive/` — the 2026-08-05 archive, retired in full (50 files)
 
-The archive directory was created 2026-08-05 (method ratified by Evan:
+The archive directory was created 2026-08-05 (method ratified by Ev:
 `docs/archive/` + an index + the git tag `archive/2026-08-05`) to hold
 M0–M6 historical milestone documents. Its index recorded, per file,
 what superseded it: the milestone conventions ratified into
@@ -228,7 +228,7 @@ by this ledger, and **`docs/archive/` no longer exists.**
 - `M5-S13-SPEC.md` — M5 S13 — the die-pips enablers: containment-fallback re-cut + the plane×sphere germ arm (binding spec)
 - `M5-S2-SPEC.md` — M5 S2 — arc-leg fillet sugar (binding spec)
 - `M5-S6-SPEC.md` — M5 S6 — two-tolerance message-unification sweep (binding spec)
-- `M5-S7-SPEC.md` — M5 S7 — CI/docs hygiene sweep (binding spec; Evan-directed 2026-07-30)
+- `M5-S7-SPEC.md` — M5 S7 — CI/docs hygiene sweep (binding spec; Ev-directed 2026-07-30)
 - `M5-S8-SPEC.md` — M5 S8 — fillet branch selection: nearest-the-authored-corner (binding spec)
 - `M5-S9-SPEC.md` — M5 S9 — chord_spec arc-side repair: azimuth-window containment (binding spec)
 - `M6-2-SPEC.md` — M6-2 spec — the SSI generic-T lift (binding)
@@ -251,7 +251,7 @@ at M5 PR 13), and its F5 entry still cross-referenced "the M4 roadmap
 entry above" — a pointer back into `DESIGN.md` that dangled the moment
 it was relocated.
 
-Ruled by Evan, 2026-08-20: **delete the passage rather than re-home the
+Ruled by Ev, 2026-08-20: **delete the passage rather than re-home the
 record.** Two edits to `docs/DESIGN.md` accompany this sweep:
 
 - the `### M4 fork outcomes (F1–F8)` section (10 lines) was removed. It

@@ -3,7 +3,7 @@
 **STATUS: DRAFT (design conversation; Q1, Q2(a) and Q4 RULED
 in-chat 2026-08-31 and recorded in §Rulings; Q2(b) directed; Q3's
 scheduling half open. Ruling-independent units are dispatchable
-pre-ratification).** Opened on Evan's direction (in-chat, 2026-08-31:
+pre-ratification).** Opened on Ev's direction (in-chat, 2026-08-31:
 "can you pick up S-MATE as the orchestrator?") from the ratified
 stream cut in `docs/WORK-STREAMS-2026-08.md` (§S-MATE) — verified at
 opening as the cut's last unclaimed stream (S-CERT/S-QA graduated in
@@ -64,8 +64,8 @@ files; assembly GUI chrome (GAUTH's).
   #1063).** What remains of #943 is its NAMED RESIDUE: cross-instance
   CURVED declared Rest, with the sanctioned closing shape recorded —
   a certified everywhere-within-ε overlap enclosure on the shared
-  curved carrier (Evan's latitude note, folded into that design's
-  ratification). Evan's #943 constraint binds this whole stream: do
+  curved carrier (Ev's latitude note, folded into that design's
+  ratification). Ev's #943 constraint binds this whole stream: do
   not re-implement contact machinery as mates — the census consults
   the mate's own declaration.
 - **The #131 cusp ruling** (DESIGN.md, D1 tier 3): #941 is its
@@ -82,7 +82,7 @@ files; assembly GUI chrome (GAUTH's).
 
 ## Substrate facts the slate is shaped by (surveyed 2026-08-31)
 
-- **The cut's "Needs Evan first" list is partly stale**, and the
+- **The cut's "Needs Ev first" list is partly stale**, and the
   staleness runs in the good direction: #945 was RULED at the ASM
   exit-walk ratification (before the cut was written; the cut's own
   §S-MATE bullet 5 already carries the correction), and #943's two
@@ -116,7 +116,7 @@ files; assembly GUI chrome (GAUTH's).
   emission) are VERBS-lane ground; item 5 (consumer sweep) crosses
   every program. The unit here lands 1–2 and records the 3–5
   handoffs.
-- **#944 waits on LIB drafting its plan, not on Evan** (LIB-LOG's
+- **#944 waits on LIB drafting its plan, not on Ev** (LIB-LOG's
   register correction). Per the cut it is taken only with LIB's
   hand-off; until then it is not on this slate.
 - **Territory seams, named**: the mate solve and gate live in
@@ -167,10 +167,10 @@ pre-logged here per the protocol (pre-draw).
   interior arm at the existing rung strength; the pinned lemma
   probe goes red and re-blesses, by design. **(b) design S**: the
   side/region-aware crossing machinery is needed eventually
-  (Evan's direction), so the design pass proposes its SHAPE and
+  (Ev's direction), so the design pass proposes its SHAPE and
   STAGING, not whether. Forward constraint recorded with it:
   interpenetration may eventually be ALLOWED when explicitly
-  declared (Evan, same conversation; A5/C6's interference-fit
+  declared (Ev, same conversation; A5/C6's interference-fit
   gate-skips are the ratified anchor) — (b)'s vocabulary must not
   foreclose a declared-interpenetration class.
 - **MATE-5 — #943's curved residue, the certified-ε overlap
@@ -214,19 +214,19 @@ pre-logged here per the protocol (pre-draw).
   VERBS-GATE posture consulted, klein walls 3/4 re-pinned), a torus
   rung in `carrier_eq` for the declared-Rest descent, and the
   torus×torus shared-rim tangency disposition — which returns to
-  Evan as its own conversation before implementation (the #966
+  Ev as its own conversation before implementation (the #966
   thread's two candidate shapes). Lily wall 1 is the standing demand
   signal and its retirement path.
 - **Not scheduled**: #944 (LIB hand-off gate), #750 consumption
   (recorded when BOOL-4 lands).
 
-## Rulings (Evan, in-chat, 2026-08-31)
+## Rulings (Ev, in-chat, 2026-08-31)
 
 1. **Q1 — #946: RULED, minting moves to evaluation.** Of the
    alternatives surveyed in the conversation (carry the minted
    records across the seam; mint at the seam only; gate at the
    seam; gate at pin time memoized by the content pin; a typed
-   interim refusal), Evan ruled for minting in the product gather
+   interim refusal), Ev ruled for minting in the product gather
    UNIVERSALLY: `assemble` = product + tier-3′ — construction
    composes, verification runs once at the outermost gate. The
    ruling turned out to be a drift-closure: A3's ratified
@@ -253,7 +253,7 @@ pre-logged here per the protocol (pre-draw).
 4. **Q4 — #968: RULED, scheduled.** This program's opening
    satisfies the #966 ruling's recorded-pickup condition; MATE-7
    is last on the slate and its torus×torus tangency disposition
-   returns to Evan as its own conversation before implementation.
+   returns to Ev as its own conversation before implementation.
 
 ## Process
 

@@ -7,7 +7,7 @@ tail is the live state.
 
 ## Opening state (2026-08-29)
 
-Opened on Evan's direction (in-chat: "can you orchestrate its program
+Opened on Ev's direction (in-chat: "can you orchestrate its program
 S-QA", pointing at the merged work-streams cut), by a fresh
 orchestrator on a remote container. The plan is a DRAFT design
 conversation for its **Rulings sought** section; QA-1 and QA-2 are
@@ -77,10 +77,10 @@ log rule):
    argument — a green run does identical work — is in the issue;
    #1122's option 3, the say-it-pinned half only, with option 2 held
    for Q2's ruling; #1051 is verification of a landed feature). The
-   one Evan-flavored piece in QA-2 (LANE=both on pin) is excluded
+   one Ev-flavored piece in QA-2 (LANE=both on pin) is excluded
    from the dispatch until ruled.
 2. The rulings split: Q1 and Q2 amend what a PR run gates — that has
-   been Evan's call at every precedent (sampling, k-lint sampling,
+   been Ev's call at every precedent (sampling, k-lint sampling,
    F3, the declined scheduled run) — so both wait even though a
    no-spend reading exists; Q3 changes what a tour-scene PR owes at
    merge, which is other programs' workflow. Everything else in the
@@ -124,12 +124,12 @@ the fence is already this program's.
 
 ## Seam: all three rulings in; plan RATIFIED (2026-08-29)
 
-Evan, in-chat. **Q1 RULED**: the k-lint path pin at `tools/` scope
+Ev, in-chat. **Q1 RULED**: the k-lint path pin at `tools/` scope
 (~7% of code merges, measured over 14 days; `demos/` at ~29%
 explicitly excluded — determinism there would erode the sampling).
 **Q2 RULED**: the basename-substring lane pin drops in favour of the
 manual-request convention (`CI-Config: lane=interval`), advisory
-print kept ("sure why not"), with Evan's emphasis that the
+print kept ("sure why not"), with Ev's emphasis that the
 load-bearing half is the DOC — the convention goes into
 `docs/prompts/implementer-discipline.md`, the file every lane
 reads, in the same PR that drops the pin. The
@@ -230,7 +230,7 @@ that binary.
 
 ## QA-3 merged (2026-08-30); block QA-B1 complete
 
-Evan's Q1 ruling is live: a `tools/` change pins the k-lint row that
+Ev's Q1 ruling is live: a `tools/` change pins the k-lint row that
 runs that crate's own suite, announced in `CONFIG_SOURCE` and the
 notices relay, with the draw untouched everywhere else — and the pin
 caught D183's failure shape on its own PR three times (each pinned
@@ -334,7 +334,7 @@ with measurements. Operationally the unit closed the loop on the
 program's thesis: its run was the first code-tier CI since BLEND-5
 merged, which is the only reason anyone learned main was latently
 red (`reader_census` tripping on prose in an assertion message —
-every intervening run was docs-tier). Evan fixed that directly
+every intervening run was docs-tier). Ev fixed that directly
 (#1323) within the hour; the k-lint 1-of-5 row remains row-dependent
 red on main per issues 1296/1304, M10's ground. Track J: 3→0, rows
 deleted, fence kept; D301 leaves Track R. With this merge the QA-B2
@@ -409,7 +409,7 @@ their recorded reasons, and the program moves to its exit walk.
 The slate emptied at QA-6 PR 2's merge, and the walk is drafted:
 docs/S-QA-EXIT-WALK.md rides PR 1341 as a ratification
 conversation, per the standing rule that exit walks wait for
-Evan's sign-off. Thirteen clauses walked verbatim against the
+Ev's sign-off. Thirteen clauses walked verbatim against the
 exit shape — nine MET, four MET-WITH-RECORDED-HONESTY, the two
 carries with named owners (Track W; issue 1317's register). The
 program stays open, and this log's tail stays live, until the
@@ -417,7 +417,7 @@ walk is ratified; nothing else is scheduled.
 
 ## Program closed (2026-08-31): exit walk ratified
 
-Evan ratified the walk in-session (the one point discussed before
+Ev ratified the walk in-session (the one point discussed before
 sign-off was row 5's demos-exclusion honesty note — the ~29%
 firing-rate cost his Q1 ruling accepted, restated not re-litigated).
 docs/S-QA-EXIT-WALK.md is the done-state of record; this log is

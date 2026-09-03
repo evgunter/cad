@@ -7,13 +7,13 @@ unilateral orchestrator decisions (LB-numbered), and resting state
 M6/M7 close-out (its own orchestrator, its own logs); the fence
 between the two lanes' footprints is recorded per-spec.
 
-## Rulings absorbed at program start (Evan, in-chat, 2026-08-06)
+## Rulings absorbed at program start (Ev, in-chat, 2026-08-06)
 
 Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 
 1. **U1 + U2 authorized to start now** (LQ5 execution); units past
    that are delegated to orchestrator judgment where footprints
-   are independent — Evan: "things past that likely are also
+   are independent — Ev: "things past that likely are also
    viable." Genuine design forks still escalate.
 2. **Façade placeholder crate name: `pncad`** ("pending-name CAD")
    — greppable, carries the Q9 rename debt visibly. See the
@@ -26,7 +26,7 @@ Recorded in LIBRARY-DESIGN.md §L8; operational consequences here:
 4. **A/B**: library-program implementation dispatches draw from
    their own LIB-labeled block series in MODEL-AB-LOG (no
    collision with the M7-N series the other orchestrator draws).
-5. **Lane slots**: Evan is building flock-based build-slot locks
+5. **Lane slots**: Ev is building flock-based build-slot locks
    (`cargo-slots.txt` is RETIRED in place); until the script
    lands on main, the 10 GB / two-parallel-cargo-lanes ceiling is
    enforced by this log's slot line.
@@ -114,7 +114,7 @@ Findings that feed the profiles-as-programs representation draft
 
 ## Incident log
 
-- **2026-08-07 (day): WSL CRASH** (Evan, evening). Symptoms as
+- **2026-08-07 (day): WSL CRASH** (Ev, evening). Symptoms as
   seen from this side: the U2 PR-1 fix pass died TWICE to stream
   stalls ("no progress for 600s"), then the orchestrator session
   itself was down ~10h. Probable trigger: machine load (the U1
@@ -134,7 +134,7 @@ Findings that feed the profiles-as-programs representation draft
 - **PROFILES-V2-DESIGN RATIFIED (#242 MERGED, 2026-08-08)** after
   a three-round conversation: round 1 accepted the drift-proof
   driver construction + serde-as-transport; round 2's probe
-  RETRACTED the bowtie-forces-raw-seat claim; round 3 Evan
+  RETRACTED the bowtie-forces-raw-seat claim; round 3 Ev
   delegated VQ1 — **RULED (b)-DIRECT** (chain-only schema; the
   additive-vs-subtractive LQ7 asymmetry decides: raw can be added
   later additively, removal has a pre-release deadline).
@@ -144,7 +144,7 @@ Findings that feed the profiles-as-programs representation draft
   (arc-carrier fillet modes; sizing starts by measuring sugar's
   existing arc-leg fillet forms, M5 S2/#137); then the SWITCH
   unit(s) (schema v4 chain-only, replay driver, Expr binding,
-  slot addressing); U9 queues behind the switch (Evan: no hurry).
+  slot addressing); U9 queues behind the switch (Ev: no hurry).
   U5/U6/U7/U8 remain freely schedulable around them.
 - **U3 MERGED #245** (2026-08-08; A/B row at merge — review
   APPROVE 0/0/3, zero silent devs, all claims independently
@@ -171,7 +171,7 @@ Findings that feed the profiles-as-programs representation draft
 
 Slots: 1 = lib-u1 (Opus), 2 = lib-u2 (fable). Monitors:
 disk-watchdog + hourly-checkin armed in this session;
-away-channel NOT armed (Evan present in-chat; watchlist empty).
+away-channel NOT armed (Ev present in-chat; watchlist empty).
 The v2 representation design conversation is QUEUED behind U2
 PR-2's merge (ruling 3 above). Next units in judgment scope after
 U1/U2: U3 (SectionSegments retirement) and U5 (read-back) are the
@@ -209,7 +209,7 @@ Expr binding per PROFILES-V2) is the ladder's next rung — its
 spec is the orchestrator's next writing task.
 
 ## G2 findings-back rulings (LB3–LB6, 2026-08-08; high-confidence
-## elaboration class — Evan retroactive, veto window on #259)
+## elaboration class — Ev retroactive, veto window on #259)
 
 - **LB3 (the Bounds blocker)**: the compound-Bounds allowlist
   EXTENDS to one new file — a `path` arc-fillet submodule
@@ -243,7 +243,7 @@ spec is the orchestrator's next writing task.
   exactly the two-carrier-junction distinction the implementer
   identified.
 
-- **LB3 AMENDED (2026-08-08, from Evan's factoring question on
+- **LB3 AMENDED (2026-08-08, from Ev's factoring question on
   #259)**: the selection family (nearest_candidate + the lifted
   joint ladder) moves to its own shared module
   (`profile::fillet_select`-shaped, allowlisted with the S8
@@ -297,16 +297,16 @@ spec is the orchestrator's next writing task.
   spec risk. Difficulties pre-logged: U7-v1 = M, U8a = M. Draws:
   U7 → LIB-3 slot 2 (OPUS), U8a → LIB-3 slot 3 (fable).
 
-- **Note (Evan, in-chat 2026-08-08)**: LB7/LB8 confirmed as
+- **Note (Ev, in-chat 2026-08-08)**: LB7/LB8 confirmed as
   sequencing-class. When the geometric-selector follow-up is
   designed, it should RE-HOME GQ7's selection-filter portion out
-  of GUI-DESIGN into the library design docs — Evan: "a bunch of
+  of GUI-DESIGN into the library design docs — Ev: "a bunch of
   general-usefulness stuff got originally mentioned in
   GUI-DESIGN even though it's more broadly applicable." The GUI
   becomes a consumer of the general mechanism, not its owner.
 
 **SWITCH spec drafted (2026-08-08, PR #263 — OPEN, awaiting two
-Evan inputs)**: (1) PROFILES-V2 §V3 REVISED — the naming-stability
+Ev inputs)**: (1) PROFILES-V2 §V3 REVISED — the naming-stability
 claim was contradicted by the required measurement
 (canonicalization is geometry-dependent; lex-band crossings
 renumber; posture = the M6-5 freeze doctrine, Vanished fail-loud);
@@ -320,7 +320,7 @@ the G2 finisher (path.rs) and U8a (Unit type). Drafter also
 re-verified f64-resolution and found memo hashing already
 satisfies V3 via resolved-bits convention.
 
-- **LB9 (Evan on #267)**: geom-core's classify-seam `Length<T>`
+- **LB9 (Ev on #267)**: geom-core's classify-seam `Length<T>`
   RENAMES to `Margin<T>` (the audit's own vocabulary) — a
   mechanical workspace sweep as its own orchestrator-review PR,
   sequenced after U8a's review concludes; the quantity `Length`
@@ -389,7 +389,7 @@ satisfies V3 via resolved-bits convention.
   declare-by-name sugar ships with it, not before. Fixture twins
   stay put (legal where they are).
 
-- **LB13 (Evan, in-chat 2026-08-09): the LB12 seal deepens, two
+- **LB13 (Ev, in-chat 2026-08-09): the LB12 seal deepens, two
   parts.** (a) `pncad` DROPS the whole-crate `editor_core`
   re-export (measured: 2 tour consumers, both curated-servable)
   — the document layer exposes only its curated surface;
@@ -403,7 +403,7 @@ satisfies V3 via resolved-bits convention.
   signature leaks — exactly how EntityRef escaped). Lands on
   U5's fix pass (same territory as LB12).
 
-## Evan review-thread inputs (2026-08-09, recorded)
+## Ev review-thread inputs (2026-08-09, recorded)
 
 - **Demo byte-identity is a SOFT constraint going forward** (#289):
   "always ok to update demo objects in a way that is not
@@ -437,7 +437,7 @@ satisfies V3 via resolved-bits convention.
   U10's example strategy.
 
 ## LIB residual register (2026-08-10, at the program's close —
-## Evan's ask; kernel-functionality-tracking items excluded)
+## Ev's ask; kernel-functionality-tracking items excluded)
 
 Beyond "docs update as the kernel grows," five categories (a
 sixth, F, folded 2026-08-28 — see the re-survey entry at this
@@ -510,7 +510,7 @@ file's tail):
     fields; ε has no type of its own, so `Tolerance::init`'s
     finite-and-strictly-positive rule is restated by hand across
     `step-export` and `step-import`. #742 and #741 say on their own
-    faces that their plan goes to Evan before implementation.
+    faces that their plan goes to Ev before implementation.
   - ~~**#1103**~~ — CLOSED. `editor-core::unparse` is the door
     outward: precedence-aware source text pinned by a round trip
     (`parse_expr(unparse(e))` is `bit_eq` to `e`, table plus
@@ -588,7 +588,7 @@ structurally cannot see, because neither is a missing SCENE —
   no-rot property is structural.
 - R5: the LQ7 tail as ratified-open: wheel cadence; schema-version
   ↔ package-version coupling post-release.
-- R6 (#274): CLOSED BY RULING (Evan, 2026-08-10, on the issue:
+- R6 (#274): CLOSED BY RULING (Ev, 2026-08-10, on the issue:
   "the cure seems worse than the poison") — no structural
   union-checking machinery. The standing mitigation is the
   process norm in every brief: merge main before opening,
@@ -601,7 +601,7 @@ structurally cannot see, because neither is a missing SCENE —
   selector's reserved convexity atom (GS-Q2); the F3 crate
   descriptions (matter only at publication).
 
-**E. The endgame pair (Evan-owned, parked by ruling):**
+**E. The endgame pair (Ev-owned, parked by ruling):**
 - Q9: the name (Intension cleanest per the 2026-08-08 re-sweep;
   rename = the pncad grep + the cad audit per the memory).
 - The U9 release checklist: reset version numbers (LQ7b), crate
@@ -612,7 +612,7 @@ structurally cannot see, because neither is a missing SCENE —
 Recorded so LIB's pickup path SEES them; every one is owned
 elsewhere, and LIB taking one silently would be the error:
 - **#945** (ASM) — mates x patterns did not compose. **RULED
-  2026-08-23** (Evan, at the ASM exit walk's sign-off, on the
+  2026-08-23** (Ev, at the ASM exit walk's sign-off, on the
   issue): A11 gains the member-vocabulary rider, a mate head may
   be a pattern-placed `Instance(i)`, and the issue CONVERTED from a
   design question into a banked ASM implementation unit (`head_of`'s
@@ -702,11 +702,11 @@ remain (G2:6, G5:2, G14:1). Schema is v8 (the v7 double-claim
 with ASM-2A resolved; the dispatch-time-seam discipline is the
 standing fix). The #413 thread also produced the §2c
 fillet-family design conversation (PR #419, two rounds folded,
-awaiting Evan's 👍): capture-at-fillet, uniform arrival binders,
+awaiting Ev's 👍): capture-at-fillet, uniform arrival binders,
 radius-only arrival spec, ArcSpec staging — the §2b compound
 register dissolves at its re-spell unit.
 
-**Register addition (2026-08-12, Evan on #413): the LoopBuilder
+**Register addition (2026-08-12, Ev on #413): the LoopBuilder
 test-support shim carries a DELETION HORIZON** — the ~15 legacy
 test callers migrate to lattice/raw spellings and the shim
 deletes entirely (the twins' verification target becomes recorded
@@ -762,7 +762,7 @@ DELETION HORIZON re-points at the §2c unit and is recorded in
 ratified `sugar::arc_fillet_trims`, so on the fillet family it
 was never a second implementation — only a second door.
 
-**RULED (Evan, #413, 2026-08-12): raw ProfileLoop construction
+**RULED (Ev, #413, 2026-08-12): raw ProfileLoop construction
 DEMOTES from the presented surface** ("yes we should demote
 ProfileLoop"; his framing: kernel vocabulary should be private,
 and the broken-on-purpose bowtie cannot justify a public
@@ -784,10 +784,10 @@ first pncad-py-only closure would have gone red without it).
 Remaining NO rows: G2 sweep/tube ×6 (U4), G5 ×2 (detect/declare
 + R3), G12 (LBRET in flight), G14 (kernel).
 
-**The #377 design conversation — RATIFIED (2026-08-11, Evan 👍
+**The #377 design conversation — RATIFIED (2026-08-11, Ev 👍
 on #386, after two follow-up rounds that strengthened the §V6
 disposition to full test-support banishment + struck V4(c)).** LoopBuilder
-retirement per Evan's in-chat ruling requires three dispositions
+retirement per Ev's in-chat ruling requires three dispositions
 beyond the §2b route (the lb-diecomposed investigation's
 findings): (a) PROFILES-V2 §V6's ratified fail-loud-demo-surface
 role — amendment drafted in place; (b) **LB4 disposition
@@ -853,7 +853,7 @@ mechanical work, three independent walls: (a) wire_sweep
 unconditionally refuses — the SWEEP_FRONTIER path-composition
 lane is banked past M6 by the PR 10 MAJ ruling (kernel-side, not
 this program's to un-bank); (b) 3-D path values + the pose family
-are U4, whose landing site LQ3 is RATIFIED-OPEN (needs Evan's
+are U4, whose landing site LQ3 is RATIFIED-OPEN (needs Ev's
 working session — U4 never ran); (c) Node::Tube does not exist,
 and a new node kind is a schema break colliding with ASM-1's
 in-flight v5 bump (coordination, not code). The sweep/tube tail
@@ -875,7 +875,7 @@ LB13 guard's blind spot (arena key in a new public FN SIGNATURE
 would not trip the pub-use scan) — recorded against register
 R-series as a known-scope caveat, exposure zero today.
 
-**RESPELL-TABLE registered (Evan's M2 ruling on #531,
+**RESPELL-TABLE registered (Ev's M2 ruling on #531,
 2026-08-16): the full four-projection transition table is the
 ratified end state, scheduled as a FOLLOW-UP unit** — the
 shipped PR-1 form (enum-side projections mechanical, typed
@@ -885,7 +885,7 @@ amended to say so. The follow-up's measured cost: ~8 macro
 row-shapes, 500–700 macro lines, ~45 rustdoc-carrying methods
 into table syntax. Queues after PR-2 (same files).
 
-**RULED (Evan, in-chat 2026-08-16): ProfileLoop SEALS — private
+**RULED (Ev, in-chat 2026-08-16): ProfileLoop SEALS — private
 fields + read accessors.** His lean confirmed after analysis:
 sealing makes the PATHS-channel funnel the only compilable route
 at every crate boundary (a downstream struct literal becomes
@@ -947,9 +947,9 @@ types, wire.rs's cannot-mint statement re-proven as a unit
 deliverable). Lane lib-seal, branch lib/seal. Settles #431's
 open question at merge.
 
-**OnArc RE-OPENED as a design conversation (Evan, in-chat
+**OnArc RE-OPENED as a design conversation (Ev, in-chat
 2026-08-16)**: the #576 §3 proposal (an OnArc continuation verb)
-is NOT ruled; Evan's pushback — the ratified direction is the §2c
+is NOT ruled; Ev's pushback — the ratified direction is the §2c
 axiom's state vocabulary (everything depends on only the final
 directed point), under which OnArc should be IMPOSSIBLE, not
 grown. Direction under analysis: dissolve OnArc — arc arrivals
@@ -959,7 +959,7 @@ retro-trimmed; corner ahead or refuse). SEQUENCING CONSEQUENCE:
 RESPELL-TABLE must NOT run until this is ruled — the table would
 bake the OnArc rows into macro form.
 
-**RULED (Evan, in-chat 2026-08-16): OnArc DISSOLVES — and the
+**RULED (Ev, in-chat 2026-08-16): OnArc DISSOLVES — and the
 ratification is DELEGATED**: "if there's no additional caveats
 and we can just go forward with the deletion then no need to wait
 for my approval." Operative reading: the §2c revision (arc
@@ -1013,7 +1013,7 @@ Expr::count precedent governs the count spelling, the fused-base
 wall stays kernel-side). Pre-draw fields logged at spec time:
 M / STRUCTURAL. Lane lib-pypu, branch lib/pypu — pncad-py +
 audit page only, disjoint from the SEAL fix pass and ONARC by
-fence. Evan's load ruling (in-chat, 2026-08-17): LIB runs at
+fence. Ev's load ruling (in-chat, 2026-08-17): LIB runs at
 full efficient parallelism while the third orchestrator's
 account is down. Also filed: #601 (the SEAL review's MAJOR-2
 class made durable — CI compiles no whole-file feature-gated
@@ -1055,7 +1055,7 @@ exclude; only the retired corner-authoring spelling ever reached
 it, so nothing shipped is lost and the delegation's wall clause
 is NOT tripped. Recorded as boundary pins (the door must
 refuse-or-round, never emit the class) + a NAMED low-priority
-design question for Evan: should enclosing tangency ever be
+design question for Ev: should enclosing tangency ever be
 authorable, it needs a corner-authoring-shaped verb — vocabulary,
 not a defect. #377 completes at #608's merge.
 
@@ -1092,7 +1092,7 @@ MODEL-AB-LOG). RESPELL-TABLE register entry CLOSED — the
 register's SCHEDULED column is EMPTY.** The v5 style lane earned
 its keep on row one: the census fix (every table row's replay
 coverage pinned) closes a class, not an instance. What remains in
-the register is Evan-paced or cross-program: the
+the register is Ev-paced or cross-program: the
 enclosing-tangency vocabulary question (#608's named residue),
 G8's multi-solid-operand kernel gap + the evaluate-memo door,
 the G2 sweep/tube design conversation (U4/frontier), die_tool's
@@ -1118,11 +1118,11 @@ else from the smell scan; no other error surface changes.
 APPROVE — row in MODEL-AB-LOG). LIB's claimed #614 item is
 discharged.** Resting state: NO active lanes; LIB-12 slots 2-4
 banked (arms redacted 2026-08-29 — see this log's tail). Everything scheduled is done — remaining
-register items need Evan (enclosing-tangency vocabulary, Wave 0
+register items need Ev (enclosing-tangency vocabulary, Wave 0
 D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
 or a #614 routing.
 
-**Resting-state correction (2026-08-18, prompted by Evan's
+**Resting-state correction (2026-08-18, prompted by Ev's
 pickup-path question)**: the entry above under-enumerates. The
 DISPATCHABLE-NOW column is not empty — it has one item:
 **G11 (mesh/tessellation door from Python)** — blocks no audit
@@ -1141,7 +1141,7 @@ memories/MEMORY.md. Correction recorded rather than edited in
 place — the log is append-only by convention.
 
 **Cross-program deposit from ASM (2026-08-23, ASM orchestrator,
-recorded here at Evan's direction — LIB inactive)**: ASM-DEMO
+recorded here at Ev's direction — LIB inactive)**: ASM-DEMO
 (#938, the R2 exit demo) surfaced two LIB-owned items.
 (1) **The façade omitted the assembly VALIDATION surface** (the
 PR's F1): `pncad::document` exposed the whole assembly authoring
@@ -1178,7 +1178,7 @@ mechanical once evaluation can resolve. The demo
 (`demos/tour/src/assembly.rs`) is the ready-made coverage oracle
 for the whole series, per the standing tour-corpus rule.
 
-## LIB re-survey (2026-08-28, Evan's ask — the track after ten days
+## LIB re-survey (2026-08-28, Ev's ask — the track after ten days
 ## at rest). Everything below was measured in-tree or on the tracker
 ## in the session that wrote it.
 
@@ -1314,7 +1314,7 @@ reads: bullets appended in place, existing text untouched except the
 "five categories" line, which now points here.
 
 **Two corrections the fold produced.** (i) **#945 is not open for a
-ruling.** It was RULED 2026-08-23 on the issue (Evan, at the ASM exit
+ruling.** It was RULED 2026-08-23 on the issue (Ev, at the ASM exit
 walk's sign-off): A11 gains the member-vocabulary rider, and the
 issue converted from a design question into a banked ASM
 implementation unit. (ii) **#1120 is not a library curation gap.**
@@ -1364,7 +1364,7 @@ file.
   schema-version question, and #918's own text says the emitter is
   where the care is (do not replicate `emit_fillet`'s #708 tie
   defect). Also #741/#742 by their own faces.
-- **Needs Evan.** The enclosing-tangency vocabulary question
+- **Needs Ev.** The enclosing-tangency vocabulary question
   (#608's named residue), Wave 0 D1-D4, Q9.
 - **Needs another program.** G8's kernel gap (multi-solid boolean
   operand), the G2 sweep/tube frontier, and all of category F.
@@ -1375,18 +1375,18 @@ this log's tail + the residual register (categories A-F) +
 
 ## LIB reactivated (2026-08-29) — new orchestrator, remote host
 
-**Session opening (Evan, in-chat).** LIB resumes after eleven days at
+**Session opening (Ev, in-chat).** LIB resumes after eleven days at
 rest, with a new orchestrator on a remote preemptible container
 (4 CPUs / 15G RAM / ~29G disk) rather than the tmux host the standing
 memories assume. Host adaptations, stated once: lanes are full clones
-via `new-lane.sh` (3–4 in parallel per Evan), heavy cargo stays behind
+via `new-lane.sh` (3–4 in parallel per Ev), heavy cargo stays behind
 the build-slot mutex, hosted CI remains the verification of record, no
-monitor scripts or away-channel (Evan is present in-session; the
+monitor scripts or away-channel (Ev is present in-session; the
 tracker is read at check-ins), GitHub via MCP tools rather than `gh`.
 Program prefix `lib/` reconfirmed; orchestrator branch
 `lib/orchestrator`.
 
-**Rulings recorded (Evan, in-chat, this session):**
+**Rulings recorded (Ev, in-chat, this session):**
 1. **Mechanical units run outside the model A/B** — opus implementer,
    no review lane, merged on green hosted CI + the orchestrator's own
    read of the diff, logged here per unit. Full text and the readout
@@ -1409,16 +1409,16 @@ entry. This log stays append-only for entries; blinding redactions
 edit in place by the standing precedent.
 
 **Register correction (measured on the tracker and in
-`docs/SMELL-SCAN-2026-08.md` this session): the "needs Evan" column's
+`docs/SMELL-SCAN-2026-08.md` this session): the "needs Ev" column's
 "Wave 0 D1–D4" is STALE.** It was written 2026-08-18 and carried
 forward unre-checked by the 08-28 re-survey. As of 08-19/08-20: D1
 RULED (a `Dual` may not certify but may have `Bounds`), D2 RATIFIED
 into DESIGN.md (#628), D4 DECIDED (delete), and D3 resolved as
 deliberate-frontier via the closed `Surface` enum. What actually
-remains Evan-paced from LIB's map: the enclosing-tangency vocabulary
+remains Ev-paced from LIB's map: the enclosing-tangency vocabulary
 (#608's residue, explicitly low-priority) and Q9 + the U9 release
 checklist (urgent only when release is wanted). #741/#742/#944 wait on
-LIB drafting plans, not on Evan. (The smell-scan §D's open-decision
+LIB drafting plans, not on Ev. (The smell-scan §D's open-decision
 table — D6, S14(b), S65/S70/S82/S90/S107/S116(p) — is that program's
 queue, not LIB's; noted so no successor re-mistakes it for ours.)
 
@@ -1555,7 +1555,7 @@ docstring, the audit page's further-gaps section (now empty — both
 its rows closed in one wave) and the closed-gaps table; census green
 on the union pre-push, hosted CI the gate as always. The
 resolver-door design conversation this unit's report sharpened is
-RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
+RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Ev, in-chat,
 2026-08-29) — the next unit, full A/B protocol.
 
 **CUR2 MERGED (2026-08-29, #1173; mechanical under the 08-29 ruling,
@@ -1700,7 +1700,7 @@ FAMILY CLOSES (no precedent existed; the decay guard forces the
 charter out, the closure paragraph records the unit). Row 47's
 face_frame ask answered against the placement arithmetic, red at a
 1-in-10^4 perturbation. **MERGED RED on two main-inherited legs, on
-Evan's explicit in-chat authorization ("you can merge those PRs red
+Ev's explicit in-chat authorization ("you can merge those PRs red
 if you've already determined it wasn't your fault")**: the
 default-lane clippy red (#1174's — since fixed on main by M10's
 #1226, so moot at this merge) and the teapot k-lint (#1223 — the
@@ -1723,7 +1723,7 @@ exception classes that cannot be confused; the waiver rule is a TYPE:
 `separation` takes `Advisory`, so waiving `Error` is unspellable,
 pinned in the ty illegal fixture); 19 tests, every document authored
 through public doors, both residents exercised. **MERGED RED on the
-main-inherited teapot k-lint leg, on Evan's explicit in-chat
+main-inherited teapot k-lint leg, on Ev's explicit in-chat
 authorization** — every row the unit owns green; the re-baseline
 (#1223's reading done, geometry-change arm) is in flight on
 lib/tess-rebaseline. Union note: merged after B-READBACK with a

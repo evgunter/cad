@@ -637,7 +637,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     );
 }
 
-/// **No raw loop-minting door is nameable through the façade** — Evan's
+/// **No raw loop-minting door is nameable through the façade** — Ev's
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
@@ -1994,7 +1994,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// rather than harvested from the split, and deliberately so: for a
 /// PROPER mate edge no accepted cut can produce a crossing (the
 /// whole-cluster precondition — see editor-core's `row5_a`), and the
-/// one shape that does mint one today has semantics pending Evan's
+/// one shape that does mint one today has semantics pending Ev's
 /// AQ8 ruling. Authoring the record keeps this row about D9 — the
 /// same bits from the same recipe — rather than about a semantics
 /// question that may move.

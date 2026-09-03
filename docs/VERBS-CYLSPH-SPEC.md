@@ -2,7 +2,7 @@
 
 **Ratified 2026-09-02** against main `69640aaba`, from the CYLSPH
 premise survey (run the same day; premise table P1–P13 recorded in
-the survey report, key rows restated below) and two rulings by Evan
+the survey report, key rows restated below) and two rulings by Ev
 (in-chat, 2026-09-02):
 
 1. **SHAPE.** The unit is the exact coaxial classification arm plus
@@ -168,7 +168,7 @@ PR:
   clause, not a re-adjudication).
 - `docs/KERNEL-VERBS.md`'s curved-boolean breadth row syncs if a
   class lands; the register's germ-class sentence likewise.
-- The fitted-chord join window is NOT built (Evan's shape ruling);
+- The fitted-chord join window is NOT built (Ev's shape ruling);
   the differential names its door honestly.
 
 ## STOP conditions (pre-registered)
@@ -224,7 +224,7 @@ trailer (blinding). **Suite evidence via hosted CI verified at the
 STEP level** — read the change filter's own output for
 LANE/EPS/KLINT_ROW and CONFIG_SOURCE; a green job name is not
 evidence; local compute is for targeted suites, probes, and
-mutations only (Evan's 2026-08-31 method ruling). Merge origin/main
+mutations only (Ev's 2026-08-31 method ruling). Merge origin/main
 before opening the PR; watch for the silent-run faces; note
 inherited main reds and distinguish them from yours. Opening
 measurement in the PR body before code, payloads quoted; every

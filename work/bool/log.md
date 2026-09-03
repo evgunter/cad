@@ -7,7 +7,7 @@ tail is the live state.
 
 ## Opening state (2026-08-31)
 
-Opened on Evan's direction (in-chat: "you can also take S-BOOL if
+Opened on Ev's direction (in-chat: "you can also take S-BOOL if
 that's not claimed yet" — verified unclaimed against docs, branches
 and open PRs), by the S-MESH orchestrator in the same opening PR. The
 plan is a DRAFT design conversation for its **Rulings sought**
@@ -42,7 +42,7 @@ Track R fence ground (seam recorded in both plans); #433's proposal
 rides PR #576's body and is retrieved before the conversation opens.
 Track Q is current in §D (16 rows, re-derived 2026-08-31; D285/D286
 left with CERT-2); the S112 member-(e) pointer to the landed D282 is
-deleted in the opening PR. Carve-outs: D283 (Evan's), S83/D36 (wait
+deleted in the opening PR. Carve-outs: D283 (Ev's), S83/D36 (wait
 on P-2/#1177), H11's third door (N's ground, filed not edited).
 
 ## BOOL-1 merged (2026-08-31) — issue 1152 closed; coplanar splits carry adjacent citations
@@ -143,7 +143,7 @@ lanes queue behind per the shared lane budget.
 
 ## BOOL-8 merged (2026-09-01) — the straight continuation lands; the seam wall becomes a ruling
 
-PR 1508 at fix head `4934c4fa` after Evan's §4 sign-off (the
+PR 1508 at fix head `4934c4fa` after Ev's §4 sign-off (the
 amendment reviewed in-chat; the merge condition — the Residual
 paragraph re-recorded as ruled — verified against the ratified
 plan text). Gates: both heads interval-asked with default ε drawn;
@@ -163,24 +163,24 @@ as rows instead of papering over it; both reviewers confirmed the
 impossibility independently (a 64-spelling exhaustive search with
 a positive control; the sharpening that uneven distribution
 authors 2/16 — the wall is the alternation, and the loft pins
-lily's vertices). Evan ruled mid-cycle (third round on Q1,
+lily's vertices). Ev ruled mid-cycle (third round on Q1,
 ratified PR 1512): the declared point-target continuation — any
 authored point, checked on the departing ray, never inferred —
 with the Start-closer as the special case. Scheduled as BOOL-11,
 before the resequenced BOOL-9; the f64 meaning of "on the ray" is
-that unit's design question, returning to Evan with its §4 text.
+that unit's design question, returning to Ev with its §4 text.
 
 **The dual (ordinal 1103, sample at the row)**: twin A-W-F, no
 MAJOR either arm, zero silent deviations counted by both — the
 disclosure discipline (the deviation reported as a measured wall,
 not a shortfall) is the cycle's model. One dispatch correction
 recorded orchestrator-side. Issue 433 stays open for the raw-door
-half. Slate next: BOOL-11 (spec first; §4/verb-table hold for Evan
+half. Slate next: BOOL-11 (spec first; §4/verb-table hold for Ev
 again), then BOOL-9; BOOL-4/5/6/7/10 and the Q-track queue behind.
 
 ## BOOL-11 merged (2026-09-02) — continue_to lands; the seam wall's departure half ends; three rulings out of one measurement
 
-PR 1520 at the re-merged head, after Evan's in-chat sign-off of the
+PR 1520 at the re-merged head, after Ev's in-chat sign-off of the
 §3 verb-table row and the unit's three decisions (which ε — the run
 band's ε_input edge through the ordinary trilean funnel; no lever;
 D2 row 1). Gates: three green heads spanning interval/1e-12 and
@@ -193,16 +193,16 @@ stays open for the raw-door half.
 (1) The closer ends the DEPARTURE half of the seam wall (32 of 64
 lily rings now close) but not the family: the two sections' corners
 sit at opposite parity while the loft pins one rotation, so one
-section always seams mid-carrier — PQ4. Evan reopened PQ4 for the
+section always seams mid-carrier — PQ4. Ev reopened PQ4 for the
 DECLARED case and, on the follow-up question, widened it to the
 declared-arrival family (straight + tangent seams): BOOL-12. (2) The
 wire spelling was DEFERRED with a measured reason (a trial bump broke
 52 rows; main took v20 mid-cycle) — which surfaced that the schema
-version machinery exists only to reassure agents pre-release: Evan
+version machinery exists only to reassure agents pre-release: Ev
 ruled option C strong form, no hand-maintained version at all —
 BOOL-13, before BOOL-12. (3) The `TangentLineClose{Departure}`
 refusal was `JunctionTangent` under a second name, a uniformity leak
-predating this program; Evan ruled it collapsed — the addendum, which
+predating this program; Ev ruled it collapsed — the addendum, which
 found and collapsed a third same-shaped fork.
 
 **The dual (ordinal 1104, sample at the row)**: R1 A-W-F with one

@@ -6,7 +6,7 @@ Plan: `docs/SEAT-PLAN.md`. Design of record:
 
 ## PROGRAM OPENED (2026-08-31)
 
-`docs/VERB-SEAT-DESIGN.md` ratified and merged (PR #1388, Evan's
+`docs/VERB-SEAT-DESIGN.md` ratified and merged (PR #1388, Ev's
 sign-off in-session; the conversation record is on issues #1345,
 #1372 and the PR thread). This program executes it under the plan's
 wave cut. Ordinal band **1000–1099** claimed in
@@ -122,14 +122,14 @@ their sites.
 Next: the SEAT-4 spec (docs/SEAT-4-SPEC.md — the Verb substrate
 with the blend pair; VS-Q1/Q2/Q5 elaborated from the ratified
 recommendations; deviations from those recommendations, if any,
-are Evan-gated). SEAT-4 is block SEAT-B1's last slot; its merge
+are Ev-gated). SEAT-4 is block SEAT-B1's last slot; its merge
 publishes the block-close record and the draw byte.
 
 ## ORDINAL 1003 CLAIMED — SEAT-4 dual (2026-09-02)
 
 SEAT-4 (PR 1547, the Verb substrate carried by the blend pair)
 implementation delivered and green (lane=interval ASKED via
-trailer, eps 1e-6 drawn; run 33591161974). No Evan-gated stop
+trailer, eps 1e-6 drawn; run 33591161974). No Ev-gated stop
 triggered — the three ledger answers land as recommended; one
 deviation (the compound-Bounds allowlist row for verbs/run.rs) is
 flagged for retroactive review per the self-merge convention. Pin
@@ -148,7 +148,7 @@ on the merge base). Zero MAJORs from either review arm; the fix
 pass extended the digest rather than softening its claim, with
 red-first evidence for all three planted mutations, and fixed the
 BlendVerb wart the Shell compiler-experiment exposed. The
-compound-Bounds allowlist row is flagged for Evan's retroactive
+compound-Bounds allowlist row is flagged for Ev's retroactive
 review. Full row + the SEAT-B1 block-close record (draw byte 85):
 MODEL-AB-LOG SEAT4 (ordinal 1003, sample #103 at merge).
 

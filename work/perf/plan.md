@@ -577,7 +577,7 @@ which makes "premature" a fact about those two rather than a posture.
 
 ## 6. Settled, not re-litigated
 
-Answered by Evan at #49 (2026-07-21) and executed:
+Answered by Ev at #49 (2026-07-21) and executed:
 
 - **Q-P1** — §3.3's GPU boundary table and §2.2's parallelism idioms
   are ratified into DESIGN.md as the D9 addendum; this doc stays

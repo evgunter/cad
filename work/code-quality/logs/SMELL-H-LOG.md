@@ -10,7 +10,7 @@ incidents. **Live status is here and in §H, never in `memories/`.**
 **This track runs entirely outside the model A/B experiment.** No
 Fable/Opus pairing, no ordinal, no row in `docs/MODEL-AB-LOG.md` —
 **nothing on this track reads or edits that file.** The experiment is
-paused on a model limit (Evan, 2026-08-21); the cheapest guarantee that
+paused on a model limit (Ev, 2026-08-21); the cheapest guarantee that
 the pause stays clean is that this track never touches it. A lane that
 believes it needs to is wrong and should ask.
 
@@ -33,7 +33,7 @@ Track H change to a public signature ripples into Track I's builds.
 
 ## Review policy for this track
 
-Not the full orchestrator protocol. Per Evan, 2026-08-21, and inherited
+Not the full orchestrator protocol. Per Ev, 2026-08-21, and inherited
 unchanged from Track F:
 
 - **Style review on every unit** — `docs/prompts/reviewer-style-lane.md`,
@@ -47,7 +47,7 @@ unchanged from Track F:
   2. Was it closed in the **best** way available, or merely in a way
      that compiles?
 - **Adversarial review only where a wrong answer is reachable** — the
-  criterion is Evan's (`SMELL-C-LOG` C-R12): *complex enough that there
+  criterion is Ev's (`SMELL-C-LOG` C-R12): *complex enough that there
   is a significant chance the change introduces a regression CI will not
   catch*. That is narrower than "this code is load-bearing". §H's
   constitution names **H5's `Dual` sub-lane** at minimum; this track adds
@@ -75,7 +75,7 @@ Three destinations, and a lane picks by the finding's kind, not by its size:
   Precedents live: **#723** (wrong certified volume) and **#862** (the
   cylinder box's logic half) are exactly this routing, and both were
   struck out of a style row rather than absorbed into one.
-- **An important design question** → a **PR asking Evan**, per
+- **An important design question** → a **PR asking Ev**, per
   `memories/git-workflow.md` — the doc edited to state the question,
   updated in place with the answer. Never a comment on a merged PR.
 
@@ -102,7 +102,7 @@ makes two edits to `docs/SMELL-SCAN-2026-08.md` in its own PR:
 live orchestrators on Tracks G and I editing it. Resolve by merging
 `origin/main`; **merging before CI is green is permitted when a previous
 run on the same head was green and the only conflict was in the smell
-doc** (Evan, 2026-08-21).
+doc** (Ev, 2026-08-21).
 
 **Do not write the Record-edits section until the record edits are in
 your diff** (Track F's F-a incident). A section describing work is not
@@ -150,7 +150,7 @@ lane, not five rows"* is the argument; this ruling only observes that
 
 ### H-R3. The doors tighten to `CertifiedBounds`; the passes keep their lanes
 
-**Evan, 2026-08-21, answering #867: *"tightening to `CertifiedBounds`
+**Ev, 2026-08-21, answering #867: *"tightening to `CertifiedBounds`
 works at least for now."*** *"At least for now"* is part of the ruling
 and is recorded as such — it closes the seams, it does not settle
 whether any of them should ever be differentiable.
@@ -347,7 +347,7 @@ tightenability has a second question the inventory did not ask:
 **pass both tests** — re-checked without truncation, the projection doors'
 only non-test callers already carry `CertifiedEnclosure`
 (`edge_nurbs.rs:283`, `ssi/certify.rs:433`), so neither moves. **Those
-proceed. The fillet seam is with Evan.**
+proceed. The fillet seam is with Ev.**
 
 **Method note, recorded because the failure is generic.** H-g's first
 caller analysis piped a repo-wide grep through `| head -30` and the
@@ -375,7 +375,7 @@ work, not of the schedule.
 | **2** | **H-b** (H2/S99–S103+S116(b)), **H-c** (H3/S85 + H4/S89) | Both wait on wave 1. **The original reason given here was wrong** — it said `H-c`'s `S89` sits on `from_certified` *"which `H-a` rewrites"*, and #880's reviewer established that **`H-a` never touched `from_certified`**: its doc, its prose caller census and its three wrappers are all untouched. The real reason is H-R6's: `H-a`'s sweep took `real.rs`, `ssi/enclose.rs` and `tests/decoration_seam.rs`, **all three rostered to `H-c`**. Same conclusion, different fact, and the difference matters because a lane told the wrong reason checks the wrong file. `H-b`'s naming work wants `H-d`'s landed doc changes under it. |
 | **3** | **H-f** (H5/C7+S33), 2–3 sub-lanes | Collides with all of the above. Its `Dual`-arithmetic sub-lane is adversarial per C-R12 and §H. |
 
-**`S90` is Evan-only and is not a lane** — the largest D1 residue is the
+**`S90` is Ev-only and is not a lane** — the largest D1 residue is the
 only one without a schedule, and `real.rs:470-477` records it as prose
 pointed at from `scripts/gates/bounds-allowlist.sh:27-31`. It is
 *decided-and-open*, which the first scan's own closing rule says is
@@ -396,7 +396,7 @@ seam.
 | **H-d** | H6 | **S88** (`geom` half), **S210**, **S211** minted | `geom/src/{projection,curves/*,surfaces/*}.rs`, `geom-core/src/dual.rs`, `geom/tests/dual_foot_tangent.rs` | style | **LANDED #875** 2026-08-21, after one fix pass |
 | **H-e** | H7 | **D109(a)**, **S215** minted | `geom-core/src/linalg/{vec,mat}.rs`, `scripts/gates/{interval-square-allowlist,lib}.sh` | **adversarial** + style | **LANDED #885** 2026-08-21, after one fix pass. No golden moved. |
 | **H-f** | H5 | **C7** (+ S44 residue, S55), **S33** | `geom-core/src/real.rs`, `ring_interval.rs`, `geom/src/{curves,surfaces}.rs`, +11 | style; **`Dual` sub-lane adversarial** | — |
-| **H-g** | **H-R4** (new) | **S90**'s implementation, **S213**, **S216**; **#874**'s structural half | PR 2: `geom/src/{projection,curves/projection,surfaces/projection}.rs`, `topo/src/chart_region.rs`, `geom-core/src/real.rs`, `bounds-allowlist.sh`. PR 1: `sweep/src/fillet/*` | **adversarial** + style | **PR 2 LANDED #886**; **PR 1 = #883, DRAFT, frozen on Evan's fillet fork** |
+| **H-g** | **H-R4** (new) | **S90**'s implementation, **S213**, **S216**; **#874**'s structural half | PR 2: `geom/src/{projection,curves/projection,surfaces/projection}.rs`, `topo/src/chart_region.rs`, `geom-core/src/real.rs`, `bounds-allowlist.sh`. PR 1: `sweep/src/fillet/*` | **adversarial** + style | **PR 2 LANDED #886**; **PR 1 = #883, DRAFT, frozen on Ev's fillet fork** |
 
 **Why each adversarial row is adversarial**, since the criterion is
 narrower than "load-bearing":
@@ -438,7 +438,7 @@ rather than at session end.
   instructions whose record is gone. *"I cannot find the authority for
   this change"* is evidence about the records, and after a restart the
   records are the unreliable half. One lane reported itself for
-  fabricating a ruling from Evan on exactly this; it had not.
+  fabricating a ruling from Ev on exactly this; it had not.
   **`H-e` carries extra exposure here** — a re-cut golden reads as
   somebody's intention even when it is a mid-transition artifact — and
   its dispatch says so.
@@ -449,7 +449,7 @@ rather than at session end.
   the question is only *which lands first*. A lane does not need to ask
   who owns a head it bumped into. `smellh/` is this track's.
 
-## Open with Evan
+## Open with Ev
 
 - **#867 — `S90`.** Does the twice-done enumeration discharge the fillet
   seam's lapsed guard, or is the lane owed? Three answers stated in the
@@ -649,7 +649,7 @@ first is Track H's ground and is **`H-b`'s** file (`S102` edits
 `surfaces.rs:26-30`'s *"The shared helper"* bullet).
 
 **It does not gate `H-b`, and the distinction from the `C-m` precedent is
-the reason.** Evan struck `C-m` from Track I's schedule behind **#723**
+the reason.** Ev struck `C-m` from Track I's schedule behind **#723**
 because that row *consolidates the four quadrature engines in the very
 file with the wrong certified volume* — consolidating first would either
 bake the defect into the shared engine or move it somewhere the
@@ -664,7 +664,7 @@ know before it starts, so that (i) it does not "tidy" the defective path
 and make the reproduction stale, and (ii) if it happens to understand the
 defect while it is in there, it files what it learns on **#889** rather
 than into a style row. **A style pass does not fix a correctness defect** —
-that ruling is Evan's and it holds here exactly as it did for `C-m`.
+that ruling is Ev's and it holds here exactly as it did for `C-m`.
 
 **Recorded rather than left to a merge conflict**, because the failure
 mode is silent: `H-b` would have discovered it only if the issue had
@@ -781,7 +781,7 @@ and supported it with one member:
    a doc it had just written, findable in ninety seconds with
    `scripts/doc-gate.sh`, which it never ran on that branch.
 3. **The merge safety claim.** It offered the **conflict list** as
-   evidence for Evan's merge-before-green rule. The conflict list is what
+   evidence for Ev's merge-before-green rule. The conflict list is what
    the lane had to resolve; it says nothing about what arrived from
    `main` underneath — which was #885's reassociated `linalg` and Track
    I's five `mesh/src` files, a product that had never been built.
@@ -813,7 +813,7 @@ treating one confirming sample as the whole set."*
 
 ### H-R16. `H-f`'s target: zero lane traits, by a three-function split — unreachability, not refusal
 
-**Ruled by Evan, 2026-08-21, in session.** `H-f` (`H5` = `C7` + `S33`)
+**Ruled by Ev, 2026-08-21, in session.** `H-f` (`H5` = `C7` + `S33`)
 opens on this rather than on `S3`'s steelman conclusion, which is the
 more conservative answer and is **not** what was asked for.
 
@@ -832,7 +832,7 @@ program that would need refusing **unwritable**. The orchestrator called
 this *"a typed refusal"* and was corrected; the phrase smuggles the lane
 trait's own shape into its replacement.
 
-**The mechanism — a three-function split** (Evan's shape, names
+**The mechanism — a three-function split** (Ev's shape, names
 indicative):
 
 ```
@@ -907,7 +907,7 @@ load-bearing — *"it closes the seams, it does not settle whether any of
 them should ever be differentiable."* Since 2026-08-19 the dual's refusal
 rests on the **ruling** rather than on its lack of a bracket, so what a
 dual may do is a decision, not a fact about the type. **That hedge is now
-collected into `DESIGN.md`'s M10 roadmap entry** (#891, Evan
+collected into `DESIGN.md`'s M10 roadmap entry** (#891, Ev
 2026-08-21) as an open question — *what does a `Dual` actually have to
 do*, and clean up the `Bounds`/`CertifiedEnclosure` split on the answer.
 **`H-f` states this exposure in its PR and does not resolve it.**
@@ -936,13 +936,13 @@ orchestrator's, not the record's.
 
 ## Inherited from Track I (2026-08-21)
 
-**Track I closed in #890 and left decisions behind it.** Evan assigned
+**Track I closed in #890 and left decisions behind it.** Ev assigned
 **#884** to this orchestrator — *"you're responsible for 884 now"*, with
 **licence to correct it**, not merely to shepherd it. Recorded here
 because Track I's log is now a closed record and this is live state.
 
 - **`S82` → issue #893.** Its verdict line was empty; #884 had offered it
-  to Evan as a third decision and nothing answered. **Unowned rather than
+  to Ev as a third decision and nothing answered. **Unowned rather than
   deferred**, once Track I closed. Routed to an issue because it is a
   defect in what a predicate *decides* — the sphere rim lever collapses
   as `cos v̄ → 0`, so two distinct near-polar rims decide `Zero` and a
@@ -957,7 +957,7 @@ because Track I's log is now a closed record and this is live state.
   (1) Option B was argued as *"the only form consistent with D9"* on a
   **misreading of D9** — fixed in **#892**; D9 is scoped to
   input-reachable states and the D2 addendum makes a panic the ratified
-  mechanism for a bug state, so `assert!` was never excluded. (2) Evan's
+  mechanism for a bug state, so `assert!` was never excluded. (2) Ev's
   release-profile directive may make the `#[cfg(debug_assertions)]`
   backstop **live in release**, which would falsify `S65`'s founding
   sentence — *"compiled out of every build that ships a mesh"* — and
@@ -969,7 +969,7 @@ because Track I's log is now a closed record and this is live state.
   reading, and the pole classification owes a **guard, not a qualifier**.
   Weakening a ratified promise to accommodate a state that could only
   arise from value coincidence makes the document quieter about exactly
-  the case worth hearing about. Evan reached the same answer independently
+  the case worth hearing about. Ev reached the same answer independently
   in ordering the `walk.rs` guard. **Open sub-question**: that guard is
   vertex-against-*vertex* and the ε read at `walk.rs:995` is
   vertex-against-*pole* — related, not identical, and not to be conflated

@@ -2,7 +2,7 @@
 
 **STATUS: DRAFT (design conversation for the Rulings sought section;
 the ruling-independent units below are dispatchable pre-ratification).**
-Opened on Evan's direction (in-chat, 2026-08-31: "pick up S-MESH as the
+Opened on Ev's direction (in-chat, 2026-08-31: "pick up S-MESH as the
 orchestrator", with S-BOOL taken by the same instruction —
 `docs/S-BOOL-PLAN.md` opens in the same PR) from the ratified stream
 cut in `docs/WORK-STREAMS-2026-08.md` (§S-MESH). The cut is the
@@ -23,7 +23,7 @@ tail, never this file.
 `crates/mesh` has no live program and a coherent defect list:
 
 - **Watertightness/guards**: #897 (S65's two uncovered cases — S65
-  itself is Evan's), #896 (undeclared-pole misclassification), #868
+  itself is Ev's), #896 (undeclared-pole misclassification), #868
   (typed warning channel).
 - **Sizing intent vs budget**: #685 (`nv` ignored), #320 (NURBS wall
   budget, per `memories/tessellation-budget.md`), #950, #555.
@@ -48,7 +48,7 @@ Inherited at opening (both from S-CERT, by name): **#1362** (the
 - **D2 addendum** (`docs/DESIGN.md`): every guard this program mints is
   classified by row (row 0 unrepresentable; rows 1/3 input-quality;
   row 2 capability boundary; row 5 boundary debug_asserts).
-- **S65 is Evan's decision, not a row** (§D of the SMELL scan): the
+- **S65 is Ev's decision, not a row** (§D of the SMELL scan): the
   three-way table and its measured prices live at S65; #897 supplies
   the two missing costings; when it is ruled, the implementation is
   this program's.
@@ -221,7 +221,7 @@ logged pre-draw per the protocol.
   witnesses. After MESH-8; the door/walk split is the unit's first
   recorded question.
 - **MESH-12 — issues 1601 and 1588 (S/M, recorded S; scheduling
-  by the orchestrator, Evan deferring — in-chat 2026-09-02).** The
+  by the orchestrator, Ev deferring — in-chat 2026-09-02).** The
   sphere parse refuses a meridian span past the per-edge winding bound
   instead of folding it short (the saturated clamp's sign has a
   nonempty zero set — MESH-11 R2, measured 36 of 400 spans); every
@@ -241,15 +241,15 @@ logged pre-draw per the protocol.
   Rows land per §D's conventions (delete the row in the landing PR).
 
 Cross-program interfaces, named: S65 and D283-class questions are
-Evan's; `props/quad.rs`, `patch_bound.rs`, the area lanes and the
+Ev's; `props/quad.rs`, `patch_bound.rs`, the area lanes and the
 tess-budget re-baseline are S-CERT's until its slate closes;
 `demos/tour` pins are Track X/G conventions; the guide page is LIB's;
 S-BOOL's #542 unit edits `props/curved.rs` (R fence ground) by this
 program's leave — same orchestrator, seam recorded in both plans.
 
-## Rulings sought (Evan)
+## Rulings sought (Ev)
 
-1. **Q1 — RULED (Evan, in-chat, 2026-09-01)**: S65 stays compiled
+1. **Q1 — RULED (Ev, in-chat, 2026-09-01)**: S65 stays compiled
    out — no unconditional shipped guard; there is no record of the
    backstop itself catching anything outside dev. Coverage for the
    two uncovered cases (full-2π seam, cross-face identification) is
@@ -257,7 +257,7 @@ program's leave — same orchestrator, seam recorded in both plans.
    unit that measures their cost, adds them as debug-profile-only
    guards if cheap, and otherwise records the verdict and closes
    #897.
-2. **Q2 — RULED (Evan, in-chat, 2026-09-01): option (d),
+2. **Q2 — RULED (Ev, in-chat, 2026-09-01): option (d),
    relocation.** The three detectors measure body-data coherence
    (carrier-vs-vertex gaps computable from the body alone — no mesh
    state, no δ dependence), so the conditions move to the body's own
@@ -282,7 +282,7 @@ program's leave — same orchestrator, seam recorded in both plans.
    alternative is a sidecar field on `Mesh`, which keeps signatures
    but muddies "the mesh is the output". Mesh-local now does not
    preclude hoisting the type later if a second crate demands it.
-3. **Q3 — RULED (Evan, in-chat, 2026-09-01): explicit doors.**
+3. **Q3 — RULED (Ev, in-chat, 2026-09-01): explicit doors.**
    No consumer keeps a transitive floor — each door that needs the
    iso-rectangle premise cites `props_rim_level` itself. MESH-7 is
    unblocked and implements the mesh side on this ruling. The

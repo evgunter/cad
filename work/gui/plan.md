@@ -1,6 +1,6 @@
 # GUI v1 — the plan
 
-**STATUS: RATIFIED (Evan's in-conversation sign-off on this
+**STATUS: RATIFIED (Ev's in-conversation sign-off on this
 draft, 2026-08-27, with all rulings below folded) and DELIVERED —
 units GUI-0…GUI-4 merged as PRs #1094, #1093, #1101, #1106,
 #1113, the program CLOSED 2026-08-28 on the ratified exit walk
@@ -12,10 +12,10 @@ operations-are-API rule recorded 2026-08-27), the v1 minimum (G3),
 the toolkit (GQ6: **egui**, iced the named fallback), and the
 viewport/picking recommendations (`docs/GQ6-RESURVEY.md` §§2–3).
 Sequencing stance: DESIGN.md places GUI after usable-as-library;
-this program ran on Evan's call per LQ5, with LIB's dispatchable
+this program ran on Ev's call per LQ5, with LIB's dispatchable
 residue (the Python assembly series) blocking nothing here.
 
-## Rulings (Evan, 2026-08-27, in-conversation)
+## Rulings (Ev, 2026-08-27, in-conversation)
 
 - **Platform: native before browser.** The web lane is GUI-5,
   separable, never on the v1 acceptance path.
@@ -27,12 +27,12 @@ residue (the Python assembly series) blocking nothing here.
   two sequential picks in tool state (GUI-4) — ruled, closing the
   round-2 OQ-a.
 - **Undo: linear for v1.** The history graph + sidecar is banked
-  as post-v1 unit GUI-6, Evan-sized at one-to-two units; the
+  as post-v1 unit GUI-6, Ev-sized at one-to-two units; the
   visualization sketch is recorded in GUI-DESIGN's undo-tree
   section.
 - **Units: canonical meters/radians in the panels.** U8's
   units/display layer is not a dependency. *(SUPERSEDED post-close,
-  2026-08-29, Evan-requested. BOTH clauses: the panels now show and
+  2026-08-29, Ev-requested. BOTH clauses: the panels now show and
   author each value in the display unit its literal remembers, and
   `crates/viewer/src/props.rs` imports `pncad::quantity` — the
   units layer IS a panel dependency now. A `SetSlotUnit` op changes
@@ -123,7 +123,7 @@ fails the existing wasm guard.
 
 Ordered; 1 is independent of 0 and may run concurrently. Units
 GUI-0…GUI-4 are merged and the entries below are the delivered
-scope; GUI-5 is DEFERRED post-v1 beside GUI-6 (Evan's ruling,
+scope; GUI-5 is DEFERRED post-v1 beside GUI-6 (Ev's ruling,
 2026-08-28, at the close of `work/gui/log.md`).
 
 0. **GUI-0 — the scaffold spike** (RESURVEY §5's named increment):
@@ -178,7 +178,7 @@ instance authoring) is its own program: `docs/GAUTH-PLAN.md`.
 Banked past v1 (not a v1 unit): **GUI-6 — the history graph +
 sidecar** — the undo tree's branch-graph UI (sketch recorded in
 GUI-DESIGN's undo-tree section) and the separable history sidecar
-file per the state/history separation note. Evan-sized at
+file per the state/history separation note. Ev-sized at
 one-to-two units; v1's tree-shaped undo state (the undo note
 above) is what makes it additive.
 

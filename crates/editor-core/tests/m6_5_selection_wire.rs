@@ -1,5 +1,5 @@
 //! M6-5 — `Node::Fillet`'s required `selection` field on the wire
-//! (Evan, #217). A fillet meaning "every edge of the target" names a
+//! (Ev, #217). A fillet meaning "every edge of the target" names a
 //! set that depends on an evaluation the FILE does not carry, so the
 //! field has no honest default: it is on the wire under its own key,
 //! canonical, and a body without it is unreadable by this build. (The

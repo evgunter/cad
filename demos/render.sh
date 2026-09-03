@@ -106,7 +106,7 @@ FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/
 # genuinely that slow — a wedge does not get faster with a bigger
 # budget.
 #
-# THIS BUDGET IS PER PROCESS, NOT PER SCENE (Evan, 2026-08-22). A batch
+# THIS BUDGET IS PER PROCESS, NOT PER SCENE (Ev, 2026-08-22). A batch
 # of N scenes gets THIS number, not N x it. The name predates batching
 # and is kept because at the default B=1 a process IS a scene, so it
 # still reads true where almost everyone meets it.

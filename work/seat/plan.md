@@ -1,7 +1,7 @@
 # SEAT — the verb-seat program (plan)
 
 Executes `docs/VERB-SEAT-DESIGN.md` (ratified 2026-08-31, PR #1388,
-Evan sign-off in-session): the kernel query seat (§1), one verb
+Ev sign-off in-session): the kernel query seat (§1), one verb
 vocabulary (§2), and the lowered parameter-identity channel (§3).
 Branch prefix **`seat/`** (orchestrator branch `seat/orchestrator`).
 Narrative record and live state: `work/seat/log.md`'s tail, never
@@ -112,7 +112,7 @@ the first migrated verb whose consumer needs it.
 
 ## Side units (rulings and review products, outside the wave cut)
 
-- **SEAT-DV (S)** — issue 1527's ruling (Evan, 2026-09-02:
+- **SEAT-DV (S)** — issue 1527's ruling (Ev, 2026-09-02:
   "probably a validating constructor, or making the unnormalized
   version unrepresentable"): `DatumValue`'s plane/axis normals
   become unit-by-construction — private fields, constructors that
@@ -137,7 +137,7 @@ the first migrated verb whose consumer needs it.
   cargo anyway, and reduced concurrency is the cheaper lever —
   MODEL-AB-LOG, method-relaxation item 4); the away-channel and
   monitor scripts of the persistent box are not armed here —
-  Evan's channel is this session plus issues/PRs.
+  Ev's channel is this session plus issues/PRs.
 - **Cross-program courtesy**: SEAT-2/SEAT-3 touch demo scenes that
   VERBS and LIB cite by line number in their registers; the units
   update stale line references they knowingly move, and the log

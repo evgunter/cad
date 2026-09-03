@@ -6,9 +6,9 @@ merges, the tail is the live state.
 
 ## Opening state (2026-09-02)
 
-Opened on Evan's direction (in-chat, 2026-09-02) by a fresh
+Opened on Ev's direction (in-chat, 2026-09-02) by a fresh
 orchestrator on a remote container. Charter and the three rulings
-Evan gave on the orchestrator's questions are in the plan.
+Ev gave on the orchestrator's questions are in the plan.
 
 **Operational facts, recorded once:**
 

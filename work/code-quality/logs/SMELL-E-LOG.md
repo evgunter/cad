@@ -284,7 +284,7 @@ and G out of it.** Three things follow for this track:
 rather than in F or G, because `topo`'s mutation surface is fenced under one
 ADVERSARIAL policy and a second track on those files is the collision the
 sequencing exists to prevent. S68 is D21 (E-h). S67, S69 and S70 are unplaced
-and want rows after E-h lands — S70 is S14 and is Evan's.
+and want rows after E-h lands — S70 is S14 and is Ev's.
 
 ### The dispatcher wrote a stale index inside the section warning about stale indexes (2026-08-20)
 
@@ -465,15 +465,15 @@ actually exercised, what you could not check, and anything in this header or in
 your brief that turned out to be wrong. Reviewers correcting the dispatcher is a
 working lane, not a malfunction.
 
-### Evan's ruling on #777: representability becomes **row 0** (2026-08-20)
+### Ev's ruling on #777: representability becomes **row 0** (2026-08-20)
 
 E-g's D27 dissolved `FilletError::EmptyChain` structurally rather than
 classifying it, which retired the D2 addendum's *"one state this taxonomy does
 not contain"* paragraph. I split the factual retraction (kept in #768) from the
 generalisation it suggested (lifted into **#777**, a design-conversation PR left
-open for Evan, which argued the three strongest cases **against** itself).
+open for Ev, which argued the three strongest cases **against** itself).
 
-**Evan ruled bigger than the PR asked:**
+**Ev ruled bigger than the PR asked:**
 
 > the sentiment is great — so great that i think it should be promoted from an
 > addendum to **row 0** — *can this error state be made unrepresentable?* —
@@ -511,7 +511,7 @@ restructured so a partially-written destination is unrepresentable?"** — stagi
 into a fresh body and committing on success, which is the shape
 `merge_faces.rs:468` already uses and the shape D27 itself used. **That reframes
 S14 and does not answer it**; the cost of the restructuring is exactly the
-*"if possible"* judgement above, and S14 stays Evan's. It has reach: **#740 left
+*"if possible"* judgement above, and S14 stays Ev's. It has reach: **#740 left
 46 lookup sites typed rather than converted because S14 is open**, so anything
 that moves S14 moves them.
 
@@ -547,7 +547,7 @@ inaction here; it is the only honest trigger.
 
 ### E-R10 — S14(a) has three halves, and a twin the tree declares (2026-08-21)
 
-**Evan ruled S14(a) closes as two changes rather than A′** — `window_of` off the
+**Ev ruled S14(a) closes as two changes rather than A′** — `window_of` off the
 public surface (E-s), and a two-integer structural refusal at the doors that
 already hold the vector (E-t). **E-t then demonstrated a third defect that
 neither closes**, and asked for the block's last row number for it.
@@ -648,7 +648,7 @@ places a row looks exactly like a docs-only PR that fixes one. **A placement and
 a fix are indistinguishable from the outside of a merged docs PR**, so a
 placement should say, in the row itself, who is expected to act.
 
-Evan ruled Track E takes D86 (lane **E-o**), crossing into `scripts/` with the
+Ev ruled Track E takes D86 (lane **E-o**), crossing into `scripts/` with the
 crossing stated, after both `SMELL-F-LOG.md` and `SMELL-G-LOG.md` were checked
 for a claim on the file and neither had one.
 
@@ -778,7 +778,7 @@ placed. Reissued:
 | D69–D70 | **D86–D87** | E-m |
 | D61–D62 | **D88–D89** | E-h — D88 is `merge_faces.rs:766`'s `unwrap_or_default` discard |
 
-Next unassigned in Track E's block: **D100**, which is the block's LAST. (**D96** is E-k's — the thirteen row-0 candidates out of D35. **D97**, **D98** and **D99** are E-p's, out of S14: `from_algebra`'s do-nothing debug arm, `unit_segment`'s clamp and its false caller claim, and the `indexing_slicing` deferral that lost its revisit condition — **placed on `main` by #839**, deliberately split out of E-p's design PR because all three are true however S14 is decided and **E-R5 says a row is not placed until it is on `main`**. Leaving them on a branch that waits for Evan would have left three numbers reading as assigned here and free in the register.) **Anything past D100 comes to the orchestrator before it is written** — the block is exhausted, not extensible by whoever notices first, which is the whole point of E-R3.
+Next unassigned in Track E's block: **D100**, which is the block's LAST. (**D96** is E-k's — the thirteen row-0 candidates out of D35. **D97**, **D98** and **D99** are E-p's, out of S14: `from_algebra`'s do-nothing debug arm, `unit_segment`'s clamp and its false caller claim, and the `indexing_slicing` deferral that lost its revisit condition — **placed on `main` by #839**, deliberately split out of E-p's design PR because all three are true however S14 is decided and **E-R5 says a row is not placed until it is on `main`**. Leaving them on a branch that waits for Ev would have left three numbers reading as assigned here and free in the register.) **Anything past D100 comes to the orchestrator before it is written** — the block is exhausted, not extensible by whoever notices first, which is the whole point of E-R3.
 re-issued — a number that has appeared in a lane's report, even as *unused*, is
 cheaper to skip than to explain.
 
@@ -814,8 +814,8 @@ serialized here and each lane re-merges `origin/main` when one lands.
 | **E-h** | D21 | `smelle/d21` | **#773** | **style lane NOT CLEARED** — 8 MAJOR; adversarial lane running. Placed D88, D89 |
 | **E-k** | D35 | `smelle/d35` | **#809** | **MERGED 2026-08-20.** D35 closes on **(d)**; 103 sites re-derived, 76 one state, 13 row-0 candidates → **D96**, 3 messages fixed. Found **#777 never reached `main`** → **#817** |
 | **E-l** | #681 | `smelle/681` | **#810** | **MERGED 2026-08-20.** 7 of 9 surfaces swept, 2 declared; 24 claims → 7 guarded, 2 scheduled, 13 unguardable-with-reason, **1 unguarded (#807)**. #808 stands free now that #763 is in; `memories/` raised as a tenth surface |
-| **E-o** | D86 | `smelle/d86` | — | **dispatched** 2026-08-20. Crosses into `scripts/` with Evan's ruling, after F's and G's logs were checked for a claim on the file and neither had one (E-R8) |
-| **E-p** | S14 | `smelle/s14`, `smelle/d97-d99` | **#823** (conversation, open for Evan); **#839** (D97–D99) | **dispatched** 2026-08-20. A design-conversation PR, not a fix; **waits for Evan** and never self-merges. Its three residues were **split into #839 off `main`** under E-R5 — they do not depend on how S14 is decided, so coupling them to it would have made them invisible until it was |
+| **E-o** | D86 | `smelle/d86` | — | **dispatched** 2026-08-20. Crosses into `scripts/` with Ev's ruling, after F's and G's logs were checked for a claim on the file and neither had one (E-R8) |
+| **E-p** | S14 | `smelle/s14`, `smelle/d97-d99` | **#823** (conversation, open for Ev); **#839** (D97–D99) | **dispatched** 2026-08-20. A design-conversation PR, not a fix; **waits for Ev** and never self-merges. Its three residues were **split into #839 off `main`** under E-R5 — they do not depend on how S14 is decided, so coupling them to it would have made them invisible until it was |
 | **E-q** | `memories/` | `smelle/memories` | **#826** | **MERGED 2026-08-20.** 21 blocks → 17 keeps, 4 repointed; two drifted second-copies resolved; #681's `.md` instrument corrected |
 
 **E-g dispatched 2026-08-20** (`smelle/d27-d29`), D27 then D29 — one lane
@@ -883,7 +883,7 @@ diff is **+152 comment lines against −51**, so ~78% of the unit's net growth i
 comment. `live.rs` retired ~22 doc lines on `link_half_edges` and shipped ~82.
 Two pieces of it argue rather than describe — a **rejected alternative** (the
 GhostCell brand) and an anticipated objection — which is §S38's pattern
-exactly, and S38 is ACCEPTED with Evan's *"should definitely be trimmed"*. L2
+exactly, and S38 is ACCEPTED with Ev's *"should definitely be trimmed"*. L2
 inherits it.
 
 The lane judged the residue an **honest, correctly-scoped narrowing** rather
@@ -1242,7 +1242,7 @@ something the orchestrator had not thought to check. **The instrument that
 works across tracks is a lane reading the other track's log**, and it is worth
 saying in a dispatch rather than hoping for.
 
-### #777 — a design-conversation PR that argues against itself, and is waiting on Evan
+### #777 — a design-conversation PR that argues against itself, and is waiting on Ev
 
 E-g's D27 dissolved `FilletError::EmptyChain` structurally, which retired the D2
 addendum's *"one state this taxonomy does not contain"* paragraph. The lane's
@@ -1253,8 +1253,8 @@ asking the taxonomy to grow.* I ruled those two apart:
 - **The retraction stays in #768.** The state no longer exists, so leaving the
   sentence would be a stale claim **in the ratified contract** — exactly what
   #755 was made to fix one paragraph over.
-- **The general rule goes to Evan in its own PR**, because it reaches into
-  **S14**, which sits in *Open decisions — Evan only* and is currently a bound
+- **The general rule goes to Ev in its own PR**, because it reaches into
+  **S14**, which sits in *Open decisions — Ev only* and is currently a bound
   on other lanes (#740 left 46 lookup sites typed because it is open). The
   lane's own framing made the connection — *S14's graft class stays open because
   a public door genuinely produces it* — and an argument about S14 is not mine
@@ -1274,7 +1274,7 @@ what #768 did and leave the procedure alone"* is a **passing answer**, and that
 positive with no counter-metric. A design PR that lists the strongest arguments
 against its own proposal, and names the answer that rejects it as passing, is
 the one shape that cannot be read that way. It is also the first thing on this
-track that made a design question *cheaper* for Evan to answer rather than
+track that made a design question *cheaper* for Ev to answer rather than
 larger.
 
 ### The rule the block scheme was missing: placed numbers keep their identity (2026-08-20)
@@ -1482,10 +1482,10 @@ Offered a row for row 0's S14 reframing, E-g **declined it**: the reframing is a
 paragraph, not a row, because *its premise is unratified* — placing
 implementation work against an unanswered question would be a register entry that
 **cannot execute**, which is §C3's failure exactly. S14 is already an entry in
-*Open decisions — Evan only*, and the reframing is recorded there with its
+*Open decisions — Ev only*, and the reframing is recorded there with its
 precedent (`merge_faces.rs:468`'s `let mut work = self.clone();` under its own
 *"Never a partial commit: each sub-stage is tier-2-gated before adoption"* —
-checked rather than carried). **If Evan answers "yes, restructure it", that is
+checked rather than carried). **If Ev answers "yes, restructure it", that is
 the moment a row is worth minting**, and #777 says so in those words.
 
 *Worth keeping:* a lane declining a number it was offered, on the grounds that
@@ -1573,7 +1573,7 @@ unrepresentable form is `out.edges.iter_mut()`, **which `revert.rs:227` and
 `:234` already use** for the surface and face arenas. The PR added an
 `unreachable!` and then a probe row defending a fact the restructure would make
 unstatable. The per-arena-token rejection is a good argument about *tokens* and
-does not reach *restructuring*, which is what Evan's row 0 asks.
+does not reach *restructuring*, which is what Ev's row 0 asks.
 
 **Also: `8d80e2bb` deletes five checked-in proptest regression seeds**, three
 carrying hand-written diagnoses, unmentioned in the PR body — in a PR about not
@@ -1581,7 +1581,7 @@ discarding things silently.
 
 **Two corrections to the dispatcher, both accepted.** *"14 + 3"* is honest and I
 was right to carry it. And **S68's problem statement must be left alone**: the
-`S`-series `Verdict:` line is Evan's by convention and S-findings keep their
+`S`-series `Verdict:` line is Ev's by convention and S-findings keep their
 bodies — unlike D-rows, whose recording convention demands the problem statement
 be removed. I had the two conventions blurred; leaving S68 untouched was correct.
 
@@ -1637,7 +1637,7 @@ exactly that reason and it caught its own instrument before reporting.
 
 ### Row 0 is ratified — and it was NOT on `main` until #817 (corrected 2026-08-20)
 
-> **This heading was wrong for eight hours and I repeated it to Evan and into a
+> **This heading was wrong for eight hours and I repeated it to Ev and into a
 > dispatch brief.** #777 merged, but its base was `smelle/d27-d29`, not `main`.
 > #768 merged that branch into `main` at `12:09:59`; #777 merged **into the
 > branch** at `12:10:18` — nineteen seconds later, so GitHub's retarget never
@@ -1647,7 +1647,7 @@ exactly that reason and it caught its own instrument before reporting.
 > **`main` was left self-contradictory in its ratified contract**: D21's
 > paragraph cites *"16 row 4 + 1 row 0"* while the taxonomy's own closing
 > sentence twelve lines down reads *"The five rows stand unamended"*, and the
-> superseded *"open for Evan's sign-off in its own PR"* line was still there.
+> superseded *"open for Ev's sign-off in its own PR"* line was still there.
 > Recovered as **#817**, `docs/DESIGN.md`'s added lines verified identical to
 > #777's.
 >
@@ -1691,7 +1691,7 @@ is not a rule.
 a shape already in the same crate at `merge_faces.rs:468`, checked rather than
 transcribed, under its own *"Never a partial commit."* **No row was minted for
 it, deliberately**: the premise is unratified, so a placement would be a register
-entry that cannot execute. If Evan answers yes, that is the moment.
+entry that cannot execute. If Ev answers yes, that is the moment.
 
 *The two things worth carrying past this ruling:* **#755 is the rule's best
 evidence** — a careful lane asked row 0's question, answered it no on
@@ -1759,7 +1759,7 @@ was procedure, not vigilance.
 
 ### #826 — `memories/` (E-q), merged 2026-08-20
 
-Evan's ruling: *"most of the stuff in memories that cites a specific
+Ev's ruling: *"most of the stuff in memories that cites a specific
 measurement should just be deleted. memories is definitely not the place for
 historical anecdotes, but it's also not really the place for live data."* So
 **§Q6's menu was the wrong frame** — it classifies a measured claim as
@@ -1837,7 +1837,7 @@ plausibly the highest-consequence one: `CLAUDE.md` makes `memories/MEMORY.md` a
 session-start read whose pointers get followed, and the two dense files are
 `tessellation-budget.md` and `test-suite-cost.md`, whose subjects *are*
 measurements — one of which `docs/ASM-LOG.md` routes a live dispatch decision
-through. **This goes to Evan.**
+through. **This goes to Ev.**
 
 ### #773 — D21 (E-h), merged 2026-08-20. **Track E's one adversarial review.**
 

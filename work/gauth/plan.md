@@ -1,9 +1,9 @@
 # GAUTH — part authoring in the GUI: the plan
 
 **STATUS: CLOSED 2026-08-31 — all five units merged (PRs #1375,
-#1381, #1376, #1397, #1407); closed on Evan's in-chat ruling that
+#1381, #1376, #1397, #1407); closed on Ev's in-chat ruling that
 no exit walk is needed, recorded in `work/gauth/log.md`'s closing
-entry, which is the done-state of record. Scope was ruled by Evan
+entry, which is the done-state of record. Scope was ruled by Ev
 in-chat (2026-08-31): Phase A and Phase B definitely; fillet/
 chamfer authoring and assembly instance authoring wanted.** Program prefix `gauth/`; A/B ordinal
 band **900–999** (claimed in `docs/MODEL-AB-LOG.md` in this plan's
@@ -238,12 +238,12 @@ orchestrator-adjudicated union fix pass, record-at-merge in
 `docs/MODEL-AB-LOG.md`. Units self-merge on green per the standing
 rules; nothing here ratifies an open design question, and the one
 identity ruling in GAUTH-1 is logged as a unilateral decision for
-Evan's retroactive review.
+Ev's retroactive review.
 
 ## Sizing
 
 Five PR-sized units in two waves; the machine runs three
-implementer lanes at once (Evan's sizing for this box). GAUTH-2 is
+implementer lanes at once (Ev's sizing for this box). GAUTH-2 is
 the one with genuinely new craft (pick-path depth); GAUTH-1 is the
 largest by surface. Nothing here approaches the sketcher, the
 solver, or live dragging — those stay where their docs put them.

@@ -6,7 +6,7 @@ Plan: `docs/S-MATE-PLAN.md`. A/B band 1300–1399
 
 ---
 
-**2026-08-31 — program opened.** Picked up on Evan's in-chat
+**2026-08-31 — program opened.** Picked up on Ev's in-chat
 direction as the last unclaimed stream of
 `docs/WORK-STREAMS-2026-08.md` (verified: S-CERT/S-QA graduated in
 the doc, S-BLEND graduated and closed, S-MESH/S-BOOL opened in PR
@@ -71,7 +71,7 @@ the three-valued `Placement`, undeclared arms untouched. Dual
 ordinal 1301 (sample #80 at merge), R1 M-A-F / R2 MERGEABLE, every
 claim held under execution in both arms; the one MAJOR was
 bilateral coordination — open VERBS PR #1353 implements the
-identical split on the same function; merged FIRST under Evan's
+identical split on the same function; merged FIRST under Ev's
 2026-08-31 inherited-red ruling, so the unification lands with
 VERBS' fix pass (coordinated on their thread). Issues filed en
 route: 1415 (F7 merge-door frontier), 1416 (full-period carrier),
@@ -90,7 +90,7 @@ adjudication). At fix: both probe suites adopted, three new rows
 pin each continue independently (the reverting mutant reds 3),
 issue 1429 filed (the PartValue seam channel — carried refutations
 cannot name their mate, inner mint refusals stop at the seam; the
-ruling's-letter narrowing flagged for Evan there). Remaining slate:
+ruling's-letter narrowing flagged for Ev there). Remaining slate:
 MATE-3 (implementer finishing), MATE-4a (implementer running),
 MATE-4b design pass (orchestrator's, next), MATE-5 (after 4a lands,
 census.rs serialization), MATE-7 (last).
@@ -130,7 +130,7 @@ union mutation matrix runs 12/12 kills. Filed en route: issue 1439
 (the lever-arm fold's six hand-rolled siblings +
 `contact_tangent_opposed` as the pairing's twin). Handoffs routed
 on issue 941 at merge. MATE-5's soundness fix pass is the one
-remaining implementation lane; 4b design (PR #1440) awaits Evan.
+remaining implementation lane; 4b design (PR #1440) awaits Ev.
 
 **2026-09-01 — MATE-5 MERGED (PR #1443; issue 943 CLOSED at this
 merge).** Cross-instance declared cylinder Rest certifies through
@@ -155,7 +155,7 @@ landed pattern, the torus one meeting MATE-7's carrier work.
 Handoffs recorded in the PR: the public full-wrap constructor, the
 cylinder interior_witness, the wall_sheet builder triplication.
 Slate: SIX of seven units merged; 4b design (PR #1440) and the
-MATE-7 tangency conversation are the Evan-paced tail.
+MATE-7 tangency conversation are the Ev-paced tail.
 
 **2026-09-01 — MATE-8 MERGED (PR #1472; ordinal 1306, sample #89);
 issue 1435 CLOSED.** The 4b design's funded stage 0 landed:
@@ -225,7 +225,7 @@ in the briefs. The fix pass survived a ~75m usage-limit
 interruption (state preserved by an orchestrator WIP snapshot,
 resumed same-arm) and closed with a full per-conjunct mutation
 table. NEXT: the S-MATE exit walk (a design conversation — waits
-for Evan's ratification).
+for Ev's ratification).
 
 ## Tracker migration (2026-09-03)
 

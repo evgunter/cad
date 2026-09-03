@@ -36,7 +36,7 @@
 //!   witness construction-fresh** — `witness′ = carrier′(mid)`, the
 //!   mapped carrier evaluated at the pinned mid parameter (the S2
 //!   formula the `WitnessMidpoint` check verifies) — never the mapped
-//!   stored witness. Ruled with Evan on PR #83: mapping stored
+//!   stored witness. Ruled with Ev on PR #83: mapping stored
 //!   witnesses consumes inherited residual slack (a body certified
 //!   near ε could refuse after an exact-in-principle isometry, and
 //!   transform chains would ratchet); re-minting is per-entity local,

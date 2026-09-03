@@ -45,7 +45,7 @@ WORK = "work"
 STATUS_FILE = "work/STATUS.md"
 ISSUES_DIR = "issues"
 FREE_FILES = {"README.md", "STATUS.md"}       # top level of work/, unparsed
-NARRATIVE = {"plan.md", "log.md"}             # inside a program, unparsed
+NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
 LOG_EXEMPT = {"docs/MODEL-AB-LOG.md"}         # the one non-program log in docs/
 STALE_DAYS = 14
 

@@ -59,7 +59,7 @@
 #
 # WHY THIS IS POSSIBLE AT ALL. It was not, when the committed cells came
 # from a developer's GL stack and these came from llvmpipe. Hosted is
-# the canonical producer since Evan's #338 ruling, and a repeat hosted
+# the canonical producer since Ev's #338 ruling, and a repeat hosted
 # render of one commit is byte-identical — measured across all 55 cells
 # of both PNG lanes — so a diff is a real finding, and an ungated
 # committed artifact rots silently. What a diff MEANS still differs by
@@ -82,7 +82,7 @@
 #     `uv sheet drift (demos)` row was retired when that started; this
 #     workflow owns the obligation outright.
 #
-# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Evan's ruling —
+# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Ev's ruling —
 # this REVISES the "NO JOB COMMITS OR PUSHES, in either mode" rule that
 # stood here from the commit that first gated the lanes).
 #

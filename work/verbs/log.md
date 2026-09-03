@@ -5,17 +5,17 @@ Append-only narrative record. Plan: `docs/VERBS-PLAN.md`. Register:
 
 ## Kickoff (2026-08-21)
 
-Program opened at Evan's ask: orchestrate execution of the
+Program opened at Ev's ask: orchestrate execution of the
 KERNEL-VERBS register. Kickoff rulings recorded in the plan's header
 (wave order; verb-gating defect ownership; design conversations open
 as info firms; C7 stays M9's). Session ops: four monitors armed from
 installed copies; away-channel tag `(VERBS orchestrator)`, prefixes
 `verbs/,mngr/kernel-verbs`. A usage WARN for a DIFFERENT account was
 active at kickoff (92% of 7d) — this program's account confirmed
-distinct by Evan, dispatching normally. An opus issue-scan subagent
-dispatched over all open issues (Evan flagged several as plausibly
+distinct by Ev, dispatching normally. An opus issue-scan subagent
+dispatched over all open issues (Ev flagged several as plausibly
 fillet-related) + the #222 closure verdict; its report folds into
-Wave 1 specs before the first dispatch. Evan's misc-style remote
+Wave 1 specs before the first dispatch. Ev's misc-style remote
 agent is working repo-wide (`smellj/*` etc.) — expected not to cross
 paths.
 
@@ -59,7 +59,7 @@ at this seam.
 - **VERBS-RIM implementer DISPATCHED** (lane verbs-rim, branch
   verbs/rim, spec on main; wall-clock start ~02:57Z 08-22).
 - **OFFSET-DESIGN opened as #907** (branch verbs/offset-design) —
-  the Q8 design conversation, proposals O1–O6, awaiting Evan.
+  the Q8 design conversation, proposals O1–O6, awaiting Ev.
   The fork most needing his call is O4: sealed shell as
   boolean-family (`B − offset_inward(B,t)`, keeping "voids are born
   only from booleans" intact) vs a third void source.
@@ -72,7 +72,7 @@ at this seam.
 ## Three conversations open (2026-08-21)
 
 Draft + patterns/mirror surveys returned; conversations opened the
-same day (Evan's open-as-info-firms ruling):
+same day (Ev's open-as-info-firms ruling):
 
 - **#908 DRAFT-DESIGN** (branch verbs/draft-design): plane-wall v1
   (the cylinder arm re-opens R1's conic inventory and is deferred to
@@ -90,9 +90,9 @@ same day (Evan's open-as-info-firms ruling):
 Both PRs edit KERNEL-VERBS.md rows — the second to merge may need a
 trivial conflict resolution. **Sheet bodies (the D1 conversation) is
 deliberately HELD** until the open three get responses — it is the
-heaviest conversation and Evan's review bandwidth is the scarce
+heaviest conversation and Ev's review bandwidth is the scarce
 resource. In flight: VERBS-RIM implementer (no report yet); #907
-(Q8) awaiting Evan.
+(Q8) awaiting Ev.
 
 ## VERBS-RIM review dispatched (2026-08-22)
 
@@ -218,7 +218,7 @@ sampling design warns against; the honest path is: resolve #921,
 merge main into the branch (a real re-draw), green, merge. An
 investigation lane (i921) is tracing the enclosure's width on
 main; its report decides band-vs-enclosure-vs-row-contract, with
-Evan looped in if it is a genuine tolerance-design fork.
+Ev looped in if it is a genuine tolerance-design fork.
 
 ## #921 adjudicated; VERBS-ARCEVAL dispatched (2026-08-22)
 
@@ -239,7 +239,7 @@ block VERBS-1 slot 3; the investigator's lane continues as the
 implementer — full context, arm-consistent), branch verbs/arceval.
 #920 merges after this lands via a real re-draw.
 
-## Design-conversation rounds with Evan (2026-08-22, afternoon)
+## Design-conversation rounds with Ev (2026-08-22, afternoon)
 
 - **#907 (Q8)**: two rounds folded. Round 1 — self-intersection
   doors added to O1 (trimmed offset as a later topology verb over
@@ -247,14 +247,14 @@ implementer — full context, arm-consistent), branch verbs/arceval.
   spelling now, M10 root-solve banked); O4 rewritten as
   definition-vs-execution (sealed shell = degenerate no-crossing
   arm through the boolean's void-insertion door; #750 avoided
-  by-construction; Wave-2 coupling dropped). Round 2 — Evan's
+  by-construction; Wave-2 coupling dropped). Round 2 — Ev's
   sweep note: the refined invariant ("every cavity is born through
   the shared void-insertion door") admits the holed full revolve
   as its third producer, which IS VERBS-RING — the plan row is
   redefined (RING factors the door, first consumer, gated on
   ratification), and DESIGN.md's M2 bullet is revised in the PR.
   Final 👍 requested (watchlisted).
-- **#908 (draft)**: Evan corrected DR1's cost reading — R1 bars
+- **#908 (draft)**: Ev corrected DR1's cost reading — R1 bars
   only exact conic special cases; fitted-NURBS plane×cone sections
   are fine, so the cylinder arm is a fitted-SSI lane (plumbing),
   not a ratified-decision change. DR6's checker confirmed
@@ -267,7 +267,7 @@ implementer — full context, arm-consistent), branch verbs/arceval.
 
 ## OFFSET-DESIGN RATIFIED + MERGED (#907, 2026-08-22 👍)
 
-Q8's elaboration is on main: O1-O6 incl. both of Evan's rounds
+Q8's elaboration is on main: O1-O6 incl. both of Ev's rounds
 (self-intersection doors; O4 definition-vs-execution with the
 degenerate no-crossing arm; sweep-born cavities as the third
 producer) and the DESIGN.md M2-bullet revision ("every cavity is
@@ -280,7 +280,7 @@ door factoring, and the retirement of FullRevolveHoles).
 
 ## DRAFT-DESIGN RATIFIED + MERGED (#908, 2026-08-22 👍)
 
-DR1-DR6 on main with Evan's corrections: plane-only v1; the
+DR1-DR6 on main with Ev's corrections: plane-only v1; the
 cylinder arm re-costed as a plane×cone fitted-SSI lane (R1
 untouched — its refusal bars only exact conic special-casing);
 the moldability checker rides kind-general. The draft VERB
@@ -294,7 +294,7 @@ Remaining conversation: #909 (one 👍 pending).
 round; its register-row conflict with #908 resolved in the merge,
 and the draft row's stale "re-opens R1" clause corrected to DR1's
 ratified form in the same resolution. **The program's design
-backlog with Evan is CLEAR**: Q8/offset-shell, draft, and
+backlog with Ev is CLEAR**: Q8/offset-shell, draft, and
 patterns/mirror all ratified same-day. Implementable-when-scheduled
 design now exists for: Wave 3 entire (offset → shell → teapot),
 RING (ungated), draft v1 + the kind-general moldability checker,
@@ -354,7 +354,7 @@ wall 6 flips, the curved-two-shell STEP refusal recorded as the
 known standing gate. Difficulty M logged pre-draw; block VERBS-2
 drawn (mapping lane-private per blinding); lane verbs-ring next.
 
-## Parallelism widened to four lanes (2026-08-22, Evan's headroom note)
+## Parallelism widened to four lanes (2026-08-22, Ev's headroom note)
 
 Running concurrently: SSIFLAT (impl), RING (impl), **VERBS-DEMO**
 (impl — the chamfered-die montage pair now; the translucent hollow
@@ -373,7 +373,7 @@ the dependency that orders the cut); six of eight pairs collapse
 into one coaxial-torus derivation mirroring plane_sphere_blend
 (copy its poison-flows-to-spine_curvature posture); **no
 constant-radius roll mints a cone** — C8's "cone cases" prose gets
-a scoped correction at ARMS-2 (called out to Evan in the spec);
+a scoped correction at ARMS-2 (called out to Ev in the spec);
 the valence-4 corner door is the only genuine design content and
 is isolated into ARMS-3 as a design conversation. ARMS-1
 difficulty L logged pre-draw; consumes block VERBS-2 slot 3; lane
@@ -454,7 +454,7 @@ revolved band is a disconnected component — landing it as an
 interior shell IS the door's job, vindicating the ratified
 architecture); its first CI draw hit (interval,1e-12) and was
 handled per the enumerated-red process. DESIGN doc-syncs called
-out for Evan in the PR. **Ordinal 65 claimed** — not a third —
+out for Ev in the PR. **Ordinal 65 claimed** — not a third —
 single fable review at frozen b4f5c264, lane verbs-ring-r1.
 Three reviews/fix-passes now in flight (64 ARMS-1, 65 RING,
 SSIFLAT fix pass); DEMO part 2 unlocks at RING's merge.
@@ -535,7 +535,7 @@ discipline). The one-call hollow ring exists; the void-insertion
 door is factored and waiting for Wave 3's shell; its fix-pass CI
 draw delivered the first hosted green at (interval, 1e-12).
 Wave 1 state: RIM ✓ CHAMFER ✓ ARMS-1 ✓ RING ✓ — remaining:
-TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Evan-gated
+TUBEWALL (S), ARMS-2 (next dispatch), ARMS-3 (Ev-gated
 conversation), plus the DEMO unit (part 2 now UNBLOCKED). Seam
 sweep: verbs-ring + verbs-ring-r1 lanes.
 
@@ -547,7 +547,7 @@ via #957), TUBEWALL (block VERBS-3 slot 1 drawn, difficulty S
 pre-draw; brief-as-spec — the hollow tube door with a STOP clause
 if the elaboration turns out to be a genuine fork), and DEMO part 2
 (the translucent hollow ring, triggered at RING's merge). After
-these: ARMS-3's design conversation (Evan-gated), then Wave 1 is
+these: ARMS-3's design conversation (Ev-gated), then Wave 1 is
 CLOSED and Wave 2 (curved booleans) opens.
 
 ## DEMO complete (#958); ordinal-68 review out (2026-08-23)
@@ -847,7 +847,7 @@ the state-sync.
 
 ## WAVE 3 OPENS: OFF-A spec committed (2026-08-25)
 
-Evan's rulings at the seam: Wave 3 stays under THIS orchestrator
+Ev's rulings at the seam: Wave 3 stays under THIS orchestrator
 (the context argument — the survey, both ratification rounds, the
 door seam — beat the handoff; a remote orchestrator's build
 parallelism noted as the one advantage forgone, with
@@ -869,24 +869,24 @@ Row TUBEWALL (ordinal 69, sample #22, the TENTH cross-model pair —
 two from the twelve-pair target) in MODEL-AB-LOG. The hollow tube
 door lands with the three-decide wall family; the seam-rule
 posture gap met twice in the unit is filed as #990 (a design
-question for Evan); the tour scene is #986. **Every implementation
+question for Ev); the tour scene is #986. **Every implementation
 row of Wave 1 is now MERGED**: RIM, CHAMFER, ARMS-1, ARMS-2,
 TUBEWALL, RING, DEMO (plus the unplanned ARCEVAL/SSIFLAT defect
 units the wave surfaced). Remaining Wave-1 item: ARMS-3's
-design conversation (OQ6 run-out taxonomy — Evan-gated), drafting
+design conversation (OQ6 run-out taxonomy — Ev-gated), drafting
 next. Wave 3 opened concurrently (OFF-A implementing). Seam
 sweep: verbs-tubewall + both reviewer lanes.
 
 ## ARMS-3 conversation OPEN (#992, 2026-08-25)
 
-The last Wave-1 item is now a design conversation awaiting Evan:
+The last Wave-1 item is now a design conversation awaiting Ev:
 A3-2's substantive claim is that the valence-4 seam-vertex
 "corner" is NOT a corner (the surface is smooth through it; the
 shipped vocabulary misdescribes it) — recommend the SeamVertex
 refusal with the request-the-full-rim recourse, machinery-free;
 A3-3 parks the genuine mid-curve run-out pair consumer-gated with
 the ball-cap named presumptive. Board: OFF-A implementing (Wave
-3); #992 with Evan; Wave 2's GATE spec is the next orchestrator
+3); #992 with Ev; Wave 2's GATE spec is the next orchestrator
 work item.
 
 ## WAVE 2 OPENS: GATE spec committed (2026-08-25)
@@ -898,7 +898,7 @@ pair, stated as a may-intersect); #862's two box defects and
 #700's sibling dedup ride as the precision the gate rests on.
 Acceptance: klein wall 3 flips (or re-pins honestly — build, don't
 assume), wall 4 stays pair-scoped-refused, lily wall 7's refusal
-becomes true (its retirement still waits on SPHSPH per Evan's
+becomes true (its retirement still waits on SPHSPH per Ev's
 steering). Difficulty M logged pre-dispatch; consumes VERBS-3
 slot 3. Two lanes now: OFF-A (Wave 3) + GATE (Wave 2).
 
@@ -992,7 +992,7 @@ small-|d| certificate wall (relative accuracy ~1/|d|). Fix pass
 dispatched with the union, incl. the sharper-denominator
 investigation ((‖E‖+|d|) in place of 2|d|) that may dissolve M4
 outright. This dual is sample #24, the ELEVENTH cross-model pair
-— **the next dual is the twelfth: its recorder notifies Evan
+— **the next dual is the twelfth: its recorder notifies Ev
 explicitly per the pre-registered target**.
 
 ## OFF-B MERGED (#1003, 2026-08-26) — the approximating substrate EXISTS
@@ -1005,7 +1005,7 @@ union (M3's d-free lever; M4's sharper denominator tightening
 every bound). Four scheduled follow-ons: #1005 (weighted
 composite), #1006 (three-spellings consolidation), #1007
 (directional refinement), #1008 (net recentring). **The next dual
-is the TWELFTH cross-model pair — its recorder notifies Evan
+is the TWELFTH cross-model pair — its recorder notifies Ev
 explicitly.** OFF-C (Surface::Approx integration) is the next
 Wave-3 spec; GATE's ordinal-74 review still out. Seam sweep:
 verbs-offb + both reviewer lanes.
@@ -1124,7 +1124,7 @@ empirical sharpening for OFF-D: on curved fits the seam carrier
 needs KNOT REFINEMENT, not degree elevation alone (the fit
 refines past the seed grid even at d = 5e-10). Fix pass out.
 
-## THE 12-PAIR TARGET IS MET — Evan notified (#1016, 2026-08-26)
+## THE 12-PAIR TARGET IS MET — Ev notified (#1016, 2026-08-26)
 
 The M9 orchestrator (resumed cad-m8 session) determined ordinal
 72's dual COMPLETED — both arms attested by #974/#975's own
@@ -1132,9 +1132,9 @@ citations of R1/R2 findings, per-arm figures unrecoverable
 (outage-window session loss; recorded attested-but-unscored). So
 72 = the eleventh pair and OFF-B/75 = the TWELFTH; my row-75
 label corrected with a dated note. The pre-registered explicit
-notification to Evan filed as #1016 with the full tally, the
+notification to Ev filed as #1016 with the full tally, the
 pair-11 caveat, and the disposition recommendation (dual sampling
-SUSPENDS pending Evan's readout — the reversible direction; a
+SUSPENDS pending Ev's readout — the reversible direction; a
 missed dual can run late on a frozen head, an extra one cannot be
 un-spent). Cross-program credit: cad-m8's sweep caught both the
 pair double-booking and the abandoned #971 close-out (which they
@@ -1345,7 +1345,7 @@ policy: None — plus a latent policy disagreement fixed
 recourse premise measured FALSE** (the annulus door cannot carve
 the seam-split rim the recourse promises; #1022 is the missing
 door) — a dominant-argument correction recorded in the design doc
-and flagged for Evan's retroactive review per the self-merge
+and flagged for Ev's retroactive review per the self-merge
 escalation, the C8-cone pattern. The lane's #1029 handling was
 the comparison protocol end to end. **Ordinal 78 claimed at
 dispatch** (through 77 on main; duals suspended per #1016) —
@@ -1432,7 +1432,7 @@ local runs (the #1029 shard cancellation) — its matrix: 99/99 and
 565/565 at both ε, the four enumerated fixtures excluded by
 filter and red exactly as enumerated. Light fix pass out; the
 merge queues behind the hosted-runner outage. **Wave 1 closes at
-this merge**, with the ARMS3-DESIGN correction flagged for Evan's
+this merge**, with the ARMS3-DESIGN correction flagged for Ev's
 retroactive 👍 in the merge state-sync.
 
 ## ARMS-3 MERGED (#1028, 2026-08-26) — #319 CLOSED. **WAVE 1 IS COMPLETE.**
@@ -1446,7 +1446,7 @@ annulus door). The register's fillet story is DONE except the
 consumer-gated parked pair and #1022's multi-link door. Wave 2:
 PR-B implementing (the bracket's 6mm is its acceptance); GATE
 landed. Wave 3: OFF-A/B/C landed; OFF-D specs ready. Queued:
-OFF-D, TESSFOLD, the demo round 2. For Evan at the merge sync:
+OFF-D, TESSFOLD, the demo round 2. For Ev at the merge sync:
 the A3-2 correction's retroactive 👍 (the ratified recourse
 premise measured impossible; the appended correction is the
 C8-cone pattern's sibling).
@@ -1585,7 +1585,7 @@ ran. Deviation note appended to MODEL-AB-LOG (rows stand
 as-executed; the block-balancing property fails for VERBS-4; the
 fable implementer sample runs one short through ordinal 79).
 Remedy: arms are now read back from the draw file at dispatch and
-echoed verbatim into the dispatch record. Flagged for Evan with
+echoed verbatim into the dispatch record. Flagged for Ev with
 #1016. OFF-D PR-2 (shell) dispatches to the same lane on the same
 as-executed arm (slot 4 = opus, which the draw and the execution
 agree on).
@@ -1670,9 +1670,9 @@ which waits on the curved pierce/split substrate unit (spec next
 from the orchestrator). Lane swept. In flight: ordinal 82
 (#1048's shell review).
 
-## #990 RESOLVED BY EVAN'S RULING; DESIGN PR OPENED (2026-08-27)
+## #990 RESOLVED BY EV'S RULING; DESIGN PR OPENED (2026-08-27)
 
-Evan ruled in conversation: request validity dissolves at the
+Ev ruled in conversation: request validity dissolves at the
 signature (caller-intent magnitudes as f64 or a validating
 newtype, constraint in the type where expressible — shell's
 thickness is the pattern); the trilean-on-a-difference shape for
@@ -1681,13 +1681,13 @@ bare shared helper stays out (the #701 evasion class). Refusal
 payloads get one sanctioned gate-recognized projection, built as
 its own S unit. The Bounds scope rule in geom-core/src/real.rs
 carries the resolution entry; design-conversation PR opened for
-the 👍. Also per Evan: #1051 filed (workflow_dispatch CI runs
+the 👍. Also per Ev: #1051 filed (workflow_dispatch CI runs
 with requested lane/ε — retires most full local batteries), and
 briefs tightened to targeted-local-plus-drawn-point.
 
-## #990 ENTRY CORRECTED PER EVAN: NO PAYLOAD PROJECTION (2026-08-27)
+## #990 ENTRY CORRECTED PER EV: NO PAYLOAD PROJECTION (2026-08-27)
 
-Evan caught that shape 2 was residue: with request validity
+Ev caught that shape 2 was residue: with request validity
 dissolved at the signature, the caller's number is always at hand
 as f64 and the TUBEWALL case cannot recur. Derived quantities are
 deliberately NOT echoed outside the seams — an f64 payload is a
@@ -1697,7 +1697,7 @@ door wanting a derived echo is asking to be a seam. The queued
 payload-projection unit is CANCELLED; the real.rs entry and
 #1052 amended.
 
-## ORDINAL 82 RETURNED: OFF-D PR-2 NMAI 2/5/3; ADJUDICATED WITH EVAN (2026-08-27)
+## ORDINAL 82 RETURNED: OFF-D PR-2 NMAI 2/5/3; ADJUDICATED WITH EV (2026-08-27)
 
 The review found exactly what the brief aimed it at — both MAJors
 behind the PR's own honesty paragraph, whose claimed backstop is
@@ -1706,7 +1706,7 @@ t=0.3) returns Ok/valid/volume 11.76 vs true 11.312 — planar
 faces have vacuous reach margins, the cavity's neck walls cross,
 every loop stays simple, and tier-3 has no face-vs-face check;
 (2) shell of an already-hollow operand inserts overlapping voids
-and validates. Evan ruled: MAJ-1 gets the closed-form
+and validates. Ev ruled: MAJ-1 gets the closed-form
 planar-pair clearance gate (sound in the #571 conservative
 direction) with the curved-pair residue a DOCUMENTED window
 issued at M10's clearance certificate; MAJ-2 gets a
@@ -1782,7 +1782,7 @@ parity 0 = R1 opus + R2 fable, parity 1 = R1 fable + R2 opus;
 byte recorded in the lane-private draw file beside the arm
 draws). Stopping rule pre-registered: eight adjudicated
 unilateral MAJORs per the fixed instrument, or twelve new pairs,
-whichever first — Evan notified explicitly at the trigger.
+whichever first — Ev notified explicitly at the trigger.
 Read-side lane isolation enters both briefs (pushing never
 delayed; glimpses disclosed, ASM-1 shape). The v6 tally starts
 at zero — the v4/v5 pairs and attested-but-unscored pair 11 stay
@@ -1932,12 +1932,12 @@ OFF-A/B/C/D, shell, the teapot. Remaining VERBS queue: the shell
 defect repairs (#1081/#1082 — unowned, spec-ready material in
 the issues), SPHSPH/CYLSPH/CONE germ lanes (waiting on arms
 adjudication + #1076's sibling machinery), #1031 (cap F7), the
-wall-2 fork (Evan's content call), and the arms unit behind the
+wall-2 fork (Ev's content call), and the arms unit behind the
 ring lane. Lane swept.
 
-## EVAN'S WALL-2 CALL: RE-AUTHOR; LILYWELD CUT (2026-08-27)
+## EV'S WALL-2 CALL: RE-AUTHOR; LILYWELD CUT (2026-08-27)
 
-Evan ratified the circle-coincident re-authoring ("please do
+Ev ratified the circle-coincident re-authoring ("please do
 re-author the lily!"). LILYWELD spec'd two-PR: the content
 re-authoring with the coincidence itself asserted analytically
 (PR-1, S), then the #968-shaped kernel half — declared cone×torus
@@ -1949,7 +1949,7 @@ deliberately the reusable half its checklist names. Recorded on
 
 ## THE #1090 RULING ADOPTED AND SELF-APPLIED (2026-08-27)
 
-Evan's rule via PCURVE: relaxations recorded per arm; asymmetric
+Ev's rule via PCURVE: relaxations recorded per arm; asymmetric
 pairs score nothing; 3(e) extends to orchestrator-made asymmetry.
 Self-applied at the same standard: PIERCE's pair is excluded
 under 3(e)'s letter (both arms killed mid-run and resumed —
@@ -2211,7 +2211,7 @@ spec's OWN text, pre-build, by the now-mandatory measure-first
 checkpoint. The lane's two pins merge as the unit's closing
 record (orchestrator-reviewed, demo-class, no ordinal); the
 lane then takes THE #1031 UNIT — now triple-demanded (walls 2
-and 7, the teapot's F7 caps) — under Evan's recorded (a)/(b)
+and 7, the teapot's F7 caps) — under Ev's recorded (a)/(b)
 steer, difficulty pre-logged M, with the opening measurement
 reported before building. SHELLFIX PR-2a opened as #1126
 meanwhile.
@@ -2235,7 +2235,7 @@ unaffected (v6: the valve does not change it).
 
 ## THE BUDGET VALVE LIFTED (2026-08-28)
 
-Evan fixed the account's usage limit ("it should now be fixed",
+Ev fixed the account's usage limit ("it should now be fixed",
 in chat). The v6 valve invoked earlier today is RESCINDED before
 any single ran under it — no review was dispatched between
 invocation and lift, so every pair in the ledger remains a full
@@ -2266,7 +2266,7 @@ provenance), wall 7 MOVED to the curved-pierce door, the merge
 probe answered (MergedFaceRoleAmbiguous — half B stays a KERNEL
 question), and the steer deviation flagged with both framings
 (the lane's dump + PCURVE's ownership of the a/b offer) for
-Evan's retroactive 👍. Full dual, frozen head af04ee7a.
+Ev's retroactive 👍. Full dual, frozen head af04ee7a.
 
 ## SHELLFIX PR-2a MERGED (#1126) — ordinal-103 row (sample #36) (2026-08-28)
 
@@ -2292,7 +2292,7 @@ more honest than anything first proposed. The trailer-voiding
 face (a merge/subsequent commit silently reverts CI-Config to
 sampling — met twice in one pass) joins the coverage classes in
 lane-ops memory. Wall 7 authored-repairs; half B stays open;
-Evan's retroactive 👍 requested on the arc in the PR.
+Ev's retroactive 👍 requested on the arc in the PR.
 ## ORDINAL 104 RETURNED: BOTH ARMS NMAI; THE EXEMPTION WITHDRAWN (2026-08-28)
 
 R1 fable 3/3/4, R2 opus 2/3/3 — converging on both foundations:
@@ -2300,7 +2300,7 @@ the predicate admits ordinary coplanar splits (mid-vertex chords,
 inset-patch rings — all tier-2-legal and non-revolve), and the
 impossibility premise is FALSE (both arms reached the one-face
 cap via public kef→kev; tier 2 binds at-rest bodies, not
-intermediates). Evan's original steer was RIGHT — the deviation
+intermediates). Ev's original steer was RIGHT — the deviation
 flag is retracted, the memory's instance 5 corrected to the
 double-instance form (a measurement that dissolves a premise can
 smuggle in its own). R1's unilateral MAJ-3 (the pure pole-split
@@ -2694,7 +2694,7 @@ PRE-REGISTERED STOP FIRED on item 2: the chord lane needs a
 second variant (SectionCtx is plane-shaped; SectionConic holds
 one carrier vs the section's two ellipses; branch selection needs
 a point the kind-keyed signature lacks) — L→adjudication, built
-none of it. TWO DESIGN FORKS BANKED FOR EVAN (after the dual
+none of it. TWO DESIGN FORKS BANKED FOR EV (after the dual
 tests the measurements): the chord-lane widening, and the absent
 radius-equality declaration channel (also blocks SPHSPH's arms
 option (a)). Dual: parity byte 30 ⇒ R1 OPUS + R2 FABLE, frozen
@@ -2726,9 +2726,9 @@ the merge per the known rule, sampled draw safe, the named-point
 record on the prior head. #1290 closes ordinal 108. Tally: the
 unilateral candidate (R2's missing-acceptance-rows MAJ) awaits
 the blinded coding with 107's two.
-## ORDINAL 109 — MID-REVIEW METHOD CORRECTION (2026-08-31, Evan's)
+## ORDINAL 109 — MID-REVIEW METHOD CORRECTION (2026-08-31, Ev's)
 
-Evan, watching R2's lane burn ~12 CPU-hours: reviewers should NOT
+Ev, watching R2's lane burn ~12 CPU-hours: reviewers should NOT
 re-run the REGULAR suite locally — hosted CI (step-verified) is
 the suite evidence; local compute is for the reviewer's OWN
 probes, mutations, and instrumented measurements. R2's full-suite
@@ -2744,7 +2744,7 @@ retired.
 ## ORDINAL 109 RETURNED AND ADJUDICATED (2026-09-01)
 
 R1 (opus) 1 MAJ / 3 MIN, 5/3/3. R2 (fable, post-correction — its
-full-suite battery was killed mid-run on Evan's method ruling;
+full-suite battery was killed mid-run on Ev's method ruling;
 its evidence base is probes + step-verified hosted CI + the
 partial 35-suite/2482-green run, an evidence-source asymmetry
 noted for the coding, correction not relaxation) 0 MAJ / 2 MIN,
@@ -2808,7 +2808,7 @@ corrected post-merge #81→#85 (MATE6 held #81; ledger at #84;
 PR #1466, the M10-P precedent). GERMARMS closes: PR-1 ring lane
 + PR-2 typed-refusal branch; the family's future is #1372
 (parameter identity) → chord-lane widening → #1377 (pinch
-machinery, Evan's must-support ruling). #347's union demand
+machinery, Ev's must-support ruling). #347's union demand
 narrows to the circle × wall residue (design-gated, not
 specced). VERBS-7 slot 4 (FABLE per the block draw) is the
 remaining dispatch.
@@ -2852,7 +2852,7 @@ wider). (a) rejected: crosses the unit's specced layer
 the unit's only effect on every named consumer would be renaming
 their refusal — an arm with no live consumer. No settled design
 decision moves; this is sequencing within the program's remit
-(noted for Evan's visibility, non-blocking). The C5ARMS spec
+(noted for Ev's visibility, non-blocking). The C5ARMS spec
 gains a hold note; branch verbs/c5arms-1 stays pushed at main;
 the roster instance (the spec's flag-flip-moves-the-refusal
 premise landing on a foreclosing door) records in
@@ -3017,7 +3017,7 @@ blinded coding. Pair COUNTS. Union fix pass out (fable,
 implementer-inherited).
 ## CYLSPH DISPATCHED (2026-09-02) — VERBS-8 slot 2, OPUS
 
-Spec ratified at ab991663e on the survey + Evan's two rulings
+Spec ratified at ab991663e on the survey + Ev's two rulings
 (shape: exact coaxial arm + germ frame now, fitted window
 DEFERRED on the SPHSPH no-union-flips precedent; COAXIALITY
 DECLARED-ONLY — the RadiusEvidence sibling, #1372 the eventual

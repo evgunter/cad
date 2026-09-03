@@ -1,8 +1,8 @@
 # PCURVE — the edge-description unification program (plan)
 
-**STATUS: RATIFIED (Evan, PR #1061, 2026-08-27).** A third
+**STATUS: RATIFIED (Ev, PR #1061, 2026-08-27).** A third
 concurrent program beside LIB (usable-as-a-library) and VERBS
-(kernel breadth), opened at M9's close on Evan's direction. Its
+(kernel breadth), opened at M9's close on Ev's direction. Its
 subject is the work U2 ratified and deliberately did NOT schedule:
 migrating edge descriptions onto (surface, pcurve), plus the items
 that have been waiting on that migration rather than on each other.
@@ -24,7 +24,7 @@ its absence. That is a track.
 
 ## Ratified ground (not re-litigated here)
 
-`docs/PCURVE-UNIFY-DESIGN.md`, ratified by Evan 2026-08-15 (#514):
+`docs/PCURVE-UNIFY-DESIGN.md`, ratified by Ev 2026-08-15 (#514):
 
 - **U2**: `EdgeGeometry`'s conventional variants collapse to ONE
   form — **(surface, `Pcurve`)** — while `Pcurve` KEEPS its exact
@@ -35,7 +35,7 @@ its absence. That is a track.
 - **`MappedCurve` demotes to an AUTHORITY RECORD** carried beside
   the description, with tier-3's prefer-intrinsic rules reading the
   record instead of the negative space. A narrow scaffold retains it
-  as a description for TRANSIENT edges only (Evan's Q2 answer; the
+  as a description for TRANSIENT edges only (Ev's Q2 answer; the
   fence criterion as corrected below).
 - **Q3 (the authority record's home) is per-edge KERNEL data**,
   adopted by dominant argument. Its pushback window closed
@@ -164,11 +164,11 @@ descriptions); M10's clearance certificate. Naming them because
   and is called at ops.rs:1064, the D6 conventional re-description
   lane M9-3 shipped. The seam MINT path is a different site, and
   M9-3's own PR body said plainly it stays a straight chord.)
-- **RESOLVED (was "OPEN, needs Evan"; corrected 2026-08-27)**: the
+- **RESOLVED (was "OPEN, needs Ev"; corrected 2026-08-27)**: the
   ratified scaffold answer (Q2 — `MappedCurve` retained as a
   description SOLELY for pre-body edges) **was not implementable as
   written**. `MappedCurve` reaches REST through `describe_minted_edges`
-  and six fillet strut sites, so "pre-body" never fenced it. **Evan
+  and six fillet strut sites, so "pre-body" never fenced it. **Ev
   ratified the corrected criterion in chat: the boundary is
   TRANSIENCE.** Q2's substance — narrow `MappedCurve` rather than a
   dedicated `Scaffold` rung — is UNCHANGED and was explicitly not

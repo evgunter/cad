@@ -1,7 +1,7 @@
 # S-QA — gates that lie (plan)
 
-**STATUS: RATIFIED (Evan's in-chat rulings, 2026-08-29, all three
-folded at Rulings below).** Opened on Evan's direction
+**STATUS: RATIFIED (Ev's in-chat rulings, 2026-08-29, all three
+folded at Rulings below).** Opened on Ev's direction
 (in-chat, 2026-08-29: "can you orchestrate its program S-QA") from the
 ratified stream cut in `docs/WORK-STREAMS-2026-08.md` (§S-QA, merged
 at #1200). The cut is the charter and is cited, not re-litigated.
@@ -39,7 +39,7 @@ without looking.
 
 - The stream cut and its keep-outs (`docs/WORK-STREAMS-2026-08.md`
   §S-QA).
-- **Configuration sampling is Evan's design**
+- **Configuration sampling is Ev's design**
   (`docs/CI-MINUTES-2026-08.md` §2026-08-22): one point of
   {lane} × {ε} per run, seeded from the head SHA; the premise is that
   disagreements persist in the tree so a later draw finds them, and a
@@ -49,7 +49,7 @@ without looking.
   for detectors whose subject persists in the tree, unsound for
   detectors of absence — and every future sampling entry is argued
   per-row against absence, never inherited.
-- **A scheduled full run on main is DECLINED (Evan, twice:
+- **A scheduled full run on main is DECLINED (Ev, twice:
   2026-08-22 at F3, re-affirmed against the nightly)** — the next
   PR's merge-ref gates the landed tree; the accepted residue is that
   a semantic conflict between two green PRs surfaces on the next,
@@ -251,7 +251,7 @@ is LIB's #1225; k-lint distribution semantics (what a fired lint
 means) are the K-telemetry ground (`docs/K-REPORT.md`), not this
 program's to reinterpret.
 
-## Rulings (Evan, in-chat, 2026-08-29)
+## Rulings (Ev, in-chat, 2026-08-29)
 
 1. **Q1 — RULED: the k-lint path pin lands at `tools/` scope.**
    A change under `tools/` forces the k-lint row that compiles it
@@ -273,7 +273,7 @@ program's to reinterpret.
    `*interval*` basenames appear in the diff (fired ~10% of recent
    code merges as a pin, much of it rename noise per #1122's
    measurement). **The load-bearing half of the ruling is the
-   doc, not the advisory (Evan)**: the convention lands in
+   doc, not the advisory (Ev)**: the convention lands in
    `docs/prompts/implementer-discipline.md` — the file every lane
    reads — in the same PR that drops the pin, replacing its current
    path-rule paragraph. The `interval-transcendentals/` pin stays

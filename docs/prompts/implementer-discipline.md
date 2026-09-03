@@ -42,7 +42,7 @@ you:
   for. Nobody else can reconstruct that later, and a PR that does not say it
   is asking its reviewer to assume the gate saw the axis the change was about.
 
-  A filename does not do this for you (Evan's ruling, 2026-08-29, on #1122).
+  A filename does not do this for you (Ev's ruling, 2026-08-29, on #1122).
   `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed
   file's basename contained `interval`; that arm is gone, because it could not
   tell a rename from a semantic edit and gated a whole branch on the wrong

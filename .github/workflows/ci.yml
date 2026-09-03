@@ -14,7 +14,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Evan's ask).
+  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Ev's ask).
   #
   # The `filter` job draws ONE point of {lane} x {eps} x {k-lint row} per run
   # and lets repetition cover the rest — scripts/ci-filter.py's CONFIGURATION
@@ -104,7 +104,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Evan's
+# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Ev's
 # authorisation; measured in docs/CI-MINUTES-2026-08.md, finding F3).
 #
 # A merge ran the whole gate a SECOND time: ~87 billed minutes on the
@@ -149,7 +149,7 @@ concurrency:
 # independently-green PRs surfaces at the NEXT PR's merge-ref rather
 # than at the merge that caused it.
 #
-# A scheduled full run on main was the obvious pairing and Evan DECLINED
+# A scheduled full run on main was the obvious pairing and Ev DECLINED
 # it (2026-08-22): the next PR's merge-ref is main plus that branch, so
 # it tests the landed tree anyway — a scheduled run buys a second
 # discovery of the same fact, at the price of a full gate per period
@@ -163,7 +163,7 @@ concurrency:
 # fail-fast on the landed tree belongs on the PR side of this line, not
 # restored to the push side.
 
-# BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
+# BUILD ONCE PER COMPILE MODE (2026-08-03, Ev's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
 # BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is read at RUNTIME
 # (geom-core/src/tolerance.rs), never at compile time — so compiling the
@@ -192,7 +192,7 @@ concurrency:
 #     exercises), so each build job keeps a `cargo test --doc` step.
 #
 # LINK/DEBUGINFO KNOBS ON THE TWO BUILD JOBS (2026-08-04, from the
-# Bazel-verdict measurement; Evan approved items 2/3/4 of its ranked
+# Bazel-verdict measurement; Ev approved items 2/3/4 of its ranked
 # alternatives). The verdict was NO to Bazel, on this evidence from run
 # 30884593286: the `rebuild latency` job compiles all 10 workspace libs
 # from scratch plus ONE test binary in 20.16 s, while `build + archive`
@@ -318,7 +318,7 @@ env:
 # the dependent closure have a single implementation and cannot drift.
 
 jobs:
-  # Change filter (added 2026-07-29, Evan's ask after the Actions-budget
+  # Change filter (added 2026-07-29, Ev's ask after the Actions-budget
   # exhaustion; made dependency-aware 2026-07-28). THREE tiers, and all of
   # the logic lives in scripts/ci-filter.py — this job is a thin wrapper
   # that wires that script's KEY=value output onto the `if:` conditions and
@@ -377,7 +377,7 @@ jobs:
       # output, without re-deriving it.
       seeds: ${{ steps.classify.outputs.SEEDS }}
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
-      # naga + winit). SEED-keyed per Evan's viewer-CI-posture ruling
+      # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
       # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
       # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
@@ -493,7 +493,7 @@ jobs:
           scripts/ci-filter.py "${FILTER[@]}" --seed "$SEED" \
             --config-from-message commit-message.txt "${CONFIG[@]}" \
             --notices filter-notices.txt > filter.out
-          # DRAFT PRs SKIP THE GATE (2026-08-22, Evan's ask; F5 of the
+          # DRAFT PRs SKIP THE GATE (2026-08-22, Ev's ask; F5 of the
           # minutes audit, which called it "the largest single lever
           # available" and left it as a policy decision).
           #
@@ -682,7 +682,7 @@ jobs:
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
-  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Evan,
+  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Ev,
   # 2026-08-20). `discipline` below is `if: run_build == 'true'`, and a
   # change set of only .md / memories/ / local-scripts/ / .claude/ is
   # TIER=docs, so it does not run. That posture is deliberate and cheap
@@ -1256,7 +1256,7 @@ jobs:
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
-      # the GUI toolkit rows (Evan's viewer-CI-posture ruling,
+      # the GUI toolkit rows (Ev's viewer-CI-posture ruling,
       # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
       # renderer-free modules are gated on every run and only the
@@ -1316,7 +1316,7 @@ jobs:
       # or `mmap` path is enough, and the documents would still read as
       # checked fact.
       #
-      # ONE LEG, and it is the interval one. Evan's ruling, 2026-08-21:
+      # ONE LEG, and it is the interval one. Ev's ruling, 2026-08-21:
       # *"do add wasm cross compiling for the interval build only. the
       # lint for having interval be purely additive suffices."* The
       # default-features leg and a whole-workspace `wasm_js` leg were both
@@ -1384,7 +1384,7 @@ jobs:
       # row and its "verified fix" paragraph are a one-time reading again,
       # and §4 now says so at the row. Same ruling, same reason.
       #
-      # SITED IN THIS JOB, not in one of its own (Evan's earlier
+      # SITED IN THIS JOB, not in one of its own (Ev's earlier
       # constraint: the guard must not add runner time). Actions bills PER
       # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so
       # billed minutes are the currency, not seconds.
@@ -1502,7 +1502,7 @@ jobs:
       #
       # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
       # crates that no other row in this workflow needs. It is not a
-      # default feature, and per Evan's viewer-CI-posture ruling
+      # default feature, and per Ev's viewer-CI-posture ruling
       # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
       # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
@@ -1521,7 +1521,7 @@ jobs:
       # row in nightly.yml, ungated, once a day.
       #
       # THE VIEWER TOOLKIT ROWS ARE NOT HERE. They used to be, and that
-      # was a hole in Evan's viewer-CI ruling rather than a hole in this
+      # was a hole in Ev's viewer-CI ruling rather than a hole in this
       # job: THIS JOB CARRIES `lane != 'interval'`, and LANE is a 50/50
       # sample, so on an interval draw the whole job — the seed-keyed
       # verdict step included — never ran, and the ruling's "never a
@@ -1619,7 +1619,7 @@ jobs:
     #
     # RE-ASKED UNDER CONFIGURATION SAMPLING (2026-08-22), because the
     # verdict above rests on amortising ONE compile over TEN run legs and a
-    # sampled run has one. Evan's question was the right one — "if we run at
+    # sampled run has one. Ev's question was the right one — "if we run at
     # one eps instead of 3 that's plausibly enough to shift the balance". It
     # shifts it and does not cross it, in either lane, and the margin is
     # wide enough that no new measurement was taken to say so.
@@ -1653,7 +1653,7 @@ jobs:
     # settle it (the same trap this note's own header warns about).
     #
     # ============================================================
-    # NOW opt-level 1, NOT 2 (Evan, 2026-08-25). EVERYTHING ABOVE THIS LINE
+    # NOW opt-level 1, NOT 2 (Ev, 2026-08-25). EVERYTHING ABOVE THIS LINE
     # IS THE HISTORY OF A TWO-POINT COMPARISON, and the two points were the
     # wrong ones.
     #
@@ -1835,7 +1835,7 @@ jobs:
       fail-fast: false
       # ONE ε ROW PER RUN, SAMPLED (2026-08-22 — scripts/ci-filter.py's
       # CONFIGURATION SAMPLING note is the argument; this is the wiring).
-      # The battery is still {default, 1e-6, 1e-12} (Evan's ruling,
+      # The battery is still {default, 1e-6, 1e-12} (Ev's ruling,
       # 2026-07-30): the two env rows straddle the compiled default
       # (DEFAULT_EPS = 1e-9) three orders either side, and the `default`
       # row runs with the variable genuinely UNSET (an empty
@@ -2790,7 +2790,7 @@ jobs:
           echo "CASES_SECONDS=$((SECONDS - t0))"
 
   # THE `watertight (admesh)` JOB STOOD HERE, AND HAS MOVED TO
-  # .github/workflows/nightly.yml (Evan, 2026-08-22). Its evidence is its own
+  # .github/workflows/nightly.yml (Ev, 2026-08-22). Its evidence is its own
   # history: one solo red in 37 days of gate runs, and that one was a rustup
   # outage rather than a mesh. It is a PERSISTENCE-detector — a non-manifold
   # body stays non-manifold — so a nightly finds what this row would have
@@ -2949,7 +2949,7 @@ jobs:
   # unchanged — same three eps bands, same scoped test set.)
 
   # THE `persistence` AND `band 4 corpus` JOBS STOOD HERE, AND ARE
-  # DELETED (2026-08-22, Evan: "no need to make any special attempt to
+  # DELETED (2026-08-22, Ev: "no need to make any special attempt to
   # keep m4_pr8_corpus visible. just make it a normal test").
   #
   # WHAT THEY WERE. Two jobs that re-ran `m4_pr6_roundtrip::`,
@@ -3035,7 +3035,7 @@ jobs:
     # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
     # row that RUNS THAT CRATE'S OWN SUITE rather than sampling one (four of
     # these five rows COMPILE tools/tess-meter, through demos/tour's plain
-    # dependency on it; only `dev-default` runs its tests — Evan's ruling,
+    # dependency on it; only `dev-default` runs its tests — Ev's ruling,
     # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
     # the run says `klint:pinned` in the step above). `demos/` is deliberately
     # left to the draw, argued at the same site.

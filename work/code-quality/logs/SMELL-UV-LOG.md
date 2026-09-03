@@ -1,6 +1,6 @@
 # SMELL-UV — execution log for Tracks U and V
 
-**Constituted 2026-09-01, by this session's orchestrator, per Evan's
+**Constituted 2026-09-01, by this session's orchestrator, per Ev's
 in-chat instruction to take the unclaimed tracks.** Track U
 (`crates/step-import/`, `crates/step-export/`, `crates/stl/`,
 `crates/pncad-py/`, `crates/pncad/`) and Track V (`crates/editor-core/`,
@@ -13,7 +13,7 @@ live status is that file's table, and a landed row leaves it.
 session's own branch. **Outside the model A/B experiment**, following
 the F/G/I/T/KPW precedent for smell tracks: no pairing, no ordinal, no
 row in `docs/MODEL-AB-LOG.md`. As the T-log says: precedent-following,
-not forced; Evan can reverse it for later lanes.
+not forced; Ev can reverse it for later lanes.
 
 ## The ground, and how it was checked
 
@@ -36,7 +36,7 @@ than assumed:
 - **LIB** (reactivated 2026-08-29; active in `pncad`/`pncad-py`
   bindings and refusal-display curation). Seams: LIB drafts the
   #741/#742 plans (its log, 08-29: they "wait on LIB drafting plans,
-  not on Evan"); U keeps rows C13/C14 and does not draft. Any UV lane
+  not on Ev"); U keeps rows C13/C14 and does not draft. Any UV lane
   in `pncad-py`/`pncad` merges main before opening and expects
   census/pyi/audit contention.
 - **M10** — `editor-core` parameters/analysis/eval, `product.rs` Dual
@@ -50,7 +50,7 @@ than assumed:
 
 **Environment (remote container, the LIB 08-29 adaptations):** hosted
 CI is the verification of record; no monitor scripts or away-channel
-(the tracker is read at check-ins; Evan reads this log and the session);
+(the tracker is read at check-ins; Ev reads this log and the session);
 GitHub via MCP tools; lanes are worktrees with lane-private
 `CARGO_TARGET_DIR`, heavy cargo behind `local-scripts/with-build-slot.sh`.
 Lanes do not edit `docs/SMELL-SCAN-2026-08.md` — that file conflicts by
@@ -71,17 +71,17 @@ wrong answer is reachable (C-R12 criterion).
 
 | # | Question | Ruling | Who, when |
 |---|---|---|---|
-| **UV-R1** | Claim | **Tracks U and V claimed whole by this session**, per the partition's own rule (a track can be claimed the day it is read) and Evan's instruction. Recorded in §D's two track headers in the same change as this log | orchestrator, 2026-09-01 |
+| **UV-R1** | Claim | **Tracks U and V claimed whole by this session**, per the partition's own rule (a track can be claimed the day it is read) and Ev's instruction. Recorded in §D's two track headers in the same change as this log | orchestrator, 2026-09-01 |
 | **UV-R2** | U's inherited `E-m / #711` row — its premise is *"PR #784 is open and red"* | **SPENT.** #784 merged 2026-08-27 (#711 closed with it). Its red was `D86`'s false positive (`interval-only-selection.py` reading a doc comment as a cfg gate), and D86 is fixed — the script now matches the cfg attribute and its header records the old bug. Nothing left for a lane; row deleted from §D with the citation sweep (E-m/#711/#784 appear nowhere else in the ledger) | orchestrator, 2026-09-01 |
 | **UV-R3** | `D362` re-derived against the tree | **Half closed by LIB's curation lanes**: `HitTestError` has `Display` (`resolve/hit.rs:61`), so does `InterrogateError` (`names/interrogate.rs:129`); the `#1103` `ParseError` member closed per LIB's log. **The open remainder is `NodePickError` (`resolve/pick.rs`) and `ResolveIndeterminate` (`resolve/mod.rs`)** — the egui-label member. §D row updated per the partly-closed rule (closed members deleted). The viewer-side consumption stays #1111's/viewer's, out of fence | orchestrator, 2026-09-01 |
 | **UV-R4** | #1423 (MATE-3) is open and edits inside both fences | **KEEP-OUT while #1423 is open**: `editor-core/{assembly.rs, program.rs, persist/wire.rs, eval/}`, `profile/{path.rs, path/program.rs}`. Rows HELD by it: **D121** (`res_spec` is `program.rs`'s; the vocabulary reaches `profile/path`), **D39** (+ tracker sibling #1282 — `PathError` is `path.rs:522`), **S190's editor-core half** (`attribute` is `assembly.rs`'s). A keep-out is lifted by observing the merge, not by citing a brief (T-R7's lesson) | orchestrator, 2026-09-01 |
-| **UV-R5** | C13 (#741) / C14 (#742) — *"plan signed off before implementation"* | **Not takeable now and not waiting on Evan today.** LIB holds the plan drafting (its 08-29 register correction says so explicitly); the issues' own faces say the plans then go to Evan. U keeps the rows; when the plans exist and are signed off, implementation lands by fence (step crates = U's) | orchestrator, 2026-09-01 |
+| **UV-R5** | C13 (#741) / C14 (#742) — *"plan signed off before implementation"* | **Not takeable now and not waiting on Ev today.** LIB holds the plan drafting (its 08-29 register correction says so explicitly); the issues' own faces say the plans then go to Ev. U keeps the rows; when the plans exist and are signed off, implementation lands by fence (step crates = U's) | orchestrator, 2026-09-01 |
 | **UV-R6** | S190 / #855 — the fix is a `topo` signature change (`ValidationError::CensusUnsupported` carrying the pair), and `census.rs` is Track Q's fence, claimed by S-BOOL | **The kernel half is S-BOOL's; filing is the handoff** (comment posted on #855 naming this). V's residue is consumption-side only: when the pair-carrying variant exists, `attribute` answers by `by_pair` and the width-1 caveats retire. HELD on that change AND on #1423 (same file, `assembly.rs`) | orchestrator, 2026-09-01 |
 | **UV-R8** | #1423 (MATE-3) merged into main (its merge commit is on main, observed 2026-09-01) — does the UV-R4 keep-out lift? | **LIFTED, by observation of the merge** (T-R7's rule: a keep-out lifts by observing the module, not by citing an event). `D121` and `D39` (+#1282) are takeable — wave 2. `S190`'s residue stays HELD on its kernel half (UV-R6). `G4` stays held on a different ground, measured by PR 1453: the collapse reds `scripts/gates/bounds-allowlist.sh` (Track K's fence — entries for `family.rs`/`program.rs` plus KNOWN GAP 3's text), so it lands as one piece with K's `D68` answer or an allowlist row filed there; it is also a breaking `pncad::profile` API removal | orchestrator, 2026-09-01 |
 | **UV-R10** | uv-d handed back three findings its unit could not carry; its review verified all three against the tree | **Minted at adjudication** (a finding with no durable home cannot warn anyone): `D364` (`ProgramTarget`/`Target` construct-hop), `D365` (content-key mode-tag injectivity), `D340` (pncad-py's silent mode surface — Track U, the `D75` twin) | orchestrator, 2026-09-01 |
 | **UV-R11** | The commissioned scan of the five unscanned crates returned (read-only lane, 2026-09-01) | **Adjudicated into the ledger**: findings S410–S415 (new section above §D), rows `D342`–`D344` minted for the three staff-first items; `stl` and `profile` recorded clean (the empty result on a just-worked crate is the datum); the scan's instrument blind spots recorded with it. `bvh`/`quantity` remain Track M's to commission | orchestrator, 2026-09-01 |
 | **UV-R9** | `D361`'s closure re-exposes `S88`'s `geom-brep` half — enumerated by the census, named by no row on any track | **Filed as Track R's `D305`** in the same state-sync (the partition's filing-is-the-handoff rule); R's Items count re-derived 11 → 12 | orchestrator, 2026-09-01 |
-| **UV-R7** | Wave 1 composition | **uv-a** (V): D362 remainder + `StableName` `Display` + D81's 23 sites — one lane, one class (typed payloads reaching user prose through `Debug`); D81's own row says re-derive the count first. **uv-b** (V): G4 + D361 — both profile trait-surface rows, G4 ruled mechanical by Evan with both gates fallen (#791, #801). **uv-c** (U): D94, `step-import/src` only. Wave 2 queued: D47+D37 as one `pncad-py` lane once uv-a lands (the §D note says one lane is cheaper than either alone); C16; the UV-R4 holds when #1423 merges; D75 with LIB coordination | orchestrator, 2026-09-01 |
+| **UV-R7** | Wave 1 composition | **uv-a** (V): D362 remainder + `StableName` `Display` + D81's 23 sites — one lane, one class (typed payloads reaching user prose through `Debug`); D81's own row says re-derive the count first. **uv-b** (V): G4 + D361 — both profile trait-surface rows, G4 ruled mechanical by Ev with both gates fallen (#791, #801). **uv-c** (U): D94, `step-import/src` only. Wave 2 queued: D47+D37 as one `pncad-py` lane once uv-a lands (the §D note says one lane is cheaper than either alone); C16; the UV-R4 holds when #1423 merges; D75 with LIB coordination | orchestrator, 2026-09-01 |
 
 **Noted for later, not rowed here:** (a) the **unscanned-crates
 commission** — §D's closing note says U and V now own commissioning a
@@ -102,7 +102,7 @@ uv-b — stated so nobody reads uv-b's merge as closing it.
 | **uv-c** | D94 | **PR 1452** implemented + style-reviewed (no MAJOR; all four claims verified by execution) + fix pass (head `7ef6129`: one-lookup restructures at the seam write and `edge()`, census-comment scope, decline story corrected to the manifold gate; `ring_samples` typed refusal deliberately kept while S14 is open); CI green (drew the interval lane on the fix head) — **MERGED with this state-sync** |
 | (held, UV-R6) | S190's editor-core residue | until S-BOOL's pair-carrying `CensusUnsupported` exists |
 | (held, UV-R8) | G4's landing | until the bounds-allowlist half lands with Track K's `D68` answer |
-| (held, UV-R5) | C13, C14 | until LIB's plans exist and Evan signs off |
+| (held, UV-R5) | C13, C14 | until LIB's plans exist and Ev signs off |
 | **uv-d** | D121 | **PR 1475**: the mode set gets the `Step` treatment — `arc_modes!` (enum/ALL/projection), the editor-core census with a compile-time witness and the `res_spec` laundering clause, the profile replay census (catching `Via`/`ArcLen`, never replayed), fused coverage widened. Style review: no MAJOR; fix pass made the two `_ =>` classifications exhaustive on `Step` (the D360 shape its own sweep hunts, caught by the review) — head `5926855`, CI green across three drawn points — **MERGED with this state-sync** |
 | **uv-f** | D47, D37 | **PR 1481**: D47 closed as the FUNNEL GUARD (`reads_as_prose` in `typed_err`) plus one real fix (`ExportError`'s `RecipeNodeId` dump) — the row's edit half had landed via LIB's `24dd07f` on 08-29, which UV-R3's re-derivation missed (correction recorded). D37 re-derived smaller: the deferral half gained its owner (#1479), the discriminant half filed as #1480 and taken by uv-e. Style review: MERGEABLE, one MINOR (the guard's false-positive channel misattributed — the real one was six unquoted `path.display()` echoes in `workspace.rs`, all fixed at the fix pass, head `ae18778`, CI green) — **MERGED with this state-sync** |
 | **uv-e** | D39, #1282, #1480, + the `DecisionValue` addendum | **PR 1490**: `PathErrorKind` typed projection (the honest fix — `PartialEq` is deliberately absent from the scalar contract), 30 `num()` prose sites now named-arg, `path_error_tag` collapsed onto `kind()`, the switch_slots pin matches on TYPE (planted misclassification reds; the old prose assert stayed green under the same plant). Review: no MAJOR; fix pass took all 8 including the semantic merge (main's falsified tags.rs sentences dropped) — head `d6ad1c5`, CI green (interval/1e-6 drawn) — **MERGED with this state-sync**. Filed onward: `D366` (NodeErrorKind + node_error_tag, minted), #1491 (the `topo::BooleanError` sibling, Track Q's) |
@@ -137,7 +137,7 @@ is adjudicated (S410–S415; S410/S413 landed same-day).
 4. Unrowed findings S414/S415, and #1495's options-struct lane.
 
 **Holds, and what wakes each:** C13/C14 wake when LIB drafts the
-#741/#742 plans and Evan signs off (UV-R5). G4 wakes when Track K's
+#741/#742 plans and Ev signs off (UV-R5). G4 wakes when Track K's
 allowlist answer exists — the collapse is proven mechanical and PR
 1453's body carries the whole recipe (UV-R8). S190's residue wakes on
 S-BOOL's pair-carrying `CensusUnsupported` (#855, UV-R6).
@@ -232,7 +232,7 @@ so the decline guards direct `SolidSpec` constructors; prose corrected
 to say so. `bound()`/`edge()` restructured entry-yields (miss
 unrepresentable). `ring_samples`' typed internal refusal deliberately
 kept: typed-vs-panic at proven-impossible lookups is S14, open in front
-of Evan — this program does not flip typed→panic while it is. Review:
+of Ev — this program does not flip typed→panic while it is. Review:
 no MAJOR. Handed back and recorded here so it has a home: the
 `map_err(|_| …)` sites in `entities.rs`/`parse.rs` are typed refusals
 discarding payloads that have `Display`s — members of the

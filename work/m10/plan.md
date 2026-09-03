@@ -1,6 +1,6 @@
 # M10 — the error-propagation MVP (plan)
 
-**STATUS: RATIFIED (Evan's in-conversation sign-off, 2026-08-29,
+**STATUS: RATIFIED (Ev's in-conversation sign-off, 2026-08-29,
 with all five rulings folded below).** The milestone builds
 `docs/ERROR-DESIGN.md` (E1–E11, ratified #110 with the
 chamber-containment amendment) at MVP scope. Every *decision* this
@@ -23,7 +23,7 @@ in this same PR, per that entry's rule; implementer blocks are named
   trichotomy; tail-mass accounting with the merged unresolved-mass
   budget and chamber containment; E9 tangent-poison-never-refuses;
   E11's loud exclusions.
-- **The D1 ruling (Evan, 2026-08-19)**: a `Dual` may not certify —
+- **The D1 ruling (Ev, 2026-08-19)**: a `Dual` may not certify —
   *at least for now* — but it may have `Bounds`. The hedge is
   collected as the question M10 opens with (*what does a `Dual`
   actually have to do*), and M10-D below is where it gets answered.
@@ -75,7 +75,7 @@ parameters.** Profile programs resolve their parameter expressions
 at f64 and the lanes consume the elaborated segments via `embed`
 (`eval/slots.rs:27-30`, `eval/wire.rs:475`; PROFILES-V2's recorded
 asymmetry — profile GEOMETRY is f64-pinned while magnitude slots
-are lane-live, flagged there as "deserves Evan's explicit eyes,
+are lane-live, flagged there as "deserves Ev's explicit eyes,
 because under v2 the SAME document parameter can feed both kinds
 of slot"). Consequence, measured against the ratified semantics: a
 `Dual` seed on a profile dimension propagates NO tangent (E4 would
@@ -89,7 +89,7 @@ below is the added unit; M10-3/M10-4 gain it as a dependency for
 profile-driven parameters.
 
 - **M10-P — the profile-parameter lift (design pass first; its
-  design PR waits for Evan, since it elaborates the PROFILES-V2
+  design PR waits for Ev, since it elaborates the PROFILES-V2
   asymmetry that doc explicitly reserved for his eyes).** The
   proposal to be argued there: C6's principle (structure —
   fillet fits, junction classes — selected ONCE, at f64) is
@@ -123,7 +123,7 @@ constants, sampler choices and report shapes are PR-spec per
 ERROR-DESIGN's own "Open after this doc" list.
 
 - **M10-D — the Dual contract (design pass; design-conversation PR,
-  Evan-ratified).** Answers the roadmap entry's collected question:
+  Ev-ratified).** Answers the roadmap entry's collected question:
   *what does a `Dual` actually have to do*, and cleans up the
   `Bounds`/`CertifiedEnclosure` split on that answer. Concretely:
   (i) **#687** — `ContentBits for Dual` and whether the seed enters
@@ -249,7 +249,7 @@ consumes carriers through whatever descriptions exist at dispatch);
 mass-property enclosure quality (#870) is props' own meter, not an
 M10 unit.
 
-## Rulings (Evan, 2026-08-29, in-conversation at ratification)
+## Rulings (Ev, 2026-08-29, in-conversation at ratification)
 
 - **Q1 — the sketch solver is OUT of this slate** ("no solver
   yet"). M10 = the ERROR-DESIGN MVP; the solver (DESIGN.md Q3,
@@ -272,7 +272,7 @@ M10 unit.
   migration-step sentence reads as written for the post-release
   world.
 - **Q5 — the #1055 curved arm lands in M10-5, held as a STRETCH**
-  (Evan: "sounds good though possibly ambitious"). The certificate
+  (Ev: "sounds good though possibly ambitious"). The certificate
   and the trichotomy are M10-5's acceptance; the curved
   `wall_clearance` arm is its named first consumer and lands in
   the unit if it falls out cleanly, otherwise it becomes the first

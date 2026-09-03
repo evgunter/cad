@@ -3,7 +3,7 @@
 **STATUS: CLOSED (exit walk ratified 2026-08-31 — see
 `docs/S-BLEND-EXIT-WALK.md`, the program's done-state of
 record).** Graduated from the ratified 2026-08-29 work-stream
-survey (`docs/WORK-STREAMS-2026-08.md`, merged #1200 after Evan's
+survey (`docs/WORK-STREAMS-2026-08.md`, merged #1200 after Ev's
 read, carrying VERBS' cession and both handoff records from that
 PR's thread). Every design decision this plan leans on is ratified
 elsewhere and cited, not re-litigated. Live state is
@@ -50,7 +50,7 @@ merges** — not before; until then 2b's shell/offset files in
   S-BLEND keeps is the KERNEL half of chamfer parity: 919 and the
   917 vocabulary question, both sequenced behind G16 (below).
 - **VERBS** keeps its boolean-breadth queue; S-BLEND is ceded clear
-  (VERBS orchestrator on #1200, at Evan's request) with two handoff
+  (VERBS orchestrator on #1200, at Ev's request) with two handoff
   records carried under "Handoffs" below.
 - **M10, PCURVE, LIB façade/bindings**: no contact; the stream
   touches neither editor-core eval/schema nor geom-brep.
@@ -92,7 +92,7 @@ parallel with anything.
    annulus rims' seam keys between carves, keeping every decision
    in the plan phase — so the decide-before-mutate discipline
    stands. If the unit measures that shape insufficient, changing
-   the discipline is a design fork: STOP and open it with Evan.
+   the discipline is a design fork: STOP and open it with Ev.
 3. **BLEND-3 — concave plane-plane chamfers (issue 919).** The
    geometry already handles both sides; the unit widens the two
    admission doors (`corner_config`'s all-convex requirement,
@@ -115,7 +115,7 @@ parallel with anything.
    conversation: HOW a shared refusal names the verb that raised it
    (field on the error / threaded kind / per-verb rendering /
    neutral wording) is user-facing refusal prose with several
-   viable answers — Evan's call before the ~255-reference rename
+   viable answers — Ev's call before the ~255-reference rename
    executes. Must not be closed by minting a parallel enum.
 7. **BLEND-7 — the enclosing-tangency refusal (issue 827,
    ruled).** Executes the ratified
@@ -136,12 +136,12 @@ parallel with anything.
 
 **Backlog, honestly gated:** issue 987 (ruled-spine carve) is
 double-gated — its chain terminations are the OQ6 run-out taxonomy
-reserved for Evan (per `docs/ARMS3-DESIGN.md` A3-3's parked pair),
+reserved for Ev (per `docs/ARMS3-DESIGN.md` A3-3's parked pair),
 and it is consumer-gated with no corpus shape asking. It schedules
 only after a design conversation AND a named consumer; neither
 exists today.
 
-## Design conversations to open with Evan
+## Design conversations to open with Ev
 
 - **Issue 827** (enclosing ρ < 0 tangency): **RESOLVED — RATIFIED
   2026-08-29** (`docs/ENCLOSING-TANGENCY-DESIGN.md`): the class is
