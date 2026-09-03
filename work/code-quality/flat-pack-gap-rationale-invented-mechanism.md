@@ -7,7 +7,7 @@ opened: 2026-09-02
 github: 1561
 refs: [1553, 1506]
 closed: 2026-09-03
-branch: smell/x-prose
+branch: smell/x-prose-tracker
 ---
 
 ## From GitHub issue 1561
