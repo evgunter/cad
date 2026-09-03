@@ -362,7 +362,10 @@ fn real_study(tol: Tol) {
             receipt,
         }) => {
             println!("   NOTHING CERTIFIED — and the refusal carries the study's answer anyway:");
-            println!("     nominal web {:.4} mm", nominal * 1e3);
+            println!(
+                "     nominal web {:.4} mm",
+                nominal.expect("the web is a closed form, so it has an f64 nominal") * 1e3
+            );
             for s in &sensitivities {
                 // Through the library's own spelling, not `Debug`:
                 // the E4 chamber mark is the load-bearing half of a
@@ -639,7 +642,17 @@ fn print_divergence(
     );
     match &report.rss {
         pncad::analysis::Rss::Advisory { sigma } => {
-            let three_sigma = report.nominal - 3.0 * sigma;
+            let Ok(nominal) = report.nominal else {
+                // A measure with no f64 nominal has no linearized
+                // figure to disagree with; the certified column above
+                // still printed and still gates.
+                println!(
+                    "     ADVISORY rss: no linearized figure — this measure has no f64 \
+                     nominal to expand around"
+                );
+                return;
+            };
+            let three_sigma = nominal - 3.0 * sigma;
             println!(
                 "     ADVISORY rss: σ ≈ {sigma:e}, so a 3σ reading says the web reaches \
                  {three_sigma:e} — {} the bound.",
@@ -747,7 +760,7 @@ mod tests {
         );
         match report.rss {
             pncad::analysis::Rss::Advisory { sigma } => assert!(
-                report.nominal - 3.0 * sigma >= bound,
+                report.nominal.expect("the web has an f64 nominal") - 3.0 * sigma >= bound,
                 "and the RSS's 3σ reading does not — that disagreement is the cell's \
                  subject; σ = {sigma:e}"
             ),
@@ -780,7 +793,8 @@ mod tests {
             pncad::analysis::Rss::Advisory { sigma } => sigma,
             ref other => panic!("every contributor carries a measure here: {other:?}"),
         };
-        let gap = (report.nominal - 3.0 * sigma) - report.worst_case.lo;
+        let gap = (report.nominal.expect("the web has an f64 nominal") - 3.0 * sigma)
+            - report.worst_case.lo;
         assert!(gap > 0.0, "the certified worst case must reach further under than 3σ");
         assert!(
             gap < 10.0 * tol.eps(),

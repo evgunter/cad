@@ -44,6 +44,7 @@ use std::collections::BTreeMap;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
 use editor_core::drive::{DriveConfig, drive};
+use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
     EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef,
@@ -491,5 +492,71 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         ),
         "typed, naming what it found: {}",
         err.kind
+    );
+}
+
+/// **§1 + E9: a stackup over a `min_clearance` BUILDS, with the
+/// advisory columns forfeited** (M10-6's review, R2's MINOR-3).
+///
+/// The measure has no f64 value by construction, so the nominal, the
+/// per-parameter table and the RSS — all advisory — have nothing to
+/// report. The certified worst case does: it is the hull of the
+/// measure's enclosures over the certified leaves, which is exactly
+/// what the histogram already tabulates. E9's rule is that a degraded
+/// advisory column forfeits and the gate stays, and this row is that
+/// rule as a test: before it, the whole report refused
+/// `MeasureRefusedAtNominal` because an advisory number was missing.
+#[test]
+fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates() {
+    let f = dumbbell();
+    let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
+    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the nominal builds");
+    assert!(!verdict.certified().is_empty(), "the box certifies");
+    let report = stackup(
+        &f.doc,
+        f.measure,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        Tol::witness(),
+    )
+    .expect("the report builds even though the nominal cannot");
+
+    // The gating column is there and encloses the built gap.
+    assert!(
+        report.worst_case.lo <= NECK_GAP && NECK_GAP <= report.worst_case.hi,
+        "the certified worst case [{}, {}] must enclose the built gap {NECK_GAP}",
+        report.worst_case.lo,
+        report.worst_case.hi
+    );
+    assert!(report.worst_case.leaves > 0);
+
+    // And the advisory column forfeits BY NAME rather than silently.
+    match report.nominal {
+        Err(why) => {
+            assert_eq!(why.verb(), "min_clearance");
+            let said = why.to_string();
+            assert!(
+                said.contains("clearance::min_separation"),
+                "the forfeit names the door that can answer: {said}"
+            );
+        }
+        Ok(v) => panic!("a min_clearance has no f64 nominal, yet one arrived: {v}"),
+    }
+
+    // Both forms say so on their own face — the goldening one so a
+    // diff shows it, the human one so a reader is not left to infer a
+    // missing line.
+    assert!(
+        report.serialize().contains("nominal=unavailable:min_clearance"),
+        "the goldening form records the forfeit: {}",
+        report.serialize()
+    );
+    let human = report.render(&analyzed);
+    assert!(
+        human.contains("UNAVAILABLE") && human.contains("still gates"),
+        "the human form says the column forfeited AND that the gate stands: {human}"
     );
 }

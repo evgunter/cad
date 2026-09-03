@@ -477,6 +477,16 @@ pub enum MeasureUnavailableAt {
     },
 }
 
+impl MeasureUnavailableAt {
+    /// The primitive whose answer is unavailable — the one word a
+    /// goldening form needs, without spelling the whole prose.
+    pub fn verb(&self) -> &'static str {
+        match self {
+            Self::NeedsEnclosure { verb, .. } => verb,
+        }
+    }
+}
+
 impl core::fmt::Display for MeasureUnavailableAt {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

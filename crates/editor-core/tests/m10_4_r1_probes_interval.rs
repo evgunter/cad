@@ -657,7 +657,7 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
     let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
     let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
         .expect("a certified arithmetic box");
-    assert!((report.nominal - 8.0).abs() < 1e-12);
+    assert!((report.nominal.expect("this fixture measures a closed form, which has an f64 nominal") - 8.0).abs() < 1e-12);
     let row = &report.per_param[0];
     match &row.sensitivity {
         SensitivityOutcome::Derivative { value, .. } => {
@@ -674,18 +674,18 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
     // Encloses the true range, and is not the linearization.
     assert!(wc.lo <= 1.0 + 1e-9 && wc.hi >= 27.0 - 1e-9, "{wc:?}");
     assert!(
-        wc.hi > report.nominal + contribution,
+        wc.hi > report.nominal.expect("this fixture measures a closed form, which has an f64 nominal") + contribution,
         "the hull top {} must exceed the linearized top {}",
         wc.hi,
-        report.nominal + contribution
+        report.nominal.expect("this fixture measures a closed form, which has an f64 nominal") + contribution
     );
     // The linearized band's BOTTOM is below the true minimum, which is
     // the direction that makes a linearized stackup unsafe: the hull is
     // the one that is right.
     assert!(
-        report.nominal - contribution < wc.lo,
+        report.nominal.expect("this fixture measures a closed form, which has an f64 nominal") - contribution < wc.lo,
         "the linearized bottom {} understates the true minimum {}",
-        report.nominal - contribution,
+        report.nominal.expect("this fixture measures a closed form, which has an f64 nominal") - contribution,
         wc.lo
     );
 }

@@ -626,25 +626,26 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
     assert_ne!(run(3, false), run(4, false), "the seed rides the report");
 }
 
-/// **The typed absence loses its whole payload at the Python read
-/// door, and says something self-contradictory on the way out.**
+/// **The typed absence used to lose its whole payload at the Python
+/// read door, and say something self-contradictory on the way out** —
+/// fixed, and this row now pins what it says instead.
 ///
 /// `ValuePayload::MeasureUnavailable::kind_name()` returns `"measure"`
 /// on purpose (`eval/mod.rs`, "The SAME family name as a measure that
-/// has a value"). The one consumer that formats `kind_name()` into a
-/// mismatch sentence is `pncad-py`'s `Value.measure`
-/// (`crates/pncad-py/src/py/value.rs:685`), whose fallthrough builds
-/// ``a `{kind_name}` value is not a measure`` — so a Python consumer
-/// who loads a document carrying a `min_clearance` measure and reads it
-/// at `f64` gets ``a `measure` value is not a measure``, with the verb,
-/// the scalar and the door that CAN answer all dropped. The sibling
-/// door `Value.assertion` does carry the reason through, so this is one
-/// door, not the design.
+/// has a value"). `pncad-py`'s `Value.measure` formatted that into its
+/// mismatch fallthrough, so a Python consumer who loaded a document
+/// carrying a `min_clearance` measure and read it at `f64` got ``a
+/// `measure` value is not a measure`` — with the verb, the scalar and
+/// the door that CAN answer all dropped. Its sibling `Value.assertion`
+/// carried the reason through, so it was one door, not the design.
 ///
-/// The row pins the sentence rather than the binding, which is not in
-/// this crate: it goes red when either half is fixed.
+/// The door now has its own arm (`measure_unavailable`) and formats
+/// the reason. This row pins the PAYLOAD's own sentence — the text
+/// that arm interpolates — because the binding is not in this crate:
+/// if the reason ever stops naming the door, the Python message stops
+/// being actionable and this reds.
 #[test]
-fn the_python_read_door_will_say_a_measure_value_is_not_a_measure() {
+fn the_typed_absence_names_its_verb_scalar_and_door() {
     let payload: editor_core::ValuePayload<f64> = editor_core::ValuePayload::MeasureUnavailable {
         reason: editor_core::MeasureUnavailableAt::NeedsEnclosure {
             verb: "min_clearance",
@@ -653,11 +654,19 @@ fn the_python_read_door_will_say_a_measure_value_is_not_a_measure() {
         },
         dim: Dimension::Length,
     };
-    assert_eq!(
-        format!("a `{}` value is not a measure", payload.kind_name()),
-        "a `measure` value is not a measure",
-        "the sentence `pncad-py`'s `Value.measure` fallthrough builds for this payload"
-    );
+    let editor_core::ValuePayload::MeasureUnavailable { reason, .. } = &payload else {
+        unreachable!()
+    };
+    let sentence = reason.to_string();
+    for part in ["min_clearance", "f64", "clearance::min_separation"] {
+        assert!(
+            sentence.contains(part),
+            "the reason a Python caller is handed must name {part}: {sentence}"
+        );
+    }
+    // And the family name is still shared, which is what made the old
+    // sentence possible: the fix is the door's arm, not a rename.
+    assert_eq!(payload.kind_name(), "measure");
 }
 
 // ------------------------------------------------------------------
@@ -802,9 +811,13 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
     .expect("a stackup over a closed-form measure");
     eprintln!("--- stackup (distance) ---\n{}", report.render(&analyzed));
 
-    // …and over the NEW primitive: it refuses, because E5's nominal is
-    // an f64 number and `min_clearance` has none. Friction, recorded.
-    let refused = editor_core::stackup::stackup(
+    // …and over the NEW primitive. The walk found this REFUSING —
+    // whole — because E5's nominal is an f64 number and
+    // `min_clearance` has none. That inverted E9: the nominal and the
+    // per-param table are advisory, the certified worst case is the
+    // gate, and a degraded advisory column is supposed to forfeit
+    // while the gate stands. It does now.
+    let clearance_report = editor_core::stackup::stackup(
         &g.doc,
         g.by_clearance,
         &analyzed,
@@ -812,17 +825,19 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
         None,
         true,
         Tol::witness(),
-    );
+    )
+    .expect("the gating column is computable from the certified leaves");
     eprintln!(
-        "--- stackup (min_clearance) --- {}",
-        match &refused {
-            Ok(_) => "a report".to_owned(),
-            Err(e) => format!("{e}"),
-        }
+        "--- stackup (min_clearance) ---\n{}",
+        clearance_report.render(&analyzed)
     );
     assert!(
-        refused.is_err(),
-        "a stackup over a min_clearance measure has no nominal and no per-param table"
+        clearance_report.worst_case.leaves > 0,
+        "the certified worst case is built and it gates"
+    );
+    assert!(
+        clearance_report.nominal.is_err(),
+        "…and the advisory nominal forfeits by name rather than taking the report with it"
     );
 
     // The histogram, over both measures.

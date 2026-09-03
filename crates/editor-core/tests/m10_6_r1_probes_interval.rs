@@ -1069,17 +1069,25 @@ fn the_bracket_walk_through_the_public_doors() {
     eprintln!("{}", report.render(&analyzed));
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
+    // **The walk's finding, and what the fix pass did with it.** This
+    // used to refuse `MeasureRefusedAtNominal` — the whole report
+    // withheld because an ADVISORY column (the f64 nominal) cannot
+    // exist for a `min_clearance`. E9 says a degraded advisory column
+    // forfeits and the gate stays, so the report builds now: the
+    // certified worst case is there and gates, and the nominal
+    // forfeits by name.
     eprintln!("== stackup(min_clearance)");
-    match stackup(&doc, clearance, &analyzed, &verdict, None, true, tol) {
-        Err(StackupRefusal::MeasureRefusedAtNominal { .. }) => {
-            eprintln!("refused at the nominal: no certified worst case door for min_clearance")
-        }
-        Err(other) => panic!("{other}"),
-        Ok(r) => panic!(
-            "a min_clearance stackup exists now: {}",
-            r.render(&analyzed)
-        ),
-    }
+    let clearance_report =
+        stackup(&doc, clearance, &analyzed, &verdict, None, true, tol).expect("a stackup");
+    eprintln!("{}", clearance_report.render(&analyzed));
+    assert!(
+        clearance_report.worst_case.leaves > 0,
+        "the gating column is built from the certified leaves"
+    );
+    assert!(
+        clearance_report.nominal.is_err(),
+        "…and the advisory nominal forfeits, because a point scalar has no enclosure"
+    );
 
     eprintln!("== fold(post vs base ≥ 0.1)");
     let fold = clearance_over(

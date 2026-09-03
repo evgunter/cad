@@ -185,12 +185,12 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         "the human form leads with the gating number: {rendered}"
     );
     assert!(
-        !rendered.contains(&format!("{:016x}", one.nominal.to_bits())),
+        !rendered.contains(&format!("{:016x}", one.nominal.expect("a closed-form measure has an f64 nominal").to_bits())),
         "the human form does not print bits"
     );
     assert!(
         one.serialize()
-            .contains(&format!("{:016x}", one.nominal.to_bits())),
+            .contains(&format!("{:016x}", one.nominal.expect("a closed-form measure has an f64 nominal").to_bits())),
         "and the goldening form prints nothing else"
     );
 }
