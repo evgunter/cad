@@ -2,10 +2,11 @@
 id: TCOST-C4
 kind: unit
 title: sccache trial re-read: per-crate hit stats on warm runs, verdict under F4
-status: dispatched
+status: closed
 opened: 2026-09-03
 branch: tcost/c4-sccache-reread
 pr: 1648
+closed: 2026-09-03
 ---
 
 CI-posture unit (Ev's ask). The kernel is compiled ~9–10 times per

@@ -788,3 +788,23 @@ Ledger after the three: PR side −1 (C2, measured) −2 (C1, per
 topo-closure run) −2 (C3, per seed-miss run); nightly side +~7, of
 which C2's ~3 is derived and wants a re-read from the first nightly
 that executes it. C4 lands last after its final main merge.
+
+## Unit: TCOST-C4 merged (2026-09-03)
+
+PR 1648 at `eb7a78a2` (run 33748099185, interval 1e-6 asked, all
+green; the default lane on earlier heads of the same tier). The
+sccache trial re-run under its own rules — seven runs, two lanes,
+tier=all, 18 packages, lane asked by trailer — and its verdict
+written into CI-MINUTES F4: sccache 0.16.0 refuses `--crate-type
+bin`, so the 47 refusals on a warm run are the workspace's test
+binaries and build scripts, 82 % of compile time by the build
+profile's census (now inline in F4 with provenance: test targets
+726.3 s, libs 159.5 s, 297 units); dependency hits are zero on any
+warm run because a restored rust-cache means rustc never runs for
+deps; the object cache barely persists. Rig kept, inverted to
+`vars.SCCACHE == '1'` (inert with nothing set). The finding that
+outgrew the unit — a branch's first build job restores nothing
+(branch-scoped caches + F3's "main never runs the job"), the control
+verified by its 275 MB save — is TCOST-B3, dispatched. The four
+CI-posture units are landed: PR side −5 billed minutes on a typical
+code-tier run, nightly side +~7.
