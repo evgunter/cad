@@ -1,4 +1,15 @@
-//! Stable discriminant tags for the document layer's refusals.
+//! Stable discriminant tags for the document layer's refusals — and
+//! for the one VERDICT that needs one.
+//!
+//! [`resolution_status_tag`] is that one, and it is deliberately not
+//! a refusal: a resolution is a TOTAL answer, one of three states for
+//! every name asked, and it crosses as a value rather than a raise.
+//! What it shares with everything else in this file is the reason a
+//! tag exists at all — a caller branches on the discriminant, prose
+//! is not a stable interface — and the reason this file is its home:
+//! the exhaustive match is a drift alarm that fires in hosted CI,
+//! because this module compiles without Python and the `#[pyclass]`
+//! it feeds does not.
 //!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
@@ -34,7 +45,9 @@ use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{PathError, PathErrorKind};
-use pncad::select::{DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError};
+use pncad::select::{
+    DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
+};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -798,6 +811,46 @@ pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
         NodePickError::NoSuchBody { .. } => "no_such_body",
         NodePickError::Tessellate(err) => tessellate_error_tag(err),
         NodePickError::Index(_) => "mesh_index",
+    }
+}
+
+/// The stable status tag of a resolution VERDICT — a stored name's
+/// standing at the next evaluation.
+///
+/// Not a refusal, and the only entry in this file that is not: every
+/// name asked gets exactly one of these three, never a raise. The tag
+/// is here anyway for the reason the header states — it is the
+/// discriminant a caller branches on, and this file compiles in
+/// hosted CI where `py/resolve.rs` does not, so the exhaustive match
+/// is where the drift alarm can actually fire.
+///
+/// **The three words carry the RECOURSE, which is the whole point of
+/// keeping them three.** `resolved` needs none. `failed` means the
+/// name does not denote in this evaluation and will not come back on
+/// its own — the repair is an explicit rebind. `indeterminate` means
+/// the NAME is fine and the RUN is not: the minting node failed, was
+/// poisoned, or never evaluated, so the reference is unanswerable
+/// right now and resolves again when that node does. Collapsing the
+/// last two would tell a user to rebind a name that never broke.
+///
+/// Lower-case snake, the spelling every other tag in this file uses.
+/// `Verdict.status` — the other value-carried discriminant in these
+/// bindings — capitalizes instead; that divergence predates this and
+/// is not repaired here, because a shipped tag value is an interface.
+///
+/// **What this tag does NOT reach is the failure's own arm.**
+/// `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
+/// DECIDED absent from the façade (`crates/pncad/tests/all.rs`'s
+/// `NOT_CARRIED`, "Naming interior"), so there is no `vanished` /
+/// `ambiguous` / `node_gone` tag to forward and none is invented
+/// here: what crosses beside this word is the kernel's own `Display`.
+/// Banked as `work/lib/resolution-failure-arms-are-unmatchable-under-
+/// resolution.md`, the `MeshPickError` shape one family along.
+pub fn resolution_status_tag(verdict: &Resolution) -> &'static str {
+    match verdict {
+        Resolution::Resolved(_) => "resolved",
+        Resolution::Failed(_) => "failed",
+        Resolution::Indeterminate(_) => "indeterminate",
     }
 }
 

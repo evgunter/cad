@@ -641,6 +641,21 @@ pub(crate) struct Evaluation {
     /// evaluation is of; threading the doc back in per query would
     /// let the two drift.
     params: d::ParamEnv<f64>,
+    /// The document the evaluation ran on, captured at `evaluate` for
+    /// the same reason [`Self::params`] is — and this is the whole of
+    /// what the kernel's `RunCtx` is: a run is a (document,
+    /// evaluation) PAIR, and resolution needs both halves (the
+    /// document decides whether a stored name's minting node is still
+    /// there at all, which no evaluation can answer).
+    ///
+    /// **Captured rather than taken per call**, which is the same
+    /// argument `NodePick` makes about its `(node, body)` pairing:
+    /// Python's `Doc` is mutable and `accept` swaps the document
+    /// under the handle, so a `resolve(doc, name)` door would let a
+    /// caller ask this evaluation about a document it is not of, and
+    /// answer confidently against the wrong recipe. Pairing the two
+    /// here makes that unspellable.
+    doc: d::ProfileDoc,
 }
 
 #[pymethods]
@@ -874,6 +889,42 @@ impl Evaluation {
         pncad::select::denotation(&self.inner, node.0, &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Does this STORED name still denote, in THIS evaluation?** —
+    /// the question every consumer that keeps names must ask on every
+    /// run, and the one Python's whole store-then-reuse story runs on.
+    ///
+    /// Answers a `Resolution`, never a raise: "this name is gone" is
+    /// a verdict, not an error, and the three states are kept three
+    /// because their repairs differ. `resolved` carries `node`, `body`
+    /// and `kind`; `failed` means rebind (with `offers` as the
+    /// kernel's suggestions, never its substitutions); `indeterminate`
+    /// means the name is fine and the RUN is not — the minting node
+    /// failed, was poisoned or never evaluated, so the repair is
+    /// upstream and the name resolves again when that node does.
+    ///
+    /// **Evaluation-wide**, where `denotation` is node-scoped: this
+    /// searches every table in evaluation order and answers WHICH node
+    /// carries the name, so it resolves for a name `denotation` would
+    /// refuse `no_such_name` for at the node you happened to ask.
+    ///
+    /// The only raise here is the boundary one every name-taking door
+    /// shares: text that is not a name at all is a `ValueError`. A
+    /// well-formed name that denotes nothing is the `failed` verdict,
+    /// which is the whole point of the door.
+    fn resolve(&self, py: Python<'_>, name: &str) -> PyResult<super::resolve::Resolution> {
+        let name = super::doc::name_from_text(name)?;
+        super::resolve::resolution(
+            py,
+            &pncad::select::resolve(
+                pncad::select::RunCtx {
+                    doc: &self.doc,
+                    eval: &self.inner,
+                },
+                &name,
+            ),
+        )
     }
 
     /// **What is under this ray?** — the nearest face hit across
@@ -1202,6 +1253,7 @@ pub(crate) fn evaluate(
             tol,
         ),
         params: doc.inner.param_env::<f64>(),
+        doc: doc.inner.clone(),
     }
 }
 
