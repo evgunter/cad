@@ -198,3 +198,17 @@ lane frees this box (disk and the one-cargo rule).
   the unit dome to certify at the run's ε while its comment admits a
   tighter band may refuse; preserved as-is (green at all three ε
   locally), flagged for the style batch.
+- **TCOST-3** (PR 1614, green at default/1e-6, lane asked): the cert7
+  and offset family 88 → 38 cpu-s hosted (−56 %; the whole default
+  suite at that point 458 → 402): six assertion-free rows deleted (the
+  two stall hunts among them), two rows deleted with `offset_fit`'s
+  far-from-origin row named as owner, the recentring ladder trimmed to
+  one station per distinct trajectory, the skinned loft shrunk.
+  `review_r1_rational_probes.rs` left unchanged on measurement: its
+  oracle is 0.5–13 % of the rows; `nurbs_patch_face` is the rest
+  (TCOST-K1). **Second kernel finding for the A/B track**:
+  `offset_fit::fit_offset` is 99.9 % of the recentring row at 3.5–3.7 s
+  per station against 0.004 s for its 437-point oracle, and 13.8 s for
+  one call at an unreachable tolerance — **TCOST-K2 candidate**, spec
+  after K1's Phase 1 says whether the same exhausted-budget shape is
+  at work in the fit loop.
