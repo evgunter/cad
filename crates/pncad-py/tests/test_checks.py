@@ -6,6 +6,13 @@ that geometry. Nothing is stubbed: the disjoint union really has two
 components, the overlapping roots really deny the separation
 certificate, and the touching union really fails to evaluate.
 
+ONE EXCEPTION, and it is deliberate:
+`TestSubjectBodyCarriesItsDeclarations` instantiates the bench
+corpus's MATED stand, because the claim it pins is about DECLARED
+contacts and the authoring vocabulary above declares none. It is
+loaded rather than rebuilt for the same reason `test_validate` loads
+it — the geometry is geometry the Rust side already asserts about.
+
 WHAT THIS FILE IS FOR, ABOVE COVERAGE
 -------------------------------------
 The posture is the deliverable. `run_checks` REPORTS and gates
@@ -38,14 +45,17 @@ from pncad import (
     ChecksConfig,
     ChecksError,
     Doc,
+    DocRef,
     Node,
     Severity,
     enforce_checks,
     evaluate,
     m,
+    product,
     run_checks,
     subject_body,
 )
+from test_assembly_eval import manifest, opened
 
 
 def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
@@ -280,6 +290,83 @@ class TestSubjectBody(unittest.TestCase):
         b = slab(touching, 1.0, 2.0)
         failed = touching.insert(Node.boolean(BooleanOp.Union, a, b))
         self.assertIsNone(subject_body(evaluate(touching), failed, 0))
+
+
+class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
+    """One body, one tier-3′ verdict, however it is reached.
+
+    `subject_body` used to hand back a PLAIN body — the editor-core
+    door dropped the `ContactRecords` `product::sources_of` had built
+    beside it one line earlier — so a subject whose declarations were
+    the whole reason its seam is legal reported that seam as an
+    undeclared contact, while the identical body read off its own
+    `Value` passed. The narrowing failed loud rather than silently (an
+    absent record set can only make the gate REFUSE), which is what
+    made it a diagnosis a caller could not act on rather than a wrong
+    blessing.
+
+    The subject here is an INSTANCE of the mated stand, which is the
+    carried-declaration home (`NodeValue.contacts`, the D-1
+    declarations a referenced document's product minted). Its sibling
+    home — a boolean's own `BooleanValue.contacts` — is the same
+    channel and the same `sources_of` reconciliation, but it cannot
+    carry this row: a declared glue WELDS the faces it declares, so
+    its record set comes out empty and its 3′ pass is vacuous
+    (`test_validate`'s module header states the same measurement). So
+    this row is the one of the two homes that can be observed from
+    Python at all, and it is named as such rather than presented as
+    the whole claim.
+    """
+
+    def instance_of_the_stand(self):
+        """A one-root document instantiating the corpus's mated stand.
+
+        The stand's product carries the records its two mates minted,
+        and those cross the document seam with the instance — so this
+        node's value is a body whose seats are declared.
+        """
+        store, _ = opened()
+        ident = manifest()["stand"]
+        doc = Doc("checks-instantiated-assembly")
+        instance = doc.insert(
+            Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
+        )
+        return doc, instance, evaluate(doc, resolver=store)
+
+    def test_the_subject_is_the_body_its_producer_minted(self):
+        _doc, instance, ev = self.instance_of_the_stand()
+        through_the_value = ev.value(instance).body()
+        through_the_attribution = subject_body(ev, instance, 0)
+        # It is ONE body: same geometry by every door that cannot see
+        # declarations.
+        self.assertEqual(
+            through_the_value.mass_properties().volume,
+            through_the_attribution.mass_properties().volume,
+        )
+        for rung in ("validate", "validate_closed", "validate_geometric"):
+            with self.subTest(rung=rung):
+                getattr(through_the_attribution, rung)()
+        # And it is ONE verdict on the rung that CAN see them. This is
+        # the regression: the second call refused before the records
+        # travelled with the body.
+        through_the_value.validate_pseudomanifold()
+        through_the_attribution.validate_pseudomanifold()
+
+    def test_the_census_really_looks_at_this_geometry(self):
+        """The control, without which the row above proves nothing.
+
+        A pass on the fourth rung means either "declared" or "no
+        coincidence found", and only the first is interesting. So the
+        SAME geometry is taken through `product`, which gathers the
+        solids and declares nothing by contract — and it refuses, with
+        findings. The seats are therefore real, and the two passes
+        above are the records doing work rather than an empty census.
+        """
+        doc, _, ev = self.instance_of_the_stand()
+        with self.assertRaises(pncad.ValidationError) as caught:
+            product(doc, ev).validate_pseudomanifold()
+        self.assertEqual(caught.exception.door, "validate_pseudomanifold")
+        self.assertGreater(caught.exception.failure_count, 0)
 
 
 class TestTheChecksCouldNotRun(unittest.TestCase):

@@ -39,17 +39,29 @@
 //! reports a COINCIDENCE and never a signed penetration depth; that
 //! gap is scoped in `work/m10/signed-penetration-depth.md`.
 //!
-//! [`ClearanceVerdict::Refused`] is typed, and there are TEN arms
+//! [`ClearanceVerdict::Refused`] is typed, and there are ELEVEN arms
 //! rather than the spec's two: a terminal sliver (the driver's rule
 //! shape — the deciding enclosure sits wholly inside the funnel's
 //! band, so refinement provably cannot move it), a named budget, a
 //! carrier with no admitted window, a selection that does not resolve,
 //! an enclosure that did not evaluate, a fold over a drive that
 //! certified nothing, a bound that is not a distance, a scope that
-//! names nothing, a tolerance the funnel cannot band, and a witness
-//! the `f64` rebuild would not confirm. [`ClearanceRefusal`] carries
-//! the argument for each; five of them have no row in any suite and
-//! the suite's own module door says which and why.
+//! names nothing, a pairing the wedge rule empties, a tolerance the
+//! funnel cannot band, and a witness the `f64` rebuild would not
+//! confirm. [`ClearanceRefusal`] carries the argument for each; five
+//! of them have no row in any suite and the suite's own module door
+//! says which and why.
+//!
+//! # Two questions, one subdivision (M10-6)
+//!
+//! The engine answers `separation ≥ c` as a trichotomy, and — since
+//! M10-6 — "what IS the minimum separation" as a certified BRACKET
+//! ([`min_separation`]). Same windows, same cells, same split rule; the
+//! difference is what the sweep does with a cell pair. The bound
+//! question DECIDES each pair at a funnel site; the minimum question
+//! decides nothing at all — it takes minima of enclosure endpoints, so
+//! it funnels no predicate and consults no tolerance. That door's own
+//! header carries the argument.
 //!
 //! **The sweep stops at the first VERIFIED violation.** A witness is
 //! the deliverable, and continuing past one buys a bigger receipt and
@@ -569,6 +581,17 @@ pub enum ClearanceRefusal {
     /// The run's tolerance admits no linear band, so nothing here can be
     /// classified at all.
     ToleranceHasNoBand,
+    /// [`min_separation`] was asked about two selections with no
+    /// admitted pair between them: every candidate was dropped by the
+    /// wedge rule (a face against itself, or two faces sharing a
+    /// vertex), so there is no separation to enclose.
+    ///
+    /// Its own class rather than [`Self::EmptyScope`], which is about a
+    /// scope naming no FACE: here both scopes named faces and the
+    /// PAIRING is empty. The minimum over an empty set is `+∞`, and
+    /// reporting that as a clearance would be a number no geometry
+    /// backs.
+    NoAdmittedPair,
     /// A cell pair the interval pass classified as a definite violation
     /// whose witness the `f64` rebuild did not confirm.
     ///
@@ -606,7 +629,7 @@ impl ClearanceRefusal {
             Self::PoisonEnclosure { a, b } => format!("{a:?}/{b:?}"),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
-            Self::EmptyScope | Self::ToleranceHasNoBand => String::new(),
+            Self::EmptyScope | Self::ToleranceHasNoBand | Self::NoAdmittedPair => String::new(),
         }
     }
 
@@ -624,6 +647,7 @@ impl ClearanceRefusal {
             Self::NotADistance { .. } => "not_a_distance",
             Self::EmptyScope => "empty_scope",
             Self::ToleranceHasNoBand => "tolerance_has_no_band",
+            Self::NoAdmittedPair => "no_admitted_pair",
         }
     }
 }
@@ -914,6 +938,63 @@ impl ClearanceReport {
         s
     }
 
+    /// **The report's content key** — the identity of everything
+    /// [`Self::serialize`] renders.
+    ///
+    /// Added in M10-6's fix pass (R2's MINOR-10): §2 claims every
+    /// derived report in this lane carries the two doors AND a key,
+    /// and claim 3 names `ClearanceReport` among them, but this type
+    /// shipped with `serialize`/`render` and no key at all. Tag
+    /// `0xEE`, appended.
+    pub fn content_key(&self) -> crate::eval::ContentKey {
+        crate::eval::key_of(0xEE, &self.serialize())
+    }
+
+    /// **The human form** (M10-6 §2): the verdict in words, the
+    /// witness as numbers rather than as bits, and the measured
+    /// discharge widths that say what the certificate cost.
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        match &self.verdict {
+            ClearanceVerdict::Holds => {
+                let _ = writeln!(s, "HOLDS over the whole leaf box and both carrier windows");
+            }
+            ClearanceVerdict::Violated(v) => {
+                let g = &v.geometry;
+                let _ = writeln!(
+                    s,
+                    "VIOLATED: {} m between faces {:?} and {:?}, verified at f64",
+                    g.distance, g.a, g.b
+                );
+                for (name, offset) in &v.param.offsets {
+                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.0);
+                }
+            }
+            ClearanceVerdict::Refused(r) => {
+                let _ = writeln!(s, "REFUSED ({}): {}", r.name(), r.payload());
+            }
+        }
+        let r = self.receipt;
+        let _ = writeln!(
+            s,
+            "  {} candidate pair(s); {} discharged, {} violated, {} refused, {} split, \
+             {} abandoned",
+            r.candidates, r.discharged, r.violated, r.refused, r.splits, r.abandoned
+        );
+        let w = self.widths;
+        let _ = writeln!(
+            s,
+            "  discharged at cell diameters {} … {} (deepest subdivision {})",
+            w.widest
+                .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
+            w.narrowest
+                .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
+            w.deepest
+        );
+        s
+    }
+
     /// A report that never got as far as a subdivision.
     fn refused(refusal: ClearanceRefusal) -> Self {
         Self {
@@ -1197,6 +1278,621 @@ pub struct LeafFold {
     /// could not certify, which is a different question from this one
     /// and is kept beside it rather than merged into it.
     pub drive_accounting: MeasureAccounting,
+}
+
+// ------------------------------------- the minimum-separation door
+
+/// The whole-query cell-pair budget of ONE [`min_separation`] query.
+///
+/// A recorded run dial, and deliberately three orders below
+/// [`DEFAULT_MAX_CELL_PAIRS`], because the two doors are asked at
+/// different rates: a clearance query is asked once per certified leaf
+/// by a fold a consumer calls deliberately, while this one is asked
+/// INSIDE the evaluation of a measure node — so a drive of a few
+/// hundred leaves pays it a few hundred times. The bracket a budget
+/// buys is honest at any width ([`MinSeparation`]), so the dial trades
+/// tightness for time and never truth.
+pub const DEFAULT_MAX_MIN_SEP_PAIRS: usize = 512;
+
+/// Which faces of an ALREADY-EVALUATED body a minimum-separation
+/// question is about.
+///
+/// [`Selection`] names a node and a scope for a door that will do the
+/// evaluating; this door is called from INSIDE one (the `min_clearance`
+/// measure primitive's evaluation), where the body is already in hand
+/// and re-evaluating the document to find it again would be both a
+/// waste and a recursion. So the resolution — node, body index, the
+/// faces the scope came to — is the caller's, and this is what it
+/// hands over.
+pub struct MinSepSelection<'b> {
+    /// The node the body was read at (the reference's reading site).
+    pub at: RecipeNodeId,
+    /// Which of that node's output bodies.
+    pub index: u32,
+    /// The body itself, at the interval scalar.
+    pub body: &'b Body<Interval>,
+    /// The faces in scope, already resolved. Sorted and de-duplicated
+    /// by the caller for the reason [`FaceScope::Named`] states.
+    pub faces: Vec<FaceKey>,
+}
+
+/// The two budgets of one [`min_separation`] query. No accelerator
+/// switch: the monotonicity seam restricts a PARAMETER box, and this
+/// door is handed a body that was already evaluated over one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MinSeparationConfig {
+    /// Per-pair subdivision depth ([`DEFAULT_MAX_CELL_DEPTH`]).
+    pub max_cell_depth: u32,
+    /// Whole-query cell-pair budget ([`DEFAULT_MAX_MIN_SEP_PAIRS`]).
+    pub max_cell_pairs: usize,
+}
+
+impl Default for MinSeparationConfig {
+    fn default() -> Self {
+        Self {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: DEFAULT_MAX_MIN_SEP_PAIRS,
+        }
+    }
+}
+
+/// **A bracket on the minimum separation between two selections**,
+/// over whatever parameter box the two bodies were evaluated over —
+/// with its two ends certified about DIFFERENT SETS, which is the
+/// thing to read before anything else here.
+///
+/// # What the two numbers mean, exactly
+///
+/// Write `m(p)` for the minimum distance between the two selections'
+/// carrier WINDOWS at parameter point `p`, `M(p)` for the same over
+/// the trimmed FACES the measure actually names, and let the bodies
+/// have been evaluated over a box `B`. The windows contain the faces
+/// (this module's header, M10-5's disclosed superset), so
+///
+/// ```text
+///     m(p) ≤ M(p)   for every p
+/// ```
+///
+/// and the two ends of this bracket inherit that asymmetry:
+///
+/// - `lo` is a certified LOWER bound on `inf{ m(p) : p ∈ B }` — the
+///   least `separation_lo` over every cell pair the sweep did not
+///   discharge, together with the pairs it excluded at admission (by
+///   their own `separation_lo`, which is what admission compared).
+///   Because `m ≤ M`, it is EQUALLY a lower bound on `inf M` — the
+///   faces' own worst-case clearance. **This is the end a defect gate
+///   reads, and it is sound for the faces.**
+/// - `hi` is a certified upper bound on `sup{ m(p) : p ∈ B }` — the
+///   least, over every cell pair the sweep examined, of that pair's
+///   `separation_hi` AND of its two centre cells' furthest separation.
+///   Each bounds the distance between some realizable point of each
+///   WINDOW at every `p ∈ B`. **It is not a bound on `M` in either
+///   direction**: the window points that attain it may lie in the trim
+///   holes, so `hi` can sit strictly below the faces' true clearance.
+///   It is named [`MinSeparation::window_hi`] for that reason.
+///
+/// So `[lo, window_hi]` is a containment-true enclosure of `m`, and
+/// `[lo, ∞)` is what it certifies about `M`. Both readings matter and
+/// they are not the same statement, which is exactly why
+/// [`crate::measure::Certified`] exists: an assertion over this
+/// measure may read `lo` and may not read `hi`, and the two arms that
+/// would have read `hi` refuse typed rather than answering.
+///
+/// A worked counterexample, in the suite: an L-shaped cap under a
+/// block parked over its notch brackets `[0.100…, 0.100…]` while the
+/// faces are `0.269` apart — the window pair straight across the notch
+/// belongs to neither face
+/// (`m10_6_r1_probes_interval::the_notch_bracket_is_the_windows_not_the_faces`).
+///
+/// # Budget-honest, and no width rule anywhere
+///
+/// Refinement narrows the bracket and can never falsify it: `lo` only
+/// rises as cells shrink, `window_hi` only falls, and every
+/// intermediate state is a true bracket on `m`. So a query that runs
+/// out of budget REPORTS — there is no width threshold below which
+/// this door starts answering and above which it refuses, no ε, and no
+/// decision: nothing here classifies a margin, which is why this door
+/// funnels no predicate. The one decision over the bracket is the
+/// assertion's, at the existing `assert_bound` site.
+///
+/// # What closes the gap
+///
+/// [`crate::measure::WINDOW_TIGHTENING`]: a window tightened to its
+/// trimmed face makes `m = M` and every arm sound again. Until then
+/// the asymmetry is typed rather than papered over.
+///
+/// # How WIDE the bracket actually is (M10-6's review, MINOR-13)
+///
+/// "Budget-honest" says the bracket never lies. It does not say the
+/// bracket is tight, and on curved carriers it is not. Measured, two
+/// cylinders whose axes are 1 m apart
+/// (`r2_m10_6_probes_interval::min_separation_brackets_a_curved_pair_at_every_budget`):
+///
+/// ```text
+///   max_cell_pairs =   1   [1, 5.385]   width 4.385
+///   max_cell_pairs =   4   [1, 5.385]   width 4.385
+///   max_cell_pairs =  32   [1, 2.062]   width 1.062
+///   max_cell_pairs = 512   [1, 1.586]   width 0.586   <- the default
+/// ```
+///
+/// So at the shipped budget the upper end of a curved pair's bracket
+/// is still ~59% above the truth. A planar neck does far better (~7%),
+/// because a plane's window IS its cell. A consumer who needs a tight
+/// upper bound on a curved pair must raise
+/// [`MinSeparationConfig::max_cell_pairs`] and pay for it; a consumer
+/// who needs a sound LOWER bound — which is what gates — has one at
+/// every budget, including the first.
+///
+/// # `window_hi` is a CELL-BOX distance, not an attained point pair
+///
+/// Stated because "the least distance of any station pair found"
+/// reads as though a witness exists. It does not: `hi` is the least
+/// over the examined pairs of that pair's `separation_hi` and its two
+/// centre CELLS' furthest separation, each an interval-enclosed
+/// quantity. Every one of them bounds `m` from above at every `p`, so
+/// the fold is sound — but none of them is a pair of points anyone
+/// evaluated, and the number should not be reported as one.
+///
+/// # The budget is a CONSTANT at the measure door
+///
+/// [`min_separation`] takes a [`MinSeparationConfig`], but the
+/// `min_clearance` MEASURE calls it with
+/// `MinSeparationConfig::default()` and nothing threads a dial through
+/// (`measure.rs`, the `Interval` lane impl). So a document evaluating
+/// that primitive gets 512 pairs whatever it asked for, and the widths
+/// above are what it gets. Making it a recorded run dial is a
+/// signature change through `MinClearanceLane`, which this unit did
+/// not take; it is disclosed rather than hidden.
+///
+/// # Cost, and where it is paid
+///
+/// The door runs INSIDE evaluation, once per leaf per `min_clearance`
+/// primitive. At the driver's default 65,536-leaf budget that is up to
+/// 65,536 subdivision searches of up to 512 cell pairs each, which is
+/// why every fixture in this unit's suites drives an ε-scaled box that
+/// certifies in one or a few leaves. A document that both varies
+/// widely and measures a `min_clearance` will pay accordingly, and
+/// nothing here caps it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MinSeparation {
+    lo: f64,
+    hi: f64,
+    receipt: CellReceipt,
+    excluded: usize,
+}
+
+impl MinSeparation {
+    /// **The lower bound, certified for the FACES** — the end a gate
+    /// reads. See the type docs for why this end and not the other.
+    pub fn lo(&self) -> f64 {
+        self.lo
+    }
+
+    /// **The upper bound, certified only over the carrier WINDOWS.**
+    /// Not a bound on the trimmed faces' separation in either
+    /// direction; the name is the warning. See the type docs and
+    /// [`crate::measure::Certified`].
+    pub fn window_hi(&self) -> f64 {
+        self.hi
+    }
+
+    /// The bracket as the interval it is: a containment-true enclosure
+    /// of the WINDOW separation, and the value the `min_clearance`
+    /// measure evaluates to. What an assertion may conclude from it is
+    /// [`crate::measure::Certified`]'s question, not this door's.
+    pub fn enclosure(&self) -> Interval {
+        Interval::from_bounds(self.lo, self.hi)
+    }
+
+    /// The counting receipt of the sweep that produced it.
+    pub fn receipt(&self) -> CellReceipt {
+        self.receipt
+    }
+
+    /// How many candidate face pairs were excluded at admission — the
+    /// ones priced into `lo` by their own root `separation_lo` rather
+    /// than subdivided.
+    pub fn excluded(&self) -> usize {
+        self.excluded
+    }
+
+    /// **The human form** (M10-6 §2): the bracket as numbers, what it
+    /// cost, and what the two ends mean — stated at the report rather
+    /// than left to the type's documentation, because the asymmetry
+    /// (`lo` sound for the faces, `hi` for the windows) is the thing a
+    /// consumer must not have to look up.
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = writeln!(
+            s,
+            "minimum separation: FACES ≥ {} (certified over the whole parameter box); \
+             WINDOWS ∈ [{}, {}] (width {:e})",
+            self.lo,
+            self.lo,
+            self.hi,
+            self.hi - self.lo
+        );
+        let r = self.receipt;
+        let _ = writeln!(
+            s,
+            "  {} candidate pair(s) subdivided, {} excluded at admission; {} discharged, \
+             {} refused, {} split, {} abandoned",
+            r.candidates, self.excluded, r.discharged, r.refused, r.splits, r.abandoned
+        );
+        let _ = writeln!(
+            s,
+            "  the bracket is honest at any budget: refinement narrows it and cannot \
+             falsify it. `lo` bounds the FACES' clearance from below and is what gates; \
+             `window_hi` is over the carrier WINDOWS, which contain the faces, so it \
+             bounds the faces in NEITHER direction and no assertion arm may read it \
+             (see Certified)."
+        );
+        s
+    }
+
+    /// The goldening form: float-exact bits, the driver's idiom
+    /// ([`ClearanceReport::serialize`]).
+    pub fn serialize(&self) -> String {
+        let r = self.receipt;
+        format!(
+            "min_separation lo={:016x} hi={:016x} excluded={}\nreceipt candidates={} \
+             discharged={} violated={} refused={} splits={} abandoned={} holds={}\n",
+            self.lo.to_bits(),
+            self.hi.to_bits(),
+            self.excluded,
+            r.candidates,
+            r.discharged,
+            r.violated,
+            r.refused,
+            r.splits,
+            r.abandoned,
+            r.holds()
+        )
+    }
+}
+
+/// **The minimum-separation door** (M10-6 §1): what IS the smallest
+/// separation between these two selections, as a certified bracket.
+///
+/// The engine beside it answers `separation ≥ c` — a trichotomy at one
+/// bound. A consumer who wants the NUMBER had to bisect `c` by hand, a
+/// full sweep per probe, which both of M10-5's consumer walks reported.
+/// This is the same subdivision run as a branch-and-bound instead: a
+/// cell pair whose `separation_lo` has risen above the best upper bound
+/// found so far cannot hold the minimum, so it is dropped rather than
+/// refined, and what is left converges on the pairs that can.
+///
+/// # No tolerance argument, and that is not an omission
+///
+/// Nothing here decides. The bound comparison a clearance query funnels
+/// (`d − c` at [`CLEARANCE_MARGIN`]) has no counterpart in a question
+/// with no `c` in it: this door computes enclosures and takes minima of
+/// their endpoints, so there is no margin to classify, no band to
+/// classify it against, and no ε. The pruning comparison
+/// (`separation_lo ≥ hi`) is not a decision either — the same
+/// distinction the module header draws about the proximity tree's
+/// admission test: it decides which pairs are EXAMINED, never what any
+/// of them means, and [`MinSeparation`]'s `lo` is floored at `hi` so a
+/// pair dropped at the moment it tied cannot narrow the bracket past
+/// the truth.
+///
+/// # Errors
+///
+/// The engine's own, typed: a carrier with no admitted window
+/// ([`ClearanceRefusal::Unsupported`]), a scope naming no face
+/// ([`ClearanceRefusal::EmptyScope`]), a pairing the wedge rule empties
+/// ([`ClearanceRefusal::NoAdmittedPair`]), and an enclosure that did
+/// not evaluate ([`ClearanceRefusal::PoisonEnclosure`]). Never a width,
+/// and never a budget: a budget is what the bracket's width is FOR.
+pub fn min_separation(
+    a: &MinSepSelection<'_>,
+    b: &MinSepSelection<'_>,
+    config: MinSeparationConfig,
+) -> Result<MinSeparation, ClearanceRefusal> {
+    if a.faces.is_empty() || b.faces.is_empty() {
+        return Err(ClearanceRefusal::EmptyScope);
+    }
+    let windows = |s: &MinSepSelection<'_>| -> Result<Vec<Window>, ClearanceRefusal> {
+        s.faces
+            .iter()
+            .map(|&k| window_of(s.body, s.at, s.index, k))
+            .collect()
+    };
+    let wa = windows(a)?;
+    let wb = windows(b)?;
+    // The SAME-BODY rule the clearance sweep uses, and for the same
+    // reason: a face is never at a distance from itself, and two faces
+    // sharing a vertex meet, so their separation is legitimately zero
+    // and belongs to the wedge predicates at that vertex — reporting it
+    // as this document's minimum clearance would report the body's own
+    // construction as its tightest gap.
+    let same_body = a.at == b.at && a.index == b.index;
+    let mut seen: BTreeSet<(FaceKey, FaceKey)> = BTreeSet::new();
+    let root_a: Vec<Point3<Interval>> =
+        wa.iter().map(|w| enclosure(&w.surface, w.u, w.v)).collect();
+    let root_b: Vec<Point3<Interval>> =
+        wb.iter().map(|w| enclosure(&w.surface, w.u, w.v)).collect();
+
+    // **The root pass is quadratic in the admitted faces, and the tree
+    // is not used here.** The clearance sweep excludes pairs by
+    // `pairs_within(reach)`, where `reach` is the bound the question
+    // names; this question names none, and the only honest reach is an
+    // upper bound on the answer — which is computed FROM these very
+    // root separations. So the pass that would parameterize the tree is
+    // the pass the tree would save, and running both would be work for
+    // its own sake. What the tree would have excluded is excluded here
+    // by the same inequality, and priced into `lo` by each dropped
+    // pair's own `separation_lo` rather than by a single reach.
+    let mut roots: Vec<(usize, usize, Interval)> = Vec::new();
+    for (i, x) in wa.iter().enumerate() {
+        for (j, y) in wb.iter().enumerate() {
+            if same_body
+                && !(x.face != y.face
+                    && x.vertices.is_disjoint(&y.vertices)
+                    && seen.insert((x.face.min(y.face), x.face.max(y.face))))
+            {
+                continue;
+            }
+            let (Some(pa), Some(pb)) = (root_a.get(i), root_b.get(j)) else {
+                continue;
+            };
+            let sep = separation(pa, pb);
+            if !(sep.lo().is_finite() && sep.hi().is_finite()) {
+                // Geometry that did not evaluate. Not an indeterminacy
+                // refinement could settle and not a budget — the
+                // clearance engine's own class, for the same reason.
+                return Err(ClearanceRefusal::PoisonEnclosure {
+                    a: x.face,
+                    b: y.face,
+                });
+            }
+            roots.push((i, j, sep));
+        }
+    }
+    if roots.is_empty() {
+        return Err(ClearanceRefusal::NoAdmittedPair);
+    }
+    // The incumbent: the least certified UPPER bound over the root
+    // pairs. Every pair's own `separation_hi` bounds the minimum, so
+    // the smallest of them is a bound before any subdivision happens —
+    // which is what makes the very first bracket true.
+    let mut hi = roots
+        .iter()
+        .fold(f64::INFINITY, |acc, (_, _, s)| acc.min(s.hi()));
+    // Admission: a pair whose separation is entirely above the
+    // incumbent cannot hold the minimum. It is priced into the floor by
+    // its own `separation_lo` and never subdivided.
+    let mut floor = f64::INFINITY;
+    let mut frontier: Vec<Task> = Vec::new();
+    let mut excluded = 0usize;
+    for (i, j, sep) in &roots {
+        if sep.lo() >= hi {
+            floor = floor.min(sep.lo());
+            excluded += 1;
+            continue;
+        }
+        let (Some(x), Some(y)) = (wa.get(*i), wb.get(*j)) else {
+            continue;
+        };
+        frontier.push(Task {
+            i: *i,
+            j: *j,
+            pair: CellPair {
+                a: Cell::of(x),
+                b: Cell::of(y),
+                depth: 0,
+            },
+        });
+    }
+    let mut receipt = CellReceipt {
+        candidates: frontier.len(),
+        ..CellReceipt::default()
+    };
+
+    while !frontier.is_empty() {
+        // The whole-frontier budget check, the driver's own: every task
+        // on it becomes at least one leaf, so when they cannot fit they
+        // are accounted together rather than started. They are
+        // ABANDONED and not refused — the sweep never classified them —
+        // and each one's `separation_lo` still floors the bracket,
+        // which is the whole of "honest at any budget".
+        let final_so_far = receipt.discharged + receipt.refused;
+        if final_so_far + frontier.len() > config.max_cell_pairs {
+            for task in frontier.drain(..) {
+                let (Some(x), Some(y)) = (wa.get(task.i), wb.get(task.j)) else {
+                    receipt.abandoned += 1;
+                    continue;
+                };
+                let pa = enclosure(&x.surface, task.pair.a.u, task.pair.a.v);
+                let pb = enclosure(&y.surface, task.pair.b.u, task.pair.b.v);
+                floor = floor.min(separation(&pa, &pb).lo());
+                receipt.abandoned += 1;
+            }
+            break;
+        }
+        let level = frontier.len();
+        let mut next: Vec<Task> = Vec::new();
+        for (n, task) in frontier.drain(..).enumerate() {
+            let (Some(x), Some(y)) = (wa.get(task.i), wb.get(task.j)) else {
+                // Unreachable: the frontier was built from these very
+                // indices. Counted rather than skipped, so no path out
+                // of this loop can break the receipt identity.
+                receipt.abandoned += 1;
+                continue;
+            };
+            let pair = task.pair;
+            let pa = enclosure(&x.surface, pair.a.u, pair.a.v);
+            let pb = enclosure(&y.surface, pair.b.u, pair.b.v);
+            let sep = separation(&pa, &pb);
+            if !(sep.lo().is_finite() && sep.hi().is_finite()) {
+                return Err(ClearanceRefusal::PoisonEnclosure {
+                    a: x.face,
+                    b: y.face,
+                });
+            }
+            // Every examined pair tightens the upper bound, INCLUDING
+            // the ones dropped below: a cell pair that cannot hold the
+            // minimum still witnesses a realizable separation.
+            //
+            // **The STATION pair is what makes that bound tight**, and
+            // it is the same enclosure one level down. `sep.hi()` is
+            // the furthest two points of the two CELLS can be, which
+            // only approaches the separation as both cells shrink to
+            // points — on a metre-scale wall pair that is a very slow
+            // number. A pair of single stations, one on each carrier,
+            // enclosed over the whole parameter box, bounds the
+            // distance between THOSE TWO POINTS at every parameter
+            // point in it; the minimum over the windows is at most that
+            // distance at every parameter point, so its `hi` is an
+            // upper bound on the whole measure and is tight the moment
+            // the two stations sit across from each other. Two extra
+            // surface evaluations a pair, and the bracket stops being
+            // dominated by cell size.
+            let station = |w: &Window, c: Cell| {
+                let u = mid_of(c.u);
+                let v = mid_of(c.v);
+                enclosure(&w.surface, (u, u), (v, v))
+            };
+            let stations = separation(&station(x, pair.a), &station(y, pair.b));
+            if stations.hi().is_finite() {
+                hi = hi.min(stations.hi());
+            }
+            hi = hi.min(sep.hi());
+            if sep.lo() >= hi {
+                receipt.discharged += 1;
+                continue;
+            }
+            if pair.depth >= config.max_cell_depth {
+                receipt.refused += 1;
+                floor = floor.min(sep.lo());
+                continue;
+            }
+            // What is already final, what this level has left to fold,
+            // what is queued for the next level, and the two halves
+            // this split would add — the clearance sweep's admission
+            // arithmetic, one question over.
+            let committed = receipt.discharged + receipt.refused + (level - n - 1) + next.len();
+            if committed + 2 > config.max_cell_pairs {
+                receipt.refused += 1;
+                floor = floor.min(sep.lo());
+                continue;
+            }
+            match split(pair, x, y) {
+                Some((lo_half, hi_half)) => {
+                    receipt.splits += 1;
+                    next.push(Task {
+                        i: task.i,
+                        j: task.j,
+                        pair: lo_half,
+                    });
+                    next.push(Task {
+                        i: task.i,
+                        j: task.j,
+                        pair: hi_half,
+                    });
+                }
+                None => {
+                    // The `f64` grid itself is the bound: the chosen
+                    // axis cannot be bisected. A work bound like the
+                    // other two, and priced into the floor the same way.
+                    receipt.refused += 1;
+                    floor = floor.min(sep.lo());
+                }
+            }
+        }
+        frontier = next;
+    }
+
+    // **The floor is capped at the incumbent**, and that cap is what
+    // makes the branch-and-bound sound rather than merely plausible. A
+    // pair dropped at `separation_lo ≥ hi` has a true minimum at least
+    // `hi`, so it can only hold the answer when the answer IS `hi` —
+    // and then `lo = hi` is the exact bracket rather than one that
+    // walked past the truth. When every pair discharges, that is
+    // precisely what comes out.
+    let lo = floor.min(hi);
+    Ok(MinSeparation {
+        lo,
+        hi,
+        receipt,
+        excluded,
+    })
+}
+
+impl LeafFold {
+    /// **The goldening form** of a whole fold (M10-6 §2): the combined
+    /// verdict, the summed receipt, and where the certified mass went,
+    /// every float as its exact bits.
+    ///
+    /// Per-leaf verdicts ride the fold and are NOT serialized: a drive
+    /// of tens of thousands of leaves would produce a golden nobody
+    /// re-blesses, and the per-leaf answers are already reachable
+    /// through [`LeafFold::leaves`]. What is goldened is the ANSWER and
+    /// its accounting.
+    pub fn serialize(&self) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = writeln!(s, "fold leaves={}", self.leaves.len());
+        let _ = write!(
+            s,
+            "{}",
+            ClearanceReport {
+                verdict: self.verdict.clone(),
+                receipt: self.receipt,
+                widths: self.widths,
+            }
+            .serialize()
+        );
+        let m = &self.mass;
+        let _ = writeln!(s, "mass holds {}", crate::report::mass_bits(&m.holds));
+        let _ = writeln!(s, "mass violated {}", crate::report::mass_bits(&m.violated));
+        for (class, v) in &m.refused {
+            let _ = writeln!(s, "mass refused {class} {}", crate::report::mass_bits(v));
+        }
+        let _ = writeln!(
+            s,
+            "mass uncertified_by_the_drive {}",
+            crate::report::mass_bits(&m.uncertified_by_the_drive)
+        );
+        s
+    }
+
+    /// The fold's content key — the identity of everything
+    /// [`Self::serialize`] renders.
+    pub fn content_key(&self) -> crate::eval::ContentKey {
+        crate::eval::key_of(0xED, &self.serialize())
+    }
+
+    /// **The human form**: the verdict, then the four mass columns as
+    /// percentages with the drive's uncertified share on its own line,
+    /// so no reader takes "holds" for "holds everywhere".
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut s = ClearanceReport {
+            verdict: self.verdict.clone(),
+            receipt: self.receipt,
+            widths: self.widths,
+        }
+        .render();
+        let m = &self.mass;
+        let _ = writeln!(s, "  over {} certified leaf/leaves:", self.leaves.len());
+        let _ = writeln!(
+            s,
+            "    {} of the measure holds",
+            crate::report::percent(&m.holds)
+        );
+        let _ = writeln!(s, "    {} violated", crate::report::percent(&m.violated));
+        for (class, v) in &m.refused {
+            let _ = writeln!(s, "    {} refused ({class})", crate::report::percent(v));
+        }
+        let _ = writeln!(
+            s,
+            "    {} the DRIVE never certified — this certificate says nothing about it",
+            crate::report::percent(&m.uncertified_by_the_drive)
+        );
+        s
+    }
 }
 
 /// The fixed combination order: a definite violation outranks a

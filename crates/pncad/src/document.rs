@@ -50,9 +50,15 @@ pub use editor_core::{
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
+// `MeasureUnavailableAt` and `MinClearanceRefusal` are carried for the
+// reason a payload's payload always is: they are what
+// `UnevaluatedReason::MeasureUnavailable` and
+// `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
+// name the outer type and not the inner one can see that there is a
+// reason and never read it.
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
-    UnevaluatedReason,
+    MeasureUnavailableAt, MinClearanceRefusal, UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -263,7 +269,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
 // `subject_body` resolves a finding's (root, output_ix) attribution
-// back to the flagged body in the same evaluation.
+// back to the flagged body and the declarations its producer minted
+// for it, in the same evaluation.
 pub use editor_core::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
     ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,

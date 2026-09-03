@@ -17,7 +17,9 @@ pairs and alone on the fitted rung. As delivered on PR #1604:
 blocker measured, and an opening measurement showing the union still dies two
 layers above (`CurvedPierceUnsupported`, the extent scan). Spec
 `docs/VERBS-CYLSPH-SPEC.md` was ratified on `mngr/kernel-verbs` and is not on
-main. PR open and green on both lanes. Dual review adjudicated and the fix
+main. PR open and green on both lanes. Review ordinal 112 ran as a v6 dual
+(parity byte 197 ⇒ R1 fable + R2 opus, frozen head `d49ddd894`); row CS-1
+landed as sample #116 (three-way #114 draw, merge order ruled). Dual review adjudicated and the fix
 pass executed on the same branch (§10 of the PR body): the join-dispatch
 sentence the first refusal-text sweep created was measured FALSE and
 rewritten with a pin, the spec-mandated factored station form got a

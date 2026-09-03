@@ -35,7 +35,10 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{AtRestPolicy, Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
+use topo::{
+    AtRestPolicy, Body, ContactRecords, PropsQuadLane, ShellClassifyError, ShellRole,
+    classify_shells,
+};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -819,22 +822,41 @@ fn declared_pairs<T: Decide>(
 }
 
 /// The door from a finding's attribution back to its subject: the body
-/// at `(root, output_ix)` in this evaluation — the same enumeration
-/// [`run_checks`] walks, so a [`CheckFinding`]'s attribution always
-/// resolves against the evaluation it was produced from. `None` when
-/// the root has no value, denotes no body, or has no output at that
-/// index (exactly the attributions a [`CheckEvidence::StaleExpectation`]
-/// finding names).
+/// at `(root, output_ix)` in this evaluation, AND the declared contact
+/// records that body carries — the same enumeration [`run_checks`]
+/// walks, so a [`CheckFinding`]'s attribution always resolves against
+/// the evaluation it was produced from. `None` when the root has no
+/// value, denotes no body, or has no output at that index (exactly the
+/// attributions a [`CheckEvidence::StaleExpectation`] finding names).
+///
+/// The two halves travel TOGETHER because a body without its
+/// declarations is a different subject from the one the check flagged.
+/// A record set has two homes — [`crate::eval::NodeValue::contacts`]
+/// for an instantiate's carried D-1 declarations, `BooleanValue::
+/// contacts` for a boolean's own — and reconciling those two is
+/// precisely what [`product::sources_of`] exists to do; it builds the
+/// pair, and this door hands the whole pair on rather than dropping
+/// half of it. Splitting them again downstream re-opens the failure
+/// this signature closes: a subject that IS a declared boolean result
+/// reporting its own certified seam as an UNDECLARED contact under the
+/// tier-3′ gate, while the identical body read through its value
+/// passes. (That direction fails loud, never silently — an absent
+/// record set can only make the gate refuse — but a loud wrong answer
+/// is still a wrong answer.)
+///
+/// A caller wanting only the body says so with a `.map(|(body, _)| …)`
+/// at its own site, where dropping the records is a visible decision
+/// rather than this door's silent narrowing.
 pub fn subject_body<T: Decide>(
     ev: &Evaluation<T>,
     root: RecipeNodeId,
     output_ix: u32,
-) -> Option<Arc<Body<T>>> {
+) -> Option<(Arc<Body<T>>, Arc<ContactRecords>)> {
     let sources = product::sources_of(ev.value(root)?)?;
     sources
         .into_iter()
         .find(|(ix, _, _)| *ix == output_ix)
-        .map(|(_, body, _)| body)
+        .map(|(_, body, contacts)| (body, contacts))
 }
 
 /// The ONE refusing path of the registry: refuses iff `report` carries

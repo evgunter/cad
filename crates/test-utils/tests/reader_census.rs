@@ -135,6 +135,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // eps inventory, code view
     },
     Entry {
+        path: "crates/pncad-py/src/tests.rs",
+        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to read
+    },
+    Entry {
         path: "crates/pncad/tests/all.rs",
         disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
     },

@@ -279,6 +279,18 @@ command must carry `cd <clone> && ...` in the same Bash call, and
 post-resume battery claims are trusted only after verifying the
 transcript rows carried the cd.
 
+**Never move a live lane's branch ref from outside its worktree.** A
+lane's unit branch is checked out in its worktree; `git branch -f` /
+`git reset` on that branch from the orchestrator checkout (e.g. to
+re-gate a frozen head with an empty trailer commit) moves the lane's
+HEAD under it, orphans every unpushed lane commit, and shows the lane
+its own work as a giant staged diff on its next `git status` (M10-6
+fix pass, 2026-09-03 — recovered from `git reflog` and merged, nothing
+lost). Re-gate on a detached commit or a throwaway branch and push BY
+REF (`git push origin <sha>:refs/heads/<branch>`), or make the commit
+inside the lane's worktree while it is dead; never on the shared local
+ref. The lane then merges origin (merge-only) before its next push.
+
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies, logs and run artifacts go to
 LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`,

@@ -894,7 +894,9 @@ demos_hygiene() {
 # spelling of the lily's and the bottle's frontier pins.
 # HOSTED MIRROR: k-lint / demos tour suite (the #99 ε pin + the tour's own probes)
 demos_eps_pin() {
-  (cd demos/tour && cargo test --release)
+  # `--features interval` since M10-6, matching the hosted row: it is
+  # what compiles the tolerance cell and runs its row.
+  (cd demos/tour && cargo test --release --features interval)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
@@ -942,12 +944,36 @@ probe_targets() {
       | scripts/gates/probe-suite-census.sh --check-listing "$c" || return 1
   done
 }
+# HOSTED MIRROR: k-lint / driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
 klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
     ../../target/k-fresh/k-eps-1e-6.csv \
     ../../target/k-fresh/k-eps-1e-9.csv \
-    ../../target/k-fresh/k-eps-1e-12.csv)
+    ../../target/k-fresh/k-eps-1e-12.csv) || return 1
+  # The E6 driver's own population. `--gate-rule-1-only` demotes rules
+  # 2 and 3 — the ones this population makes in bulk, because the
+  # driver refines margins toward zero by construction and the
+  # corpus-calibrated thresholds fire over that — and leaves rule 1
+  # (indeterminate / invalid) GATING, because that is the trigger E6
+  # names for re-opening the K question. The hosted row carries the
+  # argument in full. The per-rule counts print at all three eps rows
+  # either way.
+  (cd tools/k-lint && cargo run -- --gate-rule-1-only \
+    ../../target/k-fresh/driver/k-eps-1e-6.csv \
+    ../../target/k-fresh/driver/k-eps-1e-9.csv \
+    ../../target/k-fresh/driver/k-eps-1e-12.csv)
+  local status=$?
+  # ANY non-zero fails this row, which is what the hosted half does and
+  # what this half did NOT: it tested `= 1` alone, so a build failure
+  # (101), a panic (101) or an unknown-option exit passed silently. The
+  # two halves disagreed about every status but 1 and 2, and
+  # check-ci-mirror-parity.py cannot see it — that script compares the
+  # NAMES and gate modes of the rows, not the shell that implements
+  # them, so this class of drift is caught by reading, not by a gate.
+  # Said here rather than left to be rediscovered.
+  [ "$status" != 0 ] && return 1
+  return 0
 }
 
 # The tessellation-budget lint (issue #320; mirrors the two ci.yml
@@ -1070,6 +1096,28 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # `RUN_VIEWER_TOOLKIT` is deliberately not consulted: the filter's
 # output is shared, but a local run has no reason to act on this axis.
 run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --all-targets -- -D warnings
+# The same shape one crate over: `crates/pncad-py/src/py/` — the whole
+# PyO3 surface — compiles only under the crate's non-default `python`
+# feature, so the `clippy` row above, which runs at DEFAULT features,
+# has all of it `#[cfg]`-ed away before clippy sees it.
+#
+# SITED WITH THE OTHER CLIPPY ROWS HERE, WITH THE PYTHON JOB HOSTED, and
+# the asymmetry is deliberate rather than drift. Hosted, the row rides
+# `python-suite` because that job already has an interpreter, already
+# caches the `python` feature graph, and is off the critical path — the
+# constraint there is billed minutes on jobs the gate waits for. This
+# half has no critical path and reports one PASS/FAIL per row, so
+# folding a lint into `python suite (staged cdylib)` would only make a
+# lint failure print under the suite's name.
+#
+# UNCONDITIONAL, like the two rows around it and for the argument written
+# at `python_suite` above. It needs a Python 3 interpreter — not
+# libpython: clippy never links the cdylib, but pyo3's build script
+# probes for an interpreter and fails loudly without one — which is
+# strictly less than the `python suite` row below already requires.
+# HOSTED MIRROR: python-suite / clippy (pncad-py, python feature)
+# HOSTED MIRROR: python-suite-nightly / clippy (pncad-py, python feature)
+run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features python --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a tree-wide ratchet over a derived root set, not a per-closure
 # row. See scripts/doc-gate.sh for the flags and the derivation.

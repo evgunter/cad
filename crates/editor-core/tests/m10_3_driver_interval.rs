@@ -111,7 +111,12 @@ fn unit_square() -> LoopProgram {
 /// built on a different branch. That is exactly the no-flips v1 case —
 /// definite, on a different verdict vector, refused as mass rather than
 /// analyzed.
-fn slab(nominal: f64, half: f64) -> ProfileDoc {
+/// **Crate-visible since M10-6** (R2's MINOR-14): the accounting
+/// golden in `m10_6_ci_rows_interval` is ABOUT this fixture's drive,
+/// and it carried a re-derived copy that could silently stop being the
+/// same document. One home, so the golden cannot golden something
+/// else.
+pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("depth"),
@@ -205,7 +210,8 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
 /// that IS in the band, and no amount of narrowing moves it out. That
 /// is PR-7's genuine semantic sliver, and the ratified answer is to
 /// refuse it rather than refine it.
-fn sliver_axis() -> ProfileDoc {
+/// Crate-visible for the same reason [`slab`] is.
+pub(crate) fn sliver_axis() -> ProfileDoc {
     let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {

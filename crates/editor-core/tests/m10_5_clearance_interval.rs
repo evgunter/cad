@@ -83,10 +83,14 @@
 //!
 //! # Which refusal arms have a row, and which cannot
 //!
-//! `ClearanceRefusal` has ten arms. Rows below cover `Budget(Pairs)`,
+//! `ClearanceRefusal` has ELEVEN arms since M10-6 (`NoAdmittedPair`
+//! joined, for the minimum-separation door: two selections whose only
+//! candidate pairs the wedge rule drops). Rows below cover
+//! `Budget(Pairs)`,
 //! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
 //! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
-//! adopted probe suites. FIVE refusal shapes have NO row, and the reason
+//! adopted probe suites, and `NoAdmittedPair` by M10-6's own suite.
+//! FIVE refusal shapes have NO row, and the reason
 //! is the same for each: they are not reachable on any document these
 //! fixtures can build.
 //!
