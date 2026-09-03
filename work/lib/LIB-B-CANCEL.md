@@ -4,6 +4,7 @@ kind: unit
 title: binding census family B-CANCEL
 status: review
 opened: 2026-09-03
+pr: 1676
 branch: lib/b-cancel
 ---
 

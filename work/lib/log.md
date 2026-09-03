@@ -2357,7 +2357,7 @@ only STEP-fixture #917 false positives remain in crates/). Nothing
 LIB holds; the recipe layer's NodeErrorKind::Blend shape is cited
 in that design as ratified precedent.
 
-**B-CANCEL IN REVIEW (2026-09-03, #PR; mechanical under the 08-29
+**B-CANCEL IN REVIEW (2026-09-03, #1676; mechanical under the 08-29
 ruling, no A/B row). Census family B-CANCEL CLOSED — a Python caller
 can stop an evaluation, and the family found that binding the STOP
 was the small half.** `CancelToken` (top-level, spelled identically,
