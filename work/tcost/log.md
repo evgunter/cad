@@ -851,3 +851,67 @@ denominator does not close; commits vs pushes), `runs-on` added to
 the parity check, the never-executed primer and the cancel-in-
 progress interaction stated. Landing ruling: on a re-gate of the head
 when runners return, not before. Both fix passes dispatched locally.
+## Unit: TCOST-K1 fix pass landed (2026-09-03)
+
+The union of both reviews of PR 1652 (frozen 554f2b0f) applied on the
+branch: the budget exit decides through the k-funnel under its own
+predicate (`props_quad_last_round`), asked once after round 0, on a
+definite negative only; `QuadratureBudget` carries the rounds it paid
+for, and the suite's rows are gated on that receipt on both lanes
+(four kernel mutants — exit never fires, exit refuses in-band, pad
+dropped, bound × 4 — each red on the rows that own them); one home
+for block assignment, cut count, hull selection and the remainder's
+cell factor; the bound's monotonicity written at the site; the stale
+"measured width" prose swept, the Display and its five matchers with
+it; the area pad filed as `tcost-area-pad-lever`. Refusal payloads
+bit-identical to the frozen head on the digest's probe subset.
+
+## Unit: TCOST-K1 merged (2026-09-03) — the program's first A/B row
+
+PR 1652 at `b28b734f` (interval 1e-12 with the dev-probe k-lint row
+asked, run 33766712819, every job green; the fix pass's default-lane
+run 33750172871 green at 1c78f3c9). Merged at 5e668ba6, recorded as
+ordinal 1400 / sample #117 in `docs/MODEL-AB-LOG.md`; block TCOST-KB1
+slot 0 concluded (record branch-side). The NURBS-patch lanes refuse at
+the budget without running the schedule: a lower bound on the last
+round's flux width, decided through the k-funnel under
+`props_quad_last_round` once after round 0; `QuadratureBudget` carries
+the rounds it paid. Hosted at 1e-12: default-lane shard totals
+219.7 + 300.1 → 135.0 + 127.6 cpu-s; the block-edge gap row 27 → 2.9.
+Every certified bound byte-identical across six lane×ε rows; no pin
+re-baselined. `docs/TCOST-K1-SPEC.md` deleted at merge per the
+DOC-LEDGER rule (the PR body and this entry are its record).
+
+## Unit: TCOST-B3 merged (2026-09-03)
+
+PR 1684 at `cf9392f4` (default 1e-6, run 33766730064, all green
+including the new `cache-prime` parity step). The build jobs'
+rust-cache lived in a scope no branch could read (main never saved
+one; 40 of 49 first build jobs missed; ≈45 billed minutes an hour on
+dependency rebuilds). Two primer jobs on `push: main` save under the
+shared keys the build jobs now restore, at ~7 billed minutes an hour;
+`scripts/check-cache-prime-parity.py` reds if the primer and build
+jobs' env, key or runner drift. OWED: the after-reading — the first
+PR run after the next push to main, `build + archive`'s restore line
+and archive duration against 820/840 s cold — and the first push to
+main pays one full dependency build per lane.
+
+## Unit: TCOST-9 merged (2026-09-03)
+
+PR 1681 at `b09a0b33` (default 1e-6, run 33766720238, all green).
+The second gating batch: the proptest population (8 whole suites, 2
+splits so pins stay ungated, cert5_r2_probes whole) plus TCOST-2's and
+TCOST-4's gate candidates — gated set 43 → 54 suites, 257 → 384 tests;
+both hosted proofs (54 skip notices on an unrelated diff; the named
+suite running on a touched path). The batch-4 MAJOR closed as a class:
+ten markers (three of this unit's, seven of TCOST-1's) now name the
+sibling test-helper module their fixtures come from. Left ungated with
+a filed question for Ev: 14 in-src proptest modules at 0.62 cpu-s
+total. Filed: the `#[path]`-mount blind spot in `ci-filter.py`'s
+src-module derivation; the marker-set-vs-imports guard. Evidence PRs
+1679/1680 closed unmerged.
+
+## Seam: the outage ended (2026-09-03, 14:24 UTC)
+
+Ev raised the spending limit; the three re-gate runs got runners
+within seconds and every one went green. Issue closed.

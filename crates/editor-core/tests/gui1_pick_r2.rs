@@ -27,11 +27,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// `tests/fixture/` is named because the bodies these rows pick against are built
+// there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
     "crates/bvh/src/",
     "crates/mesh/src/",
     "crates/geom-core/src/linalg/",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture;

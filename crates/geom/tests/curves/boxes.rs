@@ -5,6 +5,27 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). The claim is that the certified
+// curve boxes CONTAIN their locus, that a span-tight box actually prunes,
+// and that poison never prunes — so it rests on the box constructors and on
+// the curve evaluators the sampled points come from. Named wide upstream:
+// the spline machinery the NURBS box's hulls are read from, the `Bounds`
+// and `Interval` scalars a certified box is built in, and `bvh`'s `Aabb`,
+// which is the box type itself.
+// `geom-core/src/linalg/` is named because the containment assertion is a `Point3`
+// against an `Aabb`'s corners and the frames are built by normalising `Vec3`s —
+// the same judgement the two bvh markers in this batch make.
+test_utils::gated_to![
+    "crates/geom/src/curves/",
+    "crates/geom/src/curves.rs",
+    "crates/geom/src/net.rs",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/real.rs",
+    "crates/geom-core/src/linalg/",
+    "crates/bvh/src/aabb.rs",
+];
+
 use bvh::Aabb;
 use geom::curves::boxes::{circle_arc_aabb, ellipse_arc_aabb, nurbs_curve_aabb};
 use geom::{Curve3, NurbsCurve3};
