@@ -2,10 +2,12 @@
 id: sccache-trial-verdict-to-read
 kind: issue
 title: sccache on trial - check in a few days whether it actually helped
-status: open
+status: review
 opened: 2026-08-21
 github: 853
-refs: [852]
+refs: [852, 1648]
+pr: 1648
+branch: tcost/c4-sccache-reread
 ---
 
 ## From GitHub issue 853
@@ -42,3 +44,22 @@ Note the build jobs are ~24 of a code-tier PR's ~87 billed minutes and `build + 
 ## Home
 
 CI-minutes ground belonged to S-QA, which is closed and may hold only closed items, so this open reminder lands under `work/issues/`.
+
+## The verdict (TCOST-C4, PR 1648)
+
+Read on 2026-09-03, after the trial window on `tcost/c4-sccache-reread`.
+The rig had been inert since it landed (`vars.SCCACHE` = `"0"`), so the
+first job was to make it run at all.
+
+**It does not pay, and the reason is structural.** sccache 0.16.0 does not
+cache `--crate-type bin`; every test binary in the nextest archive is one,
+and test targets are 82 % of the build job's compile time. The warm run
+(33726782739) shows exactly that: 18 hits, 0 misses, 50 non-cacheable calls
+of which 47 are `crate-type`. The 18 are the workspace libs.
+
+Item 3 of this issue also fired: the ~205 MB per-lane object cache restored
+at a 9-minute gap and missed at 38 and 60 minutes.
+
+Disposition: rig kept, condition inverted to `vars.SCCACHE == '1'` so it is
+off with no variable set. Numbers in `docs/CI-MINUTES-2026-08.md` F4 and
+`docs/perf-data/sccache-trial/`.

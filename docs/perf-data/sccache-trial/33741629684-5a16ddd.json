@@ -1,0 +1,28 @@
+{
+  "run_id": 33741629684,
+  "head_sha": "5a16dddd1dd7bd3b932e32d7b813cd373f38bc80",
+  "lane": "interval",
+  "lane_source": "requested (CI-Config: lane=interval)",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "state": "WARM — 'Cache restored from key: sccache-obj-interval-33738656130' (saved 17 minutes earlier) and rust-cache restored v0-rust-interval-build-interval-Linux-x64-61bb9c0c-66da18f8. The interval twin of run 33726782739.",
+  "archive_step_s": 661,
+  "compiling_lines": 19,
+  "sccache": {
+    "compile_requests": 68,
+    "compile_requests_executed": 18,
+    "cache_hits": 5,
+    "cache_misses": 13,
+    "cache_hits_rate": "27.78 %",
+    "compilations": 13,
+    "non_cacheable_calls": 50,
+    "non_compilation_calls": 0,
+    "non_cacheable_reasons": {
+      "crate-type": 47,
+      "-": 2,
+      "missing input": 1
+    },
+    "cache_size_written": "249 MiB",
+    "average_compiler_s": 19.884
+  },
+  "reading": "Same shape as the default lane's warm run — 18 cacheable units, all of them libs, and 47 crate-type refusals for the binaries — but only 5 of the 18 hit. A workspace rlib that is not bit-identical between runs changes the sccache key of every crate downstream of it, and the default lane's 18/18 shows the chain can hold; which lib broke it here was not chased, because the ceiling is the libs either way."
+}

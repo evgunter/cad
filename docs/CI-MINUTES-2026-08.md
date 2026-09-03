@@ -146,52 +146,114 @@ surfaces on the next, innocent PR** rather than at the merge that
 caused it, and the person who gets the red did not write the code that
 caused it. The reading that goes with that is in ci.yml's header.
 
-### F4 — sccache: the local revert does not transfer to CI — ON TRIAL
+### F4 — sccache: measured, and it does not pay — OFF BY DEFAULT
 
-`docs/LOCAL-BUILD-PERF.md:109` reverted sccache locally on a real
-measurement: cold build 156 s → 96 s at a 99.4% hit rate, given up
-because sccache and incremental compilation are mutually exclusive and
-going non-incremental cost **5–7x on the edit-rebuild loop** (91 s vs
-18 s on geom-core). `local-scripts/gate.sh:37` keeps sccache on the
+`docs/LOCAL-BUILD-PERF.md`'s sccache section reverted sccache locally on
+a real measurement: cold build 156 s → 96 s at a 99.4% hit rate, given
+up because sccache and incremental compilation are mutually exclusive
+and going non-incremental cost **5–7x on the edit-rebuild loop** (91 s
+vs 18 s on geom-core). `local-scripts/gate.sh` keeps sccache on the
 local gate runner for exactly the cold-build case.
 
-**That objection is already moot on the runner.** `Swatinem/rust-cache`
-sets `CARGO_INCREMENTAL=0` itself, on every job that uses it — which
-is every compiling job here. **CI has already paid sccache's only
-documented cost, unconditionally, and gets nothing back for it.**
+**That objection is moot on the runner** — `Swatinem/rust-cache` sets
+`CARGO_INCREMENTAL=0` itself on every job that uses it — which is what
+made the question worth asking here at all. The rig landed in #852
+behind the repo variable `SCCACHE`, with the reading owed in a few
+days' time. **The variable was then set to `"0"` and the reading was
+never taken**: on every run from then until 2026-09-03, both build jobs
+reported `install sccache` and `sccache stats` as `skipped` (e.g. runs
+33719350040 and 33718880979). TCOST-C4 dropped the condition on a
+branch — a branch cannot change a repo variable — and took it.
 
-That does not make sccache a win; it makes the question sharp. Since
-rust-cache already caches the ~225 dependency crates, sccache's unique
-contribution in CI is exactly the **workspace** crates rust-cache
-evicts — which ci.yml:528 and render.yml:718 both call out, and which
-at opt-2 dominate the two 11–12 minute build jobs. The 156 → 96 s
-local figure does **not** measure that and must not be quoted for it.
+**THE READING** (PR 1648, `tcost/c4-sccache-reread`; every run at
+`tier=all`, the same 18-package set, lane asked for by trailer, so the
+rows are like-for-like in B1's sense):
 
-**The rig is in the tree and is ON.**
-`.github/actions/install-sccache` installs the pinned 0.16.0 prebuilt
-(the version `local-scripts/gate.sh` already runs locally) and restores
-a per-lane object cache; the two build jobs carry `RUSTC_WRAPPER` and a
-`sccache --show-stats` step. The kill switch is the repo variable **`SCCACHE`** set to `"0"` — unset
-means enabled, so the trial runs without a variable needing to exist.
+| run | head | lane | rust-cache | sccache object cache | `build … + archive` | sccache stats |
+|---|---|---|---|---|---|---|
+| 33721067389 | af3d51bf | default | cold | nothing to restore | **799 s** | 302 requests, **0 hits**, 191 misses, 104 non-cacheable (90 `crate-type`) |
+| 33722975323 | 2eb2cf45 | interval | cold | nothing to restore | **910 s** | 302 / 0 / 191 / 104 (90) |
+| 33724962116 | 01b90e47 | default | cold | **miss** at a 38-minute gap | **787 s** | 302 / 0 / 191 / 104 (90) |
+| 33726782739 | eaead9ab | default | **restored** | **hit** at a 9-minute gap | **534 s** | 68 requests, **18 hits**, 0 misses, 50 non-cacheable (47 `crate-type`) |
+| 33729282948 | 9862ccc0 | interval | cold | **miss** at a 60-minute gap | **860 s** | 302 / 0 / 191 / 104 (90) |
+| 33738656130 | 582f50d3 | interval | cold | **miss** at an 88-minute gap | **854 s** | 302 / 0 / 191 / 104 (90) |
+| 33741629684 | 5a16dddd | interval | **restored** | **hit** at a 17-minute gap | **661 s** | 68 requests, **5 hits**, 13 misses, 50 non-cacheable (47 `crate-type`) |
 
-Verified locally before landing, on the exact artifacts CI will use:
-the release URL resolves (HTTP 200), the tarball's layout matches the
-extract path the action uses, the binary runs (`sccache 0.16.0`), and
-wrapping `rustc` on a throwaway crate gives a **cache miss cold, then a
-cache hit after `cargo clean`** — which is precisely CI's situation,
-since rust-cache restores the deps but not the workspace crates.
-That proves the mechanism, not the size of the win.
+The control is a run of the same shape with the rig inert: run
+33719350040 (`smell/k-lint-readings`, head 70182ddf), default lane,
+`tier=all`, same package set — **769 s**, and its rust-cache also
+reported `No cache found`. B1's twelve `tier=all` interval samples
+(570–869 s, PR 1616) are the interval control population; the spread is
+±25 % and every number above sits inside it.
 
-**Tracked in #853, to be read in a few days' time.** *Discard the first run after
-this landed* — `RUSTC_WRAPPER` is RUST*-prefixed, so rust-cache hashes
-it and the flip buys one cold rebuild (the same trap the OPT LEVEL
-note on the build job warns about). Then compare the `build test
-binaries + archive` step duration against the pre-sccache baseline in
-the table above — **11.90 min (interval) and 11.03 min (default)** —
-and read `sccache --show-stats`: **hits on dependency crates prove
-nothing**, rust-cache already serves those. Only workspace-crate hits
-on a warm run justify keeping it. To revert, set `SCCACHE=0`; to adopt,
-delete the variable check.
+**WHAT THE WARM RUNS SAY.** The two runs where both caches restored are
+the whole trial. Each had exactly **18 cacheable units and 47
+refusals**:
+
+* the 18 cacheable units are the workspace **libs** — every rlib cargo
+  still had to build once rust-cache had served the dependencies;
+* the 47 `crate-type` refusals are the **binaries**: the test binaries
+  in the archive and the workspace build scripts.
+
+The default lane took all 18 of its cacheable units from the cache; the
+interval lane took 5 and rebuilt 13, because a workspace rlib that is
+not bit-identical between runs changes the key of everything downstream
+of it. That difference is worth exactly what the 18 are worth, which is
+the point: **sccache 0.16.0 does not cache `--crate-type bin`**, and a
+test binary is a bin. Verified directly on the pinned binary: a
+two-target crate gives one cacheable rlib and one `crate-type` refusal
+for the bin, and
+`cargo test --no-run` on it gives **three requests, three refusals, all
+`crate-type`**. That is what the cold runs' `crate-type 90` is too —
+62-odd dependency build scripts plus the workspace's test targets.
+
+So the hypothesis this rig was built to test cannot be true.
+`~/tcost-work/build-profile/REPORT.md` §1 puts **82 % of the
+workspace's compile time in test targets** and 18 % in the libs; #853
+called the test binaries "the whole hypothesis". They are the exact set
+sccache will not touch, at any hit rate, warm or cold. Its ceiling here
+is the 18 % — and only the part of that 18 % a restored object cache
+covers.
+
+**AND THE OBJECT CACHE BARELY PERSISTS.** Five restore attempts:
+**hits at 9 and 17 minutes, misses at 38, 60 and 88** — the entry is
+~205 MB per lane and this repo's 10 GB Actions cache budget churns it
+out within the hour (on the 88-minute attempt even the 9 MB
+`sccache-bin-…` entry had gone). #853's own item 3 named this as the
+thing that would mean the trial measured nothing; a warm reading here
+had to be manufactured by pushing again within minutes, which is not how
+the gate is used.
+
+**A THIRD FINDING, LARGER THAN THE ONE WE WENT LOOKING FOR.** The same
+logs say `Swatinem/rust-cache` reported **`No cache found`** on five of
+seven build jobs here *and on the control run* — the build job compiles
+all ~300 units from scratch on most runs. The premise under F4 and #853
+("rust-cache already caches the ~225 dependency crates, so sccache's
+unique contribution is the workspace crates") is therefore false as
+stated for THIS job: nothing is served, most of the time. The cause is
+the same cache budget, and `push` runs to main do not run the build job
+(F3), so there is no base-branch entry for a PR's first run to restore
+either. **That is the lever worth pulling next**, and it is not sccache:
+the 799 s → 534 s and 854 s → 661 s pairs in the table are what a warm
+run looks like, and at most 18 of a warm run's 68 units came from
+sccache.
+
+**DISPOSITION.** The rig stays in the tree and is **off by default**:
+the condition is now `vars.SCCACHE == '1'`, so it is inert with no
+variable set and the repo variable `SCCACHE=0` can be deleted by
+whoever holds the settings. It is not deleted, because the two steps
+cost ~0 s while skipped and this note plus
+`docs/perf-data/sccache-trial/` are what prevent a third pass at the
+same idea. **Do not re-open this without a reason that answers the
+`crate-type` refusal** — sccache caching Rust binaries, or a build job
+whose cost has moved out of the test targets.
+
+**A limit of the method, stated plainly.** No hosted A/B of sccache
+alone is possible with this rig: `RUSTC_WRAPPER` is `RUST*`-prefixed, so
+rust-cache hashes it, and turning sccache off rotates rust-cache's key
+and buys a cold rebuild in the off arm. The two are measured together or
+not at all; what separates them here is the stats step, not a pair of
+durations.
 
 ### F5 — volume
 
@@ -449,6 +511,8 @@ growths above are the larger target and are nobody's row yet.
   rows against the same binary. These drive `cargo test`, so the
   matrix was paying for the same compile twice. **−4 billed min.**
 * sccache rig, inert behind `vars.SCCACHE` (F4). **0 min until run.**
+  *Read in 2026-09-03's trial window and kept off: it cannot cache a
+  test binary, so the 0 stands for good. F4 carries the numbers.*
 * `#921` — the `fmt` job's `Swatinem/rust-cache` told about all seven of
   the cargo roots the rustdoc gate documents, instead of the one it
   defaults to (F6). The list is not written into `ci.yml`: a step asks
@@ -1079,10 +1143,13 @@ not a saving, it is a hole.
 5. **`k-lint`'s cache, at its new size.** The lever is not wrong, just
    proportionally smaller: it now applies to whichever single unification
    a run drew. Unmeasured, and worth less than it was.
-6. **F4's sccache reading**, still owed (#853), and now against a
-   different baseline: the two build jobs are one build job per run since
-   sampling, so a workspace-crate hit is worth half what the F4 note
-   priced it at.
+6. **F4's sccache reading** — TAKEN (2026-09-03, PR 1648), and it is a
+   negative: sccache refuses `--crate-type bin`, which is every test
+   binary in the archive and 82 % of the job's compile time, so the
+   workspace-crate hit the note priced was never available. What the
+   same runs turned up instead is that `Swatinem/rust-cache` restores
+   **nothing** on most build jobs — that is the open lever now, and F4
+   states it.
 
 ## 2026-08-28 — asking for a point instead of drawing one
 

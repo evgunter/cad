@@ -1,19 +1,24 @@
 # Install the PINNED sccache prebuilt and restore its object cache.
 #
-# ON TRIAL, NOT A SETTLED ADOPTION. The switch was landed as the repo
-# variable SCCACHE set to "0" (unset meaning enabled), the same shape
-# as BUILD_RUNNER in ci.yml — and it was then SET to "0", which left
-# this action skipped on every run and the trial unread. ci.yml's two
-# build jobs now call it UNCONDITIONALLY for the trial window; the
-# RUSTC_WRAPPER note on the `build` job carries what that window is and
-# how it is reverted.
+# TRIED AND DECLINED. This action runs only when the repo variable
+# SCCACHE is "1", which nothing sets. The trial it was built for was
+# taken in 2026-09-03's window and came back negative for a structural
+# reason: sccache does not cache `--crate-type bin`, so every test
+# binary in the nextest archive is a refusal, and those are 82% of the
+# build job's compile time. docs/CI-MINUTES-2026-08.md finding F4 has
+# the runs and docs/perf-data/sccache-trial/ the raw stats.
 #
-# The FIRST run after this landed is cold and is NOT the verdict:
+# What survives is below, and it is why this file is still here: the
+# install and the object cache are correct, so turning the rig back on
+# is one variable rather than a re-derivation. Anyone doing that owes
+# the paragraphs below a new answer to `crate-type`.
+#
+# THE FIRST RUN AFTER A FLIP IS COLD AND IS NOT A READING:
 # RUSTC_WRAPPER is RUST*-prefixed, so Swatinem/rust-cache hashes it and
-# the flip buys exactly one cold rebuild. docs/CI-MINUTES-2026-08.md
-# finding F4 says how to read the result; issue #853 tracks going back
-# to read it, and carries the two outcomes and what each one should
-# change.
+# the flip buys one cold rebuild in each lane that flips. That is not a
+# footnote here — it is why no hosted A/B of sccache ALONE is possible
+# through this rig, and why F4's verdict rests on the stats step rather
+# than on a pair of step durations.
 #
 # WHY IT IS WORTH TRYING HERE, WHEN IT WAS REVERTED LOCALLY.
 # docs/LOCAL-BUILD-PERF.md reverted sccache on a real measurement — a
@@ -25,28 +30,21 @@
 # has ALREADY paid sccache's one documented cost and currently gets
 # nothing back for it.
 #
-# WHAT IS ACTUALLY BEING TESTED. rust-cache already caches the ~225
-# dependency crates, so the 156 -> 96 s local figure does NOT predict
-# the win here and must not be quoted for it. rust-cache deliberately
-# does not cache WORKSPACE crates (ci.yml's note on the build job, and
-# render.yml's) — those are the ones this is aimed at, and they dominate
-# the two build jobs, which are the gate's largest billed line items
-# (docs/CI-MINUTES-2026-08.md's per-job table, which is the register for
-# that figure and is maintained by hand). The hypothesis is
-# narrow: sccache's contribution in CI is exactly the workspace crates
-# rust-cache evicts. `sccache --show-stats` after the build is what
-# settles it.
+# WHAT WAS TESTED, AND WHAT CAME BACK. The hypothesis was narrow:
+# rust-cache does not cache WORKSPACE crates (ci.yml's note on the build
+# job, and render.yml's), so sccache's contribution in CI would be
+# exactly those — and the 156 -> 96 s local figure, which is about
+# dependency rlibs, does not predict it and must not be quoted for it.
+# `sccache --show-stats` settled it, negatively, in two parts:
 #
-# THIS PARAGRAPH USED TO SAY "at opt-2" AND NAME AN 11-12 MINUTE JOB, and
-# both went stale the way an extracted premise does: the gate moved to
-# `opt-level = 1` on 2026-08-25 (ci.yml's OPT LEVEL note carries the
-# decision and what would reverse it), and the job's minutes are the
-# register's to state. Neither restatement was ever re-taken here, and
-# nothing would have gone red when the level moved — so this note now
-# names the level's OWNER rather than its value, and the minutes'
-# register rather than a range. What the hypothesis rests on is
-# unaffected by both: it is that rust-cache evicts workspace crates,
-# which is true at every opt level.
+#   * the workspace crates split into LIBS, which sccache serves, and
+#     TEST BINARIES, which it refuses — `crate-type`, because a test
+#     target is a bin. The archive is made of test binaries and they are
+#     82% of the job's compile time, so the half of the hypothesis that
+#     mattered was never available;
+#   * the ~205 MB object cache below did not survive between runs at
+#     38- and 60-minute gaps, only at 9. It competes for the same repo
+#     cache budget rust-cache's own entries lose to.
 #
 # LOCAL DISK CACHE, NOT THE GHA BACKEND, deliberately. sccache's native
 # GitHub-Actions backend needs ACTIONS_RESULTS_URL and
