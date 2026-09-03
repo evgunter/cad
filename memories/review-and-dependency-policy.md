@@ -1,6 +1,6 @@
 ---
 name: review-and-dependency-policy
-description: Evan's rules for reviews (hands-on e2e exercise, unique-signal-only local runs, when a stated gap blocks) and for adding dependencies
+description: Ev's rules for reviews (hands-on e2e exercise, unique-signal-only local runs, when a stated gap blocks) and for adding dependencies
 metadata:
   type: feedback
 ---
@@ -65,10 +65,10 @@ subject is a blocker.
 write their OWN consumer suite — an independent derivation of what the
 PR claims, not a re-reading of its diff — and after the fix pass that
 suite is committed as a normal test file, where the aggregation guard
-picks it up and it becomes a permanent gate (Evan, PR #17). That
+picks it up and it becomes a permanent gate (Ev, PR #17). That
 independence is its regression value.
 
-**Promotion stays cheap; RETIREMENT IS ALWAYS PERMITTED (Evan,
+**Promotion stays cheap; RETIREMENT IS ALWAYS PERMITTED (Ev,
 2026-08-13).** Three parts:
 
 1. **The conventions bind the reviewer WRITING the suite**, not the

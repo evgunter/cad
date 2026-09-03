@@ -35,7 +35,7 @@
 //!
 //! In-band margins escalate typed ([`PlaneEqError::Escalated`]).
 //!
-//! **Retirement DONE (M4 PR 5; DESIGN.md roadmap; Evan, #53)**: the
+//! **Retirement DONE (M4 PR 5; DESIGN.md roadmap; Ev, #53)**: the
 //! M3-era rung 1 (canonical `(n̂, d)` bit comparison through
 //! `geom_core::bit_identity`) left production. The bit channel
 //! survives here only through `crate::source`'s

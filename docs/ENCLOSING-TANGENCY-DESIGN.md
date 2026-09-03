@@ -1,6 +1,6 @@
 # The enclosing (ρ < 0) fillet tangency — ruled out; a demanding request refuses
 
-**Status: RATIFIED (Evan, in-chat, 2026-08-29).** The ruling,
+**Status: RATIFIED (Ev, in-chat, 2026-08-29).** The ruling,
 verbatim: *"we should never allow this geometry; it is not a fillet
 of that corner and should be a refusal."* The enclosing class is
 permanently unreachable by design — no door, shipped or future,

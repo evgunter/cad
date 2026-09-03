@@ -249,10 +249,18 @@ CITING_FILES=(
 # rename — that ci.yml still carries a step of this name — is unaffected.
 #
 # Shell globs, matched against the repo-relative path; `*` matches `/`.
+# `work/*` IS EXEMPT ON THE SAME ARGUMENT AS `docs/*`, and it is the
+# tracker rather than a document tree: an item file is a DATED FINDING,
+# and a finding that quoted the step name on the day it was written
+# stays true when the step is renamed — the finding is history the
+# moment it is filed. It is also the tree where a closed issue's note
+# most naturally quotes the step it was about, which is exactly how
+# this exemption came to be needed (the four k-probe items, 2026-09-03).
 CITATION_EXEMPT=(
   '.github/workflows/ci.yml'                # the step itself
   'scripts/gates/probe-suite-census.sh'     # this gate
   'docs/*'                                  # records, plans, prompts, logs
+  'work/*'                                  # the tracker: dated findings
 )
 
 # The clippy row that makes a misspelt cfg gate a hard error.

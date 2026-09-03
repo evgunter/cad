@@ -3,7 +3,7 @@
 **Binding at dispatch** (S-BOOL program, `docs/S-BOOL-PLAN.md`;
 difficulty logged pre-draw: **L**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
-The primary specification is the Q1 ruling's half (ii) (Evan,
+The primary specification is the Q1 ruling's half (ii) (Ev,
 in-chat, 2026-09-01; `docs/S-BOOL-PLAN.md` §Rulings, quoted here
 verbatim because it bounds the unit):
 
@@ -144,5 +144,5 @@ from `pncad-py`, a `From<Vec<Vertex>>`).
   fixture's geometry is a STOP: report, do not adjust.
 - The PR merges on green after the dual (no design surface beyond
   the prose the ruling already ordered) — unless the survey finds a
-  loop the lattice cannot spell, which goes to Evan first.
+  loop the lattice cannot spell, which goes to Ev first.
 - Re-merge main before opening the PR.

@@ -1033,7 +1033,7 @@ pub struct PcurveCertificate<T: Real> {
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
 /// hull bound, and building it is **certification**. `f64`, the
 /// telemetry probe and the interval scalar may certify;
-/// [`geom_core::Dual`] may not — Evan's D1 ruling, 2026-08-19: a dual
+/// [`geom_core::Dual`] may not — Ev's D1 ruling, 2026-08-19: a dual
 /// carries a bracket (the value channel's) and may still not certify,
 /// which is why `geom_core::CertifiedEnclosure` has no dual impl and
 /// `geom_core::Bounds` now does. So the fitted lane exists

@@ -35,7 +35,7 @@
 //! it cannot flake, and it is cheaper because nothing has to be
 //! over-provisioned against bad luck.
 //!
-//! The condition on 3 (Evan, 2026-08-13): `K` must be large enough — or
+//! The condition on 3 (Ev, 2026-08-13): `K` must be large enough — or
 //! the simultaneous conditions numerous enough — that the row is **very
 //! unlikely to pass by accident on a lucky seed**. `K = 1` against a
 //! 1-in-1000 class is the shape to avoid: the one seed that happens to

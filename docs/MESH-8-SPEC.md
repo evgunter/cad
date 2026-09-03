@@ -4,7 +4,7 @@
 difficulty logged pre-draw: **M/L, recorded numeric M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 Issue 868 is the primary specification, bounded by the S-MESH Q2
-ruling (`docs/S-MESH-PLAN.md` §Rulings — Evan, in-chat, 2026-09-01:
+ruling (`docs/S-MESH-PLAN.md` §Rulings — Ev, in-chat, 2026-09-01:
 **option (d), relocation**). Read the ruling verbatim, including the
 kept-as-record mesh-local alternative it declined. SMELL S115(d) is
 the disclosure this closes. Read `crates/mesh/src/walk.rs`'s

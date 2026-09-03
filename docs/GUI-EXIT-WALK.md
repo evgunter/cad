@@ -1,6 +1,6 @@
 # GUI v1 exit walk — plan vs evidence
 
-**STATUS: RATIFIED — the v1 GUI program CLOSED** (Evan's approval
+**STATUS: RATIFIED — the v1 GUI program CLOSED** (Ev's approval
 on PR #1121, 2026-08-28). This document is the v1 GUI program's
 done-state of record.
 
@@ -89,11 +89,11 @@ every fix pass. Tally: 0 confirmed + 1 candidate (GUI-4 R1's M1,
 unilateral-by-execution) pending the blinded coding, which also
 weighs the disclosed blinding contamination on the GUI-2 and
 GUI-4 pairs (the orchestrator's log leaks — rule + template fix
-recorded — and the block-record format defect resolved by Evan's
+recorded — and the block-record format defect resolved by Ev's
 no-precommitment-required ruling; block draws now live branch-side
 until block conclusion).
 
-## The two decisions this walk put to Evan, ruled
+## The two decisions this walk put to Ev, ruled
 
 1. **The walk is RATIFIED** — the program's required scope is
    delivered (#1121, 2026-08-28).

@@ -1,15 +1,15 @@
 # Error-propagation MVP: distributions, sensitivities, certified checks over the parameter box (pre-implementation design doc)
 
-Status: **RATIFIED (Evan, PR #110, merged 2026-07-27 — 👍 on the
+Status: **RATIFIED (Ev, PR #110, merged 2026-07-27 — 👍 on the
 round-2 sign-off comment).** E1–E11 are the error-propagation
 contract seed; the milestone that builds them is **M10**. Design
 history: Round 2 (#110): E1 restated as the *completion* of the
-Real-trait vision; E2 truncation → **tail-mass accounting** (Evan).
-Round 3 (Evan's careful pass, "broadly looks good"): E3 collapsed to
-one dimension-generic Measure sink; E6 adopts **no-flips v1** (Evan's
+Real-trait vision; E2 truncation → **tail-mass accounting** (Ev).
+Round 3 (Ev's careful pass, "broadly looks good"): E3 collapsed to
+one dimension-generic Measure sink; E6 adopts **no-flips v1** (Ev's
 proposal); E11 MC softened to a labeled advisory lane; E11.6
 histogram note. Post-ratification amendment on record (#110 thread,
-Evan's one-branch-tails observation, 2026-07-27): chamber containment
+Ev's one-branch-tails observation, 2026-07-27): chamber containment
 added to E2.
 
 Written alongside NAMING-DESIGN (#74) and SOLVER-DESIGN (#79) as the
@@ -52,7 +52,7 @@ instantiation carries probability; there is no `Distribution` scalar.
 
 **This completes the Real-trait vision; it does not depart from
 it.** `Real`'s original purpose was this feature, with Interval
-intuited as a quasi-stand-in for a uniform distribution (Evan,
+intuited as a quasi-stand-in for a uniform distribution (Ev,
 #110). That intuition is correct one level down: Interval turns out
 to be the **sound integration kernel for ANY input measure** — each
 leaf evaluates through the existing Interval `Real` (three-valued
@@ -110,7 +110,7 @@ is a typed document error).
   accounting the tail is `Unanalyzed` mass alongside the refusal
   reasons; one **unresolved-mass budget** (refused + tail) is the
   single honesty gate (E10). Truncation = optional sugar, tail ≡ 0.
-- **One-branch tails amendment (Evan, post-ratification 2026-07-27,
+- **One-branch tails amendment (Ev, post-ratification 2026-07-27,
   #110 thread)**: the no-flips commitment (E6) is what makes the
   MERGED budget principled, not merely simple — under one branch,
   tail, `FlipCrossing`, and undersubdivided mass all mean the same
@@ -250,7 +250,7 @@ box (parameters = intervals; witness data verbatim per E8).
   witness branch's → leaf **certified**; lineage-scoped key identity
   (Q1 PR 8) means the leaf shares the nominal build's topology;
   Measure enclosures are containment-true over the whole leaf.
-- **No-flips v1 (adopted round 3; Evan's proposal)**: a leaf
+- **No-flips v1 (adopted round 3; Ev's proposal)**: a leaf
   definite on a *different* verdict vector is **refused mass**
   (`FlipCrossing`, flipped predicates named) — no branch
   enumeration, no analysis of the far side. Topology change under
@@ -407,7 +407,7 @@ v1 says no — assertions report; a gating mode is additive policy.
 
 ## E11 — What the MVP does NOT do (loud)
 
-1. **Monte Carlo never gates** *(softened round 3, per Evan:
+1. **Monte Carlo never gates** *(softened round 3, per Ev:
    "probably fine" is fair once probabilities are on the table)*.
    Certified intervals remain the ONLY gate; MC joins as a labeled
    advisory estimator lane (the RSS pattern — pure replay makes

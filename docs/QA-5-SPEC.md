@@ -1,7 +1,7 @@
 # QA-5 — the comparison gate that stops comparing (#1038, gate side)
 
 Unit spec, S-QA program (`docs/S-QA-PLAN.md` §QA-5 and §Rulings Q3 —
-**Evan's ruling, 2026-08-29: the issue's option 2**). Binding
+**Ev's ruling, 2026-08-29: the issue's option 2**). Binding
 alongside `docs/prompts/implementer-discipline.md`.
 
 ## Premise, and verify it before anything else

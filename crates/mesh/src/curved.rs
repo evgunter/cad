@@ -768,7 +768,7 @@ fn require_swept_rectangle(
 /// chord step `phi(delta_s, r)` and the grid's
 /// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
 /// apart with both capped, so `nv >= 3` FORCES at least two of those
-/// points. The arm is kept (Evan, 2026-08-19) so the rule reads as one
+/// points. The arm is kept (Ev, 2026-08-19) so the rule reads as one
 /// sentence rather than one chart but not the other, and the mechanism
 /// it rests on — the occluding points EXIST — is asserted in
 /// [`grid_counts`]'s sphere arm rather than written down here.

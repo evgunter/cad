@@ -131,9 +131,9 @@ pub use path::program::{
     replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, ContinueTarget, LineTarget, Open,
-    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep,
-    TangentArcTarget, Via, circle, circle_split,
+    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, LineTarget,
+    Open, PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start,
+    Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 pub use structure::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
@@ -239,7 +239,7 @@ pub struct ProfileLoop<T: Real> {
 }
 
 /// The raw loop-minting doors — **kernel vocabulary, off the presented
-/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
+/// surface** (Ev's ruling on #413, executed by LIB-RETTAIL).
 ///
 /// The invariant this trait exists to hold: a caller who can NAME
 /// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent

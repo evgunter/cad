@@ -1,7 +1,7 @@
 # Draft — the molding-taper design conversation
 
-**Status: RATIFIED (Evan's sign-off on PR #908 — planes-only to
-start is Evan's own note). NOT YET IMPLEMENTED: no draft unit has
+**Status: RATIFIED (Ev's sign-off on PR #908 — planes-only to
+start is Ev's own note). NOT YET IMPLEMENTED: no draft unit has
 been cut; the register's draft row (`docs/KERNEL-VERBS.md`) is the
 live scheduling record.**
 (VERBS program; the register's draft row names this document as its
@@ -42,7 +42,7 @@ land next:
 **Recommendation**: v1 ships plane-only with a typed
 `DraftUnsupported`-class refusal naming the wall kind.
 
-**The cylinder arm's cost, corrected per Evan's #908 note.** R1's
+**The cylinder arm's cost, corrected per Ev's #908 note.** R1's
 "permanent" refusal bars only the *exact conic special cases*
 (parabola/hyperbola never join the analytic curve inventory); a
 generic plane×cone section as a **fitted NURBS curve** is fine —
@@ -125,7 +125,7 @@ The house pattern is `SplitPlane { origin, normal }` passed by value
 Draft takes the same shape plus the pull direction and angle; datums
 appear only when the recipe layer wraps the node (`Node::Split`'s
 tool-evaluates-to-DatumValue pattern, reused). Derivable; adopted
-here unless Evan objects.
+here unless Ev objects.
 
 ## DR5 — Naming: drafted faces are survivors
 
@@ -150,7 +150,7 @@ that straddles the neutral plane both ways) would mint, and
   lands — same pull-direction input, and it is the natural
   acceptance instrument for the verb (a drafted body should CERTIFY
   moldable at its own angle).
-  **Its reach is NOT plane-limited (answering Evan's #908
+  **Its reach is NOT plane-limited (answering Ev's #908
   question)**: the checker consumes certified normal enclosures,
   which exist per KIND, not per verb — closed forms for the five
   analytic kinds and the patch-hull machinery for NURBS (the M5

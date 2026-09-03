@@ -49,10 +49,10 @@ use core::f64::consts::PI;
 use pncad::document::{BooleanOp, BooleanValue, save};
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
-    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, Point3,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SketchPlane, SurfaceKind, SurfaceKindSet, ValuePayload, Vec3, WrittenAngle, WrittenLength,
-    all_edges, apply, evaluate, select_where,
+    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SurfaceKind,
+    SurfaceKindSet, ValuePayload, WrittenAngle, WrittenLength, all_edges, apply, evaluate,
+    select_where,
 };
 use pncad::topo::Body;
 
@@ -205,10 +205,19 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -
 /// verb and in nothing else.
 fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
     // ---- the sharp cube, [0, L]³ ----
+    let cube_plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
     let cube_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: cube_plane,
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
         }),
         tol,
@@ -227,24 +236,33 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
 /// the second half of the shared source solid.
 fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     // ---- the master ball, poled along +Z ----
+    // u = +X, v = +Z: the sketch's revolve axis lands on the world +Z
+    // axis, which is the pole `placements` rotates.
+    let ball_plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
+    // The pole axis, written in the meridian frame: that frame's v IS
+    // world +Z, so the axis is its own +y through (0, 0). Minted after
+    // the frame, which it names.
     let axis = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        Node::Datum(Datum::AxisInPlane {
+            plane: ball_plane,
+            origin: [len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(1.0)],
         }),
         tol,
     );
     let ball_p = insert(
         doc,
         Node::Profile(ProfileProgram {
-            // u = +X, v = +Z: the sketch's revolve axis lands on the
-            // world +Z axis, which is the pole `placements` rotates.
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-            ),
+            plane: ball_plane,
             loops: vec![half_disc()],
         }),
         tol,
@@ -528,7 +546,7 @@ pub fn corpus_text(tol: Tol) -> String {
 /// to fix. Nothing was ever going to make this file draw the die.
 ///
 /// So the file carries the scene's SUBJECT — "the composed die, which
-/// remains the sheet's die" (Evan's montage curation, #218 follow-up,
+/// remains the sheet's die" (Ev's montage curation, #218 follow-up,
 /// which already ruled the two partial dice out of the sheet for
 /// reading as near-duplicates). The blank keeps its stop, its
 /// narration and its render; what it loses is a second root in one
@@ -601,7 +619,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
-            // Standalone since the montage-v2 curation (Evan, #218
+            // Standalone since the montage-v2 curation (Ev, #218
             // follow-up): the two PARTIAL dice — the blank and the
             // pipped cube — are interesting for how they work (the
             // battery, the closed-group cut), but without that context

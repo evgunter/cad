@@ -11,7 +11,7 @@ documentation; agents self-merge except PRs that ratify open design
 questions). What follows is what that leaves out.
 
 **Push branches early and often** — after each meaningful commit,
-before review. Evan follows work in progress remotely.
+before review. Ev follows work in progress remotely.
 
 **A PR body closes an issue by DESCRIBING it.** GitHub scans PR bodies
 and commit messages (never the diff) for
@@ -33,7 +33,7 @@ remote, cheap).
 IMMEDIATELY. Verify the checks yourself — see [[agent-lane-operations]]
 on what merging destroys.
 
-**Account identifiers stay off GitHub (Evan, #355; the repo may go
+**Account identifiers stay off GitHub (Ev, #355; the repo may go
 public):** no email addresses or personal identifiers beyond the
 commit-signing identity `evgunter` in issues, PRs, comments, commits or
 committed files. Name accounts by role; concrete addresses live only in

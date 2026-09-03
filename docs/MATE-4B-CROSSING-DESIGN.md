@@ -1,6 +1,6 @@
 # At-rest crossing backability (issue 973 part (b)) — design conversation
 
-**STATUS: RATIFIED (Evan, in-chat, 2026-09-01 — all three
+**STATUS: RATIFIED (Ev, in-chat, 2026-09-01 — all three
 questions answered). Q1: the UNIFIED strength is the end state
 (option (ii) of the section below) — the crossing rung lands as its
 first instance, the legacy region-unconfined rungs are GRANDFATHERED
@@ -108,7 +108,7 @@ shape, nothing more.
 - **Stage 2**: `EdgeFacePierce` under the C6 interference-fit era —
   deferred to that era by name (A5's bullet), not scheduled here.
 
-## Questions for Evan
+## Questions for Ev
 
 1. **The confined tier**: is a second, named rung strength
    (region-confined + side-aware) acceptable beside the ratified
@@ -127,7 +127,7 @@ shape, nothing more.
 Recommendation: option A, staging as given, stage 0 funded
 immediately either way.
 
-## The unified strength story (added 2026-09-01, answering Evan's question)
+## The unified strength story (added 2026-09-01, answering Ev's question)
 
 Unifying DOWN is not on the table — crossings at unconfined
 strength would bless transverse interpenetration. So the unified

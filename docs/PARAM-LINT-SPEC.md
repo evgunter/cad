@@ -1,11 +1,11 @@
 # PARAM-LINT — the parameter-coincidence lint (unit spec)
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off.**
+**Status: DRAFT — design conversation, awaiting Ev's sign-off.**
 The next resident of the DISCIPLINES registry (DS5's grade-3 lint;
 DS8's named next unit) specified against the real Expr substrate
 (surveyed 2026-08-25, refs inline). This spec proposes resolutions
 to DS-Q2 and to the dial-default question; those arms are marked.
-Schedules nothing; the unit dispatches when Evan signs off.
+Schedules nothing; the unit dispatches when Ev signs off.
 
 ## Grounding (survey facts the spec is built on, not choices)
 
@@ -65,7 +65,7 @@ positionally keyed and can silently re-point after a same-slot edit
 (expr.rs:840-848), and profile-program slots resolve at the f64 pin.
 v1 ships nothing there.
 
-**Designed for future Expr sharing (Evan, 2026-08-25: sharing is
+**Designed for future Expr sharing (Ev, 2026-08-25: sharing is
 presumed coming; the design anticipates it).** When shared subterms
 land (Arc/interned exprs), the v2 arm's rung ladder is already
 shaped for them: a **shared node** is the structural rung — one
@@ -181,7 +181,7 @@ one story and the two-arm menu), rendered through the shared sink
   stratum breaks nothing — its consumers are M10 and edit-
   robustness — and defaulting a brand-new lint to refusing would
   churn every existing document with coincidentally-equal params
-  before anyone has declared anything. Flagged for Evan: this is
+  before anyone has declared anything. Flagged for Ev: this is
   the one place the spec chooses leniency over the house default.
 
 ## PL5 — The DS1 scaffolding obligation (#981 part 2)
@@ -229,7 +229,7 @@ detection is two-directional on the reviewer's own fixtures;
 (5) report determinism cross-process; (6) e2e through pncad as a
 first-time user.
 
-## Open for Evan (beyond the two proposals marked above)
+## Open for Ev (beyond the two proposals marked above)
 
 - **PL-Q1**: dial default `ignore` (PL4) — confirm or override.
 - **PL-Q2**: DS-Q2 resolution as proposed (no symbolic rung) —

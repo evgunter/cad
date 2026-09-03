@@ -41,7 +41,7 @@
 //! The census fields are ε-independent and byte-asserted everywhere.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 /// The ambient ε the sidecars' volume literals are printed at — the
 /// corpus's declared uncertainty (`uncertainty_m: Some(1e-9)` in every

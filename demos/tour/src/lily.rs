@@ -124,17 +124,13 @@ use core::f64::consts::PI;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, Via};
-// The named gap below (`section_loops`): the raw loop door is kernel
-// vocabulary, off the façade, so the one scene that needs it names the
-// kernel crate directly.
+use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
-use profile::RawLoop;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -212,6 +208,19 @@ fn v3<S: Scalar>(x: f64, y: f64, z: f64) -> Vec3<S> {
 
 fn pt3<S: Scalar>(x: f64, y: f64, z: f64) -> Point3<S> {
     Point3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z))
+}
+
+/// The unit vector along a shadow-tuple direction — the one
+/// normalizer this file has, rather than the identical closure it used
+/// to grow per builder ([`bud`] and [`blade_frame`] both need it).
+///
+/// This stays a `(f64, f64, f64)` and does NOT become `Vec3`: the
+/// tuple algebra's fate is #796's question about `Vec3`'s authoring
+/// ergonomics, and collapsing a duplicate is not the place to answer
+/// it.
+fn nrm((x, y, z): (f64, f64, f64)) -> (f64, f64, f64) {
+    let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
+    (x / l, y / l, z / l)
 }
 
 /// The revolve axis every lily piece uses: the sketch frame's own
@@ -603,10 +612,6 @@ fn bud<S: Scalar>(
             ca * e1.2 + sa * e2.2,
         )
     };
-    let nrm = |(x, y, z): (f64, f64, f64)| {
-        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
-        (x / l, y / l, z / l)
-    };
     core::array::from_fn(|i| {
         #[allow(clippy::cast_precision_loss)]
         let phi = 2.0 * PI * (i as f64) / 3.0;
@@ -711,12 +716,14 @@ fn leaf_a_plan() -> Plan {
             ridge: 0.028,
             keel: 0.020,
             shoulder: 1.0,
+            corners: Corners::Shoulders,
         },
         belly: Section {
             width: 0.420,
             ridge: 0.034,
             keel: 0.016,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         belly_at: 0.22,
         tip: Section {
@@ -724,6 +731,7 @@ fn leaf_a_plan() -> Plan {
             ridge: 0.010,
             keel: 0.006,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         roll0: 0.0,
         twist: deg(160.0),
@@ -845,6 +853,45 @@ fn leaf<S: Scalar>(
 /// so the two shapes must be spelled on a common vertex budget. The
 /// collinear vertices at `shoulder = 0` are exact, not approximate —
 /// a midpoint of two authored points.
+/// Which vertices of a [`Section`]'s eight-vertex ring the outline
+/// actually TURNS at — a structural property of the section the PLAN
+/// authors, not a fact to be read back off its coordinates.
+///
+/// It has to be authored rather than derived, and the reason is
+/// measured: deriving it from `shoulder == 0.0` / `== 1.0` is an exact
+/// float compare on a LERPED parameter, and a section whose shoulder
+/// lands a hair off an endpoint has a junction inside the tangency band
+/// that the algebra correctly refuses. R2's review measured the knife
+/// edge (shoulder 1e-6 authors, 1e-8 refuses `JunctionTangent`), and it
+/// is pinned as a row in `profile`'s `bool12r2_probes`. So the plan
+/// says which sections are the kite and which the rectangle, and
+/// [`Section::lerp`] carries that forward only where it is structurally
+/// true — at the ends of a blend, and through a blend whose two ends
+/// agree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Corners {
+    /// The kite: each shoulder is the midpoint of two tips, so the
+    /// shoulders SUBDIVIDE and the tips turn.
+    Tips,
+    /// The bounding rectangle: each tip lies on the edge its two
+    /// neighbouring corners span, so the tips subdivide and the
+    /// SHOULDERS turn.
+    Shoulders,
+    /// The eased sections in between: every vertex turns.
+    Every,
+}
+
+impl Corners {
+    /// Does the outline turn at ring index `i`? Even indices are tips.
+    fn turns_at(self, i: usize) -> bool {
+        match self {
+            Corners::Tips => i.is_multiple_of(2),
+            Corners::Shoulders => !i.is_multiple_of(2),
+            Corners::Every => true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Section {
     /// Chord length, margin to margin.
@@ -855,12 +902,15 @@ struct Section {
     keel: f64,
     /// 0 = kite, 1 = the bounding rectangle.
     shoulder: f64,
+    /// Which vertices this section turns at — authored beside
+    /// `shoulder`, never derived from it.
+    corners: Corners,
 }
 
 impl Section {
     /// The eight-vertex outline, wound counterclockwise in the sketch
     /// `(s, t)` frame from the `+s` margin.
-    fn outline(self) -> Vec<ProfileLoop<f64>> {
+    fn outline(self, tol: Tol) -> Vec<ProfileLoop<f64>> {
         // The shoulder between tips `a` and `b`: their midpoint at
         // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
         let shoulder = |a: (f64, f64), b: (f64, f64)| {
@@ -871,70 +921,80 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP — the one place in the tour the presented surface
-        // cannot say what the demo means, recorded rather than worked
-        // around (main.rs's purpose block). Both halves the ruling
-        // named are closed; what is left is a third thing, and it is
-        // about THIS SECTION FAMILY rather than about the lattice.
+        // The outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and
+        // attachment sections must be spelled on one vertex budget. So
+        // one junction per side is a straight run SUBDIVIDED, at both
+        // ends of the shoulder parameter — and which vertices are the
+        // corners MOVES between the two ends:
         //
-        // This outline is FOUR corners said on EIGHT vertices, because a
-        // loft matches segment j to segment j and the tip and attachment
-        // sections must be spelled on one vertex budget. So one junction
-        // per side is a straight run subdivided, at both ends of the
-        // shoulder parameter: at `shoulder = 0` each shoulder is the
-        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
-        // lies ON the rectangle edge its two neighbouring corners span —
-        // collinear with them, though only the ridge and keel tips are
-        // that edge's midpoint (the margins sit at y = 0 on an edge
-        // spanning [-keel, ridge], and no section here has keel = ridge).
-        // Only the eased sections in between turn at every vertex.
+        // - `shoulder = 0` (the kite): each shoulder is the midpoint of
+        //   two tips, so the shoulders subdivide and the TIPS turn;
+        // - `shoulder = 1` (the rectangle): each tip lies on the
+        //   rectangle edge its two neighbouring corners span, so the
+        //   tips subdivide and the SHOULDERS turn;
+        // - in between: every vertex turns.
         //
-        // CLOSED: those junctions are carrier IDENTITY, legal
-        // undeclared, and the lattice spells them — `line(len)` off a
-        // directed point for an interior subdivision, `continue_to(p)`
-        // where the subdivision lands on a named point, and
-        // `continue_to(Start)` for a run that crosses the seam. A
-        // single section of this family authors end to end today.
+        // A loft pins ONE rotation for every section and this ring
+        // starts at a TIP, so the kite's seam is a CORNER and the
+        // rectangle's is a SUBDIVISION. Both are spellings now — the
+        // structural closer for the first and the DECLARED STRAIGHT
+        // ARRIVAL for the second (PATHS-DESIGN §6's revised PQ4) — which
+        // is what lets this section finally author through the
+        // presented surface instead of the kernel's raw door.
         //
-        // OPEN, and measured (`bool8_r1_probes`): the closer needs the
-        // seam cut at a CORNER, and this family's corners MOVE. In the
-        // kite the corners are the tips, so the sections whose seam is
-        // a tip author — starts 0, 2, 4, 6 of the ring below. In the
-        // rectangle the corners are the shoulders, so those sections
-        // want starts 1, 3, 5, 7. The two sets are disjoint, and not by
-        // accident: the kite's corner set IS its tips and the
-        // rectangle's IS its shoulders, which are disjoint points of
-        // the outline whatever budget is spent on it. A loft matches
-        // segment j of every section to segment j of every other, so
-        // every section here must be authored at ONE rotation — and
-        // `leaf_a_plan` carries a `shoulder = 1` base AND a
-        // `shoulder = 0` belly, so no rotation gives all of them a
-        // corner at the seam. The section that misses out closes on a
-        // subdivision vertex, which is a mid-carrier seam: PATHS §6
-        // PQ4, deliberately left standing by the ruling.
-        //
-        // So this loop is still raw-authored: `ProfileLoop`'s fields
-        // are sealed, and the only route left is the kernel's raw door,
-        // `profile::RawLoop`, which `pncad::profile` deliberately
-        // omits. That is why this crate carries a second kernel
-        // dependency — the gap stays loud in the dependency graph
-        // instead of hidden in a struct literal. What would close it is
-        // a ruling on whether a DECLARED subdivision vertex is an
-        // admissible seam; the question is put in PATHS §4.
-        let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![RawLoop::new(vec![
-            v(right),
-            v(shoulder(right, ridge)),
-            v(ridge),
-            v(shoulder(ridge, left)),
-            v(left),
-            v(shoulder(left, keel)),
-            v(keel),
-            v(shoulder(keel, right)),
-        ])]
+        // Nothing here is inferred from a coordinate. The corner set is
+        // AUTHORED beside the shoulder parameter (`Corners`, whose doc
+        // says why it is not derived from it), and every declaration
+        // this makes is then CHECKED by the kernel against the points
+        // the section authored.
+        let p = |(x, y): (f64, f64)| Point2::new(x, y);
+        let ring = [
+            right,
+            shoulder(right, ridge),
+            ridge,
+            shoulder(ridge, left),
+            left,
+            shoulder(left, keel),
+            keel,
+            shoulder(keel, right),
+        ];
+        // The entry authors the first side; from there each leg is
+        // named by the junction it DEPARTS — `line_to` where the
+        // outline turns, `continue_to` where the side continues onto a
+        // named point.
+        let mut path = Open
+            .at(p(ring[0]))
+            .line_to(p(ring[1]), tol)
+            .expect("the section's first side");
+        for (i, v) in ring.iter().enumerate().skip(2) {
+            path = if self.corners.turns_at(i - 1) {
+                path.line_to(p(*v), tol).expect("a section corner")
+            } else {
+                path.continue_to(p(*v), tol).expect("a section subdivision")
+            };
+        }
+        // The seam. Its DEPARTURE is the junction at the last vertex and
+        // its ARRIVAL is the junction at the entry, and the two are
+        // independent: this family reaches three of the four
+        // combinations across its own shoulder range.
+        let closed = match (self.corners.turns_at(7), self.corners.turns_at(0)) {
+            (true, true) => path.line_to(Start, tol),
+            (true, false) => path.line_to(Start.arrives_tangent(), tol),
+            (false, true) => path.continue_to(Start, tol),
+            (false, false) => path.continue_to(Start.arrives_tangent(), tol),
+        };
+        vec![closed.expect("the section's seam").into()]
     }
 
-    /// Linear blend, field by field.
+    /// Linear blend, field by field — except the corner set, which is
+    /// STRUCTURAL and does not interpolate.
+    ///
+    /// It carries through only where it is true: at either END of the
+    /// blend (`s` at its own bounds, not a compare on a blended value),
+    /// and across a blend whose two ends already agree. Anywhere else
+    /// the outline turns at every vertex, which is what a section
+    /// strictly between a kite and a rectangle does.
     fn lerp(self, other: Self, s: f64) -> Self {
         let f = |a: f64, b: f64| a + (b - a) * s;
         Self {
@@ -942,6 +1002,15 @@ impl Section {
             ridge: f(self.ridge, other.ridge),
             keel: f(self.keel, other.keel),
             shoulder: f(self.shoulder, other.shoulder),
+            corners: if s <= 0.0 {
+                self.corners
+            } else if s >= 1.0 {
+                other.corners
+            } else if self.corners == other.corners {
+                self.corners
+            } else {
+                Corners::Every
+            },
         }
     }
 }
@@ -1088,7 +1157,7 @@ fn try_lofted_blade<S: Scalar>(
             ct * vk.1 - st * u.1,
             ct * vk.2 - st * u.2,
         );
-        sections.push(plan.at(s).outline());
+        sections.push(plan.at(s).outline(tol));
         places.push(
             SketchPlane::from_frame(
                 pt3(p.0, p.1, p.2),
@@ -1211,10 +1280,6 @@ type BladeFrame = ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64));
 /// lofted blades sit in the SAME frame — the difference between them
 /// is the verb, not the placement.
 fn blade_frame(dir: (f64, f64, f64), up: (f64, f64, f64)) -> BladeFrame {
-    let nrm = |(x, y, z): (f64, f64, f64)| {
-        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
-        (x / l, y / l, z / l)
-    };
     let d = nrm(dir);
     let dot = up.0 * d.0 + up.1 * d.1 + up.2 * d.2;
     let v = nrm((up.0 - dot * d.0, up.1 - dot * d.1, up.2 - dot * d.2));
@@ -1356,12 +1421,14 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             ridge: 0.014,
             keel: 0.008,
             shoulder: 1.0,
+            corners: Corners::Shoulders,
         },
         belly: Section {
             width: 0.265,
             ridge: 0.017,
             keel: 0.008,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         belly_at: 0.30,
         tip: Section {
@@ -1369,6 +1436,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             ridge: 0.006,
             keel: 0.004,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         // Appressed at the base (the face lies on the globe), rolling
         // its face outward toward the tip.
@@ -2580,6 +2648,58 @@ mod review_probes {
     /// the neck's drop plus `FLOWER_TOP` along T2.
     const SPHERE1_C: (f64, f64) = (-2.3668444700923885, 0.7942577551075498);
 
+    /// The degeneracy floor for [`assert_two_cap_planes`], and the
+    /// only number in this probe that is a THRESHOLD rather than a
+    /// measurement.
+    ///
+    /// It sits between the two windows in play. Below it is
+    /// `assert_cap`'s own arithmetic: 1e-12 on the point-in-plane
+    /// residual and 1e-14 on the parallelism, so two frames closer
+    /// together than those are literally one plane as far as that
+    /// check can see, and its disjunction over the two would be a
+    /// single test wearing a disjunction's clothes. Above it is the
+    /// scene: the closest the lily's own cap pairs come is the arch's
+    /// `sin(10°) ≈ 0.17` of normal angle (a 170° wedge), five orders
+    /// clear. A floor here is therefore unreachable by float noise
+    /// and nowhere near any real value — it fails only on an actual
+    /// collapse, and it is not a second, weaker copy of the placement
+    /// claim.
+    const CAP_DISTINCT: f64 = 1e-6;
+
+    /// A tube's two joint frames are two DISTINCT planes.
+    ///
+    /// This is the floor under [`assert_cap`]'s disjunction, and it is
+    /// what the disjunction cannot supply for itself: a body whose two
+    /// frames had collapsed onto one plane satisfies every
+    /// single-target call trivially, because the existential can no
+    /// longer tell "both ends are where they should be" from "the ends
+    /// are the same plane and one of them happens to be right". The
+    /// arch is incidentally covered — its two calls carry different
+    /// targets, so a collapse would fail one of them — but the stem
+    /// and the pedicel each get ONE call per free end and nothing else
+    /// is watching.
+    ///
+    /// Two planes are the same plane when their normals are parallel
+    /// AND they carry the same offset, so distinctness is the
+    /// disjunction of the two ways out: a normal angle, or a
+    /// separation along the normal. Either alone would be wrong — a
+    /// 180° wedge has parallel caps at different offsets, and a
+    /// closing wedge has near-coincident caps at a real angle.
+    fn assert_two_cap_planes(caps: &WedgeFrames<f64>, what: &str) {
+        let (a, b) = (caps.start, caps.end);
+        let angle = cross_norm(a.axis, b.axis);
+        let offset = ((b.origin.x - a.origin.x) * a.axis.x
+            + (b.origin.y - a.origin.y) * a.axis.y
+            + (b.origin.z - a.origin.z) * a.axis.z)
+            .abs();
+        assert!(
+            angle > CAP_DISTINCT || offset > CAP_DISTINCT,
+            "{what}: the two joint frames are ONE plane (normal angle {angle:.3e}, \
+             offset {offset:.3e}) — every single-target cap assertion on this body \
+             is vacuous until they separate"
+        );
+    }
+
     /// One of the tube's two JOINT FRAMES passes through world point
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
     /// end tangent THERE is `t`.
@@ -2588,17 +2708,39 @@ mod review_probes {
     /// the two ends answers is the revolve's business, so both are
     /// offered — that
     /// is a two-element check against NAMED caps, not a search of the
-    /// whole boundary.
+    /// whole boundary. What the disjunction is NOT free to do is get
+    /// easier as the caps converge, so
+    /// [`assert_two_cap_planes`] runs first on every call.
+    ///
+    /// **The sign is part of the claim.** A cap frame's `axis` is the
+    /// stored plane normal in CHART sense (`topo::readback::face_pose`
+    /// is explicit that it is not corrected by the face's orientation
+    /// sense), and `revolve`'s partial path builds the start cap's
+    /// plane from the profile chain REVERSED and the end cap's from
+    /// the same chain forward (`sweep::revolve::partial`, phases 1 and
+    /// 4). The two therefore disagree by construction, in the one way
+    /// that makes both of them point OUT of the solid: the start cap's
+    /// normal is minus the tube's tangent there, the end cap's is plus
+    /// it. That is a per-cap rule, not a per-call one — it says what
+    /// each frame must be IF it is the one at this joint — so it costs
+    /// the disjunction nothing, and it closes the hole where an
+    /// anti-parallel normal read as "parallel to the tangent".
     fn assert_cap(caps: &WedgeFrames<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
+        assert_two_cap_planes(caps, what);
         let tv = Vec3::new(t.0, 0.0, t.1);
-        let hit = [caps.start, caps.end].into_iter().any(|pose| {
-            let (o, n) = (pose.origin, pose.axis);
-            cross_norm(n, tv) < 1e-14
-                && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
-        });
+        let hit =
+            [(caps.start, -1.0), (caps.end, 1.0)]
+                .into_iter()
+                .any(|(pose, outward): (_, f64)| {
+                    let (o, n) = (pose.origin, pose.axis);
+                    cross_norm(n, tv) < 1e-14
+                        && outward * (n.x * tv.x + n.y * tv.y + n.z * tv.z) > 0.0
+                        && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
+                });
         assert!(
             hit,
-            "{what}: neither joint frame passes through the joint with the joint tangent"
+            "{what}: neither joint frame passes through the joint with the joint \
+             tangent, in the cap's own outward sense"
         );
     }
 
@@ -2643,6 +2785,12 @@ mod review_probes {
         let (_, a3, big_r3, r3, _) = torus(pedicel);
         assert_eq!((a3.x, a3.y, a3.z), (0.0, -1.0, 0.0), "pedicel spine axis");
         assert_eq!((big_r3, r3), (0.42, 0.032), "pedicel radii");
+        // Joint 0: the stem's FREE end. The turtle stands at the
+        // origin facing +z (`plant`'s `root`), so unlike every joint
+        // below this frame is authored and exact rather than walked —
+        // no literal to derive, and no reason for the stem's start to
+        // be the one frame in the chain nothing looks at.
+        assert_cap(caps(&ps, "lily_stem"), (0.0, 0.0), (0.0, 1.0), "stem start");
         // Joint 1: stem end / arch start share point P1 and tangent T1.
         assert_cap(caps(&ps, "lily_stem"), P1, T1, "stem end");
         assert_cap(caps(&ps, "lily_arch"), P1, T1, "arch start");
@@ -3164,7 +3312,6 @@ mod review_probes {
         let ps = pieces();
         let b = body(&ps, "lily_leaf_a");
         let caps = cap_frames(b);
-        assert_eq!(caps.len(), 2, "a lofted blade has exactly two caps");
         // The BASE cap is the wide one (the rectangle at the stem);
         // the TIP cap the narrow one.
         let (base, tip) = if caps[0].width > caps[1].width {
@@ -3575,6 +3722,15 @@ mod review_probes {
     }
 
     /// Both caps of a lofted blade, each reduced to a [`Cap`].
+    ///
+    /// **Two, and the arity is checked here rather than at the
+    /// callers.** Every caller reads the result positionally — the
+    /// wide cap against the narrow one — so a body that handed back
+    /// one plane, or three, would be indexed as if it were a blade
+    /// and answer with a frame belonging to some other face. The
+    /// per-face `on.len() == 8` below cannot catch that: it fires on
+    /// the vertex set of whatever plane it is looking at, one plane
+    /// too late to say the SET of planes is wrong.
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (_, f) in b.faces() {
@@ -3626,6 +3782,11 @@ mod review_probes {
                 v,
             });
         }
+        assert_eq!(
+            out.len(),
+            2,
+            "a lofted blade has exactly two planar cap faces"
+        );
         out
     }
 
@@ -3687,6 +3848,36 @@ mod review_probes {
                  the lofted_blade prose, and the filed frontier together"
             );
         }
+    }
+
+    /// **The wall list, run by the test suite and not only by the
+    /// renderer.**
+    ///
+    /// [`super::wall_probes`] is the whole point of the scene's
+    /// frontier discipline — every wall attempted for real, each
+    /// pinned by its own typed refusal, panicking if the refusal
+    /// changed or went away — and until this test existed its only
+    /// caller was `main.rs`'s render walk. So the discipline ran when
+    /// somebody rendered the tour and never under
+    /// `cd demos/tour && cargo test --release`, which is the command
+    /// the spec-level local acceptance actually runs: a frontier could
+    /// move and the suite would stay green.
+    ///
+    /// It cannot be a `tests/` integration test — `demo-tour` is a
+    /// bin-only crate, so nothing outside the binary can name
+    /// `lily::wall_probes` — which is why it lives here beside the
+    /// probes rather than next to the other suites.
+    ///
+    /// The body is one call because the assertions are the wall
+    /// probes' own: `walls::wall` panics on a different refusal and
+    /// panics on success, so there is nothing left for this test to
+    /// add. It rebuilds `plant::<f64>` and runs the frontier's
+    /// booleans, welds and fillets, so it is not free — but measured,
+    /// it is ~0.02 s of a 38 s bin suite, which is under the
+    /// run-to-run noise of the suite it joins.
+    #[test]
+    fn the_wall_list_still_stands() {
+        wall_probes::<f64>(Tol::witness());
     }
 }
 

@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-**The principle (Evan): "there's never any need for a hard and fast
+**The principle (Ev): "there's never any need for a hard and fast
 rule on local CI. local testing is only useful insofar as it speeds up
 iteration compared to waiting on CI."**
 
@@ -26,7 +26,7 @@ pushing — that is the whole calculus.
   unit's own self-test + a spot suite per converted-site class.
 - A KNOWN gate failure: always reproduce locally first; the red→fix→
   re-push loop is fast precisely because the reproduction is targeted.
-- Standing pre-push CI mimicry "to be safe": never (Evan declined it —
+- Standing pre-push CI mimicry "to be safe": never (Ev declined it —
   "doing ci locally was extremely slow"). Red gates are cheap; the gate
   exists to catch what narrowed runs miss.
 

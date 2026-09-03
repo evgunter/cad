@@ -7,11 +7,12 @@ client over the API), functional style, fail-loud.
 
 - `docs/DESIGN.md` — the **ratified design contract** (decisions D1–D9 +
   open questions). Do not re-litigate settled decisions; propose changes
-  as revisions to the doc, discussed with Evan first.
-- The live programs' plans and logs — each program is a
-  `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair, and the tail of a
-  log is that program's live status. A program is closed when its
-  `docs/<NAME>-EXIT-WALK.md` is ratified; that walk is then its
+  as revisions to the doc, discussed with Ev first.
+- `work/` — the tracker. `work/STATUS.md` is the board (generated on
+  main); each program is `work/<program>/` with `program.md`,
+  `plan.md`, `log.md` and one file per open item. `work/README.md` is
+  the contract; orchestrators read it in full. A program is closed when
+  its `docs/<NAME>-EXIT-WALK.md` is ratified; that walk is then its
   done-state of record.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
@@ -29,11 +30,20 @@ criteria in `memories/cad-working-style.md` — the index is read at
 the start of every session and its pointers followed as relevant, so
 a new memory has to earn that.
 
+## Filing an issue (every agent)
+
+Issues are files, not GitHub issues. Run
+`python3 scripts/work.py new <semantic-name> --kind issue --title "..."`
+(add `--program <p>` when the owner is obvious), write the finding in
+the body with its `file:line` citations, and commit it on your branch;
+`python3 scripts/work.py lint` must pass. Anything for Ev goes in a PR
+titled `[ev] ...`.
+
 ## Working style
 
-Design decisions get discussed in chat, refined through Evan's pushback,
+Design decisions get discussed in chat, refined through Ev's pushback,
 then ratified into `docs/DESIGN.md` and committed — keep the doc synced.
-Details: `memories/cad-working-style.md`, `memories/evan-profile.md`.
+Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
 
 ## Git workflow
 
@@ -45,7 +55,7 @@ Details: `memories/cad-working-style.md`, `memories/evan-profile.md`.
   description**, not in commit messages.
 - Agents own this codebase and merge their own PRs to main. Exception:
   PRs that ratify open design questions (e.g. M0's Q1-residue PRs) are
-  design conversations — wait for Evan's sign-off before merging.
+  design conversations — wait for Ev's sign-off before merging.
 
 ## Repo notes
 

@@ -20,9 +20,9 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
@@ -30,7 +30,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use pncad::profile::SketchPlane;
 use viewer::combine::{BooleanTool, PatternTool, SplitTool, TransformTool, denotes_body};
 use viewer::pick::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
@@ -59,10 +58,11 @@ fn session(tol: Tol) -> DocSession {
 /// A box of `size`, authored through the creation doors: one
 /// rectangle profile on world XY, one extrude.
 fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: size[0],
                 height: size[1],
@@ -234,10 +234,11 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let a = boxed(&mut session, A);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -1007,10 +1008,11 @@ fn every_tool_kind_is_listed_in_all() {
 fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
     let (mut session, body, _) = two_boxes(tol);
+    let sketch_frame = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane: sketch_frame,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1038,17 +1040,37 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // A node the seat's own `wants()` says it cannot hold — and one
     // that is a legal node of SOME kind, so what the door refuses is
     // the kind and never the absence.
+    let sketch_axis = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::AxisInPlane {
+                plane: sketch_frame,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
+            },
+        },
+    );
     let right = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => body,
         NodeKindWanted::Profile => profile,
         NodeKindWanted::Plane => plane,
+        NodeKindWanted::Frame => sketch_frame,
         NodeKindWanted::Axis => axis,
+        NodeKindWanted::SketchAxis => sketch_axis,
     };
     let wrong = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => profile,
         NodeKindWanted::Profile => body,
         NodeKindWanted::Plane => axis,
+        // A datum PLANE is the near miss a sketch frame has: it names
+        // the same surface and carries no spin, which is exactly the
+        // distinction the frame pick exists for.
+        NodeKindWanted::Frame => plane,
         NodeKindWanted::Axis => plane,
+        // The near miss a revolve's axis has is the WORLD axis: same
+        // word, different node kind, and the seat that used to take it
+        // is exactly the seat that must not any more.
+        NodeKindWanted::SketchAxis => axis,
     };
 
     let mut seen = vec![false; Seat::ALL.len()];
@@ -1196,10 +1218,11 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
 
     // A profile is neither a body nor a plane, so the split tool has
     // no seat to steer it to.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1456,16 +1479,24 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
-    let (next, profile) = common::inserted(&doc, common::square(0.02), tol);
+    // Named apart from the datum PLANE below, which is a different
+    // node kind with a confusingly similar name.
+    let (next, sketch_frame) = common::inserted(&doc, common::xy_frame(), tol);
+    doc = next;
+    let (next, profile) = common::inserted(&doc, common::square(sketch_frame, 0.02), tol);
+    doc = next;
+    // A parallel plane one centimetre up: its own frame, because it is
+    // its own plane.
+    let (next, lifted) = common::inserted(
+        &doc,
+        common::frame([0.0, 0.0, 0.01], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        tol,
+    );
     doc = next;
     let (next, profile_b) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                pncad::geom_core::Point3::new(0.0, 0.0, 0.01),
-                pncad::geom_core::Vec3::unit_x(),
-                pncad::geom_core::Vec3::unit_y(),
-            ),
+            plane: lifted,
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (0.02, 0.0), (0.02, 0.02), (0.0, 0.02)])
                     .expect("finite corners"),
@@ -1477,17 +1508,23 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: sketch_frame,
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
         }),
         tol,
     );
     doc = next;
-    let (next, axis) = common::inserted(
+    // The revolve candidate's axis. It is an in-plane axis and not the
+    // world `Datum::Axis` that used to sit here: a revolve turns a
+    // sketch about a line in its own plane, and the world axis this
+    // sweep no longer needs is a different node kind that no candidate
+    // below consumes (the pattern candidate's rule is Linear).
+    let (next, sketch_axis) = common::inserted(
         &doc,
-        Node::Datum(Datum::Axis {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.0)],
-            direction: [common::scl(0.0), common::scl(1.0), common::scl(0.0)],
+        Node::Datum(Datum::AxisInPlane {
+            plane: sketch_frame,
+            origin: [common::len(0.0), common::len(0.0)],
+            direction: [common::scl(0.0), common::scl(1.0)],
         }),
         tol,
     );
@@ -1549,7 +1586,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 position: [common::len(0.0), common::len(0.0), common::len(0.0)],
             }),
         ),
-        ("profile", common::square(0.01)),
+        ("profile", common::square(sketch_frame, 0.01)),
         (
             "extrude",
             Node::Extrude {
@@ -1561,7 +1598,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "revolve",
             Node::Revolve {
                 profile: ring,
-                axis,
+                axis: sketch_axis,
                 angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("finite"),
             },
         ),

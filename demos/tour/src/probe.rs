@@ -290,6 +290,16 @@ pub fn run(out: Option<String>, tol: Tol) {
             // The cutaway splits the SAME box the projectbox stop ships, so
             // the two scenes share one sweep group (rebuilding the 15-op
             // chain per group would double-count its samples).
+            //
+            // What this group meters is the section's SHAPE, not its
+            // shipped PLACEMENT. Since the montage-v3 cell merge the stop
+            // renders the halves through `cutaway::sectioned_beside`,
+            // which puts them `SECTION_GAP` = 5 m along +x so the pair and
+            // the whole box share one cell; the probe takes
+            // `cutaway::build`'s output where it stands. Same ops, same
+            // halves, coordinates 5 m apart — and telemetry about
+            // predicate conditioning is better read at the origin than at
+            // a presentation offset.
             let (acc, _vol) = projectbox::build(tol);
             let boxbody = acc.body.clone();
             let ((above, below), _numbers) = cutaway::build(&boxbody, tol);

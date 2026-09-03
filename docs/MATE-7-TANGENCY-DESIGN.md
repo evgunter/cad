@@ -1,6 +1,6 @@
 # Torus×torus rim tangency (issue 968 item 3) — design conversation
 
-**STATUS: RATIFIED (Evan, in-chat, 2026-09-01 — all three
+**STATUS: RATIFIED (Ev, in-chat, 2026-09-01 — all three
 questions answered). Q1: the THIRD option — the ROUTING is ratified
 (the material-wedge table decides which treatment a rim gets: π →
 the smooth-seam zip; 0/2π → the declared-Tangent cusp family with a
@@ -81,7 +81,7 @@ refused typed) is the cheaper first ruling and loses only the
 kissing-pair class. And the demand signal (the lily's stem) is a π
 seam — the (a) arm has no demo behind it yet.
 
-## Questions for Evan
+## Questions for Ev
 
 1. Rule the CASE SPLIT (the table decides; both shapes are arms),
    or the cheaper (b)-only first ruling with kissing tori staying
@@ -99,7 +99,7 @@ split into two units with gate+rung first (3) — the lily's stem
 retires on the (b) arm, which the first unit's gate and rung
 already unblock.
 
-## The design considerations, in full (added 2026-09-01, answering Evan)
+## The design considerations, in full (added 2026-09-01, answering Ev)
 
 **The geometry.** Two tori sharing a rim circle are two physically
 different situations wearing one description:

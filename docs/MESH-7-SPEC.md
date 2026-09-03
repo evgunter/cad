@@ -4,7 +4,7 @@
 difficulty logged pre-draw: **M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 Issues 727 and 726 are the primary specification, bounded by the
-S-MESH Q3 ruling (`docs/S-MESH-PLAN.md` §Rulings — Evan, in-chat,
+S-MESH Q3 ruling (`docs/S-MESH-PLAN.md` §Rulings — Ev, in-chat,
 2026-09-01: **explicit doors** — no consumer keeps a transitive
 floor; each door that needs the iso-rectangle premise cites
 `props_rim_level` itself; `mass_properties` stays a mass-properties

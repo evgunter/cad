@@ -1,6 +1,6 @@
 # Long-term ideas (parked, non-binding)
 
-Evan's running list of things the kernel should eventually support
+Ev's running list of things the kernel should eventually support
 (2026-08-03 batch, in-session). NON-BINDING: nothing here is
 scheduled; each idea names its natural prerequisites so the
 milestone that makes one cheap can pick it up deliberately. GUI-
@@ -13,11 +13,11 @@ validity gates — certified where the geometry supports it, honest
 heuristics where it doesn't (labeled as such, never silently
 mixed). The lane's ratified shape is DISCIPLINES-DESIGN DS6 — grade 4,
 the advisory-check registry (`editor_core::checks`); members still
-graduate by the process note below. Named instances Evan wants
+graduate by the process note below. Named instances Ev wants
 eventually:
 
 - **(0) The scale-relative sliver lint — the FIRST and easiest
-  member (Evan, 2026-08-03, resolving #89's display half).** A
+  member (Ev, 2026-08-03, resolving #89's display half).** A
   margin that is numerically definite (≫ Kε) yet below
   display-distinguishability at model scale is *probably* a
   mistake — warn, never refuse; the modeler confirms intent ("the
@@ -28,7 +28,7 @@ eventually:
   this whole lane's shape (per-part, advisory, honest about being
   a heuristic threshold). #89's kernel half — the K value itself —
   is CLOSED separately: K = 10 permanent (docs/K-REPORT.md).
-- **(0b) The connectedness lint (Evan, 2026-08-10, #328 — born from
+- **(0b) The connectedness lint (Ev, 2026-08-10, #328 — born from
   the assembly-design conversation). SHIPPED 2026-08-25** as the
   checks registry's first resident (`editor_core::checks`,
   DISCIPLINES-DESIGN DS6 round 4 — which also narrows this entry's
@@ -42,7 +42,7 @@ eventually:
   fully-certified member. "Expected" is an input: assembly structure
   / file splits mark expected disconnection naturally, and an
   explicit per-part expectation mark is the lint-input form (both
-  Evan's framing, #328; the split-as-signal half is a natural
+  Ev's framing, #328; the split-as-signal half is a natural
   default, not a requirement). Warn, never refuse, per the lane's
   charter. Prerequisite: the assembly design's multi-solid evaluation
   (docs/ASSEMBLY-DESIGN.md A2), which is what makes "disconnected on
@@ -100,7 +100,7 @@ data-provenance story (the handbook table is an
 input with a version, like a tolerance). Pairs naturally with
 I1(b) and I2.
 
-## I4 — SVG output lanes (Evan, 2026-08-09, in-session)
+## I4 — SVG output lanes (Ev, 2026-08-09, in-session)
 
 The kernel can draw pictures of itself in a vector format with no
 renderer in the loop. Three members, in ascending difficulty; the
@@ -150,5 +150,5 @@ first has landed, the other two are parked here.
 ## Process note
 
 Items graduate from this file by being written into a milestone
-plan with Evan's sign-off; the file records the idea's origin date
+plan with Ev's sign-off; the file records the idea's origin date
 and any design-fact dependencies discovered since parking.

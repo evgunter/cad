@@ -67,7 +67,7 @@ flux lane's area closed form is RIGHT on the crossing arc (CERT-1 made
 it so) and only the chart image is wrong, the honest shape may be a
 door that certifies "one chart branch" as a SEPARATE named predicate
 that `mesh` cites and `mass_properties` need not — say which, and
-STOP for Evan if the two consumers genuinely need different answers
+STOP for Ev if the two consumers genuinely need different answers
 (that is a design fork).
 
 ## Deliverables

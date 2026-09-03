@@ -791,7 +791,7 @@ pub(crate) fn loop_polygon(
     // D2 addendum row 5. Two vertices declared separately and placed
     // within eps of each other can only be read as one by assuming
     // intent from a numerical coincidence, which this project never
-    // does; so reaching this state is very likely a kernel bug (Evan's
+    // does; so reaching this state is very likely a kernel bug (Ev's
     // conjecture, #884). It is not observable in a branch — seeing it
     // takes a re-derivation over every junction PAIR — which is what
     // makes it a `debug_assert` and not an `unreachable!`.

@@ -280,7 +280,7 @@ those measurements; the original item 5 presupposed both away):**
      the steinmetz row stays red with its refusal retyped to that door,
      and the PR body brings the measured payload — that outcome is a
      deliverable, not a failure, and whether to fund pinch-carrying
-     machinery afterward is a fork for Evan WITH that dump.
+     machinery afterward is a fork for Ev WITH that dump.
    - Either way, the acceptance suite includes the **re-posed fixture**:
      the same pair under a `transform_rigid` (rotation + translation off
      every axis plane), asserted to behave identically to the

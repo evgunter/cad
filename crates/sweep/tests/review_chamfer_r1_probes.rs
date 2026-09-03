@@ -20,6 +20,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/sweep/src/chamfer.rs",
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/extrude.rs",
+    "crates/topo/src/validate.rs",
+    "crates/topo/src/query.rs",
+    "crates/mesh/src/validate.rs",
+    "crates/mesh/src/tessellate.rs",
+    "crates/geom-core/src/k_stats.rs",
+    "crates/sweep/src/revolve/",
+    "crates/topo/src/boolean/",
+];
+
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};

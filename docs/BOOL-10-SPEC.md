@@ -4,7 +4,7 @@
 difficulty logged pre-draw: **L**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 The primary specification is the Q1 ruling's second-round extension
-(Evan, in-chat, 2026-09-01; `docs/S-BOOL-PLAN.md` §Rulings), quoted
+(Ev, in-chat, 2026-09-01; `docs/S-BOOL-PLAN.md` §Rulings), quoted
 here because it bounds the unit:
 
 > `arc_continue` is REMOVED rather than kept as the axiom's
@@ -14,7 +14,7 @@ here because it bounds the unit:
 > re-spells as declared subdivision on the arc leg itself, the
 > open-carrier analog of `circle_split`, with vertices minted at the
 > chain's emission layer where the axiom's bookkeeping legitimately
-> lives. The enforcement Evan believed already existed becomes real:
+> lives. The enforcement Ev believed already existed becomes real:
 > the sealed verb module's signatures narrow to the bare state values
 > only, so a verb needing chain state is unwritable.
 
@@ -22,7 +22,7 @@ PATHS §2c (the directed-point axiom, the sealed verbs kernel — read
 `crates/profile/src/path/verbs.rs`'s header in full), the §3 verb
 table's `arc_continue` row and §4's arc_continue paragraphs (~:956,
 ~:987) are the text this unit re-records. **Vocabulary, per the Q1
-sixth-round ruling (Evan, 2026-09-02): there is no "subdivision" at
+sixth-round ruling (Ev, 2026-09-02): there is no "subdivision" at
 the lattice — every zero-turn joint is a DECLARED TANGENT JOINT and
 the lattice never asks whether two carriers are the same. Where this
 spec says "declared subdivision", read "declared tangent joints on
@@ -81,7 +81,7 @@ its arm goes with the verb.
 ## Deliverables
 
 1. **The declared-subdivision arc form — design surface, argued for
-   Evan (PR HELD).** The open-carrier analog of `circle_split`: an arc
+   Ev (PR HELD).** The open-carrier analog of `circle_split`: an arc
    leg that declares its own subdivision (count, and the phase or the
    authored parameters the measurement in (1) requires), minting the
    vertices at the chain's emission layer. Spelling is yours to
@@ -91,7 +91,7 @@ its arm goes with the verb.
    never-infer (the subdivision is DECLARED; no vertex is placed by
    reading the carrier for anything but the arc's own parametrisation),
    and by D2 (a count below 2 refuses typed as `circle_split` does).
-   Write the §2c/§3/§4 text for Evan's eyes.
+   Write the §2c/§3/§4 text for Ev's eyes.
 2. **`arc_continue` removed**: the verb, its kernel, its table row,
    `Step`/`Verb`/`ProgramStep`/`WireStep` arms, the eval arm and its
    content-key tag (retired numbers stay dead — D365's append-only
@@ -140,7 +140,7 @@ its arm goes with the verb.
 
 - `arc_continue` gone everywhere with the red-first receipt; the new
   form authoring the equator bit-identically and the tour byte-stable;
-  the seal proven by a compile failure; PATHS text for Evan; hosted CI
+  the seal proven by a compile failure; PATHS text for Ev; hosted CI
   green; gate record per head.
 
 ## Hard rules
@@ -149,7 +149,7 @@ its arm goes with the verb.
   closes here (the ruling has no issue of its own).
 - **The PR does not merge on green** — the new form's spelling and the
   §2c/§3/§4 text are design surface; the orchestrator holds the merge
-  for Evan's sign-off.
+  for Ev's sign-off.
 - Scope fence: `crates/profile/src/path.rs`, `path/program.rs`,
   `path/verbs.rs`, `lib.rs` exports, the profile suites;
   `crates/editor-core`'s `program.rs` / `eval/mod.rs` / `persist/wire.rs`

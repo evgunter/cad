@@ -13,7 +13,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{inserted, len3, scl3, square};
 use pncad::document::{
@@ -296,10 +296,23 @@ fn a_frames_arms_name_which_axis_is_x() {
 /// document full of geometry must not sprout construction marks.
 #[test]
 fn only_datum_nodes_draw() {
-    let (doc, tol) = evaluated(vec![square(0.02), point([0.0, 0.0, 0.0])]);
+    // The square's frame is a datum and DOES draw; the profile drawn
+    // on it is the ordinary node this row is about.
+    let (doc, tol) = evaluated(vec![
+        common::xy_frame(),
+        square(pncad::document::RecipeNodeId(0), 0.02),
+        point([0.0, 0.0, 0.0]),
+    ]);
     let drawn = draws(&doc, tol, [0.0, -0.15, 0.1]);
-    assert_eq!(drawn.len(), 1, "only the point is a datum");
-    assert_eq!(drawn[0].kind, DatumKind::Point);
+    assert_eq!(drawn.len(), 2, "the frame and the point, not the profile");
+    assert!(
+        drawn.iter().any(|d| d.kind == DatumKind::Point),
+        "the point draws: {drawn:?}"
+    );
+    assert!(
+        drawn.iter().any(|d| d.kind == DatumKind::Frame),
+        "the frame draws: {drawn:?}"
+    );
 }
 
 /// **A point's mark is AT the point**, not at the world origin, and

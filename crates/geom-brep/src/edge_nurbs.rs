@@ -9,7 +9,7 @@
 //! to compare it against. So the carrier is **evidence**: adopted as
 //! stated, then certified against both surfaces, and refused typed
 //! with the measured bound when it does not hold up. That is the
-//! ratified shape (Evan, PR #264) and it is what this module
+//! ratified shape (Ev, PR #264) and it is what this module
 //! implements — never a fit, never a widened gate.
 //!
 //! # What the lane proves

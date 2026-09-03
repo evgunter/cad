@@ -74,7 +74,7 @@
 //!   Smooth ⇒ the edge keeps its conventional `MappedCurve` description
 //!   (the ratified no-face-merging split, D2); Indeterminate ⇒
 //!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
-//! - **Cap–wall rims upgrade too** (the ratified rim decision — Evan,
+//! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
 //!   `Intersection { cap plane, side surface, witness }` through the

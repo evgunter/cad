@@ -1061,7 +1061,7 @@ pub enum BooleanError {
     /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
     /// `mass_properties` (the review's volume-inequality backstop,
     /// decided on the INVARIANT LANE — outside the length seam,
-    /// Evan's #213 layering ruling). A certified violation is a
+    /// Ev's #213 layering ruling). A certified violation is a
     /// **kernel invariant** failure — the Corrupt class: a bug in the
     /// kernel, never in the caller's geometry — surfaced as this typed
     /// error, never a panic and never a validity refusal.

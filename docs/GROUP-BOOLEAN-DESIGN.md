@@ -1,6 +1,6 @@
 # Group boolean in the recipe layer — D2 + F4 (ratified: A′)
 
-STATUS: **RATIFIED — option A′ ("a Pattern that fuses"), Evan's 👍
+STATUS: **RATIFIED — option A′ ("a Pattern that fuses"), Ev's 👍
 on the #496 thread (comment 5303065667), 2026-08-15. IMPLEMENTED by
 the LIB program: `Node::PlacedUnion` at #571 (schema v12), its
 Python/audit slice at #604.** The option analysis that led here
@@ -76,7 +76,7 @@ variant is the silent-dispatch-trap shape D3 forbids):
 
 ## Staged, not riding
 
-- **Face-tied placements** (Evan's refinement note: pip locations
+- **Face-tied placements** (Ev's refinement note: pip locations
   tied to a FACE for consistent depth/alignment, not numerically
   coincident): a placement variant carrying a `StableName` face
   reference + in-frame offsets, with the Declare-style

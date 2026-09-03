@@ -169,7 +169,7 @@ pub struct ChecksConfig {
     /// [`Severity`], so `Error` is unrepresentable here.
     ///
     /// **DS6's waiver rule is an `iff`** (DISCIPLINES-DESIGN, round 3,
-    /// Evan): a check may offer `error` *iff* it ships a per-finding,
+    /// Ev): a check may offer `error` *iff* it ships a per-finding,
     /// stable-name-keyed acknowledgment record with a staleness
     /// direction. The connectedness resident satisfies it through
     /// `expected_components` + [`CheckEvidence::StaleExpectation`].

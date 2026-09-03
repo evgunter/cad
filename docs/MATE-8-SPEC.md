@@ -4,7 +4,7 @@
 difficulty pre-logged at this spec: **M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 The primary specification is issue 1435, funded as the 4b design's
-stage 0 (Evan, in-chat, 2026-09-01: "doing it now sounds good");
+stage 0 (Ev, in-chat, 2026-09-01: "doing it now sounds good");
 `docs/CENSUS-REST-CLOSURE-DESIGN.md`'s U-R2 section is the ratified
 contract the rung lives under.
 

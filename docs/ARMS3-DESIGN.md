@@ -1,11 +1,11 @@
 # ARMS-3 — general sphere×sphere, and what a run-out at a seam vertex IS
 
-**Status: RATIFIED** (Evan's 👍 on #992). Implemented by
+**Status: RATIFIED** (Ev's 👍 on #992). Implemented by
 VERBS-ARMS-3 (#1028), with one correction recorded below — A3-2's
 RECOURSE rested on a premise the implementation lane found false
 when it reproduced the witness. (VERBS program; the ARMS cut's
-third unit, whose corner half OQ6 explicitly reserved for Evan:
-"run-out policies are a taxonomy decision Evan should own before
+third unit, whose corner half OQ6 explicitly reserved for Ev:
+"run-out policies are a taxonomy decision Ev should own before
 any lands".) Proposals A3-1..A3-3.
 
 ## A3-1 — the sphere×sphere arm is plumbing; it dispatches on ratification
@@ -48,7 +48,7 @@ met so far — the bud, the snowman, every solid of revolution).
 This replaces a misdescribing refusal with a true one at zero
 machinery cost, exactly the #554 shape.
 
-### Correction, at implementation (2026-08-26) — flagged for Evan
+### Correction, at implementation (2026-08-26) — flagged for Ev
 
 The recourse's parenthesis above — *"true since ARMS-1, and the
 actual answer for every consumer met so far"* — is **false at the

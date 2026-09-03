@@ -1,6 +1,6 @@
 # Offset & shell — the Q8 design conversation
 
-**Status: RATIFIED (Evan's sign-off on PR #907). IMPLEMENTED across
+**Status: RATIFIED (Ev's sign-off on PR #907). IMPLEMENTED across
 VERBS Wave 3: OFF-A the mint (#994), OFF-B the meters + fit +
 certificate (#1003), OFF-C `Surface::Approx` (#1012), OFF-D the
 face-replacement door (#1043) and the shell verb (#1048), with the
@@ -10,7 +10,7 @@ Proposals O1–O6, each with a firm recommendation. Substrate anchors
 were verified on main 2026-08-21; the survey behind them is at the
 VERBS orchestrator lane and its load-bearing lines are inlined here.
 
-Vocabulary, defined once (Evan-profile convention): the **offset** of
+Vocabulary, defined once (Ev-profile convention): the **offset** of
 a surface S at distance d is the normal pushforward
 `S_d(u,v) = S(u,v) + d·n(u,v)` — each point moved along the unit
 normal, i.e. the boundary of the d-tube on one side. **Shelling**
@@ -48,7 +48,7 @@ shell/offset ("same principle applies"); O1 just instantiates it.
 is small (S) and everything later consumes it.
 
 **Self-intersection, and the two doors this design leaves cheap
-(added at Evan's #907 note).** The offset definition carries no
+(added at Ev's #907 note).** The offset definition carries no
 self-intersection special case; where d reaches the collapse
 threshold, the door REFUSES via the collapse predicate (O3's d vs
 1/κ_max, and for solid offsets the clearance margin) — loud, never a
@@ -154,7 +154,7 @@ NURBS Book's §9.4 stack (A9.4 grid interpolation + A9.10
 approximate-to-tolerance) built in-house — the audit already
 established curvo has no fitting stack to borrow.
 
-## O4 — What shell IS: two definitions, one fork for Evan
+## O4 — What shell IS: two definitions, one fork for Ev
 
 The survey's structural finding: **an open shell is unrepresentable
 in this kernel, by construction, not by check** — `Edge` is born
@@ -178,7 +178,7 @@ trigger it:
   emit single-shell bodies; **voids are born only from booleans**"
   — the bullet DESIGN.md:387 now carries in its revised form.
 
-**The fork, refined after Evan's #907 note** (the "voids are born
+**The fork, refined after Ev's #907 note** (the "voids are born
 only from booleans" sentence is revisable — it predates booleans
 existing, and the original reasons are not strongly held). The
 definition and the execution separate, and separating them answers
@@ -204,10 +204,10 @@ the performance question:
   one structural insertion.
 - **The invariant, restated at its real value**: what the ratified
   sentence protects is that cavity bookkeeping has ONE home. The
-  ratified form (this round, with Evan's sweep note) — **every
+  ratified form (this round, with Ev's sweep note) — **every
   cavity is born through the shared void-insertion door** — which
   THREE producers satisfy: boolean subtraction, shell, and **the
-  full revolve of a holed profile** (Evan's #907 addition), defined
+  full revolve of a holed profile** (Ev's #907 addition), defined
   as the composition `revolve(outer) − revolve(hole-as-outer)` and
   executed through the same degenerate no-crossing arm — the hole's
   swept boundary provably touches nothing, which is the very fact

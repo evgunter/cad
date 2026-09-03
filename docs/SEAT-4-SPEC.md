@@ -5,7 +5,7 @@ verbs. This spec elaborates the ratified ledger recommendations
 VS-Q1/VS-Q2/VS-Q5 **as recommended** — no deviation from the
 ratified doc is taken here, so the spec self-merges per the standing
 rule; any implementation-time deviation from THIS spec that touches
-a ledger answer is Evan-gated, not disclosed-and-carried.
+a ledger answer is Ev-gated, not disclosed-and-carried.
 
 ## The prime directive: substrate in, behavior pinned
 
@@ -34,7 +34,7 @@ gain none. No serde, no `Expr`, no names, no `RecipeNodeId` — the
 §0 lowered line verbatim. If the crate's manifest cost measurably
 bites (the GENERICS-BUILD-COST ledger's concern), the fallback is a
 module in `sweep` — that is a ledger-answer deviation and therefore
-Evan-gated: STOP and report, do not take it silently.
+Ev-gated: STOP and report, do not take it silently.
 
 Contents, for the blend pair:
 

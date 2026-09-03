@@ -46,7 +46,7 @@ lands. Do not attempt it; do not widen scope to reach it.
    `n.z >= 0`, `s*(1+|n.z|) = 1+n.z`; for `n.z < 0`, `-(1+|n.z|) =
    -1+n.z`, the same f64 add since negation is exact — **but that is a
    derivation, not a measurement: verify it against the golden fixtures
-   and say so.** Evan's ruling (2026-08-29) folds this into P-2 rather
+   and say so.** Ev's ruling (2026-08-29) folds this into P-2 rather
    than leaving it filed, so it gets this unit's review. **If the
    substrate work shows P-2 never reaches a vertical plane, say so and
    drop the item back out** — do not carry it for tidiness.
@@ -62,7 +62,7 @@ lands. Do not attempt it; do not widen scope to reach it.
    any route through it inherits the f64-structure + T-lift pattern).
    Reusing an existing producer is preferred to a new one; if you write
    a new one, say why the existing ones did not fit.
-3. **Raise `mint_pcurves` to `T: PcurveFittedLane`.** Evan ruled
+3. **Raise `mint_pcurves` to `T: PcurveFittedLane`.** Ev ruled
    (2026-08-29) that P-2 pays this bound. Measured ripple: 4 `E0277`s
    in `topo` (`boolean/ops.rs:568`, `merge_faces.rs:571`,
    `splitting/mod.rs:650`, `transform.rs:509`) plus 4 static sites in

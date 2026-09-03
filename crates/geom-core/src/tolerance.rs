@@ -84,7 +84,7 @@ pub const ENV_EPS: &str = "CAD_TOLERANCE_EPS";
 pub const DEFAULT_EPS: f64 = 1e-9;
 
 /// Environment variable consulted for the ambiguity multiplier K on
-/// `get()` self-initialization (Evan-directed at M2 PR 7: K joins ε as
+/// `get()` self-initialization (Ev-directed at M2 PR 7: K joins ε as
 /// an ε-style once-per-run configured value; previously a hard const).
 pub const ENV_K: &str = "CAD_AMBIGUITY_K";
 
@@ -155,7 +155,7 @@ pub struct Tolerance {
     /// linear bands, K·(ε/r) for angular ones). One value per run,
     /// never changed after commitment — exactly ε's invariant (D4 ¶1).
     /// Configured like ε: [`Tolerance::init`] or the [`ENV_K`] env var
-    /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Evan-directed
+    /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Ev-directed
     /// at M2 PR 7; previously the hard `AMBIGUITY_K` const). Like ε, K
     /// is expected to become per-model persisted configuration with a
     /// recorded change operation in the document layer (the banked

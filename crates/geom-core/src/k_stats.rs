@@ -57,7 +57,7 @@
 //! is proven unaffordable in writing AND this mechanism is made
 //! structurally safe (RAII bracket, re-entry refused loudly, thread
 //! confinement enforced rather than asserted). **Which of those two is
-//! UNRESOLVED — left open deliberately at merge (Evan, 2026-08-16), not
+//! UNRESOLVED — left open deliberately at merge (Ev, 2026-08-16), not
 //! overlooked.** The nesting bug itself is not blocked on that choice
 //! and can be fixed directly. Do not add call sites that deepen the
 //! dependency on the current shape. [`start_verdict_log`] and
@@ -236,7 +236,7 @@ pub fn decide_flagged<T: Decide>(
 /// kernel's **consistency backstops**: inequalities between integral
 /// RESULTS (the `volume_backstop` family — wrong-component detectors),
 /// which are **outside the length seam by design — not a door, not
-/// debt** (Evan's #213 layering ruling). A consistency backstop is
+/// debt** (Ev's #213 layering ruling). A consistency backstop is
 /// never an accuracy gate: pointwise-ε accuracy is owned upstream, and
 /// a body whose geometry is ε-right everywhere is never refused for
 /// its integral differing at tiny-wiggle scale. Mean displacement is

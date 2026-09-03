@@ -4,7 +4,7 @@
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
 three ε rows and independently re-derived every reported number. The
 outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
-Per Evan on #41, the value needed no separate sign-off. That
+Per Ev on #41, the value needed no separate sign-off. That
 byte-reproduction was a check against the tree of that day and is not
 a standing property of the committed CSVs — see "Provenance of the M2
 CSVs" under Methodology.)
@@ -311,7 +311,7 @@ CSVs in `docs/k-report-data/eps-{1e-6,1e-9,1e-12}.csv`
 (columns: shape, predicate, margin, band_zero, band_escalate,
 outcome).
 
-### Counterfactual K (Evan-requested, #41)
+### Counterfactual K (Ev-requested, #41)
 
 Every `MarginSample` records the margin and `band_zero`, so outcome
 counts for ANY candidate K are derivable post hoc from the normalized
@@ -347,7 +347,7 @@ completely flat across the candidate range on this corpus.
    `(τ − θ)·r` on near-full partial revolves — a margin the USER
    controls (their θ), not evaluation noise. Even θ = τ − 0.01 clears
    Kε by 3 decades at ε = 1e-6.
-4. **What this corpus cannot show** (scoping, per Evan): M2's native
+4. **What this corpus cannot show** (scoping, per Ev): M2's native
    constructions are a **well-conditioned corpus** — profile-validated
    inputs, sweep-generated geometry, margins the modeler controls.
    The expectation is that the strongest K evidence arrives at **D7
@@ -364,7 +364,7 @@ pressure to move it in either direction: the band converted zero
 decisions at any tested ε — and the counterfactual table shows every
 candidate in {3, 10, 30, 100} behaves identically on this corpus — so
 the value is currently free, and a free parameter should keep its
-ratified, documented default rather than churn. (Per Evan's #41
+ratified, documented default rather than churn. (Per Ev's #41
 direction, K is now ε-style per-run configuration —
 `Tol::k`, env `CAD_AMBIGUITY_K`, default 10 — so future
 corpora can probe alternatives without code changes.)
@@ -750,7 +750,7 @@ a real 1.7 mm feature gap). The gap between the clusters spans ~12
 decades and is EMPTY: 0 indeterminate, 0 invalid, nothing within a
 decade of any band edge at any ε row.
 
-### The large-K lint (Evan's ask, ruled 2026-07-25; spec D3)
+### The large-K lint (Ev's ask, ruled 2026-07-25; spec D3)
 
 *Historical, left as written. The thresholds and rule set below are the
 M4 originals; both were revised on 2026-08-07 — see "M7 addendum: the
@@ -810,7 +810,7 @@ demo scenes as they stand at main's tip (post-#166). This is the
 #89 revisit that M2's Finding 4 named — and the FIRST snapshot in
 which the counterfactual-K decision surface is not completely flat.
 Its outcome: **#89 is CLOSED and K = 10 is the permanent ratified
-default** (Evan, PR #169 comment 5171303851, 2026-08-03), with a
+default** (Ev, PR #169 comment 5171303851, 2026-08-03), with a
 testable re-open trigger. See "Decision" below.**
 
 - **Harnesses**: unchanged — `scripts/k_probe_sweep.sh`
@@ -1024,7 +1024,7 @@ K = 30 has 5.5×; K = 10 retains better than a decade.
 
 ### Decision: #89 CLOSED — K = 10 is the permanent ratified default
 
-**Ruled by Evan on PR #169 (comment 5171303851, 2026-08-03):
+**Ruled by Ev on PR #169 (comment 5171303851, 2026-08-03):
 "closing 89 makes sense."** This supersedes the continuation this
 addendum originally recommended; the grounds below are the ones the
 recommendation was built on and they support the close directly.
@@ -1100,10 +1100,10 @@ happened; the section above is left as written.
 landing: ε = 1e-7, fixture `cone_trunc`, predicate
 `props_rim_level_group`, margin 5.590169943747308e-7 = √5/4 × 1e-6
 — in Band{1e-7, 1e-6}. Verified bit-exact at review (the A3
-attack), reported to Evan on the designated #89 thread with nothing
+attack), reported to Ev on the designated #89 thread with nothing
 retuned.
 
-**The diagnosis.** Evan's probe of the margin's DIMENSION broke the
+**The diagnosis.** Ev's probe of the margin's DIMENSION broke the
 case: the margin was an AREA (m², a two-length product, quadratic
 in model scale) where a rim-level comparand should be a LENGTH.
 Root cause in `geom-brep/src/props/curved.rs::du_of_rims`: every
@@ -1137,7 +1137,7 @@ is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
    required exactly the re-reading the sentence hoped to avoid.
 3. The two "M6 pickup" follow-ups above are hereby re-tagged
    **UNOWNED pickups** — M6's executed units (1–4) all merged with
-   neither follow-up done, and M6 remains open awaiting Evan's exit
+   neither follow-up done, and M6 remains open awaiting Ev's exit
    walk (the k-lint baseline floor is still the stale M4-era 1.5e-3
    with ~102 advisory flags/run; the SSI Probe lane still has no
    owner). The k-lint floor refresh holds a promoted lull-queue
@@ -1416,7 +1416,7 @@ lane) and `split_sector_{arm,reflex,straight}` (splitting lane) are, since
 #647, literally one implementation of one quantity —
 `crates/topo/src/sector_shape.rs`, called from both lanes, with the name
 set handed in as a parameter precisely so this decision could be taken
-separately. It is taken: **pool them** (Evan, 2026-08-19, issue #652).
+separately. It is taken: **pool them** (Ev, 2026-08-19, issue #652).
 They now emit `sector_arm`, `sector_reflex`, `sector_straight`.
 
 **Why, in one line that is not tidiness.** Coverage. Recomputed from

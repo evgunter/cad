@@ -1,6 +1,6 @@
 # VERB-SEAT-DESIGN: the kernel query seat, one verb vocabulary, and lowered parameter identity
 
-Status: **RATIFIED** (PR #1388, Evan's sign-off in-session,
+Status: **RATIFIED** (PR #1388, Ev's sign-off in-session,
 2026-08-31; companion-table row at DESIGN.md). Originally a
 design-conversation PR; the text below is the ratified record.
 This doc proposes the mechanism for issue #1345's decided item (1)

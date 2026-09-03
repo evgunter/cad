@@ -1,6 +1,8 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties — **two of them wired so far**:
+//! One tree, several duties — **four of them wired so far** (the count
+//! was stale before this crate gained its proximity lane; the bullets
+//! below are the roster, and LIVE/INTENDED is the truth of each):
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
 //!   M5 PR 8 (`topo::boolean::reduce`).
@@ -13,6 +15,25 @@
 //!   ("Brute force, deliberately, for now"): this tree swaps in under
 //!   that module's already-merged differential suite when profiling
 //!   asks for it. Nothing in the C3 contract changes when it does.
+//! - **Clearance candidate pairs at the certified scalar** — LIVE
+//!   (`editor_core::clearance`): [`Bvh::build_bounded`] builds the tree
+//!   over item point clouds read at `T: Bounds`, and [`Bvh::within`] and
+//!   [`Bvh::pairs_within`] answer the proximity queries the E7 clearance
+//!   engine subdivides from. Those three doors are the whole surface the
+//!   engine uses, and the crate ships no other proximity door: a form
+//!   with no consumer is not kept here on the chance one arrives. At
+//!   `T = Interval` an item box encloses every real configuration in the
+//!   analysis leaf's parameter box, so the candidate set is conservative
+//!   over the whole box.
+//!
+//!   **The pruning threshold is the consumer's, and it is not the
+//!   consumer's own decision threshold.** These queries drop a pair when
+//!   [`Aabb::separation_lo`] exceeds the pad, on a raw comparison; a
+//!   consumer whose own answers come from a tolerance band must
+//!   therefore hand a pad that already carries the band, or it will have
+//!   let this crate decide a case its funnel would have called
+//!   indeterminate. `editor_core::clearance` pads by the funnel's
+//!   escalate threshold for exactly that reason.
 //! - **Viewport picking** — LIVE since GUI-1: [`Bvh::ray`], the
 //!   conservative ray-slab query the editor-core hit-test service
 //!   traverses (candidates ordered by conservative entry parameter;

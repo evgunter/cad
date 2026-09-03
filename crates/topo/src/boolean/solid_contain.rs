@@ -2606,8 +2606,10 @@ pub(super) enum TorusRoots<T> {
 /// `|x^{-4^{-27}/3} − 1| ≈ 1.8e-17·|ln x|`. The resolvent's argument is
 /// a length⁶, so `|ln x| ≤ 83` even at the extreme `x = 1e36` a
 /// kilometre-scale torus could reach — a relative gap under `1.5e-15`,
-/// which `boolean::r1_probes::r1_cbrt_truncation_is_a_bias_not_a_
-/// containment` measures directly. Against the ε-scale margins every
+/// which `boolean::solid_contain::r1_probes::r1_cbrt_truncation_is_a_
+/// bias_not_a_containment` reports directly (a printed census, not a
+/// gate: the bound above is held by `r1_cbrt_chain_tracks_the_true_
+/// cube_root`). Against the ε-scale margins every
 /// decision here is metered at, that is fifteen orders of headroom at
 /// the coarsest shipped row and six at the finest.
 ///

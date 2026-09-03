@@ -49,7 +49,7 @@
 use crate::sugar::ArcFilletCandidate;
 use geom_core::Bounds;
 
-/// Nearest-the-authored-corner branch selection (M5 S8; Evan's ruling,
+/// Nearest-the-authored-corner branch selection (M5 S8; Ev's ruling,
 /// in-chat 2026-07-30): the index of the surviving candidate to build,
 /// given each survivor's `[incoming, outgoing]` tangent setbacks in
 /// meters (arc lengths `R·Δθ` on circular legs).

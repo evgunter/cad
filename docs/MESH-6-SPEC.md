@@ -5,7 +5,7 @@ difficulty logged pre-draw: **S**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 Issue 897 is the primary specification; `docs/SMELL-SCAN-2026-08.md`
 §S65 and the S-MESH Q1 ruling (`docs/S-MESH-PLAN.md` §Rulings —
-Evan: the watertightness backstop STAYS COMPILED OUT; coverage for
+Ev: the watertightness backstop STAYS COMPILED OUT; coverage for
 the two named cases is discretionary) bound what this unit may ship.
 
 ## Situation

@@ -7,7 +7,7 @@
 //! and ambient `Tol::witness().get()` only — no hard-coded ε anywhere.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use fixture::pr4::diagnosis_corpus;
 
@@ -45,7 +45,12 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // is never computed (NAMING-DESIGN N5 as amended; recovery rung
 // banked as #134). All other rows unchanged (cascade → Cascade,
 // structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0x9d9b_b962_4cac_3156;
+// RE-PINNED for the sketch-frame node: a profile's plane is a document
+// node, so every corpus scenario gained one and the ids inside the
+// diagnosed names shifted. The five row SHAPES are unchanged and were
+// re-read before this pin moved (flip-vanish → RecipeEdit/NodeChanged,
+// cascade → Cascade, structural-param, node-gone, ambiguous).
+const DIAGNOSIS_DIGEST: u64 = 0xd79c_36c0_c930_a012;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

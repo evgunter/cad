@@ -352,7 +352,7 @@ A third sheet, deliberately unlike the pair above: **STEP files nobody on
 this project authored** (the wild corpus,
 `crates/step-import/tests/fixtures/wild/`), imported by `step-import` and
 tessellated by the kernel's own tessellator — **KERNEL-TESSELLATION LANE
-ONLY**, by Evan-approved scope. There is no FreeCAD import and no OCC
+ONLY**, by Ev-approved scope. There is no FreeCAD import and no OCC
 comparison lane for these files, so the sheet does not join the
 superimposition contract; it keeps the same shape (grid, captions,
 provenance banner via `compose_montage.py`) under its own title and

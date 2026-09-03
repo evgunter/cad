@@ -235,7 +235,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "diechamferblank",
             caption: "the die blank (chamfers)".to_string(),
             // Standalone for the same reason `diefillet`'s blank is
-            // (Evan, #218 follow-up): the partial die reads as a
+            // (Ev, #218 follow-up): the partial die reads as a
             // near-duplicate of the composed one on the sheet. The
             // sheet's chamfer panel is `diechamfer`.
             montage: false,

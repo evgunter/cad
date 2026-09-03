@@ -4,9 +4,9 @@
 difficulty logged pre-draw: **M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 This unit executes a RATIFIED ruling — the Q1 ruling and its
-second-round extension in `docs/S-BOOL-PLAN.md` §Rulings (Evan,
+second-round extension in `docs/S-BOOL-PLAN.md` §Rulings (Ev,
 in-chat, 2026-09-01) are the primary specification, together with
-the §4 amendment text quoted below, which Evan reviewed in-chat.
+the §4 amendment text quoted below, which Ev reviewed in-chat.
 Issue 433 does NOT close here (it closes when BOOL-9 also lands).
 
 ## Situation
@@ -122,7 +122,7 @@ comment in `demos/tour/src/lily.rs`, ~:870–905), the use case the
   433" spelled out, no closing keywords (the issue does not close
   here anyway).
 - **The PR does not merge on green.** PATHS §4 is design surface:
-  the PR carries the amended junction semantics for Evan's eyes
+  the PR carries the amended junction semantics for Ev's eyes
   before merge (the text was reviewed in-chat 2026-09-01; the PR
   body must quote the one paragraph that differs from the reviewed
   draft — the ruling record's arc_continue sentence, which follows

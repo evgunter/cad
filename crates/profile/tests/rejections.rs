@@ -2,7 +2,7 @@
 //! a closed-form profile, with the exact error asserted.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
@@ -95,7 +95,7 @@ fn sliver_arc_bulge_escalates() {
     }
 }
 
-/// **The re-homed fail-loud demo** (LIB-RETTAIL, Evan's ruling on
+/// **The re-homed fail-loud demo** (LIB-RETTAIL, Ev's ruling on
 /// #413). The tour's coda used to build this loop and print the
 /// refusal; a broken-on-purpose scene is not a use case, so the
 /// contract moved here, where it can be asserted instead of narrated.

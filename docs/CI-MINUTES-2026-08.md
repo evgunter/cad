@@ -91,7 +91,7 @@ A real reduction here has to change **both halves together**: gate the
 lanes off PR runs *and* make `render-hosted.sh`'s default dispatch on
 demand (~5 runner-minutes, only when someone actually wants frames,
 versus 12 on every code-tier run). That is a change to a documented
-agent tool, not a CI tuning knob, and belongs to Evan.
+agent tool, not a CI tuning knob, and belongs to Ev.
 
 ### F2 — the round-up, where it is collectable
 
@@ -126,7 +126,7 @@ branch becomes the PR's head, triggers no run of its own, and strands
 every green check on the parent — observed on #598 as "30 green jobs
 on 048edc9, and a head commit carrying a single check".
 
-**Landed** (Evan authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
+**Landed** (Ev authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
 reduce it to `filter` + `rebuild-latency` + `renders`, skipping build,
 test, clippy and k-lint. Preserves both write paths; drops ~65 of the
 87 minutes per merged code PR.
@@ -137,7 +137,7 @@ last run and its merge — frequent at this repo's merge rate — that
 exact combination went untested.
 
 **The scheduled full run on main that would have paired with this is
-DECLINED** (Evan, 2026-08-22). The next PR's merge-ref is main plus
+DECLINED** (Ev, 2026-08-22). The next PR's merge-ref is main plus
 that branch, so it tests the landed tree anyway; a scheduled run buys
 a second discovery of the same fact and costs a full gate per period
 whether or not anything landed. The residue is accepted, not
@@ -359,7 +359,7 @@ landed here: this finding measured the `fmt` job, and a claim about a
 >
 > **And the schedule improved under it rather than only being described.**
 > A change under `tools/` now PINS the k-lint row that compiles it instead
-> of drawing one (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`, Evan's
+> of drawing one (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`, Ev's
 > ruling of 2026-08-29). That is *unconditional-when-`tools/`-changes*,
 > which is a real schedule and is what the corrected sentences point at.
 > It does not restore any of the three claims above to *unconditional*:
@@ -427,6 +427,119 @@ roots, of which `demos/tour` compiles the whole kernel — and not its
 lint set, which is what makes the pass worth anything. The two job
 growths above are the larger target and are nobody's row yet.
 
+### 2026-09-03 — the rustdoc gate's other two passes demoted to the nightly
+
+S-TCOST unit C2, Ev's approval in chat the same day, and it is F6's own
+subject read one step further. F6 made the six excluded roots cheap by
+caching them; the addendum above then recorded that the entry's −1 had
+been spent twice over — once by growth elsewhere in the `fmt` job, once
+by pass 3 — and named pass 3's root set as the lever if the minute were
+ever worth reclaiming. This is that lever, taken at the SCHEDULE rather
+than at the root set, so no coverage is dropped.
+
+**What moved.** `scripts/doc-gate.sh` grew `--pr` / `--nightly` and a
+`--scope`. ci.yml's `fmt` job runs `--pr`: the workspace pass alone, over
+the change filter's `CARGO_SCOPE` (the closure on tier `closure`, the
+whole workspace on tier `all`, the way `build` scopes). Pass 2 — one
+`--no-deps` pass per cargo root the workspace excludes — and pass 3 —
+`--no-default-features` over every root with a `not(feature)` half — are
+nightly.yml's `rustdoc (gate, every root)`, ungated, on any night main
+moved. `local-scripts/ci-local.sh` is unchanged and still runs all three
+over every root.
+
+**Argued against §*What is NOT sampled, and the rule*.** A broken
+intra-doc link, a doc comment that stopped rendering, a `not(feature)`
+half that no longer compiles: each PERSISTS in the tree until someone
+fixes it, so a later run finds what a PR run would have. None of them is
+a detector of ABSENCE. The parts of that gate which ARE about absence —
+the two readers that refuse to report green over a tree they could not
+read, and the derived root list whose whole subject is a root falling
+silently out of coverage — live inside passes 2 and 3 and moved WITH
+them, so they run in full every night rather than being left behind at a
+cadence their guard does not share. That is the distinction the `k-lint`
+entry above turns on, argued here rather than inherited.
+
+**THE SCOPING IS A SECOND DEMOTION, and it gets its own row-by-row
+sentence rather than riding the one above.** Pass 1 does not merely move;
+it also narrows, from `--workspace` to the change filter's `CARGO_SCOPE`
+on tier `closure`. So a workspace MEMBER outside the closure — one no
+changed crate depends on — has its prose read on a PR run by nothing, and
+is covered by the nightly alone. Against the rule that is the same
+persistence case as the excluded roots, and it is weaker in one direction
+and stronger in another. Weaker: a member's prose is likelier to be
+edited by a PR than an excluded root's is — but a member whose OWN
+sources changed is a seed and so is in its own closure by construction,
+and what is skipped is a member nothing in the diff touches or depends
+on. Stronger: what a doc link most often breaks on is a RENAMED or
+DELETED item, and a rename in crate A that breaks a link in crate B puts
+B in A's dependent closure, which is exactly what `CARGO_SCOPE` selects.
+What genuinely escapes is a link broken by an edit to prose in an
+unrelated member — ordinary persistence: it stays broken, and the nightly
+reads every member. Tier `all` is unscoped, so an unclassifiable change
+still documents everything.
+
+**The cache moved with the passes.** `--print-roots --pr` prints `.`
+alone, and the `fmt` job's `workspaces:` input is that: F6 taught the
+cache about seven target directories because the job wrote seven, and
+the job now writes one. The derivation is still ASKED FOR rather than
+copied, so the cache's scope cannot drift from the passes that run.
+
+**Billed minutes — COLD, and that is not the comparable number.** The
+`fmt` job's rust-cache key hashes the job definition, so the first run
+after any edit to that job is cold; F6 says so at its own entry and it
+applies to this one. Run `33722478540` (this unit's opening run, head
+`4ca9102a`): the job billed **6** (360 s), of which `rustdoc (gate)` was
+246 s and the cache restore was a 10 s miss. Against the addendum's own
+cold reading of 331 s for that step on run `33342678074`, the direction
+is right and the magnitude is not yet the answer.
+
+**Billed minutes — WARM AGAINST WARM, which is the reading this entry
+turns on.** Run `33727294346` (head `416b94bf`, cache hit, restore 17 s)
+against the addendum's two, whose method this copies:
+
+| | run | `rustdoc (gate)` | non-gate steps | whole job | billed |
+|---|---|---|---|---|---|
+| merge base, before pass 3 | `33342571322` | 110 s | 69 s | 179 s | **3** |
+| with pass 3, on every PR | `33346546955` | 153 s | 69 s | 222 s | **4** |
+| this unit | `33727294346` | **110 s** | **69 s** | **179 s** | **3** |
+
+**−1 billed minute per code-tier PR run**, and the shape of the number
+is worth more than the minute: the job is back at the merge base's cost
+to the second, with pass 3's coverage KEPT rather than dropped — it runs
+nightly instead of per PR. The non-gate steps are 69 s in all three,
+which is what makes the three rows comparable at all.
+
+**And the nightly side is priced, because a demotion that books only its
+saving is half a measurement.** `rustdoc (gate, every root)` runs all
+three passes over all seven roots on a cache lane of its own, once a
+night: **~3 billed**, derived from F6's warm all-seven job (99 s) plus
+the addendum's pass-3 delta (+43 s), with one night at ~6-7 whenever that
+lane's key rotates — the one-cold-run tax F6 records. So the ledger is
+−1 per code-tier PR run against +~3 a night; at this repo's PR rate that
+is a saving, and on a quiet day the `gate` job spends nothing at all. It
+is DERIVED and not yet measured on a nightly; the row in the nightly
+budget table below says so and asks for the re-read.
+
+Two things the row does NOT claim. It is not F6's −1 recovered: that one
+was spent by job growth as well as by pass 3, and this reading says
+nothing about the growth. And 110 s is the gate plus the self-test on a
+tree whose passes 2 and 3 no longer run here — that the total lands on
+the pre-pass-3 figure exactly is a coincidence of two movements in
+opposite directions (fewer passes, a longer self-test), not a
+cancellation anyone designed.
+
+**What the split does NOT buy back, said so it is not rediscovered.**
+The `--selftest` is the half no cache reaches — every case plants a
+fresh fixture under `mktemp -d` and cargo keys fingerprints on the
+package path — and this unit made it LONGER, not shorter: it added an
+arm per mode in both directions, a second fixture member, and three
+refusal cases, because a mode nobody checks is a second gate nobody
+checks. So the saving here is entirely in the real gate's passes, and
+the self-test is now the larger share of that step. The lever on it is
+still the one F6 named — running the cases in parallel — and it is still
+nobody's row.
+
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
@@ -475,7 +588,7 @@ sound rather than a cut. They land together on one branch.
   already runs at the ε THIS RUN DREW. The two jobs re-ran them at 1e-6
   AND 1e-12 unconditionally, which is not extra coverage: it is the ε
   sampling defeated for exactly those modules. **No replacement
-  mechanism** (Evan: *"no need to make any special attempt to keep
+  mechanism** (Ev: *"no need to make any special attempt to keep
   m4_pr8_corpus visible. just make it a normal test"*) — no filter
   expression, no named row, no doc pointer. `m4_pr6_eps_diff::` never
   needed the loop at all: it re-execs itself per ε, which is the only way
@@ -485,7 +598,7 @@ sound rather than a cut. They land together on one branch.
   F6 above for why this and not a cache, and for the per-row
   absence-detector audit that had to come first. **−7 to −8 billed min**,
   the largest single item in this pass.
-* **`watertight` → the nightly** (Evan, explicit). A persistence-detector
+* **`watertight` → the nightly** (Ev, explicit). A persistence-detector
   with one solo red in 37 days, and that one was a rustup outage.
   **−1 to −2 billed min.**
 * **`rebuild latency (reporting)` SPLIT.** The wall-clock table moved to
@@ -515,7 +628,7 @@ sound rather than a cut. They land together on one branch.
   since it last ran — an append-only `nightly/<epoch>-<sha>` tag, with
   the tier question handed to `scripts/ci-filter.py` rather than to a
   second classifier. **This is not the scheduled full run on main that
-  F3 left owed and Evan declined**; see *What did not land* below, where
+  F3 left owed and Ev declined**; see *What did not land* below, where
   that entry now says why the two are different questions.
 
 **Two things in that list are coverage ADDITIONS, and it is worth saying
@@ -670,6 +783,8 @@ measured, and the largest line is not the one you would guess:
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| `rustdoc (gate, every root)` | ~3 | S-TCOST C2. DERIVED, not yet measured on a nightly: F6's warm all-seven reading is a 99 s job and the addendum's pass-3 delta is +43 s, so ~142 s. Its own cache lane (`nightly-rustdoc-roots`) is warm night to night; a key rotation costs one night at ~6-7, the same one-cold-run tax F6 records. Re-read it from the first nightly run. The `an ordinary night` line below does not yet include this row |
+| `corrupt input (release profile)` | ~2 | S-TCOST C1. The job's own audit-table line, unchanged by the move: it is one `-p topo --lib` release compile and five rows that execute in milliseconds. Read at 98 s / 2 billed on run `33722922975`, where it was still a ci.yml job on a comparable tree. The `an ordinary night` line below does not yet include this row |
 | **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than
@@ -684,7 +799,7 @@ F-numbers).
 A demoted test is one the gate would otherwise run, so what this job has
 to answer is whether it still passes, and what it costs, *in the
 configuration we actually use*. Pinning it to a level the gate has
-stopped running would answer a question nobody has (Evan, 2026-08-25): a
+stopped running would answer a question nobody has (Ev, 2026-08-25): a
 cost measured in a configuration we do not use is not a cost anyone can
 act on. That also shrinks the gate-side listing's saving rather than
 removing it — against opt-1 the gap is ~164 s on a 4-core sweep (143 s →
@@ -713,7 +828,7 @@ demotion argument rests on — stated with a number rather than assumed.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — DECLINED (Evan, 2026-08-22), not
+* **a scheduled full run on main** — DECLINED (Ev, 2026-08-22), not
   owed. The next PR's merge-ref is main plus that branch and tests the
   landed tree anyway. See F3 for the residue that is accepted with it.
 
@@ -741,7 +856,7 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
-Evan's proposal, and the reason it is a separate section rather than a
+Ev's proposal, and the reason it is a separate section rather than a
 finding: the audit above tuned what each job costs, and this changes
 **what a run gates**. A code-tier run used to execute every point of
 {default features, `interval`} x {default eps, 1e-6, 1e-12}. It now
@@ -925,7 +1040,7 @@ and the nightly builds with `RUSTFLAGS="--cfg nightly_suite"`. At the
 gate the attribute is present and the test is skipped; in the nightly it
 vanishes and the test is ordinary.
 
-**Evan's constraint, and it holds by construction rather than by a
+**Ev's constraint, and it holds by construction rather than by a
 list**: tests that are ALREADY plain `#[ignore]` — reporting rows,
 instruments, tests only valid as the sole test in a process — must stay
 unexecuted in the nightly too. So the nightly must never pass
@@ -955,6 +1070,54 @@ empty set and would zero the lane permanently. The script separates them
 from the SOURCE, the way the interval one does: no marker anywhere under
 `crates/` proves the empty case, markers present with an empty difference
 is a broken rig and fails.
+
+### 2026-09-03 — `corrupt input (release profile)` demoted to the nightly
+
+S-TCOST unit C1, Ev's approval in chat the same day. The job moved out of
+`ci.yml` into `nightly.yml` verbatim — its steps, its non-empty-selection
+count guard and its five `... ok` name greps plus the two suite-header
+greps — and now runs ungated on any night main moved, rather than on every
+code-tier PR run whose closure holds `topo`.
+
+**Argued against §*What is NOT sampled, and the rule*, per row**, which is
+what that section demands of a new entry rather than inheriting another
+job's licence. The three profile-independent-but-release-named rows assert
+on the body the operators produce, and a wrong body persists. `review_d18`'s
+two `cfg(not(debug_assertions))` hammer rows run in NO other lane, which is
+the case that looks like an absence detector and is not one: what they
+detect — a row-4 `unreachable!` becoming input-reachable — is a property of
+the tree's code and persists exactly as the rows above do. The genuine
+absence risk, those rows silently ceasing to be selected, is what the count
+guard and the name greps are for, and they moved WITH the job, so the
+detector kept its cadence relative to the rows it guards. The full argument
+is at the job, which is where the rule says it belongs.
+
+**Billed minutes: −2 per code-tier PR run whose closure holds `topo`.**
+The subtrahend is the job's own line in the reference table at the top of
+this document — 1.37 min wall, **2 billed** — and `topo` is in the closure
+of 89 of the last 128 first-parent merges. Against that, **~2 billed
+minutes a night**: the nightly pays the same rounded-up minute, once, on
+days main moved.
+
+The *after* is read from this unit's own PR run, `33721373132` (16 jobs,
+default lane drawn): `corrupt input (release profile)` **is not among
+them**, which is what −2 means here — the job is gone from ci.yml rather
+than shortened, so there is no new duration to read and the delta is the
+whole of its old line. What that run cannot re-take is the 1.37/2 itself,
+because the job no longer runs there; per the F6 addendum's rule, that
+figure is true as of the audit that measured it and the nightly is now
+where a fresh reading of it comes from.
+
+**What the demotion gives up, and what it does not.** It gives up
+attribution: a break lands on the night's merges rather than on the PR that
+caused it. Two handles remain — `nightly.yml`'s `ref` dispatch input
+re-measures any commit, and `local-scripts/ci-local.sh` still runs the row
+on every local gate, still scoped by `RUN_TOPO_RELEASE`. That local
+consumer is why the filter key SURVIVES the demotion: `ci.yml`'s `filter`
+job publishes no `run_topo_release` output any more (an output nothing reads
+is how a reader concludes a job still exists), but deleting the key would
+have promoted a scoped local row to unconditional, which is the opposite of
+what this decided.
 
 ### `ready_for_review` is load-bearing
 
@@ -1002,7 +1165,7 @@ not a saving, it is a hole.
 3. **A scheduled full run on main** — still owed from F3, and now owed
    more: with the push run trimmed and the PR run sampled, no single
    tree is gated at every point by hosted CI. Deliberately not bundled
-   here (Evan: "the PRs will get it"). **Unchanged by the nightly lane**,
+   here (Ev: "the PRs will get it"). **Unchanged by the nightly lane**,
    which is a different proposal — see *What did not land* above.
 
 **New, and ranked from here (2026-08-22).**
@@ -1048,7 +1211,7 @@ not a saving, it is a hole.
    > `n/a` — the jobs API gives durations, not test counts — so what the
    > check compares is the measured arms against each other.
    >
-   > **AND THEN THE TREE MOVED (Evan, 2026-08-25): `ci.yml`'s two archive
+   > **AND THEN THE TREE MOVED (Ev, 2026-08-25): `ci.yml`'s two archive
    > jobs are at `opt-level = 1`.** Made on the sweep above, i.e. on
    > evidence from a box this lane explicitly distrusts, before a single
    > runner sample of opt-1 existed — deliberately, because *the fastest

@@ -12,7 +12,13 @@
     clippy::print_stdout
 )]
 
-mod common;
+test_utils::gated_to![
+    "crates/mesh/src/",
+    "crates/topo/src/coherence.rs",
+    "crates/topo/src/splitting/",
+];
+
+use crate::common;
 use common::witness_bodies::{keyway, oblique_lens, slit};
 use common::*;
 use geom::{Curve3, Surface};
