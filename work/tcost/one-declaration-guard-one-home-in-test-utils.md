@@ -5,6 +5,7 @@ title: The one-declaration assertion is copied verbatim into fourteen all.rs fil
 status: closed
 opened: 2026-09-03
 closed: 2026-09-03
+pr: 1716
 ---
 
 
