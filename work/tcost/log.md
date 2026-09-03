@@ -965,3 +965,18 @@ lane filed as `nightly-pin-reading-idiom-four-copies` biting first on
 TCOST-1's own row; a fix is owed before tomorrow's nightly. B3's
 primer: the first push to main after it was cancelled mid-save by the
 next push (predicted); its restore-hit reading is still owed.
+
+## Seam: the nightly row fixed; the primer primed (2026-09-03, 15:47 UTC)
+
+PR 1693 merged at c5263958: the gated-suite re-take's "read the
+nextest pin" step had unbalanced quotes (one of five copies of the
+pin-reading idiom — the instance C3's filed issue predicted) and had
+never run; all five copies now execute locally against ci.yml. Tonight's
+nightly is the first that can execute TCOST-1's and TCOST-9's re-take
+and C1–C3's three new jobs. B3's primer (census agent's audit of the
+six pushes to main after 14:45): the first two pushes were cancelled
+before or during the save; the 14:56 push completed a real save on the
+default lane (762 s) and the interval save's steps succeeded under a
+job-level cancel; the 15:11 push RESTORED on both lanes (its dependency
+build skipped) — the mechanism works; the owed reading is the first
+PR-context `build + archive` restore under the new keys.
