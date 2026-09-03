@@ -3,6 +3,7 @@ id: LIB-DIETOOL
 kind: unit
 title: die_tool re-authoring check — is the Revolve/datum blocker cleared
 status: review
+pr: 1632
 branch: lib/die-tool-check
 opened: 2026-09-03
 refs: [pncad-py-doc-has-no-node-kind-read-door]
