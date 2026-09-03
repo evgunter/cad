@@ -1834,6 +1834,58 @@ v15 fixture #1224 renamed — a union break gating every PR's Rust
 shards) — routed orchestrator-direct as #1264, per the
 red-goes-straight-to-a-fix social rule.
 
+**LIB-DIETOOL DELIVERED (2026-09-03, mechanical, brief-as-spec).**
+The banked "die_tool's Python re-authoring (banked behind its
+Revolve/datum half)" is CLOSED, and the verdict is CLEARED — by
+construction, not by argument. The record first: the blocker was
+`die_pips`' deviation (b), the equator workaround — the revolve NAME
+EMITTER refused an all-on-axis two-pole loop ("revolve vertex
+resolution exceeded elimination"), so no sphere reached a
+`Node::Revolve` and the ball was charted as two quarter arcs meeting at
+an off-axis equator vertex, the second's bulge derived from `tan(π/8)`.
+`7581fb65d` (2026-08-15) deleted it from `die_pips`, `die_composed` and
+the tour once the emitter grew its pole export. **The Rust corpus
+document never carried it**: `die_tool` (`54f44ac90`) postdates that
+deletion by one commit and reuses `half_disc_program`'s natural
+bulge-1 semicircle, so there was nothing to re-author on that side and
+the name-table digest could not move (measured: `die_tool` still
+`0x9e24_4be7_b06b_9a40`, and `m10_p_fence`'s three scalars unmoved —
+the registry is untouched, so neither gate's re-bless procedure was
+entered). What was genuinely banked was the CROSSING: `heat_sink_fins`
+(Linear, extrude-only) had a Python twin and `die_tool` (Explicit,
+Revolve about a `Datum::Axis`) had none.
+It authors clean. `test_placed_union.py::TestTheDieTool` says the
+document's seven nodes through the bound doors — `Node.polygon`,
+`extrude`, `datum_axis`, `profile` on a `from_frame` plane, `revolve`,
+`placed_union_at` of six `Frame.rotate_then_translate`s, `boolean`
+Subtract — green, valid, one solid, 18 faces, volume on the six-cap
+oracle at 1e-12 relative. The sameness is BYTES, not eyeballs:
+`lib_dietool_crossing.rs` pins the registered document's `persist::save`
+text as `corpus/die_tool.pncad` (with a `PNCAD_BLESS` door), and the
+Python row asserts its own `Doc.save()` against that file line for line
+— the whole 468 lines, identity included (`Doc("mod")` derives the id
+`fixture::Recorder` does), bar the one swept `"epsilon"` line on the
+`plate_param` precedent. A recipe change on either side is now a red
+run.
+Two things swept en route. The Python die scene
+(`test_north_star.py::DieScene.ball`) still carried the equator
+workaround with a docstring asserting a refusal that had been retired
+eighteen days earlier — the stale-comment class, and this one was
+load-bearing prose. Replaced by the scene's own meridian; all
+seventeen die rows (`diepips`, `diecomposed` incl. its 42-rim
+`select_where`, `diechamfer`) green unchanged, so the re-chart was dead
+weight. And ONE finding filed:
+`work/lib/pncad-py-doc-has-no-node-kind-read-door.md` — `Doc` answers
+`order`/`node_count`/`placement`/`reference`/`interface` and no node
+KIND, and `Value.kind` is the value's ("body" for both a group and a
+union), so the Rust row's `(groups, unions, transforms) == (1, 0, 0)`
+has no Python spelling; the mirror asserts the node COUNT (7 against
+the pairwise chain's 18) and leans on the byte pin's JSON for the rest.
+No audit row flips: G8's residual is the Union-into-a-BASE fusion
+asserted by `TestHeatsink`, and this row is a Subtract — though it does
+execute "a group feeds a boolean from Python", which is the half of
+that sentence that was in doubt.
+
 ## Tracker migration (2026-09-03)
 
 This log moved here from `docs/LIB-LOG.md`; the program's contract stays
