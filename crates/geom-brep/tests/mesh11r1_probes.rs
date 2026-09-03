@@ -167,11 +167,16 @@ fn r1_a_south_pole_crossing_arc_is_refused_too() {
     );
 }
 
-/// **CERT-1's multi-wrap face: the flux lane measures it, the branch
-/// door refuses it.** `cert1_sphere_polar::a_multi_wrap_span_covers_
-/// both_poles` asserts the closed form on a 3π span; the claim under
-/// review is that the branch door refuses exactly there. Both halves,
-/// on one face.
+/// **CERT-1's multi-wrap face: both doors refuse it, under one name.**
+/// As reviewed, `cert1_sphere_polar` asserted the closed form on a 3π
+/// span and the claim was that the branch door refused exactly there —
+/// two doors, two answers on one face. A 3π span is not an arc
+/// certification produces, and the parse now refuses it by
+/// certification's own bound (`props_meridian_span_winding`, issue
+/// 1601) before either door's own question is asked: the shape door
+/// and the flux lane through the parse, the branch door by repeating
+/// the same decide ahead of its pole test. Re-aimed accordingly — the
+/// row that would redden if either door answered the span again.
 #[test]
 fn r1_the_multi_wrap_span_splits_the_two_doors() {
     let pi = core::f64::consts::PI;
@@ -179,18 +184,21 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
         great(0.0, 0.0, 3.0 * pi, 0, 1),
         great(0.0, 3.0 * pi, 4.0 * pi, 1, 0),
     ];
-    assert_eq!(require_iso_rectangle(&sphere(), &pair, band()), Ok(()));
-    let fc = curved_face(&sphere(), &pair, 1.0, band());
-    let exact = 2.0 * pi * RS * RS;
+    let winding = |r: &Result<(), PropsError>| {
+        matches!(
+            r,
+            Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_span_winding"
+            })
+        )
+    };
+    let shape = require_iso_rectangle(&sphere(), &pair, band());
+    let fc = curved_face(&sphere(), &pair, 1.0, band()).map(|_| ());
     let branch = require_one_chart_branch(&sphere(), &pair, band());
-    println!(
-        "R1 multi-wrap: flux={:?} exact={exact} branch={branch:?}",
-        fc.map(|c| c.area)
-    );
-    assert!(
-        matches!(branch, Err(PropsError::NotOneChartBranch { .. })),
-        "a 3pi span contains both poles in its interior; got {branch:?}"
-    );
+    println!("R1 multi-wrap: shape={shape:?} flux={fc:?} branch={branch:?}");
+    assert!(winding(&shape), "the shape door: {shape:?}");
+    assert!(winding(&fc), "the flux lane: {fc:?}");
+    assert!(winding(&branch), "the branch door: {branch:?}");
 }
 
 /// **The cone arm's rim/meridian guard — the defect this probe found,

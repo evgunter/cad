@@ -10,7 +10,7 @@
 //! [`require_one_chart_branch`], the BRANCH door, which is `mesh`'s
 //! alone. The flux lane must not cite the branch door: its own extent
 //! derivations fold a chart singularity into the extent on purpose and
-//! measure a pole-crossing arc EXACTLY (four rows of
+//! measure a pole-crossing arc EXACTLY (three rows of
 //! `geom-brep/tests/cert1_sphere_polar.rs` ride that fold), so citing
 //! the branch door from [`curved_face`] or from `mass_properties`
 //! would retract those rows. Two predicates for two consumers, one
@@ -283,8 +283,9 @@ pub fn boundary_material_sign<T: Decide>(
 /// be a false "not at an extreme", not a shape verdict. Each kind
 /// derives its extremes from spans certification bounded per edge:
 /// the linear kinds' are `min_max` over endpoint levels, the sphere's
-/// fold each arc's pole extremes in, and the torus's is its anchor
-/// meridian's whole stored span — the pieces of a split edge folded
+/// fold each arc's pole extremes in (after re-deciding the arc's span
+/// against that bound, `props_meridian_span_winding`), and the
+/// torus's is its anchor meridian's whole stored span — the pieces of a split edge folded
 /// into that meridian first, under the same per-edge invariants
 /// re-decided on the span the fold reconstructs
 /// ([`fold_torus_meridians`]). What no derivation sees is a meridian
@@ -396,11 +397,14 @@ pub fn require_iso_rectangle<T: Decide>(
 /// this one.** The extent derivations FOLD the singularity in and are
 /// right about the area of such a face: `geom-brep/tests/
 /// cert1_sphere_polar.rs`'s `a_pole_crossing_meridian_arc_measures_
-/// the_half_cap_exactly`, `the_rimless_hemisphere_split_off_its_poles_
-/// still_measures` and `a_multi_wrap_span_covers_both_poles` are three
-/// faces whose meridian arcs contain a pole in their interior and
-/// whose closed form is asserted EXACT. A refusal placed in the shared
-/// parse, or in [`curved_face`], would retract that. What such a face
+/// the_half_cap_exactly` and `the_rimless_hemisphere_split_off_its_
+/// poles_still_measures` are faces whose meridian arcs contain a pole
+/// in their interior and whose closed form is asserted EXACT. A pole
+/// refusal placed in the shared parse, or in [`curved_face`], would
+/// retract that. (What the parse DOES refuse, and this door with it,
+/// is a span past the per-edge winding bound —
+/// [`require_meridian_span_within_period`] — which is not an arc
+/// either fold could stand on.) What such a face
 /// breaks is a consumer that reads ONE chart coordinate per edge —
 /// `mesh`'s boundary walk, whose `topo::chart_iso::mid_azimuth` reads
 /// the carrier's midpoint through `Chart::u_of` and lands on the far
@@ -475,14 +479,17 @@ pub fn require_iso_rectangle<T: Decide>(
 /// answer here is not meaningful. `mesh`'s
 /// `curved::require_iso_rectangle_face` asks them in order.
 ///
-/// Each arm nonetheless repeats ONE of the parse's classifications —
-/// `props_circle_axis_class` on the sphere, `props_meridian_apex` on
-/// the cone — because it must know WHICH edges the per-kind question
-/// is about, and a public door may not rest on a caller having run
-/// another one. That costs one duplicate funnel sample per circle or
-/// line edge at `mesh`'s door. It is a duplicate of a sample already
-/// in the stream, never a new margin VALUE, so the large-K lint (which
-/// lints margins against K, not counts) cannot move on it. The
+/// Each arm nonetheless repeats the parse's classifications it cannot
+/// do without — `props_circle_axis_class` and then
+/// `props_meridian_span_winding` on the sphere, `props_meridian_apex`
+/// on the cone — because it must know WHICH edges the per-kind
+/// question is about and that their spans are ones the pole test may
+/// read, and a public door may not rest on a caller having run
+/// another one. That costs one or two duplicate funnel samples per
+/// circle or line edge at `mesh`'s door. Each is a duplicate of a
+/// sample already in the stream, never a new margin VALUE, so the
+/// large-K lint (which lints margins against K, not counts) cannot
+/// move on it. The
 /// alternative a reviewer proposed — route this door through
 /// `sphere_boundary` and read its per-edge kinds — is strictly worse
 /// on exactly this axis: it would repeat EVERY decide of the parse
@@ -496,10 +503,13 @@ pub fn require_iso_rectangle<T: Decide>(
 /// branch boundary its span crosses (valid input, unbuilt lane — D2
 /// addendum row 2: the recourse is to state the side as two edges
 /// meeting at the singularity, which every consumer reads);
-/// [`PropsError::Escalated`] when the rim/meridian classification
-/// lands in the ambiguity band (escalate, never guess);
-/// [`PropsError::Unimplemented`] for a NURBS surface;
-/// [`PropsError::NotIsoRectangle`] on a plane.
+/// [`PropsError::NotIsoRectangle`] naming `props_meridian_span_winding`
+/// for a sphere meridian span past the per-edge winding bound (the
+/// parse's own refusal, repeated here so both doors answer one name),
+/// or on a plane; [`PropsError::Escalated`] when the rim/meridian
+/// classification or the span bound lands in the ambiguity band
+/// (escalate, never guess); [`PropsError::Unimplemented`] for a NURBS
+/// surface.
 pub fn require_one_chart_branch<T: Decide>(
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
@@ -579,6 +589,11 @@ pub fn require_one_chart_branch<T: Decide>(
                 {
                     continue;
                 }
+                // The parse's own span bound, before the pole test: the
+                // membership arithmetic below is stated for a span of
+                // at most one period, and this door does not run the
+                // parse that refuses a longer one.
+                require_meridian_span_within_period(e, radius, band)?;
                 for (m, _) in sphere_meridian_pole_margins(e, center, radius, axis, n_c) {
                     if matches!(
                         decide("props_meridian_pole", Margin::levered(m, radius), band),
@@ -1593,6 +1608,47 @@ fn sphere<T: Decide>(
     Ok(FaceContribution { flux, area })
 }
 
+/// **The per-edge winding bound, re-decided at the parse** for a sphere
+/// meridian arc: its stored span does not definitely exceed one
+/// period. Certification enforces `0 < Δt ≤ τ` on every edge
+/// (`interval_span_winding`, headroom `(τ − Δt)·r` at the linear band),
+/// and every span read in this module rests on that bound; the pole
+/// fold in particular ([`sphere_meridian_pole_margins`]) is stated for
+/// a span of at most one period and has no honest answer past it. A
+/// loop built without a body ([`LoopEdge::hand_built`]) can state any
+/// span, so the bound is decided here as `props_meridian_span_winding`
+/// — the same margin, band and lever as certification's, hence the
+/// same dispositions: `Zero` and `Positive` headroom admit (a span
+/// inside the coincidence band above τ is one certification admits
+/// too), the ambiguity band escalates, definitely negative headroom
+/// refuses typed under this name. The torus decides the same invariant
+/// for a span it reconstructs across pieces
+/// (`props_meridian_pieces_winding`, [`fold_chain`]); the sphere has no
+/// fold and decides it per edge.
+///
+/// Both consumers of the pole arithmetic call this first:
+/// [`sphere_boundary`]'s meridian arm, and
+/// [`require_one_chart_branch`]'s sphere arm, which does not run the
+/// parse. Rims are not decided here: a rim's span feeds the `Δu` sum,
+/// a different premise.
+fn require_meridian_span_within_period<T: Decide>(
+    e: &LoopEdge<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    if classify(
+        "props_meridian_span_winding",
+        Margin::levered(T::tau() - (e.t1 - e.t0), radius),
+        band,
+    )? == Sign::Negative
+    {
+        return Err(PropsError::NotIsoRectangle {
+            what: "props_meridian_span_winding",
+        });
+    }
+    Ok(())
+}
+
 /// The two poles' span-membership margins for a sphere meridian arc,
 /// each with the latitude sine it would carry — **one home for the
 /// test, two dispositions**.
@@ -1622,25 +1678,24 @@ fn sphere<T: Decide>(
 /// membership sign, levered at the sphere radius — the point
 /// deviation of moving the pole onto the span boundary.
 ///
-/// **Saturated spans (`dt ≥ 2π`) are NOT total, and the earlier claim
-/// that they were is retracted here** (issue 1601, pre-existing on
-/// this unit's base and NOT fixed by it — the fix is the flux lane's).
-/// The clamp holds `c_edge` at `−1`, which leaves the membership test
-/// as `f = ⟨P, M⟩ + 1` — nonnegative, but with a zero set that is not
-/// empty: it vanishes at the ONE direction antipodal to the span's
-/// midpoint `M`. "A full turn covers every direction, so the edge
-/// cosine excludes nothing" is the claim that needed an EMPTY zero
-/// set. At and near that direction `f` is a rounding residual, and
-/// `copysign` transfers its SIGN onto the chord, so a `2π + 2δ` span
-/// whose pole lands there can read `Negative` and fold short — by
-/// `(1 − cos δ)/2` in the dot value — rather than folding as the
-/// paragraph above promises.
-///
-/// **The branch door is unaffected**, which is why this is a note and
-/// not a blocker for it: [`require_one_chart_branch`] refuses only a
-/// definite `Positive`, so a residual `Negative` at that direction
-/// ADMITS — the direction this door is already permissive in, and the
-/// same answer it gives for the arc that merely ends at a pole.
+/// **The span is at most one period, by a decision made before this
+/// runs.** The membership test below is `⟨P, M⟩ − cos(dt/2)`, whose
+/// zero set on the parameter circle is exactly the two span endpoints
+/// — for `dt ≤ 2π`. Past a full turn `cos(dt/2)` swings back up and
+/// the test excludes directions the span covers, and clamping it at
+/// its half-turn value does not repair that: the clamped sign
+/// `⟨P, M⟩ + 1` vanishes at the direction antipodal to `M`, an INTERIOR
+/// point of any longer span, where a rounding residual would decide a
+/// chord of order the overrun. So no clamp: both callers first decide
+/// the span against the per-edge winding bound
+/// ([`require_meridian_span_within_period`]), and an admitted span
+/// exceeds `2π` by at most `zero/R` radians — certification's own
+/// coincidence band. On such a span `cos(dt/2)` is within
+/// `(zero/2R)²/2` of `−1`, and the only pole directions that
+/// difference can reclassify lie within `zero/2R` of the span's
+/// endpoint, whose chord is inside the band, where the fold folds and
+/// the door admits whatever the sign. Pinned in
+/// `tests/mesh12_saturated_span.rs`.
 ///
 /// The pole is located relative to the STORED span, as directions —
 /// no chart inversion at all, so this is not the wedge-unwrap trap
@@ -1670,26 +1725,17 @@ fn sphere_meridian_pole_margins<T: SpanLocate>(
     // widens the margin to the whole period and forces an escalation
     // the scalar lane does not have.
     let half = T::from_f64(0.5);
+    // The membership EDGE is the half-span's cosine, unclamped: the
+    // span was decided against the period before this ran (fn docs),
+    // so `dt/2` is at most a half-turn plus the coincidence band.
     let (sd2, cd2) = (dt * half).sin_cos();
-    // The membership EDGE saturates at a half-turn: a span of 2π or
-    // more covers every direction of the parameter circle, so its
-    // edge cosine is −1 — while raw `cos(dt/2)` swings back positive
-    // past `dt = 2π` and would EXCLUDE directions a multi-wrap span
-    // covers (executed: a 3π span read the north pole `Negative` and
-    // the face measured half its area). The clamp makes the test
-    // total over every positive stored span — and it is a clamp only
-    // because this is ONE edge's span, which certification bounded; a
-    // span reconstructed across edges is decided, not clamped
-    // (`fold_chain`, the class statement).
-    let (_, c_edge) = (dt * half).min(T::pi()).sin_cos();
     let (sdt, cdt) = dt.sin_cos();
     [(sa, ca, r0), (-sa, -ca, -r0)].map(|(ps, pc, extreme)| {
         // Sign: the pole lies in the closed span iff its direction is
-        // within `min(dt/2, π)` of the span's midpoint direction —
-        // one dot test, `⟨P, M⟩ − c_edge`, whose zero set on the
-        // circle is exactly the two span endpoints (empty for a
-        // full-period span, which contains everything).
-        let f = ps * cd2 + pc * sd2 - c_edge;
+        // within `dt/2` of the span's midpoint direction — one dot
+        // test, `⟨P, M⟩ − cos(dt/2)`, whose zero set on the circle is
+        // exactly the two span endpoints.
+        let f = ps * cd2 + pc * sd2 - cd2;
         // Magnitude: the CHORD to the nearer span endpoint — levered
         // by R below, that is the point deviation of moving the pole
         // onto the span boundary. powi(2), not x*x (see `level_gap`).
@@ -1828,7 +1874,9 @@ fn sphere_boundary<T: Decide>(
                 levels.push((e.p1() - center).dot(axis) / radius);
                 // The arc's extent is its stored span's, not its
                 // endpoints': fold in the pole latitude(s) the span
-                // contains (see `sphere_meridian_span_levels`).
+                // contains (see `sphere_meridian_span_levels`) — after
+                // deciding that the span is one the fold may read.
+                require_meridian_span_within_period(e, radius, band)?;
                 sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band);
             }
         }
@@ -2173,9 +2221,10 @@ fn exact_band() -> Band {
 /// statement, at its one home.** Certification bounds every EDGE's
 /// stored span (`interval_span_forward`, `interval_span_winding`:
 /// `0 < Δt ≤ τ`), and every per-edge span read in this module rests
-/// on that bound — the sphere arm's pole fold saturates its membership
-/// edge at a half-turn, a clamp that is total only because no
-/// certified edge exceeds one period. A span this fold reconstructs
+/// on that bound — the sphere arm re-decides it per meridian arc
+/// before its pole fold ([`require_meridian_span_within_period`]),
+/// because a hand-built loop can state a span no edge certifies. A
+/// span this fold reconstructs
 /// ACROSS edges was certified by nobody: a public door
 /// (`set_edge_curve`) can restate one piece's interval on its own
 /// carrier — shifted by a period, the identical arc, every piece
