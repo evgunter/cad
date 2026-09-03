@@ -3481,3 +3481,10 @@ position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2 OPUS, slot 3 FABLE.
 (arm per the block draw above). Spec docs/M10-5-SPEC.md (to main
 at dispatch). Runs CONCURRENT with M10-4 (block B2 slot 3) — two
 implementation lanes, the disk budget's ceiling.
+
+**M10-6 dispatch (branch-side, 2026-09-03).** Block M10-B3 slot 2
+(arm per the block draw above). Difficulty pre-logged M–L at
+dispatch (six sections, the persisted primitive a schema step, the
+three CI rows on the sampled matrix). Spec docs/M10-6-SPEC.md (to
+main at dispatch). The program's LAST unit; the block's slot 3 stays
+unclaimed unless a follow-up unit is opened before the exit walk.

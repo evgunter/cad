@@ -1,7 +1,7 @@
 # M10-6 — reporting, CI rows, the advisory lanes, the demo (E10/E11)
 
-STATUS: DRAFT (binding at dispatch, after M10-5 merges — its engine
-API is this unit's last input; re-verify every cited name then).
+STATUS: BINDING (dispatched 2026-09-03; every cited name re-verified
+against merged M10-5/#1638 and M10-4/#1627).
 Unit branch `m10/m10-6-reporting`. Program plan `work/m10/plan.md`;
 design record `docs/ERROR-DESIGN.md` E10/E11 and the worked example
 (read all three in full), with E2/E5/E6/E7 as consumed substrate.
@@ -57,20 +57,34 @@ the orchestrator's, not this lane's.
   `Selection` vocabulary (body-at-node, face scope), persisted with
   its own wire form; schema **v18** clean break with a populated
   golden; load-door re-check like every other measure fault.
+- **The engine door this unit adds.** M10-5's engine answers `≥ c`;
+  it has no "what IS the minimum clearance" door — both of its
+  reviewers' consumer walks said so, and a consumer today bisects
+  `c` by hand at a full budget per probe. This unit adds one: a
+  `min_separation` query over ONE certified leaf returning a
+  certified ENCLOSURE `[lo, hi]` of the minimum separation between
+  the two selections, honest at ANY budget — `lo` is the least
+  certified lower bound over every cell pair not discharged (the
+  frontier, the abandoned and refused pairs, and the BVH-excluded
+  pairs by their own `separation_lo`), `hi` is the least distance
+  of any f64-verified station pair found. No width rule, no ε: the
+  budget narrows the bracket and never falsifies it; the refusals
+  are the engine's own (`Unsupported`, `Selection`, poison, the
+  fold's `NothingCertified`), never a width.
 - **Evaluation semantics, stated because it is the unit's one
-  design choice**: `min_clearance` is a CERTIFIED quantity (E7) with
-  no closed form at a point scalar. At `f64`/`Probe`/`Dual` the
-  measure refuses TYPED (`MeasureUnsupported`-class, naming the
-  scalar and the door that can answer it), so an `Assertion` over it
-  reports `Unevaluated { reason }` in an ordinary build — E10's
-  third state, used for exactly what it exists for. At `Interval`
-  over a leaf's env, the measure's value is the engine's certified
-  bracket (`clearance_over`/`clearance_with` at that leaf), so the
-  E6 driver and §2's assertion row certify it leaf by leaf and the
-  assertion reads `Holds`/`Violated` there. No sampling, no
-  degraded f64 number, ever. (If the implementer finds a sound
-  f64 value channel — a certified bracket collapsing exactly — it
-  is a DISCLOSED deviation with the argument, never a silent one.)
+  design choice**: at `f64`/`Probe`/`Dual` the measure refuses TYPED
+  (`MeasureUnsupported`-class, naming the scalar and the door that
+  can answer it) — a found pair is not the minimum and a point
+  scalar carries no enclosure — so an `Assertion` over it reports
+  `Unevaluated { reason }` in an ordinary build: E10's third state,
+  used for exactly what it exists for. At `Interval` over a
+  certified leaf the measure's value IS that enclosure, so the E6
+  driver certifies it leaf by leaf and the assertion decides
+  `Holds`/`Violated` through the EXISTING `assert_bound` site (F16)
+  — no new metered predicate. No sampling, no degraded f64 number,
+  ever. (If the implementer finds a sound point-scalar value
+  channel it is a DISCLOSED deviation with the argument, never a
+  silent one.)
 
 ### 2. Serialization, content keys, the cache seam (E10 "derived, never persisted")
 
