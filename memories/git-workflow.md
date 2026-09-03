@@ -37,8 +37,7 @@ on what merging destroys.
 or personal identifiers in issues, PRs, comments, commits or committed
 files, except Ev's own — the account `evgunter` and the address
 `evgunter@gmail.com`, which signs every commit anyway and is the contact
-address nightly.yml publishes. Anyone else is named by role, and
-concrete addresses for anyone else live only in local cad-work logs.
+address nightly.yml publishes.
 **The rule itself now lives in CLAUDE.md** — this
 memory is read as relevance dictates and a publication rule cannot
 depend on an agent judging it relevant, so the two are stated together

@@ -51,9 +51,8 @@ titled `[ev] ...`.
   files — with the exception of Ev's own public identity, the account
   `evgunter` and the address `evgunter@gmail.com`, which signs every commit
   already and is the contact address `.github/workflows/nightly.yml`
-  publishes. Anyone else is named by role, and concrete addresses for
-  anyone else live only in local `cad-work` logs. Hazards around the rest
-  of the merge-only workflow: `memories/git-workflow.md`.
+  publishes. Hazards around the rest of the merge-only workflow:
+  `memories/git-workflow.md`.
 
 ## Working style
 
