@@ -29,8 +29,10 @@ directory at opening, by header edit and `git mv` only (ids unchanged):
 - `sccache-trial-verdict-to-read` from `work/issues/`
 - `geom-brep-test-unused-edgedescription-import` from `work/verbs/`
 - `perf-history-cannot-identify-its-host` from `work/perf/`
-- `the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row` from `work/lib/`
 - `facade-guards-defer-to-rustdoc-json` from `work/lib/`
+
+LIB's clippy-row item (`the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row`)
+landed on main the same day and stays closed in `work/lib/`.
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.

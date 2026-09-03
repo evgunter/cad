@@ -110,8 +110,8 @@ Cheap, and every later count depends on it.
 - **Duplicates, one file each**: `render-lanes-checkout-merge-ref-vanishes`
   and `render-lanes-red-at-missing-merge-ref` are one finding (GH 1607);
   `pncad-py-python-feature-clippy-lane-is-red` and
-  `the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row` are
-  one; LIB's `epsilon-has-no-type-of-its-own` and
+  `the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row` were
+  one (LIB landed the row and closed both on 09-03); LIB's `epsilon-has-no-type-of-its-own` and
   `step-writer-hardcodes-user-header-fields` duplicate code-quality
   `C13`/`C14` (which are parked on them); LIB's
   `facade-polygon-door-demoted-without-replacement` is `S79` #759;

@@ -52,9 +52,11 @@
 //!   also records the A11 rule-4 drift, and wants Ev's ruling.
 //! - **#946** — a sub-assembly's mate declarations do not cross the
 //!   instantiation seam.
-//! - **#947** — the pin-mismatch recourse is emitted twice
-//!   (ASSERTED here, so it goes red when fixed), and two refusals
-//!   carry no recourse sentence at all (`refusals`).
+//! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
+//!   recourse now reaches the author exactly once, from the store's
+//!   own `Display`; `update_door` is what holds that count down.
+//!   Two refusals still carry no recourse sentence at all
+//!   (`refusals`), filed as its own item.
 //! - **#948** — no parametric loop constructor (`rect`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
@@ -1242,25 +1244,30 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         pin_fault(refused)
     );
 
-    // GAP (#947), in the message a user reads: the recourse paragraph
-    // arrives TWICE. `WorkspaceError::PinMismatch`'s own Display
-    // already ends on `PIN_MISMATCH_RECOURSE`, and the `PartResolver`
-    // impl appends it again when it classifies the failure for the
-    // kernel.
+    // The message a user reads carries the recourse EXACTLY ONCE, and
+    // this line is what holds that number down. It used to be two —
+    // `WorkspaceError::PinMismatch`'s own `Display` ends on
+    // `PIN_MISMATCH_RECOURSE`, and the `PartResolver` impl appended it
+    // a second time on its way to the kernel — and the demo recorded
+    // that doubling as a gap (#947) until the seam stopped appending.
+    // One is the count with meaning on BOTH sides: zero would mean the
+    // store's `Display` dropped the sentence and the kernel-side
+    // message no longer tells an author what to do, two would mean the
+    // seam started re-appending it. The ZERO case is also held inside
+    // the workspace, by `crates/viewer/tests/instance_authoring.rs`,
+    // which asserts the recourse on the badge; what only this line and
+    // the Python author suite hold is the COUNT, which is what a
+    // `contains` assertion cannot see.
     assert_eq!(
         refused
             .kind
             .to_string()
             .matches(PIN_MISMATCH_RECOURSE)
             .count(),
-        2,
-        "the doubled recourse is what this line records (#947); ONE copy means it was \
-         fixed, and this count must be flipped to 1 in that same change"
+        1,
+        "the kernel-side message carries the recourse once, from the store's own Display"
     );
-    println!(
-        "   note (gap): that message carries its recourse paragraph twice — the store's \
-         Display ends on it and the seam classifier appends it again"
-    );
+    println!("   in full: {}", refused.kind);
 
     // The elaboration: "update this document everywhere", one recorded
     // per-reference edit per site, applied as a group.

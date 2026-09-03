@@ -2,9 +2,10 @@
 id: the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row
 kind: issue
 title: the python-feature half of pncad-py is linted by no CI row
-status: open
+status: closed
 opened: 2026-09-03
 refs: [1668]
+closed: 2026-09-03
 ---
 
 Found while closing census family B-CANCEL (LIB-B-CANCEL). Not a
@@ -74,3 +75,41 @@ shape is the Python tuple it becomes.
 Not done in LIB-B-CANCEL: the fix touches the merge gate and a field
 that unit does not bind, and a mechanical census lane changing the
 gate under its own PR is the wrong shape for both.
+
+## Closed
+
+2026-09-03. The row exists and the one standing finding is cleared.
+Duplicate of `pncad-py-python-feature-clippy-lane-is-red`, filed from
+the other lane; both close together.
+
+**The lint.** `crates/pncad-py/src/py/value.rs`'s `Datum::axes` keeps
+its tuple and carries `#[allow(clippy::type_complexity)]` with the
+argument at the site. The `type` alias was the other option and was not
+taken: the field is a `#[pyo3(get)]` projection, so the written shape IS
+what Python receives, `pncad.pyi` states it literally, and its two
+neighbours (`direction`, `in_plane`) are literal tuples that stay under
+clippy's threshold — naming only the third would make three projections
+of one kind read as two. Nothing crossing to Python moved: the field
+type is unchanged, `pncad.pyi` is untouched, and the staged-cdylib suite
+passes.
+
+**The row.** `cargo clippy -p pncad-py --features python --all-targets
+-- -D warnings`, added to ci.yml's `python-suite` job and to
+nightly.yml's `python suite (ungated re-take)`, and mirrored at
+`local-scripts/ci-local.sh` as `clippy (pncad-py, python)`. Hosted it
+rides the python job rather than `clippy` under a constraint that it not
+add compile time to the critical path: that job already installs Python
+3.12, already restores the `python` feature graph's own cache, and
+nothing `needs` it. Measured cost: 37 s wall on a cold target directory,
+and it warms nothing the wheel build reuses (maturin compiles
+`extension-module`, a different feature set).
+
+**What the siting gives up.** `python-suite` is seed-keyed and skipped
+on `push`, so the new row does not run on a PR whose seeds miss
+{pncad-py, pncad, editor-core}. A lint introduced by the binding code
+itself, or by `pncad`/`editor-core`, still seeds the axis and reds that
+PR. One reaching `src/py/` from further down — `quantity`, or the kernel
+through `pncad`'s re-exports — or from a `stable` toolchain bump
+shipping a new lint, seeds nothing and surfaces at the nightly re-take
+instead, within a day. That is the same trade the suite itself already
+makes, not a new one, but it is a real gap and is not claimed otherwise.

@@ -64,10 +64,10 @@ expected to).
     before adding it.
 14. `geom-brep-test-unused-edgedescription-import` — with an
     `--all-features` clippy row so the class stays visible.
-15. `the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row` — a
-    `--features python` clippy row on the gate and the local mirror;
-    LIB clears the one standing lint in `py/value.rs`. Its duplicate
-    file in `work/lib/` was closed at opening.
+15. ~~`the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row`~~ —
+    landed by LIB on main the day this program opened (a
+    `--features python` clippy row on the gate, the one lint cleared;
+    both duplicate files closed in `work/lib/`). Nothing to do.
 16. `facade-guards-defer-to-rustdoc-json` — an `[ev]` ruling: a
     nightly-toolchain rustdoc-JSON scan of `pncad`'s public API, or
     declare the three text scans permanent and rewrite their docs.

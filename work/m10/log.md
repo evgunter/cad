@@ -598,6 +598,76 @@ the doc sweep belongs before the first push, recorded here for the
 next brief. The spec leaves `docs/` with this merge. M10-6 is next
 and last.
 
+## M10-6 dual review adjudication (2026-09-03)
+
+Both arms on frozen bf67a734 (PR #1685), with hosted CI
+budget-blocked account-wide, so every claim rests on the reviewers'
+local runs of what the gate would have covered — both stated their
+coverage row by row. R1 NOT-MERGEABLE (2 MAJ, rubric 3/3/2); R2
+"mergeable once two MAJORs are answered" (2 MAJ, rubric 4/3/3). The
+four MAJORs are four different findings. R1, by execution: the
+`min_separation` enclosure is over carrier WINDOWS (M10-5's
+disclosed superset) but `MinSeparation`'s docs sell it as
+containment-true over the trimmed faces and "what makes an `AtMost`
+assertion sound" — an L-cap parked over a notch brackets
+`[0.1, 0.1]` where the true face separation is 0.269, so `AtLeast
+0.2` certifies a FALSE `Violated` and `AtMost 0.15` a FALSE `Holds`
+(the row-1 gate would red a true assertion). The asymmetry is
+exact: windows ⊇ faces, so `lo` is a valid lower bound for the
+faces and `hi` is not — the two arms that consume `hi` are the
+unsound ones. R2 met the same shape (`lo = 0` on a non-convex body,
+the assertion `Unevaluated`) and scoped it to M10-5's filed item;
+R1 is right that its propagation into a VALUE and two assertion
+directions is this unit's. R1's second, by execution: the tour's
+stop-2 headline — "the requirement FAILS somewhere in the box: this
+is the number that gates" — comes from a raw `worst_case.lo <
+bound` at −4.2e-11, inside the coincidence band, while the
+document's own `Assertion` over the identical enclosure reads
+`Holds`; the demo preaches the funnel and decides on a float. R2,
+by execution: `VerdictVector::certifying` drops `Assertion` rows
+from the certification comparison, moving `witness_vector`,
+`serialize()` and every leaf's key for EVERY assertion-carrying
+document — defensible, load-bearing, nowhere in D1–D9, its
+justification written four commits after the code (R1 had it as a
+MINOR). R2's second: the row-3 demotion is per-invocation, so the
+E6 re-open trigger (rule 1 — an in-band indeterminate) would print
+among 15,768 rule-2/3 flags and not red; the rule-1 count, the
+number E6 actually asked for, is reported nowhere (zero today — the
+population piles up just outside the escalation band at a floor of
+1.0083e-5 ≈ Kε, which is the runbook's recourse 2 and correct). The
+MINORs converge: the cache seam's `report_key` blind to every dial
+and consumed by nothing; row 1's first entry never driven and its
+budgets all 0.0; `stackup` refusing a `min_clearance` measure whole
+where `worst_case` is computable (E9's own rule inverted); the
+Python read door answering a typed absence with "not a measure";
+the ci-local k-lint gate's exit-code mismatch; the MC tail row
+admitting 0.0; the ci.yml cost note attributing 33 s to a 0.34 s
+cell; `mc`/`report` interval-gated so E11.1's pure-f64 lane is
+unusable in the default build. Everything both arms could execute
+held otherwise: D1's additive load door refusing an unknown variant
+by name, D2's value-not-error absence judged better than the spec's
+own self-contradictory sentence, D6's goldens at all three ε rows
+with mutation and re-bless, D8's binary primitive the faithful
+elaboration, the enclosure's soundness ON WINDOWS surviving every
+attack, the MC stream re-derived bit-exact.
+
+Fix pass IMPLEMENTER-INHERITED: the enclosure typed one-sided for
+faces (the `hi`-consuming assertion arms refuse typed until window
+tightening lands, docs telling the truth); the tour deciding by the
+assertion's verdict, never a float, on a fixture whose failure is
+definite; `certifying` disclosed, justified and pinned; rule 1
+gated red with its count reported and a K-REPORT entry; the MINOR
+set; both probe suites adopted (R1's three ignored counterexamples
+go green as pins).
+
+Tally candidates: R1's window-enclosure MAJ and R1's tour-headline
+MAJ (both by execution, both unilateral — R2 scoped the first and
+did not exercise the narration); R2's two are bilateral at split
+severity with R1's MINOR 3 and MINOR 10. Durable homes: window
+tightening stays M10-5's filed item (this unit's fix is the honest
+typing until it lands); the PRNG's single-copy sentence in
+`test_utils::fuzz` is the fix pass's to make true again.
+
 ## M10-6 MERGED (2026-09-03)
 
 PR #1685 merged, sample #118 (ordinal 507). The program's last unit.
