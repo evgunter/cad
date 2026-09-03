@@ -16,6 +16,8 @@ use test_utils::fuzz;
 use test_utils::source;
 use test_utils::vacuity::Exposure;
 
+use std::sync::OnceLock;
+
 /// A synthetic [`Bound`] with a plausible seed in its `steps`.
 ///
 /// **This is a FIXTURE, not a second copy of the lane's schedule.**
@@ -236,21 +238,61 @@ const FAMILY_EXTENT: f64 = 1.0;
 /// they read the declarations out of this text instead.
 const LINT_SOURCE: &str = include_str!("../../tess-lint/src/lib.rs");
 
-/// A view of [`LINT_SOURCE`], byte for byte as long as the original.
+/// A view of [`LINT_SOURCE`], byte for byte as long as the original,
+/// lexed once per view and held in `cache`.
 ///
 /// `test_utils::source` blanks the regions a view drops rather than
 /// removing them, so every offset means the same byte in every view —
 /// which is what lets a declaration be LOCATED in one view and READ in
 /// another. The pins below do exactly that, so the property is
 /// asserted here rather than assumed at each of them.
-fn lint_view(view: fn(&str) -> String) -> String {
-    let text = view(LINT_SOURCE);
-    assert_eq!(
-        text.len(),
-        LINT_SOURCE.len(),
-        "a blanked view is the original's bytes, blanked in place"
-    );
-    text
+///
+/// **One lex per view, not one per pin.** The views are pure functions
+/// of a `const` text, so every caller wants the same answer; the cache
+/// is what keeps a pin cheap enough that reaching for the other view
+/// is never a reason to skip it.
+fn lint_view(view: fn(&str) -> String, cache: &'static OnceLock<String>) -> &'static str {
+    cache.get_or_init(|| {
+        let text = view(LINT_SOURCE);
+        assert_eq!(
+            text.len(),
+            LINT_SOURCE.len(),
+            "a blanked view is the original's bytes, blanked in place"
+        );
+        text
+    })
+}
+
+/// What the pins below searched, for their refusals — one spelling,
+/// because three call sites naming the same text three times is the
+/// shape these pins exist to keep out of `tess-lint`'s constants.
+const LINT_SEARCHED: &str = "tess-lint's code view";
+
+/// [`LINT_SOURCE`] with prose AND string literals blanked — the view a
+/// declaration is LOCATED in.
+fn lint_code() -> &'static str {
+    static CODE: OnceLock<String> = OnceLock::new();
+    lint_view(source::code_only, &CODE)
+}
+
+/// [`LINT_SOURCE`] with prose blanked and literals kept — the view a
+/// located literal's VALUE is read out of.
+fn lint_literals() -> &'static str {
+    static LITERALS: OnceLock<String> = OnceLock::new();
+    lint_view(source::code_and_literals, &LITERALS)
+}
+
+/// The value of a plain string literal, or `None` where `text` is not
+/// one.
+///
+/// **Plain, and nothing is decoded.** A `concat!`, a raw string or an
+/// escape is not a literal this answers for — the callers refuse what
+/// it returns `None` on rather than guessing, because a mis-decoded
+/// constant is a green pin over a value nothing in the tree uses.
+fn plain_string_literal(text: &str) -> Option<&str> {
+    text.trim()
+        .strip_prefix('"')
+        .and_then(|q| q.strip_suffix('"'))
 }
 
 /// Every initializer following `decl` in `view`, as byte ranges: from
@@ -273,16 +315,20 @@ fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
         .collect()
 }
 
-/// The ONE initializer `decl` has in `view`.
+/// The ONE initializer `decl` has in `view`, which `searched` names
+/// for the refusal below.
 ///
 /// Exactly one: a second declaration of the same name is an ambiguity
 /// a textual pin cannot resolve, and answering with either of them
-/// silently is the failure this helper exists to refuse.
-fn sole_initializer(view: &str, decl: &str) -> std::ops::Range<usize> {
+/// silently is the failure this helper exists to refuse. `searched` is
+/// a parameter because `view` is any text — a fixture as readily as
+/// `tess-lint`'s source — and a message naming the wrong one sends its
+/// reader to a file that is not the one that failed.
+fn sole_initializer(view: &str, searched: &str, decl: &str) -> std::ops::Range<usize> {
     let mut found = initializers(view, decl);
     assert!(
         found.len() == 1,
-        "`{decl}` is declared {} times in tess-lint's code, not once",
+        "`{decl}` is declared {} times in {searched}, not once",
         found.len()
     );
     found.remove(0)
@@ -306,7 +352,10 @@ fn the_pins_read_the_declaration_and_not_prose_about_it() {
     );
     assert_eq!(initializers(decoyed, DECL).len(), 3);
     let code = source::code_only(decoyed);
-    assert_eq!(code[sole_initializer(&code, DECL)].trim(), "1.05");
+    assert_eq!(
+        code[sole_initializer(&code, "the decoy fixture", DECL)].trim(),
+        "1.05"
+    );
 }
 
 /// `tess-lint`'s `GROWTH_TOLERANCE`, read out of its source text.
@@ -318,8 +367,8 @@ fn the_pins_read_the_declaration_and_not_prose_about_it() {
 /// pin still asks of that crate is the declaration's SPELLING — a
 /// rename, a retype, or a different spacing around the `=` reds it.
 fn lint_growth_tolerance() -> f64 {
-    let code = lint_view(source::code_only);
-    code[sole_initializer(&code, "pub const GROWTH_TOLERANCE: f64 = ")]
+    let code = lint_code();
+    code[sole_initializer(code, LINT_SEARCHED, "pub const GROWTH_TOLERANCE: f64 = ")]
         .trim()
         .parse()
         .expect("GROWTH_TOLERANCE is a float literal")
@@ -858,48 +907,94 @@ fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
     );
 }
 
+/// An off-lane row, hand-built. **The fields are `pub`, so every
+/// pairing of a [`Chart`] with a [`Sizing`] is constructible** — which
+/// is what the refusals below are about, and what lets the two row
+/// shapes be written here without a body to tessellate.
+fn plane_row() -> FaceRow {
+    FaceRow {
+        face: 0,
+        chart: Chart::Plane,
+        delta: 1e-3,
+        triangles: 2,
+        sizing: Sizing::OffLane,
+    }
+}
+
+/// A filled sizing block, hand-built. The values are arbitrary and
+/// distinct: nothing below reads one, they are here so a column
+/// printed out of order is visible in the row's text.
+fn some_columns() -> NurbsColumns {
+    NurbsColumns {
+        u: (0.0, 1.0),
+        v: (0.0, 1.0),
+        nu: 4.0,
+        nv: 5.0,
+        muu: 1.0,
+        muv: 2.0,
+        mvv: 3.0,
+        mu1: 1.5,
+        mv1: 2.5,
+        cells: 6,
+        grid_cells: 12.0,
+        patch_cells: 20.0,
+        opt_cells: 10.0,
+        span_opt_cells: 8.0,
+        worst_cert: 1e-4,
+        worst_dev: 5e-5,
+        dev_samples: 7,
+        bands: 3,
+        cap_bands: 1,
+        snap_bands: 0,
+        realized_aspect: 4.2,
+    }
+}
+
 /// The empty-tail arm and the filled arm must agree about the row's
 /// width, or every consumer's column indices are off by the
 /// difference.
 #[test]
 fn both_row_shapes_have_the_headers_width() {
     let cols = CSV_HEADER.split(',').count();
-    let plane = FaceRow {
-        face: 0,
-        chart: Chart::Plane,
-        delta: 1e-3,
-        triangles: 2,
-        sizing: Sizing::OffLane,
-    };
+    let plane = plane_row();
     assert_eq!(plane.csv_row("s/b").split(',').count(), cols);
     let nurbs = FaceRow {
         chart: Chart::Nurbs,
-        sizing: Sizing::Measured(NurbsColumns {
-            u: (0.0, 1.0),
-            v: (0.0, 1.0),
-            nu: 4.0,
-            nv: 5.0,
-            muu: 1.0,
-            muv: 2.0,
-            mvv: 3.0,
-            mu1: 1.5,
-            mv1: 2.5,
-            cells: 6,
-            grid_cells: 12.0,
-            patch_cells: 20.0,
-            opt_cells: 10.0,
-            span_opt_cells: 8.0,
-            worst_cert: 1e-4,
-            worst_dev: 5e-5,
-            dev_samples: 7,
-            bands: 3,
-            cap_bands: 1,
-            snap_bands: 0,
-            realized_aspect: 4.2,
-        }),
+        sizing: Sizing::Measured(some_columns()),
         ..plane
     };
     assert_eq!(nurbs.csv_row("s/b").split(',').count(), cols);
+}
+
+/// **A sized-lane chart with no columns never reaches the CSV.**
+///
+/// `face_rows` cannot build this row — its lookup refuses the state —
+/// but nothing else has to go through that lookup: [`plane_row`] shows
+/// the literal, and swapping one field produces a `nurbs` face wearing
+/// the empty tail, which every consumer reads as *"this face is not on
+/// the sized lane"*. The refusal is therefore at the WRITER, and this
+/// is the row that says a hand-built one cannot slip past it.
+#[test]
+#[should_panic(expected = "the Hessian-sized lane's, and carries no columns")]
+fn a_sized_lane_chart_with_an_empty_tail_never_reaches_the_csv() {
+    let row = FaceRow {
+        chart: Chart::Nurbs,
+        ..plane_row()
+    };
+    let _ = row.csv_row("s/b");
+}
+
+/// **And the other half of the same 2×2**: an off-lane chart wearing
+/// the sized lane's columns, which would hang a measurement on a chart
+/// nothing sizes that way.
+#[test]
+#[should_panic(expected = "carries the sized lane's columns anyway")]
+fn an_off_lane_chart_with_columns_never_reaches_the_csv() {
+    let row = FaceRow {
+        sizing: Sizing::Measured(some_columns()),
+        ..plane_row()
+    };
+    let _ = row.csv_row("s/b");
 }
 
 /// The header this crate writes and the one `tools/tess-lint` parses
@@ -927,14 +1022,11 @@ fn both_row_shapes_have_the_headers_width() {
 #[test]
 fn the_lints_expected_header_is_this_one() {
     let decl = sole_initializer(
-        &lint_view(source::code_only),
+        lint_code(),
+        LINT_SEARCHED,
         "pub const EXPECTED_HEADER: &str = ",
     );
-    let literals = lint_view(source::code_and_literals);
-    let quoted = literals[decl]
-        .trim()
-        .strip_prefix('"')
-        .and_then(|q| q.strip_suffix('"'))
+    let quoted = plain_string_literal(&lint_literals()[decl])
         .expect("EXPECTED_HEADER is one plain string literal");
     // A Rust line continuation is `\` and the whitespace run after it.
     // Every other escape is REFUSED rather than decoded: the header
@@ -954,60 +1046,67 @@ fn the_lints_expected_header_is_this_one() {
     assert_eq!(header, CSV_HEADER);
 }
 
-/// Every [`Chart`] this crate has, in declaration order.
+/// The roster of every [`Chart`], and the wildcard-free match that
+/// makes it complete — generated from ONE spelling of the list, which
+/// is the whole mechanism.
 ///
-/// **The array is a transcription; [`chart_slot`] is what makes it
-/// complete.** Rust has no variant iterator, so exhaustiveness is a
-/// wildcard-free match: a variant added to `Chart` has no arm there
-/// and this file stops compiling, which is the compiler forcing the
-/// author to the roster pin below rather than the pin discovering the
-/// gap later.
-const EVERY_CHART: [Chart; 7] = [
-    Chart::Plane,
-    Chart::Cylinder,
-    Chart::Cone,
-    Chart::Sphere,
-    Chart::Torus,
-    Chart::Nurbs,
-    Chart::Approx,
-];
+/// **The enforcement is a COMPILE ERROR, not a red test, and it is
+/// exact**: a variant added to `Chart` and not named in this macro's
+/// invocation has no arm in the generated match, that match is
+/// non-exhaustive, and this crate's tests do not build. Nothing here
+/// runs to discover the gap, so nothing here can be green over one.
+///
+/// **What that buys over a hand-written array plus a slot function.**
+/// A slot function alone forces an ARM, never a roster entry: an arm
+/// reusing an existing slot, or naming one past the array's end that
+/// nothing ever indexes with, left every pin below iterating a list
+/// the new variant was not on — and green. Both defeats are
+/// unspellable here, because the array and the match are the same
+/// tokens and there are no slots at all.
+///
+/// **What it does not catch**: a variant listed TWICE. That arm is a
+/// duplicate rather than a missing one, so `unreachable_patterns` is
+/// what sees it — denied below, so it too is a compile error — and
+/// [`the_roster_names_each_chart_once`] carries the reading of that
+/// which a lint cannot make, that no two charts share a `tag`.
+macro_rules! chart_roster {
+    ($($v:ident),+ $(,)?) => {
+        /// Every [`Chart`] this crate has, in declaration order.
+        const EVERY_CHART: &[Chart] = &[$(Chart::$v),+];
 
-/// A chart's position in [`EVERY_CHART`]. **No wildcard arm**, by the
-/// argument at that constant.
-fn chart_slot(c: Chart) -> usize {
-    match c {
-        Chart::Plane => 0,
-        Chart::Cylinder => 1,
-        Chart::Cone => 2,
-        Chart::Sphere => 3,
-        Chart::Torus => 4,
-        Chart::Nurbs => 5,
-        Chart::Approx => 6,
-    }
+        /// Exhaustiveness over `Chart`, spelled in the same tokens as
+        /// [`EVERY_CHART`]. It is never called: the item exists for
+        /// the compile error its non-exhaustiveness would be, per
+        /// [`chart_roster`].
+        #[deny(unreachable_patterns)]
+        #[allow(dead_code)]
+        fn every_chart_is_rostered(c: Chart) {
+            match c {
+                $(Chart::$v => (),)+
+            }
+        }
+    };
 }
 
-/// [`EVERY_CHART`] holds every chart, each once.
+chart_roster!(Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx);
+
+/// [`EVERY_CHART`] names each chart once, and each under its own tag.
 ///
-/// The array and [`chart_slot`] are two transcriptions of one list, and
-/// this closes the loop between them: a variant added to `Chart` fails
-/// to compile in `chart_slot`, and an arm added there without growing
-/// the array indexes past its end.
+/// Completeness is [`chart_roster`]'s compile error and is not
+/// re-asserted here. What is left for a run is the half a match cannot
+/// state: the pins below compare charts BY THEIR TAG, so two charts
+/// sharing one would make the roster containment pass for a row the
+/// CSV cannot tell apart afterwards.
 #[test]
-fn every_chart_is_in_every_chart() {
-    for c in EVERY_CHART {
-        assert_eq!(
-            EVERY_CHART[chart_slot(c)],
-            c,
-            "{c:?} does not sit at its own slot"
-        );
-    }
-    let mut slots: Vec<usize> = EVERY_CHART.into_iter().map(chart_slot).collect();
-    slots.sort_unstable();
-    slots.dedup();
+fn the_roster_names_each_chart_once() {
+    let mut tags: Vec<&str> = EVERY_CHART.iter().map(|c| c.tag()).collect();
+    tags.sort_unstable();
+    tags.dedup();
     assert_eq!(
-        slots.len(),
+        tags.len(),
         EVERY_CHART.len(),
-        "EVERY_CHART lists a chart twice"
+        "EVERY_CHART is {EVERY_CHART:?}, whose tags are not {} distinct names",
+        EVERY_CHART.len()
     );
 }
 
@@ -1027,16 +1126,13 @@ fn every_chart_is_in_every_chart() {
 /// bracket helpers ARE the parse; over the literal view the elements
 /// still carry their text.
 fn lint_string_array(decl: &str) -> Vec<String> {
-    string_array(
-        &lint_view(source::code_only),
-        &lint_view(source::code_and_literals),
-        decl,
-    )
+    string_array(lint_code(), lint_literals(), LINT_SEARCHED, decl)
 }
 
 /// [`lint_string_array`] over any pair of views of one text, so the
-/// locator itself is exercisable on a fixture.
-fn string_array(code: &str, literals: &str, decl: &str) -> Vec<String> {
+/// locator itself is exercisable on a fixture. `searched` names that
+/// text for the refusals, per [`sole_initializer`].
+fn string_array(code: &str, literals: &str, searched: &str, decl: &str) -> Vec<String> {
     assert_eq!(
         code.len(),
         literals.len(),
@@ -1045,7 +1141,7 @@ fn string_array(code: &str, literals: &str, decl: &str) -> Vec<String> {
     let mut heads: Vec<usize> = code.match_indices(decl).map(|(at, _)| at).collect();
     assert!(
         heads.len() == 1,
-        "`{decl}` is declared {} times in tess-lint's code, not once",
+        "`{decl}` is declared {} times in {searched}, not once",
         heads.len()
     );
     let head = heads.remove(0);
@@ -1063,8 +1159,7 @@ fn string_array(code: &str, literals: &str, decl: &str) -> Vec<String> {
                 return None; // the trailing comma's empty tail
             }
             Some(
-                text.strip_prefix('"')
-                    .and_then(|q| q.strip_suffix('"'))
+                plain_string_literal(text)
                     .unwrap_or_else(|| {
                         panic!("`{decl}` holds {text:?}, not a plain string literal")
                     })
@@ -1098,7 +1193,7 @@ fn string_array(code: &str, literals: &str, decl: &str) -> Vec<String> {
 #[test]
 fn the_lints_roster_admits_every_tag_this_crate_emits() {
     let roster = lint_string_array("pub const CHART_TAGS");
-    for c in EVERY_CHART {
+    for c in EVERY_CHART.iter().copied() {
         assert!(
             roster.iter().any(|t| t == c.tag()),
             "tess-lint's CHART_TAGS is {roster:?}, which does not admit {:?} — \
@@ -1128,12 +1223,13 @@ fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
     let tags = string_array(
         &source::code_only(decoyed),
         &source::code_and_literals(decoyed),
+        "the decoy fixture",
         "pub const CHART_TAGS",
     );
     assert_eq!(tags, ["plane", "cone"]);
     let missing: Vec<&str> = EVERY_CHART
-        .into_iter()
-        .map(Chart::tag)
+        .iter()
+        .map(|c| c.tag())
         .filter(|t| !tags.iter().any(|r| r == t))
         .collect();
     assert_eq!(
