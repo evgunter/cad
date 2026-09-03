@@ -1,0 +1,30 @@
+{
+  "run_id": 33729282948,
+  "head_sha": "9862ccc015674870565e1bd038d3cb7281235797",
+  "lane": "interval",
+  "lane_source": "requested (CI-Config: lane=interval)",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "state": "INTENDED WARM, MEASURED COLD — 'Cache not found for input keys: sccache-obj-interval-33729282948, sccache-obj-interval-', 60 minutes after run 33722975323 saved sccache-obj-interval-33722975323; rust-cache also reported 'No cache found'.",
+  "archive_step_s": 860,
+  "compiling_lines": 192,
+  "sccache": {
+    "compile_requests": 302,
+    "compile_requests_executed": 195,
+    "cache_hits": 0,
+    "cache_misses": 191,
+    "cache_hits_rate": "0.00 %",
+    "compilations": 191,
+    "non_cacheable_calls": 104,
+    "non_compilation_calls": 3,
+    "non_cacheable_reasons": {
+      "crate-type": 90,
+      "-": 6,
+      "missing input": 4,
+      "-o": 3,
+      "missing emit": 1
+    },
+    "cache_size_written": "205 MiB",
+    "average_compiler_s": 2.237
+  },
+  "object_cache_saved": "sccache-obj-interval-33729282948"
+}
