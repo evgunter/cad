@@ -93,7 +93,10 @@ Node.loft([], 2.5)  # ty: error
 # below are about the ARGUMENT types, not about a missing name.
 doc = Doc()
 solid: NodeId = doc.insert(
-    Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m))), 1 * m)
+    Node.extrude(
+        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame())),
+        1 * m,
+    )
 )
 
 # A fillet selection is NAMES — the text a materializer answered with,

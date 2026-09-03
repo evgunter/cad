@@ -32,10 +32,10 @@ use editor_core::{
     MeasureRef, Node, ParamName, ProfileProgram,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
+
+use crate::fixture::{len, xy_frame};
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
 
 /// The parameter driving both holes.
 pub const HOLE_R: &str = "hole_r";
@@ -59,8 +59,11 @@ pub fn document() -> CorpusDoc {
         },
     });
 
+    // Plate and holes are sketched on the SAME plane, so they name
+    // one frame node between them.
+    let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -73,7 +76,7 @@ pub fn document() -> CorpusDoc {
 
     let hole = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),

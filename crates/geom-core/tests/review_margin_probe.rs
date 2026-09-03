@@ -12,12 +12,21 @@
 //! the gate is supposed to bound grows ×10⁴ across the band.
 //!
 //! ADOPTED as ledger row F15's pin (PR #213 fix pass): the shipped
-//! site now rides `decide_flagged(.., "F15")` — the finding lane, no
-//! `Margin` constructed — and this probe pins the scale-blindness
-//! F15's own unit will retire (the honest form levers the sine at the
-//! profile's radial extent, kernel-side). The probe replicates the
-//! site's arithmetic locally, so it stays green across that fix too:
-//! it asserts the DEFECT's shape, not the site's door.
+//! site rode `decide_flagged(.., "F15")` — the finding lane, no
+//! `Margin` constructed — and this probe pinned the scale-blindness
+//! F15's own unit was to retire.
+//!
+//! **F15 IS RETIRED, and not the way its row proposed.** The row
+//! expected the sine levered at the profile's radial extent,
+//! kernel-side. What happened instead is that a revolve's axis became
+//! a `Datum::AxisInPlane`, written in the profile's own frame — so
+//! there is no out-of-plane component to classify and no predicate
+//! left to lever. This probe still stands, and still passes, for the
+//! reason its own last sentence gives: it replicates the arithmetic
+//! LOCALLY, so it asserts the DEFECT's shape rather than any site's
+//! door. What it is evidence for now is why deleting the question beat
+//! sharpening it — a levered sine would still have been a decision at
+//! a band, and this is what a decision at a band was doing.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::k_stats::decide;

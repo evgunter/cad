@@ -143,7 +143,7 @@ fn an_incomplete_vector_family_degrades_to_scalar_rows() {
 fn a_slot_is_written_in_the_unit_its_literal_remembers() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-units", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -277,7 +277,7 @@ fn the_unit_options_are_the_tables_rows_of_that_dimension() {
 fn a_value_edit_keeps_the_slots_rendering_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-unit-keep", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -329,7 +329,7 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
 fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-unit-switch", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -438,7 +438,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
     // the test does not depend on a `UnitDef` this crate built.
     let deg: UnitDef = unit_by_symbol("deg").expect("deg is a table row");
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-unit-refuse", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, plain) = common::inserted(
         &doc,
         Node::Extrude {
@@ -472,7 +472,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
 fn the_field_shows_a_bare_literals_number_without_its_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-field", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -544,7 +544,7 @@ fn the_field_reads_digits_as_a_number_and_everything_else_as_source() {
 fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-field-unit", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

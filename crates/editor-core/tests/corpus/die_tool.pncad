@@ -2,34 +2,86 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
 {
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
-    "next_id": 7,
+    "next_id": 9,
     "nodes": {
       "0": {
-        "Profile": {
-          "plane": {
-            "basis": [
-              [
-                1.0,
-                0.0,
-                0.0
-              ],
-              [
-                0.0,
-                1.0,
-                0.0
-              ],
-              [
-                0.0,
-                0.0,
-                1.0
-              ]
-            ],
+        "Datum": {
+          "Frame": {
             "origin": [
-              0.0,
-              0.0,
-              0.0
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
             ]
-          },
+          }
+        }
+      },
+      "1": {
+        "Profile": {
+          "plane": 0,
           "loops": [
             {
               "Chain": [
@@ -119,9 +171,9 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ]
         }
       },
-      "1": {
+      "2": {
         "Extrude": {
-          "profile": 0,
+          "profile": 1,
           "distance": {
             "Literal": {
               "value": 1.0,
@@ -131,9 +183,9 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "2": {
+      "3": {
         "Datum": {
-          "Axis": {
+          "Frame": {
             "origin": [
               {
                 "Literal": {
@@ -157,7 +209,30 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
                 }
               }
             ],
-            "direction": [
+            "u": [
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ],
+            "v": [
               {
                 "Literal": {
                   "value": 0.0,
@@ -183,32 +258,48 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "3": {
-        "Profile": {
-          "plane": {
-            "basis": [
-              [
-                1.0,
-                0.0,
-                0.0
-              ],
-              [
-                0.0,
-                0.0,
-                1.0
-              ],
-              [
-                0.0,
-                -1.0,
-                0.0
-              ]
-            ],
+      "4": {
+        "Datum": {
+          "AxisInPlane": {
+            "plane": 3,
             "origin": [
-              0.0,
-              0.0,
-              0.0
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
             ]
-          },
+          }
+        }
+      },
+      "5": {
+        "Profile": {
+          "plane": 3,
           "loops": [
             {
               "Chain": [
@@ -269,10 +360,10 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ]
         }
       },
-      "4": {
+      "6": {
         "Revolve": {
-          "profile": 3,
-          "axis": 2,
+          "profile": 5,
+          "axis": 4,
           "angle": {
             "Literal": {
               "value": 6.283185307179586,
@@ -282,9 +373,9 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "5": {
+      "7": {
         "PlacedUnion": {
-          "input": 4,
+          "input": 6,
           "count": null,
           "kind": {
             "Explicit": [
@@ -436,11 +527,11 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "6": {
+      "8": {
         "Boolean": {
           "op": "Subtract",
-          "a": 1,
-          "b": 5,
+          "a": 2,
+          "b": 7,
           "declare": null
         }
       }
@@ -452,10 +543,12 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
       3,
       4,
       5,
-      6
+      6,
+      7,
+      8
     ],
     "roots": [
-      6
+      8
     ],
     "placements": {},
     "params": {},

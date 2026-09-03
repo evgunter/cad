@@ -66,7 +66,6 @@ use editor_core::{
     evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
-use profile::SketchPlane;
 
 use fixture::{Recorder, len};
 
@@ -123,8 +122,16 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             distribution: Some(uniform(half)),
         },
     });
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_0,
         loops: vec![unit_square()],
     }));
     r.insert(Node::Extrude {
@@ -162,8 +169,16 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
             distribution: Some(depth),
         },
     });
+    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_1,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite plate corners"),
@@ -202,8 +217,16 @@ fn sliver_axis() -> ProfileDoc {
             distribution: Some(uniform(15.0 * eps())),
         },
     });
+    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_2,
         loops: vec![unit_square()],
     }));
     let block = r.insert(Node::Extrude {

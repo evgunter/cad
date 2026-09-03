@@ -35,11 +35,11 @@
 //! gains the segments. D9 makes the load-time rebuild exact.
 
 use geom_core::{Decide, Point2};
-use profile::{ArcSweep, SketchPlane, Step, Target};
+use profile::{ArcSweep, Step, Target};
 
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
-use crate::node::{SlotId, StepArg};
+use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
 /// Where a target-taking step ends: an authored point (two Length
@@ -235,22 +235,48 @@ pub enum LoopProgram {
     },
 }
 
-/// The profile node's payload: plane placement (stored `f64`, its own
-/// struct — VQ8's visible seam) plus the loop programs, outer first
-/// then holes in description order.
+/// The profile node's payload: the sketch frame it is drawn on, named
+/// as a document NODE, plus the loop programs, outer first then holes
+/// in description order.
+///
+/// # The plane is a reference, not a placement
+///
+/// This field held a `SketchPlane<f64>` — twelve placement floats
+/// inline, unshared and unnameable. It now names a
+/// [`crate::Datum::Frame`] node, which is the whole of what the frame
+/// datum was added for: two profiles on one face are two references to
+/// one frame rather than two copies of a placement that can silently
+/// drift apart, an axis can be declared to lie IN a named frame, and a
+/// plane a person can see in the viewport is the plane they draw on.
+///
+/// The consequence to know when reading the rest of this crate: a
+/// profile is no longer a DAG leaf. [`crate::Node::inputs`] reports
+/// the frame, so evaluation orders it first, poison propagates through
+/// it, the content key takes it as an upstream key rather than as
+/// inline bits, and `roots::on_insert` transfers the frame's tip when
+/// a profile consumes it.
 ///
 /// # Equality is BIT equality
 ///
-/// `PartialEq` compares plane floats by BITS and expressions by
+/// `PartialEq` compares the frame by NODE IDENTITY and expressions by
 /// [`Expr::bit_eq`] — the canonical payload's equality IS the D7
-/// replay-identity comparator, exactly the retired payload's contract
-/// (`Node::bit_eq` inherits it). Display units are invisible to it
+/// replay-identity comparator. Comparing the id rather than the
+/// placement it resolves to is the same claim the rest of the DAG
+/// makes about its edges: two profiles on two frames that happen to
+/// coincide today are two different documents, because editing one
+/// frame moves only one of them. Display units are invisible to it
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone)]
 pub struct ProfileProgram {
-    /// The sketch-plane placement (stored `f64`; Expr-izing placement
-    /// is the U4 pose conversation, not this switch — VQ8).
-    pub plane: SketchPlane<f64>,
+    /// The [`crate::Datum::Frame`] node this profile is drawn on —
+    /// sketch (0, 0) and the directions sketch +x and +y point.
+    ///
+    /// Typed as a plain node reference rather than a frame-only
+    /// newtype for the reason every other operand reference here is:
+    /// what a reference DENOTES is the evaluator's question, answered
+    /// once at the door with a typed refusal, not the recipe
+    /// vocabulary's.
+    pub plane: RecipeNodeId,
     /// The loop programs.
     pub loops: Vec<LoopProgram>,
 }
@@ -286,6 +312,21 @@ pub trait ProfilePayload {
     /// binding that is ever evaluated.
     fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
         Ok(())
+    }
+    /// **The document node this payload is drawn ON**, if it names one
+    /// — the profile's one DAG edge.
+    ///
+    /// It rides the payload trait rather than [`crate::Node::Profile`]
+    /// because that is where the plane already lived: the variant
+    /// stays a one-field tuple, and the payload answers for its own
+    /// content. [`crate::Node::inputs`] reads this, so a payload that
+    /// names a node and does not report it here would be a node the
+    /// evaluator never waits for and the cascade never deletes.
+    ///
+    /// `None` by default, which is the honest answer for `Doc<P>`'s
+    /// slot-free test payloads: they carry no plane at all.
+    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+        None
     }
 }
 
@@ -901,6 +942,33 @@ impl LoopProgram {
 // ProfileProgram: resolution, equality, the payload impl
 // ------------------------------------------------------------------
 
+/// **Resolves a list of loop programs**, the evaluation pipeline's
+/// first stage (then `profile::replay` per loop, then embed +
+/// validate).
+///
+/// Free of [`ProfileProgram`] on purpose: resolution reads the LOOPS
+/// and nothing else, and a caller that has loops in hand and no
+/// document — a form previewing what it is about to author, a lattice
+/// question about which verbs a chain admits — should not have to
+/// invent a plane node to ask. Before the plane became a reference
+/// those callers built a throwaway program around a world-XY constant;
+/// that shortcut would now be a fabricated node id in a value nobody
+/// commits.
+///
+/// # Errors
+///
+/// The failing slot plus the evaluator's refusal, unaltered.
+pub fn resolve_loops<T: Decide>(
+    loops: &[LoopProgram],
+    env: &ParamEnv<T>,
+) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
+    loops
+        .iter()
+        .enumerate()
+        .map(|(li, lp)| lp.resolve(env, li as u32))
+        .collect()
+}
+
 impl ProfileProgram {
     /// Whether any expression of this program reads the document
     /// parameter `name` — the question a C6/D9-pinned consumer of the
@@ -916,8 +984,8 @@ impl ProfileProgram {
         refs.iter().any(|(n, _)| n == name)
     }
 
-    /// Resolves every loop at f64 — the evaluation pipeline's first
-    /// stage (then `profile::replay` per loop, then embed + validate).
+    /// Resolves every loop at f64 — [`resolve_loops`] over this
+    /// program's own loops.
     ///
     /// # Errors
     ///
@@ -926,11 +994,7 @@ impl ProfileProgram {
         &self,
         env: &ParamEnv<T>,
     ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
-        self.loops
-            .iter()
-            .enumerate()
-            .map(|(li, lp)| lp.resolve(env, li as u32))
-            .collect()
+        resolve_loops(&self.loops, env)
     }
 
     /// The authoring-time check's body (VQ9): resolve under `env`,
@@ -962,7 +1026,16 @@ impl ProfileProgram {
             })?;
             loops.push(lp);
         }
-        profile::Profile::new(self.plane, loops)
+        // **The identity plane, and the check is honest about why.**
+        // Validation is 2-D — `profile::validate` says so itself, and
+        // the plane rides through it as conventional data — so what
+        // this door checks is the LOOPS: closure, orientation, no
+        // self-intersection. It could not read the real frame anyway:
+        // this runs at the insert door with a payload in hand and no
+        // document, and the frame is a node in one. A profile whose
+        // frame reference does not denote a frame is refused where
+        // every other operand's kind is, at evaluation.
+        profile::Profile::new(profile::SketchPlane::xy(), loops)
             .validate(tol)
             .map(|_| ())
             .map_err(ProgramRefusal::Validate)
@@ -970,10 +1043,10 @@ impl ProfileProgram {
 }
 
 impl PartialEq for ProfileProgram {
-    /// BIT equality (struct docs): plane floats by bits, expressions by
-    /// [`Expr::bit_eq`], structure structurally.
+    /// BIT equality (struct docs): the frame by node identity,
+    /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
-        plane_bits(&self.plane) == plane_bits(&other.plane)
+        self.plane == other.plane
             && self.loops.len() == other.loops.len()
             && self
                 .loops
@@ -981,27 +1054,6 @@ impl PartialEq for ProfileProgram {
                 .zip(&other.loops)
                 .all(|(a, b)| loop_bit_eq(a, b))
     }
-}
-
-/// The 12 placement floats as bits, deterministic column order — also
-/// the content key's plane feed (crate-internal).
-pub(crate) fn plane_key_bits(p: &SketchPlane<f64>) -> [u64; 12] {
-    plane_bits(p)
-}
-
-/// The 12 placement floats, as bits.
-fn plane_bits(p: &SketchPlane<f64>) -> [u64; 12] {
-    let a = &p.placement;
-    let mut out = [0u64; 12];
-    for (i, v) in [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .enumerate()
-    {
-        out[3 * i] = v.x.to_bits();
-        out[3 * i + 1] = v.y.to_bits();
-        out[3 * i + 2] = v.z.to_bits();
-    }
-    out
 }
 
 /// Structural equality with Exprs compared by bits.
@@ -1222,6 +1274,9 @@ impl ProfilePayload for ProfileProgram {
 
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
+    }
+    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+        Some(self.plane)
     }
 }
 

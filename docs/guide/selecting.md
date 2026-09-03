@@ -65,9 +65,20 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 
+// The frame the square is drawn on. A profile names a frame
+// NODE, so the plane is an authoring step of its own.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 );
 doc = next;
 let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0) });
@@ -162,9 +173,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The frame the square is drawn on. A profile names a frame
+// NODE, so the plane is an authoring step of its own.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -318,9 +342,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The frame the square is drawn on. A profile names a frame
+// NODE, so the plane is an authoring step of its own.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -396,20 +433,33 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-// v4: the profile payload is its PROGRAM.
-let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| ProfileProgram {
-    plane: SketchPlane::from_frame(p3(0.0, 0.0, z), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The frame a footprint is drawn on: the xy directions, at height z.
+let frame_at = |z: f64| {
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(z)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+};
+// v4: the profile payload is its PROGRAM, drawn on a frame NODE.
+let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
+    plane,
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
     ],
 };
 
-// A unit box, and a smaller box RESTING on its top cap.
+// A unit box, and a smaller box RESTING on its top cap. The second
+// frame IS that cap's height, so the resting relation is visible in
+// the tree before anything is evaluated.
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
-let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, 0.0)));
+let (doc, ground) = insert(&doc, frame_at(0.0));
+let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
 let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
-let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, 1.0)));
+let (doc, cap) = insert(&doc, frame_at(1.0));
+let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
 let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
 
 // Undeclared, the union refuses — coincidence is never inferred

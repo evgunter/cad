@@ -602,12 +602,30 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
-    /// A revolve axis with a decided out-of-plane component (the
-    /// kernel's `RevolveAxis` is a sketch-plane datum; an axis not in
-    /// the profile's plane cannot be wired, only refused).
-    AxisNotInSketchPlane {
+    /// A revolve whose axis and profile are written against DIFFERENT
+    /// sketch frames.
+    ///
+    /// This replaced `AxisNotInSketchPlane`, which said that a 3-D
+    /// axis had a decided out-of-plane component. That refusal was a
+    /// tolerance verdict on a projection — and the direction half of
+    /// it was the dimension audit's F15, a bare sine judged against
+    /// the metre band. An axis authored IN a frame cannot leave it, so
+    /// the only question left is whether it is the frame the profile
+    /// was drawn on, and that is an equality of node ids: exact, and
+    /// the same answer at every model scale.
+    ///
+    /// Both frames are named because the fix depends on which one is
+    /// wrong, and a reader looking at two node numbers can tell. Each
+    /// is optional for one reason: a node that is neither a profile
+    /// nor an in-plane axis is written against no frame at all, and
+    /// `None` says that rather than inventing an id.
+    AxisInDifferentPlane {
         /// The axis datum node.
         axis: RecipeNodeId,
+        /// The frame the axis is written in.
+        axis_plane: Option<RecipeNodeId>,
+        /// The frame the profile is drawn on.
+        profile_plane: Option<RecipeNodeId>,
     },
     /// A pattern count that is not at least 1.
     NonPositiveCount {
@@ -1064,11 +1082,23 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "predicate {predicate} escalated (in-band indeterminacy): {source}"
             ),
-            Self::AxisNotInSketchPlane { axis } => write!(
-                f,
-                "revolve axis (node {}) does not lie in the profile's sketch plane",
-                axis.0
-            ),
+            Self::AxisInDifferentPlane {
+                axis,
+                axis_plane,
+                profile_plane,
+            } => {
+                let frame = |f: &Option<RecipeNodeId>| {
+                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n.0))
+                };
+                write!(
+                    f,
+                    "revolve axis (node {}) is written in {}, but the profile is drawn on {} \
+                     — an axis revolves the sketch it lives in",
+                    axis.0,
+                    frame(axis_plane),
+                    frame(profile_plane)
+                )
+            }
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
@@ -1765,7 +1795,14 @@ where
     // exactly the lane validation the op runs (the v1 logged surface).
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
-            match wire::prepare_profile(program, resolved, tol) {
+            // The frame the profile is drawn on, at f64 and from the
+            // DOCUMENT — `wire::profile_plane_f64` carries why that is
+            // the right scalar and the right source.
+            let plane = match wire::profile_plane_f64(doc, program.plane, tol) {
+                Ok(plane) => plane,
+                Err(kind) => return fail(kind),
+            };
+            match wire::prepare_profile(plane, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -2096,6 +2133,17 @@ where
         // exact hazard the append rule exists for.
         Node::Tube { .. } => 28,
         Node::HollowTube { .. } => 29,
+        // The in-plane axis. Tags APPEND — it does NOT share the 3-D
+        // axis's tag 2: the two carry different numbers (four against
+        // six), mean them against different things (a frame against
+        // the world), and evaluate to different payloads, so a shared
+        // key would serve one's geometry for the other out of the memo.
+        //
+        // 30, not the 28 this rung first wrote: LIB-TUBE's pair landed
+        // on main first and took 28/29, and by the same append rule
+        // quoted above a published tag is never taken back — so the
+        // unpublished one moves. This is that rule applied to itself.
+        Node::Datum(Datum::AxisInPlane { .. }) => 30,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2111,20 +2159,22 @@ where
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
-        Node::Profile(program) => {
+        Node::Profile(_) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
-            // as (tag, payload) tokens — plane placement floats, then
-            // per loop a LoopStart tag and per RESOLVED step the verb
+            // as (tag, payload) tokens — per loop a LoopStart tag and
+            // per RESOLVED step the verb
             // tag + structural tags + the resolved-at-f64 bit pattern
             // of each continuous arg (the same resolved-value
             // convention node slots use). Derived segment floats LEFT
             // the key (V3); display units never enter it (D7). Any
             // edit that can change segments changes the key: structure
             // via tags, Exprs and params via resolved bits, ε above.
-            for bits in crate::program::plane_key_bits(&program.plane) {
-                h.write_tag(2);
-                h.write_u64(bits);
-            }
+            // The plane's twelve placement floats LEFT this key when
+            // the plane became a node: it is an input now, so its own
+            // content key is already folded in above with every other
+            // upstream key, and writing it here too would be the same
+            // fact hashed twice — with the two copies free to disagree
+            // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
             // before keying); written defensively — no panic paths in
             // this crate — and the write_tag(0) marker keeps an

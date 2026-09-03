@@ -814,6 +814,28 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.vec3(u.get());
             d.vec3(v.get());
         }
+        ValuePayload::Datum(DatumValue::AxisInPlane {
+            plane_origin,
+            plane_dir,
+            origin,
+            dir,
+        }) => {
+            // 24, not a number among the datum arms above: the tags
+            // are the digest's wire and renumbering one would move
+            // every pinned digest that carries a later arm.
+            d.u64(24);
+            // All four fields, not just the world pair. The authored
+            // 2-D numbers are what a revolve actually reads, and this
+            // digest's contract is every scalar the payload stores —
+            // so the lift being derived from them is a reason they
+            // agree, not a reason to digest only one of the two.
+            d.scalar(plane_origin.x);
+            d.scalar(plane_origin.y);
+            d.scalar(plane_dir.x);
+            d.scalar(plane_dir.y);
+            d.point3(*origin);
+            d.vec3(dir.get());
+        }
         ValuePayload::Profile(p) => {
             d.u64(14);
             for lp in p.validated.loops() {

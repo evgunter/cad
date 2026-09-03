@@ -1,83 +1,83 @@
 {
-  "what": "STRUCTURAL manifest for the M4 PR 8a Band 4 corpus: what each document is, how many recipe nodes it has, and how many of them fall in the downstream cone of its latency row's parameter edit. Machine-independent and exact — nothing about a box, a build profile or a load average can move these numbers, which is why they live apart from the timings.",
-  "timings_live_elsewhere": "docs/perf-data/rebuild-latency/ — one file per merge to main, written and committed by ci.yml's `rebuild latency (reporting)` job on a hosted runner. Append-only (a run adds a filename, never edits one), so concurrent merges cannot conflict. m4_pr8_latency.rs diffs its `vs base` columns against the NEWEST entry: on a PR that is main's last hosted measurement, on main it is the previous merge. There is no baseline to refresh and no refresh env var.",
-  "why_split": "Timings and structure shared one file until 2026-08-17, and the timings rotted it. Three developer-workstation refreshes disagreed by 90-98% on every row (die full: 51661.1 ms -> ~985.9 ms -> 1103.5 ms) with contention ruled out by a verified-quiet re-run, leaving an untested build/environment hypothesis nobody ever captured side by side; the file's own provenance ended up declaring cross-refresh comparison meaningless, and docs/PERF-SCAN-2026-08.md §0 had to label every absolute-millisecond claim in the repo provisional as a result. Splitting along the rot line fixes the cause: the half that cannot rot is pinned here and ASSERTED (a nodes/cone mismatch fails the row), and the half that can is produced by one reproducible box class and accumulated rather than overwritten. The disputed_measurement argument is not resolved retroactively — those three refreshes stay incomparable — it simply cannot recur, because every history entry now records its own build environment.",
-  "status": "The TIMINGS are REPORTING ONLY — measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on a millisecond. The STRUCTURE below is a real assertion: m4_pr8_latency.rs requires the manifest to cover the corpus exactly (no missing rows, no stale keys) and every nodes/cone pair to match what it measures.",
+  "what": "STRUCTURAL manifest for the M4 PR 8a Band 4 corpus: what each document is, how many recipe nodes it has, and how many of them fall in the downstream cone of its latency row's parameter edit. Machine-independent and exact \u2014 nothing about a box, a build profile or a load average can move these numbers, which is why they live apart from the timings.",
+  "timings_live_elsewhere": "docs/perf-data/rebuild-latency/ \u2014 one file per merge to main, written and committed by ci.yml's `rebuild latency (reporting)` job on a hosted runner. Append-only (a run adds a filename, never edits one), so concurrent merges cannot conflict. m4_pr8_latency.rs diffs its `vs base` columns against the NEWEST entry: on a PR that is main's last hosted measurement, on main it is the previous merge. There is no baseline to refresh and no refresh env var.",
+  "why_split": "Timings and structure shared one file until 2026-08-17, and the timings rotted it. Three developer-workstation refreshes disagreed by 90-98% on every row (die full: 51661.1 ms -> ~985.9 ms -> 1103.5 ms) with contention ruled out by a verified-quiet re-run, leaving an untested build/environment hypothesis nobody ever captured side by side; the file's own provenance ended up declaring cross-refresh comparison meaningless, and docs/PERF-SCAN-2026-08.md \u00a70 had to label every absolute-millisecond claim in the repo provisional as a result. Splitting along the rot line fixes the cause: the half that cannot rot is pinned here and ASSERTED (a nodes/cone mismatch fails the row), and the half that can is produced by one reproducible box class and accumulated rather than overwritten. The disputed_measurement argument is not resolved retroactively \u2014 those three refreshes stay incomparable \u2014 it simply cannot recur, because every history entry now records its own build environment.",
+  "status": "The TIMINGS are REPORTING ONLY \u2014 measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on a millisecond. The STRUCTURE below is a real assertion: m4_pr8_latency.rs requires the manifest to cover the corpus exactly (no missing rows, no stale keys) and every nodes/cone pair to match what it measures.",
   "maintaining": "Hand-maintained. A document that legitimately changes shape moves its nodes/cone here in the same PR, with the reason in the PR body; a new corpus document adds a row; a retired one deletes its row. The row fails loudly either way, so this file cannot silently fall behind the corpus.",
   "documents": {
     "boss_union": {
-      "about": "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
-      "nodes": 5,
+      "about": "M5 shape (ii): cylinder boss \u222a plate \u2014 the first transverse curved boolean",
+      "nodes": 7,
       "cone": 2
     },
     "corner_table": {
       "about": "corner-aligned four-leg table (declared flush contacts)",
-      "nodes": 18,
+      "nodes": 23,
       "cone": 5
     },
     "crossing_slots": {
       "about": "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
-      "nodes": 9,
+      "nodes": 12,
       "cone": 3
     },
     "cut_cylinder": {
-      "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
-      "nodes": 4,
+      "about": "M5 shape (i): tilted plane\u00d7cylinder cut \u2014 exact Ellipse section edges",
+      "nodes": 5,
       "cone": 2
     },
     "measured_web": {
       "about": "M10-2: a measured web with an assertion over it (E3/E10)",
-      "nodes": 8,
+      "nodes": 9,
       "cone": 1
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
-      "nodes": 4,
+      "nodes": 6,
       "cone": 1
     },
     "die": {
-      "about": "M3 exact-oracle die: 21 declared pip subtracts (77 nodes)",
-      "nodes": 77,
+      "about": "M3 exact-oracle die: 21 declared pip subtracts (84 nodes)",
+      "nodes": 84,
       "cone": 3
     },
     "die_composed": {
-      "about": "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the pip-rim torus band in one body",
-      "nodes": 8,
+      "about": "M6 unit 1: the pipped cube filleted in place \u2014 box blends, octants, and the pip-rim torus band in one body",
+      "nodes": 10,
       "cone": 3
     },
     "die_composed_tour": {
       "about": "the demo tour's die: 21 pips cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind names 20 unions deep",
-      "nodes": 49,
+      "nodes": 51,
       "cone": 24
     },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
-      "nodes": 3,
+      "nodes": 4,
       "cone": 2
     },
     "die_chamfer": {
       "about": "every edge of a unit cube chamfered at a setback of 0.125",
-      "nodes": 3,
+      "nodes": 4,
       "cone": 2
     },
     "die_pips": {
       "about": "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
-      "nodes": 7,
+      "nodes": 9,
       "cone": 2
     },
     "die_tool": {
       "about": "the die's multi-shell cutting tool as one PlacedUnion(Explicit) node",
-      "nodes": 7,
+      "nodes": 9,
       "cone": 2
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
-      "nodes": 15,
+      "nodes": 17,
       "cone": 12
     },
     "heat_sink_fins": {
       "about": "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
-      "nodes": 3,
+      "nodes": 4,
       "cone": 2
     },
     "tube_ring": {
@@ -92,37 +92,37 @@
     },
     "kiss_carry": {
       "about": "corner-kiss assembly; the surviving v-v record re-entered by Declare",
-      "nodes": 9,
+      "nodes": 12,
       "cone": 2
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "nodes": 15,
+      "nodes": 19,
       "cone": 2
     },
     "loft_prism": {
       "about": "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",
-      "nodes": 4,
+      "nodes": 7,
       "cone": 1
     },
     "nested_islands_105": {
       "about": "doubly-nested island union chain (#105 exactness pin)",
-      "nodes": 11,
+      "nodes": 15,
       "cone": 2
     },
     "nested_islands_106_depth1": {
       "about": "depth-1 nested-island intersect (the #93 coverage control)",
-      "nodes": 11,
+      "nodes": 15,
       "cone": 2
     },
     "nested_islands_106_depth2": {
       "about": "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
-      "nodes": 14,
+      "nodes": 19,
       "cone": 3
     },
     "plate_param": {
       "about": "the parametric scene: a plate whose two hole radii are one DocParam",
-      "nodes": 5,
+      "nodes": 7,
       "cone": 2
     }
   }
