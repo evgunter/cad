@@ -27,13 +27,11 @@ use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, RingInterval};
+use geom_core::{MarginDiag, RingInterval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
 /// Relative-ulp overshoot of `v` outside `[lo, hi]`; `0.0` when inside.
 ///
@@ -196,14 +194,6 @@ fn pin_floor(name: &str, posture: Posture, floor: f64) {
 // carrier that starts reaching it again wants the helper back and, more
 // importantly, wants explaining.
 
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
-}
-
 // ---------------------------------------------------------------
 // The independent oracle: plain-f64 B-spline basis + derivatives
 // (Cox-de Boor, no kernel spline code), rational surface point and
@@ -299,6 +289,10 @@ struct Patch {
 
 impl Patch {
     /// (S, S_u, S_v) by the quotient rule on the homogeneous sums.
+    /// **Deliberately not `shared::patch::Patch::eval`**, which is this
+    /// text: it calls this file's OWN `basis`, whose span seeding is
+    /// where this suite's independence lives (see this module's `basis`).
+    /// The quadrature loop under it IS shared — `patch::dense_over`.
     fn eval(&self, u: f64, v: f64) -> ([f64; 3], [f64; 3], [f64; 3]) {
         let bu = basis(&self.ku, self.du, self.nu, u);
         let bv = basis(&self.kv, self.dv, self.nv, v);

@@ -601,6 +601,15 @@ way you should: **if the value came from a boolean, gate it at 3′
 with that operation's own `contacts`; otherwise gate it at 3.** A
 body from `split` carries no contacts, so it takes plain tier 3.
 
+All four rungs are bound in Python as methods on `Body`, and the
+fourth takes **no** contacts argument there: a Python `Body` carries
+the declarations its own producer minted for it, so
+`body.validate_pseudomanifold()` certifies against those and the
+choice above is already made. An `assemble`d at-rest body arrives
+with its mates' records and passes over its seats; `product`, which
+gathers the same solids and declares nothing, reports every seat as
+an undeclared contact.
+
 ```
 use pncad::prelude::*;
 # let tol = Tol::witness();

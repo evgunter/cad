@@ -674,6 +674,121 @@ a day (five lib_tube suites, 21 965 lines) and B1's guard caught it —
 the argument for the guard. Filed: the fourteen-copy assertion wants
 one home in `test_utils`, and `pncad/tests/all.rs` sits outside it.
 
+## Unit: TCOST-C2 merged (2026-09-03)
+
+PR 1654 at `b6a85c32` (run 33742313504, default 1e-12 drawn, green;
+interval covered by the pre-fix run 33730257957 — every fix sits in a
+lane-independent seat). The rustdoc gate's excluded roots and pass 3
+leave the PR gate for the nightly; pass 1 is scoped to the dependent
+closure (a second demotion, argued per row: a member whose sources
+changed is its own seed; a rename/delete break lands in a dependent
+by construction; prose-only breaks in unrelated members are the
+nightly's). `fmt` job 222 s / 4 billed → 179 s / 3, warm against warm
+(run 33727294346); the nightly side priced at ~3 billed a night,
+DERIVED, to be re-read from the first nightly run. The review's hole
+closed: `gate-roster.sh` no longer counts a bare `--print-roots`
+invocation as a run of the gate (planted failure added); `--scope ""`
+is refused rather than silently widening to `--workspace`. Landing
+order C2 → C1 → C3; C1 re-merges main now.
+
+## Seam: C4 reviewed (2026-09-03)
+
+PR 1648 MERGEABLE WITH FIXES: the verdict (sccache refuses
+`--crate-type bin`, so its ceiling is the libs' 18 %) confirmed
+from the stats themselves; the control's miss verified from its
+job (a 275 MB save on the post step, against `Cache up-to-date.` on
+the warm run). Owed: F4's 82 % figure cited a lane-private path —
+the seconds go inline or the table into `docs/perf-data/`; one
+number that does not reconcile (90 − 47 = 43, not "62-odd"); the
+miss rows lack the rust-cache key they missed; the "compiles from
+scratch on most runs" claim narrowed to what one branch's runs
+show (a branch's first build job restores nothing; main never runs
+the job under F3). C4 lands last of the four. TCOST-B3's body
+narrowed the same way.
+
+## Seam: TCOST-K1 dual delivered — correspondence pre-note (2026-09-03)
+
+Both reviews on frozen `554f2b0f`, reports stored under
+`~/tcost-work/ab/`. Verdicts DIVERGE in letter, converge in
+substance: R1 MERGEABLE-AFTER-FIXES 2/8/3, R2 MERGEABLE 0/4/2.
+Neither could construct a certifying face the exit refuses; both
+re-derived the bound and measured it per round; both verified every
+hosted number against the cost reports. BILATERAL: the exit's
+decision sits outside the named predicate / k-funnel (R1 MAJ A1 ≡
+R2 MINOR 4 — severity-divergent: R1 reads a shrunken ledger
+population and a stale justification sentence, R2 telemetry only);
+the suite cannot red when the exit stops firing on the integral
+lane and `refused_early…` cannot detect absence (R1 MAJ A2 + B1 ≡
+R2's mutant table and Q3, which R2 scored in the rubric rather than
+as a finding); the monotonicity across rounds unstated (B4 ≡ M1);
+the pad term dead under the test surface (B8 ≡ M2); the NaN
+sentence (B5 ≡ NOTE); second spellings of the last piece count and
+block assignment (B3 ≡ style); no default-lane run on the final
+head, both judging it adequate (B7 ≡ claim 4). UNILATERAL R1: the
+threshold-to-zero mutant (escalation pre-emption unguarded), the
+stale "measured width" prose class, the undisclosed 1.1461e-6 pin,
+the TARGET_LEN_FACTOR/K mirrors, the half-vacuous certify row.
+UNILATERAL R2: the pinned width's `#[ignore]` retake is registered
+nowhere (R1 has it inside C2), the QUAD2_RATIONAL_MAX_ROUNDS doc,
+DESIGN.md:603. DISPATCHER FAULT (R1 C3): the shared target dir let
+one review lane execute the other's mutated binary — cargo's lock
+serialises writes, it does not isolate artifacts; R1 re-took every
+result privately, R2's mutant matrix is flagged as possibly
+contaminated (its outcomes agree with R1's on every shared mutant).
+Union fix pass dispatched to the implementing lane, same arm; the
+row records at merge.
+
+## Unit: TCOST-C1 merged (2026-09-03)
+
+PR 1650 at `f593881e` (run 33745119482, default 1e-6 drawn, green;
+interval covered by the pre-fix run 33722960963). `corrupt input
+(release profile)` leaves the PR gate: −2 billed minutes on every
+code-tier run whose closure holds topo (89 of the last 128 merges),
+re-taken nightly with its absence detectors (count guard + name
+greps) moved with it. The nightly job-insertion conflict with C2 was
+resolved by rebuilding nightly.yml from main and re-inserting C1's
+job (both parse; both jobs present; no markers). The nightly budget
+total is edited once, by C3 as the last to land.
+
+## Unit: TCOST-8 merged (2026-09-03)
+
+PR 1659 at `d13b23a9` (default 1e-12 asked, run 33746172065, green
+on the post-merge head; interval 1e-6 asked, run 33728831063, on the
+pre-fix head, the three interval-only edits re-verified locally
+against a byte-identical 553-name listing). Fourteen helper families
+of `crates/geom-brep/tests/` into `tests/shared/` — 43 `fn` bodies
+plus, after the review, 27 inline `Band::linear(Tol::witness())`
+sites, 70 sites for one home; the nextest listing `cmp`-clean
+against the merge base on both lanes throughout. Nineteen "kept
+apart" copies each carry their reason at the copy, the R1/R2 pair
+and the carrier-id stamp among them, and `shared/mod.rs` enumerates
+them with a grep-checkable count. Compile-time deliberately not
+measured (TCOST-7's precedent: noise). Filed: the inline canonical-
+frame surfaces (34 sites at merge-base numbers) and the body-hash
+census's rename-only blind spot (a sweep obligation across geom-brep
+and the B1/B2 crates). Operational: the session scratchpad is shared
+across sibling lanes — one lane's PR draft was overwritten by
+another's; lane notes belong under `~/tcost-work/<lane>-notes/`.
+
+## Unit: TCOST-C3 merged (2026-09-03)
+
+PR 1655 at `82cdff58` (run 33746592219, interval 1e-6 drawn, green;
+default covered by the fix-head run 33742871112). The python suite is
+seed-keyed on {pncad-py, pncad, editor-core}: −2 billed minutes on
+every code-tier run whose seeds miss, with the verdict step sited in
+the `filter` job because a skipped job runs no step. The review's
+hole closed as a class: `unittest discover` over an empty match exits
+0, so a nonzero-count guard now stands at all three call sites
+(ci.yml's job, the nightly re-take, `run-python-tests.sh` — no single
+seam exists for them, and that is filed). As the last of the three
+to land, C3 set the nightly budget total once (~8 → ~15; calibration
+night ~34 → ~41), dropped the three per-row "not yet included" notes,
+and corrected the paragraph under the table that had gone false.
+Ledger after the three: PR side −1 (C2, measured) −2 (C1, per
+topo-closure run) −2 (C3, per seed-miss run); nightly side +~7, of
+which C2's ~3 is derived and wants a re-read from the first nightly
+that executes it. C4 lands last after its final main merge.
+
 ## Unit: TCOST-K1 fix pass landed (2026-09-03)
 
 The union of both reviews of PR 1652 (frozen 554f2b0f) applied on the

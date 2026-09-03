@@ -30,12 +30,9 @@
 
 use core::f64::consts::TAU;
 
+use crate::shared::interval::iv;
 use geom_brep::MappedCurve;
-use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Vec3};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
+use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Vec3};
 
 fn width(e: Interval) -> f64 {
     e.hi() - e.lo()

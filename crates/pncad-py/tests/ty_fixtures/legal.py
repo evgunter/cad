@@ -15,6 +15,7 @@ from pncad import (
     AxisSense,
     Bulge,
     BooleanOp,
+    CancelToken,
     CapEnd,
     Center,
     CheckId,
@@ -507,3 +508,24 @@ how_many: int = doc.eval_count(doc.parse_expr("4"))
 shown: str = (25 * mm).format(mm)
 turned: str = (90 * deg).format(pi_rad)
 magnitude: float = (25 * mm).in_unit(mm)
+# Cooperative cancellation: the token in, a PARTIAL evaluation out.
+# The two `canceled` are different questions with the same answer
+# type — the token's says the flag is set, the run's says a run
+# observed it — and the run remains an ordinary `Evaluation`, because
+# a stop is a partial answer and not a refusal.
+stop: CancelToken = CancelToken()
+stop.cancel()
+flagged: bool = stop.canceled
+stopped: Evaluation = evaluate(doc, cancel=stop)
+was_stopped: bool = stopped.canceled
+still_ordered: list[NodeId] = stopped.order()
+
+# The validator ladder, all four rungs. Each answers NOTHING and
+# raises on failure, which is what makes `-> None` the honest return:
+# a verdict a caller could forget to read would be the wrong shape for
+# a gate. The fourth takes no arguments either, because the contacts
+# it certifies against ride with the body.
+gathered.validate()
+gathered.validate_closed()
+gathered.validate_geometric()
+gathered.validate_pseudomanifold()

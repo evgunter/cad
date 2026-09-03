@@ -2356,3 +2356,268 @@ aliases). The G16-era crate markers are already gone (verified:
 only STEP-fixture #917 false positives remain in crates/). Nothing
 LIB holds; the recipe layer's NodeErrorKind::Blend shape is cited
 in that design as ratified precedent.
+
+**B-CANCEL IN REVIEW (2026-09-03, #1676; mechanical under the 08-29
+ruling, no A/B row). Census family B-CANCEL CLOSED — a Python caller
+can stop an evaluation, and the family found that binding the STOP
+was the small half.** `CancelToken` (top-level, spelled identically,
+no `BOUND_AS`), `evaluate(..., cancel=)`, and `Evaluation.canceled`.
+19 Python rows in `tests/test_cancellation.py` (454 suite rows to
+473), a cross-door tag pin in `src/tests.rs`, ty fixtures both
+directions.
+
+**The audit-reach check, run first as it now is on every family, and
+negative in the strongest available form:**
+`docs/guide/north-star-audit.md` does not contain the string "cancel"
+at all. No tour scene interrupts an evaluation, so no audit gap id
+reaches this door, nothing sat filed under another id to reclaim, and
+the family moved exactly the one name it chartered. By B-FORMAT's
+arithmetic that is the cheap case. It was not, and the reason is
+worth the register.
+
+**A charter that names a door's ARGUMENT undercounts by whatever the
+door ANSWERS with.** B-FORMAT was cheap because `fmt_length`'s
+arguments already crossed. B-CANCEL's argument needed no building
+either — `CancelToken` is an `Arc<AtomicBool>` with two methods, and
+threading it through `evaluate` is four lines. What was missing was
+the other end: a canceled run answers by BEING a partial `Evaluation`,
+and Python could not ask an `Evaluation` whether it had completed. So
+the unit bound its one chartered name and then had to bind the answer
+that name makes reachable before the door meant anything. That is the
+general form of what B-EXPR-READ found by splitting a family on audit
+reach and B-FORMAT found by not needing to.
+
+**`EvalOutcome` is the entry this re-cut IN PLACE rather than moved,
+and it is the sharper half of the same finding.** It sat as
+`different-shape` — "the surface is a different shape in Python, not
+a debt" — and that was true only VACUOUSLY: Python's `evaluate`
+minted a token nobody could reach, so the outcome of every Python
+evaluation was the constant `Completed`, and a constant needs no
+accessor. `cancel=` made the second variant reachable and the entry
+therefore owed a real Python shape, which is now `Evaluation.canceled`.
+**A disposition can be honest about a surface and stop being honest
+when a NEIGHBOURING door opens, with nothing mechanical to say so** —
+the roster guards check spelling and decay, not whether a `SHAPE`
+claim still has a shape behind it. Recorded at the entry, because
+reading the entry beside the door is the only thing that catches it.
+
+**The change that was not on anyone's list: the GIL.** Threading the
+token needed no kernel and no editor-core change — but `evaluate` held
+the GIL across the whole kernel call, so no other Python thread could
+run, so `token.cancel()` could not be called during the only window in
+which it matters. Binding the token without releasing the GIL would
+have left the charter's own sentence ("a Python caller cannot stop a
+long evaluation") TRUE on the PR that closes it. So the kernel run is
+now inside `py.detach`, measured both ways on the suite's own
+document (31 nodes, ~300 ms debug): with the GIL released a helper
+thread cancelled it 20/20 at a 20 ms delay and 20/20 at no delay; the
+same code against a build differing only in the `detach` cancelled
+**0 of 20 at either delay**. Safe because `doc` stays borrowed for the
+call, so a concurrent MUTATION of the same document raises pyo3's own
+`RuntimeError("Already borrowed")` rather than editing a recipe out
+from under a running run — measured, and pinned, rather than reasoned:
+the first draft of this sentence named `Doc.accept`, which is a Rust
+`&mut self` helper Python does not have. The doors that DO cross are
+`Doc.insert` and `Doc.apply`, and a test now executes one of them.
+
+**What is pinned and what is only measured.** Cancelling a run already
+under way is a race by construction — the kernel checks between nodes,
+and which node it stops at is the scheduler's answer. So the contract
+is pinned on the DETERMINISTIC arm: a token canceled BEFORE the run
+starts fires the check before the first node, every time, giving the
+full `order()`, zero results, `recomputed == 0`. The concurrent arm is
+pinned only on invariants that hold whichever way the race falls
+(canceled ⟹ the results are a PREFIX; never a hole, never a node
+failed by the stop) plus ONE categorical yes/no: a helper thread
+stamping the clock every millisecond lands 139 stamps in the middle
+half of the call's window with the GIL released and exactly 0 with it
+held. 0-versus-many is a fact about the binding; a hit rate is a fact
+about the box, and the hit rates are quoted in the module docstring
+rather than asserted anywhere.
+
+**A false claim corrected in place, in the door this unit made
+reachable.** `Evaluation.value` answered `unknown_node` — "no such
+node in the evaluated document" — for every node with no entry. With
+no way to stop a run, a live node always had one, so the sentence was
+true because its false case could not arise; a canceled run's prefix
+is exactly that false case. The door now splits them, and the second
+arm speaks the STANDING LADDER's own word (`node_not_evaluated`, as
+`ReadbackError` and `HitTestError` spell it) rather than minting a
+third. The read-back and pick doors reach that word through a `match`
+on a kernel arm and this one cannot — `Evaluation::result` answers a
+bare `None` — so the word is now `tags::NODE_NOT_EVALUATED` and
+`tests::the_evaluation_door_speaks_the_standing_ladder` pins the copy
+against both matching doors, in both directions.
+
+**One north-star pin re-cut, not silenced.**
+`test_the_named_gaps_are_still_gaps` asserts `evaluate`'s whole
+keyword-only shape as G18's structural evidence; `cancel` joining it
+made that row red, which is the guard working. It is re-cut to the new
+list with the reading recorded at the line — `cancel` belongs to no
+audit gap, which is why the census owned it — rather than loosened.
+
+**Banked, one item:
+`work/lib/the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row.md`.**
+`crates/pncad-py/src/py/` is 12621 lines behind `#[cfg(feature =
+"python")]`; CI's clippy row runs default features and the
+python-suite row runs no clippy, so none of it is linted on the merge
+gate. Found because this unit ran clippy WITH the feature and hit one
+standing `type_complexity` at `py/value.rs:319` — pre-existing on
+main, and the only one, so the debt is one lint rather than a backlog.
+Not fixed here: it touches the merge gate and a field this unit does
+not bind.
+
+**B-VALIDATE4 IN REVIEW (2026-09-03, #1677; mechanical under the 08-29
+ruling, no A/B row). Census family B-VALIDATE4 CLOSED — the ladder's
+fourth rung crosses, and the family's whole content is HOW its second
+argument does.** `validate_pseudomanifold` becomes
+`Body.validate_pseudomanifold`. 13 Python rows in the new
+`tests/test_validate.py`, one Rust row in `src/tests.rs`, ty fixtures
+both directions. The suite count is re-cut at the merge and stated
+once: the lane measured 454 to 467, B-CANCEL landed its 19 in the
+same window, and the merged tree runs 486. The DELTA is what this
+unit owns and it is 13 either way — which is the reason the count is
+given as a delta here rather than as a total two concurrent lanes can
+each invalidate (#1662's lesson, one register entry later).
+
+**The derived scope, and the audit-reach check.** One chartered name,
+one `gap:` roster entry, and the #1662 check came back NEGATIVE, as
+it did at #1668 and for the same reason: the door needs a `Body<f64>`
+and a `ContactRecords`, Python has had `Body` since §L4, and no other
+id owned an entry this unit had to build. One chartered, one moved.
+Three families in a row now say the audit-reach check is a step
+rather than a discovery — and this one says something the other two
+could not, because its arguments did NOT both already cross and it
+still cost nothing: the second one crossed by being CAPTURED.
+
+**The measurement the family exists for.** `ContactRecords` has no
+Python constructor and never will — it is minted by the ops that
+certify geometry — so a `validate_pseudomanifold(contacts)` door
+would be a door nobody can call, and one taking ANOTHER body's
+records would spell exactly the mis-pairing F1 refuses ("the
+validator never blesses discovered contacts"). So a `Body` carries
+the declarations its own producer minted for it and the Python door
+is a bare method like the three rungs below it. That is #1668's
+carrier-projection rule (`fmt_length` landing on the `Length` it
+needs) at a door whose Rust signature takes two things, and #1664's
+pairing argument (`RunCtx` becoming `Evaluation`) at a door that
+would otherwise let a caller ask one body about another's intent.
+`ContactRecords` accordingly STAYS `INTERIOR` — same disposition,
+second reason under it. The demo tour states the same rule from the
+other side and was the brief's pointer to it: its `SceneBody` carries
+`contacts` beside the body and runs 3′ "with the op's OWN declared
+contacts".
+
+**The capture reconciles the kernel's two homes, where the kernel
+does.** `NodeValue::contacts` is `instantiate`'s carried D-1 set; a
+boolean's records ride `BooleanValue::Body`; `product::sources_of` is
+where they meet, and `Value.body`/`Value.bodies` now make the same
+reconciliation so a body read off a value and the same body read by
+the gather cannot disagree about what was declared over it.
+`assemble` is the second source (D-1 plus the mates' minted D-2).
+`product` is deliberately the third case: it gathers and declares
+NOTHING. Empty is the honest default rather than a hole — with no
+declarations the kernel's own contract is 3′ ≡ tier 3 plus the census
+actually run, the STRICTEST rung — so a door that drops records can
+only make this gate refuse, never falsely pass. That property is what
+made the two filed findings safe to file rather than guess at.
+
+**The oracle is two doors over one geometry, and nothing else would
+have done.** A claim that records are captured is worth what a test
+can show, and every single-door test passes whether the capture works
+or not. The mated bench stand is the separating pair: `assemble(doc,
+ev).body.validate_pseudomanifold()` PASSES over its two seats while
+`product(doc, ev)` — same document, same evaluation, volume asserted
+equal — reports 16 undeclared contacts. The mate-less `layout` is the
+control that stops that reading as "assemble answers more kindly":
+zero minted, both doors pass. Corpus loaded through
+`test_assembly_eval.opened`, so the geometry is the tour's own scene
+and the Rust side already asserts about it. Second oracle, on the
+rung itself: two touching slabs gathered by `product` pass tiers 1, 2
+and 3 and refuse at 3′ — the census IS what the fourth rung adds,
+asserted rather than restated.
+
+**Measured and NOT pinned, because there is no door to pin it with.**
+A DECLARED glue — two slabs resting face to face, unioned through
+`Node.boolean(declare=…)` — comes out with an EMPTY record set: the
+union welds the declared faces, so no coincidence survives for a
+record to back. Its 3′ pass is the empty-record case, not the
+certified-seam case. No Python door reads a body's record count, so
+the distinction cannot be asserted from Python at all; it is written
+into the test file's header instead, because a reader would otherwise
+take that row for evidence of the capture it does not demonstrate.
+
+**Banked, and the sharper of the two: `work/lib/tier-3-prime-
+findings-render-through-debug.md`.** Only tier 3′ runs the census, so
+the other three rungs cannot reach its arms — and the kernel words
+three of them out of `Debug` (`UndeclaredContact`'s `CensusContact`,
+`StaleContactDeclaration`'s payload, and `census::witness`, which is
+`format!("{p:?}")`). The first honest call of the new door PANICKED
+inside this crate's own `reads_as_prose` assertion, on the ordinary
+path: two touching solids gathered by `product`. The assertion's own
+docstring predicted it — "what the check cannot see is a door no test
+reaches" — and the kernel has already made this exact fix one arm
+over (`validate.rs:1587`, the S6 sweep). Not fixed here: the
+rendering is `crates/topo`'s, the `witness` is an opaque `String` no
+consumer can re-derive, and re-wording at the boundary would fork a
+diagnosis the kernel owns while DROPPING the coordinate that makes a
+finding actionable. `run_validator` raises through a new
+`typed_err_kernel_authored` instead — one caller, message is
+`ValidationError::to_string()` by construction, the whole argument in
+its doc comment — and the current text is pinned in BOTH directions,
+`src/tests.rs` (no-interpreter row) and `test_validate.py`, so the
+fix goes red rather than silent and takes the exemption with it.
+Note what is NOT the complaint: `edge {edge:?}` reads that way in two
+dozen tier-1/2/3 arms and crosses today. The fingerprint is the
+STRUCT brace, not the arena key.
+
+**Also banked: `work/lib/subject-body-drops-the-declared-
+contacts.md`.** `editor_core::checks::subject_body` calls
+`product::sources_of`, which returns `(ix, body, contacts)`, and
+discards the third element one line later. So `pncad.subject_body`
+answers with a plain body, and a subject that IS a declared boolean
+result reports its own certified seam as undeclared where the same
+body through `Value.body` passes. Filed rather than worked around,
+for the reason the whole family turns on: a binding-side guess about
+which records belong to a subject would be the invention F1 forbids,
+and the failure is loud either way. The narrowing is stated at the
+door.
+
+**A false claim corrected in a file this unit touches**: `docs/
+GUIDE.md`'s validator-ladder section documented tier 3′ as
+`validate_pseudomanifold(body, contacts)` with a "3-versus-3′ choice"
+paragraph addressed to the caller, and said nothing about Python —
+which after this merge would read as a promise that the Python door
+takes contacts and that the choice is the caller's. It now says all
+four rungs are `Body` methods, that the fourth takes none, and which
+door puts a body on which side of the choice.
+
+**Not this unit's, and re-measured rather than assumed:** the
+python-feature clippy lane is still red on `Datum.axes`
+(`type_complexity`, `py/value.rs:395` — the same field at
+B-RESOLVE's `:319`, shifted by this diff), exactly as
+`work/lib/pncad-py-python-feature-clippy-lane-is-red.md` records, and
+no CI row runs it. One error, unchanged, inherited.
+
+**THE CENSUS B-FAMILY SLATE IS COMPLETE (2026-09-03).** All six
+queued families closed in one day, each mechanical under the 08-29
+ruling: B-PICKING (#1661), B-EXPR-READ (#1662), B-RESOLVE (#1664),
+B-FORMAT (#1668), B-CANCEL (#1676), B-VALIDATE4 (#1677) — joining
+B-READBACK and B-CHECKS from 08-29. The census's FAMILIES table is
+now empty of open charters; what remains in the gap roster is G1's
+authoring-signature residue (watched by execution, not by name) and
+G2's sweep half (kernel-owned, U4/LQ3). The day's method notes,
+earned: the derived-scope-first discipline caught one family split
+on audit-reach rather than build-shape (#1662 moved nine for a
+charter of three); the carrier-projection rule read out five more
+times (PickTarget, RunCtx, the format receivers, the captured
+ContactRecords); and the closures found three latent defects worth
+the price of the sweep alone — the GIL held across evaluate (Python
+cancellation could never fire), tier-3′ findings rendered through
+Debug (the first honest call panicked), and the quantity boundary's
+poison comparison raising untyped. Program standing after the
+slate: shell (LIB-G17) parked on kernel #1202; a LIB-13 block draw
+owed before any full-protocol unit; the banked-findings pile is the
+remaining mechanical feedstock, headlined by the unlinted
+python-feature CI row (no clippy row on the merge gate covers
+12.6k lines of binding surface — routing decision pending).
