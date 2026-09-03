@@ -128,3 +128,62 @@ pub enum Provenance {
         shell: crate::entity::ShellKey,
     },
 }
+
+/// A split lineage that never reaches a root: chasing `SplitEdge`
+/// birth records parent to parent revisited an edge. A lineage is a
+/// chain of strictly older edges, so this is a corrupt provenance
+/// record — a kernel bug surfaced typed, never a silently chosen
+/// root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitLineageCycle {
+    /// The edge whose lineage cycles.
+    pub edge: crate::entity::EdgeKey,
+}
+
+impl core::fmt::Display for SplitLineageCycle {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "split lineage of edge {:?} cycles: its SplitEdge records never reach a root",
+            self.edge
+        )
+    }
+}
+
+impl std::error::Error for SplitLineageCycle {}
+
+impl<T: geom_core::Real> crate::Body<T> {
+    /// The root of `edge`'s split lineage: its `SplitEdge` birth
+    /// records chased parent to parent until `stop` says the caller's
+    /// identity boundary is reached (a name table's first named key,
+    /// for the names lane) or the edge carries no split record — that
+    /// edge is the root. `split_edge` keeps the parent's key for the
+    /// first child and records the parent on the second, so every
+    /// piece of one original edge reaches one root, and a body's loop
+    /// flattening mints each edge's carrier identity from it.
+    ///
+    /// Bounded by the body's edge count: a walk that has not ended
+    /// after every edge could have been visited once has revisited
+    /// one, and returns [`SplitLineageCycle`] rather than a root.
+    ///
+    /// # Errors
+    ///
+    /// [`SplitLineageCycle`] on a cycling lineage.
+    pub fn split_root(
+        &self,
+        edge: crate::entity::EdgeKey,
+        mut stop: impl FnMut(crate::entity::EdgeKey) -> bool,
+    ) -> Result<crate::entity::EdgeKey, SplitLineageCycle> {
+        let mut root = edge;
+        for _ in 0..=self.edges.len() {
+            if stop(root) {
+                return Ok(root);
+            }
+            match self.edge_provenance_of(root) {
+                Some(Provenance::SplitEdge { edge: parent }) => root = *parent,
+                _ => return Ok(root),
+            }
+        }
+        Err(SplitLineageCycle { edge })
+    }
+}

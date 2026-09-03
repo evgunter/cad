@@ -108,27 +108,24 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
     f
 }
 
-/// Chases an edge through `SplitEdge` birth records, STOPPING at the
-/// first key the operand's table names: the table is the identity
-/// boundary — records deeper than the operand's own entities belong
-/// to earlier ops (a union's rim fragment must not chase past its
-/// own union-level name into its grand-parent).
+/// Chases an edge through `SplitEdge` birth records
+/// (`Body::split_root`), STOPPING at the first key the operand's table
+/// names: the table is the identity boundary — records deeper than the
+/// operand's own entities belong to earlier ops (a union's rim fragment
+/// must not chase past its own union-level name into its grand-parent).
+///
+/// # Errors
+///
+/// A cycling lineage is a corrupt record, surfaced as an emission bug.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
-    mut e: EdgeKey,
-    limit: usize,
-) -> EdgeKey {
-    for _ in 0..=limit {
-        if table.name_of(&ent(0, EntityKey::Edge(e))).is_some() {
-            return e;
-        }
-        match body.edge_provenance_of(e) {
-            Some(Provenance::SplitEdge { edge }) => e = *edge,
-            _ => return e,
-        }
-    }
-    e
+    e: EdgeKey,
+) -> Result<EdgeKey, NamingError> {
+    body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())
+        .map_err(|_| NamingError::Emission {
+            what: "an edge's split lineage cycles",
+        })
 }
 
 /// Names both sides of a split (spec D2's split vocabulary + N2).
@@ -331,12 +328,7 @@ fn name_split_edges_vertices<T: Decide>(
                         Some(Provenance::SplitEdge { .. })
                     )
                 {
-                    divided_edges.insert(chase_edge_to_table(
-                        sb.body,
-                        target_table,
-                        e,
-                        sb.body.edges().count(),
-                    ));
+                    divided_edges.insert(chase_edge_to_table(sb.body, target_table, e)?);
                 }
             }
         }
@@ -344,7 +336,7 @@ fn name_split_edges_vertices<T: Decide>(
             if chord_faces.contains_key(&e) {
                 continue;
             }
-            let root = chase_edge_to_table(body, target_table, e, body.edges().count());
+            let root = chase_edge_to_table(body, target_table, e)?;
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -400,14 +392,12 @@ fn name_split_edges_vertices<T: Decide>(
             let parent_edge = sides
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => Some(chase_edge_to_table(
-                        sb.body,
-                        target_table,
-                        *edge,
-                        sb.body.edges().count(),
-                    )),
+                    Some(Provenance::SplitEdge { edge }) => {
+                        Some(chase_edge_to_table(sb.body, target_table, *edge))
+                    }
                     _ => None,
-                });
+                })
+                .transpose()?;
             let (seg, from_tie) = if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
@@ -870,6 +860,16 @@ fn name_boolean_edges<T: Decide>(
     // `resolves == false` route below hands such edges to
     // `chord_kind`, the same rescue the A lane gets (review R1: lane
     // parity; the kernel completed the body, naming must too).
+    //
+    // This is NOT `Body::split_root`, deliberately: the result body's
+    // records for grafted edges carry B-space keys verbatim (the graft
+    // copies provenance without forwarding — issue 1597), and this
+    // lane depends on that: B's table names ancestors that died in B
+    // before the graft, and the verbatim key is the only way back to
+    // them. B's operand body cannot be chased instead — it is not the
+    // body that was grafted (a placed copy is). Forwarding `SplitEdge`
+    // at the graft therefore needs a dead-ancestor bridge on the
+    // `GraftMap` before this descent can become the shared chase.
     let chase_b = |mut e_b: EdgeKey| -> EdgeKey {
         for _ in 0..=fwd_edges.len() {
             if b.table.name_of(&ent(0, EntityKey::Edge(e_b))).is_some() {
@@ -893,10 +893,10 @@ fn name_boolean_edges<T: Decide>(
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
                 Some(&eb) => ERoot::B(chase_b(eb)),
-                None => ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count())),
+                None => ERoot::A(chase_edge_to_table(body, a.table, e)?),
             },
             (OperandKeys::Direct, OperandKeys::Absent) => {
-                ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count()))
+                ERoot::A(chase_edge_to_table(body, a.table, e)?)
             }
             (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)),
             _ => return Err(bug("unsupported operand-key layout")),

@@ -155,7 +155,8 @@
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
 //!   kind's own derivation does. The torus's ends are the anchor
-//!   meridian's stored span. The cylinder's and cone's are `min_max`
+//!   meridian's stored span, the pieces of a split edge folded into
+//!   that meridian first. The cylinder's and cone's are `min_max`
 //!   over edge ENDPOINT levels, exact because their meridians are
 //!   lines, monotone in `v`. The sphere's meridians are great-circle
 //!   arcs whose latitude peaks at a pole the arc may contain in its
@@ -177,7 +178,10 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, Point3, Real, Vec3};
 
-pub use curved::{MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle};
+pub use curved::{
+    MaterialSign, boundary_material_sign, curved_face, require_iso_rectangle,
+    require_one_chart_branch,
+};
 pub use loop_area::loop_vector_area;
 
 /// One traversed boundary edge of a face loop: a key-free view of
@@ -202,6 +206,20 @@ pub use loop_area::loop_vector_area;
 pub struct LoopEdge<T: Real> {
     /// The edge's carrier locus.
     pub carrier: Curve3<T>,
+    /// The identity of the edge this one is a piece of, when the
+    /// owning body records one ([`CarrierId`]); `None` for a loop
+    /// built without a body ([`LoopEdge::hand_built`]). Two edges with
+    /// equal ids are pieces of ONE edge — one carrier, one
+    /// parametrisation, intervals that partition its own — which is
+    /// what lets a parse fold them back into it ([`curved`]'s torus
+    /// meridian fold). Equality of ids is the only identity test props
+    /// runs; two edges carrying the same locus as VALUES are never
+    /// inferred to be one edge. A hand-built id is the loop author's
+    /// assertion of what a body would have recorded, exactly as the
+    /// vertex tags are: the fold enforces what it can see — the pieces
+    /// meet, and span one certified interval — and trusts the identity
+    /// for the rest.
+    pub carrier_id: Option<CarrierId>,
     /// Certified interval start (`he_plus`-forward, `t0 < t1`).
     pub t0: T,
     /// Certified interval end.
@@ -213,6 +231,30 @@ pub struct LoopEdge<T: Real> {
     pub start: u32,
     /// Traversal-order end vertex tag (loop-local).
     pub end: u32,
+}
+
+impl<T: Real> LoopEdge<T> {
+    /// A loop edge stated without a body — a test's or a consumer's
+    /// hand-built loop. It carries no [`CarrierId`], so no two such
+    /// edges are ever folded into one; the opt-out is said here, once.
+    pub fn hand_built(
+        carrier: Curve3<T>,
+        t0: T,
+        t1: T,
+        forward: bool,
+        start: u32,
+        end: u32,
+    ) -> Self {
+        Self {
+            carrier,
+            carrier_id: None,
+            t0,
+            t1,
+            forward,
+            start,
+            end,
+        }
+    }
 }
 
 impl<T: SpanLocate> LoopEdge<T> {
@@ -230,6 +272,29 @@ impl<T: SpanLocate> LoopEdge<T> {
     /// The vertex tag at the interval start `t0` (`he_plus` start).
     pub(crate) fn tag_at_t0(&self) -> u32 {
         if self.forward { self.start } else { self.end }
+    }
+}
+
+/// The identity of the original edge a boundary edge is a piece of —
+/// the root of its split lineage in the owning body, opaque here. A
+/// body's loop flattening mints one per edge from its own keys
+/// (`topo` chases each edge's split provenance to the edge that was
+/// never itself minted by a split), so ids are comparable only within
+/// ONE body's flattening: a graft re-keys, and two bodies' ids mean
+/// nothing to each other. A split keeps the parent's carrier and
+/// partitions its interval, so equal ids assert one carrier and one
+/// parametrisation by construction, never by a comparison of stored
+/// geometry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CarrierId(u64);
+
+impl CarrierId {
+    /// The one constructor. `topo`'s flattening is the minter in
+    /// production; anyone else who mints one asserts, as the loop's
+    /// author, what a body would have recorded ([`LoopEdge`]'s
+    /// `carrier_id` states the contract).
+    pub fn minted(raw: u64) -> Self {
+        Self(raw)
     }
 }
 
@@ -261,6 +326,60 @@ pub enum PropsError {
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
     NappeSpanning,
+    /// A boundary edge's traversed **arc** leaves one branch of the
+    /// chart, though its CARRIER is a certified iso curve: the arc's
+    /// stored parameter span contains a chart singularity in its
+    /// interior, so the chart coordinate the edge is supposed to hold
+    /// constant jumps by π mid-edge.
+    ///
+    /// Raised only by [`require_one_chart_branch`], which is a
+    /// different question from [`Self::NotIsoRectangle`]'s and is
+    /// asked by a different set of consumers: the flux lane's extent
+    /// derivation FOLDS the singularity in and measures such a face
+    /// exactly, while a lane that reads one chart coordinate per edge
+    /// cannot read this edge at all. Valid input, unbuilt lane (D2
+    /// addendum row 2): the recourse is to state the meridian as two
+    /// edges meeting at the singularity, which every consumer reads.
+    ///
+    /// **`what` carries the per-kind sentence, not this variant's
+    /// prose**, because the jump is not one fact: a sphere meridian's
+    /// azimuth jumps by π at a pole, a cone generator's flips to the
+    /// mirror nappe at the apex. A single sentence here would be a
+    /// sphere sentence printed over a cone refusal.
+    ///
+    /// **No measured overshoot in the payload, and that is a
+    /// scheduled gap, not a choice** (issue 1602). The margin IS
+    /// measured — it is the same `props_meridian_pole` /
+    /// `props_cone_apex` quantity the funnel records, levered to
+    /// metres — but reading a DEFINITE margin back as `f64` from a
+    /// `Decide`-generic lane needs a compound `Bounds`/`Enclosure`
+    /// bound, which `scripts/gates/bounds-allowlist.sh` does not
+    /// ratify for `props/curved.rs`. Every arm of this enum that
+    /// carries a measured `f64` gets it from a concrete scalar
+    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
+    /// generic arms are name-only, exactly as
+    /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
+    /// that would let this arm carry the number.
+    NotOneChartBranch {
+        /// Which boundary edge, as its index in the loop slice the
+        /// caller handed in — the same order `topo::props::loop_edges`
+        /// flattens the half-edge cycle into.
+        ///
+        /// **An index and not an `EdgeKey`, structurally.** A
+        /// [`LoopEdge`] is a KEY-FREE view by construction — that is
+        /// the trust boundary this module's docs draw — and
+        /// `geom-brep` sits BELOW `topo` in the dependency order, so
+        /// `EdgeKey` is not a type this crate can name. The index is
+        /// what a caller can resolve: it indexes the same slice it
+        /// passed, and `topo::props::loop_edges` returns the loop's
+        /// half-edges in that order beside it, so the caller holds
+        /// the key it wants without props ever handling one.
+        edge: usize,
+        /// The per-kind sentence: which chart singularity the span
+        /// crosses and what the edge's constant coordinate does there
+        /// (static description).
+        what: &'static str,
+    },
     /// The face's parameter extent is coincident with zero — a
     /// degenerate (zero-area) face, refused rather than integrated.
     ///
@@ -324,6 +443,11 @@ impl core::fmt::Display for PropsError {
                 "integral properties: face boundary outside the iso-rectangle inventory ({what})"
             ),
             Self::NappeSpanning => f.write_str("integral properties: cone face spans both nappes"),
+            Self::NotOneChartBranch { edge, what } => write!(
+                f,
+                "integral properties: boundary edge {edge}'s traversed arc leaves one chart \
+                 branch — {what}; state the side as two edges meeting at the singularity"
+            ),
             Self::DegenerateFace => write!(
                 f,
                 "integral properties: face parameter extent is degenerate (zero area) — {}",
@@ -401,17 +525,17 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge {
-            carrier: Curve3::Line {
+        LoopEdge::hand_built(
+            Curve3::Line {
                 origin: a,
                 dir: d * (1.0 / len),
             },
-            t0: 0.0,
-            t1: len,
-            forward: true,
-            start: 0,
-            end: 0,
-        }
+            0.0,
+            len,
+            true,
+            0,
+            0,
+        )
     }
 
     /// Assemble the unit cube from six planar faces (outward CCW
