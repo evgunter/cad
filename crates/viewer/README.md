@@ -142,14 +142,14 @@ rustup target add wasm32-unknown-unknown
 local-scripts/serve-wasm.sh          # prints the URL to open on the phone
 ```
 
-The single-threaded browser lane — the *named fallback* in
-`docs/GUI-PLAN.md`'s platform section. Nothing here needs a nightly
+The single-threaded browser lane — the *named fallback* to the
+threaded web lane (GUI-5, banked). Nothing here needs a nightly
 toolchain, `-Zbuild-std`, `wasm-bindgen-rayon`, or cross-origin
 isolation; the pinned stable toolchain builds it as it stands.
 
 **It has been built and linked, and nothing beyond that is verified** —
 no first light on real hardware. It is also not CI-guarded: the wasm32
-step excludes `viewer` (`docs/GQ6-RESURVEY.md` §4), so a dependency bump
+step excludes `viewer` (Toolkit and CI posture, below), so a dependency bump
 can break this build with every check green.
 
 Three things are known-absent by design:
@@ -174,7 +174,7 @@ Three things are known-absent by design:
 `evalseam::InlineEvaluator` here instead of `ThreadEvaluator`, so a
 rebuild blocks the frame that submitted it and the tab stops painting
 until the kernel returns. The busy indicator cannot help — that needs an
-in-op yield point, which GUI-PLAN rules absent for v1.
+in-op yield point, which v1 rules absent (GQ2, below).
 
 **No WebGPU over plain http.** WebGPU requires a secure context and
 `http://<lan-ip>` is not one, so `navigator.gpu` is absent whatever the
@@ -203,3 +203,198 @@ reboots, and a firewall rule with no `-Profile` re-opens the port on
 every network the machine later joins. The printed commands scope the
 rule to `Private` and are followed by the two lines that undo them; run
 those when the demo is over.
+
+# Architecture
+
+This is the GUI/editor architecture (the GUI-DESIGN clauses G1–G5 and
+the GQ answers) and the toolkit decision, stated as they stand. The
+viewer is layer 3; `docs/DESIGN.md` D1–D9 bind everything below it and
+are never overridden here.
+
+## Where in the code
+
+| Decision | Modules |
+|---|---|
+| G1 layer 2 (document as a value, `DocEdit` + pure `apply`, evaluation service, hit-testing) | `crates/editor-core` (`crates/editor-core/README.md`) |
+| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `SessionOp`, `DocSession::perform`, `OpOutcome`), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
+| G3 free-move and hiding as display state | `src/display.rs` |
+| G3 mate definition | `src/matetool.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
+| Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
+| GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
+| GQ6 toolkit, viewport, docking | `src/app.rs`, `src/gpu.rs`, `src/frame.rs` behind the `app` feature; `Cargo.toml` |
+
+## The three layers (G1)
+
+The split is three layers, not GUI-versus-library. The recipe is data
+(D8) and so are changes to it.
+
+1. **Kernel**: `build(params) → solid`.
+2. **`editor-core`**, headless, no rendering dependency. The document
+   is a value: the recipe DAG plus metadata. The edit vocabulary is a
+   sum type `DocEdit` with one pure `apply : Doc × DocEdit → Result<Doc>`;
+   undo is keeping the old value. Selections are values of the same
+   stable-name type recipe nodes use to reference entities
+   (`crates/editor-core/src/names/README.md`), so selection stability
+   and reference stability are one problem. Hit-testing is an
+   editor-core service, `ray → stable name`. Evaluation is memoized,
+   incremental, epoch-stamped and cooperatively cancelable.
+3. **Interaction**, this crate: tools fold input events into edits,
+   `handle(event, ui_state) → (ui_state′, Vec<DocEdit>, overlay)`, and
+   rendering is a function of the evaluated body, the selection and
+   the overlays.
+
+Boundary rules, each a type-level discipline:
+
+- **The GUI never sees an arena key.** Only stable names cross the
+  layer 2/3 boundary; the hit-test service inverts keys to names.
+- **Transient gesture state never enters the document.** Rubber
+  bands, in-flight drags and half-placed dimensions live in layer 3.
+- **Preview versus commit is structural.** A gesture emits preview
+  edits against scratch state and exactly one committed `DocEdit` on
+  release: one undo step, one document transition.
+- **Every operation the GUI performs is itself API.** Select, hide,
+  free-move, a camera move: each is a typed operation on a state value
+  (`CameraOp`, `SessionOp`), callable with no renderer present, and
+  rendering is a pure view of what those operations produce. Nothing
+  is expressible only as a widget interaction.
+- **Layer 3 is headless-testable.** `tests/` replays event streams and
+  asserts on the emitted edits; only pixel painting escapes.
+
+The edit vocabulary is the one API surface shared by the GUI, the
+Python bindings, macro recording and headless tests; each is a
+consumer of `apply` and none knows about the others.
+
+## Sketch editing (G2)
+
+The sketcher is an editor-core instance one level down: its own
+document (entities, constraints, solved state), its own edit
+vocabulary and preview loop, and committing the sketch is one recipe
+edit. A per-frame solve's payload is the entire solved assignment, and
+which of constraints or assignment is authoritative is the witness
+question, answered in `crates/editor-core/README.md` (W1–W9). The
+sketcher is not implemented.
+
+## What v1 is (G3)
+
+The v1 GUI is click-to-select for editing (selection feeds the
+existing edit doors), pan/rotate/zoom, free-moving completely
+unconstrained instances of an assembly relative to each other
+(fit-probing before a mate exists: a display transform, no solver),
+hiding instances, and defining a mate between previously unmated
+parts. Live dragging of partly constrained geometry is not on the
+path; the witness contract stays ratified for whenever it arrives.
+Hiding and free-move are display state, never persisted into the
+recipe, and a free-moved placement is drawn distinguishably from a
+mated one.
+
+## Micro-decisions (G4)
+
+- Dragging an expression-driven dimension refuses, with an affordance
+  offering to edit the expression.
+- Failures are typed values the GUI renders (the offending entity
+  highlighted, the failing feature marked in the tree); never
+  exceptions or strings. Presentation is decided case by case.
+- Preview fidelity may degrade the chordal display tolerance, never ε,
+  so preview cannot disagree with commit.
+
+## Colour (G5)
+
+A **theme** is a user preference: it supplies every semantic mark
+(selection, hover, free-move probe, focus, unresolved), the default
+body colour, the ambient term and the viewport **ground**
+(`Theme::ground`, what fills the viewport where no geometry is drawn).
+It is never written into a document, not persisted by `editor-core`,
+and takes no part in any content key. A **document** overrides the
+body colour: `Attr::Color` on a stable name is authored and travels
+with the file, and the theme never overrides it back. Both are
+`editor_core::appearance::Rgba8`, so the override is a substitution
+within one colour space; linear light is entered once, at each
+renderer's door. Colourblind legibility is a claim a theme makes, not
+a constraint on every theme: a palette that claims its marks stay
+distinguishable under dichromatic vision is held to it by simulation
+in `tests/theme.rs`, measured on the composited colour, since marks
+are mixed over the body colour. That bar puts `colorblind-safe` on a
+light ground. Preferences live in hand-editable TOML at
+`$XDG_CONFIG_HOME/pncad/viewer.toml` (`src/prefs.rs`); malformed TOML
+refuses, an unknown key reports and the rest applies, an unknown
+value reports and falls back, while a theme name typed on the command
+line is refused rather than defaulted.
+
+## The GUI questions
+
+- **GQ1, the solver/replay boundary.** Solver output is demoted to a
+  stored witness that selects the branch; the kernel certifies. The
+  mechanism is W1–W9 in `crates/editor-core/README.md`.
+- **GQ2, partial builds.** Evaluation returns a per-node result DAG; a
+  failure poisons only its descendants and independent subgraphs
+  complete (`editor_core::eval`, `NodeResult::{Ok, Failed, Poisoned}`).
+  Progress reporting and in-op yield points are absent; v1 shows a busy
+  indicator over the shipped `CancelToken`.
+- **GQ3, persistence.** Every `DocEdit` is persisted: the on-disk form
+  is a snapshot plus an edit log, verified to replay through `apply`
+  on save and replayed on load. The format carries no schema version
+  before release; a file a build cannot read refuses typed with the
+  regenerate recourse.
+- **GQ4, document scope.** One document is one part's recipe, which
+  may evaluate to several bodies; references are document-local; an
+  assembly is a recipe DAG of the same formalism whose cross-document
+  references are a wrapper over the local name with a content pin
+  (`crates/editor-core/ASSEMBLY.md`).
+- **GQ5, typed quantities.** The expression sublanguage carries typed
+  quantities: `Dimension = Length | Angle | Count | Scalar`, every
+  constructor dimension-checked, dimension-changing products refused,
+  canonical values in metres and radians underneath, display units
+  stored as presentation metadata and rendered by the panels.
+- **GQ7, selection mechanics.** v1 is single-select; selection does
+  not participate in document history. Pick priority is proximity in
+  the picture, scoped to the body under the cursor: the ray picks a
+  face first, and an edge of that face's own body within
+  `EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it; elsewhere
+  the face wins and off the body nothing wins. A tool narrows the
+  kinds it accepts through `PickKinds`. Multi-select UX and the filter
+  vocabulary wait on sketcher and tree design; filters, heterogeneous
+  sets and vanishing-entity semantics are `docs/SELECT-DESIGN.md`'s.
+
+## Toolkit and CI posture (GQ6)
+
+**Toolkit: egui/eframe, with iced as the named fallback.** egui tracks
+current wgpu, has the docking chrome a tree + viewport + property
+panel needs, and has a production existence proof of this exact shape
+(rerun). G1's architecture lives in `editor-core`, below any toolkit,
+so the fallback costs only the interaction layer. Slint (GPL-only
+OSI branch) and GPUI (unmaintained standalone) are out; bevy is
+demoted. The conditions that would send v1 to iced, recorded so the
+switch is a judgement and not a mood: the immediate-mode loop needing
+ad-hoc frame-to-frame state to keep `Doc` authoritative; an egui MSRV
+bump forcing a compiler move the bit-identity gate is not ready for;
+chronic wgpu or paint-callback migration cost. None is met.
+
+**Viewport, picking, docking.** The viewport is a thin custom wgpu
+pass under eframe's wgpu renderer (`src/gpu.rs`). Picking is our own
+deterministic `Bvh::ray` query, authoritative, with the GPU id-buffer
+pass advisory. Docking is `egui_tiles`, a `Tree<Pane>` value the app
+owns. All of it sits behind the non-default `app` feature; without it
+the crate is renderer-free and headless-tested.
+
+**wasm.** The whole kernel plus `editor-core` compiles to
+`wasm32-unknown-unknown`, `--features interval` included, and CI
+re-takes that reading on every code-tier pull request with one
+`cargo check` step for the interval build only; the default-features
+half rides on it because `scripts/check-interval-cfg-additive.py`
+keeps the interval build a syntactic superset of the library sources.
+The guard establishes that the crates compile, not that they link or
+run. `pncad` and this crate additionally need `getrandom`'s wasm
+backend named in both halves: the `wasm_js` feature (the stanza in
+`Cargo.toml`) and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`;
+setting only the flag fails the build, which is why the feature is
+declared here so the flag is all a builder has to remember
+(`local-scripts/serve-wasm.sh`). The browser lane itself is deferred.
+
+## Banked post-v1
+
+GUI-5, the threaded web lane, and GUI-6, the history graph: a
+branch-picker UI and a separable history sidecar over the tree-shaped
+undo `src/history.rs` already keeps (an edit after undo mints a
+sibling; nothing is destroyed). Both are in `docs/LONGTERM-IDEAS.md`'s
+GUI section until dispatched.

@@ -1124,7 +1124,7 @@ jobs:
           exit $status
 
   # THE PER-FILE TEST GATE'S DAILY RE-TAKE (S-TCOST lever 3;
-  # docs/TCOST-1-SPEC.md). A suite carrying a `test_utils::gated_to!` marker
+  # work/tcost/TCOST-1.md). A suite carrying a `test_utils::gated_to!` marker
   # names the source paths it is specific to, and ci.yml's run legs skip it
   # when none of them — nor the suite's own file — is in the pull request's
   # diff. This job is the other half of that bargain: it runs the WHOLE gated

@@ -400,10 +400,10 @@ fn r1_generic_poses_agree_with_the_geometric_oracle() {
     // This sweep is specific to `crates/topo/src/boolean/solid_contain.rs`
     // — `line_torus_roots` and the `cbrt` chain it calls live there —
     // and to this file. It runs UNGATED on every leg: the per-file gate
-    // that would restrict it to diffs touching those paths is specified
-    // in `docs/TCOST-1-SPEC.md` and its marker is not in the tree yet,
-    // so the shipped count is the smoke level that costs a full matrix
-    // acceptably rather than the depth a gated run would buy.
+    // that restricts a suite to diffs touching its named paths
+    // (`test_utils::gated_to!`, `work/tcost/TCOST-1.md`) is not applied
+    // to this module, so the shipped count is the smoke level that costs
+    // a full matrix acceptably rather than the depth a gated run would buy.
     let per_shape = fuzz::scaled(4);
     let mut tally = Tally::new();
     for (rr, r) in SHAPES {

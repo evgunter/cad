@@ -12,8 +12,13 @@ client over the API), functional style, fail-loud.
   main); each program is `work/<program>/` with `program.md`,
   `plan.md`, `log.md` and one file per open item. `work/README.md` is
   the contract; orchestrators read it in full. A program is closed when
-  its `docs/<NAME>-EXIT-WALK.md` is ratified; that walk is then its
-  done-state of record.
+  its `docs/<NAME>-EXIT-WALK.md` is ratified; the walk is then
+  deleted with the program's tracker directory and recorded in
+  `docs/DOC-LEDGER.md`, which is its done-state of record (the walk
+  stays recoverable at the SHA the ledger names).
+- Design docs for finished work live as README pages beside the code
+  they govern (`crates/<crate>/README.md`), present tense only, with
+  their clause ids kept; DESIGN.md's companion table lists them.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
 

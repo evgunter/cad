@@ -5,7 +5,7 @@
 //! adopt → fix → invert).
 //!
 //! Probe 1 attacked the ratified fork itself: the ruling
-//! (`docs/MATE-4B-CROSSING-DESIGN.md`) legalizes an IN-CONTACT-PLANE
+//! (`crates/topo/README.md`) legalizes an IN-CONTACT-PLANE
 //! crossing and calls a TRANSVERSE crossing interpenetration, and the
 //! spec's rung backs "a crossing of two coplanar boundary edges" —
 //! but at the frozen head nothing checked that the crossing edges lie

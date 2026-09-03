@@ -90,7 +90,7 @@ the first migrated verb whose consumer needs it.
    (V2), the per-verb correspondence module shape in `editor-core`
    (V3), migrated for `Fillet`/`Chamfer` first (V4), with VS-Q5
    (the `RimSide`/`RimSupport` twin's disposition) decided in the
-   unit spec. Spec cut at dispatch (`docs/SEAT-4-SPEC.md`); the
+   unit spec. Spec cut at dispatch (deleted at merge, per `docs/DOC-LEDGER.md`); the
    cost of the addition is measured against the `Node::Chamfer`
    baseline and recorded (design §6).
 

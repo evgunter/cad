@@ -1094,7 +1094,7 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 ///    radii at ρ = 1 − 5 = −4, so the requested circle would contain
 ///    each lobe whole and the corner with it. No fillet of this corner
 ///    exists at this radius and none ever will
-///    (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so the refusal is the
+///    (`crates/profile/README.md`), so the refusal is the
 ///    enclosing one and it names the lobe radius as the bound. The
 ///    §3c CARRIER-KIND payload this row used to pin — an arc side's
 ///    arc-length setback and ANGULAR margin — has its own home at

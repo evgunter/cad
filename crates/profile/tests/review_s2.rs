@@ -49,7 +49,7 @@
 //! `PathError::FilletEnclosesLegCarrier`, on every band.
 //!
 //! **That boundary is permanent, not a finding.**
-//! `docs/ENCLOSING-TANGENCY-DESIGN.md` rules the class out for good — an
+//! `crates/profile/README.md` rules the class out for good — an
 //! arc whose circle contains both leg carriers contains the corner too,
 //! so it cannot touch the corner it would round, and a construction that
 //! cannot touch the corner is not a fillet OF it. No door emits the
@@ -562,7 +562,7 @@ struct CornerCounts {
 
 /// **The ruling, asserted — the one home of that check.** For a corner
 /// whose geometry demands the enclosing (ρ < 0) tangency, no door emits
-/// one (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so whatever a door built
+/// one (`crates/profile/README.md`), so whatever a door built
 /// must swallow NEITHER carrier: |P − O| + R stays above r. Called from
 /// `check_corner`'s enclosing arm and from `report_moved_refuse_pin`,
 /// which is what both enclosing pins call; the three copies of this
@@ -578,7 +578,7 @@ fn assert_swallows_nothing(
     assert!(
         d + radius > r - 1e-9,
         "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the class \
-         docs/ENCLOSING-TANGENCY-DESIGN.md rules permanently out — {}",
+         crates/profile/README.md rules permanently out — {}",
         d + radius,
         ctx()
     );
@@ -615,7 +615,7 @@ fn report_moved_refuse_pin(
     }
     panic!(
         "{}: {what} now BUILDS (a non-swallowing fillet, verified above) where \
-         docs/ENCLOSING-TANGENCY-DESIGN.md rules that a radius demanding the enclosing \
+         crates/profile/README.md rules that a radius demanding the enclosing \
          class must refuse typed; this is a violation of that ruling, not a boundary to \
          re-pin",
         ctx()
@@ -1037,7 +1037,7 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// other crossing inside its windows. So the ladder never had a reason
 /// to emit an enclosing tangency, and now it has no route to one either:
 /// the class is **ruled out permanently** by
-/// `docs/ENCLOSING-TANGENCY-DESIGN.md`. The blend circle contains both
+/// `crates/profile/README.md`. The blend circle contains both
 /// leg carriers, hence the corner, so the arc cannot touch the corner it
 /// would round — which makes it no fillet OF that corner at all — and a
 /// radius demanding it is answered by the typed
@@ -1172,7 +1172,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             }
             Err(other) => panic!(
                 "{name}: a radius demanding the enclosing class must refuse with \
-                 FilletEnclosesLegCarrier (docs/ENCLOSING-TANGENCY-DESIGN.md), not with \
+                 FilletEnclosesLegCarrier (crates/profile/README.md), not with \
                  {other:?}"
             ),
             Ok(lp) => {
@@ -1237,7 +1237,7 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
 /// named for. The sugar refuses all three as the enclosing class it is —
 /// the ρ < 0 leg is the one the refusal names, and the partner never has
 /// to be examined, because a swallowed carrier is already a corner no
-/// fillet of that radius can touch (`docs/ENCLOSING-TANGENCY-DESIGN.md`).
+/// fillet of that radius can touch (`crates/profile/README.md`).
 /// Before that ruling these rows came back as `OffsetCarriersDisjoint`,
 /// the same inequality read from the offset side — true, and about the
 /// offset carriers rather than about the fillet the author asked for.
@@ -1549,7 +1549,7 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 /// the geometry still DEMANDS the enclosing tangency (both rho < 0,
 /// re-derived), and **the door refuses with
 /// `PathError::FilletEnclosesLegCarrier`**, on every band. That is the
-/// ruling of `docs/ENCLOSING-TANGENCY-DESIGN.md`, not a finding about
+/// ruling of `crates/profile/README.md`, not a finding about
 /// today's ladder: a blend circle that swallows both leg carriers
 /// swallows the corner, so it can never touch the corner it would round.
 /// The `Ok` arm is unreachable under that ruling; it checks the
@@ -1636,7 +1636,7 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         }
         Err(other) => panic!(
             "the mined enclosing corner must refuse with FilletEnclosesLegCarrier \
-             (docs/ENCLOSING-TANGENCY-DESIGN.md), not with {other:?}"
+             (crates/profile/README.md), not with {other:?}"
         ),
         Ok(lp) => {
             let ctx = || "enclosing_fillet_swallows_both_leg_carriers".to_string();

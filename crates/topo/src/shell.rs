@@ -4,7 +4,7 @@
 //! offset inward by the wall thickness, and the hollow is either kept
 //! closed (a cavity) or opened by designating faces whose material is
 //! removed, leaving annular rims where the wall's thickness shows
-//! (`docs/OFFSET-DESIGN.md`'s vocabulary, unchanged).
+//! (`crates/geom-brep/README.md`'s vocabulary, unchanged).
 //!
 //! # The sealed arm, and what it deliberately does not run
 //!

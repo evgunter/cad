@@ -175,7 +175,7 @@ rfd = { version = "0.17.2", default-features = false, features = [
 # (ASM-1 spec D-1). On wasm32 that crate refuses to build until a
 # backend is named, and naming one takes BOTH halves — this feature
 # and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`. Setting only
-# the flag is the error `docs/GQ6-RESURVEY.md` §4 records; this stanza
+# the flag is the error `crates/viewer/README.md` (toolkit and CI posture) records; this stanza
 # is the other half, so the flag is all a builder has to remember.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { workspace = true, features = ["wasm_js"] }

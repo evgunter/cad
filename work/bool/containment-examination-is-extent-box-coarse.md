@@ -43,7 +43,7 @@ Reproduced adversarially, with no placeholder geometry anywhere (plain `Plane` s
 
 **The extent-box test is too coarse.** It compares axis-aligned extent boxes, and a part sitting in a concavity has its box inside the container's box while sharing no material.
 
-`ASSEMBLY-DESIGN.md:199` scopes C6's recorded gate-skips to **interference fits** — deliberately overlapping shells. **The L-bracket has no overlap at all.** A gate-skip would suppress the refusal rather than fix it, and suppressing it re-creates exactly the class #737 removed: a declaration that turns a check off.
+The assembly design (`crates/editor-core/ASSEMBLY.md`, C6) scopes C6's recorded gate-skips to **interference fits** — deliberately overlapping shells. **The L-bracket has no overlap at all.** A gate-skip would suppress the refusal rather than fix it, and suppressing it re-creates exactly the class #737 removed: a declaration that turns a check off.
 
 So the fix is a containment test that can separate "inside the extent box, outside the material" from "inside the material" — kernel geometry, not a cleanup.
 

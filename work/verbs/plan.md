@@ -211,10 +211,9 @@ opened by a MEASUREMENT on a shipped verb, not by a scan row.
     both of the shell defects below.
 15. **VERBS-SHELLFIX** — #1082 (`shell_open`'s rim, PR-1 #1099) and
     #1081 (the oblique junction): **PR-2a #1126** landed the planar half
-    (`topo::offset_planes_together`), **PR-2b is IN FLIGHT** for the
-    curved corners via the C5 table (#1057). Spec:
-    `docs/VERBS-SHELLFIX-SPEC.md` — the one VERBS spec sweep 3 kept,
-    because it still binds.
+    (`topo::offset_planes_together`), **PR-2b #1180** the curved
+    corners via the C5 table (#1057). Spec deleted at merge
+    (`docs/DOC-LEDGER.md`).
 16. **VERBS-LILYWELD** — PR-1 #1109 re-authored the flower/arch junction
     circle-coincident on Ev's content call; PR-2 #1127 closed as a
     MEASUREMENT that dissolved its own premise (the plan note below).
@@ -230,7 +229,7 @@ wall-clearance window), #1056 (shell of an already-hollow body), #1058
 ## Design conversations (Ev-paced; open as info firms up)
 
 - **Q8 offset/shell elaboration** — RATIFIED (#907,
-  `docs/OFFSET-DESIGN.md`); Wave 3 executed it.
+  `crates/geom-brep/README.md`); Wave 3 executed it.
 - **Draft** — RATIFIED (#908, `docs/DRAFT-DESIGN.md`): plane-wall v1,
   the cylinder arm its own later plane×cone fitted-SSI lane. The VERB
   is unscheduled — no unit cut.

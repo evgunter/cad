@@ -16,10 +16,10 @@ Filed at MATE-7a's adjudication (PR #1477) as the scheduled home for its disclos
 
 **The blocker.** `geom_brep::circle_residual_harmonics` (implicit.rs) carries Plane/Sphere/Cylinder arms only. The boolean reduction's circle rung takes the frontier door on `circle_residual_extremes = None` (`reduce.rs` ~1172–1176) BEFORE the C8 declared-cover rung is consulted — and every edge of a torus body is a circle, so no torus×anything operation can complete regardless of declarations. MATE-7a's gate admission, carrier rung and rim routing are all landed and pinned; two suite rows hold this exact boundary.
 
-**Whose ground.** `geom-brep`'s certified enclosure family is VERBS' germ ground (MATE-7a was fenced out of it, correctly — the enclosure is real certified-numerics work: the residual of a circle against a torus implicit, harmonically bounded). `docs/VERBS-GERMARMS-SPEC.md` item 4 already maps the adjacent territory. Routed to VERBS by this filing; S-MATE does not block on it (issue 968 stays open on the kissing arm independently).
+**Whose ground.** `geom-brep`'s certified enclosure family is VERBS' germ ground (MATE-7a was fenced out of it, correctly — the enclosure is real certified-numerics work: the residual of a circle against a torus implicit, harmonically bounded). the GERMARMS spec's item 4 (deleted at merge, recoverable per `docs/DOC-LEDGER.md`) already maps the adjacent territory. Routed to VERBS by this filing; S-MATE does not block on it (issue 968 stays open on the kissing arm independently).
 
 **What completing it buys**: with this arm plus the operand-box tightening (see the sibling issue filed alongside), the declared-Rest torus lane completes end-to-end — MATE-7a's report puts it one function away.
 
 ## Home
 
-`work/verbs/` — the issue routes itself to VERBS explicitly; `geom-brep`'s certified enclosure family is VERBS' germ ground and `docs/VERBS-GERMARMS-SPEC.md` item 4 maps the adjacent territory.
+`work/verbs/` — the issue routes itself to VERBS explicitly; `geom-brep`'s certified enclosure family is VERBS' germ ground and the GERMARMS spec's item 4 (deleted at merge, recoverable per `docs/DOC-LEDGER.md`) maps the adjacent territory.
