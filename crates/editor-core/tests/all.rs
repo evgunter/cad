@@ -126,6 +126,8 @@ mod m10_3_driver_k_probe_interval;
 mod m10_3_r1_probes_interval;
 #[path = "m10_3_r2_probes_interval.rs"]
 mod m10_3_r2_probes_interval;
+#[path = "m10_5_clearance_interval.rs"]
+mod m10_5_clearance_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]

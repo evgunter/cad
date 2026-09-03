@@ -161,7 +161,10 @@ fn separation_lo_is_tight_to_a_few_ulps() {
     let b = boxed([2.0, 2.0, 2.0], [3.0, 3.0, 3.0]);
     let truth = 3.0f64.sqrt();
     let lo = a.separation_lo(&b);
-    assert!(lo <= truth, "the bound never exceeds the truth: {lo} vs {truth}");
+    assert!(
+        lo <= truth,
+        "the bound never exceeds the truth: {lo} vs {truth}"
+    );
     assert!(
         truth - lo <= 8.0 * f64::EPSILON,
         "the bound is tight, not merely sound: {lo} vs {truth}"

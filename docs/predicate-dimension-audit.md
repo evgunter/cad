@@ -722,6 +722,29 @@ Flagged, NOT fixed here (dispositions):
   band arm is `Unevaluated`, which reports the indeterminacy rather
   than picking a side. Carried as `decide_flagged(.., "F16")`.
 
+- **F17** (added by M10-5, the clearance engine)
+  `editor-core/src/clearance.rs` `clearance_margin` and
+  `self_intersection_gap`: the two compares the E7 inner subdivision
+  makes. Both comparands are `d − c`, the interval enclosure of the
+  Euclidean separation between two geometry-domain cells minus the
+  requested clearance, in METRES against the linear band; the second is
+  the same shape at `c = 0`. Honest metres on both sides, so **neither
+  site is flagged** and neither takes `decide_flagged` — this row is
+  the disposition, and `LEDGER_FLAGGED_SITES` does not move. It is
+  written here rather than left implicit because the two sites are new
+  names in the K roster and a reader asking "what dimension is a
+  clearance margin" should find the answer in the ledger.
+
+  The two names exist rather than one because they read a definite
+  `Sign::Zero` differently, and each reading is a claim about a
+  different question: under `clearance_margin` the bound is non-strict
+  (`min-clearance ≥ c`, the assertion lane's convention) so a
+  separation equal to `c` at the run's tolerance DISCHARGES, while
+  under `self_intersection_gap` E7 asks for a strictly positive
+  distance between non-adjacent faces, so a coincidence at the run's
+  tolerance is the violation the check exists to find. One name with
+  two readings would put two populations under one K row.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

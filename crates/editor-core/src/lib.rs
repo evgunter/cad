@@ -20,11 +20,6 @@ pub mod analysis;
 pub mod appearance;
 pub mod assembly;
 pub mod checks;
-/// The E7 clearance engine — the trichotomy inside one certified leaf,
-/// and the same engine at `c = 0⁺` as the parametric self-intersection
-/// check. Gated on `interval` for the driver's own reason: the inner
-/// subdivision excludes by interval enclosure, and without that scalar
-/// there is nothing to exclude WITH.
 #[cfg(feature = "interval")]
 pub mod clearance;
 pub mod diff;

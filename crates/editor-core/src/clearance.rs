@@ -2,7 +2,11 @@
 //! of the E6 driver, and the same engine run at `c = 0⁺` as the global
 //! parametric self-intersection check.
 //!
-//! Two nested subdivisions. The OUTER one is [`crate::drive`]'s: it
+//! Gated on `interval` for the driver's own reason: the inner
+//! subdivision excludes by interval enclosure, and without that scalar
+//! there is nothing to exclude WITH.
+//!
+//! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness
 //! build's. This module never re-litigates that certification and never
 //! touches the mass accounting except to consume it. The INNER one is
@@ -82,7 +86,7 @@ use crate::analysis::{BoxAxis, ParamBox};
 use crate::doc::{Doc, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
 use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeResult, evaluate};
-use crate::names::{Entry, EntityKey, StableName};
+use crate::names::{EntityKey, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 
@@ -695,7 +699,9 @@ impl ClearanceReport {
                 let _ = writeln!(s, "verdict refused {}", r.name());
             }
         }
-        let render = |w: Option<f64>| w.map_or_else(|| "none".to_owned(), |x| format!("{:016x}", x.to_bits()));
+        let render = |w: Option<f64>| {
+            w.map_or_else(|| "none".to_owned(), |x| format!("{:016x}", x.to_bits()))
+        };
         let _ = writeln!(
             s,
             "widths widest={} narrowest={} deepest={}",
@@ -924,7 +930,20 @@ fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
 /// decide adjacency.
 #[derive(Debug, Clone)]
 struct Window {
+    /// Which node's value the face was read from, and which of its
+    /// bodies — the address the `f64` witness rebuild resolves the same
+    /// face at. Two nodes of one recipe can carry the SAME arena key
+    /// (a rigid transform preserves them), so a rebuild that searched
+    /// for a key rather than resolving it at its own node would
+    /// silently measure the wrong body's face.
+    at: RecipeNodeId,
+    body: u32,
     face: FaceKey,
+    /// Which world axis the planar re-chart crossed the normal with
+    /// ([`in_plane_axis`]), so the `f64` witness rebuild can name the
+    /// same chart. `None` for every non-planar carrier, which keeps its
+    /// stored chart.
+    chart_axis: Option<usize>,
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
@@ -973,7 +992,9 @@ fn windows_of(ev: &Evaluation<Interval>, sel: &Selection) -> Result<Vec<Window>,
             out
         }
     };
-    keys.into_iter().map(|k| window_of(body, k)).collect()
+    keys.into_iter()
+        .map(|k| window_of(body, sel.at, sel.body, k))
+        .collect()
 }
 
 /// The canonical full turn, one ulp wider at each end so the rounding
@@ -1025,7 +1046,12 @@ fn full_latitude() -> (f64, f64) {
 ///   free-form patch's knot domain is not a certified superset of a
 ///   TRIMMED region without the boundary in chart coordinates, and
 ///   inventing one is exactly the downgrade E7 forbids.
-fn window_of(body: &Body<Interval>, face: FaceKey) -> Result<Window, ClearanceRefusal> {
+fn window_of(
+    body: &Body<Interval>,
+    at: RecipeNodeId,
+    index: u32,
+    face: FaceKey,
+) -> Result<Window, ClearanceRefusal> {
     let unsupported = |carrier| Err(ClearanceRefusal::Unsupported { carrier, face });
     let Some(f) = body.get_face(face) else {
         return unsupported("an unreadable face");
@@ -1045,7 +1071,25 @@ fn window_of(body: &Body<Interval>, face: FaceKey) -> Result<Window, ClearanceRe
         let d = (extent - origin).dot(dir);
         (d.lo(), d.hi())
     };
-    let (u, v) = match surface {
+    let mut chart_axis = None;
+    let charted = match surface {
+        Surface::Plane { origin, normal, .. } => {
+            let axis = in_plane_axis(*normal);
+            let Some(u_ref) = chart_frame(*normal, axis) else {
+                return unsupported("a plane whose interval normal admits no certified frame");
+            };
+            chart_axis = Some(axis);
+            Surface::Plane {
+                origin: *origin,
+                normal: *normal,
+                u_ref,
+            }
+        }
+        Surface::Nurbs(_) => return unsupported("a free-form face"),
+        Surface::Approx(_) => return unsupported("an approximated face"),
+        other => other.clone(),
+    };
+    let (u, v) = match &charted {
         Surface::Plane {
             origin,
             normal,
@@ -1058,19 +1102,108 @@ fn window_of(body: &Body<Interval>, face: FaceKey) -> Result<Window, ClearanceRe
         }
         Surface::Sphere { .. } => (full_turn(), full_latitude()),
         Surface::Torus { .. } => (full_turn(), full_turn()),
-        Surface::Nurbs(_) => return unsupported("a free-form face"),
-        Surface::Approx(_) => return unsupported("an approximated face"),
+        Surface::Nurbs(_) | Surface::Approx(_) => return unsupported("a free-form face"),
     };
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
         return unsupported("a face whose carrier window is not a finite rectangle");
     }
+    if !refines(&charted, u, v) {
+        return unsupported(
+            "a face whose interval chart does not refine — halving its window leaves the \
+             enclosure where it was, so no subdivision can decide anything about it",
+        );
+    }
     Ok(Window {
+        at,
+        body: index,
         face,
-        surface: surface.clone(),
+        chart_axis,
+        surface: charted,
         u,
         v,
         vertices,
     })
+}
+
+/// **A certified in-plane direction, minted here rather than read off
+/// the stored chart.**
+///
+/// The stored `u_ref` of a plane comes from the branchless orthonormal
+/// basis, whose first step is `copysign(1, n.z)` — and at the interval
+/// scalar a normal with `n.z` enclosing zero (every vertical wall of an
+/// extruded prism) takes that function's zero-containing arm, so
+/// `u_ref` comes back as a SIGN-HULLED enclosure. A chart on such a
+/// frame does not refine: halving its `u` leaves the evaluated
+/// enclosure exactly where it was, because the frame vector itself
+/// spans both signs. Filed as
+/// `work/issues/interval-orthonormal-basis-sign-hull.md`.
+///
+/// Re-charting is sound and is not a repair of the stored surface: a
+/// plane's LOCUS does not depend on which orthonormal in-plane frame
+/// names its points, and this module's window and enclosure are both
+/// computed in whichever frame it returns. The stored surface is not
+/// touched.
+///
+/// The axis is chosen by the widest cross product under `total_cmp` —
+/// a chart choice, never a semantic one, in the same spirit as the
+/// spatial index's split-axis rule: every choice yields a sound
+/// superset, and the choice is a function of the enclosure's own bits,
+/// so it is deterministic (D9). `None` when no candidate normalizes to
+/// a certified direction.
+fn in_plane_axis<T: Bounds>(normal: Vec3<T>) -> usize {
+    let mut best = (f64::NEG_INFINITY, 0usize);
+    for k in 0..3 {
+        let lo = normal.cross(unit_axis::<T>(k)).norm().lo();
+        if lo.total_cmp(&best.0) == core::cmp::Ordering::Greater {
+            best = (lo, k);
+        }
+    }
+    best.1
+}
+
+/// The `k`-th world axis at the caller's scalar.
+///
+/// The bound is SOLE `Bounds` at both callers (`Bounds: Real` carries
+/// the arithmetic), which is the form the bounds gate is written for.
+fn unit_axis<T: Real>(k: usize) -> Vec3<T> {
+    let (zero, one) = (T::zero(), T::one());
+    match k {
+        0 => Vec3::new(one, zero, zero),
+        1 => Vec3::new(zero, one, zero),
+        _ => Vec3::new(zero, zero, one),
+    }
+}
+
+/// The re-chart's `u_ref`: the normal crossed with [`in_plane_axis`]'s
+/// choice, normalized. `None` when that does not come out finite, which
+/// is the honest answer for a normal nothing can frame.
+fn chart_frame<T: Bounds>(normal: Vec3<T>, axis: usize) -> Option<Vec3<T>> {
+    let u = normal.cross(unit_axis::<T>(axis)).normalize();
+    let finite = |x: T| x.lo().is_finite() && x.hi().is_finite();
+    (finite(u.x) && finite(u.y) && finite(u.z)).then_some(u)
+}
+
+/// Whether halving the window on either axis actually narrows the
+/// carrier's enclosure — the door that turns a chart the subdivision
+/// could not refine into a typed refusal rather than a budget burn.
+///
+/// A single test on the widest halving is enough: if neither half of
+/// either axis moves a bound, no descendant cell can either, because
+/// interval enclosures shrink monotonically under sub-boxes.
+fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
+    let whole = cell_box(surface, u, v);
+    let mid = |(lo, hi): (f64, f64)| 0.5 * (lo + hi);
+    let half_u = cell_box(surface, (u.0, mid(u)), v);
+    let half_v = cell_box(surface, u, (v.0, mid(v)));
+    let narrower = |b: &Aabb| {
+        b.max_x < whole.max_x
+            || b.max_y < whole.max_y
+            || b.max_z < whole.max_z
+            || b.min_x > whole.min_x
+            || b.min_y > whole.min_y
+            || b.min_z > whole.min_z
+    };
+    narrower(&half_u) && narrower(&half_v)
 }
 
 /// The face's boundary enclosure and its vertices.
@@ -1111,7 +1244,11 @@ fn boundary_of(body: &Body<Interval>, face: FaceKey) -> Option<(Aabb, BTreeSet<V
         // The whole parameter span as ONE interval: the carrier's
         // interval evaluation over it encloses the entire arc, which is
         // what makes a curved boundary bound its own face's window.
-        pts.push(curve.carrier().eval(Interval::from_bounds(t0.lo(), t1.hi())));
+        pts.push(
+            curve
+                .carrier()
+                .eval(Interval::from_bounds(t0.lo(), t1.hi())),
+        );
     }
     Aabb::from_points(pts).map(|b| (b, vertices))
 }
@@ -1152,7 +1289,10 @@ struct CellPair {
 
 /// One cell's interval enclosure on its carrier.
 fn enclosure(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> Point3<Interval> {
-    surface.eval(Interval::from_bounds(u.0, u.1), Interval::from_bounds(v.0, v.1))
+    surface.eval(
+        Interval::from_bounds(u.0, u.1),
+        Interval::from_bounds(v.0, v.1),
+    )
 }
 
 /// The enclosure of a cell as a box — one interval surface evaluation,
@@ -1505,17 +1645,27 @@ fn verify_witness(
         ..lane_opts()
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
-    let surface_at = |face: FaceKey| -> Option<Surface<f64>> {
-        ev.order.iter().find_map(|id| {
-            let NodeResult::Ok(value) = ev.nodes.get(id)? else {
-                return None;
-            };
-            let body = crate::names::interrogate::output_body(&value.payload, 0).ok()?;
-            let f = body.get_face(face)?;
-            body.get_surface(f.surface).cloned()
-        })
+    // The SAME chart the interval pass subdivided in, rebuilt at `f64`
+    // from the axis that pass chose: a witness's `(u, v)` are
+    // coordinates in that chart, and reading them in the stored one
+    // would name a different point.
+    let surface_at = |w: &Window| -> Option<Surface<f64>> {
+        let NodeResult::Ok(value) = ev.nodes.get(&w.at)? else {
+            return None;
+        };
+        let body = crate::names::interrogate::output_body(&value.payload, w.body).ok()?;
+        let f = body.get_face(w.face)?;
+        let stored = body.get_surface(f.surface)?;
+        match (stored, w.chart_axis) {
+            (Surface::Plane { origin, normal, .. }, Some(axis)) => Some(Surface::Plane {
+                origin: *origin,
+                normal: *normal,
+                u_ref: chart_frame(*normal, axis)?,
+            }),
+            _ => Some(stored.clone()),
+        }
     };
-    let (Some(sa), Some(sb)) = (surface_at(x.face), surface_at(y.face)) else {
+    let (Some(sa), Some(sb)) = (surface_at(x), surface_at(y)) else {
         return Err(
             "the f64 rebuild does not carry both faces of the violating pair — the leaf's \
              key identity did not survive the replay"
