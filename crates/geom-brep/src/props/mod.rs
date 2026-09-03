@@ -412,7 +412,15 @@ pub enum PropsError {
     /// floor sits above the target" outcome. The recourse is the ε
     /// knob: the target scales with the run's ε.
     QuadratureBudget {
-        /// The achieved enclosure width, as a length (m).
+        /// The enclosure width the schedule reached, as a length (m):
+        /// the last round's own when the schedule ran out, or — when a
+        /// round proved that the last round could not certify either
+        /// and the loop refused without running it — the lower bound
+        /// every remaining round's width was proven to exceed, which
+        /// is the last round's width to within the midpoint sum's own
+        /// rounding width ([`quad`]'s `last_round_width_lo` says what
+        /// the bound omits and why it is a bound). Either way a width
+        /// that really missed: strictly above `target_len`.
         width_len: f64,
         /// The convergence target, as a length (m).
         target_len: f64,

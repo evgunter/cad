@@ -489,7 +489,18 @@ fn classify_len<T: Decide>(
 /// and re-ratified as one — the defect fixed here is the *unguarded
 /// division*, and only that.
 fn mean_boundary_displacement(flux: RingInterval, area: RingInterval) -> Result<f64, PropsError> {
-    let width = flux.width();
+    displacement_len(flux.width(), area)
+}
+
+/// [`mean_boundary_displacement`] on a flux WIDTH rather than a flux
+/// enclosure — the one meter, so that a width a round has not yet
+/// produced ([`last_round_width_lo`]) is metered exactly as the width
+/// it will produce.
+///
+/// # Errors
+///
+/// As [`mean_boundary_displacement`].
+fn displacement_len(width: f64, area: RingInterval) -> Result<f64, PropsError> {
     // Bit-for-bit the pre-guard expression: `(lo + hi)·0.5`, times 3.
     let denom = 3.0 * ((area.lo() + area.hi()) * 0.5);
     // A poisoned enclosure reads as NaN at both endpoints, so it lands
@@ -816,6 +827,9 @@ const QUAD2_INIT_PIECES: usize = 8;
 /// per axis per round: ≤ `8·2⁶ = 512` per axis). Fewer rounds than the
 /// 1-D lane because cells grow quadratically; the rule's error is
 /// O(h²), so real patches converge in the first rounds or not at all.
+/// A face the last round provably cannot certify is refused after
+/// round 0 ([`last_round_width_lo`]), so the count bounds the rounds
+/// a face PAYS for, not the rounds every refusal runs.
 const QUAD2_MAX_ROUNDS: usize = 6;
 /// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
 /// (fixed, D9 — never data-dependent). `QUAD2_INIT_PIECES` is a
@@ -2571,6 +2585,114 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     cuts
 }
 
+/// `(Σ h³, Σ h)` over the cells of each hull block in one direction,
+/// for one cut list — the separable factors of
+/// [`last_round_width_lo`]. Cells are assigned to blocks exactly as
+/// the round loops assign them (the block edges are cut points, so
+/// the cell that starts past a block's top belongs to the next one).
+fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
+    let nb = edges.len() - 1;
+    let mut sums = vec![(0.0_f64, 0.0_f64); nb];
+    let mut b = 0usize;
+    for i in 0..cuts.len() - 1 {
+        let (lo, hi) = (cuts[i], cuts[i + 1]);
+        while b + 1 < nb && lo >= edges[b + 1] {
+            b += 1;
+        }
+        let h = hi - lo;
+        sums[b].0 += h * h * h;
+        sums[b].1 += h;
+    }
+    sums
+}
+
+/// **A lower bound on the flux width the schedule's LAST round
+/// produces — computable before any round runs.** Both patch lanes
+/// use it to refuse at the budget without paying for the schedule.
+///
+/// INVARIANT: every round's flux enclosure is a ring sum of one
+/// midpoint term and one Taylor-remainder term per cell (two under
+/// the midpoint arm, one under the exact-v arm), widened by the
+/// boundary pad. Three facts bound the last round's width from
+/// below by quantities that are fixed before the loop:
+///
+/// 1. **Outward rounding.** A ring sum's width is at least the sum of
+///    its terms' widths, so the last round's width is at least the
+///    sum of its remainder terms' widths, plus twice the pad.
+/// 2. **A remainder term `hull · X`, `X = h_u³h_v/24 > 0`, has width
+///    at least `width(hull) · X_lo`** — for a hull of either sign or
+///    straddling zero (the product hull's width is `width(hull)`
+///    times an endpoint of `X`, and `X_lo` is the smaller). `X_lo` is
+///    within 16 ulps (relative) of the exact cell volume: it is five
+///    ring operations on the cut points' differences, each widening
+///    by at most one ulp per side.
+/// 3. **Separability.** The cells inside one hull block form a
+///    tensor grid, and the hull is the block's, so the block's
+///    remainder width is `width(hull_uu)·Σh_u³·Σh_v/24 +
+///    width(hull_vv)·Σh_u·Σh_v³/24` with the sums over the block's
+///    own cells. The cut list of any round is a function of the
+///    schedule ([`knot_aligned_cuts`]) — so the last round's sums are
+///    computable now, without evaluating the integrand once.
+///
+/// The exact-arithmetic total is scaled by `1 − 2⁻³⁰`, which absorbs
+/// fact 2's 16 ulps, the `width()` reads' one ulp each and the f64
+/// sums' own rounding (at most a few thousand operations, each within
+/// half an ulp) with sixteen orders to spare. Twice the pad is then
+/// exact. What the bound OMITS is the midpoint sum's width — the
+/// accumulated rounding of the cell evaluations, which grows with the
+/// cell count rather than shrinking — so the bound is the last
+/// round's width to within that term, and never above it. (The
+/// residual roundings the bound does not fold — the pad fold's one
+/// rounding and the width read's, both at the FLUX's magnitude
+/// rather than the width's — are below `2⁻⁵²·|flux|`; the exit that
+/// consumes this bound requires it to clear the target by the band's
+/// escalation threshold, `K·ε` of displacement, i.e. `3·area·K·ε` of
+/// width, which `2⁻⁵²·|flux| ≤ 2⁻⁵²·|S|·area` reaches only at a
+/// position magnitude `|S| ≥ 3·K·ε·2⁵²` — of order 10⁸ m at
+/// ε = 10⁻⁹ — and even there the consequence is an escalation
+/// reported as a budget refusal, never a lost certification, which
+/// sits a further `2K·ε` away.)
+///
+/// `hulls(bu, bv)` yields a block's `(hull_uu, Some(hull_vv))`, or
+/// `(hull_uu, None)` where the v integral is exact and carries no
+/// v remainder. A poisoned hull yields a NaN bound, which the exit
+/// test reads as "no exit" (a NaN compares false), leaving the
+/// round to raise the poison itself.
+fn last_round_width_lo(
+    cuts: (&[f64], &[f64]),
+    edges: (&[f64], &[f64]),
+    hulls: impl Fn(usize, usize) -> (RingInterval, Option<RingInterval>),
+    pad: f64,
+) -> f64 {
+    let su = block_cell_sums(cuts.0, edges.0);
+    let sv = block_cell_sums(cuts.1, edges.1);
+    let mut total = 0.0_f64;
+    for (bu, (s3u, s1u)) in su.iter().enumerate() {
+        for (bv, (s3v, s1v)) in sv.iter().enumerate() {
+            let (h_uu, h_vv) = hulls(bu, bv);
+            total += h_uu.width() * s3u * s1v / 24.0;
+            if let Some(h_vv) = h_vv {
+                total += h_vv.width() * s1u * s3v / 24.0;
+            }
+        }
+    }
+    total * (1.0 - 2.0_f64.powi(-30)) + 2.0 * pad
+}
+
+/// **The budget exit**: whether a round whose width is `width_len` —
+/// here the last round's lower bound — is classified NEGATIVE by the
+/// convergence predicate's band, i.e. neither certifies nor
+/// escalates. The classifier is monotone in the margin in both
+/// scalar lanes (a thin lift of `target − width` classifies as the
+/// f64 does: negative iff `target − width ≤ −escalate`), so a width
+/// AT LEAST this one classifies negative too — which is what makes a
+/// negative reading of a lower bound a verdict on every round it
+/// bounds. Deterministic in (face, ε, band) alone (D9): the bound is
+/// a function of the schedule and the hull blocks, the band of ε.
+fn last_round_cannot_certify(width_len: f64, target_len: f64, band: Band) -> bool {
+    target_len - width_len <= -band.escalate()
+}
+
 /// **Certified RATIONAL patch contributions** (M8-3) — the same two
 /// numbers [`nurbs_patch_face`] certifies, for a patch whose weights
 /// are not all 1.
@@ -2607,10 +2729,13 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
 /// A rational integrand has **no finite exact quadrature rule** — the
 /// integral-lane's per-span Newton–Cotes shortcut has no rational
 /// counterpart and none is claimed. The honest deliverable is the
-/// composite midpoint enclosure over a FIXED schedule (D9: pieces
+/// composite midpoint enclosure over a FIXED cut schedule (D9: pieces
 /// double per round from [`QUAD2_INIT_PIECES`], at most
-/// [`QUAD2_MAX_ROUNDS`] rounds — never a data-dependent iteration),
-/// with the two 1-D Taylor remainders per cell:
+/// [`QUAD2_RATIONAL_MAX_ROUNDS`] rounds — the cut points are never
+/// data-dependent; which round the loop stops at is decided by the
+/// convergence predicate and by the last-round bound, both functions
+/// of the face, ε and the band alone), with the two 1-D Taylor
+/// remainders per cell:
 ///
 /// ```text
 /// ∫∫_cell f ∈ A_cell·f(m) + hull(f_uu)·h_u³h_v/24 + hull(f_vv)·h_u h_v³/24
@@ -2648,7 +2773,16 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
 /// not: the frontier is a part-SIZE frontier, and metre-scale parts sit
 /// ON it rather than comfortably inside. The refinement schedule is
 /// fixed (D9), so each carrier bottoms out at the same displacement on
-/// every ε row and only the `1024·ε` target moves. Measured floors
+/// every ε row and only the `1024·ε` target moves. A "floor" here is
+/// the width the schedule's LAST round reaches: the Taylor remainder,
+/// which quarters per round (exactly where every cell splits evenly;
+/// more slowly where a cell abuts an off-grid knot), taken through
+/// the whole schedule. It is not an arithmetic floor — the midpoint
+/// sum's own rounding width sits four to eight orders below the
+/// remainder on every carrier in this table (measured, TCOST-K1's
+/// tables) — which is what lets the loop bound its last round from
+/// the schedule alone ([`last_round_width_lo`]) and refuse without
+/// running it. Measured floors
 /// (`crates/geom-brep/tests/review_r1_rational_probes.rs`, which pins
 /// each one), against the DEFAULT target of 1.024e-6 m:
 ///
@@ -2693,7 +2827,11 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
 /// width is useless; saying so is the point.
 ///
 /// Every other refusal is a typed [`PropsError::QuadratureBudget`]
-/// carrying its measured width. The next levers, in order, are a
+/// carrying its width: the last round's own when the schedule ran
+/// out, or the last round's lower bound when the loop proved after a
+/// round that the last round could not certify either — the same
+/// number to within the midpoint sum's width ([`last_round_width_lo`]
+/// says what the bound omits). The next levers, in order, are a
 /// higher-order rule (Simpson needs `A` to fifth derivatives), a
 /// tighter area pad (the symmetric Lipschitz pad is what puts the
 /// extreme-weight rows out of reach — it is the AREA, not the flux,
@@ -2922,6 +3060,27 @@ fn rational_patch_face<T: Decide>(
 
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD2_INIT_PIECES;
+    // The last round's flux width, bounded from below before any round
+    // runs ([`last_round_width_lo`]): its cut lists are the schedule's
+    // last, its hulls are the blocks above, and under the exact-v arm
+    // it carries no v remainder.
+    let last_pieces = QUAD2_INIT_PIECES << QUAD2_RATIONAL_MAX_ROUNDS;
+    let last_cuts_u = knot_aligned_cuts(u0, u1, last_pieces, &knots_u);
+    let last_cuts_v = knot_aligned_cuts(
+        v0,
+        v1,
+        if nc_v.is_some() { 1 } else { last_pieces },
+        &knots_v,
+    );
+    let last_round_width_lo = last_round_width_lo(
+        (&last_cuts_u, &last_cuts_v),
+        (&edges_u, &edges_v),
+        |bu, bv| {
+            let (b_uu, b_vv) = blocks[bu * nbv + bv];
+            (b_uu, if nc_v.is_some() { None } else { Some(b_vv) })
+        },
+        boundary_defect * p_bound,
+    );
     // INVARIANT: every round assigns this from
     // `mean_boundary_displacement`, which returns only finite
     // lengths — so the budget refusal below carries a finite width
@@ -3006,7 +3165,25 @@ fn rational_patch_face<T: Decide>(
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
             return Ok(FaceCutBounds { flux, area });
         }
+        // This round did not certify. If the LAST round cannot either
+        // — its width is at least `last_round_width_lo`, and that
+        // already reads negative under the band — no remaining round
+        // can certify or escalate, and the refusal is the schedule's
+        // own, reached without running it. The bound is loop-
+        // invariant, so this fires after round 0 or never; it sits
+        // after the round rather than before the loop so that every
+        // refusal a round raises (poison, a degenerate lever, an
+        // in-band escalation) is raised first, in the order it always
+        // was. The payload is the bound: the last round's width to
+        // within the midpoint sum's width, never above it.
         if round < QUAD2_RATIONAL_MAX_ROUNDS {
+            let last_round_len = displacement_len(last_round_width_lo, area)?;
+            if last_round_cannot_certify(last_round_len, target_len, band) {
+                return Err(PropsError::QuadratureBudget {
+                    width_len: last_round_len,
+                    target_len,
+                });
+            }
             pieces *= 2;
         }
     }
@@ -3249,6 +3426,20 @@ pub fn nurbs_patch_face<T: Decide>(
         });
     }
 
+    // The last round's flux width, bounded from below before any round
+    // runs ([`last_round_width_lo`]): one block — the whole rectangle,
+    // whose hulls are the global ones above — and the integral
+    // schedule's last cut lists.
+    let last_pieces = QUAD2_INIT_PIECES << QUAD2_MAX_ROUNDS;
+    let last_round_width_lo = last_round_width_lo(
+        (
+            &knot_aligned_cuts(u0, u1, last_pieces, &knots_u),
+            &knot_aligned_cuts(v0, v1, last_pieces, &knots_v),
+        ),
+        (&[u0, u1], &[v0, v1]),
+        |_, _| (g_f_uu, Some(g_f_vv)),
+        boundary_defect * p_bound,
+    );
     for round in 0..=QUAD2_MAX_ROUNDS {
         let mut flux = RingInterval::zero();
         // Knot-aligned cells, for the reason [`knot_aligned_cuts`]
@@ -3302,7 +3493,17 @@ pub fn nurbs_patch_face<T: Decide>(
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
             return Ok(FaceCutBounds { flux, area });
         }
+        // The budget exit, as in the rational lane: the last round's
+        // lower bound reads negative under the band, so no remaining
+        // round can certify or escalate — refuse now with the bound.
         if round < QUAD2_MAX_ROUNDS {
+            let last_round_len = displacement_len(last_round_width_lo, area)?;
+            if last_round_cannot_certify(last_round_len, target_len, band) {
+                return Err(PropsError::QuadratureBudget {
+                    width_len: last_round_len,
+                    target_len,
+                });
+            }
             pieces *= 2;
         }
     }
