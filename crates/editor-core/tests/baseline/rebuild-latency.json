@@ -1,12 +1,12 @@
 {
-  "what": "STRUCTURAL manifest for the M4 PR 8a Band 4 corpus: what each document is, how many recipe nodes it has, and how many of them fall in the downstream cone of its latency row's parameter edit. Machine-independent and exact \u2014 nothing about a box, a build profile or a load average can move these numbers, which is why they live apart from the timings.",
-  "timings_live_elsewhere": "docs/perf-data/rebuild-latency/ \u2014 one file per merge to main, written and committed by ci.yml's `rebuild latency (reporting)` job on a hosted runner. Append-only (a run adds a filename, never edits one), so concurrent merges cannot conflict. m4_pr8_latency.rs diffs its `vs base` columns against the NEWEST entry: on a PR that is main's last hosted measurement, on main it is the previous merge. There is no baseline to refresh and no refresh env var.",
-  "why_split": "Timings and structure shared one file until 2026-08-17, and the timings rotted it. Three developer-workstation refreshes disagreed by 90-98% on every row (die full: 51661.1 ms -> ~985.9 ms -> 1103.5 ms) with contention ruled out by a verified-quiet re-run, leaving an untested build/environment hypothesis nobody ever captured side by side; the file's own provenance ended up declaring cross-refresh comparison meaningless, and docs/PERF-SCAN-2026-08.md \u00a70 had to label every absolute-millisecond claim in the repo provisional as a result. Splitting along the rot line fixes the cause: the half that cannot rot is pinned here and ASSERTED (a nodes/cone mismatch fails the row), and the half that can is produced by one reproducible box class and accumulated rather than overwritten. The disputed_measurement argument is not resolved retroactively \u2014 those three refreshes stay incomparable \u2014 it simply cannot recur, because every history entry now records its own build environment.",
-  "status": "The TIMINGS are REPORTING ONLY \u2014 measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on a millisecond. The STRUCTURE below is a real assertion: m4_pr8_latency.rs requires the manifest to cover the corpus exactly (no missing rows, no stale keys) and every nodes/cone pair to match what it measures.",
+  "what": "STRUCTURAL manifest for the M4 PR 8a Band 4 corpus: what each document is, how many recipe nodes it has, and how many of them fall in the downstream cone of its latency row's parameter edit. Machine-independent and exact — nothing about a box, a build profile or a load average can move these numbers, which is why they live apart from the timings.",
+  "timings_live_elsewhere": "docs/perf-data/rebuild-latency/ — one file per merge to main, written and committed by ci.yml's `rebuild latency (reporting)` job on a hosted runner. Append-only (a run adds a filename, never edits one), so concurrent merges cannot conflict. m4_pr8_latency.rs diffs its `vs base` columns against the NEWEST entry: on a PR that is main's last hosted measurement, on main it is the previous merge. There is no baseline to refresh and no refresh env var.",
+  "why_split": "Timings and structure shared one file until 2026-08-17, and the timings rotted it. Three developer-workstation refreshes disagreed by 90-98% on every row (die full: 51661.1 ms -> ~985.9 ms -> 1103.5 ms) with contention ruled out by a verified-quiet re-run, leaving an untested build/environment hypothesis nobody ever captured side by side; the file's own provenance ended up declaring cross-refresh comparison meaningless, and docs/PERF-SCAN-2026-08.md §0 had to label every absolute-millisecond claim in the repo provisional as a result. Splitting along the rot line fixes the cause: the half that cannot rot is pinned here and ASSERTED (a nodes/cone mismatch fails the row), and the half that can is produced by one reproducible box class and accumulated rather than overwritten. The disputed_measurement argument is not resolved retroactively — those three refreshes stay incomparable — it simply cannot recur, because every history entry now records its own build environment.",
+  "status": "The TIMINGS are REPORTING ONLY — measured, never gated (M4-PLAN F8; PERF-PLAN stays advisory). No CI row fails on a millisecond. The STRUCTURE below is a real assertion: m4_pr8_latency.rs requires the manifest to cover the corpus exactly (no missing rows, no stale keys) and every nodes/cone pair to match what it measures.",
   "maintaining": "Hand-maintained. A document that legitimately changes shape moves its nodes/cone here in the same PR, with the reason in the PR body; a new corpus document adds a row; a retired one deletes its row. The row fails loudly either way, so this file cannot silently fall behind the corpus.",
   "documents": {
     "boss_union": {
-      "about": "M5 shape (ii): cylinder boss \u222a plate \u2014 the first transverse curved boolean",
+      "about": "M5 shape (ii): cylinder boss ∪ plate — the first transverse curved boolean",
       "nodes": 5,
       "cone": 2
     },
@@ -21,7 +21,7 @@
       "cone": 3
     },
     "cut_cylinder": {
-      "about": "M5 shape (i): tilted plane\u00d7cylinder cut \u2014 exact Ellipse section edges",
+      "about": "M5 shape (i): tilted plane×cylinder cut — exact Ellipse section edges",
       "nodes": 4,
       "cone": 2
     },
@@ -41,7 +41,7 @@
       "cone": 3
     },
     "die_composed": {
-      "about": "M6 unit 1: the pipped cube filleted in place \u2014 box blends, octants, and the pip-rim torus band in one body",
+      "about": "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the pip-rim torus band in one body",
       "nodes": 8,
       "cone": 3
     },
@@ -80,6 +80,16 @@
       "nodes": 3,
       "cone": 2
     },
+    "tube_ring": {
+      "about": "a solid ring torus from its intent parameters, R = 2, r = 0.5",
+      "nodes": 2,
+      "cone": 1
+    },
+    "hollow_tube_elbow": {
+      "about": "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",
+      "nodes": 2,
+      "cone": 1
+    },
     "kiss_carry": {
       "about": "corner-kiss assembly; the surviving v-v record re-entered by Declare",
       "nodes": 9,
@@ -114,16 +124,6 @@
       "about": "the parametric scene: a plate whose two hole radii are one DocParam",
       "nodes": 5,
       "cone": 2
-    },
-    "tube_ring": {
-      "about": "a solid ring torus from its intent parameters, R = 2, r = 0.5",
-      "nodes": 2,
-      "cone": 1
-    },
-    "hollow_tube_elbow": {
-      "about": "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",
-      "nodes": 2,
-      "cone": 1
     }
   }
 }
