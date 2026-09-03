@@ -11,7 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
     load, product, relative_freedom_components, save, solve_document,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -70,14 +70,12 @@ impl PartResolver for StubStore {
 /// A one-solid part: a unit square extruded 1 tall.
 fn part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     let (doc, _) = insert(
         doc,
@@ -107,6 +105,11 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore)
 /// An instance-qualified name: a face of `instance`'s part product.
 /// The HEAD is the instantiate node, which is exactly what A12's
 /// reading edge is recomputed from.
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude — so
+/// a part-local name is minted by node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -139,8 +142,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, RecipeNodeId(1)),
-        b: in_part(b, RecipeNodeId(1)),
+        a: in_part(a, PART_BODY),
+        b: in_part(b, PART_BODY),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -1227,8 +1230,8 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
-                from: in_part(ids[1], RecipeNodeId(1)),
-                to: in_part(ids[2], RecipeNodeId(1)),
+                from: in_part(ids[1], PART_BODY),
+                to: in_part(ids[2], PART_BODY),
             },
             Tol::witness(),
         )
@@ -1277,10 +1280,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Node::Declare {
                 pairs: vec![(
-                    (
-                        in_part(ids[1], RecipeNodeId(1)),
-                        in_part(ids[0], RecipeNodeId(1)),
-                    ),
+                    (in_part(ids[1], PART_BODY), in_part(ids[0], PART_BODY)),
                     ContactClass::Rest,
                 )],
             },
@@ -1290,8 +1290,8 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
-                from: in_part(ids[1], RecipeNodeId(1)),
-                to: in_part(ids[2], RecipeNodeId(1)),
+                from: in_part(ids[1], PART_BODY),
+                to: in_part(ids[2], PART_BODY),
             },
             Tol::witness(),
         )
@@ -1301,7 +1301,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     };
     assert_eq!(
         pairs[0].0.0,
-        in_part(ids[2], RecipeNodeId(1)),
+        in_part(ids[2], PART_BODY),
         "the declaration was rewritten"
     );
     assert_eq!(
@@ -1424,7 +1424,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
                     loop_index: 7,
                     segment: 7,

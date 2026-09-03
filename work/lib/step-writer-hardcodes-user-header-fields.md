@@ -38,4 +38,4 @@ Not "add two `String` fields to `StepOptions`". `authorisation` is a claim about
 
 ## Home
 
-LIB: its code-quality row `C14` (Track U) is parked under the same UV-R5 hold as `C13` — LIB drafts the plan, Ev signs off — and `docs/LIB-LOG.md` carries #743/#742/#741 together as the export-option surface in the program's register fold.
+LIB: its code-quality row `C14` (Track U) is parked under the same UV-R5 hold as `C13` — LIB drafts the plan, Ev signs off — and `work/lib/log.md` carries #743/#742/#741 together as the export-option surface in the program's register fold.

@@ -79,6 +79,16 @@
 #    of what is exempted; the guarantee is the check's. Why exact text
 #    and which repair is meant is at that function.
 #
+# WHAT THE MATCHER IS RUN OVER is `lib.sh`'s shared CODE-ONLY view, never
+# the raw file. Comment text and string-literal bodies are blanked before
+# the regex sees a line, so a trailing `// … Decide + Bounds …`, a
+# one-line `/* … */`, and the spelling inside a `&str` are all invisible
+# to it — each planted below as a must-NOT-fire case, because
+# `\w*Bounds` makes this gate's false-positive surface grow with every
+# alias in the tree and an unearned red is a nudge toward the allowlist
+# rather than toward the fix. What that reader in turn cannot see is
+# stated at `gate_rust_code` and is not restated here.
+#
 # WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of
 # names. Three alternatives: an identifier ending in `Bounds` or
 # `Enclosure` after a `+` (path prefix allowed); one before a `+` (no
@@ -130,15 +140,46 @@
 # supertrait spelling to dodge this gate is a violation; ratify it here
 # first, exactly as a file entry would be.
 #
-# KNOWN GAP 3: a compound bound given a NAME is invisible at its USE
-# sites. arc_fillet.rs declares `trait ArcCarrierScalar: Decide + Bounds`;
-# the DECLARATION fires and is ratified by that file's filter below, while
-# the ~50 uses of the name in profile/src/path/{family,program}.rs (grep
-# it; the count moves with the files) are not visible to any grep, and the
-# name is re-exported as far as pncad. Closing it by grep means redding
-# those files and allowlisting them, which is a confession rather than a
-# disposition. S124 / D68 — NOT discharged by changing what the alias is
-# bound to.
+# KNOWN GAP 3, AND THE USES STAY OPEN: a compound bound given a NAME is
+# invisible at its USE sites. arc_fillet.rs declares
+# `trait ArcCarrierScalar: Decide + Bounds`; the DECLARATION fires and is
+# ratified by that file's filter below, while the uses of the name in
+# profile/src/path/{family,program}.rs (grep it; the count moves with the
+# files) are not visible to any grep, and the name is re-exported as far
+# as pncad. Every one of those uses is `T: ArcCarrierScalar` — CHARACTER
+# FOR CHARACTER the sole bracket bound `plant_sole_bracket_bounds` below
+# pins as must-NOT-fire — so no WIDENING of the matcher above reaches
+# them: it would red geom-brep/src/ssi/enclose.rs, geom/src/net.rs and
+# both geom nurbs files on the same construct.
+#
+# WHAT DOES REACH THEM, AND IT IS NOT A NAME-RESOLVING PASS. A matcher
+# keyed on the ROSTER's own name list separates the two perfectly, with
+# no resolution and no second pass — the roster is exactly the ratified
+# list of names, so the fact it needs is already recorded here:
+#
+#     gate_grep -E "[A-Za-z0-9_][[:space:]]*:[[:space:]]*(ArcCarrierScalar)\b\
+#                  |\+[[:space:]]*(ArcCarrierScalar)\b"
+#
+# It PASSES `plant_sole_bracket_bounds` and its output on this tree is
+# family.rs and program.rs and nothing else. So THE ONLY CLOSE AVAILABLE
+# IS THE ONE S63 FORBIDS — redding those two files and allowlisting
+# them, the cry-wolf-then-allowlist outcome recorded at linalg/mat.rs —
+# and NOT "no instrument of this kind can see the sites". Read the
+# narrow claim, not the wide one: an earlier draft of this paragraph
+# wrote the wide one while the roster three screens down was the
+# counterexample to it.
+#
+# THE INVISIBILITY OF THE SITES TO *THIS* MATCHER IS MEASURED RATHER
+# THAN ASSERTED. The fixture `plant_alias_uses_invisible` plants the
+# declaration in its ratified home and the three use shapes family.rs
+# actually writes in a file that is NOT ratified, and requires this gate
+# to PASS. That case reds the day the matcher is keyed on the roster's
+# names, which is the day this paragraph has to be rewritten.
+#
+# WHAT STANDS IN ITS PLACE is the ALIAS ROSTER below, which checks the
+# PREMISE the gap rests on instead of the uses it cannot reach. Read it
+# there. S124 / D68 — NOT discharged by changing what the alias is bound
+# to.
 #
 # KNOWN GAP 4, and it is OPEN WITH NO MITIGATION -- read this before
 # trusting the alternative above. An alias NOT named `…Bounds` is invisible
@@ -172,11 +213,6 @@
 # in sight and are silent too -- no live instance in an unratified file
 # today, so a hole rather than a violation. Closing that is a redesign of
 # what this gate matches, not a patch to this regex.
-#
-# KNOWN GAP 5: the comment strip is leading-`//` only, so a trailing or
-# block comment or a string literal carrying the spelling fires. S63's
-# false-positive class, F3/lane F-g's to close with a shared stripper;
-# `\w*Bounds` grows it proportionally.
 #
 # KNOWN GAP 6, and it is the LIST's gap rather than the matcher's: every
 # filter below is a PATH, while the ratification each one cites is
@@ -212,18 +248,190 @@ gate_definition_skip_subject() {
   fi
 }
 
+# `CertifiedBounds`'s two DEFINITION lines, dropped by EXACT TEXT (the
+# reasoning is at `gate_definition_skip_subject` above). ONE HOME for the
+# two patterns, because two readers need them now: the scan below and the
+# alias census. A second copy would be a second thing to keep in step with
+# real.rs, which is the drift the subject check exists to catch.
+#
+# THE PATTERNS ARE NOT ANCHORED TO A PATH, so the two lines are exempt
+# wherever under crates/*/src they are written, and a moved real.rs turns
+# the subject check into a no-op while the skip keeps applying. That is
+# filed as `unanchored-definition-skip` in work/code-quality/ with its
+# measurement and its fix shape. It is NOT repaired here: moving the two
+# patterns into a function neither widens nor narrows what they exempt.
+gate_definition_skip() {
+  gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' |
+    gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$'
+}
+
+# THE ALIAS ROSTER, AND IT IS NOT AN ALLOWLIST — BUT IT IS NOT INERT
+# EITHER. Read the two apart before adding to either. A FILE FILTER above
+# exempts a file from the SCAN; a roster entry changes no scan hit and
+# exempts no file from anything the matcher does. What it DOES do is make
+# the CENSUS below green for the name it lists, and that is an exemption
+# surface for the check it ships with: the cheap way to green a new alias
+# is a new roster line, which is exactly the edit
+# `plant_new_alias_in_ratified_file` plants. So an entry earns its place
+# by naming the ratification that licensed the name — it registers a
+# trait DECLARATION that hands a `…Bounds`/`…Enclosure` door to a NAME,
+# and it says one thing: this name exists, every USE of it is a bound
+# this matcher cannot read (KNOWN GAP 3), and here is what licensed it.
+# The blind spot is the NAME, not the file, so the register of blind
+# spots is keyed by name.
+#
+# IT DOES NOT MAKE THE USES VISIBLE and nothing here should be read as
+# claiming it does — that is D68's answer, not a step toward one. What it
+# checks is the PREMISE the gap rests on, and there are two halves:
+#
+#   THE POPULATION IS CLOSED. A second alias declared anywhere under
+#   crates/*/src fires here, INCLUDING inside a file the list above
+#   ratifies — where the scan is silent, and where today the new name's
+#   uses would spread `pub` through the tree with nothing anywhere
+#   recording that they exist. That is ONE SLIVER of the ride-along
+#   KNOWN GAP 6 describes: the DECLARATION and nothing else. A second
+#   ordinary compound bound in a ratified file is exactly as silent as it
+#   was, and what per-file granularity should become is D103's open
+#   question, which no line here answers.
+#
+#   THE MITIGATION IS PROVED RATHER THAN ASSUMED. GAP 3's only defence is
+#   that the declaration is written in a spelling this matcher catches and
+#   sits in a ratified file. Rewrite `ArcCarrierScalar`'s declaration into
+#   the multi-line `where` block rustfmt converges on (GAP 4) or break it
+#   across lines (GAP 1), and that defence is gone with the filter still
+#   in place, the uses still spreading and nothing red anywhere. The
+#   census reds instead, and names what was lost.
+#
+# AN ENTRY WHOSE FILE IS NOT IN THE TREE IS REPORTED, and it used to be
+# skipped. The skip was argued as a disposition — an alias that MOVES is
+# loud through the SCAN by the other route, and one that is RETIRED
+# "leaves in the change that retires it" — but nothing checked that
+# second half, so the roster could accumulate dead decoration while this
+# header asserted it could not: an entry naming a path that never existed
+# left the gate green, on the live tree and in the self-test. The real
+# reason the skip was there is smaller and is worth writing down, because
+# it is the shape this file exists to catch: `gate_plant_clean` never
+# wrote `arc_fillet.rs`, so without the skip EVERY fixture red on the
+# roster entry and the clean case failed first. The fixture was
+# load-bearing for the argument, not the other way round. The clean
+# fixture below now plants the ratified declaration, which is what makes
+# the check runnable, and the retirement case is planted as
+# `plant_roster_file_gone`.
+#
+# `CertifiedBounds` IS DELIBERATELY NOT HERE. Its two definition lines are
+# dropped by `gate_definition_skip`, and `gate_definition_skip_subject`
+# already watches the same property for it — by exact text, in its own
+# file. A second watcher would be a second thing to keep in step.
+BOUNDS_ALIAS_ROSTER=(
+  # LIB-G2's LB3 (ruled 2026-08-08), homed in the file's own module docs —
+  # the same ratification the `arc_fillet.rs` filter above cites. The uses
+  # are in profile/src/path/{family,program}.rs; they are S124 / D68, and
+  # they are unchecked.
+  'crates/profile/src/path/arc_fillet.rs ArcCarrierScalar'
+)
+
+# The DECLARATION READER, and it is DELIBERATELY NARROWER than the third
+# alternative that feeds it: a `:` inside the trait's OWN generic list is
+# not a supertrait colon. `pub trait ArrivalSpec<T: CertifiedBounds>` is a
+# SOLE bracket bound on a generic parameter — outside this gate's class,
+# and the exact construct D102 names as the price of widening — so the
+# census must not demand a roster entry for it. The balanced `<…>` skip is
+# what keeps it out, planted as
+# `plant_trait_generic_sole_bracket_ratified`.
+#
+# THE MAIN MATCHER ABOVE DOES FIRE ON THAT LINE, because its `<T:`
+# supplies the colon the third alternative asks for. That is a false
+# positive of the third alternative, not of this reader; it is filed as
+# `trait-generic-sole-bracket` in work/code-quality/ and is NOT repaired
+# here, because narrowing what this gate matches unreds a population
+# nobody has counted, which is D102's grandfathering caveat.
+gate_alias_declaration_names() {
+  awk '
+    {
+      line = $0
+      path = line; sub(/:[0-9]+:.*$/, "", path)
+      sub(/^[^:]*:[0-9]+:/, "", line)
+      if (!match(line, /(^|[^A-Za-z0-9_])trait[ \t]+[A-Za-z_][A-Za-z0-9_]*/)) next
+      name = substr(line, RSTART, RLENGTH); sub(/^.*trait[ \t]+/, "", name)
+      rest = substr(line, RSTART + RLENGTH)
+      sub(/^[ \t]*/, "", rest)
+      if (substr(rest, 1, 1) == "<") {
+        d = 0; i = 1; n = length(rest)
+        while (i <= n) {
+          c = substr(rest, i, 1)
+          if (c == "<") d++
+          else if (c == ">") { d--; if (d == 0) break }
+          i++
+        }
+        if (d != 0) next
+        rest = substr(rest, i + 1)
+      }
+      if (rest !~ /:[^;{]*[A-Za-z0-9_]*(Bounds|Enclosure)([^A-Za-z0-9_]|$)/) next
+      print path " " name
+    }
+  '
+}
+
+# The census. It runs AFTER the scan, and the order is the argument: a new
+# alias in an UNRATIFIED file is an ordinary scan hit and `ratify before
+# allowlisting` is the message that edit needs. This check exists for the
+# edits the scan lets through — a declaration going quiet where it stands,
+# and a name minted inside a file the list above already ratifies.
+gate_alias_roster_census() {
+  local seen entry path line extra="" missing="" gone="" msg=""
+  local -A declared=() rostered=()
+  seen=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" |
+    gate_grep -E '\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b' |
+    gate_definition_skip |
+    gate_alias_declaration_names)
+  while IFS= read -r line; do
+    if [ -n "$line" ]; then declared["$line"]=1; fi
+  done <<< "$seen"
+  for entry in ${BOUNDS_ALIAS_ROSTER[@]+"${BOUNDS_ALIAS_ROSTER[@]}"}; do
+    path=${entry%% *}
+    if [ -f "$path" ]; then rostered["$entry"]=1; else gone+="  $entry"$'\n'; fi
+  done
+  for line in "${!declared[@]}"; do
+    if [ -z "${rostered["$line"]+set}" ]; then extra+="  $line"$'\n'; fi
+  done
+  for line in "${!rostered[@]}"; do
+    if [ -z "${declared["$line"]+set}" ]; then missing+="  $line"$'\n'; fi
+  done
+  if [ -n "$gone" ]; then
+    printf 'ROSTERED, FILE NOT IN THE TREE:\n'
+    printf '%s' "$gone" | sort
+    msg="$(gate_name): the roster entry listed above under ROSTERED, FILE NOT IN THE TREE names a path this tree does not have. A roster entry is a register of a LIVE blind spot — a name whose uses this matcher cannot read — so an entry whose declaration is gone registers nothing and this gate cannot tell dead decoration from an alias that was retired without its entry. If the alias was RETIRED, delete the entry in that same change. If it MOVED, re-anchor the entry to the new path (the declaration at the new path is an ordinary scan hit and needs a file filter with its own ratification). Do not leave the entry standing"
+  fi
+  if [ -n "$missing" ]; then
+    printf 'ROSTERED, NO DECLARATION FOUND:\n'
+    printf '%s' "$missing" | sort
+    msg="${msg:+$msg
+}$(gate_name): this gate can no longer see the roster entry listed above under ROSTERED, NO DECLARATION FOUND — the file is still there and its declaration is not in a spelling this matcher catches. Reformatted into the multi-line \`where\` block rustfmt converges on (KNOWN GAP 4), broken across lines (KNOWN GAP 1), or renamed. KNOWN GAP 3's ONLY defence is that the declaration fires and its file is ratified, so that defence is now gone while every use of the name goes on spreading. Spell the declaration back, or re-derive the roster and say in the entry what stands in its place; do NOT delete the entry to make this green"
+  fi
+  if [ -n "$extra" ]; then
+    printf 'DECLARATION FOUND, NOT ROSTERED:\n'
+    printf '%s' "$extra" | sort
+    msg="${msg:+$msg
+}$(gate_name): the trait declaration listed above under DECLARATION FOUND, NOT ROSTERED is not on this gate's alias roster. It hands a Bounds/Enclosure door to a NAME, and every USE of that name is a bound this matcher cannot read (KNOWN GAP 3) — including uses in files no filter above names. A file entry does not cover it: the filters exempt a file from the SCAN, and this is not a scan hit. Add a roster entry naming the ratification that licenses the name, or spell the bound out at the use sites where the matcher can see it"
+  fi
+  if [ -n "$msg" ]; then
+    gate_error "$msg"
+    exit 1
+  fi
+}
+
 gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  # The FILE LIST, each filter naming the `bounds_allowlist` entry that
-  # ratified it. A filter with no entry to name is not a filter yet.
-  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*(Bounds|Enclosure)\b)|(\w*(Bounds|Enclosure)\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b)' crates/*/src |
-    gate_grep -vE ':[0-9]+:\s*(//|///|//!)' |
-    # `CertifiedBounds`'s two DEFINITION lines, by exact text (see above).
-    gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' |
-    gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' |
+  # The shared CODE-ONLY view, so comment text and literal bodies never
+  # reach the matcher (see the header).
+  hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" |
+    gate_grep -E '(\+\s*(\w+::)*\w*(Bounds|Enclosure)\b)|(\w*(Bounds|Enclosure)\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b)' |
+    gate_definition_skip |
     cut -d: -f1 | sort -u |
+    # The FILE LIST, each filter naming the `bounds_allowlist` entry that
+    # ratified it. A filter with no entry to name is not a filter yet.
     # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
     # evaluation-service seams, and `separation` under the same entry.
     gate_grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' |
@@ -252,7 +460,22 @@ gate() {
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
     exit 1
   fi
+  gate_alias_roster_census
   gate_ok "no compound Bounds/Enclosure bound outside the ratified seams"
+}
+
+# THE CLEAN FIXTURE CARRIES THE ROSTER'S OWN SUBJECT, and it has to.
+# The census reports a roster entry whose file is not in the tree, so a
+# clean tree is one where every rostered declaration is present and
+# spelled the way the matcher reads it — which is what "clean" means for
+# this gate, the roster being part of what it checks. Without this the
+# roster's file-absent case could not be reported at all, because every
+# fixture would red on it; the skip that used to hide that is gone.
+gate_plant_clean() {
+  mkdir -p "$1/crates/clean/src" "$1/crates/profile/src/path"
+  printf 'pub fn identity(x: f64) -> f64 { x }\n' > "$1/crates/clean/src/lib.rs"
+  printf 'pub trait ArcCarrierScalar: Decide + Bounds {}\n' \
+    > "$1/crates/profile/src/path/arc_fillet.rs"
 }
 
 # The two operand orders are SEPARATE cases, planted one at a time: a
@@ -378,6 +601,26 @@ plant_sole_bracket_bounds() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
+# THE THREE FORMS THE CODE-ONLY VIEW BUYS, and they are must-NOT-fire
+# cases because each one FIRED before the conversion: a trailing comment
+# naming the spelling, a one-line block comment around it, and the
+# spelling inside a string literal. On the tree as it stands the swap
+# moves no hit, so these fixtures are the only place the change is
+# observable — without them the reader could be reverted to the
+# leading-`//` strip and every case here would stay green.
+#
+# BUNDLED, and the asymmetry is the same one `plant_sole_bracket_bounds`
+# states: in the must-NOT-fire direction any one line firing fails the
+# case, so a bundle is strictly stronger than three separate fixtures.
+plant_spelling_in_comments_and_literals() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub fn a<T: Bounds>(_t: T) {} // never write Decide + Bounds here\n'
+    printf '/* a Decide + Bounds pairing belongs in the ratified ledger */\n'
+    printf 'pub const WHY: &str = "Decide + Bounds is ratified per file";\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
 # The definition skip is NARROW, and these two fixtures are what hold it
 # narrow. The first is real.rs carrying BOTH skipped definition lines AND
 # an ordinary compound signature below them: the gate must still fire, so
@@ -399,6 +642,109 @@ plant_real_rs_alias_redefined() {
   mkdir -p "$1/crates/geom-core/src"
   printf 'pub trait CertifiedBounds: Decide + Bounds + CertifiedEnclosure {}\n' \
     > "$1/crates/geom-core/src/real.rs"
+}
+
+# THE ALIAS-ROSTER CASES. Each plants ONE edit that the SCAN lets through,
+# because an edit the scan already reds says nothing about this check.
+#
+# The declaration going quiet WHERE IT STANDS: `arc_fillet.rs` is on the
+# file list, so the scan is silent either way, and the multi-line `where`
+# block below is what `rustfmt --edition 2021` makes of the single-line
+# declaration the tree carries today. Before this check that edit removed
+# KNOWN GAP 3's whole defence with nothing red anywhere.
+plant_alias_declaration_gone_silent() {
+  mkdir -p "$1/crates/profile/src/path"
+  {
+    printf 'pub trait ArcCarrierScalar: Decide\n'
+    printf 'where\n'
+    printf '    Self: Bounds,\n'
+    printf '{\n'
+    printf '}\n'
+  } > "$1/crates/profile/src/path/arc_fillet.rs"
+}
+
+# The RENAME, which is the same file with a different name in it: the
+# roster entry goes missing AND an unrostered declaration appears, so this
+# is the case that shows the two halves compose into one diagnosis. It is
+# asserted on the `extra` half, which the fixture above cannot produce.
+plant_alias_renamed() {
+  mkdir -p "$1/crates/profile/src/path"
+  printf 'pub trait ArcCarrier: Decide + Bounds {}\n' \
+    > "$1/crates/profile/src/path/arc_fillet.rs"
+}
+
+# A SECOND alias minted inside a file the list already ratifies —
+# `topo/src/props.rs`, ratified under M5 PR 11 for the certified-
+# quadrature plumbing. The scan is silent on it (the file is filtered) and
+# the new name's uses would then spread with nothing recording that they
+# exist. One sliver of KNOWN GAP 6's ride-along, and only that sliver.
+plant_new_alias_in_ratified_file() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'pub trait TubeCarrier: Decide + Bounds {}\n' > "$1/crates/topo/src/props.rs"
+}
+
+# THE PRICE OF THE ROSTER, planted rather than left to be discovered: an
+# alias carrying only BRACKET doors is outside this gate's class, and it
+# is still asked for an entry, because what the roster registers is a name
+# whose uses this matcher cannot read — not a verdict that the name is
+# illegal. The entry is where somebody says which of the two it is.
+plant_bracket_only_alias_in_ratified_file() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'pub trait TubeBracket: CertifiedBounds {}\n' > "$1/crates/topo/src/props.rs"
+}
+
+# THE ALIAS MOVED, and the SCAN is what reports it: the declaration at a
+# path no filter names is an ordinary hit, and the scan runs before the
+# census, so this case never reaches the roster check at all. That is the
+# reason a moved entry needs no census message of its own. This case reds
+# the day a filter above is widened to a directory.
+plant_alias_declaration_moved() {
+  mkdir -p "$1/crates/profile/src/path"
+  rm -f "$1/crates/profile/src/path/arc_fillet.rs"
+  printf 'pub trait ArcCarrierScalar: Decide + Bounds {}\n' \
+    > "$1/crates/profile/src/path/arc_fillet2.rs"
+}
+
+# THE ALIAS RETIRED — the case the header used to assert was safe because
+# "its entry leaves in the change that retires it", with nothing checking
+# that it did. The declaration's file is gone and the entry stands; the
+# scan has nothing to say (there is no declaration anywhere) and the
+# census is the only reader left. Before this the same tree, and a roster
+# entry naming a path that never existed at all, both left the gate
+# GREEN.
+plant_roster_file_gone() {
+  rm -f "$1/crates/profile/src/path/arc_fillet.rs"
+}
+
+# KNOWN GAP 3 ITSELF, MEASURED. The declaration in its ratified home, and
+# the three shapes `family.rs` actually writes the name in — a free
+# function, a public trait generic over it, and an impl block — in a file
+# NO filter names. The gate must PASS: `T: ArcCarrierScalar` is character
+# for character the sole bracket bound `plant_sole_bracket_bounds` pins as
+# must-NOT-fire, which is why no WIDENING of the matcher separates them
+# and why the answer to D68 is not a bigger regex. A matcher keyed on the
+# ROSTER's names does separate them — read the header's GAP 3 for what it
+# costs, which is the close S63 forbids. This case goes RED the day such
+# a matcher is built, and GAP 3 has to be rewritten in the same change.
+plant_alias_uses_invisible() {
+  mkdir -p "$1/crates/profile/src/path" "$1/crates/planted/src"
+  printf 'pub trait ArcCarrierScalar: Decide + Bounds {}\n' \
+    > "$1/crates/profile/src/path/arc_fillet.rs"
+  {
+    printf 'pub fn open_arc<T: ArcCarrierScalar>(_t: T) {}\n'
+    printf 'pub trait ArrivalSpec<T: ArcCarrierScalar> {}\n'
+    printf 'impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T> {}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+# THE CENSUS'S OWN NEAR MISS, and it is D102's named construct: a trait
+# generic over a SOLE bracket bound. In a RATIFIED file the scan is silent
+# and the census is the only reader left, so this is where its balanced
+# `<…>` skip is observable — delete that skip and this case reds, asking
+# for a roster entry for a name that aliases nothing.
+plant_trait_generic_sole_bracket_ratified() {
+  mkdir -p "$1/crates/topo/src"
+  printf 'pub trait ArrivalSpec<T: CertifiedBounds> {}\n' > "$1/crates/topo/src/props.rs"
 }
 
 gate_selftest() {
@@ -424,8 +770,20 @@ gate_selftest() {
   gate_selftest_case "$want" plant_real_rs_signature
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
+  gate_selftest_case "can no longer see the roster entry" plant_alias_declaration_gone_silent
+  gate_selftest_case "is not on this gate's alias roster" plant_alias_renamed
+  gate_selftest_case "is not on this gate's alias roster" plant_new_alias_in_ratified_file
+  gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
+  gate_selftest_case "$want" plant_alias_declaration_moved
+  gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
   gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (the PARTIAL catch of GAP 4, not a mitigation for it: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_passes "the spelling in a trailing comment, a block comment and a string literal" \
+    plant_spelling_in_comments_and_literals
+  gate_selftest_passes "an alias DECLARATION in its ratified home plus its uses in a file that is not ratified (KNOWN GAP 3, measured)" \
+    plant_alias_uses_invisible
+  gate_selftest_passes "a trait generic over a sole bracket bound inside a ratified file" \
+    plant_trait_generic_sole_bracket_ratified
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (the PARTIAL catch of GAP 4, not a mitigation for it: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); fires, through the ALIAS ROSTER, on a rostered declaration going quiet where it stands (the rustfmt `where` block), on the same declaration renamed (both halves of one diagnosis), and on a new alias -- compound OR bracket-only -- minted inside a file the list already ratifies, where the scan is silent, and on a roster entry whose file is no longer in the tree, which is the retirement the roster claims to make loud; passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on, a trait generic over a sole bracket bound inside a ratified file, and KNOWN GAP 3 itself -- the alias declaration in its ratified home beside its uses in a file that is not, which this gate cannot see and does not claim to; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

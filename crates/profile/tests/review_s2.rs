@@ -83,7 +83,7 @@
 
 test_utils::gated_to!["crates/profile/src/", "crates/geom-core/src/tolerance.rs"];
 
-mod common;
+use crate::common;
 
 use common::tol;
 use geom_core::Point2;

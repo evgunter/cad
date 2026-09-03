@@ -437,8 +437,10 @@ door (`editor-core::parse`), and stored display units that
 round-trip `25 mm`. The v1 GUI panels sat on canonical
 meters/radians by ruling; that ruling was superseded post-close
 (2026-08-29) and the panels now render and author in the stored
-display unit — see `docs/GUI-PLAN.md`'s units row and
-`docs/GUI-LOG.md`'s tail. The unit table also gained a `pi rad` row
+display unit; the v1 GUI plan's units row and the log tail that
+recorded that change were deleted with the closed program and are
+recoverable through `docs/DOC-LEDGER.md` (sweep 5). The unit table
+also gained a `pi rad` row
 (half-turns), which is a NOTATION rather than a physical unit and
 says so in `quantity::units`' module docs; it is the default written
 unit for an angle that remembers none.*
@@ -464,7 +466,7 @@ interaction layer and nothing beneath it. The conditions that would
 trigger the fallback are written down in advance in the re-survey's
 §5.
 
-**Settled inside the v1 units** (`docs/GUI-PLAN.md`, evidenced in
+**Settled inside the v1 units** (evidenced in
 `docs/GUI-EXIT-WALK.md`): the viewport is a thin custom wgpu pass
 under eframe's wgpu renderer; picking is a GPU ID-buffer pass over
 our own deterministic `Bvh::ray` rather than parry3d; the docking
@@ -552,8 +554,9 @@ What stays a GUI question: multi-select UX — click/drag/modifier
 mechanics, hover, which filters are offered where, and pick-priority
 when a click hits several entities — plus the convention that
 selection does **not** participate in document history (undo never
-changes what is selected). v1 ruled single-select
-(`docs/GUI-PLAN.md`); the rest waits on sketcher/tree design.
+changes what is selected). v1 ruled single-select and shipped it at
+GUI-2 (`docs/GUI-EXIT-WALK.md`); the rest waits on sketcher/tree
+design.
 Selection filters, heterogeneous sets as values, and
 survive-the-vanishing-entity semantics are library surface, owned by
 `docs/SELECT-DESIGN.md` and the naming doc's resolution-failure
@@ -672,7 +675,7 @@ history running top to bottom; an edit made after an undo mints a
 new child node placed to the right of the child that redo would
 have reached. Sized in the same conversation at one-to-two work
 units including the separable sidecar file, sequenced after GUI
-v1 (`docs/GUI-PLAN.md` banks it as GUI-6).
+v1 and banked post-v1 as GUI-6 (`docs/GUI-EXIT-WALK.md`).
 
 ### State/history separation (Ev, 2026-07-27 — the sharpened
 ### form of the git-like instinct)

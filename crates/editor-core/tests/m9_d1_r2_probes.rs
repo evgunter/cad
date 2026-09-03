@@ -7,17 +7,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node,
-    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node, ProfileDoc,
+    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len};
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -49,23 +47,14 @@ fn pole(node: RecipeNodeId, l: u32, v: u32) -> StableName {
 /// XY-plane revolve about the y datum axis, from loop programs.
 fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r2_probes", Tol::witness());
-    let (doc, p) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            loops,
-        }),
-    );
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, p) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         doc,

@@ -356,6 +356,14 @@ struct Drafts {
     /// open, `None` while it is not. The op is not emitted until
     /// Create — a name in flight is a draft, not a document.
     new_doc_name: Option<String>,
+    /// **The frame the add-profile form draws on** — `None` until one
+    /// is picked, which is the form's resting state in a document that
+    /// holds no frame yet.
+    ///
+    /// A pick rather than a constant: a profile's plane is a document
+    /// node, so the form names one that exists instead of minting one
+    /// as a side effect of adding a profile. One submit, one node.
+    profile_plane: Option<RecipeNodeId>,
     /// The add-datum form's kind choice.
     datum_kind: DatumKind,
     /// The add-datum form's origin/position, metres.
@@ -480,6 +488,7 @@ impl Default for Drafts {
             mate_primitive: 0,
             mate_opposed: false,
             new_doc_name: None,
+            profile_plane: None,
             datum_kind: DatumKind::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
@@ -2061,14 +2070,21 @@ impl eframe::App for ViewerApp {
         // for another, so the picture catches up on the next one
         // rather than waiting for the next input event.
         let authored = self.drafts.profile_loops();
-        let profile_preview = self.profile_form_drawn.then(|| {
-            sketch::preview(
-                sketch::form_plane(),
-                &authored,
-                self.session.tol(),
-                self.delta.get(),
-            )
-        });
+        // **No frame picked, no preview.** The form draws on a frame
+        // the document holds, so with none picked there is no plane to
+        // place the loops on and nothing honest to show — the form
+        // says what it is waiting for instead, exactly as it does for
+        // a shape nobody chose.
+        let preview_plane = self
+            .drafts
+            .profile_plane
+            .zip(self.session.landed_pair())
+            .and_then(|(frame, (doc, evaluation))| sketch::frame_placement(doc, evaluation, frame));
+        let profile_preview = self
+            .profile_form_drawn
+            .then_some(preview_plane)
+            .flatten()
+            .map(|plane| sketch::preview(plane, &authored, self.session.tol(), self.delta.get()));
         let mut profile_form_drawn = false;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
@@ -2527,7 +2543,7 @@ impl ViewerBehavior<'_> {
             }
         }
         if let Some(Ok(drawn)) = self.profile_preview {
-            let plane = sketch::form_plane();
+            let plane = drawn.plane;
             // ONE size for every loop in the preview, from the whole
             // picture's extent: marks that each scaled to their own
             // loop would draw a bore's crosses smaller than its
@@ -3371,15 +3387,50 @@ impl ViewerBehavior<'_> {
             for (shape, label) in ShapeKind::ALL {
                 ui.radio_value(&mut self.drafts.profile_shape, Some(shape), label);
             }
-            ui.weak("on the world XY plane");
+        });
+        // **The frame it is drawn on**, picked from the ones the
+        // document holds. The form used to say "on the world XY plane"
+        // and mean a constant; a profile's plane is a node now, so this
+        // names one — and a document with no frame in it says so rather
+        // than conjuring one.
+        let frames = self
+            .session
+            .landed_pair()
+            .map(|(doc, _)| sketch::frames(doc))
+            .unwrap_or_default();
+        ui.horizontal(|ui| {
+            ui.label("on frame");
+            if frames.is_empty() {
+                ui.weak("none in this document — add a frame datum first");
+            } else {
+                let current = self.drafts.profile_plane;
+                let label =
+                    current.map_or_else(|| "pick one".to_owned(), |id| format!("feature {}", id.0));
+                egui::ComboBox::from_id_salt("profile_plane")
+                    .selected_text(label)
+                    .show_ui(ui, |ui| {
+                        for id in &frames {
+                            ui.selectable_value(
+                                &mut self.drafts.profile_plane,
+                                Some(*id),
+                                format!("feature {}", id.0),
+                            );
+                        }
+                    });
+            }
         });
         let shape = self.drafts.profile_shape;
         let mut blocked: Option<&'static str> = None;
+        // Stated before the shape check so the FIRST thing a person is
+        // told is the thing they have to do first.
+        if self.drafts.profile_plane.is_none() {
+            blocked = Some("pick a frame to draw on");
+        }
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
-            None => blocked = Some("choose a shape to add"),
+            None => blocked = blocked.or(Some("choose a shape to add")),
             Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -3523,12 +3574,16 @@ impl ViewerBehavior<'_> {
             // Lowered HERE rather than in the session: the notation is
             // the form's, and a literal that forgot it between the two
             // is exactly the gap this carries across.
-            match self.drafts.profile_programs() {
-                Ok(loops) => self.ops.push(SessionOp::AddProfile {
-                    plane: sketch::form_plane(),
-                    loops,
-                }),
-                Err(error) => *self.status = Some(format!("add profile: {error}")),
+            match (self.drafts.profile_plane, self.drafts.profile_programs()) {
+                (Some(plane), Ok(loops)) => {
+                    self.ops.push(SessionOp::AddProfile { plane, loops });
+                }
+                // Unreachable while the button is gated on `blocked`,
+                // and typed rather than unwrapped: a form's enabling
+                // condition and its commit are two pieces of code, and
+                // this one does not assume the other got it right.
+                (None, _) => *self.status = Some("add profile: no frame picked".to_owned()),
+                (_, Err(error)) => *self.status = Some(format!("add profile: {error}")),
             }
         }
     }

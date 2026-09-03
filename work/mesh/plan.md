@@ -4,7 +4,7 @@
 the ruling-independent units below are dispatchable pre-ratification).**
 Opened on Ev's direction (in-chat, 2026-08-31: "pick up S-MESH as the
 orchestrator", with S-BOOL taken by the same instruction —
-`docs/S-BOOL-PLAN.md` opens in the same PR) from the ratified stream
+`work/bool/plan.md` opens in the same PR) from the ratified stream
 cut in `docs/WORK-STREAMS-2026-08.md` (§S-MESH). The cut is the
 charter and is cited, not re-litigated.
 
@@ -67,7 +67,7 @@ Inherited at opening (both from S-CERT, by name): **#1362** (the
   say "#320 IS CLOSED ON BOTH HALVES"). #782's table was re-pinned
   green by TESS-SPLIT (468/414 with the snap exonerated by experiment)
   and the arming it blocked landed (`ci.yml`'s "demos tour suite" row
-  runs the whole suite); `docs/VERBS-PLAN.md` already records "the
+  runs the whole suite); `work/verbs/plan.md` already records "the
   issue wants closing". Closing both is orchestrator-direct
   bookkeeping, after verifying the pins at HEAD.
 - **#881 is half-landed.** #894 shipped the witness/confinement half;
@@ -332,7 +332,7 @@ concurrent lane targets, review targets reclaimed the moment the
 report is in hand. The build-slot mutex, CONFLICTING-means-silent-CI,
 and push-early rules bind unchanged. The clone was unshallowed with a
 blob filter at opening. This orchestrator also runs S-BOOL
-(`docs/S-BOOL-PLAN.md`); the two programs share the container's lane
+(`work/bool/plan.md`); the two programs share the container's lane
 budget, so their dispatch cadences are interleaved, never doubled.
 
 ## Exit shape (proposed)

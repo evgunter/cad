@@ -20,7 +20,7 @@ Opened 2026-08-26; 0 comments.
 1. Inject a certifier at the transform door, the way `EdgeCurve::certify_nurbs_lane` takes its plane×NURBS lane — a caller that can re-derive hands one in, and a caller that cannot gets today's refusal.
 2. A `PropsQuadLane`-shaped per-scalar lane, mirroring `recertify_approx`.
 
-**Scheduled at OFF-D** (the face-replacement/shell unit), which is the first consumer that will want to move an `Approx`-faced body. Recorded in `docs/VERBS-LOG.md`'s OFF-C entry and cited from PR #1012.
+**Scheduled at OFF-D** (the face-replacement/shell unit), which is the first consumer that will want to move an `Approx`-faced body. Recorded in `work/verbs/log.md`'s OFF-C entry and cited from PR #1012.
 
 Cost of leaving it: nil today. A body with an `Approx` face is a body with spline geometry, and `Surface::Nurbs` has refused this pass since it existed (`TransformError::NurbsPlaceholder` — whose message is itself stale, predating the NURBS evaluators; worth fixing alongside).
 

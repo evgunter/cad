@@ -11,11 +11,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::{Expr, Frame, Node, PatternKind, load, save};
-use fixture::{desc, len, scl};
+use fixture::{len, scl};
 use geom_core::Tol;
 
 /// A document carrying a group node under EACH rule saves and reloads
@@ -23,12 +23,12 @@ use geom_core::Tol;
 #[test]
 fn both_rules_round_trip() {
     let mut r = corpus::Recorder::new();
-    let p = r.insert(Node::Profile(desc(
+    let p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),

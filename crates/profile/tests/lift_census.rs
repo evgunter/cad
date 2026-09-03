@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{
     bracket, chain, circle_h, circle_v, l_profile, lens, quarter_bulge, rect, rounded_rect,

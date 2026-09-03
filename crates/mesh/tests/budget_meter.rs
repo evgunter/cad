@@ -24,7 +24,7 @@ use mesh::budget::{self, Mode};
 use sweep::loft_body;
 use topo::Body;
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 

@@ -20,8 +20,9 @@ tier-3's prefer-intrinsic enforcement
 read the record replacing MappedCurve's negative space, and the
 naming layer is editor-core, invisible to the kernel; the same
 layering argument that moved ContactClass down. Scheduling
-(delegated): the migration is the PCURVE program,
-`docs/PCURVE-PLAN.md`.** This is M9-D (M9-PLAN,
+(delegated): the migration is the PCURVE program, now CLOSED
+2026-08-29 — done-state of record `docs/PCURVE-EXIT-WALK.md`.**
+This is M9-D (M9-PLAN,
 ratified #509): the ratification pass that must precede any code,
 sequenced before M9-3's seam minting hardens new edge
 descriptions. Substrate: fresh exploration 2026-08-15 (file:line
