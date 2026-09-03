@@ -58,6 +58,14 @@ worth right now — which is what a panel showing `width / 2.0 -
 margin` needs and cannot compute for itself. Reading only: putting an
 expression INTO an authoring step is still a named gap.
 
+Text goes the other way too. `Length.format` / `Angle.format` render
+a quantity in a unit — `"25 mm"` — choosing digits so that
+`Doc.parse_expr` reads the text back to the value's exact bits. That
+pin is the reason to use them rather than an f-string over
+`in_unit`'s bare float, which does not round-trip; the price is that
+a value with no exact spelling in the unit asked for falls back to
+metres or radians, so read the suffix off the text.
+
 Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: sweep and tube, the pattern node
 (`placed_union` says a placed family whose value is one body; the

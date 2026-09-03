@@ -89,6 +89,7 @@ from pncad import (
     m,
     mixed_pins,
     mm,
+    pi_rad,
     product,
     product_named,
     random_document_id,
@@ -485,3 +486,10 @@ depends_on: list[ParamName] = derived.params
 bare: float | None = derived.literal_value
 worth: Length | Angle | float = doc.eval(derived)
 how_many: int = doc.eval_count(doc.parse_expr("4"))
+# The display formatter: TEXT out, in the unit asked for, from the
+# quantity that carries the dimension. The sibling `in_unit` answers a
+# float and is the door this one exists beside — the pair, typed, is
+# what makes the difference between them legible at a glance.
+shown: str = (25 * mm).format(mm)
+turned: str = (90 * deg).format(pi_rad)
+magnitude: float = (25 * mm).in_unit(mm)

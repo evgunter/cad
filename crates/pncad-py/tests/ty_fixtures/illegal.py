@@ -351,3 +351,16 @@ plain: float = doc.eval(doc.parse_expr("1 m"))  # ty: error
 # (equality is an IEEE comparison of the literals inside it), and `ty`
 # does not check hashability of a set member, so the pin would be a
 # comment wearing a marker. `tests/test_expressions.py` executes it.
+
+# The display formatter takes the unit of the dimension it is a method
+# ON. That is the whole reason it is a method: `quantity`'s free
+# `fmt_length` takes a bare `f64` of metres, and a free binding of it
+# would accept an angle's radians without complaint. The receiver
+# carries the dimension, so the mis-pairing has no spelling.
+(1 * m).format(deg)  # ty: error
+(1 * rad).format(mm)  # ty: error
+
+# It answers TEXT, not a number — the door beside it, `in_unit`, is
+# the one that answers a float, and the difference between them is
+# what the family closed.
+digits: float = (1 * m).format(m)  # ty: error
