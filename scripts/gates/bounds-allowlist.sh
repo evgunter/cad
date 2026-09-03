@@ -51,6 +51,16 @@
 #    of what is exempted; the guarantee is the check's. Why exact text
 #    and which repair is meant is at that function.
 #
+# WHAT THE MATCHER IS RUN OVER is `lib.sh`'s shared CODE-ONLY view, never
+# the raw file. Comment text and string-literal bodies are blanked before
+# the regex sees a line, so a trailing `// … Decide + Bounds …`, a
+# one-line `/* … */`, and the spelling inside a `&str` are all invisible
+# to it — each planted below as a must-NOT-fire case, because
+# `\w*Bounds` makes this gate's false-positive surface grow with every
+# alias in the tree and an unearned red is a nudge toward the allowlist
+# rather than toward the fix. What that reader in turn cannot see is
+# stated at `gate_rust_code` and is not restated here.
+#
 # WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of
 # names. Three alternatives: an identifier ending in `Bounds` or
 # `Enclosure` after a `+` (path prefix allowed); one before a `+` (no
@@ -145,10 +155,6 @@
 # today, so a hole rather than a violation. Closing that is a redesign of
 # what this gate matches, not a patch to this regex.
 #
-# KNOWN GAP 5: the comment strip is leading-`//` only, so a trailing or
-# block comment or a string literal carrying the spelling fires. S63's
-# false-positive class, F3/lane F-g's to close with a shared stripper;
-# `\w*Bounds` grows it proportionally.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -176,14 +182,16 @@ gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  # The FILE LIST, each filter naming the `bounds_allowlist` entry that
-  # ratified it. A filter with no entry to name is not a filter yet.
-  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*(Bounds|Enclosure)\b)|(\w*(Bounds|Enclosure)\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b)' crates/*/src |
-    gate_grep -vE ':[0-9]+:\s*(//|///|//!)' |
+  # The shared CODE-ONLY view, so comment text and literal bodies never
+  # reach the matcher (see the header).
+  hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" |
+    gate_grep -E '(\+\s*(\w+::)*\w*(Bounds|Enclosure)\b)|(\w*(Bounds|Enclosure)\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b)' |
     # `CertifiedBounds`'s two DEFINITION lines, by exact text (see above).
     gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' |
     gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' |
     cut -d: -f1 | sort -u |
+    # The FILE LIST, each filter naming the `bounds_allowlist` entry that
+    # ratified it. A filter with no entry to name is not a filter yet.
     # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
     # evaluation-service seams, and `separation` under the same entry.
     gate_grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' |
@@ -337,6 +345,26 @@ plant_sole_bracket_bounds() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
+# THE THREE FORMS THE CODE-ONLY VIEW BUYS, and they are must-NOT-fire
+# cases because each one FIRED before the conversion: a trailing comment
+# naming the spelling, a one-line block comment around it, and the
+# spelling inside a string literal. On the tree as it stands the swap
+# moves no hit, so these fixtures are the only place the change is
+# observable — without them the reader could be reverted to the
+# leading-`//` strip and every case here would stay green.
+#
+# BUNDLED, and the asymmetry is the same one `plant_sole_bracket_bounds`
+# states: in the must-NOT-fire direction any one line firing fails the
+# case, so a bundle is strictly stronger than three separate fixtures.
+plant_spelling_in_comments_and_literals() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'pub fn a<T: Bounds>(_t: T) {} // never write Decide + Bounds here\n'
+    printf '/* a Decide + Bounds pairing belongs in the ratified ledger */\n'
+    printf 'pub const WHY: &str = "Decide + Bounds is ratified per file";\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
 # The definition skip is NARROW, and these two fixtures are what hold it
 # narrow. The first is real.rs carrying BOTH skipped definition lines AND
 # an ordinary compound signature below them: the gate must still fire, so
@@ -384,7 +412,9 @@ gate_selftest() {
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
   gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (the PARTIAL catch of GAP 4, not a mitigation for it: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  gate_selftest_passes "the spelling in a trailing comment, a block comment and a string literal" \
+    plant_spelling_in_comments_and_literals
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (the PARTIAL catch of GAP 4, not a mitigation for it: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); passes the spelling written into a trailing comment, a block comment and a string literal, which the leading-`//` strip this gate carried fired on; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

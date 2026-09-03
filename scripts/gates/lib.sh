@@ -206,9 +206,10 @@ gate_ok() {
 
 # --- THE SHARED RUST READER -------------------------------------------
 #
-# WHY THIS IS HERE. Six grep gates in this directory each carried the
-# same one-line comment strip -- `grep -vE ':[0-9]+:\s*(//|///|//!)'` --
-# and it is leading-`//` only, so it is wrong in BOTH directions:
+# WHY THIS IS HERE. Every grep gate in this directory carried its own
+# copy of the same one-line comment strip -- `grep -vE
+# ':[0-9]+:\s*(//|///|//!)'` -- and it is leading-`//` only, so it is
+# wrong in BOTH directions:
 #
 #   * CRY WOLF. A trailing comment is not stripped, so a line of prose
 #     naming the forbidden spelling fires the gate. That is not
@@ -231,8 +232,10 @@ gate_ok() {
 # their needle wants — `code_only`, `code_and_literals` (comments
 # stripped, literals KEPT) and `comments_only` (the inverse view: the
 # needle is prose) — and this reader builds the CODE-ONLY view, because
-# that is what the six gates converted to it need: their needles are
-# bounds, calls and operators.
+# that is what the gates converted to it need: their needles are
+# bounds, calls and operators. WHICH gates those are is DERIVED, not
+# copied — `grep -l gate_rust_code scripts/gates/*.sh` — for the same
+# reason the paragraph below gives.
 #
 # THAT POPULATION HAS ONE HOME, AND IT IS NOT THIS COMMENT.
 # `crates/test-utils/tests/reader_census.rs` carries one ledger line
@@ -253,7 +256,8 @@ gate_ok() {
 # uniform: **S163(b)** is the row.
 #
 # THREE RECORD SHAPES, one lexer, because two hand-rolled Rust readers
-# under `scripts/gates/` is how the leading-`//` strip got six copies:
+# under `scripts/gates/` is how the leading-`//` strip came to be
+# copied into every grep gate in this directory:
 #
 #   (default)      one record per source line
 #   --statements   one record per STATEMENT, cut at `{`, `}` and `;`,
