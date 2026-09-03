@@ -2,10 +2,12 @@
 id: TCOST-K3
 kind: unit
 title: validate_geometric recomputes the enclosure its caller holds: one certificate per body
-status: review
+status: closed
 opened: 2026-09-03
 refs: [TCOST-K1, TCOST-5]
 branch: tcost/k3-unit
+pr: 1703
+closed: 2026-09-03
 ---
 
 Third kernel finding for the A/B track, from TCOST-5 (PR 1621):

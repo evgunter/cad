@@ -1140,3 +1140,29 @@ dual asked for and a typed weight table that makes a swapped key a
 debug panic instead of a wrong bound. `docs/TCOST-K2-SPEC.md` deleted
 at merge per the DOC-LEDGER rule (ledgered this time, with K1's).
 Remaining in the block: TCOST-K3 (slot 2), fix pass in flight.
+
+## Unit: TCOST-K3 merged (2026-09-03) — the program's third A/B row; block TCOST-KB1 concluded
+
+PR 1703 at `497b1b48e` (two gating runs on the final tree, both
+`lane=both` asked: 33802978677 at ε default and 33803928081 at 1e-12,
+twenty jobs green on both lanes at each point; the two `2/2` shards
+red on the inherited `pncad-py` inventory row only, annotated on the
+PR; the merge-base probe PR 1709 showed the same shape on the base
+tree and was closed unmerged). Merged at 6381ebdd9, recorded as
+ordinal 1402 / sample #120; block TCOST-KB1 concluded — its
+branch-side record (pre-draw fields, the byte-126 draw, the three
+slot conclusions) merged into `docs/MODEL-AB-LOG.md` with this entry.
+The tier-3 doors return the certificate they computed; the fix pass
+turned the dual's two MAJORs into hosted numbers: the adopted rows
+give back −13.4 / −6.7 cpu-s (default / interval lane) at the default
+ε and nothing at 1e-12 (K1 already took it), against a suite now
+gated to the five paths it is specific to and costing 6.0 / 6.9 cpu-s
+where it runs. The v6 unilateral-instrument candidate (R2's "vacuous
+at 1e-12", demonstrated by mutation) was TALLIED for R2 at merge: the
+fix pass reproduced the gap from its own side. One instrument lesson
+came out of the digest re-take — the shared append log tears lines
+under concurrent writers, so a body measured once can vanish from a
+`sort -u` roster; the "closed-form noise" was that, not a fuzzer —
+and one filing on the rule alone (`R1_SEED` from `SystemTime`,
+unpinned by `CAD_FUZZ_SEED`). `docs/TCOST-K3-SPEC.md` deleted at
+merge and ledgered.
