@@ -1,0 +1,44 @@
+---
+id: graft-copies-provenance-keys-verbatim
+kind: issue
+title: "topo: a graft copies every Provenance record verbatim, so key-carrying variants point into the SOURCE arena after boolean::combine"
+status: open
+opened: 2026-09-02
+github: 1597
+refs: [1595, 1562]
+---
+
+## From GitHub issue 1597
+
+opened 2026-09-02, 1 comment.
+
+**Found by MESH-10's review (PR [#1595](https://github.com/evgunter/cad/pull/1595), R2, executed) — pre-existing; MESH-10's fix pass takes the copy site, this issue is the durable home for the class.**
+
+`crates/topo/src/boolean/combine.rs` (~:215–240) grafts a source body into a destination arena: every entity is re-inserted and its new key recorded in a `SecondaryMap` (`half_edges`, `edges`, `loops`, `faces`, …), but each `*_provenance` record is copied with `p.clone()` — VERBATIM. Provenance variants that carry keys (`SplitEdge { edge }`, `Kemr { he1, he2 }`, `Mekr { … }`, any others in `crates/topo/src/provenance.rs`) therefore keep source-arena keys, which in the destination alias whatever entity happens to hold that key.
+
+**Measured** (reviewer's probe, branch `mesh/10r2-probes`):
+
+```
+graft split donut into EMPTY:  mass_properties Ok(9.8696…)          (keys coincide by luck)
+graft split donut into BALL:   Err(Face{3v1, NotIsoRectangle props_rim_level})
+union(far box, split donut):   Err(props_rim_level)
+union(split donut, far box):   Ok(10.8696…)                          ← operand-order dependent
+```
+
+MESH-10's meridian fold keys on the split lineage (`split_root` chasing `SplitEdge` to the root edge), so after a graft it reads the aliased key and declines to fold — a typed refusal, never a wrong fold (no wrong fold is constructible today), but `union` has become order-dependent on such an operand. editor-core's names lane already knows: `emit_topo.rs`'s `chase_b` forwards keys across the graft by hand with `fwd_edges` — a workaround for exactly this copy.
+
+**Fix shape:** remap every key-carrying provenance variant through the graft's key maps at the copy site (the maps are already in scope there), for every entity kind; then the hand forwarding in `chase_b` becomes redundant and should go. A row: `union` in both operand orders agrees on a split-seam donut, and the grafted body's provenance chases resolve inside the destination.
+
+Refs #1562 (MESH-10), the names lane (`emit_topo.rs`), `crates/topo/src/provenance.rs`.
+
+## Comments
+
+**2026-09-02** — orchestrator:
+
+Measured by MESH-10's fix pass (nine experiments), and the fix shape above is WRONG as stated: forwarding every key-carrying variant except `SplitEdge` through the graft maps is harmless, but forwarding `SplitEdge` breaks editor-core's names lane — 8 die-corpus rows (the "shared-edge walk" emission, band-trim census 4→0) under the existing `chase_b` and under every rewrite tried. Cause: `chase_b` needs the VERBATIM source key of an ancestor that DIED in B before the graft (B's name table still names it), and B's operand body is not the grafted body but a placed copy. So the graft stays verbatim in MESH-10; R2's order-dependence row is kept as the pinned finding; `Body::split_root` is now typed (`SplitLineageCycle`) and the flattening stamps no identity on a cycling lineage — its cycle arm fired on real assembly products through exactly this aliasing.
+
+**Corrected fix shape:** a dead-ancestor bridge on `GraftMap` (the forwarded key for an ancestor that no longer exists in the source arena), so `chase_b` can forward keys instead of relying on the verbatim copy, and then the provenance remap at the copy site. Names-lane ground plus topo's graft; not S-MESH's.
+
+## Home
+
+`work/bool/` — the copy site is `crates/topo/src/boolean/combine.rs`, an S-BOOL territory glob, and the measured symptom is operand-order-dependent `union`; S-MESH's comment explicitly hands it away.
