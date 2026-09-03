@@ -2362,8 +2362,8 @@ ruling, no A/B row). Census family B-CANCEL CLOSED — a Python caller
 can stop an evaluation, and the family found that binding the STOP
 was the small half.** `CancelToken` (top-level, spelled identically,
 no `BOUND_AS`), `evaluate(..., cancel=)`, and `Evaluation.canceled`.
-18 Python rows in `tests/test_cancellation.py` (454 suite rows to
-472), a cross-door tag pin in `src/tests.rs`, ty fixtures both
+19 Python rows in `tests/test_cancellation.py` (454 suite rows to
+473), a cross-door tag pin in `src/tests.rs`, ty fixtures both
 directions.
 
 **The audit-reach check, run first as it now is on every family, and
