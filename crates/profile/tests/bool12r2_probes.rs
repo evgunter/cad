@@ -20,8 +20,6 @@
 //!   byte-stability claim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common;
-
 use geom_core::{Point2, Tol};
 use profile::{
     Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane,

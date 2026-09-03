@@ -24,6 +24,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
+// `fixture::plane_of` is reached only from the interval-gated row below,
+// so the import carries the same gate. (Under the pre-TCOST-B1 `mod
+// fixture;` spelling an unused declaration was silent; a `use` is not.)
+#[cfg(feature = "interval")]
 use crate::fixture;
 
 use editor_core::{
