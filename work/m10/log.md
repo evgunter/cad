@@ -385,7 +385,23 @@ item files and in `work/STATUS.md` (generated); this log stays the
 narrative. Items created at migration: M10-4 (spec), M10-5 (spec),
 M10-6 (open).
 
-## Orchestrator-side entries (branch-side until block M10-B2 concludes)
+## M10-4 and M10-5 redispatched fresh (2026-09-03)
+
+Both units' first implementer lanes were dispatched 2026-08-30 and
+died within the hour at the account session limit, pre-first-commit;
+the orchestrator session was away four days and main moved 524
+merges in the interval — rewriting exactly the eval/bvh/props files
+the lanes' unpushed drafts touched. Per the death-recovery rule and
+the G16A precedent, fresh same-slot lanes go out today from current
+main, the drafts handed over as untrusted reference material. The
+tracker migration's "not yet dispatched" on both items was written
+without sight of the branch-side dispatch records; the records
+annotate the interruption and the pairs stand. Both specs' grounding
+was re-verified against the moved main before redispatch — every
+cited symbol still exists; the specs bind as written, with their
+plan/log pointers updated to this directory.
+
+## Orchestrator-side entries, merged at block M10-B2's conclusion (2026-09-03)
 
 ## M10-2 dual review adjudication (2026-08-29)
 
@@ -519,3 +535,33 @@ M10-5's entry names only pruning; the subgradient-at-a-kink honesty
 gap (a one-sided derivative reported with a smooth one's confidence,
 conformant but unmarked — R1 T3, R2 note f) is stated in E4-facing
 docs by the fix pass and banked as an M10-6 report-shape question.
+
+## M10-4 MERGED (2026-09-03)
+
+PR #1627 merged, sample #114 (ordinal 505) — block M10-B2's last
+slot, so the block's records land on main with this entry. The seed
+door is open and E4 is real: every sensitivity carries a chamber
+certificate that is CONTENT-TIED to the build (the fix pass's
+deepest cut — the drive's own per-leaf `node_keys` replayed and
+compared before any mark is written, closing both the stale-edit and
+the same-name-foreign-document cases both reviewers had demonstrated),
+or `LocalOnly`; DL3's pairing hook is a typed two-half gate that
+discharges the obligation M10-DI's adjudication named; the `Stackup`
+gates on `worst_case` alone and now hands a real tolerance study its
+`LocalOnly` sensitivities, coverage and receipt inside
+`NothingCertified` instead of a data-free error. R2's unilateral MAJOR
+gave the program its typed profile valve for real — a loft or sweep
+section's parameter seed refuses `SeedPinnedSection` rather than
+producing the silent zero the plan's C6 seam entry predicted a year
+of specs ago. Honest limits, measured: certification widths remain
+ε-scale (M10-3's ceiling), `worst_case` at ε-scale is mostly the
+interval lane's dependency padding (2·half on the plate, 10·half on
+the slab), `contribution` extrapolates past its chamber by the
+box/leaf ratio and says so. Durable homes: contribution bounds via
+`Dual<Interval>` — `work/m10/contribution-bounds-via-dual-interval.md`;
+the subgradient-at-a-kink report mark banked for M10-6. Process: this
+unit's first lane died at the session limit and was redispatched fresh
+four days later against a main that had moved 524 merges — the fresh
+lane delivered in ~60 minutes, the rows annotate it. The six merged M10
+specs (M10-1, DI, P, 2, 3, 4) leave `docs/` with this merge per the
+ledger's rule. M10-5 is in flight; M10-6's spec is next.
