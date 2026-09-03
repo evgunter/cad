@@ -1182,3 +1182,17 @@ units on the style-batch track; and a read-only shard-count census
 over the post-K3 hosted runs (fixed cost per leg, imbalance, the
 longest test, N = 2/3/4 modelled), which is the measurement the
 program's keep_out asks for before any sharding knob moves.
+
+## Seam: the shard-count question answered (2026-09-03, 21:30 UTC)
+
+The parked `nextest-shard-count-needs-remeasure` item (issue 461 of
+2026-08-13, "blocked on the test-speedup work") is closed on the
+post-K3 census: test legs are 34–74 s wall (were 250–430 s), the fixed
+cost per leg is unchanged at ~15.6 s and is now a quarter to a half of
+a leg, the 296 s floor is a 30 s floor, and the shard imbalance the
+old audit found structural is now noise around 1.15×. Stay at N=2:
+every added shard costs a billed minute for a 20–45 % wall cut on legs
+already under a minute; the interval rows' boundary case (~1 billed
+minute per row, modelled) is not worth a measured PR. One finding for
+the CI-minutes arithmetic: saturation reads ~3.9× on every leg, so the
+runner presents ~4 vCPUs now, not the 2 the 2026-08 figures assumed.
