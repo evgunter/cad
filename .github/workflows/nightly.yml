@@ -385,12 +385,26 @@ jobs:
           TY_VERSION: ${{ steps.pins.outputs.ty }}
         run: |
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install "ty==$TY_VERSION"
+      # A ZERO-TEST RUN IS NOT A PASS, and this lane is where that
+      # matters most: it is UNGATED, so on a day no PR seeds the axis it
+      # is the only execution the suite gets, and `unittest discover`
+      # over a directory whose modules do not match its pattern prints
+      # `Ran 0 tests ... OK` and exits 0. The count is read back,
+      # required to be non-zero, and echoed to the run summary. One of
+      # three copies of this guard — see ci.yml's copy for why there is
+      # no shared home and where the lift is filed.
       - name: run the Python suite (unittest discover)
         run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/python-suite.log"
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m unittest discover \
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
-            --verbose
+            --verbose 2>&1 | tee "$log"
+          ran=$(sed -n 's/^Ran \([0-9]\{1,\}\) test.*/\1/p' "$log" | tail -1)
+          echo "python tests run: ${ran:-0}"
+          echo "python suite (ungated re-take): **${ran:-0}** tests" >> "$GITHUB_STEP_SUMMARY"
+          test "${ran:-0}" -gt 0
         env:
           PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
 

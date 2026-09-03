@@ -670,6 +670,7 @@ measured, and the largest line is not the one you would guess:
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| `python suite (ungated re-take)` | ~2 | S-TCOST C3. The job's own line, re-read at 120 s / 2 billed on run `33722922975` where it was still ci.yml's on a comparable tree; 67 s of that is the wheel, on a cache lane (`nightly-python`) of its own. The `an ordinary night` line below does not yet include this row |
 | **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than
@@ -1245,6 +1246,16 @@ toolkit-dependency drift and gets the identical answer, the ungated
 nightly re-take. A change that BREAKS the re-exported Rust API is not
 in that hole: it reds the offending crate's ordinary closure rows on
 the same PR.
+
+**AND THE RE-TAKE IS GUARDED AGAINST RUNNING NOTHING.** `unittest
+discover` prints `Ran 0 tests ... OK` and exits 0 over a directory whose
+modules stop matching, so an ungated nightly lane could report green
+having executed nothing — which is the ABSENCE case this section forbids
+demoting anything into. The count is read back, required to be non-zero
+and echoed, at all three sites that run the suite (both hosted jobs and
+`crates/pncad-py/run-python-tests.sh`); the three copies and why no
+shared runner exists are filed at
+`work/issues/python-suite-zero-test-guard-three-copies.md`.
 
 **RECORDED, NEVER SILENT — and it needed a different seat from the
 viewer's.** The viewer axis prints its verdict inside `fmt`, beside the

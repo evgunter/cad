@@ -3060,12 +3060,40 @@ jobs:
       # Discovery from the repo checkout: guide tests read the docs/
       # Markdown relative to their own file, and the stub check is
       # layout-invariant (validated on the wheel-venv layout, #308).
+      # A ZERO-TEST RUN IS NOT A PASS. `unittest discover` over a
+      # directory whose modules do not match its pattern prints
+      # `Ran 0 tests ... OK` and exits 0 — the same silence ci.yml's
+      # release-profile row keeps a count guard for, one language over.
+      # A renamed tests/ directory, a `--start-directory` that stops
+      # resolving, a wheel that imports but exports nothing the suite
+      # names: each of those leaves a green row that executed nothing.
+      # So the count is read back and required to be non-zero, and it is
+      # ECHOED, so "the python suite ran N tests" comes off the run
+      # rather than being assumed.
+      #
+      # THREE COPIES OF THIS GUARD EXIST and that is stated rather than
+      # hidden: here, in nightly.yml's ungated re-take, and in
+      # crates/pncad-py/run-python-tests.sh. There is no one place all
+      # three call — the hosted jobs cannot call that script, which
+      # builds through `local-scripts/with-build-slot.sh`, a tree every
+      # hosted job deletes at checkout, and stages a cdylib rather than
+      # installing a wheel. The lift is filed at
+      # work/issues/python-suite-zero-test-guard-three-copies.md.
+      #
+      # `Ran N tests` goes to STDERR, so the redirect is load-bearing,
+      # and `pipefail` is what keeps python's own exit status from being
+      # swallowed by `tee`.
       - name: run the Python suite (unittest discover)
         run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/python-suite.log"
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m unittest discover \
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
-            --verbose
+            --verbose 2>&1 | tee "$log"
+          ran=$(sed -n 's/^Ran \([0-9]\{1,\}\) test.*/\1/p' "$log" | tail -1)
+          echo "python tests run: ${ran:-0}"
+          test "${ran:-0}" -gt 0
         env:
           PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
 
