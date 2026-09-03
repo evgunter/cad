@@ -126,7 +126,14 @@ concurrency:
 # of its own, and strands every green check on the parent commit.
 #
 # So every OTHER job is gated below, and a push to main now runs
-# `filter` + `rebuild-latency` + `renders`.
+# `filter` + `rebuild-latency` + `renders` — plus, since 2026-09-03,
+# `cache-prime` and `cache-prime-interval`, which are a THIRD write
+# side-effect and not a fourth gate. They assert nothing and block
+# nothing; their whole output is a rust-cache entry in the DEFAULT
+# BRANCH's scope, which is the only scope every branch can read and which
+# nothing else on this side writes. The CACHE PRIMING note above those
+# jobs carries the measurement, and says why F3's declined "scheduled
+# full run on main" is a different proposal rather than this one.
 # `cleanup-archives` is deliberately NOT gated: its `needs` (test,
 # test-interval) skip on a push, which skips it too — one mechanism
 # rather than two saying the same thing.
@@ -1118,6 +1125,17 @@ jobs:
         run: |
           python3 scripts/check-interval-cfg-additive.py --selftest
           python3 scripts/check-interval-cfg-additive.py
+      # The build jobs restore a cache entry the `cache-prime*` jobs write on
+      # main, and the two sides agree only because their `env:` blocks are the
+      # same text and their `shared-key`s the same string. Drift either one and
+      # nothing goes red — the primer writes an entry nobody reads and every
+      # branch's first build job recompiles the dependency graph. Stdlib-only
+      # python3 over ci.yml itself, so it rides this cheap-tripwire job; the
+      # --selftest pass shows the guard actually fires.
+      - name: cache-prime key parity (the build jobs' warm start)
+        run: |
+          python3 scripts/check-cache-prime-parity.py --selftest
+          python3 scripts/check-cache-prime-parity.py
       - name: bit-identity consumer tripwire (retirement landed, M4 PR 5)
         run: |
           scripts/gates/bit-identity-consumer.sh --selftest
@@ -1680,6 +1698,176 @@ jobs:
       # already hosted the identically-named verdict step for the
       # doc-gate half of the same ruling. See the header there.
 
+  # ============================================================
+  # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the
+  # push side of the PUSH RUN line above, and they gate nothing. Read that
+  # note first; this one is the exception it does not cover.
+  #
+  # THE MECHANISM, measured 2026-09-03 (docs/CI-MINUTES-2026-08.md, the
+  # entry of that date). A GitHub Actions cache entry is readable from the
+  # ref that WROTE it plus the default branch — never from a sibling
+  # branch. `build` and `build-interval` carry `github.event_name !=
+  # 'push'`, so before this job they never ran on main, so no entry under
+  # their key existed in main's scope, so every branch's FIRST build job
+  # restored nothing and compiled all ~300 units. 40 of 49 sampled build
+  # jobs reported `No cache found`; the two lanes' keys were byte-identical
+  # across every branch sampled, which is what says the miss is a SCOPE
+  # problem and not a key problem. Neither eps nor the tier enters the key
+  # (eps is read at runtime; the tier changes `cargo_scope`, not the env or
+  # the lockfiles), so there is exactly one key per lane to prime.
+  #
+  # WHAT THIS IS NOT. It is not "a scheduled full run on main", which Ev
+  # DECLINED (2026-08-22, quoted above) — that proposal was a second GATE
+  # over a tree the next PR's merge-ref tests anyway, and its cost was a
+  # full gate per period. This asserts nothing, runs no test, and blocks
+  # nothing; its whole output is a cache entry in main's scope. F3's
+  # argument is about redundant gating and is untouched.
+  #
+  # WHY IT IS CHEAP, which is the whole reason it can sit on the push side.
+  # The key rotates only when the rust environment or a lockfile moves — 5
+  # of the 2962 COMMITS main took in 14 days touched Cargo.lock, any
+  # crate's Cargo.toml, .cargo/config.toml or rust-toolchain.toml. What
+  # fires these jobs is PUSHES, of which main took 3.4 an hour: on all but
+  # a rotation `cache-hit` is `true`, the build step is skipped, and the
+  # job is a checkout plus a 14 s restore — one billed minute each, ~7 an
+  # hour for the pair, against the ~45 an hour the misses cost. On a
+  # rotation it pays a full dependency build and every branch after it
+  # restores; see the note below on why that is a floor.
+  #
+  # WHY THE GUARD IS `cache-hit` AND NOT A REBUILD EVERY PUSH. main moved
+  # 3.4 times an hour when this was measured; rebuilding on each push would
+  # cost more than the misses it removes. `cache-hit` is rust-cache's
+  # EXACT-match output, so a prefix (restore-key) match still rebuilds —
+  # which is right, because a prefix match means the lockfile hash moved
+  # and the entry is stale for the tree being primed.
+  #
+  # WHY `cache-on-failure` STAYS OFF HERE, deliberately. This workflow's
+  # concurrency cancels an in-progress run when main moves again, so a
+  # rotation's ~13-minute build can be cancelled part-way — at 3.4 pushes
+  # an hour, often. Saving that partial target directory would store a
+  # partial dependency set under the EXACT key, after which every later
+  # push would see `cache-hit` and skip the build that would repair it — a
+  # cache that never heals. Off, a cancelled prime writes nothing and the
+  # next push retries from scratch, so a rotation may take SEVERAL pushes
+  # to repair and every branch is cold until one completes. That is the
+  # accepted cost of the guard, not an oversight.
+  #
+  # THE COUPLING TO WATCH. The key is composed from the `env:` block and
+  # the toolchain, so THIS JOB'S `env:` AND `build`'S MUST STAY IDENTICAL,
+  # and so must the sccache step that sets RUSTC_WRAPPER. If they drift the
+  # keys silently stop matching and the repo is back to a miss on every
+  # branch, with nothing red. The check is one line: the `Cache Key:` in
+  # this job's log and in `build + archive (default)`'s must be the same
+  # string.
+  # ============================================================
+  #
+  # NO LOCAL MIRROR: its entire output is a GitHub Actions cache entry
+  # written under the default branch's scope so that OTHER hosted runs can
+  # restore it. A developer box keeps one target directory across builds
+  # and has no scoped cache to prime, so there is no local row this can
+  # answer to.
+  cache-prime:
+    name: prime the build cache (default)
+    # Same BUILD_RUNNER variable as the build job it primes: the cache key
+    # carries os + arch, so priming on another runner class would write an
+    # entry the build job cannot use.
+    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
+    # `push` is what primes main's scope. `workflow_dispatch` is here so the
+    # entry can be repaired on demand after a key rotation without waiting
+    # for the next merge — and it is also how the key identity between this
+    # job and the job it primes was VERIFIED before this landed, since a
+    # dispatch is the only event that runs both in one run. A dispatch on a
+    # branch writes a branch-scoped entry, which is useless to anyone else
+    # and costs one billed minute once main's entry exists (exact hit, no
+    # build, no save).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # IDENTICAL to `build`'s env block, and that is load-bearing —
+    # Swatinem/rust-cache hashes CARGO_*/RUST* into the key. See the
+    # COUPLING TO WATCH paragraph above.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: build-default
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1' && steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: default
+      # `cargo test --no-run` is what `cargo nextest archive` compiles,
+      # minus the archive: the same targets, the same profiles, the same
+      # dependency graph. Unscoped on purpose — the tier scopes a gate run
+      # to a crate closure, and an entry primed at the full workspace is a
+      # superset of every scope a branch can ask for.
+      - name: build the dependency graph (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo test --no-run --workspace
+
+  # NO LOCAL MIRROR: the interval half of the same thing — it writes a
+  # GitHub Actions cache entry in the default branch's scope for other
+  # hosted runs to restore, which is not a state a developer box has. See
+  # the CACHE PRIMING note above `cache-prime`.
+  cache-prime-interval:
+    name: prime the build cache (interval)
+    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
+    # `push` is what primes main's scope. `workflow_dispatch` is here so the
+    # entry can be repaired on demand after a key rotation without waiting
+    # for the next merge — and it is also how the key identity between this
+    # job and the job it primes was VERIFIED before this landed, since a
+    # dispatch is the only event that runs both in one run. A dispatch on a
+    # branch writes a branch-scoped entry, which is useless to anyone else
+    # and costs one billed minute once main's entry exists (exact hit, no
+    # build, no save).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # IDENTICAL to `build-interval`'s env block — see the COUPLING TO WATCH
+    # paragraph in the CACHE PRIMING note above.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: build-interval
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1' && steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: interval
+      # The two lanes compile the SAME 172 registry crates (measured
+      # 2026-09-03 on two `--workspace` cold runs: the sets are equal, and
+      # `interval-transcendentals` is in both because geom-core carries it
+      # as a dev-dependency). What differs is feature flags on WORKSPACE
+      # crates, which rust-cache strips before saving. So these two entries
+      # hold near-identical bytes and could in principle be one — they are
+      # kept apart because the CACHE SEPARATION note on `build-interval`
+      # argues the separation on the graphs rather than on this
+      # measurement, and one job-night is not worth re-opening it.
+      - name: build the dependency graph (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo test --no-run --workspace --features interval
+
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
@@ -1920,7 +2108,15 @@ jobs:
       # NO mold here — see the LINKER note at the top of this file. It was
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
+      # `shared-key`, NOT the job-id default — see the CACHE SEPARATION note
+      # on `build-interval` and the CACHE PRIMING note on `cache-prime`. The
+      # value has to be a NAME a job on main can also spell, because a GitHub
+      # cache entry is readable only from the ref that wrote it plus the
+      # default branch, and until `cache-prime` landed nothing on main wrote
+      # this job's entry at all.
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-default
       - name: install sccache (off; enable with vars.SCCACHE = '1')
         if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache
@@ -2365,19 +2561,36 @@ jobs:
       # 2026-07-30): this job builds a DIFFERENT feature set from the
       # default-feature jobs, so it must never share their cache entry —
       # a shared entry would have the two graphs evicting each other on
-      # every run. Two things guarantee the separation. (1) rust-cache@v2
-      # composes its key as prefix + (shared-key OR key + job id) + os +
-      # arch + env/lockfile hashes, and its `add-job-id-key` input
-      # defaults to "true" — so with no `shared-key` anywhere in this
-      # file, every JOB here already gets its own cache by construction
-      # (matrix legs of one job share a key, which is what we want: same
-      # feature set). (2) The explicit `key` below makes THIS job's
-      # separation intentional rather than incidental, and survives a
-      # rename. Do NOT add `shared-key` to any job here: it replaces the
-      # job component outright and is exactly the thrash this prevents.
+      # every run. rust-cache@v2 composes its key as prefix +
+      # (shared-key OR key + job id) + os + arch + env/lockfile hashes,
+      # and its `add-job-id-key` input defaults to "true" — so with no
+      # `shared-key` anywhere, every JOB gets its own cache by
+      # construction (matrix legs of one job share a key, which is what
+      # we want: same feature set).
+      #
+      # THIS JOB NOW NAMES ITS KEY WITH `shared-key`, and the earlier form
+      # of this note said not to. The reason it said so was that
+      # `shared-key` REPLACES the job component, so one shared-key across
+      # both lanes is exactly the thrash above. That hazard is about the
+      # VALUE, not the input: two DISTINCT shared keys — `build-default`
+      # here and on `build`, `build-interval` here — keep the two graphs
+      # as separate as the job-id default did, and the rule that survives
+      # is the one worth stating: NEVER GIVE TWO DIFFERENT FEATURE GRAPHS
+      # THE SAME `shared-key`.
+      #
+      # What the job-id default could NOT do is be spelled by a second
+      # job, and that is why it had to go. A GitHub cache entry is
+      # readable from the ref that wrote it plus the default branch;
+      # these jobs never run on a push to main (see the PUSH RUN note at
+      # the top of this file), so no entry under their key existed on main
+      # and every branch's first build job restored nothing —
+      # 40 of 49 sampled build jobs, measured 2026-09-03, in
+      # docs/CI-MINUTES-2026-08.md's entry of that date. `cache-prime-interval`
+      # writes this key on main; that job's env block and this one's must
+      # stay identical or the two keys silently stop matching.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: interval
+          shared-key: build-interval
       - name: install sccache (off; enable with vars.SCCACHE = '1')
         if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache

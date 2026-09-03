@@ -383,6 +383,15 @@ discipline() {
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
   fi
+  # The hosted build jobs start warm only while their `env:` block and their
+  # `shared-key` still match the `cache-prime*` jobs that write the entry on
+  # main. Drift is silent up there and free to catch down here — the script
+  # reads .github/workflows/ only, so this box can run it.
+  # HOSTED MIRROR: discipline / cache-prime key parity (the build jobs' warm start)
+  if ! (python3 scripts/check-cache-prime-parity.py --selftest \
+        && python3 scripts/check-cache-prime-parity.py); then
+    rc=1
+  fi
   # The parsers behind the hosted test-cost REPORTS, against fixtures captured
   # from real runs. The reports themselves have no local half and are not
   # supposed to: their subject is what a hosted run cost and what a PULL

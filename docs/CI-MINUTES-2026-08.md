@@ -255,7 +255,9 @@ entries a run does save are subject to the same eviction as sccache's
 own. The premise under F4 and #853 ("rust-cache already caches the ~225
 dependency crates, so sccache's unique contribution is the workspace
 crates") does not hold for a first run on a branch, which is what most
-gate runs are. **That is the lever worth pulling next**, and it is not sccache:
+gate runs are. **That is the lever worth pulling next**, and it is not sccache — it was
+pulled on 2026-09-03 and the entry at the foot of this file carries the
+keys, the 82 % miss rate and the priming jobs that answer it:
 the 799 s → 534 s and 854 s → 661 s pairs in the table are what a warm
 run looks like, and at most 18 of a warm run's 68 units came from
 sccache.
@@ -1522,3 +1524,185 @@ skipped, and a skipped job runs no step at all, so there is no seat
 inside it from which to speak. The verdict is a step of the `filter`
 job, which computed the value and carries no `if:` — `python suite -
 the filter's verdict`, printing the seeds it was decided from.
+
+## 2026-09-03 — the build job's cache was in a scope no branch could read
+
+F4's third finding — `No cache found` on five of seven build jobs and on
+the control — is the lever it said was worth pulling next. This is the
+reading of it, and the change that follows.
+
+### Method
+
+Read off hosted logs only, on `main` as it stood with the sccache rig
+inert (`vars.SCCACHE == '1'`, unset), so no sccache confound sits inside
+any pair below.
+
+* **Keys and restore results**: the `Cache Configuration` block and the
+  line after `... Restoring cache ...` in each `build + archive` job's log.
+* **The key population**: ten distinct PR branches, each one's FIRST CI
+  run (oldest run for that `head_branch`), every non-skipped build job in it.
+* **The miss rate**: every non-skipped build job in the 60 most recent
+  completed `pull_request` runs — 49 with a readable restore line.
+* **Durations**: the `build test binaries + archive` step's own
+  `started_at`/`completed_at` from the jobs API, never the job wall.
+* **Rates**: run counts from the workflow-runs API over the window each
+  figure names.
+
+### The keys: one per lane, identical on every branch
+
+| branch | first run | job | key | restore |
+|---|---|---|---|---|
+| `lib/b-validate4` | 33745815456 | default | `v0-rust-build-Linux-x64-6f07d2f1-66da18f8` | No cache found |
+| `lib/b-format` | 33739144114 | default | same | No cache found |
+| `lib/b-resolve` | 33735881765 | default | same | No cache found |
+| `tcost/7-geom-brep-test-helpers` | 33716129026 | default | same | No cache found |
+| `verbs/rimcap-1` | 33743842534 | interval | `v0-rust-interval-build-interval-Linux-x64-6f07d2f1-66da18f8` | No cache found |
+| `verbs/1031b-winding` | 33742846713 | interval | same | No cache found |
+| `tcost/b2-dedup-remaining` | 33739184479 | interval | same | No cache found |
+| `lib/b-expr-read` | 33733876171 | interval | same | No cache found |
+| `tcost/8-geom-brep-helpers-2` | 33728831063 | interval | same | No cache found |
+| `tcost/k1-flux-budget-exit` | 33721985045 | interval | same | No cache found |
+
+Ten branches, ten misses, **two distinct key strings**. That is the whole
+diagnosis: the key does not vary, so the miss is not key rotation. It is
+**scope**. A GitHub Actions cache entry is readable from the ref that wrote
+it plus the default branch; `build` and `build-interval` carry
+`github.event_name != 'push'` (F3), so no run on `main` had ever written
+an entry under either key, and a branch could only ever restore its own.
+
+`6f07d2f1` is the rust-environment hash and `66da18f8` the lockfile hash.
+Neither **eps** nor the **tier** appears: eps is read at runtime, and the
+tier changes `cargo_scope` — which packages are archived — not the env
+block and not the lockfiles. C4's trial runs carry `61bb9c0c` in the env
+slot instead, which is `RUSTC_WRAPPER=sccache` being hashed, exactly as
+F4's note says.
+
+**Does `main` ever save a build-job cache?** No — not in any workflow.
+`nightly.yml` builds no archive by its own header's rule, and its
+rust-cache entries are all under `nightly-*`, `topo-release` and
+`opt-level-calibration-*` keys. What main DOES hold is
+`nextest-0.9.140-Linux-X64` (11 MB, `actions/cache`, written by a
+nightly), and `lib/b-validate4`'s first-ever run restored it — which is
+the in-repo proof that a main-scoped entry is readable from a fresh
+branch's first job, and that a constantly-restored entry survives this
+repo's cache churn.
+
+### The size of it
+
+* **The population: 53 non-skipped build jobs** in the 60 most recent
+  completed `pull_request` runs, spanning 3.20 h — **16.6 an hour**. 49 of
+  the 53 had a readable restore line (the other 4 were cancelled before
+  the step printed one).
+* **Miss rate: 40 of those 49 (82 %)** — 14/18 default, 26/31 interval.
+* **Cold minus warm, matched within one branch, same lane, same scope**
+  (`tcost/c2-rustdoc-roots-nightly`, `--workspace`): default **820 s**
+  cold → **639 s** and **603 s** warm; interval **840 s** cold → **677 s**
+  and **606 s** warm. About **200 s** either way. The population medians
+  agree: default `--workspace` 775 s miss (n=6) against 631 s hit (n=1),
+  interval 830 s miss (n=7) against 634 s hit (n=2).
+* **So the bill**: 16.6 jobs/h x 0.82 x 200 s = 2 722 s/h = **~45 billed
+  minutes an hour** spent recompiling ~225 dependency crates.
+* **The entry is 276 MB** and every missing job saves one, which is
+  ~4.6 GB an hour of writes against a 10 GB repository budget — the same
+  churn that evicted C4's sccache entries inside the hour. Every one of
+  those saves is readable by exactly one branch.
+
+### The lever: write the entry where every branch can read it
+
+`cache-prime` and `cache-prime-interval`, on `push` to main (and on
+`workflow_dispatch`), each restoring under the same `shared-key` its
+build job now uses and running `cargo test --no-run --workspace` **only
+when `cache-hit` is not an exact match**. Both build jobs move from the
+job-id default key to `shared-key: build-default` / `build-interval`,
+which is what lets a second job spell the same key; the values stay
+distinct, so the two feature graphs stay as separate as before.
+`scripts/check-cache-prime-parity.py`, in the `discipline` job and in the
+local half, holds the coupling: the primer and the job it primes must keep
+identical `env:` blocks and one shared key each, or the build is red
+rather than quietly cold.
+
+**What it costs.** Two denominators, kept apart. Of the **2962 commits**
+main took in 14 days, **5** touched `Cargo.lock`, any crate's
+`Cargo.toml`, `.cargo/config.toml` or `rust-toolchain.toml` — the only
+files that rotate the key — so a rotation is a ~3-day event. Separately,
+main received **3.4 PUSHES an hour** (200 `push` runs of ci.yml over
+59.3 h), and it is pushes, not commits, that fire these jobs: 3.4 x 2
+jobs x one billed minute (a checkout plus a 14 s restore) = **~7 billed
+minutes an hour**, against the ~45 above.
+
+**A rotation costs at least one full dependency build per lane, and can
+cost several.** This workflow's `cancel-in-progress` cancels the running
+push run when main moves again; at 3.4 pushes an hour a ~13-minute
+priming build is often cancelled part-way, `cache-on-failure` is off (see
+below), and the repair restarts on the next push. Every branch is cold
+until one completes, so "one build per rotation" is a floor and the
+lower-bound figure, not an expectation.
+
+**A second effect, not the one we went looking for.** rust-cache does not
+re-save on an exact hit ("Cache up-to-date." — observed in every warm job
+read here). Once a branch hits main's entry it writes nothing, so the
+~4.6 GB/h of near-identical per-branch saves goes away with the misses.
+
+### Declined, with the reason
+
+* **A scheduled or per-merge full build on main.** A full build per main
+  push is 3.4 × 2 × ~800 s ≈ 90 billed minutes an hour, more than the 45
+  it would save. The `cache-hit` guard is what makes the same idea pay.
+* **A nightly-only save.** One save a night cannot repair a rotation for
+  up to 24 h, and this repo rotates the key every ~3 days. `nightly.yml`'s
+  header also forbids building the gate's archive there.
+* **`cache-on-failure: true`.** This workflow cancels an in-progress run
+  when main moves again, so a rotation's prime can be cancelled part-way;
+  saving that partial target directory would store a partial dependency
+  set under the EXACT key, after which every later push would see
+  `cache-hit` and skip the build that would repair it. Off, a cancelled
+  prime writes nothing and the next push retries. On the branch side it
+  is moot after this change: branches that hit exactly no longer save.
+* **One entry for both lanes.** Measured, and it would work: two
+  `--workspace` cold runs, one per lane, compile the **same 172 registry
+  crates** (`interval-transcendentals` is in both, because `geom-core`
+  carries it as a dev-dependency). The `interval` feature adds one local
+  path crate and changes feature flags only on workspace crates, which
+  rust-cache strips before saving. Not taken: `build-interval`'s CACHE
+  SEPARATION note argues the split on the graphs, one job-night is the
+  whole saving, and this measurement is recorded here for whoever wants
+  to re-open it.
+
+### What this cannot show yet, stated rather than implied
+
+**There is no after-reading from a PR run, and there cannot be.** The
+priming jobs run on `push` to main and on dispatch; a branch's first build
+job can only restore main's entry once this is merged and one push to main
+has primed it. What the PR run does show is the two build jobs computing
+the new `shared-key` form. What it does NOT show is the primer computing
+the *same string* — the one coupling that can fail silently — because the
+implementing lane's token could not dispatch this workflow (HTTP 403) and
+`push` runs only on main. That coupling is therefore held by
+`scripts/check-cache-prime-parity.py` rather than by a measurement: it
+fails the `discipline` job if the two jobs' `env:` blocks or their
+`shared-key`s ever differ, which is the whole of what a lane can control
+from a branch. **The first reading owed, and its shape: the first PR
+opened after this merges, first run, `build + archive`'s restore line and
+the `build test binaries + archive` duration**, against the 820 s / 840 s
+`--workspace` cold figures above at the same tier. If that line still says
+`No cache found`, compare the two `Cache Key:` strings — this job's and
+the primer's on the merge commit's push run — before anything else.
+
+**The residual miss population is sampling's, not scope's.** A branch
+draws its lane per run, so a branch that pushes twice is cold in the lane
+it has not yet built — which is why the interval miss rate (26/31) sits
+above the default one (14/18): the interval build is the rarer draw, so
+its branch-own entry is the one that has usually been evicted. After this
+change both lanes are primed on main, so the draw stops mattering for the
+first run; what remains is the branch that rotates the key itself.
+
+Two more things one run cannot settle: whether main's entry survives
+eviction over days (the mechanism says it should, since every restore
+refreshes it and the competing 4.6 GB/h of per-branch saves is what this
+removes), and whether the ±25 % spread B1 recorded across `tier=all`
+samples swamps a single pair — read several.
+
+**And the first run after this lands is cold by construction**, in both
+lanes: `shared-key` changes the key string, so the old entries are
+unreachable. That run is not the verdict, the same trap the OPT LEVEL
+note in ci.yml warns about.
