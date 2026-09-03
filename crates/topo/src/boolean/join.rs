@@ -2380,11 +2380,15 @@ mod frame_dispatch_tests {
             ),
         ] {
             let got = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, band());
-            assert!(
-                matches!(got, Err(FrameError::Escalated(_))),
-                "{label}: expected an escalation, got {}",
-                outcome(&got)
-            );
+            // The PREDICATE is pinned, not merely the variant: the
+            // section arm this door forwards from has four numeric
+            // rows, every one of which escalates through
+            // `FrameError::Escalated`, so the variant alone would not
+            // say which one this fixture is ill-conditioned at.
+            let Err(FrameError::Escalated(diag)) = got else {
+                panic!("{label}: expected an escalation, got {}", outcome(&got));
+            };
+            assert_eq!(diag.predicate, Some("cs_wall_reach"), "{label}");
         }
     }
 }

@@ -827,17 +827,28 @@ fn declared_coaxial_tangency_is_classification_data_at_both_doors() {
             extent: 2.0,
             floor_scale: 1.0,
         };
+        //
+        // Pinned to the TANGENCY door EXACTLY, with its payload. The
+        // row used to accept `TubeStraddles` and `CertificateLimb`
+        // beside it; `CertificateLimb` is not a tangency door at all —
+        // it is a certificate limb failing — so accepting it would
+        // have let the consistency claim green on a refusal that says
+        // nothing about tangency. Measured payload at this pose:
+        // `sin θ = 0`, `arm = 1`, `σ₂ = 0` — a transversality that is
+        // exactly, not nearly, dead.
         let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
             .expect_err("the marcher must refuse a tangency");
-        assert!(
-            matches!(
-                err,
-                geom_brep::ssi::SsiError::TransversalityBand { .. }
-                    | geom_brep::ssi::SsiError::TubeStraddles { .. }
-                    | geom_brep::ssi::SsiError::CertificateLimb { .. }
-            ),
-            "{label}: expected a tangency-shaped SSI refusal, got {err:?}"
-        );
+        let geom_brep::ssi::SsiError::TransversalityBand {
+            sin_theta,
+            arm,
+            sigma_min,
+        } = err
+        else {
+            panic!("{label}: expected the SSI's TANGENCY door, got {err:?}");
+        };
+        assert_eq!(sin_theta, 0.0, "{label}");
+        assert_eq!(arm, 1.0, "{label}");
+        assert_eq!(sigma_min, 0.0, "{label}");
     }
 }
 
@@ -921,10 +932,14 @@ fn declared_coaxiality_is_verified() {
         ("re-posed twin", posed(&cyl), posed(&off(3.0 * eps()))),
     ] {
         let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
-        assert!(
-            matches!(err, SectionError::Escalated(_)),
-            "{label}: {err:?}"
-        );
+        // The PREDICATE is pinned, not merely the variant: an
+        // escalation from any other row of the arm would satisfy
+        // `Escalated(_)` while saying nothing about the declaration
+        // check (the ordinal-111 precedent on the sibling arm).
+        let SectionError::Escalated(diag) = err else {
+            panic!("{label}: expected an escalation, got {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("cs_declared_coaxial"), "{label}");
     }
 }
 
@@ -980,10 +995,14 @@ fn the_reach_trilean_escalates_in_band() {
         ),
     ] {
         let err = cylinder_sphere_section(&c, &s, CoaxialEvidence::Declared, band()).unwrap_err();
-        assert!(
-            matches!(err, SectionError::Escalated(_)),
-            "{label}: {err:?}"
-        );
+        // The PREDICATE, not just the variant: this row exists to pin
+        // the REACH trilean's in-band arm, and the two degeneracy rows
+        // and the declaration row above it all escalate through the
+        // same variant.
+        let SectionError::Escalated(diag) = err else {
+            panic!("{label}: expected an escalation, got {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("cs_wall_reach"), "{label}");
     }
 }
 
