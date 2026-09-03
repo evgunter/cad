@@ -285,6 +285,45 @@ fn picking_refusal_tags_are_stable() {
     );
 }
 
+/// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
+/// says so against the doors that already speak it.
+///
+/// A canceled run holds the completed PREFIX, so `Evaluation.value`
+/// on a node past it has to answer "this run has no result for that
+/// node" — the ladder's first rung, the same fact `ReadbackError` and
+/// `HitTestError` report. Those two reach the word through a `match`
+/// on a kernel arm; the evaluation door cannot, because
+/// `Evaluation::result` answers a bare `None` and the reason tag is
+/// this crate's own. So the word is a CONST and this is the pin that
+/// keeps the copy honest.
+///
+/// It runs in BOTH directions on purpose: renaming the kernel arms'
+/// tag fails here, and so does editing the const away from them. That
+/// is the property `picking_refusal_tags_are_stable` protects for the
+/// pick, one door further out.
+#[test]
+fn the_evaluation_door_speaks_the_standing_ladder() {
+    use crate::tags::{NODE_NOT_EVALUATED, hit_test_error_tag, interrogate_error_tag};
+    use pncad::document::RecipeNodeId;
+    use pncad::select::{HitTestError as H, InterrogateError as I};
+
+    let node = RecipeNodeId(0);
+    assert_eq!(
+        NODE_NOT_EVALUATED,
+        hit_test_error_tag(&H::NodeNotEvaluated { node })
+    );
+    assert_eq!(
+        NODE_NOT_EVALUATED,
+        interrogate_error_tag(&I::NodeNotEvaluated { node })
+    );
+
+    // And it is NOT the other no-entry fact. "The document has no such
+    // node" and "this run never reached it" are two states the door
+    // kept collapsed while only one of them could arise, and the whole
+    // of what B-CANCEL changed at this door is that both now can.
+    assert_ne!(NODE_NOT_EVALUATED, "unknown_node");
+}
+
 /// LIB-B-RESOLVE: the three resolution states, pinned word by word —
 /// and pinned by CONSTRUCTING them, because nothing else can.
 ///

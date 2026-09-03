@@ -2356,3 +2356,113 @@ aliases). The G16-era crate markers are already gone (verified:
 only STEP-fixture #917 false positives remain in crates/). Nothing
 LIB holds; the recipe layer's NodeErrorKind::Blend shape is cited
 in that design as ratified precedent.
+
+**B-CANCEL IN REVIEW (2026-09-03, #1676; mechanical under the 08-29
+ruling, no A/B row). Census family B-CANCEL CLOSED — a Python caller
+can stop an evaluation, and the family found that binding the STOP
+was the small half.** `CancelToken` (top-level, spelled identically,
+no `BOUND_AS`), `evaluate(..., cancel=)`, and `Evaluation.canceled`.
+19 Python rows in `tests/test_cancellation.py` (454 suite rows to
+473), a cross-door tag pin in `src/tests.rs`, ty fixtures both
+directions.
+
+**The audit-reach check, run first as it now is on every family, and
+negative in the strongest available form:**
+`docs/guide/north-star-audit.md` does not contain the string "cancel"
+at all. No tour scene interrupts an evaluation, so no audit gap id
+reaches this door, nothing sat filed under another id to reclaim, and
+the family moved exactly the one name it chartered. By B-FORMAT's
+arithmetic that is the cheap case. It was not, and the reason is
+worth the register.
+
+**A charter that names a door's ARGUMENT undercounts by whatever the
+door ANSWERS with.** B-FORMAT was cheap because `fmt_length`'s
+arguments already crossed. B-CANCEL's argument needed no building
+either — `CancelToken` is an `Arc<AtomicBool>` with two methods, and
+threading it through `evaluate` is four lines. What was missing was
+the other end: a canceled run answers by BEING a partial `Evaluation`,
+and Python could not ask an `Evaluation` whether it had completed. So
+the unit bound its one chartered name and then had to bind the answer
+that name makes reachable before the door meant anything. That is the
+general form of what B-EXPR-READ found by splitting a family on audit
+reach and B-FORMAT found by not needing to.
+
+**`EvalOutcome` is the entry this re-cut IN PLACE rather than moved,
+and it is the sharper half of the same finding.** It sat as
+`different-shape` — "the surface is a different shape in Python, not
+a debt" — and that was true only VACUOUSLY: Python's `evaluate`
+minted a token nobody could reach, so the outcome of every Python
+evaluation was the constant `Completed`, and a constant needs no
+accessor. `cancel=` made the second variant reachable and the entry
+therefore owed a real Python shape, which is now `Evaluation.canceled`.
+**A disposition can be honest about a surface and stop being honest
+when a NEIGHBOURING door opens, with nothing mechanical to say so** —
+the roster guards check spelling and decay, not whether a `SHAPE`
+claim still has a shape behind it. Recorded at the entry, because
+reading the entry beside the door is the only thing that catches it.
+
+**The change that was not on anyone's list: the GIL.** Threading the
+token needed no kernel and no editor-core change — but `evaluate` held
+the GIL across the whole kernel call, so no other Python thread could
+run, so `token.cancel()` could not be called during the only window in
+which it matters. Binding the token without releasing the GIL would
+have left the charter's own sentence ("a Python caller cannot stop a
+long evaluation") TRUE on the PR that closes it. So the kernel run is
+now inside `py.detach`, measured both ways on the suite's own
+document (31 nodes, ~300 ms debug): with the GIL released a helper
+thread cancelled it 20/20 at a 20 ms delay and 20/20 at no delay; the
+same code against a build differing only in the `detach` cancelled
+**0 of 20 at either delay**. Safe because `doc` stays borrowed for the
+call, so a concurrent MUTATION of the same document raises pyo3's own
+`RuntimeError("Already borrowed")` rather than editing a recipe out
+from under a running run — measured, and pinned, rather than reasoned:
+the first draft of this sentence named `Doc.accept`, which is a Rust
+`&mut self` helper Python does not have. The doors that DO cross are
+`Doc.insert` and `Doc.apply`, and a test now executes one of them.
+
+**What is pinned and what is only measured.** Cancelling a run already
+under way is a race by construction — the kernel checks between nodes,
+and which node it stops at is the scheduler's answer. So the contract
+is pinned on the DETERMINISTIC arm: a token canceled BEFORE the run
+starts fires the check before the first node, every time, giving the
+full `order()`, zero results, `recomputed == 0`. The concurrent arm is
+pinned only on invariants that hold whichever way the race falls
+(canceled ⟹ the results are a PREFIX; never a hole, never a node
+failed by the stop) plus ONE categorical yes/no: a helper thread
+stamping the clock every millisecond lands 139 stamps in the middle
+half of the call's window with the GIL released and exactly 0 with it
+held. 0-versus-many is a fact about the binding; a hit rate is a fact
+about the box, and the hit rates are quoted in the module docstring
+rather than asserted anywhere.
+
+**A false claim corrected in place, in the door this unit made
+reachable.** `Evaluation.value` answered `unknown_node` — "no such
+node in the evaluated document" — for every node with no entry. With
+no way to stop a run, a live node always had one, so the sentence was
+true because its false case could not arise; a canceled run's prefix
+is exactly that false case. The door now splits them, and the second
+arm speaks the STANDING LADDER's own word (`node_not_evaluated`, as
+`ReadbackError` and `HitTestError` spell it) rather than minting a
+third. The read-back and pick doors reach that word through a `match`
+on a kernel arm and this one cannot — `Evaluation::result` answers a
+bare `None` — so the word is now `tags::NODE_NOT_EVALUATED` and
+`tests::the_evaluation_door_speaks_the_standing_ladder` pins the copy
+against both matching doors, in both directions.
+
+**One north-star pin re-cut, not silenced.**
+`test_the_named_gaps_are_still_gaps` asserts `evaluate`'s whole
+keyword-only shape as G18's structural evidence; `cancel` joining it
+made that row red, which is the guard working. It is re-cut to the new
+list with the reading recorded at the line — `cancel` belongs to no
+audit gap, which is why the census owned it — rather than loosened.
+
+**Banked, one item:
+`work/lib/the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row.md`.**
+`crates/pncad-py/src/py/` is 12621 lines behind `#[cfg(feature =
+"python")]`; CI's clippy row runs default features and the
+python-suite row runs no clippy, so none of it is linted on the merge
+gate. Found because this unit ran clippy WITH the feature and hit one
+standing `type_complexity` at `py/value.rs:319` — pre-existing on
+main, and the only one, so the debt is one lint rather than a backlog.
+Not fixed here: it touches the merge gate and a field this unit does
+not bind.
