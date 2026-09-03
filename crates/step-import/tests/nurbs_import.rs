@@ -133,8 +133,8 @@ fn reverse_data_section(text: &str) -> String {
 enum Posture {
     /// Bounds returned.
     Certified(topo::MassProperties<f64>),
-    /// The fixed schedule ran out before `1024·ε` — typed, with the
-    /// measured width.
+    /// The schedule cannot reach `1024·ε` — typed, with its width (the
+    /// last round's own, or the bound the loop refused on after round 0).
     Budget,
     /// The convergence predicate could not be decided in-band.
     Escalated,
@@ -152,6 +152,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
                 geom_brep::props::PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 } => {
                     assert!(
                         width_len.is_finite() && width_len > target_len,
@@ -451,7 +452,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
             );
             assert!(
-                msg.contains("stalled at a mean boundary displacement"),
+                msg.contains("the certified quadrature enclosure cannot reach the"),
                 "the only surviving refusal is the quadrature budget, with its number: {msg}"
             );
         }

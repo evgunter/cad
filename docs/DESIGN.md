@@ -600,8 +600,10 @@ component-aware E–P form found and corrected in M1 PR 4).**
   pcurves); tier 3's +V check consumes the exact per-span tensor
   Newton–Cotes NURBS-patch flux for non-rational walls and the
   Taylor-remainder hull composite for rational ones (M8-3, #309/#353),
-  the latter refusing typed `QuadratureBudget` with its measured width
-  when the enclosure will not narrow. Curved-path sweeps and
+  the latter refusing typed `QuadratureBudget` with its width — the
+  schedule's last round's, or the lower bound every remaining round is
+  proven to exceed when the loop refuses after round 0 — when the
+  enclosure will not narrow. Curved-path sweeps and
   non-uniformly-spaced lofts needed #207, which makes an integral
   input skin exactly-unit-weight. The analytic-chart pcurve
   completion (walk row 4) landed in the same unit: cone, sphere and

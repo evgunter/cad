@@ -260,9 +260,10 @@ fn drive(
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
+            ..
         }) => {
             println!(
-                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
+                "R2 {name}: BUDGET width (the last round's own or its bound) {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
                 width_len / target_len
             );
             assert!(width_len.is_finite() && width_len > target_len);
