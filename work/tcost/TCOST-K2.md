@@ -1,9 +1,10 @@
 ---
 id: TCOST-K2
 kind: unit
-title: "offset_fit::fit_offset at 3.5 s per station: the Bernstein product weight, hoisted"
-status: spec
+title: offset_fit::fit_offset at 3.5 s per station: the Bernstein product weight, hoisted
+status: dispatched
 opened: 2026-09-03
+branch: tcost/k2-unit
 ---
 
 Candidate from TCOST-3 (`log.md`): `offset_fit::fit_offset` is 99.9 %
