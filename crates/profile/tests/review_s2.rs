@@ -81,7 +81,13 @@
 //! the distribution rather than a rare class.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to!["crates/profile/src/", "crates/geom-core/src/tolerance.rs"];
+// `tests/common/` is named because this suite takes its tolerance from
+// `common::tol`. A marker's own file is implicit; a sibling helper module is not.
+test_utils::gated_to![
+    "crates/profile/src/",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/profile/tests/common/",
+];
 
 use crate::common;
 

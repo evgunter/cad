@@ -22,6 +22,8 @@
 // assert on by name, and the tolerance the whole fixture is written in
 // units of. Deliberately wide: a run costs seconds, a missed break costs
 // a day.
+// `tests/fixture/` is named because the documents the driver runs over are built
+// there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/editor-core/src/drive.rs",
     "crates/editor-core/src/analysis.rs",
@@ -33,6 +35,7 @@ test_utils::gated_to![
     "crates/sweep/src/extrude.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/geom-core/src/interval.rs",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture;

@@ -245,7 +245,7 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
                  defect): {e}"
             );
             assert!(
-                refused.contains("quadrature enclosure stalled"),
+                refused.contains("quadrature enclosure cannot reach the"),
                 "E2E POSTURE: at a tighter eps the only honest refusal here is the \
                  budget: {e}"
             );

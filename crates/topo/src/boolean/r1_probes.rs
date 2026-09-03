@@ -16,8 +16,12 @@
 //!
 //! The independence is the content: an oracle built from the quartic's
 //! own algebra would agree with a wrong certifier. Two rows carry the
-//! count claim between them — a deterministic enumeration of the pose
-//! regimes the geometry names, and a sweep over poses nobody chose.
+//! count claim between them — the deterministic enumeration of the
+//! pose regimes the geometry names, HERE, and the sweep over poses
+//! nobody chose, which lives in `solid_contain/r1_generic_poses.rs`.
+//! The sweep is a file of its own because a gate restricting it to
+//! the code it tests gates a whole file's module, and these pins run
+//! on every leg.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -147,7 +151,8 @@ fn centre_and_axis() -> (Point3<f64>, Vec3<f64>) {
 /// thin ring; and a ring whose inner equator all but closes
 /// (`R - r = 0.01`, so the near-tangency is built into the shape rather
 /// than into the pose).
-const SHAPES: [(f64, f64); 5] = [(1.0, 0.3), (1.0, 0.9), (1.0, 0.02), (5.0, 0.1), (0.2, 0.19)];
+pub(super) const SHAPES: [(f64, f64); 5] =
+    [(1.0, 0.3), (1.0, 0.9), (1.0, 0.02), (5.0, 0.1), (0.2, 0.19)];
 
 /// The running census of one sweep: how the certifier answered, and
 /// every disagreement with the geometric oracle.
@@ -156,16 +161,16 @@ const SHAPES: [(f64, f64); 5] = [(1.0, 0.3), (1.0, 0.9), (1.0, 0.02), (5.0, 0.1)
 /// or refused rather than a bare count, because the count alone cannot
 /// say which pose class stopped deciding — and that is the question a
 /// shrinking decided-ray floor asks.
-struct Tally {
+pub(super) struct Tally {
     checked: usize,
     certified: usize,
     misses: usize,
     undecided: Vec<String>,
-    bad: Vec<String>,
+    pub(super) bad: Vec<String>,
 }
 
 impl Tally {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             checked: 0,
             certified: 0,
@@ -186,7 +191,14 @@ impl Tally {
     /// One pose against both counters. Every line `bad` collects opens
     /// with the REGIME that produced it, so a red names the pose class
     /// and not only its coordinates.
-    fn compare(&mut self, regime: &str, rr: f64, r: f64, o: Point3<f64>, dir: Vec3<f64>) {
+    pub(super) fn compare(
+        &mut self,
+        regime: &str,
+        rr: f64,
+        r: f64,
+        o: Point3<f64>,
+        dir: Vec3<f64>,
+    ) {
         let (c, a) = centre_and_axis();
         let d = dir.normalize();
         self.checked += 1;
@@ -230,7 +242,7 @@ impl Tally {
         }
     }
 
-    fn report(&self, label: &str) {
+    pub(super) fn report(&self, label: &str) {
         println!(
             "R1 root-count probe ({label}): {} rays, {} certified, {} miss, {} \
              uncertain/escalated, {} disagreements",
@@ -381,62 +393,6 @@ fn r1_certified_counts_agree_with_a_geometric_oracle() {
         tally.decided(),
         tally.checked,
         tally.undecided
-    );
-}
-
-/// CLAIM 1 + 5 at poses nobody chose — a counterexample search over
-/// rays drawn uniformly through the box the shapes occupy, with a
-/// direction uniform on the sphere.
-///
-/// A varying seed, because this is the search shape: successive runs
-/// explore new poses instead of replaying one lattice forever. The
-/// count is on the workspace `CAD_FUZZ_EFFORT` dial, shipped at the
-/// smoke level a gated run should cost; `CAD_FUZZ_EFFORT=60` restores
-/// roughly the ray count the fixed lattice used to run.
-#[test]
-fn r1_generic_poses_agree_with_the_geometric_oracle() {
-    use test_utils::fuzz;
-    let mut rng = fuzz::start("boolean::r1_probes::generic_poses");
-    // This sweep is specific to `crates/topo/src/boolean/solid_contain.rs`
-    // — `line_torus_roots` and the `cbrt` chain it calls live there —
-    // and to this file. It runs UNGATED on every leg: the per-file gate
-    // that restricts a suite to diffs touching its named paths
-    // (`test_utils::gated_to!`, `work/tcost/TCOST-1.md`) is not applied
-    // to this module, so the shipped count is the smoke level that costs
-    // a full matrix acceptably rather than the depth a gated run would buy.
-    let per_shape = fuzz::scaled(4);
-    let mut tally = Tally::new();
-    for (rr, r) in SHAPES {
-        for _ in 0..per_shape {
-            let o = Point3::new(
-                rng.range(-3.0, 3.6),
-                rng.range(-2.0, 2.2),
-                rng.range(-3.0, 2.2),
-            );
-            // Uniform on the sphere by rejection from the ball: a
-            // direction drawn per-component and normalized would
-            // over-weight the cube's diagonals, which is the bias the
-            // retired lattice's arithmetic directions already had.
-            let dir = loop {
-                let v = Vec3::new(
-                    rng.range(-1.0, 1.0),
-                    rng.range(-1.0, 1.0),
-                    rng.range(-1.0, 1.0),
-                );
-                let n = v.norm();
-                if (1e-3..=1.0).contains(&n) {
-                    break v / n;
-                }
-            };
-            tally.compare("generic", rr, r, o, dir);
-        }
-    }
-    tally.report("generic poses");
-    assert!(
-        tally.bad.is_empty(),
-        "{} disagreements with the oracle at generic poses — {}",
-        tally.bad.len(),
-        fuzz::replay()
     );
 }
 
