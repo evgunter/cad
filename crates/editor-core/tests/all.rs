@@ -165,6 +165,8 @@ mod m10_5_r2_probes_interval;
 mod m10_6_ci_rows_interval;
 #[path = "m10_6_min_clearance_interval.rs"]
 mod m10_6_min_clearance_interval;
+#[path = "m10_6_reports_interval.rs"]
+mod m10_6_reports_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]

@@ -39,17 +39,29 @@
 //! reports a COINCIDENCE and never a signed penetration depth; that
 //! gap is scoped in `work/m10/signed-penetration-depth.md`.
 //!
-//! [`ClearanceVerdict::Refused`] is typed, and there are TEN arms
+//! [`ClearanceVerdict::Refused`] is typed, and there are ELEVEN arms
 //! rather than the spec's two: a terminal sliver (the driver's rule
 //! shape — the deciding enclosure sits wholly inside the funnel's
 //! band, so refinement provably cannot move it), a named budget, a
 //! carrier with no admitted window, a selection that does not resolve,
 //! an enclosure that did not evaluate, a fold over a drive that
 //! certified nothing, a bound that is not a distance, a scope that
-//! names nothing, a tolerance the funnel cannot band, and a witness
-//! the `f64` rebuild would not confirm. [`ClearanceRefusal`] carries
-//! the argument for each; five of them have no row in any suite and
-//! the suite's own module door says which and why.
+//! names nothing, a pairing the wedge rule empties, a tolerance the
+//! funnel cannot band, and a witness the `f64` rebuild would not
+//! confirm. [`ClearanceRefusal`] carries the argument for each; five
+//! of them have no row in any suite and the suite's own module door
+//! says which and why.
+//!
+//! # Two questions, one subdivision (M10-6)
+//!
+//! The engine answers `separation ≥ c` as a trichotomy, and — since
+//! M10-6 — "what IS the minimum separation" as a certified BRACKET
+//! ([`min_separation`]). Same windows, same cells, same split rule; the
+//! difference is what the sweep does with a cell pair. The bound
+//! question DECIDES each pair at a funnel site; the minimum question
+//! decides nothing at all — it takes minima of enclosure endpoints, so
+//! it funnels no predicate and consults no tolerance. That door's own
+//! header carries the argument.
 //!
 //! **The sweep stops at the first VERIFIED violation.** A witness is
 //! the deliverable, and continuing past one buys a bigger receipt and

@@ -25,6 +25,15 @@
 //! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
 //! whole body, and every mixed pair not listed — refuses.
 //!
+//! **`min_clearance` is not in that table and never will be** (M10-6).
+//! It is the primitive the table's own escape clause names: there is no
+//! closed form for the minimum distance between two trimmed regions, so
+//! its answer comes from the E7 subdivision engine
+//! ([`crate::clearance::min_separation`]) as a certified BRACKET, and
+//! the value is computed in the node's wiring — where the bodies are —
+//! rather than here. [`eval_measure`] intercepts that primitive before
+//! this dispatch is consulted, and the arm below says so.
+//!
 //! # Which trileans this module consumes
 //!
 //! Two, and both are EXISTING funnel predicates called at their

@@ -19,9 +19,12 @@
 //! 1. **every predicate was definite** — no `k_stats` escalation, no
 //!    guided typed abort, no node that failed for a reason this driver
 //!    cannot prove definite; and
-//! 2. **the leaf's verdict vector equals the witness build's, EXACTLY**
-//!    — same nodes, same outcomes, same predicates, same signs, in
-//!    order.
+//! 2. **the leaf's CERTIFYING verdict vector equals the witness
+//!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
+//!    same signs, in order. "Certifying" is one exclusion and it is
+//!    named at [`VerdictVector::certifying`]: an `Assertion` node
+//!    reports and gates nothing (E10 v1), and certification is a gate,
+//!    so its rows are not in the comparison.
 //!
 //! Clause 2 is an equality of [`geom_core::k_stats::Verdict`] rows,
 //! which are float-free and scalar-independent by construction: the
@@ -609,8 +612,13 @@ impl ParamBoxVerdict {
         self.receipt
     }
 
-    /// The witness build's verdict vector — the thing every certified
-    /// leaf's vector was compared against, shipped once.
+    /// The witness build's CERTIFYING verdict vector — the thing every
+    /// certified leaf's vector was compared against, shipped once.
+    ///
+    /// [`VerdictVector::certifying`]'s, not [`VerdictVector::of`]'s: it
+    /// carries no `Assertion` row, because a report node's verdict is
+    /// not part of what certification means. A consumer who wants the
+    /// whole vector of an evaluation takes `of` over that evaluation.
     pub fn witness_vector(&self) -> &VerdictVector {
         &self.witness_vector
     }

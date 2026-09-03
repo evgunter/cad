@@ -429,6 +429,23 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     }
 }
 
+/// **Row 4b**: a pairing the wedge rule empties refuses typed.
+///
+/// One face against ITSELF: a face is never at a distance from itself,
+/// so the only candidate is dropped and there is no separation to
+/// enclose. The minimum over an empty set is `+∞`, and reporting that
+/// as a clearance would be a number no geometry backs.
+#[test]
+fn a_pairing_the_wedge_rule_empties_refuses_typed() {
+    let f = dumbbell();
+    let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf()));
+    let neck = Neck::of(&ev, &f);
+    match min_separation(&neck.side(0), &neck.side(0), MinSeparationConfig::default()) {
+        Err(r) => assert_eq!(r.name(), "no_admitted_pair", "{r:?}"),
+        Ok(m) => panic!("a face against itself has no pair: {}", m.serialize()),
+    }
+}
+
 /// **Row 5**: a reference that names neither a body nor a face refuses
 /// typed, naming what it found.
 #[test]
