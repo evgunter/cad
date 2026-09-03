@@ -12,7 +12,8 @@
 
 use editor_core::{Datum, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
-use super::super::fixture::{len, scl, xy_frame};
+use crate::fixture::{len, scl, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The tilt angle (radians) of the cutting plane's normal off the

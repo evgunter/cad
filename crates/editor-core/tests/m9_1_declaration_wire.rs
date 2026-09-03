@@ -17,7 +17,7 @@
 use editor_core::{CapEnd, ContactClass, DocEdit, Node, ProfileDoc, RoleSeg, load, save};
 use geom_core::Tol;
 
-mod fixture;
+use crate::fixture;
 
 /// A class-bearing document round-trips with its declaration CLASSES
 /// intact.

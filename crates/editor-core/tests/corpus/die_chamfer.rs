@@ -25,7 +25,8 @@
 
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
-use super::super::fixture::{len, prism_edges, xy_frame};
+use crate::fixture::{len, prism_edges, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The blank's side, meters (dyadic).

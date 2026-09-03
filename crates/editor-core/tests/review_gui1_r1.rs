@@ -38,7 +38,7 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,

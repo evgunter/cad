@@ -14,7 +14,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{Doc, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};

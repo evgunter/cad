@@ -43,7 +43,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Tol, Vec3};
 use topo::{Body, FaceKey, FaceSurface};
 
-mod common;
+use crate::common;
 use common::approx::{
     approx_walls, band, moved_box, planar_patch, prism, pulled_back, top_face, unit_box,
 };

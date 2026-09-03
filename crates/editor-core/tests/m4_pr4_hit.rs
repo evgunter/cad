@@ -5,7 +5,7 @@
 //! The GUI never sees an arena key: every mesh back-ref inverts.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EntityKey, EntityRef, EvalOptions, Evaluation,

@@ -56,7 +56,8 @@
 
 use editor_core::{BooleanOp, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
-use super::super::fixture::{ang, axis_in_plane, frame, len, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, xy_frame};
+
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
 

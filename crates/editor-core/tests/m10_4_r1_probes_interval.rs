@@ -14,7 +14,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, std_deviation};
 use editor_core::drive::{DriveConfig, drive};

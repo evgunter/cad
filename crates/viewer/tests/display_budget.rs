@@ -19,8 +19,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
-
 use pncad::geom_core::Tol;
 use viewer::scene::{self, DisplayTolerance, TRIANGLE_BUDGET};
 use viewer::session::DocSession;

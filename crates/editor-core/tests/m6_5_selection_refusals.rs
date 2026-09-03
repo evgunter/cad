@@ -10,8 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::fixture;
 
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
 use editor_core::{

@@ -28,7 +28,10 @@
 //! whose geometry is not dyadic (arcs) carry no mass pin and are
 //! pinned on validity + counts instead.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::collections::{BTreeMap, BTreeSet};

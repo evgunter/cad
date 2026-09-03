@@ -18,7 +18,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{
     BooleanOp, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, RecipeNodeId,

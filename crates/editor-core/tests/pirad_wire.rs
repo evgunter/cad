@@ -15,7 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, RecipeNodeId, load, save};
 use fixture::{insert, len, on_frame, scl};

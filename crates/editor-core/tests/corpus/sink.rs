@@ -34,7 +34,8 @@ use editor_core::{
     RoleSeg, SlotId, StableName, WitnessDatum,
 };
 
-use super::super::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
+use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
+
 use super::{CorpusDoc, Recorder};
 
 /// The kitchen-sink corpus document.

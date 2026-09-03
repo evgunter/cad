@@ -36,7 +36,8 @@ use editor_core::{
     RoleSeg, SlotId, StableName,
 };
 
-use super::super::fixture::len;
+use crate::fixture::len;
+
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap-vertex name at `node`.

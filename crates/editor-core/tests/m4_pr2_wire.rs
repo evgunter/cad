@@ -4,7 +4,7 @@
 //! refusal doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 

@@ -15,7 +15,7 @@
 //! (`memories/review-and-dependency-policy.md`), and pointing it at
 //! the implementation's own constants would spend exactly that.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
 // why: root Cargo.toml, the `unreachable_pub` stanza
 // Panicking is a test's failure mechanism (workspace lint note).

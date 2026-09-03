@@ -34,8 +34,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};

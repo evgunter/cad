@@ -9,7 +9,7 @@
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EditError, EvalOptions, Expr, ExprPath, LoopProgram,

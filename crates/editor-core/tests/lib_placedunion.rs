@@ -16,8 +16,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,

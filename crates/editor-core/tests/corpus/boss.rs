@@ -14,7 +14,8 @@
 
 use editor_core::{BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
-use super::super::fixture::{frame, len, xy_frame};
+use crate::fixture::{frame, len, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The boss-union corpus document: 3×3×0.8 plate ∪ r = 0.35 three-arc

@@ -15,7 +15,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, RoleSeg, evaluate, find_flush_candidates,
 };
 
-mod fixture;
+use crate::fixture;
 
 use fixture::{fname, insert, len, on_frame};
 use geom_core::Tol;

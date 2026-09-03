@@ -13,7 +13,16 @@
 //! identity in IEEE arithmetic) and the oracle stays exact. The
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// WHY A HELPER TREE ALLOWS THESE — the one statement of it, cited by every
+// other tree that carries an allow of this shape. A helper tree AUTHORS test
+// documents, and a document that will not build is a test failure, not a
+// value to hand back: its builders panic on a malformed fixture rather than
+// thread a `Result` out to a caller whose only recourse is to unwrap it.
+// Each tree names exactly the lints its own code raises, here rather than in
+// the crate-root allow of whatever module loads it.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use editor_core::{

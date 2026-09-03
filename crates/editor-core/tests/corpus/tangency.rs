@@ -31,7 +31,8 @@ use editor_core::{
     Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
 };
 
-use super::super::fixture::{frame, len, xy_frame};
+use crate::fixture::{frame, len, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The declared-tangency corpus document.

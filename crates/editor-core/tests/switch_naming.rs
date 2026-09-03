@@ -10,7 +10,7 @@
 
 use std::collections::BTreeSet;
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName,

@@ -52,7 +52,8 @@ use editor_core::{
     RoleSeg, SegPat, SegTag, Selector, SlotId, StableName,
 };
 
-use super::super::fixture::{ang, axis_in_plane, frame, len, prism_edges, scl, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, prism_edges, scl, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The die's side, meters.

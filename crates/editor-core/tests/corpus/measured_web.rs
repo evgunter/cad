@@ -33,7 +33,8 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use super::super::fixture::{len, xy_frame};
+use crate::fixture::{len, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The parameter driving both holes.

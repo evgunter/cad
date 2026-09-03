@@ -32,7 +32,8 @@ use editor_core::{
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
 };
 
-use super::super::fixture::{frame, len, xy_frame};
+use crate::fixture::{frame, len, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The document parameter that drives both holes.

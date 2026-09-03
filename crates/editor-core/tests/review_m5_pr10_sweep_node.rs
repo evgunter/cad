@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,

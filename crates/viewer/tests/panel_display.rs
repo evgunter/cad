@@ -21,7 +21,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{
     Axis3, Datum, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, SlotId, VectorSlot,

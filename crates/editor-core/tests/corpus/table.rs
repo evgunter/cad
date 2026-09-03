@@ -66,8 +66,10 @@ use editor_core::{
 };
 use topo::PlaneRelation;
 
-use super::super::fixture::len;
+use crate::fixture::len;
+
 use super::{CorpusDoc, MassPin, Recorder};
+
 use geom_core::Tol;
 
 /// The four leg footprints, corner order `(0,0) → (4,0) → (4,3) →

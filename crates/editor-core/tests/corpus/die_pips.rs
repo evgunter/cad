@@ -79,7 +79,8 @@ use editor_core::{
     ProgramTarget, SlotId,
 };
 
-use super::super::fixture::{ang, axis_in_plane, frame, len, scl, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, scl, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The die's side, meters.

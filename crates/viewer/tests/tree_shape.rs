@@ -20,7 +20,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 
