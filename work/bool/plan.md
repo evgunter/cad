@@ -6,7 +6,7 @@ Opened on Ev's direction (in-chat, 2026-08-31: "you can also take
 S-BOOL if that's not claimed yet" — it was not; verified against docs,
 branches and open PRs at opening) from the ratified stream cut in
 `docs/WORK-STREAMS-2026-08.md` (§S-BOOL), by the S-MESH orchestrator
-(`docs/S-MESH-PLAN.md` opens in the same PR). The cut is the charter
+(`work/mesh/plan.md` opens in the same PR). The cut is the charter
 and is cited, not re-litigated.
 
 Branch prefix (the #396 convention): **`bool/`** — unit branches
@@ -34,7 +34,7 @@ remaining half, #1031 half B, #1076, #1077; #1059 resolved into
   untouched until PCURVE's P-2 (#1177) resumes and lands.
 
 The fence is confirmed from the other side:
-`docs/VERBS-PLAN.md`'s work-stream note names
+`work/verbs/plan.md`'s work-stream note names
 "#1011/#750/#542/#368/#433/#1152/#134" as "S-BOOL's honest remainder
 (… never VERBS')".
 
@@ -423,7 +423,7 @@ this program's files — see Q3 below.
 
 ## Process
 
-As S-MESH's, verbatim in substance (`docs/S-MESH-PLAN.md` §Process):
+As S-MESH's, verbatim in substance (`work/mesh/plan.md` §Process):
 v6 duals, blocks `BOOL-B<n>`, ordinals claimed on main at review
 dispatch from band 1100–1199, blinding, record-at-merge, hosted CI as
 the only gate, the #1356 ε-trailer practice, discipline/reviewer

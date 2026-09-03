@@ -28,7 +28,7 @@ use profile::RawLoop;
 use sweep::skin::SkinError;
 use sweep::{LoftError, ProfileLoop, ProfileVertex, Section, loft_body};
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 

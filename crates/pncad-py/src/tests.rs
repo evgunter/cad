@@ -369,17 +369,39 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 #[test]
 fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
     let tol = Tol::witness();
-    use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
-    use pncad::prelude::SketchPlane;
+    use pncad::document::{
+        Datum, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
+    };
+    use pncad::prelude::Dimension;
 
     let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe", tol);
     let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite corners");
-    let applied = apply(
+    // The frame the profile is drawn on. Its components are literals
+    // too, and they come first in the wire, so the FIRST-literal
+    // replacement below now lands on the frame's origin rather than on
+    // a profile point. The probe is about the load door's dimension
+    // walk, which reaches both alike.
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let framed = apply(
         &doc,
         &DocEdit::InsertNode {
+            node: Node::Datum(Datum::Frame {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                u: [scl(1.0), scl(0.0), scl(0.0)],
+                v: [scl(0.0), scl(1.0), scl(0.0)],
+            }),
+        },
+        tol,
+    )
+    .expect("the frame inserts");
+    let plane = framed.record.minted.expect("a frame id");
+    let applied = apply(
+        &framed.doc,
+        &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane,
                 loops: vec![square],
             }),
         },

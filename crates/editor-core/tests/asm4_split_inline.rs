@@ -15,7 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -25,7 +25,7 @@ use editor_core::{
     Node, ParamName, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
     SplitError, StableName, content_pin, evaluate, inline, load, product_named, save, split,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{desc, insert, len, on_frame, square, step, xy_frame};
 use geom_core::Tol;
 
 // ---- The stub store (the asm2a idiom: no files, full pin gate) ----
@@ -75,16 +75,20 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 
 /// A one-solid part document: a `side`-wide square extruded 1 tall,
 /// centered at `cx` (the asm2a fixture).
+/// A `part` document's node order: its sketch frame, the profile drawn
+/// on it, then the extrude that is its body.
+const PART_PLANE: usize = 0;
+const PART_PROFILE: usize = 1;
+const PART_BODY: usize = 2;
+
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, side / 2.0)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, side / 2.0)],
     );
     let (doc, _) = insert(
         doc,
@@ -288,15 +292,10 @@ fn row1_split_plain_subtree_preserves_structure() {
     // Two disjoint plain components: a unit block at the origin and a
     // half-block at x = 10.
     let doc = part("asm4-r1p", 0.0, 1.0);
-    let (doc, p2) = insert(
-        doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(10.0, 0.0, 0.5)],
-        )),
-    );
+    // The half-block's own frame: the cut takes it, because a profile
+    // whose plane stayed behind would sever an edge.
+    let (doc, f2) = insert(doc, xy_frame());
+    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
@@ -308,7 +307,7 @@ fn row1_split_plain_subtree_preserves_structure() {
     let ev1 = run(&doc, &opts);
     let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
 
-    let cut = BTreeSet::from([p2, e2]);
+    let cut = BTreeSet::from([f2, p2, e2]);
     let out = split(
         &doc,
         &cut,
@@ -504,12 +503,16 @@ fn row2_appearance_rides_the_bridge_both_ways() {
 #[test]
 fn row3_severing_cut_refuses_naming_the_edge() {
     let doc = part("asm4-r3s", 0.0, 1.0);
-    let profile = doc.order()[0];
-    let extrude = doc.order()[1];
-    // The kept consumer's edge into the cut input…
+    let plane = doc.order()[PART_PLANE];
+    let profile = doc.order()[PART_PROFILE];
+    let extrude = doc.order()[PART_BODY];
+    // The kept consumer's edge into the cut input… The frame rides
+    // along, so the ONE severed edge is the extrude's — a cut that left
+    // the profile's plane behind would sever that one first, and this
+    // row is about the extrude's.
     match split(
         &doc,
-        &BTreeSet::from([profile]),
+        &BTreeSet::from([plane, profile]),
         DocumentId::derive("n1"),
         Tol::witness(),
     ) {
@@ -555,15 +558,12 @@ fn row3_uncut_param_reference_refuses() {
         },
     );
     let h = || Expr::param(ParamName::new("h"), editor_core::Dimension::Length);
-    let sq = |cx: f64| {
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, 0.5)],
-        ))
-    };
-    let (doc, p1) = insert(doc, sq(0.0));
+    // Each block draws on its OWN frame. A shared one would sever an
+    // edge at the cut below — the frame is a document input now — and
+    // that refusal would fire before the parameter question this row
+    // is about.
+    let (doc, f1) = insert(doc, xy_frame());
+    let (doc, p1) = insert(doc, Node::Profile(desc(f1, vec![square(0.0, 0.0, 0.5)])));
     let (doc, e1) = insert(
         doc,
         Node::Extrude {
@@ -571,7 +571,8 @@ fn row3_uncut_param_reference_refuses() {
             distance: h(),
         },
     );
-    let (doc, p2) = insert(doc, sq(10.0));
+    let (doc, f2) = insert(doc, xy_frame());
+    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
@@ -581,7 +582,7 @@ fn row3_uncut_param_reference_refuses() {
     );
     match split(
         &doc,
-        &BTreeSet::from([p1, e1]),
+        &BTreeSet::from([f1, p1, e1]),
         DocumentId::derive("n"),
         Tol::witness(),
     ) {
@@ -600,7 +601,7 @@ fn row3_uncut_param_reference_refuses() {
     // split is legal.
     let out = split(
         &doc,
-        &BTreeSet::from([p1, e1, p2, e2]),
+        &BTreeSet::from([f1, p1, e1, f2, p2, e2]),
         DocumentId::derive("n"),
         Tol::witness(),
     )
@@ -693,7 +694,11 @@ fn row3_further_typed_refusals() {
     match inline(&host2, inst2, &store, Tol::witness()) {
         Err(InlineError::UnplaceableFrame { root }) => {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
-            assert_eq!(root, part_doc.order()[1], "the plain extrude root is named");
+            assert_eq!(
+                root,
+                part_doc.order()[PART_BODY],
+                "the plain extrude root is named"
+            );
         }
         other => panic!("expected UnplaceableFrame, got {other:?}"),
     }
@@ -901,14 +906,12 @@ fn root_interleaving_collapses_onto_the_instance_at_d4_identity() {
     // A plain component (dyadic-exact volume, disjoint from the
     // instances) plus three singleton clusters.
     let doc = ProfileDoc::empty(DocumentId::derive("asm4-min1"), Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(5.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(5.0, 0.0, 0.5)],
     );
     let (doc, e) = insert(
         doc,
@@ -1066,15 +1069,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // NameStraddlesCut: a KEPT Declare's name derives from a kept node
     // AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
-    let kept_e = doc.order()[1];
+    let kept_e = doc.order()[PART_BODY];
+    let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(10.0, 0.0, 0.5)],
-        )),
+        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
     );
     let (doc, cut_e) = insert(
         doc,
@@ -1100,7 +1099,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, _) = insert(doc, Node::declare_rest(vec![(straddler.clone(), partner)]));
     match split(
         &doc,
-        &BTreeSet::from([cut_p, cut_e]),
+        &BTreeSet::from([cut_f, cut_p, cut_e]),
         DocumentId::derive("n"),
         Tol::witness(),
     ) {
@@ -1118,15 +1117,11 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // PartNameReachesRemainder: a CUT Declare names a KEPT node's
     // entity — the part document could not express the reference.
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
-    let kept_e = doc.order()[1];
+    let kept_e = doc.order()[PART_BODY];
+    let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(10.0, 0.0, 0.5)],
-        )),
+        Node::Profile(desc(cut_f, vec![square(10.0, 0.0, 0.5)])),
     );
     let (doc, cut_e) = insert(
         doc,
@@ -1148,7 +1143,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, decl) = insert(doc, Node::declare_rest(vec![(cut_local, reaching.clone())]));
     match split(
         &doc,
-        &BTreeSet::from([cut_p, cut_e, decl]),
+        &BTreeSet::from([cut_f, cut_p, cut_e, decl]),
         DocumentId::derive("n"),
         Tol::witness(),
     ) {
@@ -1262,7 +1257,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
     let host = part("asm4-min2-name-host", 5.0, 1.0);
-    let kept_e = host.order()[1];
+    let kept_e = host.order()[PART_BODY];
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let foreign = StableName {
         kind: EntityKind::Face,
@@ -1328,14 +1323,12 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     // no node to remap it onto.
     let mut store = StubStore::default();
     let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
-    let (part_doc, extra) = insert(
+    let (part_doc, extra) = on_frame(
         part_doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(10.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(10.0, 0.0, 0.5)],
     );
     let stranded = StableName {
         kind: EntityKind::Edge,
@@ -1344,7 +1337,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     };
     let anchor = StableName {
         kind: EntityKind::Edge,
-        node: part_doc.order()[1],
+        node: part_doc.order()[PART_BODY],
         path: vec![RoleSeg::OutputBody],
     };
     let (part_doc, _) = insert(

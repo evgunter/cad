@@ -43,7 +43,7 @@ use sweep::test_support::{
 };
 use sweep::{loft_body, sweep_body};
 
-mod common;
+use crate::common;
 use common::orient::{
     LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out, chart_at, min_roll_turn,
 };

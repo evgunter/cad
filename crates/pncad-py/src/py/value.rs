@@ -292,7 +292,8 @@ impl Body {
 /// A datum: a construction plane, frame, axis, or point.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Datum {
-    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
+    /// `"plane"`, `"frame"`, `"axis"`, `"axis_in_plane"`, or
+    /// `"point"`.
     #[pyo3(get)]
     kind: &'static str,
     /// Plane/frame/axis origin, or the point's position, as metres.
@@ -302,6 +303,11 @@ pub(crate) struct Datum {
     /// for a point.
     #[pyo3(get)]
     direction: Option<(f64, f64, f64)>,
+    /// An in-plane axis in its frame's own 2-D coordinates — the
+    /// origin then the direction, as authored. `None` for every other
+    /// kind, whose numbers are all world numbers.
+    #[pyo3(get)]
+    in_plane: Option<((f64, f64), (f64, f64))>,
     /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
     /// for every other kind.
     ///
@@ -514,6 +520,7 @@ impl Value {
                     kind: "plane",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
+                    in_plane: None,
                     axes: None,
                 })
             }
@@ -523,6 +530,7 @@ impl Value {
                     kind: "axis",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
+                    in_plane: None,
                     axes: None,
                 })
             }
@@ -530,6 +538,7 @@ impl Value {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
+                in_plane: None,
                 axes: None,
             }),
             d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {
@@ -539,7 +548,27 @@ impl Value {
                     kind: "frame",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
+                    in_plane: None,
                     axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
+                })
+            }
+            // BOTH spellings reach Python: `origin`/`direction` are the
+            // world line, so a reader that only wants to know where the
+            // axis IS treats it like any other axis, and `in_plane`
+            // carries the sketch numbers a revolve consumes.
+            d::ValuePayload::Datum(d::DatumValue::AxisInPlane {
+                plane_origin,
+                plane_dir,
+                origin,
+                dir,
+            }) => {
+                let v = dir.get();
+                Ok(Datum {
+                    kind: "axis_in_plane",
+                    origin: lengths(*origin),
+                    direction: Some((v.x, v.y, v.z)),
+                    in_plane: Some(((plane_origin.x, plane_origin.y), (plane_dir.x, plane_dir.y))),
+                    axes: None,
                 })
             }
             other => Err(eval_err(

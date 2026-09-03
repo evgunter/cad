@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Dimension, EntityKind, EvalOptions, Expr, InterrogateError, Node, ProfileDoc,
@@ -41,14 +41,12 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 
 /// A unit box as an extruded square, and its extrude node.
 fn box_doc() -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         ProfileDoc::empty_derived("lib_u5_interrogate", Tol::witness()),
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     fixture::insert(
         doc,

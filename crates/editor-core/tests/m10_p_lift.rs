@@ -23,8 +23,8 @@
 //!   — and the same second pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
@@ -264,10 +264,14 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
                 .expect("no fillet resolves in the plate, so replay has nothing to lose"),
         );
     }
-    let (_, canonical) = profile::Profile::new(program.plane, nominal_loops(&nominal))
+    // The plane the profile's `plane` id NAMES — a `Profile` is built
+    // from a `SketchPlane`, and the node id is not one. Read from the
+    // document, so this is the plane the evaluator would build too.
+    let plane = fixture::plane_of(&doc.doc, program.plane);
+    let (_, canonical) = profile::Profile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
-    let err = profile::Profile::new(interval_plane(&program.plane), loops)
+    let err = profile::Profile::new(interval_plane(&plane), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is

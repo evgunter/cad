@@ -10,8 +10,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
-
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::{TubeWindow, tube_along_arc};

@@ -35,7 +35,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::f64::consts::FRAC_PI_2;
 

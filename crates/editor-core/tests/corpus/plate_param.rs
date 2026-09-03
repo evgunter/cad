@@ -29,12 +29,11 @@
 
 use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    ProgramStep, ProgramTarget, SlotId,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
 };
-use geom_core::{Affine3, Vec3};
-use profile::SketchPlane;
 
-use super::super::fixture::len;
+use crate::fixture::{frame, len, xy_frame};
+
 use super::{CorpusDoc, Recorder};
 
 /// The document parameter that drives both holes.
@@ -85,10 +84,11 @@ pub fn outline() -> LoopProgram {
     ])
 }
 
-/// The parametric plate profile: outline first, then the two holes.
-pub fn plate_profile() -> ProfileProgram {
+/// The parametric plate profile on `plane`: outline first, then the
+/// two holes.
+pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
     ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             outline(),
             hole_loop(HOLE_CENTRES[0]),
@@ -104,7 +104,8 @@ pub fn document() -> CorpusDoc {
         value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
     });
 
-    let plate_p = r.insert(Node::Profile(plate_profile()));
+    let plate_plane = r.insert(xy_frame());
+    let plate_p = r.insert(Node::Profile(plate_profile(plate_plane)));
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(PLATE_DEPTH),
@@ -115,8 +116,9 @@ pub fn document() -> CorpusDoc {
     // plane sits strictly INSIDE the plate's slab and its footprint
     // crosses the plate's +x/+y walls transversally, so the union has
     // no coincident faces to refuse.
+    let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tab_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+        plane: tab_plane,
         loops: vec![
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                 .expect("finite tab corners"),
