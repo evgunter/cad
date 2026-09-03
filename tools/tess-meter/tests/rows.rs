@@ -62,17 +62,32 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
             .sum::<usize>(),
         "the rows account for every triangle in the mesh"
     );
+    // THE FIXTURE'S PREMISE, asserted rather than assumed: this loft is
+    // planar caps and spline walls and nothing else. It is what makes
+    // the single assertion below cover both directions at once — on a
+    // body carrying an `approx` face, which the sized lane also takes,
+    // `chart == Nurbs` stops being the right right-hand side, and this
+    // is the line that says so first rather than the one below saying
+    // it as a sizing failure.
+    let mut charts: Vec<&str> = rows.iter().map(|r| r.chart.tag()).collect();
+    charts.sort_unstable();
+    charts.dedup();
+    assert_eq!(
+        charts,
+        ["nurbs", "plane"],
+        "the loft_prism corpus body is planar caps and spline walls"
+    );
     for r in &rows {
+        // ONE proposition, spelled once. `Sizing` has two states and
+        // this body has two charts, so `columns().is_some()`,
+        // `!matches!(r.sizing, Sizing::OffLane)`, `chart == Nurbs` and
+        // `chart != Plane` are all the same claim here; a second
+        // spelling of it would read as a second check and be neither.
         assert_eq!(
             r.sizing.columns().is_some(),
             r.chart == Chart::Nurbs,
-            "sizing columns belong to the Hessian-sized lane and to no other"
-        );
-        // The empty tail this fixture's caps take is `OffLane` — the
-        // lane fact — and there is no other way for a row to reach it.
-        assert!(
-            matches!(r.sizing, Sizing::OffLane) == (r.chart == Chart::Plane),
-            "face {}: chart {} took {:?}",
+            "face {}: chart {} took {:?} — sizing columns belong to the \
+             Hessian-sized lane and to no other",
             r.face,
             r.chart.tag(),
             r.sizing
@@ -206,10 +221,16 @@ fn a_face_measured_twice_refuses() {
 /// budget's whole subject, accounted at zero, with nothing anywhere
 /// saying a measurement was missing.
 ///
-/// This is the state an UNARMED run is in end to end, not a corner:
-/// `mesh::budget::armed()` answers `false` without the `budget`
-/// feature, so `take()` — where it exists at all — yields nothing and
-/// every sized face in every body lands here.
+/// **What makes it reachable is not the build.** `mesh::budget`'s
+/// `arm` and `take` exist only under the `budget` feature — the
+/// featureless half of that module exports neither — so a tree built
+/// without it cannot reach this state through them, and this test
+/// could not compile there. The reachable shape is an ARMED run whose
+/// measurements are not THIS tessellation's: `take` disarms as it
+/// drains, so a slice held across a second `tessellate`, or taken for
+/// another body or another δ, misses faces this mesh has. This fixture
+/// constructs the degenerate end of that — no measurements at all,
+/// which is also what a caller who simply never armed hands over.
 #[test]
 #[should_panic(expected = "the Hessian-sized lane's, and no measurement covers it")]
 fn a_sized_lane_face_with_no_measurement_refuses() {
@@ -242,6 +263,18 @@ fn sizing_target(delta: f64) -> f64 {
 ///
 /// The per-cell sum accumulates in `cells` order because the quantity
 /// it reproduces does, and the comparison is bit for bit.
+///
+/// **This is a TRANSCRIPTION of `columns()`' shape, and only `delta_s`
+/// is independent of it.** Every other input — which three second
+/// derivatives make the whole-patch bound, which steps it carries,
+/// which box each cell is clipped to — is copied from the same
+/// `FaceMeasure` fields `columns()` reads, so a change to what
+/// `columns()` composes reds the assertion below whether or not any
+/// sizing target moved. That is the price of pinning a composition
+/// bit for bit and it is not a defect of this row; what the row buys
+/// for it is the one input the recomposition does NOT copy, and the
+/// tally at the end of the assertion is what proves that input is
+/// load-bearing.
 fn recomposed_cells(m: &FaceMeasure, delta_s: f64) -> (f64, f64) {
     let (du, dv) = (m.u.1 - m.u.0, m.v.1 - m.v.0);
     let patch = Bound {
@@ -314,24 +347,34 @@ fn the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target() {
 
         let (du, dv) = (m.u.1 - m.u.0, m.v.1 - m.v.0);
         let (opt, span_opt) = recomposed_cells(m, delta_s);
+        // The two SIZED columns — the row's subject, and the only two
+        // a retune of the target `columns()` passes can move.
+        assert_eq!(
+            (n.opt_cells.to_bits(), n.span_opt_cells.to_bits()),
+            (opt.to_bits(), span_opt.to_bits()),
+            "face {ordinal}'s cell counts are no longer the split derivation at \
+             δ_s = {delta_s}: {n:?}"
+        );
+        // The PASS-THROUGH columns, asserted apart because no sizing
+        // target reaches them: `divisions` takes an extent and a step,
+        // and `grid_cells` is the lane's own count widened. They are
+        // pinned here because nothing else pins them, and separating
+        // them is what makes a failure say which kind broke — a
+        // retune, or a change to what `columns()` copies.
         assert_eq!(
             (
-                n.opt_cells.to_bits(),
-                n.span_opt_cells.to_bits(),
                 n.grid_cells.to_bits(),
                 n.nu.to_bits(),
                 n.nv.to_bits(),
                 n.patch_cells.to_bits()
             ),
             (
-                opt.to_bits(),
-                span_opt.to_bits(),
                 (m.grid_cells as f64).to_bits(),
                 divisions(du, m.patch_steps.0).to_bits(),
                 divisions(dv, m.patch_steps.1).to_bits(),
                 (divisions(du, m.patch_steps.0) * divisions(dv, m.patch_steps.1)).to_bits()
             ),
-            "face {ordinal}'s columns are no longer the shipped derivation: {n:?}"
+            "face {ordinal}'s counterfactual columns are no longer the lane's own: {n:?}"
         );
 
         let (other_opt, other_span) = recomposed_cells(m, delta_s * 0.5);
