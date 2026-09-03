@@ -19,24 +19,20 @@
 //! EXCLUDES the truth rather than as a slightly different width.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval, Tol};
 
-use crate::shared::patch::{face_posture, oracle_patch};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn pt(x: f64) -> RingInterval {
-    RingInterval::from_bounds(x, x)
-}
+use crate::shared::patch::{face_posture, oracle_patch, pt};
 
 /// Drive the patch door at this file's fixed perimeter and return the
 /// flux bracket, or `None` on any honest typed refusal — which of the
 /// door's refusals count as honest is
 /// [`crate::shared::patch::face_posture`]'s to say, and the rows here
 /// are about the WIDTHS of the brackets that do come back.
+///
+/// `#[track_caller]` so that a dishonest posture from the door names
+/// the ROW, not this wrapper.
+#[track_caller]
 fn drive(
     ku: &KnotVector,
     kv: &KnotVector,
@@ -44,7 +40,7 @@ fn drive(
     weights: &[f64],
     eps: f64,
 ) -> Option<(f64, f64)> {
-    face_posture("cert5-arm", ku, kv, control, weights, 8.0, eps, band())
+    face_posture(ku, kv, control, weights, 8.0, eps)
         .ok()
         .map(|fb| (fb.flux.lo(), fb.flux.hi()))
 }
@@ -203,7 +199,7 @@ fn a_genuine_c0_jump_stays_contained() {
     // of `props::quad`, which is the door under test — computed here
     // rather than pinned, and believed only after it agrees between two
     // resolutions a factor of two apart. Why that settles it is
-    // `Patch::dense`'s own doc, there.
+    // `dense_over`'s own doc, there.
     let pa = oracle_patch(&ku, &kv, &control, &weights);
     let (f12, _) = pa.dense(12);
     let (f24, _) = pa.dense(24);

@@ -29,23 +29,35 @@ pub(crate) fn grid(nu: usize, nv: usize) -> Vec<(f64, f64)> {
 /// locus of `base` at `d`, over `stations` — the independent truth a
 /// certified `hull_sup` has to sit above.
 ///
-/// `None` when `base` has no offset point at some station (a normal
-/// that does not exist there): the caller decides what that means,
-/// because the callers do not agree. A probe on a carrier that is
-/// regular by construction treats it as a broken premise and unwraps;
-/// a probe that hands the door hostile nets treats it as an infinite
-/// residual, so the containment assertion fails with its own message
-/// instead of panicking one frame up.
+/// `Err((u, v))` at the first station where `base` has no offset point
+/// (a normal that does not exist there), naming it. **The callers do
+/// not agree on what that means and are not made to**, so the three
+/// policies in this crate all sit at their own call site, in one line
+/// each:
+///
+/// - `.unwrap()` — the carrier is regular by construction, so a missing
+///   normal is a broken premise (`offb_r1_probes.rs`,
+///   `cert7_r2_probes.rs`, and the shipped rows in `offset_fit.rs`);
+/// - `.unwrap_or(f64::INFINITY)` — the row hands the door hostile
+///   rationals on purpose, so the containment assertion above must be
+///   what fails, not a panic one frame under it (`cert7_r1_probes.rs`);
+/// - `.unwrap_or_else(|(u, v)| panic!(...))` — same broken premise, but
+///   the row drives several named carriers through one helper and the
+///   message has to say WHICH, and where (`offb_r2_probes.rs`).
+///
+/// The station travels in the error for the sake of that third one: a
+/// panic that cannot say where it happened is a worse message than the
+/// loop it replaced.
 pub(crate) fn worst_offset_residual(
     base: &NurbsSurface<f64>,
     candidate: &NurbsSurface<f64>,
     d: f64,
     stations: &[(f64, f64)],
-) -> Option<f64> {
+) -> Result<f64, (f64, f64)> {
     let mut worst = 0.0f64;
     for &(u, v) in stations {
-        let target = offset_point(base, d, u, v)?;
+        let target = offset_point(base, d, u, v).ok_or((u, v))?;
         worst = worst.max((candidate.eval(u, v) - target).norm());
     }
-    Some(worst)
+    Ok(worst)
 }

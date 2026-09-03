@@ -31,13 +31,13 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
-use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset, offset_point};
+use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::{Band, Point3, Tol};
 
 use crate::shared::fixture::{arc_weight, kv1, kv2, quarter_cylinder};
-use crate::shared::sample::grid;
+use crate::shared::sample::{grid, worst_offset_residual};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -251,12 +251,8 @@ fn contains_dense_sample(name: &str, base: &NurbsSurface<f64>, d: f64, tol: f64)
         "{name}: certified sup {} exceeds {tol}",
         cert.hull_sup
     );
-    let mut worst = 0.0f64;
-    for (u, v) in grid(41, 37) {
-        let target = offset_point(base, d, u, v)
-            .unwrap_or_else(|| panic!("{name}: the exact offset is undefined at ({u}, {v})"));
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(base, &fit, d, &grid(41, 37))
+        .unwrap_or_else(|(u, v)| panic!("{name}: the exact offset is undefined at ({u}, {v})"));
     // The red direction: a bound that UNDER-reports.
     assert!(
         worst <= cert.hull_sup,
@@ -311,11 +307,7 @@ fn p3_offset_just_inside_the_certified_reach_still_bounds_the_sample() {
     let d = -0.9 * coll.reach;
     match fit_offset(&base, d, 1e-2, band()) {
         Ok((fit, cert)) => {
-            let mut worst = 0.0f64;
-            for (u, v) in grid(41, 37) {
-                let target = offset_point(&base, d, u, v).unwrap();
-                worst = worst.max((fit.eval(u, v) - target).norm());
-            }
+            let worst = worst_offset_residual(&base, &fit, d, &grid(41, 37)).unwrap();
             assert!(
                 worst <= cert.hull_sup,
                 "extreme d = {d}: certified sup {} UNDER-reports {worst}",
@@ -418,11 +410,7 @@ fn p4_certify_offset_on_a_rational_fit() {
     )
     .unwrap();
     // What the handed-in surface's residual actually is.
-    let mut worst = 0.0f64;
-    for (u, v) in grid(41, 37) {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((rational_fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &rational_fit, d, &grid(41, 37)).unwrap();
     // A tolerance ABOVE the true residual: limb 1 cannot refuse, so
     // whatever limb 2 reports is what certifies — and far enough above
     // it that the door's own `≤ tolerance` test is not what caps the

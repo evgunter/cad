@@ -31,14 +31,14 @@ use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
 use geom_brep::offset_fit::{
     OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset,
-    fit_offset, offset_point,
+    fit_offset,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::{Band, Point3, Tol};
 
 use crate::shared::fixture::{kv1, kv2, quarter_cylinder, sphere_band};
-use crate::shared::sample::grid;
+use crate::shared::sample::{grid, worst_offset_residual};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -259,11 +259,7 @@ fn non_analytic_base_fits_and_the_bound_contains_the_sample() {
     let (fit, cert) = fit_offset(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("fit_offset refused on the non-analytic base: {e}"));
     assert!(cert.hull_sup <= tol);
-    let mut worst = 0.0f64;
-    for (u, v) in grid(23, 19) {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         worst <= cert.hull_sup,
         "the certified sup {} UNDER-reports the sampled max {worst}",
@@ -548,11 +544,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let d = 1e-6;
     let (fit, cert) = fit_offset(&base, d, 1e-3, band())
         .unwrap_or_else(|e| panic!("a micron-scale offset refused at 1e-3: {e}"));
-    let mut worst = 0.0f64;
-    for (u, v) in grid(23, 19) {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         cert.hull_sup.is_finite(),
         "the small-d bound is {} — the `2|d|` denominator is back",
@@ -707,11 +699,7 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         let base = shifted(shift);
         let (fit, cert) = fit_offset(&base, d, 1e-2, band())
             .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
-        let mut worst = 0.0f64;
-        for (u, v) in grid(23, 19) {
-            let target = offset_point(&base, d, u, v).unwrap();
-            worst = worst.max((fit.eval(u, v) - target).norm());
-        }
+        let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
         // True at EVERY station, and the assertion the whole row
         // exists to protect.
         assert!(
@@ -764,11 +752,7 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
     let tol = 1e-5;
     let (fit, cert) = fit_offset(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("the thin patch refused at {tol}: {e}"));
-    let mut worst = 0.0f64;
-    for (u, v) in grid(23, 19) {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         worst <= cert.hull_sup,
         "certified sup {} UNDER-reports the sampled max {worst}",

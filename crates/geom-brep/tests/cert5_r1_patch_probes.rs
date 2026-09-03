@@ -25,14 +25,10 @@ use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, RingInterval, Tol};
 
-use crate::shared::patch::{face_posture, oracle_patch};
+use crate::shared::patch::{face_posture, oracle_patch, pt};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-fn pt(x: f64) -> RingInterval {
-    RingInterval::point(x)
 }
 
 /// Run the engine; on `Ok`, both brackets must contain the dense
@@ -44,8 +40,13 @@ fn pt(x: f64) -> RingInterval {
 /// evaluated inside the `Ok` arm only — a typed refusal has no bracket.
 /// Its two resolutions, 12 and 24 cells per span, must agree before
 /// either is believed; why two rungs a factor of two apart settle it is
-/// [`crate::shared::patch::Patch::dense`]'s doc, which is where that
+/// [`crate::shared::patch::dense_over`]'s doc, which is where that
 /// argument lives.
+///
+/// `#[track_caller]` so that a dishonest posture from the door names
+/// the ROW, not this wrapper: `face_posture` panics at its caller's
+/// location and this is that caller.
+#[track_caller]
 fn drive(
     name: &str,
     ku: &KnotVector,
@@ -55,7 +56,7 @@ fn drive(
     perimeter: f64,
     eps: f64,
 ) -> Option<(f64, f64)> {
-    match face_posture(name, ku, kv, control, weights, perimeter, eps, band()) {
+    match face_posture(ku, kv, control, weights, perimeter, eps) {
         Ok(fb) => {
             let pa = oracle_patch(ku, kv, control, weights);
             let (of1, oa1) = pa.dense(12);
