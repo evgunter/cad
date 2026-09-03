@@ -1,6 +1,11 @@
 //! **BLEND-3 R2 review probes** — adversarial pins against PR #1347's
-//! claims, self-contained (the fixture is re-authored here through the
-//! public API rather than imported from the unit's own suite).
+//! claims. The rows below are the reviewer's own; the fixture is NOT.
+//! P2's whole content is a geometric audit of the shipped vented
+//! cavity, so it reads that body from `common::cavity` rather than
+//! re-authoring it: a re-authored copy would audit a body no other row
+//! measures. What stays the reviewer's is the audit itself — the
+//! concavity is decided from the supports' outward normals, never from
+//! the kernel's classifier.
 //!
 //! - P1: the THIRD door of the PR's narrative, executed — a SQUARE
 //!   vent's ring refuses at the exact ring-clearance pass once the two
@@ -23,84 +28,22 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, vented_cavity};
 use geom::Surface;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Point2, Point3, Tol, Vec3};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, subtract, validate_closed};
+use topo::{Body, validate_closed};
 
 const D: f64 = 0.25;
 
-fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(lo.x, lo.y),
-        Point2::new(hi.x, lo.y),
-        Point2::new(hi.x, hi.y),
-        Point2::new(lo.x, hi.y),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, lo.z) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(hi.z - lo.z), Tol::witness())
-        .expect("a brick extrudes")
-        .body
-}
-
-fn cut(base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
-    subtract(base, tool, Tol::witness())
-        .expect("the cut succeeds")
-        .body()
-        .expect("the cut leaves material")
-        .body
-        .clone()
-}
-
-/// Edges whose both endpoints have every coordinate on the given pair
-/// of grid values — the cavity/pocket corner finder, by endpoints.
-fn edges_with_corners(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> Vec<EdgeKey> {
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
-                return false;
-            };
-            let pt = |v| {
-                body.get_vertex(v)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            match (pt(h.start), pt(end)) {
-                (Some(a), Some(b)) => on(a) && on(b),
-                _ => false,
-            }
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
-}
-
-fn cavity_corner(p: Point3<f64>) -> bool {
-    [p.x, p.y, p.z]
-        .iter()
-        .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
-}
-
 /// The unit's fixture with the FIRST DRAFT's vent: a square chimney
-/// instead of the round one.
+/// instead of the round one. Deliberately NOT in `common::cavity`:
+/// it is this probe's own body, built from that home's constructors,
+/// and P1 is the only row that carves it.
 fn square_vented_cavity() -> Body<f64> {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = brick(Point3::new(1.5, 1.5, 2.5), Point3::new(2.5, 2.5, 5.0));
@@ -136,27 +79,6 @@ fn p1_a_square_vent_refuses_at_the_ring_clearance_door_not_a_convexity_one() {
         "the refusal must come from PAST both convexity doors, got {:?}",
         err.error
     );
-}
-
-/// The shipped fixture (round vent), re-authored here.
-fn vented_cavity() -> Body<f64> {
-    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(1.5, 2.0), 1.0),
-        ProfileVertex::new(Point2::new(2.5, 2.0), 1.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, 2.5) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    let vent = extrude(&profile, Extrusion::Distance(2.5), Tol::witness())
-        .expect("a rod extrudes")
-        .body;
-    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    cut(&cut(&block, &vent), &cavity)
 }
 
 /// **P2 — the fixture's concavity, checked geometrically.** For each of

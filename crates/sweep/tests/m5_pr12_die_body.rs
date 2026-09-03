@@ -59,6 +59,10 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
 
     // 3. The closed forms: core + 6 slabs + 12 quarter-cylinders + 8
     // octants (which sum to one whole ball).
+    // Deliberately NOT `common::oracles::rounded_box_volume`: that form
+    // sums the twelve quarter-cylinders as one `3πlr²` term where this
+    // spells them `12·(πr²/4)·core` — the same number in a different
+    // association, so not the same `f64`.
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)
@@ -116,6 +120,8 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
         Ok(()),
         "tier 3"
     );
+    // The die family's own spelling again; see the note on the row
+    // above for why it is not `common::oracles`'.
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)

@@ -10,18 +10,25 @@
 //! (`fillet_edges`) or through the one public arm (`corner_ball`) —
 //! no private plan is reached, so the rows survive refactors of the
 //! surgery's internals.
+//!
+//! The bodies come from `common::cavity`, so these rows and the unit's
+//! own carve THE SAME fixture; what makes them independent is the
+//! measurement — every claim below is re-derived from the minted
+//! geometry (chart axes, foot directions, arc centres and turns),
+//! never from the unit's expectations.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::cavity::{cavity_edges, vented_cavity};
 use geom::{Curve3, Surface};
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Point2, Point3, Tol, Vec3};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary, subtract};
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
 
 /// The fillet radius the concave-fillet suite carves at.
 const R: f64 = 0.25;
@@ -37,94 +44,6 @@ fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 // Fixtures — the concave-fillet suite's vented cavity, restated (the
 // suite-tree fixture-copy class that suite already declares).
 // ------------------------------------------------------------------
-
-fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(lo.x, lo.y),
-        Point2::new(hi.x, lo.y),
-        Point2::new(hi.x, hi.y),
-        Point2::new(lo.x, hi.y),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, lo.z) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(hi.z - lo.z), Tol::witness())
-        .expect("a brick extrudes")
-        .body
-}
-
-fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x - r, center.y), 1.0),
-        ProfileVertex::new(Point2::new(center.x + r, center.y), 1.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a rod extrudes")
-        .body
-}
-
-fn vented_cavity() -> Body<f64> {
-    let block = brick(p(0.0, 0.0, 0.0), p(4.0, 4.0, 4.0));
-    let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
-    let cavity = brick(p(1.0, 1.0, 1.0), p(3.0, 3.0, 3.0));
-    let vented = subtract(&block, &vent, Tol::witness())
-        .expect("the vent cut succeeds")
-        .body()
-        .expect("the vent cut leaves material")
-        .body
-        .clone();
-    subtract(&vented, &cavity, Tol::witness())
-        .expect("the cavity cut succeeds")
-        .body()
-        .expect("the cavity cut leaves material")
-        .body
-        .clone()
-}
-
-fn cavity_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let corner = |q: Point3<f64>| {
-        [q.x, q.y, q.z]
-            .iter()
-            .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
-    };
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
-                return false;
-            };
-            let pt = |vk| {
-                body.get_vertex(vk)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            match (pt(h.start), pt(end)) {
-                (Some(a), Some(b)) => corner(a) && corner(b),
-                _ => false,
-            }
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
-}
 
 /// The all-convex carve: a cube's twelve edges.
 fn convex_carve() -> (Body<f64>, Vec<FaceKey>) {

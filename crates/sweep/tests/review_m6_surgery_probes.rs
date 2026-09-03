@@ -100,6 +100,11 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .collect()
 }
 
+/// The reviewer's own blank volume; deliberately NOT
+/// `common::oracles::rounded_box_volume`, both because the die family
+/// spells the twelve quarter-cylinders as `12·(πr²/4)·core` (the same
+/// number in a different association, so not the same `f64`) and
+/// because this suite is `m6_surgery`'s reviewer pair.
 fn blank_volume() -> f64 {
     let core = DIE_L - 2.0 * DIE_R;
     core.powi(3)

@@ -25,112 +25,42 @@
 //!    closed form. This row derives the same number from an
 //!    INDEPENDENT execution — the volume the identical chamfer removes
 //!    from a cube — so a closed form and the carve cannot be wrong
-//!    together in the same direction.
+//!    together in the same direction, and re-derives the algebra a
+//!    second way (twelve prisms plus eight corner boxes) before
+//!    comparing it with `common::oracles`' form.
+//!
+//! The bodies are `common::cavity`'s, so the rows below attack the
+//! shipped fixture rather than a re-authored likeness of it. The
+//! closed forms they meter against come from `common::oracles` for the
+//! same reason: a byte-identical restatement here could not disagree
+//! with the unit's, so it would detect nothing while looking like an
+//! independent opinion. Where this suite really does derive a number
+//! its own way — the mirrored-cube EXECUTION and the prism/corner-box
+//! decomposition in row 4 — the derivation stays here and says so.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use crate::common::cavity::{brick, cut, edges_with_corners, prism, rod};
+use crate::common::oracles::{chamfered_cube_removed, rounded_box_volume};
+use geom_core::{Point2, Point3, Tol};
 use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
-use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, subtract, validate, validate_closed};
+use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The setback every row here uses, meters — BLEND-3's own.
 const D: f64 = 0.25;
-
-fn sketch_at(z: f64) -> SketchPlane<f64> {
-    SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z) - Point3::origin(),
-    ))
-}
-
-/// A prism over any CCW polygon — the rectangle helper, generalized,
-/// so a three-sided cavity is as authorable as a four-sided one.
-fn prism(poly: &[Point2<f64>], z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon(poly.to_vec());
-    let profile = Profile::new(sketch_at(z0), vec![lp])
-        .validate(Tol::witness())
-        .expect("a convex polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a prism extrudes")
-        .body
-}
-
-fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
-    prism(
-        &[
-            Point2::new(lo.x, lo.y),
-            Point2::new(hi.x, lo.y),
-            Point2::new(hi.x, hi.y),
-            Point2::new(lo.x, hi.y),
-        ],
-        lo.z,
-        hi.z,
-    )
-}
-
-/// A circular rod, as BLEND-3's fixture authors one: two half arcs.
-fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x - r, center.y), 1.0),
-        ProfileVertex::new(Point2::new(center.x + r, center.y), 1.0),
-    ]);
-    let profile = Profile::new(sketch_at(z0), vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a rod extrudes")
-        .body
-}
-
-fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    subtract(a, b, Tol::witness())
-        .expect("the cut succeeds")
-        .body()
-        .expect("the cut leaves material")
-        .body
-        .clone()
-}
 
 /// Every edge both of whose endpoints are corners of the given cavity
 /// polygon swept between `z0` and `z1` — found by position, never by
 /// index, so the row cannot silently address a different edge.
 fn cavity_edges_of(body: &Body<f64>, poly: &[Point2<f64>], z0: f64, z1: f64) -> Vec<EdgeKey> {
-    let is_corner = |p: Point3<f64>| {
+    edges_with_corners(body, |p: Point3<f64>| {
         let z_ok = (p.z - z0).abs() < 1e-9 || (p.z - z1).abs() < 1e-9;
         z_ok && poly
             .iter()
             .any(|q| (p.x - q.x).abs() < 1e-9 && (p.y - q.y).abs() < 1e-9)
-    };
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
-                return false;
-            };
-            let pt = |v| {
-                body.get_vertex(v)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            match (pt(h.start), pt(end)) {
-                (Some(a), Some(b)) => is_corner(a) && is_corner(b),
-                _ => false,
-            }
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
+    })
 }
 
 // ---------------------------------------------------------------
@@ -429,13 +359,18 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     // Second opinion: the algebra BLEND-3 asserts, re-derived here as
     // twelve prisms of (d²/2)(a − 2d) plus eight corner boxes in which
     // the three strip half-spaces all sit inside the corner patch's,
-    // so each box contributes 5d³/6.
+    // so each box contributes 5d³/6. THIS is the independent
+    // derivation and it stays here — it is a different decomposition,
+    // so it can disagree with `common::oracles`, which is the point.
     let by_hand = 12.0 * (D * D / 2.0) * (a - 2.0 * D) + 8.0 * (5.0 / 6.0) * D.powi(3);
     assert!(
         (removed - by_hand).abs() <= 1e-12 * by_hand,
         "measured {removed} vs the prism/corner-box derivation {by_hand}"
     );
-    let compact = 6.0 * a * D * D - (16.0 / 3.0) * D.powi(3);
+    // ...and against the algebra ITSELF, read from the shared home, so
+    // this row checks the reviewer's derivation against the form the
+    // unit actually meters with rather than against a copy of it.
+    let compact = chamfered_cube_removed(a, D);
     assert!(
         (by_hand - compact).abs() <= 1e-12 * compact,
         "the two spellings of the same volume must agree: {by_hand} vs {compact}"
@@ -450,37 +385,11 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
 /// Every edge both of whose endpoints are corners of the block
 /// `[0,4]³` — the outer, all-CONVEX component of the same body.
 fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let corner = |p: Point3<f64>| {
+    edges_with_corners(body, |p: Point3<f64>| {
         [p.x, p.y, p.z]
             .iter()
             .all(|c| c.abs() < 1e-9 || (c - 4.0).abs() < 1e-9)
-    };
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
-                return false;
-            };
-            let pt = |v| {
-                body.get_vertex(v)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            match (pt(h.start), pt(end)) {
-                (Some(a), Some(b)) => corner(a) && corner(b),
-                _ => false,
-            }
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
+    })
 }
 
 /// **One call, both material sides.** Until this PR every chamfer
@@ -545,8 +454,10 @@ fn r1_one_request_carries_both_convexity_signs() {
 
     // The concave half adds a cube-of-side-2's worth of chamfer; the
     // convex half removes a cube-of-side-4's worth. Both terms are the
-    // same closed form at the two sides' own scales.
-    let chamfer_of = |a: f64| 6.0 * a * D * D - (16.0 / 3.0) * D.powi(3);
+    // same closed form at the two sides' own scales, so this row takes
+    // it from the shared home; what it checks is the SIGN each side
+    // carries, which no closed form can supply.
+    let chamfer_of = |a: f64| chamfered_cube_removed(a, D);
     let after = topo::mass_properties(&out.body, Tol::witness())
         .expect("closed-form props")
         .volume;
@@ -609,17 +520,9 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     // What a full twelve-edge fillet at radius r removes from a cube
     // of side a is the complement of the Minkowski (Steiner) closed
     // form; the concave side ADDS the same complement at its own
-    // scale. A declared copy class (siblings: the concave-fillet
-    // suite's fixture oracle, the blend4 R1 probes' prism form, the
-    // die suites); evgunter/cad issue 1364 owns the shared home.
-    let rounded = |a: f64| {
-        let l = a - 2.0 * D;
-        l.powi(3)
-            + 6.0 * l * l * D
-            + 3.0 * core::f64::consts::PI * l * D * D
-            + (4.0 / 3.0) * core::f64::consts::PI * D.powi(3)
-    };
-    let fillet_of = |a: f64| a.powi(3) - rounded(a);
+    // scale. The form is `common::oracles`'; what this row checks is
+    // the two signs in one carve.
+    let fillet_of = |a: f64| a.powi(3) - rounded_box_volume(a - 2.0 * D, D);
     let after = topo::mass_properties(&out.body, Tol::witness())
         .expect("closed-form props")
         .volume;

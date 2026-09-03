@@ -1,6 +1,9 @@
 //! **BLEND-4 R1 review probes** — adversarial pins against PR #1360's
-//! claims, self-contained (fixtures re-authored through the public
-//! API).
+//! claims. The bodies are built from `common::cavity`'s constructors,
+//! which go through the public API; what is this suite's own is the
+//! SHAPE it poses them in (a skewed cavity no shipped fixture reaches)
+//! and the Steiner sum it meters against, derived below from the
+//! polygon rather than taken from `common::oracles`.
 //!
 //! - P1: the OBLIQUE all-concave carve. Every e2e fixture the unit
 //!   ships is axis-aligned (the oblique trihedron appears only in the
@@ -27,56 +30,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use crate::common::cavity::{cut, edges_with_corners, prism, rod};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
-use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, subtract, validate, validate_closed};
-
-/// An extruded polygonal prism between two z planes, authored the way
-/// a user would.
-fn prism(pts: &[Point2<f64>], z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon(pts.iter().copied());
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a convex polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a prism extrudes")
-        .body
-}
-
-/// A circular rod (two half-arc segments), for the vent.
-fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x - r, center.y), 1.0),
-        ProfileVertex::new(Point2::new(center.x + r, center.y), 1.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a rod extrudes")
-        .body
-}
-
-fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    subtract(a, b, Tol::witness())
-        .expect("the cut succeeds")
-        .body()
-        .expect("the cut leaves material")
-        .body
-        .clone()
-}
+use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The parallelogram cavity's cross-section at skew angle `theta`
 /// (radians), side `s`, anchored at `a`.
@@ -94,6 +53,9 @@ fn skew_quad(a: Point2<f64>, s: f64, theta: f64) -> [Point2<f64>; 4] {
 /// prism `z ∈ [1,3]`, round vent from the cavity centroid clear of the
 /// top. One shell, twelve concave cavity edges, eight all-concave but
 /// OBLIQUE trihedra (corner determinant `sin θ`).
+///
+/// Deliberately NOT in `common::cavity`: it is this suite's own pose,
+/// carved by P1 and P2 alone, built from that home's constructors.
 fn skewed_cavity(s: f64, theta: f64, vent_r: f64) -> (Body<f64>, [Point2<f64>; 4]) {
     let quad = skew_quad(Point2::new(1.0, 1.0), s, theta);
     let block = prism(
@@ -118,36 +80,17 @@ fn skewed_cavity(s: f64, theta: f64, vent_r: f64) -> (Body<f64>, [Point2<f64>; 4
 
 /// The cavity's twelve edges, found by their endpoints — both at
 /// corners of the cavity prism — never by index.
+///
+/// The traversal is `common::cavity`'s; the PREDICATE stays here,
+/// because it is this fixture's own value: the parallelogram's four
+/// vertices at 1e-9, not the axis-aligned `[1,3]³` at 1e-12.
 fn cavity_edges(body: &Body<f64>, quad: &[Point2<f64>; 4]) -> Vec<EdgeKey> {
-    let corner = |q: Point3<f64>| {
+    edges_with_corners(body, |q: Point3<f64>| {
         ((q.z - 1.0).abs() < 1e-9 || (q.z - 3.0).abs() < 1e-9)
             && quad
                 .iter()
                 .any(|c| (q.x - c.x).abs() < 1e-9 && (q.y - c.y).abs() < 1e-9)
-    };
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let pt = |vk| {
-                body.get_vertex(vk)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            let (Some(a), Some(b)) = (
-                body.get_half_edge(e.he_plus).map(|h| h.start).and_then(pt),
-                body.half_edge_end(e.he_plus).and_then(pt),
-            ) else {
-                return false;
-            };
-            corner(a) && corner(b)
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
+    })
 }
 
 /// The Steiner volume of the rounded cavity void: the inner offset
@@ -155,6 +98,12 @@ fn cavity_edges(body: &Body<f64>, quad: &[Point2<f64>; 4]) -> Vec<EdgeKey> {
 /// ball. Computed from the polygon itself, term by term —
 /// `V + S·r + r²·Σ_e L_e·θ_e/2 + (4π/3)r³` — with nothing shared with
 /// the kernel's own integrator.
+///
+/// Deliberately NOT `common::oracles::rounded_box_volume`, and not a
+/// copy of it: that form is the rectangle's special case, and this one
+/// takes the angles and side lengths of an arbitrary quadrilateral. It
+/// is a second derivation, which is the whole point of the row —
+/// the two must agree at `θ = π/2` and can fail to.
 fn rounded_void_volume(quad: &[Point2<f64>; 4], z0: f64, z1: f64, r: f64) -> f64 {
     // Interior angles of the parallelogram at each vertex.
     let ang = |i: usize| {

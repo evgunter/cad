@@ -115,6 +115,10 @@ mod certified {
         .unwrap()
     }
 
+    /// Deliberately NOT `common::oracles::rounded_box_volume`: the die
+    /// family spells the twelve quarter-cylinders as `12·(πr²/4)·core`
+    /// where that form sums them as `3πlr²` — the same number in a
+    /// different association, so not the same `f64`.
     fn blank_volume() -> f64 {
         let core = DIE_L - 2.0 * DIE_R;
         core.powi(3)
