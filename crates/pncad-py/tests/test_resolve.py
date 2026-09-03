@@ -431,7 +431,7 @@ class TestTheVerdictSurface(unittest.TestCase):
         stranded.apply(DocEdit.delete_node(extrude))
         gone_ev = evaluate(stranded)
 
-        broken_doc, broken_blend, _ = blank(0.6)
+        broken_doc, _, _ = blank(0.6)
         good_doc, good_blend, _ = blank(0.12)
         good_ev = evaluate(good_doc)
         broken_ev = evaluate(broken_doc)
