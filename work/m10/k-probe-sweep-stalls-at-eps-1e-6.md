@@ -7,6 +7,7 @@ opened: 2026-08-30
 github: 1304
 refs: [1296]
 closed: 2026-09-03
+pr: 1670
 ---
 
 ## From GitHub issue 1304
