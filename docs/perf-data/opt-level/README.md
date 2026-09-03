@@ -139,14 +139,6 @@ rebuild.
   arms now pass `--color never`. **Arm A still reports `n/a`** and that is not
   a regression: the jobs API gives step durations, not test counts, so what
   the cross-check can actually compare is arm B against arm C.
-* **A verdict is a FLIP only when it disagrees with the tree**, and a flip
-  changes nothing by itself. This bullet was written when the tree was at
-  opt-2 and a verdict of `opt-1` would have been that disagreement; the tree
-  moved to opt-1 on 2026-08-25, so `opt-1` is now the lane AGREEING with
-  `ci.yml`'s setting and the flip to watch for is `opt-0` or `opt-2`. Either
-  way `ci.yml`'s OPT LEVEL note is the argument of record and moving the knob
-  is a separate decision, made against samples from this history rather than
-  against the sweep that motivated the arm.
 * **This has flipped once already.** opt-2 (#449) was itself a reversal of an
   earlier opt-0 verdict (#52/#53) whose premises expired. That is why each
   sample carries its inputs (`r`, `E2`, `a2 - a0`, the build/total split)
