@@ -953,3 +953,192 @@ fn the_lints_expected_header_is_this_one() {
     }
     assert_eq!(header, CSV_HEADER);
 }
+
+/// Every [`Chart`] this crate has, in declaration order.
+///
+/// **The array is a transcription; [`chart_slot`] is what makes it
+/// complete.** Rust has no variant iterator, so exhaustiveness is a
+/// wildcard-free match: a variant added to `Chart` has no arm there
+/// and this file stops compiling, which is the compiler forcing the
+/// author to the roster pin below rather than the pin discovering the
+/// gap later.
+const EVERY_CHART: [Chart; 7] = [
+    Chart::Plane,
+    Chart::Cylinder,
+    Chart::Cone,
+    Chart::Sphere,
+    Chart::Torus,
+    Chart::Nurbs,
+    Chart::Approx,
+];
+
+/// A chart's position in [`EVERY_CHART`]. **No wildcard arm**, by the
+/// argument at that constant.
+fn chart_slot(c: Chart) -> usize {
+    match c {
+        Chart::Plane => 0,
+        Chart::Cylinder => 1,
+        Chart::Cone => 2,
+        Chart::Sphere => 3,
+        Chart::Torus => 4,
+        Chart::Nurbs => 5,
+        Chart::Approx => 6,
+    }
+}
+
+/// [`EVERY_CHART`] holds every chart, each once.
+///
+/// The array and [`chart_slot`] are two transcriptions of one list, and
+/// this closes the loop between them: a variant added to `Chart` fails
+/// to compile in `chart_slot`, and an arm added there without growing
+/// the array indexes past its end.
+#[test]
+fn every_chart_is_in_every_chart() {
+    for c in EVERY_CHART {
+        assert_eq!(
+            EVERY_CHART[chart_slot(c)],
+            c,
+            "{c:?} does not sit at its own slot"
+        );
+    }
+    let mut slots: Vec<usize> = EVERY_CHART.into_iter().map(chart_slot).collect();
+    slots.sort_unstable();
+    slots.dedup();
+    assert_eq!(
+        slots.len(),
+        EVERY_CHART.len(),
+        "EVERY_CHART lists a chart twice"
+    );
+}
+
+/// The string literals of the ONE array `decl` initializes in
+/// `tess-lint`'s source.
+///
+/// **Bracket-balanced rather than `;`-terminated**, which is where
+/// this parts from [`sole_initializer`]: an array's TYPE carries a `;`
+/// of its own (`[&str; 7]`), so the first `;` after the head is inside
+/// the declaration and not at its end. The `=` is sought first for the
+/// same reason — the `[` of `[&str; N]` precedes the `[` of the
+/// initializer.
+///
+/// Located in the code view and read in the literal one, by
+/// [`lint_view`]'s equal-offsets property: over the code view every
+/// bracket and every top-level comma is real, so `source`'s two
+/// bracket helpers ARE the parse; over the literal view the elements
+/// still carry their text.
+fn lint_string_array(decl: &str) -> Vec<String> {
+    string_array(
+        &lint_view(source::code_only),
+        &lint_view(source::code_and_literals),
+        decl,
+    )
+}
+
+/// [`lint_string_array`] over any pair of views of one text, so the
+/// locator itself is exercisable on a fixture.
+fn string_array(code: &str, literals: &str, decl: &str) -> Vec<String> {
+    assert_eq!(
+        code.len(),
+        literals.len(),
+        "the two views are the same bytes, blanked differently"
+    );
+    let mut heads: Vec<usize> = code.match_indices(decl).map(|(at, _)| at).collect();
+    assert!(
+        heads.len() == 1,
+        "`{decl}` is declared {} times in tess-lint's code, not once",
+        heads.len()
+    );
+    let head = heads.remove(0);
+    let eq = head + code[head..].find('=').expect("the declaration initializes");
+    let open = eq + code[eq..].find('[').expect("the initializer is an array");
+    let close = source::balanced_end(code, open).expect("the array closes");
+
+    let inner = open + 1..close;
+    source::top_level_split(&code[inner.clone()], ',')
+        .into_iter()
+        .filter_map(|item| {
+            let at = inner.start + item.start..inner.start + item.end;
+            let text = literals[at].trim();
+            if text.is_empty() {
+                return None; // the trailing comma's empty tail
+            }
+            Some(
+                text.strip_prefix('"')
+                    .and_then(|q| q.strip_suffix('"'))
+                    .unwrap_or_else(|| {
+                        panic!("`{decl}` holds {text:?}, not a plain string literal")
+                    })
+                    .to_string(),
+            )
+        })
+        .collect()
+}
+
+/// **`tools/tess-lint`'s roster admits every tag this crate can
+/// emit** — the pin that closes `CHART_TAGS`' one-way asymmetry, on
+/// the side that can close it.
+///
+/// [`LINT_SOURCE`] says why the roster is read and not imported. What
+/// is new here is the DIRECTION, and it is deliberately not equality.
+/// `CHART_TAGS` is the lint's PARSE vocabulary: `parse` refuses any
+/// row whose `chart` token is not in it, and what it parses includes
+/// `docs/tess-budget-data/`, a committed cut of an older tree. So a
+/// tag this crate RETIRES has to stay in that roster for as long as a
+/// committed baseline carries it, and an equality pin would red this
+/// suite over an entry still doing the lint's work. That the two
+/// lists happen to agree today is a fact about today — the roster
+/// already carries `approx`, which no baseline row uses.
+///
+/// The direction that IS owed runs the other way and is the one the
+/// lint cannot check for itself: a tag this crate ADDS arrives there
+/// as harness breakage on every row carrying it, with nothing on this
+/// side saying so. [`EVERY_CHART`] is what makes the containment
+/// complete rather than a spot check, and its own guard is what makes
+/// [`EVERY_CHART`] complete.
+#[test]
+fn the_lints_roster_admits_every_tag_this_crate_emits() {
+    let roster = lint_string_array("pub const CHART_TAGS");
+    for c in EVERY_CHART {
+        assert!(
+            roster.iter().any(|t| t == c.tag()),
+            "tess-lint's CHART_TAGS is {roster:?}, which does not admit {:?} — \
+             a row carrying it would leave that crate as harness breakage",
+            c.tag()
+        );
+    }
+}
+
+/// The roster pin reads the declaration, and the containment it
+/// asserts is falsifiable.
+///
+/// Two failures this exercises, both of which would otherwise be
+/// silent greens. First, the locator's: a doc comment and a quoted
+/// string spelling the same declaration sort ahead of it, and over the
+/// code view neither can answer — the `;` inside `[&str; N]` is the
+/// second, and it is why the array is bracket-balanced rather than
+/// `;`-terminated. Second, the pin's: a roster short a tag must red,
+/// so the shortfall is constructed here rather than assumed.
+#[test]
+fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
+    let decoyed = concat!(
+        "/// pub const CHART_TAGS: [&str; 1] = [\"decoy\"];\n",
+        "const QUOTED: &str = \"pub const CHART_TAGS: [&str; 1] = [\\\"decoy\\\"];\";\n",
+        "pub const CHART_TAGS: [&str; 2] = [\n    \"plane\", \"cone\",\n];\n"
+    );
+    let tags = string_array(
+        &source::code_only(decoyed),
+        &source::code_and_literals(decoyed),
+        "pub const CHART_TAGS",
+    );
+    assert_eq!(tags, ["plane", "cone"]);
+    let missing: Vec<&str> = EVERY_CHART
+        .into_iter()
+        .map(Chart::tag)
+        .filter(|t| !tags.iter().any(|r| r == t))
+        .collect();
+    assert_eq!(
+        missing,
+        ["cylinder", "sphere", "torus", "nurbs", "approx"],
+        "the containment separates a roster short a tag from a complete one"
+    );
+}
