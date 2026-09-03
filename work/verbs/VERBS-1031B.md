@@ -2,7 +2,7 @@
 id: VERBS-1031B
 kind: unit
 title: the full-valence coplanar pair — issue 1031's remaining half
-status: dispatched
+status: review
 opened: 2026-09-03
 github: 1031
 refs: [VERBS-C5ARMS]
@@ -63,3 +63,15 @@ the instrumented mechanism confirms the premise one level deeper: the
 merged annulus's outline and ring are each a TWO-half-edge cycle on
 Circle carriers, so `loop_winding` answers `Ok(None)` twice and the
 role pass sees `positives: []`.
+
+**Implemented; PR open (`verbs/1031b-winding`).** The port landed as
+one arm in `loop_winding`: the guard widened from "all Line" to "Line,
+Circle or Ellipse", and a correction block — structurally skipped on
+Line-only cycles — adds `boolean::join::ring_run_ccw`'s `run_term`
+verbatim (per-conic bulge `axis · sa·sb · (Δ − sin Δ)`, per-half-edge
+arc-length metering). The cup MERGES: faces 25→19, vertices 26→24,
+edges 48→36; four full-valence latitude annuli plus the two pole-split
+base caps; six period-closure skips; tier 3 green; the re-posed twin
+identical. Neither STOP fired. The boolean after the merge is measured
+and lands on `CurvedPierceUnsupported` — the same substrate the
+gate-admission deferral closes on, reached from the other end.
