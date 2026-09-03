@@ -2155,9 +2155,13 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
 /// as a "continuation". Every director that could re-author the
 /// incoming direction — `.toward` with the exact same displacement,
 /// `.turn(0)`, `.angle(exact incoming angle)` — still refuses
-/// `JunctionTangent`; the declared spelling refuses
-/// `SameCarrierJunction`. The only accepting spelling is the one with
-/// NO authored direction at all.
+/// `JunctionTangent`, which is the probe's whole subject and is
+/// unchanged. The DECLARED spelling used to refuse
+/// `SameCarrierJunction` and is legal since the Q1 sixth round (Evan,
+/// in-chat, 2026-09-02: every zero-turn joint is a declared tangent
+/// joint), so the accepting spellings are now the declared one and the
+/// one with NO authored direction at all — never an authored direction
+/// that happens to land in band.
 #[test]
 fn r2_probe_authored_spellings_cannot_sneak_the_continuation() {
     let t = Tol::witness();
@@ -2233,8 +2237,10 @@ fn r2_probe_arc_continuations_never_pass_validate() {
 /// that gets through, and the row above pins that; what this row keeps
 /// is that nothing in the undeclared alphabet does, which is what makes
 /// the declaration load-bearing rather than decorative.)
-///  (a) `.tangent()` + tangent arc to Start — degenerates onto the
-///      carrier (SameCarrierJunction);
+///  (a) `.tangent()` + tangent arc to Start — CLOSES since the Q1
+///      sixth round: it used to refuse `SameCarrierJunction` (retired),
+///      and the arc degenerates to the straight segment the run wanted,
+///      whose zero-turn joint the `.tangent()` declares;
 ///  (b) the REVERSED traversal — same alternation, same wall;
 ///  (c) continuing `line(half)` to land exactly ON Start's
 ///      coordinates — a directed point, not a closure; the zero-length

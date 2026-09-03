@@ -129,7 +129,11 @@ pub enum LiftRefusal {
     /// A same-carrier arc run reaches the SEAM. `arc_continue` has no
     /// closing form (it mints a structural subdivision vertex mid-chain
     /// only), and closing with `arc_to(Start)` on the incoming carrier
-    /// is the `SameCarrierJunction` refusal.
+    /// leaves the seam's own zero-turn junction UNDECLARED, which
+    /// refuses `SeamTangent`. (It used to refuse `SameCarrierJunction`
+    /// — retired with the Q1 sixth round, Evan in-chat 2026-09-02:
+    /// carrier identity is not a reason for anything, and the seam's
+    /// declaration is `Start.arrives_tangent()`.)
     SameCarrierClose {
         /// The joint's vertex index in the SOURCE loop.
         joint: usize,
@@ -466,12 +470,14 @@ fn chain_form(
 /// binder's own refusal rather than by a re-derived predicate).
 ///
 /// A cocircular arc/arc junction has zero turn, so `arc_to` classifies
-/// it `JunctionTangent` before any carrier-identity question is asked;
-/// `SameCarrierJunction` is the spelling the tangent-arc and fillet
-/// doors use for the same fact. Both are triggers. The substitution is
-/// kept only if it makes PROGRESS (the next refusal, if any, is later
-/// in the program), so a genuine two-carrier tangency — which wants a
-/// declaration, not a subdivision — is never laundered into one.
+/// it `JunctionTangent` — the UNDECLARED zero-turn junction, which is
+/// the one trigger left. (The tangent-arc and fillet doors used to
+/// spell the same fact `SameCarrierJunction`; that refusal is retired,
+/// Q1 sixth round, so this reads one kind rather than two.) The
+/// substitution is kept only if it makes PROGRESS (the next refusal, if
+/// any, is later in the program), so a genuine two-carrier tangency —
+/// which wants a declaration, not a subdivision — is never laundered
+/// into one.
 fn repair_same_carrier(
     mut program: Vec<Step<f64>>,
     origin: &[usize],

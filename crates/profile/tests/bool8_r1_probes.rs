@@ -689,7 +689,7 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
                     if try_author(&ring, Closer::ContinueTo, t).is_ok() {
                         declared.push((w, shoulder, start, rev));
                     }
-                    if try_author(&ring, Closer::ArrivesStraight, t).is_ok() {
+                    if try_author(&ring, Closer::DeclaredArrival, t).is_ok() {
                         arriving.push((w, shoulder, start, rev));
                     }
                 }
@@ -845,10 +845,11 @@ enum Closer {
     /// from it.
     ContinueTo,
     /// The DECLARED ARRIVAL (BOOL-12): the closing leg's departure is
-    /// spelled by whichever verb its own junction wants, and the SEAM
-    /// is declared on the target — `Start.arrives_tangent()`. This is
-    /// the spelling the parity wall was waiting for.
-    ArrivesStraight,
+    /// spelled by whichever verb its own junction wants, and the SEAM's
+    /// joint is declared on the target — `Start.arrives_tangent()`,
+    /// the one arrival declaration. This is the spelling the parity
+    /// wall was waiting for.
+    DeclaredArrival,
 }
 
 /// Author `ring` as a closed loop: `toward` at every vertex whose
@@ -901,7 +902,7 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
         // `line_to` where it turns there, the ARRIVAL with the target
         // where the run continues through `ring[0]` and plain `Start`
         // where it turns.
-        Closer::ArrivesStraight => match (straight_at(n - 1), straight_at(0)) {
+        Closer::DeclaredArrival => match (straight_at(n - 1), straight_at(0)) {
             (false, false) => chain.line_to(Start, t).map_err(|_| ())?,
             (false, true) => chain.line_to(Start.arrives_tangent(), t).map_err(|_| ())?,
             (true, false) => chain.continue_to(Start, t).map_err(|_| ())?,
@@ -917,7 +918,7 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
     Ok(match closer {
         Closer::LineTo => "line_to(Start)",
         Closer::ContinueTo => "continue_to(Start)",
-        Closer::ArrivesStraight => "the junction each seam side wants",
+        Closer::DeclaredArrival => "the junction each seam side wants",
     })
 }
 

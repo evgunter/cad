@@ -207,10 +207,11 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
         "{:?}",
         fan(false)
     );
-    // Declared "straight": the algebra closes, declaring nothing —
-    // `arrives_straight` says the seam is a SUBDIVISION joint, and the
-    // lattice cannot see that the following carrier is an arc.
-    let closed = fan(true).expect("the algebra accepts the declared straight arrival");
+    // DECLARED: the algebra closes and joint 0 is declared tangent.
+    // (An intermediate reading had a second token, `arrives_straight`,
+    // that declared a SUBDIVISION joint here and declared nothing;
+    // both it and that distinction are retired — Q1 sixth round.)
+    let closed = fan(true).expect("the algebra accepts the declared arrival");
     // RULED AGAIN (2026-09-02, addendum 3): there is ONE arrival token
     // and it declares the seam's joint TANGENT, so a straight leg
     // arriving G1 into an arc first side declares exactly the joint
