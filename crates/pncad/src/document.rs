@@ -269,7 +269,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
 // `subject_body` resolves a finding's (root, output_ix) attribution
-// back to the flagged body in the same evaluation.
+// back to the flagged body and the declarations its producer minted
+// for it, in the same evaluation.
 pub use editor_core::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
     ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
