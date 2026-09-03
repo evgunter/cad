@@ -3317,3 +3317,27 @@ pre-death impl lane's tokens unrecorded (~3–4h shape by its
 commits); adaptation ~385k harness, ~66m wall; impl CI 33711887192
 GREEN on c0bfba802 ({interval trailer-asked, default ε, dev-probe
 klint}). Row at merge.
+
+LIB-TUBE R1 DELIVERED (2026-09-03, fable per the byte-91 draw;
+frozen c0bfba802): **APPROVE-WITH-FIXES 0/5/2, rubric 5/4/4** — no
+MAJOR; every brief claim survived execution. Decisive instruments:
+the seam INTERDIFF (cb63c8898→head reduced to exactly the disclosed
+adaptations; escape-class sweep zero hits), the stale-build refusal
+EXECUTED for real (merge-base editor-core built from source, fed a
+tube-bearing save, refused typed Unreadable), non-dyadic storage
+probes (0.3−0.1 one ulp under 0.2 — bits verbatim where volumes are
+blind), fence-removal digests replicated, audit machine-counted.
+Findings: the predicted renumbering defect LANDED in satellite
+surfaces (M1: four stale pre-migration row-number citations across
+log/tests/docstrings — a class for the fix pass to sweep; M2: a
+self-referential row-26 cite that should read 25), all-dyadic
+committed storage fixtures (M3 — probe row pushed for adoption),
+a PR-body-vs-fence-header self-description mismatch (M4), one
+v17-era comment surviving the demolition (M5). One borderline
+letter-level silent deviation (N1: the spec's "canonicalizing
+construction doors" satisfied vacuously, unmentioned). Probes
+pushed lib/tube-r1-probes. Disclosures clean (lane-name listing on
+the shared host disclosed; no cross-lane reads). ~240k tokens,
+~26m harness (~75m self-est). R2 (opus per the draw) dispatched
+sequentially after, brief VERBATIM from the pre-committed store,
+no access to R1's report or probes. Row at merge.
