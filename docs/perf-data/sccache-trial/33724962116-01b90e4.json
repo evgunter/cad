@@ -1,0 +1,30 @@
+{
+  "run_id": 33724962116,
+  "head_sha": "01b90e47044bf0585c9009a487e202e94520db19",
+  "lane": "default",
+  "lane_source": "requested (CI-Config: lane=default)",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "state": "INTENDED WARM, MEASURED COLD — 'Cache not found for input keys: sccache-obj-default-33724962116, sccache-obj-default-', 38 minutes after run 33721067389 saved sccache-obj-default-33721067389 in this same PR's cache scope. Swatinem/rust-cache reported 'No cache found' on the same key it saved then. The 9 MB sccache-bin entry from that same run DID restore.",
+  "archive_step_s": 787,
+  "compiling_lines": 192,
+  "sccache": {
+    "compile_requests": 302,
+    "compile_requests_executed": 195,
+    "cache_hits": 0,
+    "cache_misses": 191,
+    "cache_hits_rate": "0.00 %",
+    "compilations": 191,
+    "non_cacheable_calls": 104,
+    "non_compilation_calls": 3,
+    "non_cacheable_reasons": {
+      "crate-type": 90,
+      "-": 6,
+      "missing input": 4,
+      "-o": 3,
+      "missing emit": 1
+    },
+    "cache_size_written": "198 MiB",
+    "average_compiler_s": 1.869
+  },
+  "object_cache_saved": "sccache-obj-default-33724962116"
+}
