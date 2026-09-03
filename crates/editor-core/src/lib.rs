@@ -124,6 +124,11 @@ pub use mate::{
     class_admission, clusters, gauge_of, reading_edges, relative_freedom_components,
     solve_document,
 };
+#[cfg(feature = "interval")]
+pub use mc::{
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    monte_carlo,
+};
 pub use measure::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
@@ -159,6 +164,10 @@ pub use program::{
     ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
+#[cfg(feature = "interval")]
+pub use report::{
+    HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
+};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,

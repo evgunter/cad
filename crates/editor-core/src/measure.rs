@@ -478,7 +478,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 ///
 /// The engine that computes it is the interval lane's
 /// ([`crate::clearance::min_separation`]) and so is the only `Some`.
-pub trait MinClearanceLane: geom_core::Real + Sized {
+pub trait MinClearanceLane: geom_core::Real {
     /// This lane's own name, for the refusal that names it.
     const LANE: &'static str;
 

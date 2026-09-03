@@ -907,7 +907,7 @@ pub enum NodeErrorKind {
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,
     /// carried across the feature boundary by
-    /// [`measure::MinClearanceRefusal`]).
+    /// [`crate::measure::MinClearanceRefusal`]).
     MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
