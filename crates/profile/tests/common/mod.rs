@@ -7,7 +7,7 @@
 //! per test process, and the crate's suites all run inside the one
 //! aggregated `all` binary, so the geom-core global-state discipline is
 //! satisfied by a single process-wide read.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -540,7 +540,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .continue_to(Start, Tol::witness())
         .unwrap();
 
-    // 14. The DECLARED STRAIGHT ARRIVAL at the seam (BOOL-12): Evan's
+    // 14. The DECLARED STRAIGHT ARRIVAL at the seam (BOOL-12): Ev's
     //     D-shape, whose entry sits at a SUBDIVISION point of its one
     //     straight side. The closing leg declares both facts — its own
     //     departure continues the run, and its arrival continues the

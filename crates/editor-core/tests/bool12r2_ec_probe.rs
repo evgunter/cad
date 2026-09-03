@@ -15,16 +15,16 @@
 //! These rows execute them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
+use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId};
 use geom_core::{Point2, Tol};
-use profile::{Open, SketchPlane, Start};
+use profile::{Open, Start};
 use std::f64::consts::FRAC_PI_2;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// Evan's D-shape, whose closing leg declares BOTH facts.
+/// Ev's D-shape, whose closing leg declares BOTH facts.
 fn d_shape() -> Vec<profile::Step<f64>> {
     let t = Tol::witness();
     Open.at(p2(0.0, 0.0))
@@ -105,7 +105,10 @@ fn r2_the_declared_arrivals_survive_the_wire() {
             panic!("{name}: a chain")
         };
         let before = ProfileProgram {
-            plane: SketchPlane::xy(),
+            // Scaffolding: this program is serialized on its own, never
+            // inserted into a document, so no row here reads the node
+            // the plane points at.
+            plane: RecipeNodeId(0),
             loops: vec![LoopProgram::Chain(doc)],
         };
         let text = serde_json::to_string(&before).expect("serializes");

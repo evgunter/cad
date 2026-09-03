@@ -239,7 +239,7 @@ pub struct ProfileLoop<T: Real> {
 }
 
 /// The raw loop-minting doors — **kernel vocabulary, off the presented
-/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
+/// surface** (Ev's ruling on #413, executed by LIB-RETTAIL).
 ///
 /// The invariant this trait exists to hold: a caller who can NAME
 /// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent

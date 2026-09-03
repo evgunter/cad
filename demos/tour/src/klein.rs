@@ -5,7 +5,7 @@
 //!
 //! A Klein bottle is a 2-manifold, and this kernel is manifold-first
 //! and SOLID-first (D1): a zero-thickness sheet is not a body it can
-//! hold. So the model is the honest 3-D stand-in Evan asked for — a
+//! hold. So the model is the honest 3-D stand-in Ev asked for — a
 //! THIN 3-manifold with boundary whose midsurface is the classic
 //! immersed Klein bottle. Every piece is a wall of thickness
 //! [`WALL`] wrapped around a spine, and the spine is the bottle's own
@@ -32,7 +32,7 @@
 //!
 //! # Why the construction has this shape
 //!
-//! Evan's sketch was: torus loop → fillet → cone → tangent → wide
+//! Ev's sketch was: torus loop → fillet → cone → tangent → wide
 //! torus → fillet → straight tube → back to the loop. Two of those
 //! steps do not survive contact with the geometry, and both
 //! substitutions are recorded here rather than hidden:
@@ -60,7 +60,7 @@
 //! trick is what makes the wide rim and its two tangencies exact, and
 //! it generalizes: **any** blend between two COAXIAL surfaces of
 //! revolution is itself one, so it belongs in the meridian rather
-//! than in a rolling ball afterwards (Evan, 2026-08-16 — the
+//! than in a rolling ball afterwards (Ev, 2026-08-16 — the
 //! substitution is an improvement on the sketch, not a workaround for
 //! it). Asking `fillet_edges` for that same torus is walls 1 and 2 —
 //! which now refuse on the ball's SIZE, not on a missing arm.
@@ -98,7 +98,7 @@
 //!    blend the meridian draws has spine radius `RF`, and a ball that
 //!    big does not fit the neck wall's own curvature, on either rim.
 //!    That is not a defect: it is the reason the substitution is an
-//!    improvement rather than a workaround (Evan, 2026-08-16). An arc
+//!    improvement rather than a workaround (Ev, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
 //! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
@@ -202,7 +202,7 @@
 //!     (see the `tube` scene's bit-exact `minor_radius`), met from the
 //!     profile side. Pinned in [`stops`].
 //! 11. **What went RIGHT, and is worth stating.** The bottle's hole
-//!     is the tube's diameter — Evan's own constraint — so the neck
+//!     is the tube's diameter — Ev's own constraint — so the neck
 //!     wall and the inner tube wall are literally the same cylinder
 //!     about the same axis, twice, in one profile loop. Everything
 //!     downstream copes: the band validates, the full revolve builds,
@@ -241,7 +241,7 @@ use crate::{SceneBody, Stop, View};
 // approximate (the lily's rule).
 // ---------------------------------------------------------------
 
-/// Spine radius of the tube — half Evan's "tube diameter", the one
+/// Spine radius of the tube — half Ev's "tube diameter", the one
 /// number the whole bottle is keyed to: the top loop's tube, the
 /// neck, the straight inner tube and the wide rim's HOLE are all this
 /// size.
@@ -576,7 +576,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }
 
     // Findings entry 11, executed: the same cylinder, said four ways.
-    // Evan's constraint — the rim's hole is the tube's diameter —
+    // Ev's constraint — the rim's hole is the tube's diameter —
     // makes the neck wall and the inner tube wall THE SAME cylinder
     // about THE SAME axis. The revolve's cosurface merge is a
     // run-ADJACENCY decision inside one loop, and these two runs are
@@ -1172,5 +1172,46 @@ mod r1_mesh2_review_probes {
                 Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod wall_probes_run_here {
+    //! The whole wall list, driven by the TEST SUITE (issue #1434).
+    //!
+    //! [`wall_probes`] had exactly one caller — `main.rs`'s render
+    //! walk — so `cd demos/tour && cargo test --release`, which is
+    //! both the spec-level local acceptance command and CI's "demos
+    //! tour suite" row, was fully green over walls nobody had run.
+    //! That is the silent-coverage shape this repo keeps naming: a
+    //! green job name sitting over an unexecuted probe. The walls did
+    //! execute — in the k-lint gate's tour step, a SAMPLED row — so
+    //! the cost of the blind spot was paid only in the runs where that
+    //! sample did not draw.
+    //!
+    //! It has to be an in-bin test. `demo-tour` is bin-only (no
+    //! `[lib]`, modules hang off `main.rs`), so nothing under
+    //! `tests/` can name `klein::wall_probes` at all.
+    //!
+    //! There is nothing to assert here that the probe does not already
+    //! assert: `crate::walls::wall` panics on BOTH off-nominal
+    //! outcomes — a different refusal (the frontier moved) and no
+    //! refusal at all (the wall is gone) — and walls 6 and 7 assert
+    //! their own retirements inline. Running it IS the check, which is
+    //! why the missing caller was the whole defect.
+    //!
+    //! Not free: the probe rebuilds `bottle::<f64>`, four more
+    //! revolves for the sharp-band pair and the hollow ring, a sweep,
+    //! a STEP export and four wall-7 tessellations. It overlaps
+    //! `verbs_gate_r1_probes` above by two walls (3 and 4) and that
+    //! module stays as it is — it pins the boolean pair's SHAPE against
+    //! the operand gate for a one-second answer, and this test is the
+    //! one that says every wall was attempted.
+
+    use super::*;
+
+    #[test]
+    fn every_klein_wall_is_attempted_by_the_suite() {
+        wall_probes::<f64>(Tol::witness());
     }
 }

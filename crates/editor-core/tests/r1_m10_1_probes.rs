@@ -10,8 +10,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+test_utils::gated_to![
+    "crates/editor-core/src/distribution.rs",
+    "crates/editor-core/src/analysis.rs",
+    "crates/editor-core/src/measure.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/topo/src/props.rs",
+];
+
+use crate::corpus;
 
 use editor_core::{
     AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,

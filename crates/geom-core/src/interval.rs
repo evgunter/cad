@@ -102,7 +102,7 @@
 //! same build on the same inputs yields bit-identical endpoints, and the
 //! `interval` feature imposes no instruction-set floor. (The historical
 //! repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped after the
-//! swap — 2026-07-29, Evan's #127 review; `f64::mul_add` in the
+//! swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
 //! backend's witness paths is correctly-rounded with or without
 //! hardware FMA, so results are unchanged.) This crate's
 //! `forbid(unsafe_code)` is untouched, and so is

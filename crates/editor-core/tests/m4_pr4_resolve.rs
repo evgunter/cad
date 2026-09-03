@@ -5,7 +5,7 @@
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
 //! the R6 name-level edit-time validation door.
 //!
-//! SWEEP-STRATEGY NOTE (Evan's 2026-07-29 ruling): this file's pins
+//! SWEEP-STRATEGY NOTE (Ev's 2026-07-29 ruling): this file's pins
 //! are about diff/resolve engine behavior GIVEN verdicts, so its
 //! evaluator deliberately runs the idealized (verdict-rich) sweep;
 //! the production-path degradation is pinned in `m4_pr4_banked`
@@ -13,7 +13,7 @@
 //! golden.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::sync::Arc;
 
@@ -24,7 +24,7 @@ use editor_core::{
     RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
     StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
-use fixture::{ang, desc, insert, len, scl, step};
+use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -49,14 +49,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -203,23 +201,21 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     // PR 3's symmetric U cutter: two prong fragments of B's caps tie.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (doc, b) = insert(
         doc,
@@ -1015,21 +1011,19 @@ fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
     // verdict against its plane, and never a kind Rebind refuses.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, _a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
-    let (doc, bp) = insert(
+    let (doc, bp) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, -0.5],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (-2.5, 1.0),
-                (2.0, 1.0),
-                (4.5, 0.8),
-                (4.5, 0.9),
-                (2.0, 1.1),
-                (-2.5, 1.1),
-            ]],
-        )),
+        [0.0, 0.0, -0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (-2.5, 1.0),
+            (2.0, 1.0),
+            (4.5, 0.8),
+            (4.5, 0.9),
+            (2.0, 1.1),
+            (-2.5, 1.1),
+        ]],
     );
     let (doc, band) = insert(
         doc,

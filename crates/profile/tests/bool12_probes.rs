@@ -1,6 +1,6 @@
 //! **The declared ARRIVAL at the seam** (BOOL-12, under the Q1
 //! fifth-round ruling with PQ4 reopened for the declared case, and
-//! Evan's "join-tangent-to-end" for the tangent member).
+//! Ev's "join-tangent-to-end" for the tangent member).
 //!
 //! The seam is the one junction whose arriving leg is the LATER
 //! authored one, so every declaration that rides the departing leg
@@ -22,7 +22,7 @@
 //!   drift with the closing leg's length.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::pinned;
 use geom_core::{Point2, Tol};
@@ -47,7 +47,7 @@ fn band() -> (f64, f64) {
 }
 
 // ------------------------------------------------------------------
-// The canonical D-shape (Evan's fixture), both directions.
+// The canonical D-shape (Ev's fixture), both directions.
 // ------------------------------------------------------------------
 
 /// `(0,0) → (0,2) — arc → (0,−2) → (0,−1) → (0,0)`: one semicircular
@@ -132,7 +132,7 @@ fn the_d_shape_closes_with_the_declared_straight_arrival() {
         // like that claims no tangency. The arc's two junctions are
         // corners.
         // The seam is a DECLARED tangent joint, and so is the
-        // interior continuation the forward rotation mints (Evan,
+        // interior continuation the forward rotation mints (Ev,
         // in-chat, 2026-09-02: every zero-turn joint is a declared
         // tangent joint). The arc's two junctions turn.
         assert!(
@@ -518,7 +518,7 @@ fn a_sharp_arc_seam_that_arrives_tangent_refuses_as_a_seam() {
     );
 }
 
-/// **Every zero-turn joint is a declared tangent joint** (Evan,
+/// **Every zero-turn joint is a declared tangent joint** (Ev,
 /// in-chat, 2026-09-02). There is ONE arrival token, every closing verb
 /// takes it, and it declares the seam's joint tangent; the continuation
 /// verbs declare the zero-turn joints they mint the same way. This row

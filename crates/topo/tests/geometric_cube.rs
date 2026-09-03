@@ -16,7 +16,7 @@ use topo::{
     validate_geometric,
 };
 
-mod common;
+use crate::common;
 use common::{
     GeoCube, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
 };

@@ -64,7 +64,12 @@ use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, SlotId,
 };
-use profile::{ArcMode, SketchPlane, Verb};
+use profile::{ArcMode, Verb};
+
+/// The plane the corpus programs name. These programs are resolved and
+/// serialized on their own, never inserted into a document, so nothing
+/// here reads the node it points at.
+const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId(0);
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -210,7 +215,10 @@ fn chain_steps() -> Vec<ProgramStep> {
 /// forms, which are `LoopProgram` variants rather than steps.
 fn corpus() -> ProfileProgram {
     ProfileProgram {
-        plane: SketchPlane::xy(),
+        // The corpus is resolved and serialized directly, never
+        // inserted, so the frame it names is scaffolding: no row here
+        // reads what the plane denotes.
+        plane: SCAFFOLD_PLANE,
         loops: vec![
             LoopProgram::Chain(chain_steps()),
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
@@ -319,7 +327,7 @@ fn every_target_form_is_a_document_program() {
 
     for (target, name) in witnesses() {
         let program = ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(target)])],
         };
         let resolved = program
@@ -387,7 +395,7 @@ fn every_target_form_is_a_document_program() {
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
         let program = ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: SCAFFOLD_PLANE,
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
             ))])],

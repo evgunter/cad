@@ -20,7 +20,7 @@
 //! doc lives, in `path_property.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::pinned;
 use geom_core::{Point2, Tol};
@@ -356,7 +356,7 @@ fn a_continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
         .line_to(Start, t)
         .unwrap();
     let loop_ = pinned(closed);
-    // RULED (Evan, in-chat, 2026-09-02): a continuation verb DECLARES
+    // RULED (Ev, in-chat, 2026-09-02): a continuation verb DECLARES
     // the zero-turn joint it mints, so the arc/line tangency this row
     // was written about is no longer undeclared and the data gate
     // accepts it. BOOL-8's recorded carrier-blindness hole — the door

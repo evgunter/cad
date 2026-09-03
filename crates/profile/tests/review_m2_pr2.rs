@@ -27,7 +27,7 @@
     clippy::unreachable
 )]
 
-mod common;
+use crate::common;
 
 use common::{chain, profile, quarter_bulge, rect, tol};
 // `lift` re-instantiates a fixture at another scalar; the only

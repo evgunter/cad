@@ -36,7 +36,8 @@ use editor_core::{
     RoleSeg, SlotId, StableName,
 };
 
-use super::super::fixture::{desc, len};
+use crate::fixture::len;
+
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap-vertex name at `node`.
@@ -59,24 +60,24 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     // Block a: [0,1]³. Profile (0,0)(1,0)(1,1)(0,1) → vertex 2 is
     // (1,1), the kiss corner on the TOP cap.
-    let a_p = r.insert(Node::Profile(desc(
+    let a_p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let a = r.insert(Node::Extrude {
         profile: a_p,
         distance: len(1.0),
     });
     // Block b: [1,2]² × [1,2]. Profile (1,1)(2,1)(2,2)(1,2) → vertex 0
     // is (1,1), the kiss corner on the BOTTOM cap.
-    let b_p = r.insert(Node::Profile(desc(
+    let b_p = r.profile(
         [0.0, 0.0, 1.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]],
-    )));
+    );
     let b = r.insert(Node::Extrude {
         profile: b_p,
         distance: len(1.0),
@@ -91,12 +92,12 @@ pub fn document() -> CorpusDoc {
     });
 
     // The mover: [1.5,2.5]² × [1.5,2.5], a transversal crossing of b.
-    let c_p = r.insert(Node::Profile(desc(
+    let c_p = r.profile(
         [0.0, 0.0, 1.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.5, 1.5), (2.5, 1.5), (2.5, 2.5), (1.5, 2.5)]],
-    )));
+    );
     let c = r.insert(Node::Extrude {
         profile: c_p,
         distance: len(1.0),

@@ -36,7 +36,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use geom_core::{Decide, Indeterminate};
 use profile::ProfileError;
-use sweep::{ExtrudeError, RevolveError, SkinError};
+use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
 use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
@@ -423,6 +423,21 @@ pub enum NodeErrorKind {
     Extrude(ExtrudeError),
     /// The revolve op refused.
     Revolve(RevolveError),
+    /// A TUBE door refused — the solid door's or the hollow door's.
+    ///
+    /// ONE arm for both kinds, because the kernel's two doors carry
+    /// one error type and that type already says which door it came
+    /// from: the three wall arms are reachable only through
+    /// `tube_along_arc_hollow`, and its own `Display` names the door
+    /// on every arm. Splitting this into `Tube`/`HollowTube` here
+    /// would put the door's identity in a payload for the arms that
+    /// do not depend on it, and then state it twice for the arms that
+    /// do — the shape [`NodeErrorKind::Blend`] needs a `verb` for
+    /// precisely because `FilletError` does NOT carry one.
+    ///
+    /// Carried UNALTERED like every other kernel refusal; the node
+    /// never substitutes a body for one that did not build.
+    Tube(Box<TubeError>),
     /// The split op refused.
     Split(SplitError),
     /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
@@ -502,6 +517,30 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::ParamBoxError,
     },
+    /// The evaluation's E4 seed could not bind (the seed door, the
+    /// [`NodeErrorKind::ParamBox`] shape): the seed names a parameter
+    /// the document does not carry, names a structural `Count`
+    /// parameter, or this scalar has no tangent channel to carry it.
+    /// Refused on EVERY node, before any node runs, and for the same
+    /// reason as the box arm — a dropped seed is a different question
+    /// answered in the same shape.
+    Seed {
+        /// The door's refusal, unaltered.
+        source: crate::analysis::SeedError,
+    },
+    /// The evaluation's E4 seed names a parameter a loft's or a sweep's
+    /// SECTION reads, and a section stays `f64` in every lane (C6/D9:
+    /// the skinned surface's structure must be lane-identical) — the
+    /// seed has no channel to ride there and would reach the surface
+    /// as a constant. Refused at the consuming node, naming the
+    /// section, rather than embedded as a finite wrong zero: the
+    /// profile gap, typed.
+    SeedPinnedSection {
+        /// The section profile node the seed reaches and stops at.
+        section: RecipeNodeId,
+        /// The seeded parameter the section reads.
+        param: crate::doc::ParamName,
+    },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -563,12 +602,30 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
-    /// A revolve axis with a decided out-of-plane component (the
-    /// kernel's `RevolveAxis` is a sketch-plane datum; an axis not in
-    /// the profile's plane cannot be wired, only refused).
-    AxisNotInSketchPlane {
+    /// A revolve whose axis and profile are written against DIFFERENT
+    /// sketch frames.
+    ///
+    /// This replaced `AxisNotInSketchPlane`, which said that a 3-D
+    /// axis had a decided out-of-plane component. That refusal was a
+    /// tolerance verdict on a projection — and the direction half of
+    /// it was the dimension audit's F15, a bare sine judged against
+    /// the metre band. An axis authored IN a frame cannot leave it, so
+    /// the only question left is whether it is the frame the profile
+    /// was drawn on, and that is an equality of node ids: exact, and
+    /// the same answer at every model scale.
+    ///
+    /// Both frames are named because the fix depends on which one is
+    /// wrong, and a reader looking at two node numbers can tell. Each
+    /// is optional for one reason: a node that is neither a profile
+    /// nor an in-plane axis is written against no frame at all, and
+    /// `None` says that rather than inventing an id.
+    AxisInDifferentPlane {
         /// The axis datum node.
         axis: RecipeNodeId,
+        /// The frame the axis is written in.
+        axis_plane: Option<RecipeNodeId>,
+        /// The frame the profile is drawn on.
+        profile_plane: Option<RecipeNodeId>,
     },
     /// A pattern count that is not at least 1.
     NonPositiveCount {
@@ -940,6 +997,11 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
+            // The kernel error names its own door, so this line
+            // must not name one: "the tube op refused: tube door: …"
+            // would read a hollow refusal as a solid one half the
+            // time.
+            Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             Self::Boolean(e) => write!(
@@ -964,6 +1026,14 @@ impl core::fmt::Display for NodeErrorKind {
                  (one process, one ε)"
             ),
             Self::ParamBox { source } => write!(f, "parameter box: {source}"),
+            Self::Seed { source } => write!(f, "parameter seed: {source}"),
+            Self::SeedPinnedSection { section, param } => write!(
+                f,
+                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                 in every lane (a loft's or a sweep's section is structure) — the tangent \
+                 cannot ride through it, so this node refuses rather than embed a zero",
+                param.0, section.0
+            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -1012,11 +1082,23 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "predicate {predicate} escalated (in-band indeterminacy): {source}"
             ),
-            Self::AxisNotInSketchPlane { axis } => write!(
-                f,
-                "revolve axis (node {}) does not lie in the profile's sketch plane",
-                axis.0
-            ),
+            Self::AxisInDifferentPlane {
+                axis,
+                axis_plane,
+                profile_plane,
+            } => {
+                let frame = |f: &Option<RecipeNodeId>| {
+                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n.0))
+                };
+                write!(
+                    f,
+                    "revolve axis (node {}) is written in {}, but the profile is drawn on {} \
+                     — an axis revolves the sketch it lives in",
+                    axis.0,
+                    frame(axis_plane),
+                    frame(profile_plane)
+                )
+            }
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
@@ -1174,7 +1256,11 @@ impl CancelToken {
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
 /// which carries `topo::PropsQuadLane` as its supertrait — the part
 /// seam gathers a referenced document's product, so evaluation owns a
-/// gate policy per scalar), and `Send + Sync` for the rayon schedule.
+/// gate policy per scalar), the two per-scalar analysis capabilities
+/// (`crate::analysis::AxisScalar` for the parameter box,
+/// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
+/// options whose capability lives at the scalar), and `Send + Sync`
+/// for the rayon schedule.
 /// ONE name for the set, stated at the evaluation-service seam that
 /// owns it — so the modules below this one (`parts`) name the
 /// requirement rather than restate it, and the compound `Bounds` bound
@@ -1187,6 +1273,7 @@ pub trait EvalScalar:
     + Sync
     + topo::AtRestPolicy
     + crate::analysis::AxisScalar
+    + crate::analysis::SeedScalar
 {
 }
 
@@ -1198,6 +1285,7 @@ impl<T> EvalScalar for T where
         + Sync
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
+        + crate::analysis::SeedScalar
 {
 }
 
@@ -1244,6 +1332,23 @@ pub struct EvalOptions {
     /// the whole evaluation, node by node, rather than quietly
     /// evaluating at the nominals.
     pub param_box: Option<Arc<crate::analysis::ParamBox>>,
+    /// The E4 SEED: which parameter's lift carries tangent `1.0` in
+    /// this evaluation — the `param_box` seam's twin. `None` — the
+    /// default — is every build-path evaluation, bit for bit: the
+    /// environment is left exactly as the box door (or the nominal
+    /// door) built it.
+    ///
+    /// Exactly one parameter per evaluation (E4: n parameters ⇒ n
+    /// independent passes; a multi-seed vector mode is E11.4's door,
+    /// deliberately not this field's). Scalar-free like the box: the
+    /// seed is a name, and the evaluation's scalar decides whether it
+    /// can carry a tangent ([`crate::analysis::SeedScalar`]) — a
+    /// tangentless scalar refuses every node typed rather than silently
+    /// dropping the seed, and an unknown or `Count` name refuses at env
+    /// construction, before any node runs. Seeding composes with
+    /// `param_box` exactly where both capabilities meet
+    /// (`Dual<Interval>`: value channel the box, tangent the seed).
+    pub seed: Option<crate::doc::ParamName>,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -1285,6 +1390,7 @@ impl Default for EvalOptions {
             resolver: None,
             profile_lift: ProfileLift::Pinned,
             param_box: None,
+            seed: None,
         }
     }
 }
@@ -1364,6 +1470,17 @@ where
             Err(source) => return refuse_param_box(doc, sched, opts, source),
         },
     };
+    // The E4 seed rides the SAME environment (a seed is a separate act
+    // on the environment the box door built, never a property of the
+    // box — `AxisScalar`'s dual impl states the boundary): exactly one
+    // binding gains tangent 1.0, checked here, before any node runs.
+    let env = match opts.seed.as_ref() {
+        None => env,
+        Some(name) => match crate::analysis::seed_env(doc, env, name) {
+            Ok(env) => env,
+            Err(source) => return refuse_seed(doc, sched, opts, source),
+        },
+    };
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -1384,6 +1501,7 @@ where
         lane: wire::LaneEnv {
             lift: opts.profile_lift,
             params: &env,
+            seed: opts.seed.as_ref(),
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
@@ -1504,6 +1622,25 @@ where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
+        source: source.clone(),
+    })
+}
+
+/// The all-nodes seed refusal: the seed named a parameter the document
+/// does not have (or a `Count` one), or this evaluation's scalar
+/// carries no tangent channel. Loud on every node for the
+/// [`refuse_param_box`] reason — an evaluation that silently dropped
+/// its seed would report a build's answer for a sensitivity question.
+fn refuse_seed<T>(
+    doc: &Doc<ProfileProgram>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    source: crate::analysis::SeedError,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+{
+    refuse_every_node(doc, sched, opts, move || NodeErrorKind::Seed {
         source: source.clone(),
     })
 }
@@ -1658,7 +1795,14 @@ where
     // exactly the lane validation the op runs (the v1 logged surface).
     let profile_pre = match (node, &resolved_program) {
         (crate::node::Node::Profile(program), Some(resolved)) => {
-            match wire::prepare_profile(program, resolved, tol) {
+            // The frame the profile is drawn on, at f64 and from the
+            // DOCUMENT — `wire::profile_plane_f64` carries why that is
+            // the right scalar and the right source.
+            let plane = match wire::profile_plane_f64(doc, program.plane, tol) {
+                Ok(plane) => plane,
+                Err(kind) => return fail(kind),
+            };
+            match wire::prepare_profile(plane, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -1979,6 +2123,27 @@ where
         // geometry out of the memo, and a frame and a plane evaluate
         // to different payloads.
         Node::Datum(Datum::Frame { .. }) => 27,
+        // LIB-TUBE. The roster was READ and appended to at every
+        // re-merge, which is how these two arrived here as 28/29
+        // rather than the 25/26 this unit first wrote — M10-2 and the
+        // sketch frame landed first, and an already-published tag is
+        // never taken back. Two tags, not one: a solid tube and a
+        // hollow tube of the same radii are different artifacts, and
+        // sharing a tag would let one's memo serve the other — the
+        // exact hazard the append rule exists for.
+        Node::Tube { .. } => 28,
+        Node::HollowTube { .. } => 29,
+        // The in-plane axis. Tags APPEND — it does NOT share the 3-D
+        // axis's tag 2: the two carry different numbers (four against
+        // six), mean them against different things (a frame against
+        // the world), and evaluate to different payloads, so a shared
+        // key would serve one's geometry for the other out of the memo.
+        //
+        // 30, not the 28 this rung first wrote: LIB-TUBE's pair landed
+        // on main first and took 28/29, and by the same append rule
+        // quoted above a published tag is never taken back — so the
+        // unpublished one moves. This is that rule applied to itself.
+        Node::Datum(Datum::AxisInPlane { .. }) => 30,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -1994,20 +2159,22 @@ where
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
-        Node::Profile(program) => {
+        Node::Profile(_) => {
             // LIB-SWITCH §4e: the program's structural payload feeds
-            // as (tag, payload) tokens — plane placement floats, then
-            // per loop a LoopStart tag and per RESOLVED step the verb
+            // as (tag, payload) tokens — per loop a LoopStart tag and
+            // per RESOLVED step the verb
             // tag + structural tags + the resolved-at-f64 bit pattern
             // of each continuous arg (the same resolved-value
             // convention node slots use). Derived segment floats LEFT
             // the key (V3); display units never enter it (D7). Any
             // edit that can change segments changes the key: structure
             // via tags, Exprs and params via resolved bits, ε above.
-            for bits in crate::program::plane_key_bits(&program.plane) {
-                h.write_tag(2);
-                h.write_u64(bits);
-            }
+            // The plane's twelve placement floats LEFT this key when
+            // the plane became a node: it is an input now, so its own
+            // content key is already folded in above with every other
+            // upstream key, and writing it here too would be the same
+            // fact hashed twice — with the two copies free to disagree
+            // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
             // before keying); written defensively — no panic paths in
             // this crate — and the write_tag(0) marker keeps an
@@ -2183,6 +2350,18 @@ where
             crate::measure::AssertionDir::AtLeast => 1,
             crate::measure::AssertionDir::AtMost => 2,
         }),
+        // A tube's WINDOW VARIANT is recipe payload, not a slot: which
+        // variant it is decides whether the node has window slots at
+        // all, so re-authoring a full ring into an arc must move the
+        // key by more than the arrival of two slot values. Fed as a
+        // tag for both kinds — the two share this payload exactly as
+        // they share the slots it governs.
+        Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
+            h.write_tag(match window {
+                crate::node::TubeWindow::Full => 0,
+                crate::node::TubeWindow::Arc { .. } => 1,
+            });
+        }
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.

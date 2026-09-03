@@ -7,12 +7,18 @@
 //! directory on every run, and a number written out beside it is a
 //! second, unchecked copy of a set the compiler already knows.
 //!
-//! The files themselves are untouched: each keeps its own `//!` docs, its inner
-//! attributes (`#![cfg(feature = "interval")]` and friends work as
-//! module-level attributes), and its own `mod <helper>;` lines — a
-//! `#[path]` module's child modules resolve against the DIRECTORY
-//! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
-//! its own crate root.
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
+//!
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
 //!
 //! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
 //! constant dominated the workspace build job — the suites are small, so
@@ -31,12 +37,22 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/corpus/mod.rs` and `tests/fixture/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod corpus;
+mod fixture;
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
@@ -88,6 +104,8 @@ mod e4_dual_door;
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
 mod gui1_pick_r2;
+#[path = "lib_dietool_crossing.rs"]
+mod lib_dietool_crossing;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
@@ -128,6 +146,15 @@ mod m10_3_driver_k_probe_interval;
 mod m10_3_r1_probes_interval;
 #[path = "m10_3_r2_probes_interval.rs"]
 mod m10_3_r2_probes_interval;
+#[path = "m10_4_r1_probes_interval.rs"]
+mod m10_4_r1_probes_interval;
+#[path = "m10_4_seed.rs"]
+mod m10_4_seed;
+
+#[path = "m10_4_r2_probes_interval.rs"]
+mod m10_4_r2_probes_interval;
+#[path = "m10_4_stackup_interval.rs"]
+mod m10_4_stackup_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
@@ -317,6 +344,14 @@ mod unreadable_by_this_build;
 /// The walk is `test_utils::source::suite_files`, which recurses into
 /// group directories and tells a suite from a shared helper by Rust's
 /// own module rule; read it before adding either.
+///
+/// It also pins ONE HOME for every shared helper: no suite file may
+/// carry a `mod <name>;` of its own. That form loads a FILE as a module
+/// of the declaring suite, and in an aggregated binary the same helper
+/// is then parsed, resolved, type-checked and codegen'd once per suite
+/// that declares it — the cost this crate's `all.rs` header describes.
+/// One declaration at the root of this file, and `use crate::<name>;`
+/// in each suite, makes it one compilation for the whole binary.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
@@ -346,7 +381,47 @@ fn every_suite_file_is_aggregated() {
         "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
         found.len()
     );
+    // ONE HOME for every shared helper, enforced over the same walk.
+    // A `mod <name>;` in a SUITE loads that helper file as a module of
+    // THAT suite, so inside this one binary the helper is parsed,
+    // resolved, type-checked and codegen'd once per suite that declares
+    // it. Declared once at the top of this file and reached with
+    // `use crate::<name>;`, it is compiled once for the binary.
+    // Inline `mod <name> { … }` blocks are not this and stay legal;
+    // helper TREES are directories carrying a `mod.rs`, which the walk
+    // above already excludes.
+    let redeclared: Vec<String> = found
+        .iter()
+        .flat_map(|rel| {
+            let text =
+                std::fs::read_to_string(root.join(rel)).expect("a walked suite file reads back");
+            test_utils::source::file_module_decls(&text)
+                .into_iter()
+                .map(move |name| format!("{rel}: mod {name};"))
+        })
+        .collect();
+    assert!(
+        redeclared.is_empty(),
+        "a suite declares a module of its own, which compiles that file once per \
+         declaring suite inside this one binary: {redeclared:?}. Declare it once in \
+         tests/all.rs (`mod <name>;`, no `#[path]`) and say `use crate::<name>;` here."
+    );
 }
 
 #[path = "cert_m2r1_corpus.rs"]
 mod cert_m2r1_corpus;
+
+#[path = "lib_tube_node.rs"]
+mod lib_tube_node;
+
+#[path = "lib_tube_r1_probes.rs"]
+mod lib_tube_r1_probes;
+
+#[path = "lib_tube_r1_dump.rs"]
+mod lib_tube_r1_dump;
+
+#[path = "lib_tube_r1_probes2.rs"]
+mod lib_tube_r1_probes2;
+
+#[path = "lib_tube_r2_probes.rs"]
+mod lib_tube_r2_probes;

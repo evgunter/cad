@@ -14,7 +14,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Evan's ask).
+  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Ev's ask).
   #
   # The `filter` job draws ONE point of {lane} x {eps} x {k-lint row} per run
   # and lets repetition cover the rest — scripts/ci-filter.py's CONFIGURATION
@@ -104,7 +104,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Evan's
+# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Ev's
 # authorisation; measured in docs/CI-MINUTES-2026-08.md, finding F3).
 #
 # A merge ran the whole gate a SECOND time: ~87 billed minutes on the
@@ -149,7 +149,7 @@ concurrency:
 # independently-green PRs surfaces at the NEXT PR's merge-ref rather
 # than at the merge that caused it.
 #
-# A scheduled full run on main was the obvious pairing and Evan DECLINED
+# A scheduled full run on main was the obvious pairing and Ev DECLINED
 # it (2026-08-22): the next PR's merge-ref is main plus that branch, so
 # it tests the landed tree anyway — a scheduled run buys a second
 # discovery of the same fact, at the price of a full gate per period
@@ -163,7 +163,7 @@ concurrency:
 # fail-fast on the landed tree belongs on the PR side of this line, not
 # restored to the push side.
 
-# BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
+# BUILD ONCE PER COMPILE MODE (2026-08-03, Ev's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
 # BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is read at RUNTIME
 # (geom-core/src/tolerance.rs), never at compile time — so compiling the
@@ -192,7 +192,7 @@ concurrency:
 #     exercises), so each build job keeps a `cargo test --doc` step.
 #
 # LINK/DEBUGINFO KNOBS ON THE TWO BUILD JOBS (2026-08-04, from the
-# Bazel-verdict measurement; Evan approved items 2/3/4 of its ranked
+# Bazel-verdict measurement; Ev approved items 2/3/4 of its ranked
 # alternatives). The verdict was NO to Bazel, on this evidence from run
 # 30884593286: the `rebuild latency` job compiles all 10 workspace libs
 # from scratch plus ONE test binary in 20.16 s, while `build + archive`
@@ -318,7 +318,7 @@ env:
 # the dependent closure have a single implementation and cannot drift.
 
 jobs:
-  # Change filter (added 2026-07-29, Evan's ask after the Actions-budget
+  # Change filter (added 2026-07-29, Ev's ask after the Actions-budget
   # exhaustion; made dependency-aware 2026-07-28). THREE tiers, and all of
   # the logic lives in scripts/ci-filter.py — this job is a thin wrapper
   # that wires that script's KEY=value output onto the `if:` conditions and
@@ -370,6 +370,16 @@ jobs:
       # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
       # five feature unifications this run gates. Only that job reads it.
       klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
+      # THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E`
+      # expression that EXCLUDES them, or empty for the ordinary whole-suite
+      # run. A suite carrying a `test_utils::gated_to!` marker names the
+      # source paths it is specific to; the filter subtracts the ones none of
+      # whose paths — nor whose own file — is in the diff, and the nightly
+      # runs the whole gated set ungated on any day main moved. The argument,
+      # and every arm that empties this key, are at THE PER-FILE TEST GATE in
+      # scripts/ci-filter.py; the skips are named one per line in the notices
+      # the `the configuration this run gates` step relays.
+      test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       # The members whose OWN files changed, as opposed to `pkgs` (the
       # dependent closure they generate). Published because the viewer
       # toolkit axis below is keyed on it: a reader who sees that axis
@@ -377,7 +387,7 @@ jobs:
       # output, without re-deriving it.
       seeds: ${{ steps.classify.outputs.SEEDS }}
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
-      # naga + winit). SEED-keyed per Evan's viewer-CI-posture ruling
+      # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
       # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
       # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
@@ -493,7 +503,7 @@ jobs:
           scripts/ci-filter.py "${FILTER[@]}" --seed "$SEED" \
             --config-from-message commit-message.txt "${CONFIG[@]}" \
             --notices filter-notices.txt > filter.out
-          # DRAFT PRs SKIP THE GATE (2026-08-22, Evan's ask; F5 of the
+          # DRAFT PRs SKIP THE GATE (2026-08-22, Ev's ask; F5 of the
           # minutes audit, which called it "the largest single lever
           # available" and left it as a policy decision).
           #
@@ -682,7 +692,7 @@ jobs:
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
-  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Evan,
+  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Ev,
   # 2026-08-20). `discipline` below is `if: run_build == 'true'`, and a
   # change set of only .md / memories/ / local-scripts/ / .claude/ is
   # TIER=docs, so it does not run. That posture is deliberate and cheap
@@ -779,6 +789,27 @@ jobs:
       # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
+      # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
+      # the same reason as every row above. Stdlib python and git; the
+      # selftest builds a scratch repo.
+      - name: work tracker lint (work/ items resolve and docs/ holds no plan or log)
+        run: |
+          python3 scripts/work.py --selftest
+          python3 scripts/work.py lint
+      # TERRITORY IS ADVISORY. Every path in this PR's diff that another
+      # program's globs own is printed as a warning annotation; nothing reds.
+      # The diff is base-sha..HEAD on the merge ref, which is the PR's own
+      # change set and needs no history — one extra depth-1 fetch.
+      - name: work tracker territory (advisory)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          git diff --name-only "$BASE_SHA" HEAD \
+            | python3 scripts/work.py territory --files - --branch "$HEAD_REF"
       # The script that writes the tessellation-budget baseline's own
       # provenance line, and refuses to walk it forward past the rows it
       # describes. Sited HERE, in the tier-blind job, because it is git
@@ -955,6 +986,20 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh
+      # THE PER-FILE TEST GATE'S MARKERS (S-TCOST lever 3). A gated suite
+      # names the source paths it is specific to, and the change filter skips
+      # it on a pull request when none of them is in the diff. That filter
+      # FAILS OPEN — a marker it cannot resolve runs its suite — so a rename
+      # that moved a suite's subject out from under it leaves a gate that
+      # reads as narrow, is in fact "always runs", and shows up in no run's
+      # output. This is the row that makes it loud, and the row that keeps the
+      # nightly's ungated re-take (which REFUSES an unresolvable tree) from
+      # being where a rename is discovered hours later. Stdlib-only python3
+      # under lib.sh's contract, so it rides this cheap-tripwire job.
+      - name: gated-suite marker paths resolve
+        run: |
+          scripts/gates/gated-suite-paths.sh --selftest
+          scripts/gates/gated-suite-paths.sh
       # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
       # thing between "the harness ran" and "the sweep recorded nothing
       # and exited 0", and nothing else in the tree exercises it. No
@@ -1235,7 +1280,7 @@ jobs:
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
-      # the GUI toolkit rows (Evan's viewer-CI-posture ruling,
+      # the GUI toolkit rows (Ev's viewer-CI-posture ruling,
       # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
       # renderer-free modules are gated on every run and only the
@@ -1295,7 +1340,7 @@ jobs:
       # or `mmap` path is enough, and the documents would still read as
       # checked fact.
       #
-      # ONE LEG, and it is the interval one. Evan's ruling, 2026-08-21:
+      # ONE LEG, and it is the interval one. Ev's ruling, 2026-08-21:
       # *"do add wasm cross compiling for the interval build only. the
       # lint for having interval be purely additive suffices."* The
       # default-features leg and a whole-workspace `wasm_js` leg were both
@@ -1363,7 +1408,7 @@ jobs:
       # row and its "verified fix" paragraph are a one-time reading again,
       # and §4 now says so at the row. Same ruling, same reason.
       #
-      # SITED IN THIS JOB, not in one of its own (Evan's earlier
+      # SITED IN THIS JOB, not in one of its own (Ev's earlier
       # constraint: the guard must not add runner time). Actions bills PER
       # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so
       # billed minutes are the currency, not seconds.
@@ -1481,7 +1526,7 @@ jobs:
       #
       # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
       # crates that no other row in this workflow needs. It is not a
-      # default feature, and per Evan's viewer-CI-posture ruling
+      # default feature, and per Ev's viewer-CI-posture ruling
       # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
       # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
@@ -1500,7 +1545,7 @@ jobs:
       # row in nightly.yml, ungated, once a day.
       #
       # THE VIEWER TOOLKIT ROWS ARE NOT HERE. They used to be, and that
-      # was a hole in Evan's viewer-CI ruling rather than a hole in this
+      # was a hole in Ev's viewer-CI ruling rather than a hole in this
       # job: THIS JOB CARRIES `lane != 'interval'`, and LANE is a 50/50
       # sample, so on an interval draw the whole job — the seed-keyed
       # verdict step included — never ran, and the ruling's "never a
@@ -1598,7 +1643,7 @@ jobs:
     #
     # RE-ASKED UNDER CONFIGURATION SAMPLING (2026-08-22), because the
     # verdict above rests on amortising ONE compile over TEN run legs and a
-    # sampled run has one. Evan's question was the right one — "if we run at
+    # sampled run has one. Ev's question was the right one — "if we run at
     # one eps instead of 3 that's plausibly enough to shift the balance". It
     # shifts it and does not cross it, in either lane, and the margin is
     # wide enough that no new measurement was taken to say so.
@@ -1632,7 +1677,7 @@ jobs:
     # settle it (the same trap this note's own header warns about).
     #
     # ============================================================
-    # NOW opt-level 1, NOT 2 (Evan, 2026-08-25). EVERYTHING ABOVE THIS LINE
+    # NOW opt-level 1, NOT 2 (Ev, 2026-08-25). EVERYTHING ABOVE THIS LINE
     # IS THE HISTORY OF A TWO-POINT COMPARISON, and the two points were the
     # wrong ones.
     #
@@ -1814,7 +1859,7 @@ jobs:
       fail-fast: false
       # ONE ε ROW PER RUN, SAMPLED (2026-08-22 — scripts/ci-filter.py's
       # CONFIGURATION SAMPLING note is the argument; this is the wiring).
-      # The battery is still {default, 1e-6, 1e-12} (Evan's ruling,
+      # The battery is still {default, 1e-6, 1e-12} (Ev's ruling,
       # 2026-07-30): the two env rows straddle the compiled default
       # (DEFAULT_EPS = 1e-9) three orders either side, and the `default`
       # row runs with the variable genuinely UNSET (an empty
@@ -1947,12 +1992,29 @@ jobs:
       # `PIPESTATUS[0]` takes nextest's own status regardless of shell options,
       # and `set +e` guarantees no intervening command can abort the step
       # before that status is read and re-exited.
+      #
+      # THE GATED-SUITE FILTER IS ECHOED BEFORE IT IS USED, and that is the
+      # same rule the fail-fast line above follows: what a shard did NOT run
+      # has to be legible from the shard's own log, not reconstructed from
+      # another job's outputs. Empty is the ordinary whole-suite run, which is
+      # byte for byte what ran before this key existed; non-empty is a `not
+      # (...)` expression naming exactly the suites whose marked paths this
+      # diff did not touch, and `filter`'s notices name them one per line.
       - name: run archived tests
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          if [ -n "$TEST_FILTER" ]; then
+            echo "gated-suite filter: -E '$TEST_FILTER' (the change filter's notices name each skipped suite)"
+            GATED=(-E "$TEST_FILTER")
+          else
+            echo "gated-suite filter: none — this shard runs its whole partition of the suite."
+            GATED=()
+          fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -2482,12 +2544,28 @@ jobs:
       # status is tee's, these steps run under `bash -e {0}` without
       # `pipefail`, and a capture that could turn a red shard green would be a
       # report breaking the thing it reports on.
+      #
+      # THE GATED-SUITE FILTER, echoed then applied, exactly as at the default
+      # lane's copy of this step and for the same reason. It is the SAME
+      # expression: the markers are a property of the tree, not of a compile
+      # mode, so a suite whose paths this diff did not touch is skipped on
+      # whichever lane the run drew — and the nightly's re-take runs the set
+      # once, ungated, rather than once per lane.
       - name: run archived tests
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          if [ -n "$TEST_FILTER" ]; then
+            echo "gated-suite filter: -E '$TEST_FILTER' (the change filter's notices name each skipped suite)"
+            GATED=(-E "$TEST_FILTER")
+          else
+            echo "gated-suite filter: none — this shard runs its whole partition of the suite."
+            GATED=()
+          fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -2496,6 +2574,17 @@ jobs:
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
+      #
+      # THESE TWO ROWS CARRY NO GATED-SUITE FILTER, AND MUST NEVER GAIN ONE AS
+      # A SECOND `-E`. nextest ORs its `-E` expressions, so appending
+      # `-E "$TEST_FILTER"` beside the `-E` below would not subtract the gated
+      # suites from this selection — it would ADD every test the filter
+      # excludes back into the row, which is the one way this mechanism can
+      # silently un-gate what it exists to gate. A row that needs both writes
+      # ONE expression, `(selection) & (filter)`, the way
+      # local-scripts/ci-local.sh's `gated_expr` builds it. Nothing is lost by
+      # their absence here: the archive run above already applies the filter,
+      # and these two select one module each from inside it.
       #
       # `--no-fail-fast` HERE AND ON THE ROW BELOW, unconditionally, and the
       # reason is that the alternative needs an invariant nothing enforces.
@@ -2769,7 +2858,7 @@ jobs:
           echo "CASES_SECONDS=$((SECONDS - t0))"
 
   # THE `watertight (admesh)` JOB STOOD HERE, AND HAS MOVED TO
-  # .github/workflows/nightly.yml (Evan, 2026-08-22). Its evidence is its own
+  # .github/workflows/nightly.yml (Ev, 2026-08-22). Its evidence is its own
   # history: one solo red in 37 days of gate runs, and that one was a rustup
   # outage rather than a mesh. It is a PERSISTENCE-detector — a non-manifold
   # body stays non-manifold — so a nightly finds what this row would have
@@ -2928,7 +3017,7 @@ jobs:
   # unchanged — same three eps bands, same scoped test set.)
 
   # THE `persistence` AND `band 4 corpus` JOBS STOOD HERE, AND ARE
-  # DELETED (2026-08-22, Evan: "no need to make any special attempt to
+  # DELETED (2026-08-22, Ev: "no need to make any special attempt to
   # keep m4_pr8_corpus visible. just make it a normal test").
   #
   # WHAT THEY WERE. Two jobs that re-ran `m4_pr6_roundtrip::`,
@@ -3014,7 +3103,7 @@ jobs:
     # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
     # row that RUNS THAT CRATE'S OWN SUITE rather than sampling one (four of
     # these five rows COMPILE tools/tess-meter, through demos/tour's plain
-    # dependency on it; only `dev-default` runs its tests — Evan's ruling,
+    # dependency on it; only `dev-default` runs its tests — Ev's ruling,
     # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
     # the run says `klint:pinned` in the step above). `demos/` is deliberately
     # left to the draw, argued at the same site.

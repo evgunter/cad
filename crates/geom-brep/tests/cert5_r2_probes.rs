@@ -27,12 +27,29 @@ use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, RingInterval};
 
+use crate::shared::patch::{dbasis_over, dense_over};
+
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
 // ---------- independent oracle (no kernel spline code) ----------
 
+/// All basis values N_{i,p}(t).
+///
+/// **This copy stays, and is the only part of this oracle that does.**
+/// It seeds the Cox-de Boor recursion by clamping `t` into the last
+/// nonzero span at the domain end, where
+/// `crates/geom-brep/tests/shared/patch.rs`'s takes a separate
+/// `t >= knots[n]` branch. That seeding is the part of an oracle a
+/// `props::quad` defect could plausibly be mirrored by, so the crate
+/// keeps more than one of it on purpose; the recurrence and the
+/// quadrature loop underneath carry no such risk and are shared.
+///
+/// It is character-identical to `review_r1_rational_probes.rs`'s.
+/// Those two are one derivation spelled twice, and collapsing them is
+/// an adjudication about which suite owns it rather than a dedup —
+/// left for TCOST-8, not decided here.
 fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     let n = knots.len() - 1;
     let mut nn = vec![0.0f64; n];
@@ -84,20 +101,11 @@ fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     nn
 }
 
+/// Basis derivatives N'_{i,p}(t) — the shared divided difference,
+/// taken over THIS file's `basis` above, so the derivative path keeps
+/// the seeding that makes this oracle independent.
 fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
-    let n = knots.len() - 1;
-    let mut low = basis(knots, degree - 1, n - (degree - 1), t);
-    low.resize(n, 0.0);
-    let mut out = vec![0.0f64; ncp];
-    let pf = degree as f64;
-    for (i, o) in out.iter_mut().enumerate() {
-        let da = knots[i + degree] - knots[i];
-        let db = knots[i + degree + 1] - knots[i + 1];
-        let a = if da > 0.0 { pf / da * low[i] } else { 0.0 };
-        let b = if db > 0.0 { pf / db * low[i + 1] } else { 0.0 };
-        *o = a - b;
-    }
-    out
+    dbasis_over(basis, knots, degree, ncp, t)
 }
 
 struct Oracle {
@@ -134,57 +142,13 @@ impl Oracle {
         (s, su, sv)
     }
 
-    /// (flux, area) by composite 5-pt Gauss-Legendre, `cells` per span.
+    /// (flux, area) at `cells` per span: the shared composite
+    /// Gauss-Legendre loop over THIS file's `eval`. The ladder this
+    /// suite runs it at is 8/16; the argument for why two rungs a
+    /// factor of two apart settle it is
+    /// [`crate::shared::patch::dense_over`]'s doc, its one home.
     fn dense(&self, cells: usize) -> (f64, f64) {
-        const GX: [f64; 5] = [
-            -0.906_179_845_938_664,
-            -0.538_469_310_105_683,
-            0.0,
-            0.538_469_310_105_683,
-            0.906_179_845_938_664,
-        ];
-        const GW: [f64; 5] = [
-            0.236_926_885_056_189,
-            0.478_628_670_499_366,
-            0.568_888_888_888_889,
-            0.478_628_670_499_366,
-            0.236_926_885_056_189,
-        ];
-        let spans = |k: &[f64]| -> Vec<(f64, f64)> {
-            k.windows(2)
-                .filter(|w| w[1] > w[0])
-                .map(|w| (w[0], w[1]))
-                .collect()
-        };
-        let (mut flux, mut area) = (0.0, 0.0);
-        for (ua, ub) in spans(&self.ku) {
-            for (va, vb) in spans(&self.kv) {
-                let hu = (ub - ua) / cells as f64;
-                let hv = (vb - va) / cells as f64;
-                for cu in 0..cells {
-                    for cv in 0..cells {
-                        let u0 = ua + cu as f64 * hu;
-                        let v0 = va + cv as f64 * hv;
-                        for a in 0..5 {
-                            for b in 0..5 {
-                                let u = u0 + hu * 0.5 * (1.0 + GX[a]);
-                                let v = v0 + hv * 0.5 * (1.0 + GX[b]);
-                                let (s, sud, svd) = self.eval(u, v);
-                                let cx = [
-                                    sud[1] * svd[2] - sud[2] * svd[1],
-                                    sud[2] * svd[0] - sud[0] * svd[2],
-                                    sud[0] * svd[1] - sud[1] * svd[0],
-                                ];
-                                let wq = GW[a] * GW[b] * hu * hv * 0.25;
-                                flux += wq * (s[0] * cx[0] + s[1] * cx[1] + s[2] * cx[2]);
-                                area += wq * (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        (flux, area)
+        dense_over(&self.ku, &self.kv, cells, |u, v| self.eval(u, v))
     }
 }
 
@@ -197,37 +161,48 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 }
 
 /// Drive the public door; assert SOUNDNESS against the oracle.
-/// Returns (posture string, width if refused, seconds).
+/// Returns (posture string, width if refused).
+///
+/// The oracle exists to be a truth a CERTIFIED bracket must contain,
+/// so it is built and evaluated inside the `Ok` arm only: a typed
+/// refusal has no bracket to compare against.
+///
+/// Two resolutions, 8 and 16 cells per span, are computed and must
+/// agree to 1e-9 relative before either is believed, which leaves the
+/// 16-cell value's own error bounded at ~1e-12 relative — three orders
+/// below what the containment slack needs. The argument for why two
+/// rungs a factor of two apart settle that is written once, on
+/// `dense_over` in `crates/geom-brep/tests/shared/patch.rs`.
+///
+/// **Why the oracle here is not that one, and what it does share.**
+/// Its Cox–de Boor bases are a DIFFERENT derivation — they clamp `t`
+/// into the last nonzero span at the domain end where the shared one
+/// takes a separate `t >= knots[n]` branch — and that is the part of
+/// an oracle a `props::quad` defect could plausibly be mirrored by, so
+/// the crate keeps more than one, and this file keeps its own `basis`.
+/// Everything under that seeding is shared and no longer restated
+/// here: the divided difference that turns basis values into their
+/// derivatives, and the composite Gauss–Legendre loop, both taken over
+/// THIS file's `basis` and `eval`. Sharing them merges no derivation —
+/// it stops two derivations from spelling one loop twice.
+///
+/// **And why this row does not use `shared::patch::face_posture`.**
+/// That gate answers "certified, or an honest refusal"; the rows here
+/// need the budget refusal told apart from the rest, because a budget
+/// stop is a reading they assert on (a finite width above the target)
+/// rather than a pass.
 fn drive(
     name: &str,
     ku: &KnotVector,
     kv: &KnotVector,
     control: &[[RingInterval; 3]],
     weights: &[f64],
-) -> (String, Option<f64>, f64) {
+) -> (String, Option<f64>) {
     let nu = ku.control_count();
     let nv = kv.control_count();
     assert_eq!(control.len(), nu * nv, "{name}: net shape");
-    let oracle = Oracle {
-        ku: ku.knots().to_vec(),
-        kv: kv.knots().to_vec(),
-        du: ku.degree(),
-        dv: kv.degree(),
-        nu,
-        nv,
-        cp: control
-            .iter()
-            .zip(weights)
-            .map(|(c, w)| [c[0].lo() * w, c[1].lo() * w, c[2].lo() * w, *w])
-            .collect(),
-    };
-    let (f1, a1) = oracle.dense(16);
-    let (f2, a2) = oracle.dense(32);
-    let converged =
-        (f1 - f2).abs() < 1e-9 * (1.0 + f2.abs()) && (a1 - a2).abs() < 1e-9 * (1.0 + a2.abs());
     let (ua, ub) = ku.domain();
     let (va, vb) = kv.domain();
-    let t0 = std::time::Instant::now();
     let out = nurbs_patch_face::<f64>(
         ku,
         kv,
@@ -239,51 +214,73 @@ fn drive(
         Tol::witness().get().eps,
         band(),
     );
-    let secs = t0.elapsed().as_secs_f64();
     match out {
         Ok(fb) => {
+            let oracle = Oracle {
+                ku: ku.knots().to_vec(),
+                kv: kv.knots().to_vec(),
+                du: ku.degree(),
+                dv: kv.degree(),
+                nu,
+                nv,
+                cp: control
+                    .iter()
+                    .zip(weights)
+                    .map(|(c, w)| [c[0].lo() * w, c[1].lo() * w, c[2].lo() * w, *w])
+                    .collect(),
+            };
+            let (f1, a1) = oracle.dense(8);
+            let (f2, a2) = oracle.dense(16);
             println!(
                 "R2 {name}: CERTIFIED flux [{:.12e},{:.12e}] oracle {:.12e} | area \
-                 [{:.12e},{:.12e}] oracle {:.12e} | {:.2}s | oracle-converged {converged}",
+                 [{:.12e},{:.12e}] oracle {:.12e}",
                 fb.flux.lo(),
                 fb.flux.hi(),
                 f2,
                 fb.area.lo(),
                 fb.area.hi(),
                 a2,
-                secs
             );
-            if converged {
-                assert!(
-                    f2 >= fb.flux.lo() && f2 <= fb.flux.hi(),
-                    "UNSOUND {name}: flux oracle {f2:.17e} outside [{:.17e},{:.17e}]",
-                    fb.flux.lo(),
-                    fb.flux.hi()
-                );
-                assert!(
-                    a2 >= fb.area.lo() && a2 <= fb.area.hi(),
-                    "UNSOUND {name}: area oracle {a2:.17e} outside [{:.17e},{:.17e}]",
-                    fb.area.lo(),
-                    fb.area.hi()
-                );
-            }
-            ("CERTIFIED".to_string(), None, secs)
+            assert!(
+                (f1 - f2).abs() < 1e-9 * (1.0 + f2.abs()),
+                "ORACLE NOT CONVERGED {name}: the flux truth is not believable, so the \
+                 containment assertion below would assert nothing: 8 cells/span \
+                 {f1:.17e} vs 16 cells/span {f2:.17e}"
+            );
+            assert!(
+                (a1 - a2).abs() < 1e-9 * (1.0 + a2.abs()),
+                "ORACLE NOT CONVERGED {name}: the area truth is not believable, so the \
+                 containment assertion below would assert nothing: 8 cells/span \
+                 {a1:.17e} vs 16 cells/span {a2:.17e}"
+            );
+            assert!(
+                f2 >= fb.flux.lo() && f2 <= fb.flux.hi(),
+                "UNSOUND {name}: flux oracle {f2:.17e} outside [{:.17e},{:.17e}]",
+                fb.flux.lo(),
+                fb.flux.hi()
+            );
+            assert!(
+                a2 >= fb.area.lo() && a2 <= fb.area.hi(),
+                "UNSOUND {name}: area oracle {a2:.17e} outside [{:.17e},{:.17e}]",
+                fb.area.lo(),
+                fb.area.hi()
+            );
+            ("CERTIFIED".to_string(), None)
         }
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
         }) => {
             println!(
-                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} \
-                 ({:.1}x) | {secs:.2}s",
+                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
                 width_len / target_len
             );
             assert!(width_len.is_finite() && width_len > target_len);
-            ("BUDGET".to_string(), Some(width_len), secs)
+            ("BUDGET".to_string(), Some(width_len))
         }
         Err(e) => {
-            println!("R2 {name}: OTHER {e} | {secs:.2}s");
-            (format!("{e:?}"), None, secs)
+            println!("R2 {name}: OTHER {e}");
+            (format!("{e:?}"), None)
         }
     }
 }
@@ -418,12 +415,28 @@ fn knot_one_ulp_inside_the_rectangle_edge() {
     drive("knot 1 ulp inside rect edge", &ku, &kv, &cp, &ws);
 }
 
-/// Cost: the cut list is `pieces + blocks + knots` per axis and the
-/// coarse hull grid is now `(blocks + knots)²` blocks, so a
-/// heavily-knotted patch pays quadratically in KNOT COUNT for
-/// something the PR body describes as "built once, before the rounds".
+/// **The knot-aligned cut list, under many interior knots off the
+/// dyadic grid.** The cut list is `pieces + blocks + knots` per axis
+/// and the coarse hull grid is `(blocks + knots)²` blocks, so twelve
+/// interior knots per axis is the shape that exercises that
+/// arithmetic. Every other row in this file drives two or three, and
+/// two or three knots cannot separate a cut list that honours knots
+/// from one that does not: the claim here is the soundness of the
+/// cut list at a knot count where the cut points genuinely crowd the
+/// block edges. What is asserted is `drive`'s whole contract — a
+/// certified bracket CONTAINS the independent oracle, a refusal is an
+/// honest typed posture with a finite width above target.
+///
+/// **Cost, and where it belongs.** This row is expensive for the
+/// KERNEL's reason, not the oracle's: at a band where it refuses it
+/// builds no oracle at all and the row is one `nurbs_patch_face` call
+/// running the refinement schedule to its end — the exhausted-budget
+/// path TCOST-K1 is cutting. It is also the first candidate for the
+/// TCOST-1 per-file gate, whose marker would name
+/// `crates/geom-brep/src/props/quad.rs`, the cut list and hull grid
+/// this row is specific to.
 #[test]
-fn many_offgrid_knots_cost() {
+fn many_offgrid_knots_per_axis_stay_sound() {
     let mk = |seed: f64| -> KnotVector {
         let mut k = vec![0.0, 0.0, 0.0];
         for i in 1..=12 {
@@ -435,14 +448,26 @@ fn many_offgrid_knots_cost() {
     };
     let (ku, kv) = (mk(0.11), mk(0.29));
     let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
-    let (_, _, secs) = drive("12+12 off-grid knots", &ku, &kv, &cp, &ws);
-    println!("R2 COST: 12+12 interior knots each axis took {secs:.2}s");
+    drive("12+12 off-grid knots", &ku, &kv, &cp, &ws);
 }
 
-/// The same shape with the knots on the DYADIC grid, for the cost
-/// contrast (same cell count arithmetic, no extra cuts).
+/// The same knot count with every interior knot ON the dyadic grid,
+/// where the engine's own block edges already sit: the cut points
+/// COINCIDE instead of crowding, which is the opposite degeneracy of
+/// the row above and the one that would expose a cut list that
+/// double-counts or drops a zero-width cell.
+///
+/// `sweep::cert5_offgrid_knot_rational::dyadic_knots_were_free_and_stay_free`
+/// is not this row's owner, which is why it is here: that row does
+/// assert containment on a dyadic-knot body through the body door, but
+/// its blade carries TWO interior v knots (5 stations at degree 2), so
+/// it never reaches the coincident-cut regime this one is about.
+///
+/// Same cost note as the row above: kernel-bound at a refusing band,
+/// TCOST-K1's subject, and a TCOST-1 gate candidate naming
+/// `crates/geom-brep/src/props/quad.rs`.
 #[test]
-fn many_dyadic_knots_cost() {
+fn many_dyadic_knots_per_axis_stay_sound() {
     let mk = || -> KnotVector {
         let mut k = vec![0.0, 0.0, 0.0];
         for i in 1..=12 {
@@ -453,36 +478,35 @@ fn many_dyadic_knots_cost() {
     };
     let (ku, kv) = (mk(), mk());
     let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
-    let (_, _, secs) = drive("12+12 dyadic knots", &ku, &kv, &cp, &ws);
-    println!("R2 COST: 12+12 dyadic knots took {secs:.2}s");
+    drive("12+12 dyadic knots", &ku, &kv, &cp, &ws);
 }
 
 /// **The isolation control for the sliver finding.** One interior v
 /// knot, placed at a graded distance from the coarse block edge 3/8.
 /// The geometry is the SAME surface class at every gap; only the
-/// distance from a cut point the engine adds by itself changes.
+/// distance from a cut point the engine adds by itself changes, and
+/// each rung asserts, under its own `gap <label>` name, that the door
+/// answers with a bracket containing the oracle or with an honest
+/// typed posture.
+///
+/// Three rungs span what the scan is for: `1e-15` inside the hazard,
+/// `1e-12` at the knee where the refusal width falls back towards the
+/// round target, and the far control clear of every block edge. The
+/// gap-zero end of the scan is the ulp-adjacent knot, which
+/// `knot_one_ulp_from_a_block_edge` above drives as its own row on
+/// this exact fixture; the rungs between `1e-12` and the far control
+/// sit on a plateau the far control already stands for.
 #[test]
 fn width_versus_gap_from_a_block_edge() {
     let edge: f64 = 3.0 / 8.0;
-    let gaps: [(&str, f64); 6] = [
-        ("1 ulp", f64::from_bits(edge.to_bits() + 1) - edge),
-        ("1e-15", 1e-15),
-        ("1e-12", 1e-12),
-        ("1e-9", 1e-9),
-        ("1e-6", 1e-6),
-        ("1e-3", 1e-3),
-    ];
     let ku = kv_offgrid_deg2();
-    for (label, g) in gaps {
-        let k = edge + g;
+    let scan = |label: &str, k: f64| {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
         let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
-        let (post, w, secs) = drive(&format!("gap {label}"), &ku, &kv, &cp, &ws);
-        println!("R2 GAPSCAN gap={label} -> {post} width={w:?} {secs:.1}s");
-    }
-    // And the far control: nowhere near a block edge.
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.313, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
-    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
-    let (post, w, _) = drive("far control 0.313", &ku, &kv, &cp, &ws);
-    println!("R2 GAPSCAN far-control -> {post} width={w:?}");
+        let (post, w) = drive(&format!("gap {label}"), &ku, &kv, &cp, &ws);
+        println!("R2 GAPSCAN gap={label} -> {post} width={w:?}");
+    };
+    scan("1e-15", edge + 1e-15);
+    scan("1e-12", edge + 1e-12);
+    scan("far control 0.313", 0.313);
 }

@@ -38,7 +38,7 @@ pub use editor_core::cascade_delete_order;
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, MeasureNodeFault, Node, PatternKind, PlacementRuleFault, RecipeNodeId,
-    SlotId, VectorSlot,
+    SlotId, TubeWindow, VectorSlot,
 };
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
@@ -272,5 +272,5 @@ pub use editor_core::{
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg,
+    RecordedProgramError, StepArg, resolve_loops,
 };

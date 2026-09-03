@@ -31,7 +31,7 @@
 //! not agree are the guided path's business, not this suite's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{coverage_corpus, tol};
 use geom_core::{Dual64, Point2, Real};

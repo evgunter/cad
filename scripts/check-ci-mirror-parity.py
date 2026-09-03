@@ -74,7 +74,7 @@ WORKFLOW_DIR = ".github/workflows"
 # agreement between the halves is what it checks.
 SITING_JOB = "mirror"
 
-# THE RULE THIS FILE ENFORCES (Evan, 2026-08-20, on S61): *a gate must be sited
+# THE RULE THIS FILE ENFORCES (Ev, 2026-08-20, on S61): *a gate must be sited
 # where it can fire on its own inputs.* Each entry is an invocation whose inputs
 # are prose, documentation or `local-scripts/` — file classes that make a change
 # set TIER=docs, on which every `if: run_build` job is skipped. Each must be
@@ -98,6 +98,9 @@ TIER_BLIND = (
     # else it would skip those while claiming the repo. No count is written
     # here: the row derives and prints its own from `git ls-files`.
     "scripts/check-python-lint.py",
+    # The work tracker's lint. Its inputs are work/ and docs/ — markdown,
+    # TIER=docs; work/README.md is the contract it enforces.
+    "scripts/work.py lint",
 )
 
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a

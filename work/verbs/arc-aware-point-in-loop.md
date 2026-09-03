@@ -1,0 +1,70 @@
+---
+id: arc-aware-point-in-loop
+kind: issue
+title: Arc-aware point-in-loop - the polygon walk's remainder on arc-bearing planar faces
+status: open
+opened: 2026-08-27
+github: 1076
+refs: [1068, 1425, 1464]
+---
+
+## From GitHub issue 1076
+
+Opened 2026-08-27; 2 comments.
+
+`splitting::containment::point_in_loop`'s contract is a **planar polygon through the loop's vertices** — *"which must be a planar polygon (line carriers — the F5 regime)"*, in its own words. Every caller that hands it a loop with an arc on the boundary is calling outside that domain and getting an answer about a different region.
+
+VERBS-PIERCE (#1068) closed the one exactly-solvable case and gated the one measured-wrong case. This issue owns what is left.
+
+## Closed by #1068
+
+- **The disc class** — a loop whose every edge is an arc of ONE circle. The region is that circle's disc; `boolean::contain::disc_side` decides it exactly. Covers cylinder caps and circular holes (rings), both of which were silently wrong: a box driven through a cap unioned as two disjoint solids with the overlap counted twice (7.003185307179585 measured against 6.643185307179586).
+- **The zero-area gate** — an arc-bearing loop with **fewer than three vertices** now refuses typed (`BooleanError::ArcLoopContainmentUnsupported`, `ContainError::ArcLoopUnsupported`) instead of answering from a polygon that is a segment. Measured wrong at that shape by both #1068 reviewers, independently:
+  - half-disc cap (arc + chord, 2 vertices): 3.321592653589793 against a truth of 3.231592653589793
+  - half-cylinder cap: 3.266592653589793 against 3.204092653589793
+  - **lens cap** — two arcs of two DIFFERENT circles, no line edge at all, 2 vertices: all-arc, so outside the disc class and outside any "mixes arcs and lines" description
+
+## Open — what this issue is
+
+1. **Arc-bearing loops with three or more vertices are UNPROVEN, not proven correct.** They keep the polygon walk. Two shapes were measured and came back correct — a slot (4 vertices, two flanks + two semicircular ends) and a rounded rectangle (8 vertices) — and that is the whole evidence. It is not a proof: an arc bowing OUTWARD puts region between the polygon and the true boundary, and a point there is inside the face and outside the polygon. Nobody has constructed the counterexample; nobody has shown it cannot exist. **Unproven-but-unmeasured** is the exact status. The gate was deliberately not widened past what was measured wrong.
+2. **The real fix is arc-aware ray parity**: ray x circle roots (a quadratic in the loop's plane, no division needed for a unit ray direction) plus the angular-window test that `boolean::contain::point_on_arc` already spells, folded into `ray_parity`'s crossing count and its boundary/graze rows. That retires both the gate and the disc special case.
+3. **Non-circular conics have no exact side row at all.** `Ellipse` boundary edges (a tilted cut through a cylinder produces them) are treated as arc-bearing by the gate, so the <3-vertex case refuses; at >= 3 vertices they ride the same unproven polygon walk, and the boundary pre-pass still decides them by their CHORD (`boolean::contain::boundary_pre_pass`, the `UnrowedCarriers::Chord` mode) — wrong-not-conservative by the same argument that retired the circle chord row. An ellipse arc row (the analog of `point_on_arc`) is the prerequisite.
+
+## Sibling sites
+
+`solid_contain::point_in_face` reads a planar face's trim through the same `point_in_loop`. #1068 shipped a guard row for it (`a_box_buried_in_a_cylinder_unions_to_the_cylinder`) which answers correctly, so no instance of the class is demonstrated there — but the mechanism is identical and the fix in (2) should cover both callers.
+
+Cited at `crates/topo/src/boolean/contain.rs` (`LoopShape`) and in `docs/VERBS-PIERCE-SPEC.md`.
+
+## Comments
+
+**2026-08-31** — comment:
+
+(S-BOOL orchestrator) BOOL-2's dual review ([#1425](https://github.com/evgunter/cad/pull/1425), the `point_in_solid` cone arm) demonstrated an instance of this issue's "sibling sites" class, falsifying the "no instance of the class is demonstrated there" sentence: `solid_contain`'s **planar arm misreads every full-revolve planar cap** (the two-half-disc loop structure through `point_in_face` → `point_in_loop`). Measured in two independent lanes at #1425's frozen head `d5476488`:
+
+- revolved cylinder, base cap interior point `(0.3, 0, 0.2)`: answers `Out`, truth `OnBoundary` — top cap misreads too;
+- frustum: both caps misread;
+- **cone base cap: answers `In`** — a wrong answer, not merely the conservative one;
+- quarter cone (single quarter-disc loop): correct — the defect is the arc-bearing 2-vertex half-disc loop shape this issue names.
+
+A reproduction probe sits `#[ignore]`d on branch `bool/2r1-probes` (`crates/sweep/tests/bool2_r1_probes.rs`), citing this issue at the site. `splitting/`-lane ground per the class's home; out of BOOL-2's fence, so measured and filed rather than fixed there.
+
+---
+_Generated by [Claude Code](https://claude.ai/code)_
+
+**2026-09-01** — comment:
+
+Correction to the sibling-sites paragraph, from BOOL-3's review cycle (PR [#1464](https://github.com/evgunter/cad/pull/1464)): the statement that no instance of this class is demonstrated at `solid_contain::point_in_face` is now false.
+
+BOOL-3 ships the first demonstrated instance there, reproduced independently by both blinded reviewers: a quarter revolve's caps are two-arc discs, and a point on such a cap's plane, inside the disc and off its seam diameter, reads `In` where the truth is `OnBoundary` — reached through `point_in_solid`'s own planar arm, which calls `point_in_face` and thence `point_in_loop` under `splitting/`, on a body whose volume is exactly the analytic quarter-torus. The consequence for the torus major-window row is that the misread makes one cap transparent to the ray sweep, so the quadrant mirrored across it reads as material.
+
+The reproduction ships `#[ignore]`d in `crates/sweep/tests/bool3_torus_doors.rs` (`issue_1076_a_revolved_disc_cap_interior_is_misread`, plus the contaminated major-window quadrant), citing this issue — those rows go green when this lands, but only after the `#[ignore]`s are removed, so the fixing unit should un-ignore them as part of its landing.
+
+This joins the BOOL-2 measurements above: the class now has demonstrated instances at both the full-revolve caps (cone base answering `In`) and the `point_in_face` sibling site.
+
+---
+_Generated by [Claude Code](https://claude.ai/code)_
+
+## Home
+
+S-BOOL's `keep_out` names issues 1076/1077 as VERBS' ground, even though the sites sit under `crates/topo/src/splitting/`.

@@ -163,7 +163,7 @@ fn r1_the_d_shape_rotations_cannot_swap_verbs() {
 /// arc — was unrepresentable: `line_to(Start.arrives_tangent())` had no
 /// impl.
 ///
-/// **RULED (Evan, in-chat, 2026-09-02), and the finding is answered in
+/// **RULED (Ev, in-chat, 2026-09-02), and the finding is answered in
 /// BOTH halves.** The arrival token classifies the JOINT, not the leg,
 /// so `line_to(Start.arrives_tangent())` is now a spelling and the
 /// second half of this finding is gone. And nothing at the seam may
@@ -245,7 +245,7 @@ fn r1_a_straight_arrival_into_an_arc_first_side_is_an_undeclared_tangency_at_the
     validate(&g1).expect("the declared G1 seam validates");
 }
 
-/// **R1's finding, RULED the other way (Evan, in-chat, 2026-09-02,
+/// **R1's finding, RULED the other way (Ev, in-chat, 2026-09-02,
 /// addendum 3): this ACCEPTS.** `Start.arrives_tangent()` on a closing
 /// arc cocircular with the entry's first arc declares tangency onto
 /// carrier IDENTITY, which R1 found the algebra could not see and the

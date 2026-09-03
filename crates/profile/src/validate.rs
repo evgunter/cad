@@ -1407,7 +1407,7 @@ fn judge_joints<T: Decide>(
             }
             // A declared joint whose two segments continue on ONE
             // carrier is a declared TANGENT JOINT and nothing else
-            // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+            // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
             // declared tangent joint). The `same_carrier` arm that used
             // to refuse it is retired: identity is a fact about the
             // carriers, tangency is a fact about the directions, and the

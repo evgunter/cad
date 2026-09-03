@@ -19,8 +19,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use corpus::{body_of, cone, die_fillet, eval, failures};
 use editor_core::{CancelToken, EvalOptions, EvalOutcome, evaluate};

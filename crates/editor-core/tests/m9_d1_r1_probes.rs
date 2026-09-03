@@ -6,17 +6,15 @@
 //! silently mis-named or unnamed vertex cannot pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node,
-    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node, ProfileDoc,
+    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len, scl};
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -49,23 +47,20 @@ fn pole(node: RecipeNodeId, v: u32) -> StableName {
 /// [`m4_pr3_names`]'s ball fixture (axis = sketch y).
 fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
+            plane,
             loops: vec![LoopProgram::Chain(steps)],
         }),
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         doc,
@@ -82,7 +77,7 @@ fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
 }
 
 /// **This row's premise is RETIRED, and the row records that rather
-/// than asserting it** (Evan, in-chat, 2026-09-02: every zero-turn
+/// than asserting it** (Ev, in-chat, 2026-09-02: every zero-turn
 /// joint is a declared tangent joint).
 ///
 /// It used to pin that a SUBDIVIDED axis run — an interior on-axis
@@ -106,12 +101,12 @@ fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
 fn subdivided_axis_run_is_now_representable_through_the_program_layer() {
     use editor_core::DocEdit;
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
+    // The frame goes in first: this row is about the PROGRAM's
+    // same-carrier refusal, and a profile naming a plane the document
+    // does not have would be turned away for that instead.
+    let (doc, plane) = insert(doc, fixture::xy_frame());
     let node = Node::Profile(ProfileProgram {
-        plane: SketchPlane::from_frame(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-        ),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(p2(0.0, 1.0)),
             ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),

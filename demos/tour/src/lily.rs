@@ -210,6 +210,19 @@ fn pt3<S: Scalar>(x: f64, y: f64, z: f64) -> Point3<S> {
     Point3::new(S::from_f64(x), S::from_f64(y), S::from_f64(z))
 }
 
+/// The unit vector along a shadow-tuple direction — the one
+/// normalizer this file has, rather than the identical closure it used
+/// to grow per builder ([`bud`] and [`blade_frame`] both need it).
+///
+/// This stays a `(f64, f64, f64)` and does NOT become `Vec3`: the
+/// tuple algebra's fate is #796's question about `Vec3`'s authoring
+/// ergonomics, and collapsing a duplicate is not the place to answer
+/// it.
+fn nrm((x, y, z): (f64, f64, f64)) -> (f64, f64, f64) {
+    let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
+    (x / l, y / l, z / l)
+}
+
 /// The revolve axis every lily piece uses: the sketch frame's own
 /// origin, along +v. Each builder chooses the FRAME so that this one
 /// axis lands where the piece needs it — the kernel's revolve takes
@@ -598,10 +611,6 @@ fn bud<S: Scalar>(
             ca * e1.1 + sa * e2.1,
             ca * e1.2 + sa * e2.2,
         )
-    };
-    let nrm = |(x, y, z): (f64, f64, f64)| {
-        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
-        (x / l, y / l, z / l)
     };
     core::array::from_fn(|i| {
         #[allow(clippy::cast_precision_loss)]
@@ -1271,10 +1280,6 @@ type BladeFrame = ((f64, f64, f64), (f64, f64, f64), (f64, f64, f64));
 /// lofted blades sit in the SAME frame — the difference between them
 /// is the verb, not the placement.
 fn blade_frame(dir: (f64, f64, f64), up: (f64, f64, f64)) -> BladeFrame {
-    let nrm = |(x, y, z): (f64, f64, f64)| {
-        let l = (x.powi(2) + y.powi(2) + z.powi(2)).sqrt();
-        (x / l, y / l, z / l)
-    };
     let d = nrm(dir);
     let dot = up.0 * d.0 + up.1 * d.1 + up.2 * d.2;
     let v = nrm((up.0 - dot * d.0, up.1 - dot * d.1, up.2 - dot * d.2));
@@ -2643,6 +2648,58 @@ mod review_probes {
     /// the neck's drop plus `FLOWER_TOP` along T2.
     const SPHERE1_C: (f64, f64) = (-2.3668444700923885, 0.7942577551075498);
 
+    /// The degeneracy floor for [`assert_two_cap_planes`], and the
+    /// only number in this probe that is a THRESHOLD rather than a
+    /// measurement.
+    ///
+    /// It sits between the two windows in play. Below it is
+    /// `assert_cap`'s own arithmetic: 1e-12 on the point-in-plane
+    /// residual and 1e-14 on the parallelism, so two frames closer
+    /// together than those are literally one plane as far as that
+    /// check can see, and its disjunction over the two would be a
+    /// single test wearing a disjunction's clothes. Above it is the
+    /// scene: the closest the lily's own cap pairs come is the arch's
+    /// `sin(10°) ≈ 0.17` of normal angle (a 170° wedge), five orders
+    /// clear. A floor here is therefore unreachable by float noise
+    /// and nowhere near any real value — it fails only on an actual
+    /// collapse, and it is not a second, weaker copy of the placement
+    /// claim.
+    const CAP_DISTINCT: f64 = 1e-6;
+
+    /// A tube's two joint frames are two DISTINCT planes.
+    ///
+    /// This is the floor under [`assert_cap`]'s disjunction, and it is
+    /// what the disjunction cannot supply for itself: a body whose two
+    /// frames had collapsed onto one plane satisfies every
+    /// single-target call trivially, because the existential can no
+    /// longer tell "both ends are where they should be" from "the ends
+    /// are the same plane and one of them happens to be right". The
+    /// arch is incidentally covered — its two calls carry different
+    /// targets, so a collapse would fail one of them — but the stem
+    /// and the pedicel each get ONE call per free end and nothing else
+    /// is watching.
+    ///
+    /// Two planes are the same plane when their normals are parallel
+    /// AND they carry the same offset, so distinctness is the
+    /// disjunction of the two ways out: a normal angle, or a
+    /// separation along the normal. Either alone would be wrong — a
+    /// 180° wedge has parallel caps at different offsets, and a
+    /// closing wedge has near-coincident caps at a real angle.
+    fn assert_two_cap_planes(caps: &WedgeFrames<f64>, what: &str) {
+        let (a, b) = (caps.start, caps.end);
+        let angle = cross_norm(a.axis, b.axis);
+        let offset = ((b.origin.x - a.origin.x) * a.axis.x
+            + (b.origin.y - a.origin.y) * a.axis.y
+            + (b.origin.z - a.origin.z) * a.axis.z)
+            .abs();
+        assert!(
+            angle > CAP_DISTINCT || offset > CAP_DISTINCT,
+            "{what}: the two joint frames are ONE plane (normal angle {angle:.3e}, \
+             offset {offset:.3e}) — every single-target cap assertion on this body \
+             is vacuous until they separate"
+        );
+    }
+
     /// One of the tube's two JOINT FRAMES passes through world point
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
     /// end tangent THERE is `t`.
@@ -2651,17 +2708,39 @@ mod review_probes {
     /// the two ends answers is the revolve's business, so both are
     /// offered — that
     /// is a two-element check against NAMED caps, not a search of the
-    /// whole boundary.
+    /// whole boundary. What the disjunction is NOT free to do is get
+    /// easier as the caps converge, so
+    /// [`assert_two_cap_planes`] runs first on every call.
+    ///
+    /// **The sign is part of the claim.** A cap frame's `axis` is the
+    /// stored plane normal in CHART sense (`topo::readback::face_pose`
+    /// is explicit that it is not corrected by the face's orientation
+    /// sense), and `revolve`'s partial path builds the start cap's
+    /// plane from the profile chain REVERSED and the end cap's from
+    /// the same chain forward (`sweep::revolve::partial`, phases 1 and
+    /// 4). The two therefore disagree by construction, in the one way
+    /// that makes both of them point OUT of the solid: the start cap's
+    /// normal is minus the tube's tangent there, the end cap's is plus
+    /// it. That is a per-cap rule, not a per-call one — it says what
+    /// each frame must be IF it is the one at this joint — so it costs
+    /// the disjunction nothing, and it closes the hole where an
+    /// anti-parallel normal read as "parallel to the tangent".
     fn assert_cap(caps: &WedgeFrames<f64>, p: (f64, f64), t: (f64, f64), what: &str) {
+        assert_two_cap_planes(caps, what);
         let tv = Vec3::new(t.0, 0.0, t.1);
-        let hit = [caps.start, caps.end].into_iter().any(|pose| {
-            let (o, n) = (pose.origin, pose.axis);
-            cross_norm(n, tv) < 1e-14
-                && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
-        });
+        let hit =
+            [(caps.start, -1.0), (caps.end, 1.0)]
+                .into_iter()
+                .any(|(pose, outward): (_, f64)| {
+                    let (o, n) = (pose.origin, pose.axis);
+                    cross_norm(n, tv) < 1e-14
+                        && outward * (n.x * tv.x + n.y * tv.y + n.z * tv.z) > 0.0
+                        && ((p.0 - o.x) * n.x + (0.0 - o.y) * n.y + (p.1 - o.z) * n.z).abs() < 1e-12
+                });
         assert!(
             hit,
-            "{what}: neither joint frame passes through the joint with the joint tangent"
+            "{what}: neither joint frame passes through the joint with the joint \
+             tangent, in the cap's own outward sense"
         );
     }
 
@@ -2706,6 +2785,12 @@ mod review_probes {
         let (_, a3, big_r3, r3, _) = torus(pedicel);
         assert_eq!((a3.x, a3.y, a3.z), (0.0, -1.0, 0.0), "pedicel spine axis");
         assert_eq!((big_r3, r3), (0.42, 0.032), "pedicel radii");
+        // Joint 0: the stem's FREE end. The turtle stands at the
+        // origin facing +z (`plant`'s `root`), so unlike every joint
+        // below this frame is authored and exact rather than walked —
+        // no literal to derive, and no reason for the stem's start to
+        // be the one frame in the chain nothing looks at.
+        assert_cap(caps(&ps, "lily_stem"), (0.0, 0.0), (0.0, 1.0), "stem start");
         // Joint 1: stem end / arch start share point P1 and tangent T1.
         assert_cap(caps(&ps, "lily_stem"), P1, T1, "stem end");
         assert_cap(caps(&ps, "lily_arch"), P1, T1, "arch start");
@@ -3227,7 +3312,6 @@ mod review_probes {
         let ps = pieces();
         let b = body(&ps, "lily_leaf_a");
         let caps = cap_frames(b);
-        assert_eq!(caps.len(), 2, "a lofted blade has exactly two caps");
         // The BASE cap is the wide one (the rectangle at the stem);
         // the TIP cap the narrow one.
         let (base, tip) = if caps[0].width > caps[1].width {
@@ -3638,6 +3722,15 @@ mod review_probes {
     }
 
     /// Both caps of a lofted blade, each reduced to a [`Cap`].
+    ///
+    /// **Two, and the arity is checked here rather than at the
+    /// callers.** Every caller reads the result positionally — the
+    /// wide cap against the narrow one — so a body that handed back
+    /// one plane, or three, would be indexed as if it were a blade
+    /// and answer with a frame belonging to some other face. The
+    /// per-face `on.len() == 8` below cannot catch that: it fires on
+    /// the vertex set of whatever plane it is looking at, one plane
+    /// too late to say the SET of planes is wrong.
     fn cap_frames(b: &Body<f64>) -> Vec<Cap> {
         let mut out = Vec::new();
         for (_, f) in b.faces() {
@@ -3689,6 +3782,11 @@ mod review_probes {
                 v,
             });
         }
+        assert_eq!(
+            out.len(),
+            2,
+            "a lofted blade has exactly two planar cap faces"
+        );
         out
     }
 
@@ -3750,6 +3848,36 @@ mod review_probes {
                  the lofted_blade prose, and the filed frontier together"
             );
         }
+    }
+
+    /// **The wall list, run by the test suite and not only by the
+    /// renderer.**
+    ///
+    /// [`super::wall_probes`] is the whole point of the scene's
+    /// frontier discipline — every wall attempted for real, each
+    /// pinned by its own typed refusal, panicking if the refusal
+    /// changed or went away — and until this test existed its only
+    /// caller was `main.rs`'s render walk. So the discipline ran when
+    /// somebody rendered the tour and never under
+    /// `cd demos/tour && cargo test --release`, which is the command
+    /// the spec-level local acceptance actually runs: a frontier could
+    /// move and the suite would stay green.
+    ///
+    /// It cannot be a `tests/` integration test — `demo-tour` is a
+    /// bin-only crate, so nothing outside the binary can name
+    /// `lily::wall_probes` — which is why it lives here beside the
+    /// probes rather than next to the other suites.
+    ///
+    /// The body is one call because the assertions are the wall
+    /// probes' own: `walls::wall` panics on a different refusal and
+    /// panics on success, so there is nothing left for this test to
+    /// add. It rebuilds `plant::<f64>` and runs the frontier's
+    /// booleans, welds and fillets, so it is not free — but measured,
+    /// it is ~0.02 s of a 38 s bin suite, which is under the
+    /// run-to-run noise of the suite it joins.
+    #[test]
+    fn the_wall_list_still_stands() {
+        wall_probes::<f64>(Tol::witness());
     }
 }
 

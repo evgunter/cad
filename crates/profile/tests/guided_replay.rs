@@ -23,7 +23,7 @@
 //!    decide at all, and the verdict log is the receipt.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{annulus, coverage_corpus, p2, profile, rect, rounded_rect, tol};
 use geom_core::{Sign, Tol};

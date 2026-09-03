@@ -13,11 +13,11 @@ use editor_core::{
     resolve, resolve_with_prior,
 };
 
-use super::{ang, desc, insert, len, scl, step};
+use super::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
-/// per Evan's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
+/// per Ev's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
@@ -48,14 +48,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -217,23 +215,21 @@ where
     // ---- Scenario D: the symmetric U tie (Ambiguous). ----
     let docu = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docu, ua) = block(docu, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (docu, up) = insert(
+    let (docu, up) = on_frame(
         docu,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (docu, ub) = insert(
         docu,

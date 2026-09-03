@@ -3,8 +3,8 @@
 Status: **RATIFIED** (design-conversation PR #124, signed off and
 merged 2026-07-29; the ratified doc was the deliverable of that
 conversation). **IMPLEMENTED** as LIB unit U2 (`crates/profile/`);
-`docs/LIB-U2-SPEC.md` and `docs/LIB-LOG.md` are the implementation
-record. Designed across twelve review rounds with Evan
+`docs/LIB-U2-SPEC.md` and `work/lib/log.md` are the implementation
+record. Designed across twelve review rounds with Ev
 (2026-07-27/29, #104 + the #124 threads); the round-by-round trail
 lives in #124 and the M5 log — this document states only the
 resulting design.
@@ -14,7 +14,7 @@ declared-tangency discipline (flags verified-never-trusted,
 `UndeclaredTangency`/`TangencyContradicted`, fillet fit gating,
 same-carrier-is-identity) landed at #109/#112 and is the layer this
 algebra lowers to. **End state (the #104 recorded v2 commitment,
-affirmed here per Evan's round-13 note): the algebra IS the core
+affirmed here per Ev's round-13 note): the algebra IS the core
 representation of paths** — the program is the profile's definition
 and derived segments are caches/provenance, exactly as Q8
 definitional surfaces work (the constructing function is the
@@ -154,7 +154,7 @@ half-bound tip.
   unrepresentable, not refused (§2c round 10). Bare `fillet(r)`
   after a NURBS leg is the uniform ray extension: the surviving
   ray piece is a genuine line leg off the curve's end.
-- **NURBS legs CAN close** (round 13, Evan's observation that
+- **NURBS legs CAN close** (round 13, Ev's observation that
   trailing DOFs can be left off exactly as leading ones are): the
   FULLY-authored form cannot target `Start` (placement consumed
   at departure, the end lands where the data says), but the
@@ -259,7 +259,7 @@ coordinates value-matching.
   `Start.arrives_tangent()`, the ONE arrival declaration — and
   **every closing verb takes it**: `line_to`, `continue_to`,
   `tangent_arc_to`, `arc_to(Bulge { … })`. Every zero-turn joint is
-  a declared tangent joint (Evan, in-chat, 2026-09-02), so there is
+  a declared tangent joint (Ev, in-chat, 2026-09-02), so there is
   nothing else to declare and no sibling token. The kernel CHECKS
   the arriving direction against `Start`'s own direction and
   NOTHING else — never whether the two carriers are the same.
@@ -568,11 +568,11 @@ types. The register's full text is the git history of this section
 (and #386/#413's threads); the ratified surface is §2c.
 
 ## 2c. The fillet-family redesign (RATIFIED — fifteen rounds with
-## Evan, merged #419; implemented by LIB-RESPELL, which re-spelled
+## Ev, merged #419; implemented by LIB-RESPELL, which re-spelled
 ## §2/§2a/§3 to this surface and compressed §2b to its historical
 ## note)
 
-**THE AXIOM (leads by design — Evan, round 11): every verb can
+**THE AXIOM (leads by design — Ev, round 11): every verb can
 depend ONLY on its incoming lattice state — Open / Point /
 Angle / Directed, carrying nothing but its binding bits
 (position and/or tangent) — plus the verb's own authored
@@ -599,7 +599,7 @@ Everything below DERIVES from the axiom:
   refusal (`NoCornerForFillet`) consumes only the verb's own
   inputs.
 
-**The axiom is ENFORCED BY CONSTRUCTION (Evan, round 12 — not
+**The axiom is ENFORCED BY CONSTRUCTION (Ev, round 12 — not
 discipline, structure):** every verb is a PURE FUNCTION over
 bare state VALUES — e.g. `fillet(dp: DirectedPoint<T>, r: T) ->
 FilletArrival<T>`, where the state types hold NOTHING but their
@@ -613,7 +613,7 @@ one parameter has two fields; the module cannot name the
 accumulator) — re-introducing carrier-awareness would require
 changing a signature, the loud reviewable act such a change
 should be. CONSEQUENCE (the drift-proofing dividend, completed by
-Evan's round-13 push toward full unification): the surface and
+Ev's round-13 push toward full unification): the surface and
 the replay driver become TWO MECHANICAL PROJECTIONS OF ONE
 DECLARATION — a single TRANSITION TABLE, one row per
 (state, verb, kernel fn, next state), macro-expanded (the
@@ -641,7 +641,7 @@ the delegation alternative (typed methods calling through the
 driver) was considered and rejected: it needs an unreachable!()
 where the statically-known state meets the enum return, a
 runtime assertion standing where the types should speak.
-Spelling freedom (round 14, Evan's trait suggestion): the
+Spelling freedom (round 14, Ev's trait suggestion): the
 REQUIREMENT is the invariant — every transition declared exactly
 once, all projections (typed method, driver arm, Step variant,
 tag) mechanically derived, drift unwritable. TWO spellings
@@ -651,7 +651,7 @@ one per row, calling the kernel fn — rustdoc-visible, consistent
 with the ArcSpecFor admissibility impls) plus a SLIM macro for
 only the enum-side projections, which Rust cannot derive from
 impls (no reflection — without that step the enum match is
-hand-written and the drift point quietly returns). RULED (Evan, round 15): **lean (a), the
+hand-written and the drift point quietly returns). RULED (Ev, round 15): **lean (a), the
 table-macro** — a macro exists in both spellings, so the trait
 layer buys little, and (b)'s generic impls (flavored states ×
 verb types × associated Out types) add trait-resolution surface
@@ -683,7 +683,7 @@ compile, and there is no second place to write a transition.
 - Plain `arc_to(spec)` remains for SHARP-cornered arcs;
   converting sharp→filleted is an edit at the same call site.
 - **The endpoint lives INSIDE the endpoint-full variants**
-  (Evan's round-8 observation, vindicating his wrap-the-args
+  (Ev's round-8 observation, vindicating his wrap-the-args
   instinct): once the family admits endpoint-FREE modes, `p`
   stops being a uniform argument — so `Bulge{p, b}`,
   `Via{q, p}`, `Center{c, w, p}` carry their target, and the
@@ -725,7 +725,7 @@ chord exists: leg targets AND the fused verbs' incoming specs
 the re-spell unit's spec. The wire/program layer records ONE
 unified `ArcData` enum (record-as-you-lower keeps the authored
 mode; the VQ contracts rely on that distinctness).
-**RULED (Evan, round 9): the ENTIRE family ships in stage 1 —
+**RULED (Ev, round 9): the ENTIRE family ships in stage 1 —
 every admissible (site, mode) pair, tested.** The forcing
 argument is exhaustiveness one layer down: the wire enum is
 matched exhaustively by the replay driver, persist wire, and
@@ -768,7 +768,7 @@ capture and nothing second-order to carry). `at_on`, `to_on`,
 `at_toward` all dissolve at the re-spell; the §2b register and
 the §2/§3 fillet text rewrite at that unit.
 
-**Round 10 (Evan): `FilletCarrierUnsupported` RETIRES.** The
+**Round 10 (Ev): `FilletCarrierUnsupported` RETIRES.** The
 incoming contact of bare `fillet(r)` lies on the tangent ray
 AHEAD of the directed point, as new path (latent in §2's own
 anchoring: the corner is the carrier INTERSECTION; behind-the-
@@ -789,12 +789,12 @@ surface: pre-release, the step set is not a compatibility
 surface (LQ7a's clean break).
 
 ### §2c dissolution amendment — OnArc RETIRES (RATIFIED
-### 2026-08-16; Evan's in-chat ruling, ratification delegated
+### 2026-08-16; Ev's in-chat ruling, ratification delegated
 ### on a clean blast-radius census)
 
 The re-spell unit shipped a fifth tip state, `OnArc` (an
 interior arc arrival's tip, its carrier run to the anchor left
-un-emitted for the NEXT fused verb to trim). Evan's ruling: the
+un-emitted for the NEXT fused verb to trim). Ev's ruling: the
 axiom's own state vocabulary is the four binding states and the
 directed point suffices — carrier continuation folds into the
 fused verbs the way `arc_fillet` already folds carrier
@@ -861,7 +861,7 @@ typestate, and it retires:
 | arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
 | arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes | anchor in the spec; one director pending |
 | `Start` | directed-point VALUE | targeting it closes, structurally; the seam's junction is classified and, UNDECLARED, a tangent one refuses `SeamTangent` from every closing verb |
-| `Start.arrives_tangent()` | target of EVERY closing verb → complete loop | the seam's joint is a declared **TANGENT joint** — the ONE arrival declaration, because every zero-turn joint is a declared tangent joint (Evan, in-chat, 2026-09-02). `line_to`, `continue_to`, `tangent_arc_to` and `arc_to(Bulge { … })` all take it: what it classifies is the JOINT, not the shape of the leg reaching it. The kernel CHECKS the arriving direction against `Start`'s own, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. It reads NOTHING about the carriers — identity is a fact about carriers, tangency a fact about directions. Joint 0 carries the flag, which the verify layer re-checks. |
+| `Start.arrives_tangent()` | target of EVERY closing verb → complete loop | the seam's joint is a declared **TANGENT joint** — the ONE arrival declaration, because every zero-turn joint is a declared tangent joint (Ev, in-chat, 2026-09-02). `line_to`, `continue_to`, `tangent_arc_to` and `arc_to(Bulge { … })` all take it: what it classifies is the JOINT, not the shape of the leg reaching it. The kernel CHECKS the arriving direction against `Start`'s own, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. It reads NOTHING about the carriers — identity is a fact about carriers, tangency a fact about directions. Joint 0 carries the flag, which the verify layer re-checks. |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-subdivision closed carrier: `n` equal arcs from `phase`, structural subdivisions of one carrier — the same no-seam story as `circle`, with the count and phase authored |
@@ -986,7 +986,7 @@ and the angle slot bound.
    NURBS P0/P1) are implied, never authored; the anchor fit check
    enforces the invariant where trims could threaten it.
 4. **Every zero-turn joint is a declared tangent joint** (RULED —
-   Evan, in-chat, 2026-09-02). The lattice checks DIRECTIONS and
+   Ev, in-chat, 2026-09-02). The lattice checks DIRECTIONS and
    never asks whether the two carriers are the same: identity is a
    fact about carriers, tangency is a fact about directions, and
    where the directions agree the joint is tangent whatever the
@@ -1009,7 +1009,7 @@ and the angle slot bound.
    (or `SeamTangent` at the seam). The rule is "declared", not
    "anything goes".
 
-**RULED (#433 — Evan, in-chat, 2026-09-01, with a second-round
+**RULED (#433 — Ev, in-chat, 2026-09-01, with a second-round
 extension): the lattice and `validate` AGREE.** A straight run
 subdivided at an interior vertex is well formed as DATA
 (`validate`, unchanged: it is what STEP import and raw authored
@@ -1043,7 +1043,7 @@ structural closer (BOOL-11), and the declared arrival that admits a
 subdivision or G1 seam (BOOL-12, §6's revised PQ4); the RAW DOOR remains
 (BOOL-9), and #433 closes when it lands.
 
-**The seam, measured here and RULED (third round, Evan, in-chat,
+**The seam, measured here and RULED (third round, Ev, in-chat,
 2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
 BOOL-8 shipped it spells INTERIOR subdivisions only, and a straight run
 crossing the SEAM was unauthorable in either rotation: with the seam at
@@ -1166,7 +1166,7 @@ demo does NOT migrate here: its remaining wall is PQ4's, reached by the
 one section whose seam is forced onto a subdivision vertex.
 
 **That question was asked and RULED, and the other half of the wall is
-gone too (fifth round, Evan, in-chat, 2026-09-01; landed by BOOL-12).**
+gone too (fifth round, Ev, in-chat, 2026-09-01; landed by BOOL-12).**
 A DECLARED subdivision vertex IS an admissible seam — the loop cut where
 the author said the carrier continues — and so is a DECLARED G1 joint.
 PQ4's revised entry in §6 carries the rule, the loop-start reading of
@@ -1282,7 +1282,7 @@ demo does NOT migrate here: its remaining wall is PQ4's, reached by the
 one section whose seam is forced onto a subdivision vertex.
 
 **That question was asked and RULED, and the other half of the wall is
-gone too (fifth round, Evan, in-chat, 2026-09-01; landed by BOOL-12).**
+gone too (fifth round, Ev, in-chat, 2026-09-01; landed by BOOL-12).**
 A DECLARED subdivision vertex IS an admissible seam — the loop cut where
 the author said the carrier continues — and so is a DECLARED G1 joint.
 PQ4's revised entry in §6 carries the rule, the loop-start reading of
@@ -1341,7 +1341,7 @@ arrival into `continue_to` would have made the middle case unspellable.
   is well-formed input disagreeing with itself, not a domain degeneracy.
 
 **The token classifies the JOINT, the seam check consults NOTHING about
-the carriers, and there is ONE token** (RULED — Evan, in-chat,
+the carriers, and there is ONE token** (RULED — Ev, in-chat,
 2026-09-02, superseding the two-token reading of the day before). The
 only entry-side datum the check reads is `Start`'s own direction —
 exactly what the interior junction check reads of a directed point. It
@@ -1476,7 +1476,7 @@ second-order wedge arm) with the authoring verb banked at #941 —
 cusps refuse here until it ships; there is no
 path-concatenation operator (builder functions instead).
 
-**PQ4 — mid-carrier seams: REVISED (Evan, in-chat, 2026-09-01,
+**PQ4 — mid-carrier seams: REVISED (Ev, in-chat, 2026-09-01,
 the Q1 fifth round; implemented by BOOL-12).** The v1 rule was
 that a closed loop's seam sits at a junction or fillet only and
 closing mid-side is refused; the M2 closed-carrier
@@ -1562,7 +1562,7 @@ one `GeomSource` is a live question BOOL-8's ruling opened. It is
 seam-independent and belongs to sweep/topo.
 
 **The token classifies the JOINT, and there is ONE of them** (RULED —
-Evan, in-chat, 2026-09-02, closing the question this entry put and
+Ev, in-chat, 2026-09-02, closing the question this entry put and
 superseding the two-token reading of the day before). Every zero-turn
 joint is a declared tangent joint, so `Start.arrives_tangent()` is the
 whole arrival vocabulary and every closing verb takes it: what is

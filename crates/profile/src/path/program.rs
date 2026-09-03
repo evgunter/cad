@@ -124,7 +124,7 @@ pub enum Target<T: Real> {
     /// derived flag — the kernel CHECKS the arriving direction against
     /// `Start`'s own and refuses a seam that contradicts it.
     ///
-    /// It carries NO payload, and that is the ruling's shape (Evan,
+    /// It carries NO payload, and that is the ruling's shape (Ev,
     /// in-chat, 2026-09-02): every zero-turn joint is a declared
     /// tangent joint, so there is exactly one thing to declare here. A
     /// one-member enum in this slot would be a tag distinguishing
@@ -1975,7 +1975,7 @@ fn do_line_to<T: Decide, F: Flavor>(
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
         // Every closer takes it: the token declares the seam's JOINT,
-        // not the shape of the leg reaching it (Evan, in-chat,
+        // not the shape of the leg reaching it (Ev, in-chat,
         // 2026-09-02), so a straight leg declares a tangent seam joint
         // exactly as a closing arc does.
         Target::StartArriving => Ok(Applied::Closed(p.line_to(Start.arrives_tangent(), tol)?)),

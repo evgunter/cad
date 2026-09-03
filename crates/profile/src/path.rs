@@ -501,7 +501,7 @@ impl Start {
     /// here: the entry's first side is already authored and cannot
     /// carry the seam's content from the front (§2's entry rule).
     ///
-    /// **Every zero-turn joint is a declared tangent joint** (Evan,
+    /// **Every zero-turn joint is a declared tangent joint** (Ev,
     /// in-chat, 2026-09-02), so there is nothing else to declare and no
     /// sibling token. Every closing verb takes it — `line_to`,
     /// `continue_to`, `tangent_arc_to`, `arc_to(Bulge { … })` —
@@ -1875,7 +1875,7 @@ impl<T: Real> Core<T> {
     /// Declares the SEAM joint — joint 0, the entry vertex — tangent,
     /// which is the flag the verify layer re-checks. EVERY declared
     /// arrival lands here: every zero-turn joint is a declared tangent
-    /// joint (Evan, in-chat, 2026-09-02), so there is no second kind of
+    /// joint (Ev, in-chat, 2026-09-02), so there is no second kind of
     /// declaration to sort.
     ///
     /// The seam fillet does the same push inline when its arc IS the
@@ -2024,12 +2024,12 @@ fn junction_check<T: Decide>(
 /// ([`PathError::SeamArrivalOffDirection`]).
 ///
 /// **The token classifies the JOINT, and this check consults NOTHING
-/// about the following carrier** (Evan, in-chat, 2026-09-02). The only
+/// about the following carrier** (Ev, in-chat, 2026-09-02). The only
 /// entry-side data it reads is `Start`'s own binding bits — its
 /// direction — which is exactly what the interior junction check reads
 /// of a directed point. The seam's other half is the FOLLOWING leg, and
 /// the chain has no business seeing it. **Every zero-turn joint is a
-/// declared tangent joint** (Evan, in-chat, 2026-09-02): whether the
+/// declared tangent joint** (Ev, in-chat, 2026-09-02): whether the
 /// seam's two sides ride one carrier or two, a declared zero-turn joint
 /// is tangent, so there is nothing here to ask about carriers and
 /// nothing to sort. What the data gate still owns is the UNDECLARED
@@ -2869,7 +2869,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // any other sum, so two legs of equal length lay down identical
         // displacements only while those sums are exact.
         // The continuation verbs DECLARE the zero-turn joint they mint
-        // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+        // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
         // declared tangent joint). The departure is the incoming ray
         // itself, so the joint at this vertex is tangent by
         // construction — declaration BY construction, exactly as
@@ -2986,7 +2986,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let (at, ang) = self.continuation_ray("continue_to on a tip without incoming data")?;
         Self::on_ray_extent(at, ang, target, tol)?;
         // The continuation verbs DECLARE the zero-turn joint they mint
-        // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+        // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
         // declared tangent joint). The departure is the incoming ray
         // itself, so the joint at this vertex is tangent by
         // construction — declaration BY construction, exactly as
@@ -3103,7 +3103,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
             )?;
         }
         // The continuation verbs DECLARE the zero-turn joint they mint
-        // (Evan, in-chat, 2026-09-02: every zero-turn joint is a
+        // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
         // declared tangent joint). The departure is the incoming ray
         // itself, so the joint at this vertex is tangent by
         // construction — declaration BY construction, exactly as

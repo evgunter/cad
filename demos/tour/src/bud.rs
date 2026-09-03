@@ -492,7 +492,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "budfillet",
         caption: "THE FILLETED BUD (three curved-support arms, one body)".to_string(),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30) on this module's OWN stated grounds: "at montage
         // scale the fillets barely move the silhouette ... so the
         // scene's evidence is stated in numbers that a picture cannot

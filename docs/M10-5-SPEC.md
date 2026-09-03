@@ -1,7 +1,7 @@
 # M10-5 — clearance and self-intersection (E7)
 
 STATUS: BINDING (dispatched 2026-08-30). Unit branch
-`m10/m10-5-clearance`. Program plan `docs/M10-PLAN.md`; design
+`m10/m10-5-clearance`. Program plan `work/m10/plan.md`; design
 record `docs/ERROR-DESIGN.md` E7/E8/E9 (read all three in full),
 with E6/E2 as consumed substrate.
 
@@ -118,7 +118,7 @@ interval-value-channel work only.
   a generous c, `Violated` with an f64-verified witness at a c the
   geometry actually breaks, `Refused` priced at a budget-starved
   config; receipts hold on all three.
-- The **#1055 arm is a STRETCH** (Evan's Q5 ruling, follow-up-unit
+- The **#1055 arm is a STRETCH** (Ev's Q5 ruling, follow-up-unit
   valve): the curved-neck shell wall-clearance window closed by
   this certificate. Attempt it after everything above is green; if
   it does not fit, the valve is a named follow-up with the blocker

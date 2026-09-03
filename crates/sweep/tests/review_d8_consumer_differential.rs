@@ -48,6 +48,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/geom-core/src/spline/",
+    "crates/geom/src/curves/",
+    "crates/geom/src/curves.rs",
+    "crates/sweep/src/skin.rs",
+    "crates/sweep/src/loft.rs",
+    "crates/geom-core/src/ring_interval.rs",
+];
+
 use geom::NurbsCurve3;
 use geom_core::spline::compose::{CurveRingData, linear_composite};
 use geom_core::spline::{KnotVector, SplineError};

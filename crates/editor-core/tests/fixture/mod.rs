@@ -13,17 +13,24 @@
 //! identity in IEEE arithmetic) and the oracle stays exact. The
 //! rotational Transform path is exercised separately (non-dyadic
 //! assertions) in the wire tests.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// WHY A HELPER TREE ALLOWS THESE — the one statement of it, cited by every
+// other tree that carries an allow of this shape. A helper tree AUTHORS test
+// documents, and a document that will not build is a test failure, not a
+// value to hand back: its builders panic on a malformed fixture rather than
+// thread a `Result` out to a caller whose only recourse is to unwrap it.
+// Each tree names exactly the lints its own code raises, here rather than in
+// the crate-root allow of whatever module loads it.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use editor_core::{
-    CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
+    CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
     StableName,
 };
 use geom_core::Tol;
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
 
 /// The pip depth the document's `pip_depth` parameter starts at.
 pub const DEPTH: f64 = 0.125;
@@ -51,26 +58,138 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
-/// A profile PROGRAM: polygon `loops` on the plane with the given
-/// frame (LIB-SWITCH §4i: the corpus's polygon choke point — under v4
-/// each loop is a chain program, `At(p0), LineTo(p1), …,
-/// LineTo(Start)`, the VQ5 expansion at literal points).
-pub fn desc(
-    origin: [f64; 3],
-    u: [f64; 3],
-    v: [f64; 3],
-    loops: Vec<Vec<(f64, f64)>>,
-) -> ProfileProgram {
-    let plane = SketchPlane::from_frame(
-        Point3::new(origin[0], origin[1], origin[2]),
-        Vec3::new(u[0], u[1], u[2]),
-        Vec3::new(v[0], v[1], v[2]),
+/// The frame datum a profile is drawn on, as a node to insert.
+///
+/// The components `desc` used to bake into a `SketchPlane` are the
+/// frame's own slots now, spelled the same way round: an origin and
+/// the two directions sketch +x and +y point.
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    Node::Datum(editor_core::Datum::Frame {
+        origin: origin.map(len),
+        u: u.map(scl),
+        v: v.map(scl),
+    })
+}
+
+/// **The `SketchPlane` a frame NODE denotes**, read out of a document.
+///
+/// A test that builds a `profile::Profile` by hand needs the plane the
+/// profile's `plane` id names, and the id alone is not it. Reads the
+/// frame's authored literals and hands them to the same
+/// `SketchPlane::from_frame` the evaluator's own read uses.
+///
+/// **Orthonormality is the caller's, as it is at every other
+/// `from_frame`** — this asserts rather than orthogonalizes, so a
+/// fixture whose frame is not already orthonormal fails here instead of
+/// silently getting a different plane from the one the evaluator would
+/// build. Every fixture frame in this tree is authored orthonormal.
+///
+/// # Panics
+///
+/// If `plane` is not a `Datum::Frame`, if its components are not
+/// literals, or if `u` and `v` are not an orthonormal pair.
+pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
+        panic!("node {} is not a Datum::Frame", plane.0)
+    };
+    let read = |xs: &[Expr; 3]| {
+        let c = |e: &Expr| {
+            e.literal_value()
+                .expect("a fixture frame's components are literals")
+        };
+        geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
+    };
+    let (o, u, v) = (read(origin), read(u), read(v));
+    for (name, w) in [("u", u), ("v", v)] {
+        assert!(
+            (w.norm() - 1.0).abs() < 1e-12,
+            "fixture frame {}'s {name} is not unit",
+            plane.0
+        );
+    }
+    assert!(
+        u.dot(v).abs() < 1e-12,
+        "fixture frame {}'s u and v are not perpendicular",
+        plane.0
     );
+    profile::SketchPlane::from_frame(geom_core::Point3::new(o.x, o.y, o.z), u, v)
+}
+
+/// The world xy frame as a node — origin at the world origin, sketch
+/// +x along world +x, sketch +y along world +y.
+///
+/// The `SketchPlane::xy()` constant most of these suites used, spelled
+/// as the node a profile now names. One per document, shared by every
+/// sketch on it: that is what "the same plane" is once the plane is a
+/// node, where the constant left each profile holding its own copy of
+/// identical floats.
+pub fn xy_frame() -> Node<ProfileProgram> {
+    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+}
+
+/// A profile program on `plane`, from polygon corner lists
+/// (LIB-SWITCH §4i: the corpus's polygon choke point — under v4 each
+/// loop is a chain program, `At(p0), LineTo(p1), …, LineTo(Start)`,
+/// the VQ5 expansion at literal points).
+///
+/// It takes the frame's NODE rather than an origin and two vectors: a
+/// profile's plane is a document node, so the caller inserts the frame
+/// (with [`frame`]) and hands this the id. Two nodes where there was
+/// one, which is the shape of the document now — a sketch names the
+/// frame it is drawn on.
+pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram {
     let loops = loops
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram { plane, loops }
+}
+
+/// **A frame and a profile on it, inserted in that order** — the whole
+/// of what a `desc(origin, u, v, loops)` call used to be, so a call
+/// site that only wants "a square on the xy plane" stays one line.
+///
+/// Returns the doc and the PROFILE's id: the frame is scaffolding at
+/// almost every call site, and one that needs its id has both nodes'
+/// doors ([`frame`] and [`desc`]) to reach for instead.
+pub fn on_frame(
+    doc: ProfileDoc,
+    origin: [f64; 3],
+    u: [f64; 3],
+    v: [f64; 3],
+    loops: Vec<Vec<(f64, f64)>>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(origin, u, v));
+    insert(doc, Node::Profile(desc(plane, loops)))
+}
+
+/// [`on_frame`], keeping the FRAME's id too — what a revolve needs,
+/// because its axis has to be written in the same frame the profile
+/// is drawn on and the axis's door names that frame.
+pub fn on_frame_keeping(
+    doc: ProfileDoc,
+    origin: [f64; 3],
+    u: [f64; 3],
+    v: [f64; 3],
+    loops: Vec<Vec<(f64, f64)>>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(origin, u, v));
+    let (doc, profile) = insert(doc, Node::Profile(desc(plane, loops)));
+    (doc, plane, profile)
+}
+
+/// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
+/// of revolution.
+pub fn axis_in_plane(
+    plane: RecipeNodeId,
+    origin: (f64, f64),
+    dir: (f64, f64),
+) -> Node<ProfileProgram> {
+    Node::Datum(Datum::AxisInPlane {
+        plane,
+        origin: [len(origin.0), len(origin.1)],
+        direction: [scl(dir.0), scl(dir.1)],
+    })
 }
 
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
@@ -122,6 +241,35 @@ impl Recorder {
     /// Inserts a node, returning its minted id.
     pub fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         self.push(DocEdit::InsertNode { node }).expect("minted id")
+    }
+
+    /// **A frame and a profile drawn on it**, returning the PROFILE's
+    /// id — [`on_frame`]'s shape for a recorder.
+    ///
+    /// It exists so a call site that wants "a square on this plane"
+    /// stays one line now that saying so takes two nodes. A site that
+    /// needs the frame's own id inserts the two itself.
+    pub fn profile(
+        &mut self,
+        origin: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        loops: Vec<Vec<(f64, f64)>>,
+    ) -> RecipeNodeId {
+        self.profile_keeping(origin, u, v, loops).1
+    }
+
+    /// [`Self::profile`], keeping the FRAME's id — what a revolve
+    /// needs, because its axis is written in that frame.
+    pub fn profile_keeping(
+        &mut self,
+        origin: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        loops: Vec<Vec<(f64, f64)>>,
+    ) -> (RecipeNodeId, RecipeNodeId) {
+        let plane = self.insert(frame(origin, u, v));
+        (plane, self.insert(Node::Profile(desc(plane, loops))))
     }
 }
 
@@ -209,12 +357,12 @@ pub fn die() -> Die {
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
-    let cube_profile = r.insert(Node::Profile(desc(
+    let cube_profile = r.profile(
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-    )));
+    );
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(2.0),
@@ -225,7 +373,7 @@ pub fn die() -> Die {
     // distance).
     let mut masters = Vec::new(); // (extrude id, u, v, pips)
     for (o, u, v, pips) in faces() {
-        let prof = r.insert(Node::Profile(desc(o, u, v, vec![square(0.0, 0.0, 0.125)])));
+        let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
             distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),

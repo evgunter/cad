@@ -17,7 +17,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{insert, len, shape};
 use pncad::document::{Doc, ValuePayload};
@@ -76,10 +76,11 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     );
 
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&square(side))],
         },
     );
@@ -195,8 +196,9 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     );
 
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![shape(&template)],
     });
     assert!(
@@ -204,9 +206,11 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
         "the door refuses it too: {:?}",
         out.refusal,
     );
-    assert!(
-        session.committed_doc().order().is_empty(),
-        "and nothing landed",
+    assert_eq!(
+        session.committed_doc().order(),
+        &[plane][..],
+        "and nothing landed — the frame the profile would have named is \
+         all the document holds",
     );
 }
 
@@ -255,8 +259,9 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
 
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![shape(&template)],
     });
     assert!(
@@ -264,9 +269,11 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
         "the door still refuses a chain that does not close: {:?}",
         out.refusal,
     );
-    assert!(
-        session.committed_doc().order().is_empty(),
-        "and nothing landed",
+    assert_eq!(
+        session.committed_doc().order(),
+        &[plane][..],
+        "and nothing landed — the frame the profile would have named is \
+         all the document holds",
     );
 }
 
@@ -331,8 +338,9 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     );
 
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane: SketchPlane::xy(),
+        plane,
         loops: overlapping.iter().map(shape).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");

@@ -488,6 +488,8 @@ BOUND_AS = {
     "declare_node": "Node.declare",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
+    "tube_along_arc": "Node.tube",
+    "tube_along_arc_hollow": "Node.hollow_tube",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
     "intersect": "Node.boolean",
@@ -802,10 +804,28 @@ FAMILIES = {
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
 #:
-#: - **G2 — sweep and tube.** `sweep_body`, `tube_along_arc`,
-#:   `tube_along_arc_hollow`, `TubeError`, `TubeWindow`. Banked, not
-#:   merely unbound: `wire_sweep` refuses unconditionally and
-#:   `Node::Tube` does not exist (a schema-version break).
+#: - **G2 — the SWEEP half only.** `sweep_body`. The family used to
+#:   hold five names; the tube half closed at LIB-TUBE (see the
+#:   paragraph below) and `sweep_body` is what is left. Banked, not
+#:   merely unbound: `wire_sweep` refuses unconditionally (U4/LQ3,
+#:   kernel-owned), so a binding would add a door that cannot
+#:   succeed.
+#: **G2's TUBE half is CLOSED** (LIB-TUBE). It held
+#: `tube_along_arc`, `tube_along_arc_hollow`, `TubeError` and
+#: `TubeWindow`, and its own row said what would close it: a
+#: `Node::Tube` that does not exist, behind a schema break. That
+#: break is not a thing any more (#1553 demolished the version
+#: machinery); both node kinds landed as additive vocabulary —
+#: `Node::Tube` and `Node::HollowTube` per the #1205 split ruling —
+#: and the four names moved to the
+#: dispositions their revolve twins already carry: the two kernel
+#: doors to `BOUND_AS` (`Node.tube` and `Node.hollow_tube` are the
+#: Python spellings of the questions they answer, one door each),
+#: `TubeError` to `INTERIOR` beside `RevolveError`, since its
+#: refusals cross as the `tube` error tag rather than as a type, and
+#: `TubeWindow` to a TOP-LEVEL python name — it is the one of the
+#: four a caller must be able to spell, because a window is an
+#: argument and `full()` is a choice, not an omission.
 #: **G18 is CLOSED and no longer a `gap` id here** (LIB-G18b). It
 #: held six families and 43 names: the pin-update door
 #: (`update_references`, `UpdateError`, `mixed_pins`,
@@ -1017,6 +1037,12 @@ NOT_BOUND = {
     # `Evaluation.find_flush_candidates` and `Doc.declare`.
     "flush": SHAPE,
     "real": SHAPE,
+    # The loops-only resolution door the sketch frame created: a caller
+    # with loops in hand and no document — a form previewing what it is
+    # about to author — asks it rather than inventing a plane node. No
+    # Python door has that shape: `Node.profile` always has a document
+    # to name a frame in, so there is nothing here Python cannot say.
+    "resolve_loops": INTERIOR,
     "v2": SHAPE,
     "v3": SHAPE,
     "write_step": SHAPE,
@@ -1024,16 +1050,45 @@ NOT_BOUND = {
     "Band": INTERIOR,
     "BandError": INTERIOR,
     "BlendKind": INTERIOR,
+    # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
+    # prelude-carried `BlendError` is matchable THROUGH the prelude.
+    # `INTERIOR` by the rule the two CUR3/CUR4 cases together settle:
+    # **a payload's category follows what its CARRIER does at the
+    # crossing.** `ReadbackError` projects its arms as tags, so CUR3's
+    # `DanglingRef` is in `BOUND_AS` at `ReadbackError.variant` and its
+    # arms ARE two tags. `BlendError` projects no arms at all —
+    # `node_error_tag` reads the VERB, so the whole refusal arrives as
+    # one `fillet`/`chamfer` tag plus the kernel's `Display` prose — so
+    # there is no tag to split, none to pin, and nothing for a Python
+    # caller to branch on. Not a `gap:` either: the debt is the blend
+    # door being unprojected, which is #1479's row and not a missing
+    # binding for these four types.
+    "BlendSite": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
+    # The tier-3′ census vocabulary, curated at LIB-CUR4 beside the
+    # `ValidationError` the prelude already carried. Same rule as the
+    # blend four above, and the validate doors are the starker case:
+    # they cross their failures as joined `Display` prose with a `door`
+    # and a `failure_count` and NO per-arm tag whatsoever, so which
+    # coincidence the census found is not a thing Python can read at
+    # all today. `DeclaredContact` below is the sibling that settles
+    # the category — it is `ValidationError::ContactContradicted`'s
+    # payload, it has been curated all along, and it sits at
+    # `INTERIOR`.
+    "CensusContact": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
     "ContentBits": INTERIOR,
+    # `BlendError::ConvexitySignFlip`'s payload and
+    # `UnsupportedCorner`'s, the other two of the blend four.
+    "Convexity": INTERIOR,
+    "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
@@ -1059,7 +1114,15 @@ NOT_BOUND = {
     "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
+    # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
+    "RingContact": INTERIOR,
+    # `BlendError::UnsupportedCorner`'s second field, the policy
+    # `CornerConfig::policy` assigns (LIB-CUR4).
+    "RunOutPolicy": INTERIOR,
+    "TubeError": INTERIOR,
     "SegmentKind": INTERIOR,
+    # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
+    "StaleDeclaration": INTERIOR,
     "StepArg": INTERIOR,
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,
@@ -1067,12 +1130,13 @@ NOT_BOUND = {
     "edge_name": INTERIOR,
     "face_name": INTERIOR,
     "validated": INTERIOR,
-    # --- gap: sweep and tube (audit G2) ---------------------------
-    "TubeError": f"{GAP}: G2 sweep/tube",
-    "TubeWindow": f"{GAP}: G2 sweep/tube",
-    "sweep_body": f"{GAP}: G2 sweep/tube",
-    "tube_along_arc": f"{GAP}: G2 sweep/tube",
-    "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
+    # --- gap: the SWEEP half of G2, still banked -------------------
+    # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
+    # reason is not "no binding was written" — `wire_sweep` refuses
+    # unconditionally (U4/LQ3, kernel-owned). Binding a door that
+    # cannot succeed would move a name out of this list without
+    # moving anything a caller can do.
+    "sweep_body": f"{GAP}: G2 sweep (wire_sweep banked on U4/LQ3)",
     # --- gap: parameter distributions and the analysis lane -------
     # --- gap: authoring a measurement (census-owned) --------------
     # The READING half ships (`Value.measure`, `Value.assertion`); what

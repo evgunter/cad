@@ -188,7 +188,7 @@ raw `cargo` invocations yourself.
 LIMIT kills every job seconds after creation — no steps, no logs,
 `failure` — which reads as runner loss; the tell is unrelated PRs'
 runs dying in the same minutes. No push, empty commit, or re-run
-helps until Evan raises the limit: hold, then re-run the dead head's
+helps until Ev raises the limit: hold, then re-run the dead head's
 failed jobs once (they died pre-step, so the re-run is legitimate).
 A PR that is CONFLICTING against
 main gets NO check runs at all — pushes during that window produce
@@ -217,7 +217,7 @@ or permanent failure rather than a red build.** Before merging, filter
 the check runs (`gh api .../check-runs`): reject any `conclusion` that
 is not `success` — except a red INHERITED from main (reproduced on
 main's own tree, not the PR's): that red does not block the merge
-(Evan, in-chat, 2026-08-31), but it must be annotated on the PR with
+(Ev, in-chat, 2026-08-31), but it must be annotated on the PR with
 its issue, and the LANE THAT CAUSED IT owes the fix — record the debt
 on the issue and summon that lane; never absorb it in passing.
 **Separately confirm none is still in flight** —

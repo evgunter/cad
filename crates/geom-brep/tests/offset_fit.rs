@@ -27,97 +27,33 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::FRAC_PI_2;
-
 use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
 use geom_brep::offset_fit::{
     OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset,
-    fit_offset, offset_point,
+    fit_offset,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol};
+
+use crate::shared::fixture::{kv1, kv2, quarter_cylinder, sphere_band};
+use crate::shared::sample::{grid, worst_offset_residual};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
 // ---------------------------------------------------------------------
-// Exact rational NURBS fixtures (closed-form geometry, by construction)
+// Fixtures
 // ---------------------------------------------------------------------
-
-/// The clamped degree-2 single-Bézier knot vector.
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-/// The clamped degree-1 single-span knot vector.
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
-}
-
-/// A quarter cylinder of radius `r` and height `h` about `+z`, exact:
-/// the u direction is the rational quadratic quarter circle
-/// (weights `1, √2/2, 1` — the classical exact arc), the v direction
-/// a linear translation.
-fn quarter_cylinder(r: f64, h: f64) -> NurbsSurface<f64> {
-    let s = arc_weight(FRAC_PI_2);
-    let control = vec![
-        Point3::new(r, 0.0, 0.0),
-        Point3::new(r, 0.0, h),
-        Point3::new(r, r, 0.0),
-        Point3::new(r, r, h),
-        Point3::new(0.0, r, 0.0),
-        Point3::new(0.0, r, h),
-    ];
-    let weights = vec![1.0, 1.0, s, s, 1.0, 1.0];
-    NurbsSurface::new(kv2(), kv1(), control, weights).unwrap()
-}
-
-/// The classical rational-quadratic arc weight for a sweep of
-/// `sweep` radians: `cos(sweep/2)` (a quarter turn gives `√2/2`).
-fn arc_weight(sweep: f64) -> f64 {
-    (sweep * 0.5).cos()
-}
-
-/// A sphere band of radius `r` between latitudes `lat0` and `lat1`,
-/// swept a quarter turn in longitude — exact: a rational quadratic
-/// meridian arc revolved through the classical rational quadratic
-/// quarter turn (A8.1's weight product), with no control row on the
-/// axis, so the chart normal is regular everywhere on it.
-fn sphere_band(r: f64, lat0: f64, lat1: f64) -> NurbsSurface<f64> {
-    // Meridian: a rational quadratic arc through the sweep
-    // `lat1 − lat0`, in the (x, z) half-plane.
-    let theta = 0.5 * (lat1 - lat0);
-    let wm = theta.cos();
-    let a = (r * lat0.cos(), r * lat0.sin());
-    let b = (r * lat1.cos(), r * lat1.sin());
-    // The tangent-intersection control point: the midpoint direction
-    // at radius `r / cos θ`.
-    let mid = (a.0 + b.0, a.1 + b.1);
-    let mlen = (mid.0 * mid.0 + mid.1 * mid.1).sqrt();
-    let m = (mid.0 / mlen * r / wm, mid.1 / mlen * r / wm);
-    let meridian = [(a.0, a.1, 1.0), (m.0, m.1, wm), (b.0, b.1, 1.0)];
-    // Revolve a quarter turn about `+z` (A8.1): the row is
-    // `(x, 0, z), (x, x, z), (0, x, z)` with weights
-    // `w, w·cos45, w`.
-    let wr = arc_weight(FRAC_PI_2);
-    let mut control = Vec::with_capacity(9);
-    let mut weights = Vec::with_capacity(9);
-    for iu in 0..3 {
-        for (x, z, w) in meridian {
-            control.push(match iu {
-                0 => Point3::new(x, 0.0, z),
-                1 => Point3::new(x, x, z),
-                _ => Point3::new(0.0, x, z),
-            });
-            weights.push(if iu == 1 { w * wr } else { w });
-        }
-    }
-    NurbsSurface::new(kv2(), kv2(), control, weights).unwrap()
-}
+//
+// The two carriers this file's analytic-oracle spine rests on — the
+// quarter cylinder and the sphere band, exact rationals whose closed
+// form is what the oracle rows measure against — are
+// `crate::shared::fixture`'s: four other suites in this crate were
+// building the same two nets. What is left here is the base that has
+// no closed form at all.
 
 /// A non-analytic bicubic patch: a height field with no closed form
 /// as any analytic kind, interpolated through the loft door.
@@ -161,20 +97,6 @@ fn bumpy_patch() -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
 }
 
-/// A deterministic dense `(u, v)` schedule over `[0,1]²`, coprime
-/// counts so it never lands on the fit's own sample grid.
-fn dense_grid() -> Vec<(f64, f64)> {
-    let (nu, nv) = (23usize, 19usize);
-    let mut out = Vec::with_capacity(nu * nv);
-    for i in 0..nu {
-        for j in 0..nv {
-            #[allow(clippy::cast_precision_loss)]
-            out.push((i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64));
-        }
-    }
-    out
-}
-
 // ---------------------------------------------------------------------
 // The analytic oracle
 // ---------------------------------------------------------------------
@@ -201,9 +123,24 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     let base = quarter_cylinder(r, h);
     // The oracle's content is CONTAINMENT and the closed form, not
     // how small the tolerance is: at 1e-4 the loop spends a third
-    // refinement round whose cells cost more CI wall clock than the
-    // row buys in evidence. The achieved numbers are printed either
-    // way and the containment assertions are unchanged.
+    // refinement round whose cells cost more CI wall clock than a
+    // second full oracle pass buys in evidence. So the tighter
+    // tolerance is held here as a LIVENESS claim only — the door
+    // still answers, and answers within what it was asked for — and
+    // the dense containment oracle runs once, at 3e-4.
+    {
+        let tol = 1e-4;
+        let d = 0.3;
+        let (_, cert) = fit_offset(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!("LIVENESS: fit_offset refused this cylinder at d = {d}, tol = {tol}: {e}")
+        });
+        assert!(
+            cert.hull_sup <= tol,
+            "LIVENESS at tol = {tol}: certified sup {} exceeds the tolerance it was \
+             asked for",
+            cert.hull_sup
+        );
+    }
     let tol = 3e-4;
     for d in [0.3_f64, -0.4] {
         let (fit, cert) = fit_offset(&base, d, tol, band())
@@ -216,7 +153,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
         // The independent oracle: the closed form, sampled densely
         // through the public evaluation door.
         let mut worst = 0.0f64;
-        for (u, v) in dense_grid() {
+        for (u, v) in grid(23, 19) {
             let p = base.eval(u, v);
             let want = cylinder_offset_closed_form(p, r, d);
             let got = fit.eval(u, v);
@@ -253,7 +190,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
         );
         // And the fitted surface's own radius is `r + d` — OFF-A's
         // mint, re-derived from the fit.
-        for (u, v) in dense_grid() {
+        for (u, v) in grid(23, 19) {
             let q = fit.eval(u, v);
             let rad = (q.x * q.x + q.y * q.y).sqrt();
             assert!(
@@ -275,7 +212,7 @@ fn sphere_band_fit_matches_the_closed_form_both_signs() {
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
         assert!(cert.hull_sup <= tol, "certified sup {}", cert.hull_sup);
         let mut worst = 0.0f64;
-        for (u, v) in dense_grid() {
+        for (u, v) in grid(23, 19) {
             let p = base.eval(u, v);
             let rad = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
             assert!(
@@ -322,11 +259,7 @@ fn non_analytic_base_fits_and_the_bound_contains_the_sample() {
     let (fit, cert) = fit_offset(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("fit_offset refused on the non-analytic base: {e}"));
     assert!(cert.hull_sup <= tol);
-    let mut worst = 0.0f64;
-    for (u, v) in dense_grid() {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         worst <= cert.hull_sup,
         "the certified sup {} UNDER-reports the sampled max {worst}",
@@ -357,7 +290,7 @@ fn the_regularity_floor_is_positive_on_a_regular_patch_and_conservative() {
     // Conservatism direction: the floor never exceeds the true
     // infimum, sampled independently.
     let mut inf = f64::INFINITY;
-    for (u, v) in dense_grid() {
+    for (u, v) in grid(23, 19) {
         let j = base.ders(u, v);
         inf = inf.min(j.du.cross(j.dv).norm());
     }
@@ -375,7 +308,7 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
     let r = 2.0;
     let base = sphere_band(r, 0.25, 1.25);
     // The fixture really is an exact sphere.
-    for (u, v) in dense_grid() {
+    for (u, v) in grid(23, 19) {
         let p = base.eval(u, v);
         let rad = (p.x * p.x + p.y * p.y + p.z * p.z).sqrt();
         assert!(
@@ -611,11 +544,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let d = 1e-6;
     let (fit, cert) = fit_offset(&base, d, 1e-3, band())
         .unwrap_or_else(|e| panic!("a micron-scale offset refused at 1e-3: {e}"));
-    let mut worst = 0.0f64;
-    for (u, v) in dense_grid() {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         cert.hull_sup.is_finite(),
         "the small-d bound is {} — the `2|d|` denominator is back",
@@ -746,16 +675,31 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         )
         .unwrap()
     };
-    for e in 0..=9 {
+    // The stations, not every decade: as measured, `fit_offset` takes
+    // the SAME trajectory (308 cells over 4 rounds) at every shift
+    // from the origin through 1e7, and the same larger one (364 over
+    // 5) at 1e8 and 1e9, so a decade that reproduces a neighbour's
+    // trajectory re-derives a bound already asserted. What is kept is
+    // one station per distinct behaviour: the origin's baseline,
+    // three in-band stations up to the band edge at 1e6, the first
+    // out-of-band station, the station where the trajectory changes,
+    // and the refusal below.
+    //
+    // That trajectory reading is UNGUARDED, deliberately. The
+    // schedule it describes is the kernel's, not this row's, and
+    // pinning `cells`/`rounds` here would turn any refinement
+    // improvement red in a row whose subject is recentring
+    // invariance. What lapses if the schedule moves is only the
+    // coverage argument for the decades not visited: every station
+    // this row does visit still asserts containment, and the
+    // invariance band is still asserted where the claim is
+    // meaningful.
+    for e in [0i32, 3, 5, 6, 7, 8] {
         let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
         let (fit, cert) = fit_offset(&base, d, 1e-2, band())
             .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
-        let mut worst = 0.0f64;
-        for (u, v) in dense_grid() {
-            let target = offset_point(&base, d, u, v).unwrap();
-            worst = worst.max((fit.eval(u, v) - target).norm());
-        }
+        let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
         // True at EVERY station, and the assertion the whole row
         // exists to protect.
         assert!(
@@ -808,11 +752,7 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
     let tol = 1e-5;
     let (fit, cert) = fit_offset(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("the thin patch refused at {tol}: {e}"));
-    let mut worst = 0.0f64;
-    for (u, v) in dense_grid() {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
         worst <= cert.hull_sup,
         "certified sup {} UNDER-reports the sampled max {worst}",

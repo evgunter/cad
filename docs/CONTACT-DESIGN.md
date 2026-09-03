@@ -1,9 +1,9 @@
 # Contact census & declared contact (pre-implementation design doc)
 
-**Status: RATIFIED (M6 unit 4, DESIGN-ONLY; Evan's sign-off on
+**Status: RATIFIED (M6 unit 4, DESIGN-ONLY; Ev's sign-off on
 PR #178, 2026-08-04 — ratification recorded in M6-LOG).** This is the
 design doc OQ5 deferred to ("the curved coincidence census waits for
-its own design doc" — CURVED-DESIGN OQ5, decided Evan #85). It
+its own design doc" — CURVED-DESIGN OQ5, decided Ev #85). It
 resolves OQ5's *design* half; it schedules **no implementation** and
 changes **no behavior** — every refusal named below keeps refusing
 until its unit ships. The C-numbered proposals are ratified as
@@ -516,7 +516,7 @@ ball touching its socket off-center. That is why fits and rest
 contact are one vocabulary, not two, and why the conformal limit is
 reached only through structure, never through g drifting to zero.
 
-**Smoothness, stated honestly (Evan will probe this).** g is NOT the
+**Smoothness, stated honestly (Ev will probe this).** g is NOT the
 min-over-points distance; that is the point of defining it
 carrier-relative. Its regularity in model parameters:
 

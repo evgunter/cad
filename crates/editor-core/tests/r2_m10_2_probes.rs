@@ -12,21 +12,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "fixture/mod.rs"]
-mod fixture;
+use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Datum, Dimension, DocEdit,
-    DocParam, DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind,
-    NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, StableName, SurfaceKindSet, ValuePayload, apply, evaluate,
-    select_where,
+    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
+    DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    StableName, SurfaceKindSet, ValuePayload, apply, evaluate, select_where,
 };
 use fixture::{ang, len, scl};
-use geom_core::{Point3, Tol, Vec3};
-use profile::SketchPlane;
+use geom_core::Tol;
 
 // ---------------------------------------------------------------
 // Plumbing
@@ -163,14 +160,19 @@ fn boxed(
     z0: f64,
     h: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let p = RecipeNodeId(doc.len() as u64);
+    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
+            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
+    let p = RecipeNodeId(doc.len() as u64);
+    let doc = push(
+        &doc,
+        &DocEdit::InsertNode {
             node: Node::Profile(fixture::desc(
-                [0.0, 0.0, z0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
+                plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
             )),
         },
@@ -191,16 +193,6 @@ fn boxed(
 /// A sphere of radius `r` centred at (0, 0, cz): a bulge-1 half-disc on
 /// the XZ frame, revolved a full turn about the world Z axis.
 fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let axis = RecipeNodeId(doc.len() as u64);
-    let doc = push(
-        doc,
-        &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Axis {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-            }),
-        },
-    );
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -209,16 +201,29 @@ fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let plane = RecipeNodeId(doc.len() as u64);
+    let doc = push(
+        doc,
+        &DocEdit::InsertNode {
+            node: fixture::frame([0.0, 0.0, cz], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        },
+    );
+    // The frame's v is world +Z and its origin sits ON the world Z
+    // axis, so the pole axis is this frame's own +y through (0, 0) —
+    // and it is minted AFTER the frame it names.
+    let axis = RecipeNodeId(doc.len() as u64);
+    let doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
+        },
+    );
     let p = RecipeNodeId(doc.len() as u64);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::from_frame(
-                    Point3::new(0.0, 0.0, cz),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                ),
+                plane,
                 loops: vec![half],
             }),
         },
@@ -247,16 +252,19 @@ fn cylinder(
     z0: f64,
     h: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let p = RecipeNodeId(doc.len() as u64);
+    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
+            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
+    let p = RecipeNodeId(doc.len() as u64);
+    let doc = push(
+        &doc,
+        &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::from_frame(
-                    Point3::new(0.0, 0.0, z0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    Vec3::new(0.0, 1.0, 0.0),
-                ),
+                plane,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(cx), len(cy)],
                     radius: len(r),
@@ -699,16 +707,23 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     let (d1, c1) = cylinder(&d0, 0.001, 0.0, 0.0, 0.0, 0.01);
     // The second cylinder on a frame tilted by theta about x: its
     // extrude direction (and so its axis) tilts with the plane normal.
+    let plane = RecipeNodeId(d1.len() as u64);
+    let d1 = push(
+        &d1,
+        &DocEdit::InsertNode {
+            node: fixture::frame(
+                [0.01, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, theta.cos(), -theta.sin()],
+            ),
+        },
+    );
     let p = RecipeNodeId(d1.len() as u64);
     let d2 = push(
         &d1,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::from_frame(
-                    Point3::new(0.01, 0.0, 0.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    Vec3::new(0.0, theta.cos(), -theta.sin()),
-                ),
+                plane,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),

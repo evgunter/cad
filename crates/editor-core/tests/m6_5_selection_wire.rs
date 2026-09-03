@@ -1,5 +1,5 @@
 //! M6-5 — `Node::Fillet`'s required `selection` field on the wire
-//! (Evan, #217). A fillet meaning "every edge of the target" names a
+//! (Ev, #217). A fillet meaning "every edge of the target" names a
 //! set that depends on an evaluation the FILE does not carry, so the
 //! field has no honest default: it is on the wire under its own key,
 //! canonical, and a body without it is unreadable by this build. (The
@@ -7,6 +7,8 @@
 //! — so there is no version pin here and no older golden to refuse.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
 
 use editor_core::{PersistError, load};
 use geom_core::Tol;
@@ -28,14 +30,17 @@ fn the_selection_reaches_the_wire_canonical() {
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_wire", Tol::witness());
     for edit in [
         DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+        DocEdit::InsertNode {
             node: Node::Profile(editor_core::ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane: editor_core::RecipeNodeId(0),
                 loops: vec![square],
             }),
         },
         DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(0),
+                profile: editor_core::RecipeNodeId(1),
                 distance: len(1.0),
             },
         },
@@ -46,7 +51,7 @@ fn the_selection_reaches_the_wire_canonical() {
     }
     let rim = |seg: u32| StableName {
         kind: editor_core::EntityKind::Edge,
-        node: editor_core::RecipeNodeId(1),
+        node: editor_core::RecipeNodeId(2),
         path: vec![RoleSeg::RimEdge(
             CapEnd::Top,
             ProfileEdgeRef {
@@ -59,7 +64,7 @@ fn the_selection_reaches_the_wire_canonical() {
         &doc,
         &DocEdit::InsertNode {
             node: Node::fillet(
-                editor_core::RecipeNodeId(1),
+                editor_core::RecipeNodeId(2),
                 len(0.0625),
                 vec![rim(2), rim(0)],
             ),

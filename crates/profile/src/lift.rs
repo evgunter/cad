@@ -131,7 +131,7 @@ pub enum LiftRefusal {
     /// only), and closing with `arc_to(Start)` on the incoming carrier
     /// leaves the seam's own zero-turn junction UNDECLARED, which
     /// refuses `SeamTangent`. (It used to refuse `SameCarrierJunction`
-    /// — retired with the Q1 sixth round, Evan in-chat 2026-09-02:
+    /// — retired with the Q1 sixth round, Ev in-chat 2026-09-02:
     /// carrier identity is not a reason for anything, and the seam's
     /// declaration is `Start.arrives_tangent()`.)
     SameCarrierClose {

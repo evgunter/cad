@@ -7,7 +7,7 @@
 //! ones named `..._is_the_finding` record where it does not.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::pinned;
 use geom_core::{Point2, Tol};
@@ -273,7 +273,7 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
                 .line_to(Start, Tol::witness())
                 .map(pinned)
                 .unwrap();
-            // Every continuation joint is DECLARED (Evan, in-chat,
+            // Every continuation joint is DECLARED (Ev, in-chat,
             // 2026-09-02): the subdivisions are `1..legs.len()`, and
             // the run's two closing junctions turn definitely.
             let declared: Vec<usize> = lp.tangent_joints().to_vec();
@@ -339,7 +339,7 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
         ),
         "an in-band-but-not-exact director must still refuse"
     );
-    // (e) declared identity — RULED LEGAL (Evan, in-chat, 2026-09-02):
+    // (e) declared identity — RULED LEGAL (Ev, in-chat, 2026-09-02):
     // every zero-turn joint is a declared tangent joint, and the
     // lattice never asks whether the carriers are the same. This used
     // to refuse `SameCarrierJunction`. It is the one arm of this probe
@@ -442,7 +442,7 @@ fn probe_a_declared_departure_then_continuations_declares_exactly_once() {
         lp.tangent_joints(),
         &[1, 2, 3],
         "the arc/line joint AND every continuation joint are declared \
-         (Evan, in-chat, 2026-09-02); each is declared exactly once"
+         (Ev, in-chat, 2026-09-02); each is declared exactly once"
     );
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
@@ -494,7 +494,7 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
             assert!(
                 lp.tangent_joints().contains(&1),
                 "the continuation DECLARES its joint, off an arc as anywhere \
-                 (Evan, in-chat, 2026-09-02)"
+                 (Ev, in-chat, 2026-09-02)"
             );
             checked += 1;
             let verdict = Profile::new(SketchPlane::xy(), vec![lp]).validate(t);
@@ -517,7 +517,7 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
         accepted.len(),
         authored_refused.len()
     );
-    // RULED (Evan, in-chat, 2026-09-02): the continuation DECLARES the
+    // RULED (Ev, in-chat, 2026-09-02): the continuation DECLARES the
     // joint it mints, so no arc/line tangency reaches the gate
     // undeclared from this door any more — which is what the hunt was
     // looking for, inverted. The assertion above (every loop carries

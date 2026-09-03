@@ -17,7 +17,7 @@
 //! - one deterministic row per typed refusal class.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::pinned;
 use geom_core::Point2;
@@ -341,7 +341,7 @@ fn turn_pi_refuses_as_cusp_naming_the_declaration_door() {
 
 #[test]
 fn declared_straight_continuation_of_a_line_is_a_declared_tangent_joint() {
-    // RULED (Evan, in-chat, 2026-09-02): every zero-turn joint is a
+    // RULED (Ev, in-chat, 2026-09-02): every zero-turn joint is a
     // declared tangent joint, and the lattice never asks whether the
     // carriers are the same. This used to refuse `SameCarrierJunction`.
     let leg = Open
@@ -645,7 +645,7 @@ fn circle_primitive_leaves_pq4_refusing_for_chains() {
     // The seam's own junction is UNDECLARED here, and that is what
     // still refuses: `Start` alone declares nothing, so a zero-turn
     // seam is `SeamTangent`. Carrier identity is no longer a reason for
-    // anything (Evan, in-chat, 2026-09-02).
+    // anything (Ev, in-chat, 2026-09-02).
     assert!(
         matches!(refused, Err(PathError::SeamTangent { .. })),
         "an undeclared seam on one carrier still refuses: {refused:?}"
@@ -1834,7 +1834,7 @@ fn straight_continuation_subdivides_a_run_and_validates() {
         .map(|x| (x.pos().x, x.pos().y))
         .collect();
     assert_eq!(v, vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (4.0, 3.0)]);
-    // The subdivision DECLARES its own zero-turn joint (Evan, in-chat,
+    // The subdivision DECLARES its own zero-turn joint (Ev, in-chat,
     // 2026-09-02) — declaration by construction, as `.tangent()` is.
     assert_eq!(
         lp.tangent_joints(),
@@ -2157,7 +2157,7 @@ fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
 /// `.turn(0)`, `.angle(exact incoming angle)` — still refuses
 /// `JunctionTangent`, which is the probe's whole subject and is
 /// unchanged. The DECLARED spelling used to refuse
-/// `SameCarrierJunction` and is legal since the Q1 sixth round (Evan,
+/// `SameCarrierJunction` and is legal since the Q1 sixth round (Ev,
 /// in-chat, 2026-09-02: every zero-turn joint is a declared tangent
 /// joint), so the accepting spellings are now the declared one and the
 /// one with NO authored direction at all — never an authored direction

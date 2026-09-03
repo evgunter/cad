@@ -20,7 +20,7 @@
 //!   byte-stability claim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom_core::{Point2, Tol};
 use profile::{
@@ -490,7 +490,7 @@ fn r2_lily_near_kite_sections_are_where_the_demo_would_panic() {
 /// which this finding called beside the point, because what is
 /// undeclared here is the JOINT, not the direction.
 ///
-/// **RULED (Evan, in-chat, 2026-09-02): the finding was right, and the
+/// **RULED (Ev, in-chat, 2026-09-02): the finding was right, and the
 /// argument is retired.** The token classifies the JOINT, so a straight
 /// leg may declare a tangent seam and the recourse exists — this row
 /// runs it below. The refusal STAYS at the data gate rather than moving
@@ -530,7 +530,7 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     println!("R2: arc-first-side, undeclared -> {undeclared:?}");
     assert!(matches!(undeclared, Err(PathError::SeamTangent { .. })));
 
-    // AFTER THE RULING (Evan, in-chat, 2026-09-02): the lattice may not
+    // AFTER THE RULING (Ev, in-chat, 2026-09-02): the lattice may not
     // consult the following carrier, so it closes declaring nothing and
     // the DATA gate — which owns materialized carriers — refuses.
     let closed = ring(true).expect("the declared arrival closes");
@@ -593,7 +593,7 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // AFTER THE RULING: the seam check reads NOTHING about the
     // following carrier, so this closes and the DATA gate refuses the
     // declaration the carriers contradict.
-    // RULED the other way (Evan, in-chat, 2026-09-02, addendum 3):
+    // RULED the other way (Ev, in-chat, 2026-09-02, addendum 3):
     // every zero-turn joint is a declared tangent joint, so declaring
     // one onto an identical carrier is true rather than contradicted.
     let closed = built.expect("the declared G1 arrival closes");

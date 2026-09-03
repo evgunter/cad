@@ -6,12 +6,20 @@ are the same ones — the group equals the transform-union chain it
 replaces, the rule's refusals are typed, and per-instance names are
 one segment deep — asserted through the bound doors rather than
 restated as prose.
+
+Both corpus twins are here: the LINEAR rule's `heat_sink_fins`
+(extrude-only, bound at LIB-PYPU) and the EXPLICIT rule's `die_tool`,
+whose prototype is a REVOLVE about a `Datum::Axis` and which was
+banked behind that half until LIB-DIETOOL measured it cleared.
 """
 
+import math
 import unittest
+from pathlib import Path
 
 from pncad import (
     BooleanOp,
+    Bulge,
     Doc,
     DocEdit,
     DocParam,
@@ -22,11 +30,14 @@ from pncad import (
     FrameError,
     NamePat,
     Node,
+    Open,
     ParamName,
     PatternKind,
     SegPat,
     SegTag,
     Selector,
+    SketchPlane,
+    Start,
     deg,
     evaluate,
     m,
@@ -44,7 +55,7 @@ def slab(doc, x, y, z):
                 (x[1] * m, y[1] * m),
                 (x[0] * m, y[1] * m),
             ],
-            elevation=z[0] * m,
+            plane=doc.sketch_frame(elevation=z[0] * m),
         )
     )
     return doc.insert(Node.extrude(profile, (z[1] - z[0]) * m))
@@ -165,6 +176,216 @@ class TestTheFinGroup(unittest.TestCase):
             )
         )
         self.assertEqual(ev.select(group, two_deep), [])
+
+
+# The die's cutting tool, constant for constant with the corpus
+# document `die_tool` (`crates/editor-core/tests/corpus/die_tool.rs`):
+# a unit cube, a radius-0.09 ball whose centre stands R - H outside
+# each face plane so the cavity is a cap of height exactly H, one ball
+# per face.
+DIE_L = 1.0
+PIP_R = 0.09
+PIP_H = 0.05
+PIP_C = DIE_L + (PIP_R - PIP_H)
+
+
+def pip_placements():
+    """The six face-centre frames, in the corpus document's order and
+    with its rotations: each carries the master ball's +Z pole onto the
+    face normal it cuts, so every chart stays polar to the plane that
+    cuts it. Every angle is 0, +-pi/2 or pi about a coordinate axis —
+    the placement is DATA, which is what an explicit rule is for."""
+    h = DIE_L / 2.0
+    lo = DIE_L - PIP_C  # the -normal faces' centre coordinate
+    x = (1.0, 0.0, 0.0)
+    y = (0.0, 1.0, 0.0)
+    z = (0.0, 0.0, 1.0)
+    rows = [
+        (z, 0.0, (h, h, PIP_C)),
+        (x, math.pi, (h, h, lo)),
+        (y, math.pi / 2.0, (PIP_C, h, h)),
+        (y, -math.pi / 2.0, (lo, h, h)),
+        (x, -math.pi / 2.0, (h, PIP_C, h)),
+        (x, math.pi / 2.0, (h, lo, h)),
+    ]
+    return [
+        Frame.rotate_then_translate(
+            axis, angle * rad, (t[0] * m, t[1] * m, t[2] * m)
+        )
+        for axis, angle, t in rows
+    ]
+
+
+def die_tool_document():
+    """`die_tool` re-authored through the bound Python doors, node for
+    node in the corpus document's insert order.
+
+    The label is the one `tests/fixture/mod.rs::Recorder` derives from,
+    so the document's IDENTITY matches too and the saved-text pin below
+    compares whole lines rather than a redacted subset.
+    """
+    doc = Doc("mod")
+
+    # ---- the sharp cube, [0, L]^3 ----
+    square = doc.insert(
+        Node.polygon(
+            [
+                (0 * m, 0 * m),
+                (DIE_L * m, 0 * m),
+                (DIE_L * m, DIE_L * m),
+                (0 * m, DIE_L * m),
+            ],
+            plane=doc.sketch_frame(elevation=0 * m),
+        )
+    )
+    cube = doc.insert(Node.extrude(square, DIE_L * m))
+
+    # ---- the master ball, poled along +Z ----
+    # `die_pips::half_disc_program` verbatim: ONE bulge-1 semicircle
+    # pole to pole, closed by its on-axis diameter. BOTH vertices are
+    # on the revolve axis — the chart the retired equator workaround
+    # existed to dodge, and the whole Revolve/datum half of this
+    # document.
+    plane = doc.sketch_frame(
+        plane=SketchPlane.from_frame(
+            (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
+        )
+    )
+    # The revolve axis is written IN that frame: world +Z is the
+    # frame's own v direction, so the meridian's pole-to-pole line is
+    # (0, 1) through the origin. Being in the plane is no longer a
+    # tolerance question — it is what the four numbers mean.
+    axis = doc.insert(Node.datum_axis_in_plane(plane, (0 * m, 0 * m), (0.0, 1.0)))
+    half_disc = (
+        Open.at((0 * m, -PIP_R * m))
+        .arc_to(Bulge((0 * m, PIP_R * m), 1.0))
+        .line_to(Start)
+    )
+    ball_p = doc.insert(Node.profile(half_disc, plane=plane))
+    ball = doc.insert(Node.revolve(ball_p, axis, (2.0 * math.pi) * rad))
+
+    # ---- the whole cutting tool, in ONE node ----
+    tool = doc.insert(Node.placed_union_at(ball, pip_placements()))
+    pipped = doc.insert(
+        Node.boolean(BooleanOp.Subtract, cube, tool)
+    )
+    return doc, ball, tool, pipped
+
+
+class TestTheDieTool(unittest.TestCase):
+    """The EXPLICIT rule's corpus twin, `die_tool`, authored from
+    Python — one prototype ball, six listed frames, one body out, fed
+    straight into a Subtract.
+
+    This is the row `work/lib/log.md` carried as "die_tool's Python
+    re-authoring (banked behind its Revolve/datum half)". The bank was
+    the ball: `heat_sink_fins` is extrude-only, while this prototype is
+    a `Node.revolve` about a `Node.datum_axis` whose meridian runs pole
+    to pole. LIB-DIETOOL measured the half CLEARED — the natural
+    meridian is what the document below authors, and it is not a
+    re-chart of anything.
+    """
+
+    # The corpus document's own saved bytes, pinned by
+    # `crates/editor-core/tests/lib_dietool_crossing.rs`. It cannot
+    # rot: that test re-authors the registered document and writes this
+    # file, so a recipe change on either side is a red run here.
+    FIXTURE = (
+        Path(__file__).resolve().parents[3]
+        / "crates" / "editor-core" / "tests" / "corpus" / "die_tool.pncad"
+    )
+
+    def test_the_tool_is_one_node_and_still_cuts(self):
+        """The tour's recipe spends N transforms and N-1 unions on this
+        shape; the group spends ONE node — and the collapsed tool is
+        still a legal boolean operand."""
+        doc, _ball, tool, pipped = die_tool_document()
+        ev = evaluate(doc)
+
+        # NINE nodes: frame, profile, extrude, frame, profile, datum,
+        # revolve, group, subtract. Two of the nine are the sketch
+        # frames the cube and the meridian are drawn on — the cube's
+        # is the xy plane, the meridian's is the xz plane, and they
+        # are different planes, so they are different nodes. The
+        # pairwise tool this replaces spends the same seven upstream
+        # and then six transforms, five unions and the subtract, so
+        # the group's saving is the eleven it collapses into one.
+        # Which of the nine is the group is not asserted by counting
+        # kinds here (the document layer exposes no node-kind read
+        # door); it is settled outright by the byte pin below, whose
+        # text names every node's kind.
+        self.assertEqual(len(doc), 9)
+
+        # An ordinary BODY out of the group — the property that lets a
+        # boolean consume it at all.
+        self.assertEqual(ev.value(tool).kind, "body")
+
+        body = ev.value(pipped).body()
+        body.validate()
+        # Six cavities, each contributing its faces to the ONE solid:
+        # 6 box faces + 6 x 2 cap half-bands.
+        self.assertEqual(len(ev.all_faces(pipped)), 18)
+
+        # The oracle is `die_pips`': L^3 - 6 * cap(R, H), pi-valued and
+        # so not dyadic — asserted at rounding scale, which is why the
+        # corpus document carries no mass pin either.
+        cap = math.pi * PIP_H ** 2 * (3.0 * PIP_R - PIP_H) / 3.0
+        want = DIE_L ** 3 - 6.0 * cap
+        self.assertAlmostEqual(
+            body.mass_properties().volume, want, delta=1e-12 * want
+        )
+
+    def test_every_cavity_face_is_one_instance_segment_deep(self):
+        """The pairwise tool buries the FIRST ball's cavity faces under
+        one qualifier per union; the group gives every instance the
+        same ONE-segment qualifier, whatever the pip count."""
+        doc, _ball, tool, _pipped = die_tool_document()
+        ev = evaluate(doc)
+
+        names = ev.all_faces(tool)
+        # Two band half-faces per ball, six balls, all distinct.
+        self.assertEqual(len(names), 12)
+        self.assertEqual(len(set(names)), 12)
+
+        one_deep = Selector.of(
+            NamePat.of_kind(EntityKind.Face).path([SegPat.tag(SegTag.Instance)])
+        )
+        self.assertEqual(sorted(ev.select(tool, one_deep)), sorted(names))
+        two_deep = Selector.of(
+            NamePat.of_kind(EntityKind.Face).path(
+                [SegPat.tag(SegTag.Instance), SegPat.any()]
+            )
+        )
+        self.assertEqual(ev.select(tool, two_deep), [])
+
+    def test_the_re_authoring_is_the_corpus_document_byte_for_byte(self):
+        """The claim this unit exists to make: what Python authors is
+        not a lookalike of `die_tool`, it IS `die_tool`.
+
+        Every line of the saved text matches the registered document's
+        — identity, node bodies, programs, expressions — except the
+        snapshot's ONE `epsilon` line, which CI's tolerance rows sweep
+        by design (`crates/pncad/tests/all.rs`'s plate_param pin states
+        that disposition; this row inherits it)."""
+        doc, _ball, _tool, _pipped = die_tool_document()
+
+        def sans_epsilon(text):
+            kept, excluded = [], []
+            for line in text.splitlines():
+                (excluded if line.lstrip().startswith('"epsilon":') else kept).append(line)
+            # Exactly one such line per side: a missing or duplicated
+            # epsilon is fixture damage, not sweep variance.
+            self.assertEqual(len(excluded), 1, excluded)
+            return "\n".join(kept)
+
+        committed = self.FIXTURE.read_text(encoding="utf-8")
+        self.assertEqual(
+            sans_epsilon(doc.save()),
+            sans_epsilon(committed),
+            "the Python re-authoring and the corpus document have diverged — "
+            "regenerate the fixture with `PNCAD_BLESS=1 cargo test -p editor-core "
+            "--test all lib_dietool_crossing` and read the diff",
+        )
 
 
 class TestThePlacementRuleRefuses(unittest.TestCase):

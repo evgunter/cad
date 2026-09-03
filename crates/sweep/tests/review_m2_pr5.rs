@@ -6,12 +6,13 @@
 //! (multi-segment wires, cosurface across bands, pole valence), washer
 //! zip lineage, Seam-vs-tier-3 honesty (rotated frames, forged seams),
 //! witness antipode bitwise pin, an independent volume oracle
-//! (dense fan vs Pappus), axis-contact trilean rows, error-path
-//! reachability, and the D9 cross-profile dump harness.
+//! (dense fan vs Pappus), axis-contact trilean rows, and error-path
+//! reachability. D9 byte-identity for revolve is
+//! `revolve_determinism::rebuild_is_byte_identical_and_volumes_positive`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
+use crate::revolve_common;
 
 use profile::RawLoop;
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI, TAU};
@@ -1097,55 +1098,6 @@ fn survives_near_collinear_cone_join_is_refused_upstream() {
         msg.contains("Escalated") || msg.contains("chord_side"),
         "expected an upstream validation escalation, got {msg}"
     );
-}
-
-// =====================================================================
-// Assignment 8 — D9: cross-profile dump harness (diffed debug vs
-// release by the review gates), covering all three construction paths
-// (lamina zip, two-band wire, partial wedge).
-// =====================================================================
-
-#[test]
-fn dump_for_cross_profile_diff() {
-    let shapes: Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> = vec![
-        (
-            vec![ProfileLoop::polygon([
-                p2(1.0, 0.0),
-                p2(2.0, 0.0),
-                p2(2.0, 1.0),
-                p2(1.0, 1.0),
-            ])],
-            Revolution::Full,
-        ),
-        (vec![dome()], Revolution::Full),
-        (
-            vec![ProfileLoop::polygon([
-                p2(0.0, 0.0),
-                p2(1.0, 0.0),
-                p2(1.0, 1.0),
-                p2(0.0, 1.0),
-            ])],
-            Revolution::Partial(FRAC_PI_2),
-        ),
-    ];
-    let profile_tag = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
-    let mut all = String::new();
-    for (loops, rev) in shapes {
-        let vp = validated(loops);
-        let t: Revolved<f64> = revolve(&vp, axis_y(), rev, Tol::witness()).unwrap();
-        all.push_str(&dump(&t));
-        all.push_str("----\n");
-    }
-    // Same latent order-dependency as review_m2_pr4's dump: the tmpdir
-    // may not exist on the test runner — create it first.
-    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"));
-    std::fs::create_dir_all(dir).unwrap();
-    let path = dir.join(format!("review-m2-pr5-dump-{profile_tag}.txt"));
-    std::fs::write(&path, all).unwrap();
 }
 
 #[test]

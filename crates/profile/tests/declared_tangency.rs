@@ -14,7 +14,7 @@
 //! [`profile::PathError`]'s.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{bracket, chain, circle_h, pinned, profile, quarter_bulge, tol};
 use geom_core::Point2;
@@ -119,7 +119,7 @@ fn declared_tangency_on_collinear_lines_is_a_declared_tangent_joint() {
         .validate(tol())
         .expect("collinear continuation is legal undeclared");
     // ...and legal DECLARED too, since 2026-09-02: every zero-turn
-    // joint is a declared tangent joint (Evan, in-chat). Identity is a
+    // joint is a declared tangent joint (Ev, in-chat). Identity is a
     // fact about the carriers and tangency is a fact about the
     // directions; the directions agree here, so the declaration is
     // true. The row used to require `TangencyContradicted

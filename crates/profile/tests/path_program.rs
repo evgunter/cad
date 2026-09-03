@@ -23,7 +23,7 @@
 //!   (legal at rest, geometry refuses under this binding).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{coverage_corpus, pinned};
 use geom_core::Point2;

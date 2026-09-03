@@ -28,15 +28,18 @@
 //! whose geometry is not dyadic (arcs) carry no mass pin and are
 //! pinned on validity + counts instead.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
-    NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
-    evaluate,
+    NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
+    apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -53,6 +56,7 @@ pub mod die_pips;
 pub mod die_tool;
 pub mod heatsink;
 pub mod heatsink_union;
+pub mod hollow_tube_elbow;
 pub mod islands;
 pub mod kiss_carry;
 pub mod loft_prism;
@@ -62,6 +66,7 @@ pub mod sink;
 pub mod slots;
 pub mod table;
 pub mod tangency;
+pub mod tube_ring;
 
 pub use super::fixture::Recorder;
 
@@ -203,6 +208,15 @@ pub fn documents() -> Vec<CorpusDoc> {
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
         kiss_carry::document(),
+        // LIB-TUBE's two: the solid ring torus and the hollow elbow.
+        // Small on purpose — `die_chamfer`-sized recipes, two and two
+        // nodes, not transcriptions of the tour's tube stops — and
+        // deliberately opposite corners of the two-by-two this
+        // vocabulary has: solid/full against hollow/windowed. A pair
+        // that shared a window or a kind would leave half the
+        // vocabulary carrying no registry battery.
+        tube_ring::document(),
+        hollow_tube_elbow::document(),
     ]
 }
 
@@ -259,7 +273,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 16] = [
+pub const NODE_KINDS: [&str; 18] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -287,6 +301,12 @@ pub const NODE_KINDS: [&str; 16] = [
     // zero rather than pretending coverage.
     "Loft",
     "Sweep",
+    // LIB-TUBE's pair — COVERED, by the registered `tube_ring` and
+    // `hollow_tube_elbow` documents. Two kinds because the two
+    // artifacts differ (RECIPE-DOORS D4 as revised), so they are two
+    // tally rows and not one.
+    "Tube",
+    "HollowTube",
     "Declare",
     // M10-2's measurement sinks. Listed because `measured_web` now
     // registers them: the hold-out that kept them off this roster was
@@ -319,10 +339,12 @@ pub const EDIT_KINDS: [&str; 15] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 11] = [
+pub const SUB_KINDS: [&str; 15] = [
     "Datum::Plane",
     "Datum::Axis",
+    "Datum::AxisInPlane",
     "Datum::Point",
+    "Datum::Frame",
     "Boolean::Union",
     "Boolean::Intersect",
     "Boolean::Subtract",
@@ -336,6 +358,16 @@ pub const SUB_KINDS: [&str; 11] = [
     // `stepped_map` with the pattern node that the corpus does cover.
     "PlacedUnion::Linear",
     "PlacedUnion::Explicit",
+    // LIB-TUBE covers the DIAGONAL of its two-by-two — the solid ring
+    // and the hollow elbow — and lists only what it covers. The other
+    // two corners (`Tube::Arc`, `HollowTube::Full`) are deliberately
+    // absent for the `PlacedUnion::Circular` reason: no corpus
+    // document needs them, and a listed-but-uncovered sub-kind fails
+    // the tally. Both are exercised directly in `lib_tube_node.rs`,
+    // where `HollowTube::Full`'s cavity — the one topology no other
+    // corner produces — has its own closed-form row.
+    "Tube::Full",
+    "HollowTube::Arc",
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
@@ -344,12 +376,16 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
         Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
-        // NOT a listed sub-kind, for `PlacedUnion::Circular`'s reason
-        // above: no corpus document authors a frame yet — nothing
-        // consumes one — and a listed-but-uncovered sub-kind fails the
-        // tally. It is exercised directly in `m4_pr2_frame.rs`, and it
-        // joins this list when a profile takes a frame as its plane.
-        Node::Datum(Datum::Frame { .. }) => Vec::new(),
+        // Listed since a profile takes its plane as a frame NODE: every
+        // corpus document authors at least one, which is the condition
+        // this arm was written waiting for.
+        Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // Listed: four corpus documents revolve, and a revolve's axis
+        // is written in the profile's frame. `kitchen_sink` carries
+        // BOTH axis kinds — a world line for its circular pattern, an
+        // in-plane axis for its revolve — which is the whole reason
+        // they are two sub-kinds to count.
+        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",
@@ -379,6 +415,19 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         // `PatternKind` flavour above — is a COMPILE error here rather
         // than a silently uncovered sub-kind, matching the
         // compile-time totality `node_kind`/`edit_kind` already have.
+        // A tube's WINDOW is a sub-kind on the same footing as a
+        // pattern's rule: it decides the body's whole topology (a
+        // closed ring against a capped elbow, and for the hollow kind
+        // a cavity against an annular section), so a corpus that
+        // covered only one of the two would read as covering "tube".
+        Node::Tube { window, .. } => vec![match window {
+            TubeWindow::Full => "Tube::Full",
+            TubeWindow::Arc { .. } => "Tube::Arc",
+        }],
+        Node::HollowTube { window, .. } => vec![match window {
+            TubeWindow::Full => "HollowTube::Full",
+            TubeWindow::Arc { .. } => "HollowTube::Arc",
+        }],
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -405,6 +454,8 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
+        Node::Tube { .. } => "Tube",
+        Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",
