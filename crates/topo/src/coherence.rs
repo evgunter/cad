@@ -32,11 +32,20 @@
 //!   same analytic circle (what an exporter emits when a vertex lands
 //!   on a rim) each derive their own row coordinate; the gap is the
 //!   one a consumer discards when it gives the whole side one value.
-//!   Lever: [`Chart::v_lever`], constant per kind. **This one has no
-//!   witness in any corpus**: a rim through two given points is unique
-//!   on every chart kind here, so a v gap forces one carrier off the
-//!   surface and the natively-constructible witness is synthetic. A
-//!   committed fixture through the import door is issue 1588.
+//!   Lever: [`Chart::v_lever`], constant per kind. **Reachable from
+//!   the Euler doors only, and consumed by nothing there.** Through
+//!   the import door it is dead at every ε row, measured: the pcurve
+//!   re-mint decides the same v jump at each junction
+//!   (`pcurve_loop_continuity`, the same band) and refuses every body
+//!   this condition would report on, so no imported body carries a
+//!   rim-continuation finding — not for want of a fixture but by
+//!   construction (issue 1588's answer). The certifying Euler doors
+//!   admit two on-surface rims a band apart with their junctions in
+//!   the endpoint band, which is a rim-only cap: the shape door
+//!   admits it, the flux lane refuses it and the walk cannot mesh it
+//!   (issue 1615). `topo/tests/mesh12_rim_row_reach.rs` pins both
+//!   halves; the synthetic off-surface circle of
+//!   `topo/tests/mesh8_coherence.rs` remains the band-scaled witness.
 //! - [`CoherenceCondition::MeridianContinuation`] — the same, one axis
 //!   over: two edges carrying one meridian column disagree in u. Lever:
 //!   [`Chart::radial`] at the junction between them.
@@ -166,6 +175,12 @@ pub enum CoherenceCondition {
     /// OPENS the iso side both belong to. Gap in v's own units
     /// (metres on a cylinder or cone, radians on a sphere or torus);
     /// lever [`Chart::v_lever`].
+    ///
+    /// **No imported body reports this, by construction** (the module
+    /// docs): the import door's pcurve re-mint refuses the v jump at
+    /// the band this condition reports it at. Its live reach is a
+    /// rim-only cap through the Euler doors, which no meshing or
+    /// measuring lane consumes.
     RimContinuation {
         /// The edge that opens the shared iso side.
         opens: EdgeKey,

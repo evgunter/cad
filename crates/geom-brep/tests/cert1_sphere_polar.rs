@@ -187,25 +187,45 @@ fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
     }
 }
 
-/// **A span of 2π or more covers every direction, both poles
-/// included.** The membership dot test compares against
-/// `cos(dt/2)`, which swings back positive past `dt = 2π` and
-/// starts EXCLUDING directions a multi-wrap span covers: the
-/// `3π + π` pair below read the north pole `Negative` though the
-/// first arc covers it twice, and the face was ACCEPTED at half its
-/// area — this unit's own thesis (an unstated extent premise)
-/// re-minted at the parse. The import door normalizes spans into
-/// `(0, τ]`, so the shape is native-API-reachable only; the fold
-/// answers it anyway, because a span premise a caller can break is
-/// a premise, not a fact.
+/// **A span past the winding bound is refused, not folded** (issue
+/// 1601). This row was minted to pin a `3π + π` pair folding both
+/// poles: the membership dot test compared against `cos(dt/2)`, which
+/// swings back positive past `dt = 2π`, so the first arc read the
+/// north pole `Negative` though it covered it twice and the face was
+/// ACCEPTED at half its area; a clamp at a half-turn made that pair
+/// measure `2πR²`. The clamp's zero set was not empty — it vanished
+/// at the one direction antipodal to the span's midpoint — and a
+/// `2π + 2δ` span with its pole there folded SHORT by `(1 − cos δ)/2`
+/// on 36 of 400 spans; this pair passed only because its residual
+/// rounded to `+0.0`.
+///
+/// A span past τ is not a datum the certified world produces
+/// (certification bounds `0 < Δt ≤ τ` per edge; the import door
+/// normalises into `(0, τ]`), and answering it exactly would be a
+/// closed form over an uncertified premise. The parse therefore
+/// re-decides certification's bound per meridian arc
+/// (`props_meridian_span_winding`, the same margin at the same band
+/// and lever) and refuses under that name — the disposition the torus
+/// fold already takes for a span it reconstructs across pieces. The
+/// other three rows of this issue's block still ride the fold: their
+/// arcs contain a pole and stay within one period.
 #[test]
-fn a_multi_wrap_span_covers_both_poles() {
+fn a_multi_wrap_span_is_refused_at_the_parse() {
     let pi = core::f64::consts::PI;
+    let band = Band::linear(Tol::witness()).unwrap();
     let pair = vec![
         great(0.0, 0.0, 3.0 * pi, 0, 1),
         great(0.0, 3.0 * pi, 4.0 * pi, 1, 0),
     ];
-    accepts_exactly("rimless pair, spans 3π + π", &pair, 2.0 * pi * RS * RS);
+    assert!(
+        matches!(
+            curved_face(&sphere(), &pair, 1.0, band),
+            Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_span_winding"
+            })
+        ),
+        "a 3π meridian span is past the per-edge winding bound and refuses by its name"
+    );
 }
 
 // ---------------------------------------------------------------------
