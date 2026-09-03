@@ -50,4 +50,4 @@ Design-conversation class — awaiting Ev's ruling; not self-merging anything fr
 
 ## Home
 
-S-CERT: the conversation's `compose::tensor` twin is the program's rational-flux ground (`crates/geom-brep/src/props/*`), and PCURVE — the program that executed the ruling — is closed. Closed on migration: the ruling this conversation asked for was answered as U2 and ratified into `docs/PCURVE-UNIFY-DESIGN.md`, whose execution is the closed PCURVE program's done-state of record (`work/pcurve/program.md`).
+S-CERT: the conversation's `compose::tensor` twin is the program's rational-flux ground (`crates/geom-brep/src/props/*`), and PCURVE — the program that executed the ruling — is closed. Closed on migration: the ruling this conversation asked for was answered as U2 and ratified into `docs/PCURVE-UNIFY-DESIGN.md`, whose execution is the closed PCURVE program's done-state of record (`docs/PCURVE-EXIT-WALK.md`).
