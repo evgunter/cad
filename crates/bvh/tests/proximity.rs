@@ -15,6 +15,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). Two claims: `Aabb::separation_lo`
+// is a LOWER bound on a real separation at every magnitude, and the three
+// `within` queries are conservative supersets of brute force. Both rest on
+// the box arithmetic (`aabb.rs`) and the traversal that prunes with it
+// (`tree.rs`); `geom-core`'s `real` carries the `Bounds` contract the door
+// is generic over and `linalg` the `Point3`/`Vec3` the queries are posed
+// in, so a change to either can break the bound with `bvh/` untouched.
+test_utils::gated_to![
+    "crates/bvh/src/",
+    "crates/geom-core/src/linalg/",
+    "crates/geom-core/src/real.rs",
+];
+
 use bvh::{Aabb, Bvh};
 use geom_core::Point3;
 use proptest::prelude::*;

@@ -2919,8 +2919,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # the tour's own assembly documents through it — and by the
         # arity that stays refused, since a door named at the call
         # cannot be passed by position.
+        #
+        # `cancel` JOINED the list at LIB-B-CANCEL and belongs to no
+        # audit gap: no tour scene interrupts an evaluation, so the
+        # audit page never named this door and the census owned it as
+        # family B-CANCEL instead. It is pinned in the same breath as
+        # the other two because the property this line protects is the
+        # door's WHOLE keyword-only shape — an argument arriving
+        # unnoticed is the drift the assertion exists to catch, and the
+        # right response is a reading recorded at the line, which is
+        # what this comment is. `tests/test_cancellation.py` is its
+        # positive form.
         self.assertEqual(
-            list(inspect.signature(evaluate).parameters), ["doc", "resolver", "prior"]
+            list(inspect.signature(evaluate).parameters),
+            ["doc", "resolver", "prior", "cancel"],
         )
         with self.assertRaises(TypeError):
             evaluate(Doc(), None)

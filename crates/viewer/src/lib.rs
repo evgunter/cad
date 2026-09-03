@@ -1,5 +1,5 @@
 //! The viewer: layer 3 of the GUI/editor architecture
-//! (`docs/GUI-DESIGN.md` G1) — interaction over the headless
+//! (`crates/viewer/README.md` G1) — interaction over the headless
 //! `editor-core` document and the kernel below it.
 //!
 //! # What is a value here, and what is a widget

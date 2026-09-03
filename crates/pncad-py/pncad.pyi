@@ -58,6 +58,14 @@ worth right now — which is what a panel showing `width / 2.0 -
 margin` needs and cannot compute for itself. Reading only: putting an
 expression INTO an authoring step is still a named gap.
 
+Text goes the other way too. `Length.format` / `Angle.format` render
+a quantity in a unit — `"25 mm"` — choosing digits so that
+`Doc.parse_expr` reads the text back to the value's exact bits. That
+pin is the reason to use them rather than an f-string over
+`in_unit`'s bare float, which does not round-trip; the price is that
+a value with no exact spelling in the unit asked for falls back to
+metres or radians, so read the suffix off the text.
+
 Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: sweep and tube, the pattern node
 (`placed_union` says a placed family whose value is one body; the
@@ -125,6 +133,24 @@ class DimensionError(PncadError):
     op: str
     left: str
     right: str
+
+class FmtQuantityError(PncadError):
+    """`Length.format` or `Angle.format` refused a value: it is NaN or
+    ±∞, and a non-finite quantity has no display form.
+
+    `value` is the refused float, `variant` the stable tag
+    (`"non_finite"`).
+
+    Reachable, which is why it is typed. The quantity newtypes are
+    plain value wrappers that refuse no float, so `float("inf") * mm`
+    is an ordinary Length; poison is stopped at the doors values LEAVE
+    through, and rendering one for a reader is one of those. The tag
+    is deliberately the same string LiteralError uses for a non-finite
+    literal — same fact, opposite doors — and the CLASS is what says
+    which door refused."""
+
+    variant: str
+    value: float
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
@@ -571,6 +597,7 @@ class Length:
     @property
     def meters(self) -> float: ...
     def in_unit(self, unit: LengthUnit) -> float: ...
+    def format(self, unit: LengthUnit) -> str: ...
     def __add__(self, other: Length) -> Length: ...
     def __sub__(self, other: Length) -> Length: ...
     def __neg__(self) -> Length: ...
@@ -589,6 +616,7 @@ class Angle:
     @property
     def radians(self) -> float: ...
     def in_unit(self, unit: AngleUnit) -> float: ...
+    def format(self, unit: AngleUnit) -> str: ...
     def __add__(self, other: Angle) -> Angle: ...
     def __sub__(self, other: Angle) -> Angle: ...
     def __neg__(self) -> Angle: ...
@@ -2059,12 +2087,38 @@ class MassProperties:
     def area_pad(self) -> float: ...
 
 class Body:
-    """A solid body — an opaque handle with curated doors."""
+    """A solid body — an opaque handle with curated doors.
+
+    A body also carries the DECLARED CONTACTS its producer minted for
+    it, which is the second argument `validate_pseudomanifold` takes
+    in Rust. It has no Python spelling and needs none: it is captured
+    with the body rather than passed, because a record set belongs to
+    one body and pairing it with another is the mistake the tier-3′
+    contract exists to refuse."""
 
     def mass_properties(self) -> MassProperties: ...
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
+    def validate_pseudomanifold(self) -> None:
+        """Tier 3′, the ladder's fourth rung: tier 3's whole local
+        battery PLUS the global coincidence census tier 3 defers,
+        certified against this body's OWN declared contacts.
+
+        Every coincidence the census finds must be backed by a
+        declaration and every declaration must have a geometric
+        witness — neither direction is blessed from discovery. So the
+        verdict turns on which door minted the body, and that is the
+        contract rather than a wrinkle: `assemble`'s at-rest body
+        carries its mates' minted records and passes over its seats,
+        while `product`, which gathers the same solids and declares
+        nothing, reports every seat as an undeclared contact. With no
+        declarations at all this is simply the strictest rung — the
+        census still runs, and on a body with no coincidences it finds
+        nothing.
+
+        Raises `ValidationError` with `door` and `failure_count`, as
+        the other three rungs do."""
     def tessellate(self, chordal: Length) -> Mesh:
         """Triangulate every face within `chordal` of the exact
         surface — the ladder's step 4.
@@ -2296,6 +2350,47 @@ class Denotation:
     def candidates(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+class Resolution:
+    """A stored name's standing in one evaluation — what
+    `Evaluation.resolve` answers with, and the question every consumer
+    that KEEPS names must ask on every run.
+
+    Total and report-only. `status` is `resolved`, `failed` or
+    `indeterminate`; the other attributes are always present and
+    `None` where the state does not carry them, so `getattr` never
+    raises and a caller never has to test `status` first.
+
+    The three states are kept three because their REPAIRS differ.
+    `resolved` needs none — `node`, `body` and `kind` say where and
+    what. `failed` means the name does not denote here and will not
+    come back on its own: the repair is an explicit rebind, and
+    `offers` is what the kernel is willing to SUGGEST, never a
+    substitution it has made. `indeterminate` means the NAME is fine
+    and the RUN is not — the minting node failed, was poisoned, or
+    never evaluated — so the repair is upstream and the name resolves
+    again when that node does. Rebinding on an `indeterminate` is
+    repairing the wrong end of the document, which is why it is not
+    a `failed`.
+
+    `detail` is the kernel's own prose about the arm. There is no
+    per-arm tag: the failure vocabulary (`ResolveError`,
+    `ResolutionFailure`, `ResolveIndeterminate`) is decided absent
+    from the Rust façade, so `status` plus prose is the whole of what
+    crosses."""
+
+    @property
+    def status(self) -> str: ...
+    @property
+    def node(self) -> Optional[NodeId]: ...
+    @property
+    def body(self) -> Optional[int]: ...
+    @property
+    def kind(self) -> Optional[EntityKind]: ...
+    @property
+    def detail(self) -> Optional[str]: ...
+    @property
+    def offers(self) -> Optional[list[str]]: ...
+
 class Ray:
     """A ray to pick along: an origin and a direction, over `t >= 0`.
 
@@ -2442,6 +2537,36 @@ class NodePick:
         coordinate valid for one tessellation — and reads the name out
         of here."""
 
+class CancelToken:
+    """The cooperative stop for a running evaluation — a handle onto
+    ONE flag, shared with the run it was passed to.
+
+    Cooperative at NODE granularity: the kernel reads the flag between
+    nodes (between levels on the parallel schedule) and never inside a
+    kernel op, so `cancel()` does not abort a boolean already in
+    flight — it stops the run before the next node starts.
+
+    One-way, with no reset: a flag a canceled run observed cannot be
+    un-observed, and a reusable token would let two runs disagree
+    about what it meant. Mint one per launch, which is what
+    `evaluate` does when no `cancel=` is passed."""
+
+    def __init__(self) -> None: ...
+    def cancel(self) -> None:
+        """Request cancelation — any thread, any time, idempotent.
+
+        Setting it BEFORE the run starts is legal and is the
+        deterministic case: the evaluation checks the token before its
+        first node, so a pre-canceled token yields a run with the full
+        `order()`, no results at all, and `Evaluation.canceled` true."""
+
+    @property
+    def canceled(self) -> bool:
+        """Whether cancelation has been requested on THIS token — a
+        property of the token, never a claim that a run observed it.
+        `Evaluation.canceled` is the run's own answer, and the two
+        differ exactly when a run finished before the flag was set."""
+
 class Evaluation:
     """The per-node result DAG."""
 
@@ -2528,6 +2653,26 @@ class Evaluation:
         this says whether one is coming. Raises `ReadbackError` for
         `no_such_name` and the node ladder."""
 
+    def resolve(self, name: str) -> Resolution:
+        """Does this STORED name still denote, in THIS evaluation? —
+        the question every consumer that keeps names must ask on every
+        run, and the one Python's whole store-then-reuse story runs on.
+
+        Answers a `Resolution`, never a raise: "this name is gone" is a
+        verdict, not an error. The three states carry three different
+        repairs — see `Resolution`.
+
+        EVALUATION-WIDE, where `denotation` is node-scoped: this
+        searches every table in evaluation order and answers WHICH node
+        carries the name, so it resolves for a name `denotation` would
+        refuse `no_such_name` for at the node you happened to ask (a
+        pass-through node's output carries names its upstream minted).
+
+        The only raise is the boundary one every name-taking door
+        shares: text that is not a name at all is a `ValueError`. A
+        well-formed name that denotes nothing is the `failed` verdict,
+        which is the point of the door."""
+
     def pick_face(
         self, targets: list[NodePick], ray: Ray
     ) -> Optional[PickHit]:
@@ -2591,6 +2736,22 @@ class Evaluation:
         part count 1; a part that instantiates a part counts here too.
         Zero without a resolver: nothing crosses. Zero, too, when every
         instance was a memo hit: a reused node never asks."""
+    @property
+    def canceled(self) -> bool:
+        """Whether this run was CANCELED — the kernel's `EvalOutcome`,
+        whose two variants are a yes/no and cross as one.
+
+        True means `evaluate`'s `cancel=` token was observed set at a
+        yield point. `order()` is still the FULL deterministic order —
+        order is data, not schedule — while the results hold the
+        completed PREFIX only: every node past it answers False from
+        `succeeded` and raises `node_not_evaluated` from `value`. A
+        canceled run is a PARTIAL ANSWER, never a failed one; no node
+        in it is marked failed by the cancelation.
+
+        False with no `cancel=` passed is not a claim worth doubting:
+        `evaluate` mints a fresh token nobody can reach, so a run
+        without one cannot be canceled."""
     def step_string(
         self,
         node: NodeId,
@@ -2618,6 +2779,7 @@ def evaluate(
     *,
     resolver: Optional[Workspace] = None,
     prior: Optional[Evaluation] = None,
+    cancel: Optional[CancelToken] = None,
 ) -> Evaluation:
     """Evaluate a document. Total — never raises.
 
@@ -2654,7 +2816,25 @@ def evaluate(
     retargeted" holds for evaluations that cross the seam; a run that
     never asks does not re-assert it. Pass no prior when the question
     is whether the document still resolves against the store as it
-    stands."""
+    stands.
+
+    `cancel` is the COOPERATIVE STOP: a `CancelToken` the caller keeps
+    a handle on, checked between nodes, so a run already under way can
+    be abandoned. Omitted, this door mints a fresh token nobody holds
+    — which is what it did before the keyword existed, and is why an
+    evaluation without one is never canceled. A canceled run is a
+    PARTIAL ANSWER and not a raise: it returns normally with
+    `Evaluation.canceled` true, the full `order()`, and results for
+    the completed prefix only.
+
+    THE GIL IS RELEASED for the kernel run, which is what makes the
+    token reachable rather than decorative: the flag is set by another
+    Python thread while this one is inside the evaluation, and a
+    thread that cannot run cannot set it. `doc` is borrowed for the
+    whole call, so a concurrent MUTATION of the same document —
+    `Doc.insert`, `Doc.apply`, any door needing it mutably — raises
+    `RuntimeError("Already borrowed")` rather than editing a recipe
+    out from under a running evaluation."""
 
 # --- the assembly vocabulary ------------------------------------------
 # Two part documents in a store, instances of them in a third, mates

@@ -2,9 +2,11 @@
 id: TCOST-C1
 kind: unit
 title: corrupt input (release profile) job to the nightly
-status: dispatched
+status: closed
 opened: 2026-09-03
 branch: tcost/c1-corrupt-input-nightly
+pr: 1650
+closed: 2026-09-03
 ---
 
 CI-posture unit (Ev's ask, in-chat 2026-09-03). The job builds topo's

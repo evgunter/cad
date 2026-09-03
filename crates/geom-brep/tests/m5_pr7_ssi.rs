@@ -71,7 +71,7 @@
 //! still a row that greens without entering its own mode the day the
 //! budget starts firing everywhere. The retired `fixture_or_return!` /
 //! `carrier_or_return!` macros returned green in silence, which is the
-//! honesty gap `docs/M5-EXIT-WALK.md` row 15 recorded.
+//! honesty gap this suite closes.
 //!
 //! **Planted quantities are stated in metres, not in multipliers.** The
 //! accounting floor is `SSI_FLOOR · band.zero() · floor_scale`, so a
@@ -87,6 +87,8 @@
     clippy::unreachable
 )]
 
+use crate::shared::surf;
+use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
@@ -95,24 +97,15 @@ use geom_brep::ssi::{
     self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
     SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Band, Margin, Point3, Vec3};
+use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
 /// The accounting floor the floor-clamped fixture plants, **in metres**
 /// — far wider than any certifiable tube radius on that pair, and the
 /// same width at every ε of the battery.
 const FLOOR_CLAMP_METRES: f64 = 0.1;
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A margin the resolved band calls **definitely positive**, at any ε.
 ///
@@ -169,12 +162,7 @@ fn distance_to_carrier(carrier: &NurbsCurve3<f64>, p: Point3<f64>) -> f64 {
 
 /// The unit sphere at the origin.
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
-        radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    surf::sphere(1.0)
 }
 
 /// A thin cylinder threaded through the sphere, offset from the axis so
@@ -258,8 +246,8 @@ fn slab() -> SsiDomain {
 ///
 /// The retired `fixture_or_return!` / `carrier_or_return!` macros made
 /// that stand-down a bare `return`, so a row that asserted NOTHING
-/// reported green and nothing in the log said which it had been — the
-/// honesty gap `docs/M5-EXIT-WALK.md` row 15 records. The `BUDGET` arm
+/// reported green and nothing in the log said which it had been. The
+/// `BUDGET` arm
 /// below still pins the refusal typed, and then SAYS, by name, every
 /// property this run did not cover.
 #[test]
@@ -1070,6 +1058,11 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
+/// **Deliberately not shared with `review_m5_pr7b_ssi.rs`'s**, which
+/// is this box character for character. That suite is the reviewer's
+/// independent consumer of the same door: the box it marches in is
+/// part of what it asserts for itself, and a shared one would make the
+/// two agree about the search region by construction.
 fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
@@ -1100,7 +1093,7 @@ fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
 
 /// The wall fixture's stand-down, said out loud: which row stood down,
 /// and what it therefore did NOT cover. A bare `return` here reports
-/// coverage the run does not have (`docs/M5-EXIT-WALK.md` row 15).
+/// coverage the run does not have.
 ///
 /// One argument's worth of local vocabulary over
 /// [`test_utils::vacuity::stood_down`], not a second implementation of

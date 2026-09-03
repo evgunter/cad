@@ -20,7 +20,7 @@ design-owner adjudication replaced.
 
 ## What the record says
 
-`docs/GROUP-BOOLEAN-DESIGN.md`, acceptance:
+`crates/editor-core/README.md`, acceptance:
 
 > the heatsink's out-of-document union moves INTO the document (the F4
 > note retires at its origin, both workarounds deleted per the demo

@@ -18,6 +18,7 @@ use crate::tags::{
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
+use pncad::topo::{FaceKey, VertexKey};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -82,6 +83,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Evaluation => "EvaluationError",
             ErrorClass::Validation => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
+            ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
             ErrorClass::Parse => "ParseError",
             ErrorClass::Eval => "EvalError",
@@ -113,6 +115,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Evaluation,
         ErrorClass::Validation,
         ErrorClass::Dimension,
+        ErrorClass::FmtQuantity,
         ErrorClass::Literal,
         ErrorClass::Parse,
         ErrorClass::Eval,
@@ -283,6 +286,172 @@ fn picking_refusal_tags_are_stable() {
     );
 }
 
+/// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
+/// says so against the doors that already speak it.
+///
+/// A canceled run holds the completed PREFIX, so `Evaluation.value`
+/// on a node past it has to answer "this run has no result for that
+/// node" — the ladder's first rung, the same fact `ReadbackError` and
+/// `HitTestError` report. Those two reach the word through a `match`
+/// on a kernel arm; the evaluation door cannot, because
+/// `Evaluation::result` answers a bare `None` and the reason tag is
+/// this crate's own. So the word is a CONST and this is the pin that
+/// keeps the copy honest.
+///
+/// It runs in BOTH directions on purpose: renaming the kernel arms'
+/// tag fails here, and so does editing the const away from them. That
+/// is the property `picking_refusal_tags_are_stable` protects for the
+/// pick, one door further out.
+#[test]
+fn the_evaluation_door_speaks_the_standing_ladder() {
+    use crate::tags::{NODE_NOT_EVALUATED, hit_test_error_tag, interrogate_error_tag};
+    use pncad::document::RecipeNodeId;
+    use pncad::select::{HitTestError as H, InterrogateError as I};
+
+    let node = RecipeNodeId(0);
+    assert_eq!(
+        NODE_NOT_EVALUATED,
+        hit_test_error_tag(&H::NodeNotEvaluated { node })
+    );
+    assert_eq!(
+        NODE_NOT_EVALUATED,
+        interrogate_error_tag(&I::NodeNotEvaluated { node })
+    );
+
+    // And it is NOT the other no-entry fact. "The document has no such
+    // node" and "this run never reached it" are two states the door
+    // kept collapsed while only one of them could arise, and the whole
+    // of what B-CANCEL changed at this door is that both now can.
+    assert_ne!(NODE_NOT_EVALUATED, "unknown_node");
+}
+
+/// LIB-B-RESOLVE: the three resolution states, pinned word by word —
+/// and pinned by CONSTRUCTING them, because nothing else can.
+///
+/// Every other pin in this file builds its subject by naming a variant
+/// and filling its fields. That is unavailable here: `Resolved`,
+/// `ResolutionFailure` and `ResolveIndeterminate` are decided absent
+/// from the façade (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`), so a
+/// `Resolution` cannot be assembled at all through `pncad` — it can
+/// only be OBTAINED, by resolving a real name against a real run. So
+/// this test builds a document, and the three states are three things
+/// that happen to it.
+///
+/// That is a stronger pin than the literal one it replaces, and worth
+/// naming as such: it asserts that each state is REACHABLE by the
+/// route a caller reaches it, not merely that a match arm returns a
+/// string. It runs on the default no-Python path, so hosted CI checks
+/// the words a Python caller branches on without an interpreter.
+///
+/// The `ambiguous` and `vanished` failures are not separately reached
+/// and do not need to be: they are the same `failed` word by the same
+/// arm of the same match, and what distinguishes them does not cross
+/// (this function's own doc comment says why).
+#[test]
+fn resolution_status_tags_are_stable() {
+    use crate::tags::resolution_status_tag;
+    use pncad::document::{
+        CancelToken, Datum, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProfileDoc,
+        ProfileProgram, apply, evaluate,
+    };
+    use pncad::prelude::Dimension;
+    use pncad::select::{RunCtx, all_faces, resolve};
+
+    let tol = Tol::witness();
+    let doc: ProfileDoc = crate::identity::derived("resolution-status-probe", tol);
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+
+    let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
+        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the node inserts");
+        let id = applied.record.minted.expect("an inserted id");
+        (applied.doc, id)
+    };
+    let (doc, plane) = insert(
+        &doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, profile) = insert(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![
+                LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+                    .expect("finite corners"),
+            ],
+        }),
+    );
+    let (doc, extrude) = insert(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+
+    let run = |doc: &ProfileDoc, cancel: &CancelToken| {
+        evaluate::<f64>(doc, None, cancel, &EvalOptions::default(), tol)
+    };
+    let live = CancelToken::new();
+    let ev = run(&doc, &live);
+    let mut faces = all_faces(&ev, extrude);
+    faces.sort();
+    assert_eq!(faces.len(), 6, "a cube's six faces");
+    let stored = faces.remove(0);
+
+    // RESOLVED: the ordinary run, asked about its own name.
+    assert_eq!(
+        resolution_status_tag(&resolve(
+            RunCtx {
+                doc: &doc,
+                eval: &ev
+            },
+            &stored
+        )),
+        "resolved"
+    );
+
+    // FAILED: the minting node is gone from the document, so the name
+    // is stranded and the repair is an explicit rebind.
+    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
+        .expect("the leaf deletes")
+        .doc;
+    let after = run(&pruned, &live);
+    assert_eq!(
+        resolution_status_tag(&resolve(
+            RunCtx {
+                doc: &pruned,
+                eval: &after
+            },
+            &stored
+        )),
+        "failed"
+    );
+
+    // INDETERMINATE: the node is still there and the RUN did not reach
+    // it — a canceled run's suffix, which is the one arm of this state
+    // reachable without breaking a feature. The name is unharmed and
+    // the repair is to evaluate again, which is exactly why this must
+    // not answer `failed`.
+    let canceled = CancelToken::new();
+    canceled.cancel();
+    let partial = run(&doc, &canceled);
+    assert_eq!(
+        resolution_status_tag(&resolve(
+            RunCtx {
+                doc: &doc,
+                eval: &partial
+            },
+            &stored
+        )),
+        "indeterminate"
+    );
+}
+
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
 /// match cannot be the compile-time drift alarm the other tag
 /// functions are, and this pin does NOT restore one: it constructs
@@ -425,6 +594,56 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
          literal-value pair — it raises `LiteralError`, so decide \
          whether that is still the right class before widening this pin"
     );
+}
+
+/// LIB-B-FORMAT: the display formatter's tag map, and the CLASS
+/// question it settles.
+///
+/// The map has one arm, so the interesting content is not the string
+/// — it is that the string is `non_finite`, the SAME tag
+/// [`expr_dimension_error_tag`] answers for `NonFiniteLiteral`, while
+/// the two are nonetheless different exception classes. That is the
+/// deliberate shape: the tag names the fact (a float that is NaN or
+/// ±∞), the class names the door (INTO a recipe, or OUT to a human),
+/// and a caller who wants to know which asks the class it already
+/// caught rather than parsing a discriminant.
+///
+/// Driven through `fmt_length` / `fmt_angle` themselves rather than
+/// by constructing the arm, on
+/// [`expression_text_door_tags_are_stable`]'s reasoning: the question
+/// is what a caller sees when the door refuses, and a hand-built
+/// value pins the map against something the door might never produce.
+/// The finite half is asserted too, and it is not filler — a
+/// formatter that refused everything would satisfy the refusal
+/// assertions alone.
+#[test]
+fn display_formatter_refusals_carry_the_shared_non_finite_tag() {
+    use crate::tags::fmt_quantity_error_tag as tag;
+    use pncad::quantity::{DEG, MM, fmt_angle, fmt_length};
+
+    for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let refused = fmt_length(poison, MM).expect_err("poison has no display form");
+        assert_eq!(tag(&refused), "non_finite");
+        let refused = fmt_angle(poison, DEG).expect_err("poison has no display form");
+        assert_eq!(tag(&refused), "non_finite");
+    }
+    assert_eq!(fmt_length(0.025, MM).expect("finite"), "25 mm");
+    assert_eq!(fmt_angle(0.0, DEG).expect("finite"), "0 deg");
+
+    // Same fact, same tag, different class — the paragraph above, as
+    // an assertion rather than as a claim about what someone meant.
+    let into_a_recipe = pncad::document::Expr::literal(f64::NAN, Dimension::Length)
+        .expect_err("a non-finite literal refuses");
+    assert_eq!(expr_dimension_error_tag(&into_a_recipe), "non_finite");
+    assert_eq!(ErrorClass::Literal.class_name(), "LiteralError");
+    assert_eq!(ErrorClass::FmtQuantity.class_name(), "FmtQuantityError");
+
+    // The refusal's own prose is what crosses as the message, and it
+    // is prose rather than a `Debug` dump — the rule
+    // `crate::py::typed_err` asserts on every raise.
+    let refused = fmt_length(f64::NAN, MM).expect_err("poison has no display form");
+    assert!(reads_as_prose(&refused.to_string()));
+    assert!(!reads_as_prose(&format!("{refused:?}")));
 }
 
 /// LIB-B-EXPR-READ: the text door's tag map, arm by arm, driven
@@ -1086,5 +1305,77 @@ fn check_registry_tags_are_stable() {
             reason: "boxes refused".into()
         }),
         "separation_unavailable"
+    );
+}
+
+/// **The tier-3′ census findings do not read as prose, and that is a
+/// KERNEL rendering, not a binding one.**
+///
+/// `crate::py::typed_err` asserts every message it raises satisfies
+/// [`reads_as_prose`], and every door in this crate obeys the rule the
+/// assertion stands for — the binding never authors a `Debug` dump.
+/// Three `ValidationError` arms are worded by the kernel out of
+/// `Debug` anyway: `UndeclaredContact` renders its `CensusContact` as
+/// `{contact:?}` and carries a `witness` the kernel builds with
+/// `format!("{p:?}")`, and `StaleContactDeclaration` renders its
+/// `DeclaredContact` the same way. Only tier 3′ produces those arms,
+/// so `Body::validate_pseudomanifold` is the first door to reach them
+/// — and reach them it does, on an ordinary call: two touching solids
+/// gathered by `product`, which declares nothing.
+///
+/// This pin is the reason `run_validator` raises through
+/// `typed_err_kernel_authored`. It is deliberately an assertion that
+/// the message is NOT prose, so the day the kernel renders these arms
+/// through `Display` (filed at
+/// `work/lib/tier-3-prime-findings-render-through-debug.md`) this row
+/// goes red and the exemption can go with it.
+#[test]
+fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
+    use pncad::topo::{CensusContact, StaleDeclaration, ValidationError};
+
+    // Both arms are built here rather than by evaluating a document:
+    // this row is about the RENDERING, and a default arena key is
+    // enough to render one — nothing dereferences it.
+    let census = ValidationError::UndeclaredContact {
+        contact: CensusContact::VertexOnFace {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        },
+        // The kernel builds this field with `format!("{p:?}")`
+        // (`census::witness`), so it carries braces of its own.
+        witness: format!("{:?}", pncad::geom_core::Point3::<f64>::origin()),
+    };
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnFace {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        },
+    };
+
+    for finding in [&census, &stale] {
+        let message = finding.to_string();
+        assert!(
+            !reads_as_prose(&message),
+            "a tier-3′ census finding reads as prose now — the kernel \
+             rendering was fixed. Drop `typed_err_kernel_authored` and \
+             its exemption, let `run_validator` raise through \
+             `typed_err` again, and close the filed item. Message: \
+             {message}"
+        );
+        assert!(
+            message.contains(" { "),
+            "the struct-brace fingerprint is exactly what \
+             `reads_as_prose` rejects; without it the arm was \
+             reworded: {message}"
+        );
+    }
+
+    // The recourse survives the Debug guts: what a Python caller
+    // reads is unusable as a TAG but is still the kernel's whole
+    // diagnosis, which is why the binding pastes it rather than
+    // inventing a second wording.
+    assert!(
+        census.to_string().contains("never blessed from discovery"),
+        "the undeclared-contact recourse is the actionable half"
     );
 }

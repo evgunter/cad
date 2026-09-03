@@ -1672,8 +1672,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // deviation 1, and since M6-2 its blocker is
                         // the unwired JOIN lane alone — the generic
                         // lift and Pcurve::Fitted both landed there.
-                        // Certified boxes prove separation, anything
-                        // closer refuses typed.
+                        // The exact DECLARED-coaxial classification
+                        // does not retire this and the message is
+                        // re-verified rather than moved: this scan asks
+                        // about NEARNESS between two arbitrary trimmed
+                        // faces, which no coaxial section answers, and
+                        // it has no declaration channel to reach one
+                        // through in any case. Certified boxes prove
+                        // separation, anything closer refuses typed.
                         if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,

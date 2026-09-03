@@ -17,6 +17,29 @@
 //! - one deterministic row per typed refusal class.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). Three claims, all of them about the
+// authoring lattice: every authored point lies on the final path, the two
+// tangency refusals are unreachable from the typed surface, and every
+// refusal is typed rather than a panic. They rest on the path builder and
+// its verbs, on the validator that judges the resulting shape, and on the
+// segment/structure types the assertions read. `geom-core`'s tolerance and
+// predicate are named because the near-tangent bands the sweep aims at are
+// decided there, so a change to either moves which refusals are reachable
+// with `profile/` untouched.
+// `tests/common/` is named for the same reason: `common::pinned` supplies the
+// fixtures. A marker's own file is implicit; a sibling helper module is not.
+test_utils::gated_to![
+    "crates/profile/src/path/",
+    "crates/profile/src/path.rs",
+    "crates/profile/src/validate.rs",
+    "crates/profile/src/structure.rs",
+    "crates/profile/src/seg.rs",
+    "crates/profile/src/sugar.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-core/src/predicate.rs",
+    "crates/profile/tests/common/",
+];
+
 use crate::common;
 
 use common::pinned;
@@ -1102,7 +1125,7 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 ///    radii at ρ = 1 − 5 = −4, so the requested circle would contain
 ///    each lobe whole and the corner with it. No fillet of this corner
 ///    exists at this radius and none ever will
-///    (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so the refusal is the
+///    (`crates/profile/README.md`), so the refusal is the
 ///    enclosing one and it names the lobe radius as the bound. The
 ///    §3c CARRIER-KIND payload this row used to pin — an arc side's
 ///    arc-length setback and ANGULAR margin — has its own home at

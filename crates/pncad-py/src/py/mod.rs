@@ -13,6 +13,7 @@ mod place;
 mod quantity;
 mod readback;
 mod refactor;
+mod resolve;
 mod select;
 mod store;
 mod value;
@@ -73,6 +74,22 @@ pyo3::create_exception!(
      (issue #694). So `DimensionError` never intercepts an \
      expression-layer mismatch — the text door is where one is \
      branchable."
+);
+pyo3::create_exception!(
+    pncad,
+    FmtQuantityError,
+    PncadError,
+    "`Length.format` or `Angle.format` refused a value: it is NaN or \
+     ±∞, and a non-finite quantity has no display form. Carries \
+     `variant` (`\"non_finite\"`) and `value`, the refused float.\n\n\
+     Reachable, and that is why it is typed rather than asserted \
+     away. `quantity`'s newtypes are plain value wrappers that \
+     refuse no float, so `float(\"inf\") * mm` is an ordinary \
+     `Length`; poison is stopped at the doors values LEAVE through, \
+     and rendering one for a human is one of those. The recourse is \
+     upstream by construction — nothing this formatter could be \
+     asked differently turns poison into text — so the message names \
+     the operation that produced the value."
 );
 pyo3::create_exception!(
     pncad,
@@ -429,6 +446,10 @@ pyo3::create_exception!(
 /// built wheel. A Debug dump reaching a user is a binding bug, and
 /// D9's converse says a detectable bug state panics; what the check
 /// cannot see is a door no test reaches.
+///
+/// **One door raises through [`typed_err_kernel_authored`] instead**,
+/// and the split is what keeps this assertion meaningful rather than
+/// negotiable — see that function for the whole argument.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -442,11 +463,71 @@ pub(crate) fn typed_err(
          message belongs: {message}",
         class.class_name()
     );
+    raise_typed(py, class, message, fields)
+}
+
+/// Raise a typed refusal whose message is a kernel `Display` the
+/// BINDING did not compose — the prose assertion does not run.
+///
+/// The rule [`typed_err`] enforces is "the binding never authors a
+/// `Debug` dump", and every door in this crate obeys it. What
+/// [`crate::errors::reads_as_prose`] actually detects is narrower: the
+/// struct-brace fingerprint anywhere in the finished string, whoever
+/// put it there. Those coincide at every raise but one.
+///
+/// `Body::run_validator` joins `topo::ValidationError`'s own `Display`
+/// over every finding, and the kernel composes three of that enum's
+/// forty-odd arms out of `Debug`:
+/// `UndeclaredContact` renders its `CensusContact` as `{contact:?}`
+/// and carries a `witness` field the kernel documents as "a debug
+/// rendering of the witnessing position" (`census::witness` is
+/// `format!("{p:?}")`), and `StaleContactDeclaration` renders its
+/// `DeclaredContact` the same way. Only tier 3′ produces those arms,
+/// so binding the fourth validator rung is what first reached them —
+/// and the assertion's own disclosure ("what the check cannot see is
+/// a door no test reaches") is exactly what happened.
+///
+/// The three available moves, and why this is the one taken.
+/// Re-rendering the arms here would invent a second vocabulary for a
+/// diagnosis the kernel already words, and the witness position is an
+/// opaque `String` no consumer can re-derive — so a faithful binding
+/// would have to DROP the coordinate that makes the finding
+/// actionable. Suppressing the fingerprint by editing the kernel's
+/// text would defeat the check with the very byte it looks for.
+/// Fixing the rendering is a `crates/topo` change, which is a kernel
+/// need and is filed rather than taken
+/// (`work/lib/tier-3-prime-findings-render-through-debug.md`); until
+/// it lands, the honest thing is to hand the reader every byte the
+/// kernel diagnosed and to say here, once, why the guard is not run.
+///
+/// This is not a general escape hatch and must not become one: it has
+/// ONE caller, the message it takes is `ValidationError::to_string()`
+/// by construction, and the text it currently produces is PINNED in
+/// the Python suite — so the kernel fix turns that pin red rather
+/// than landing silently.
+pub(crate) fn typed_err_kernel_authored(
+    py: Python<'_>,
+    class: ErrorClass,
+    message: impl Into<String>,
+    fields: &[(&str, Py<PyAny>)],
+) -> PyErr {
+    raise_typed(py, class, message.into(), fields)
+}
+
+/// The construction itself, shared by the two doors above so the
+/// class table and the attribute loop have one home.
+fn raise_typed(
+    py: Python<'_>,
+    class: ErrorClass,
+    message: String,
+    fields: &[(&str, Py<PyAny>)],
+) -> PyErr {
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
         ErrorClass::Evaluation => EvaluationError::new_err(message),
         ErrorClass::Validation => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
+        ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
         ErrorClass::Parse => ParseError::new_err(message),
         ErrorClass::Eval => EvalError::new_err(message),
@@ -503,6 +584,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("EvaluationError", py.get_type::<EvaluationError>())?;
     m.add("ValidationError", py.get_type::<ValidationError>())?;
     m.add("DimensionError", py.get_type::<DimensionError>())?;
+    m.add("FmtQuantityError", py.get_type::<FmtQuantityError>())?;
     m.add("LiteralError", py.get_type::<LiteralError>())?;
     m.add("ParseError", py.get_type::<ParseError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
@@ -536,6 +618,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     select::register(m)?;
     readback::register(m)?;
     pick::register(m)?;
+    resolve::register(m)?;
     store::register(m)?;
     mate::register(m)?;
     assembly::register(m)?;

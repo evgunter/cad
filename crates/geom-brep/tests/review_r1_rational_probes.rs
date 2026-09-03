@@ -27,17 +27,12 @@ use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, RingInterval};
+use geom_core::{MarginDiag, RingInterval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-/// The engine's convergence target as a multiple of ε
-/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here so a
-/// refusal's carried target can be checked against the run's ε).
 /// Relative-ulp overshoot of `v` outside `[lo, hi]`; `0.0` when inside.
 ///
 /// A DIAGNOSTIC, printed on every probe row so that a carrier drifting
@@ -49,7 +44,11 @@ fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
     ((lo - v).max(v - hi).max(0.0)) / (mag * f64::EPSILON)
 }
 
-const TARGET_LEN_FACTOR: f64 = 1024.0;
+/// The engine's convergence target as a multiple of ε
+/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here, once for
+/// the aggregated binary, so a refusal's carried target can be checked
+/// against the run's ε).
+pub(crate) const TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The corpus's declared ambient uncertainty — the ε the fixed
 /// quadrature schedule (D9) is dimensioned for, and the boundary the
@@ -135,7 +134,13 @@ enum Posture {
     /// (checked in the `Ok` arm of [`probe`]).
     Certified,
     /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor is
-    /// DEFINITELY above the run's target. Carries the measured floor.
+    /// DEFINITELY above the run's target. Carries the width the
+    /// schedule's LAST round reaches: measured, when the schedule ran
+    /// out, or its lower bound, when the loop proved after round 0
+    /// that the last round could not certify and refused without
+    /// running it. The two differ by the midpoint sum's own rounding
+    /// width — at most 4e-4 relative on every carrier below, inside
+    /// the pins' 1e-3 window — so a pin reads either the same way.
     Budget(f64),
     /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
     /// `props_quad_converged` escalates through the funnel before the
@@ -155,7 +160,10 @@ enum Posture {
 /// The refinement schedule is fixed by D9 and only the target moves
 /// with ε, so a carrier that refuses at the budget refuses with the
 /// SAME width on every ε row; the pinned number is that width, as
-/// measured by this suite. A carrier whose floor sits under the run's
+/// measured by this suite. The refusal's payload is that width or its
+/// lower bound ([`Posture::Budget`]) — every pin below was re-read
+/// against the bound, none moved past its window, and no pinned
+/// number changed. A carrier whose floor sits under the run's
 /// target certifies instead (the ε row working as designed), so only
 /// the budget arm is pinned — the anti-vacuity test below is what
 /// keeps "everything refuses" from being green.
@@ -185,14 +193,6 @@ fn pin_floor(name: &str, posture: Posture, floor: f64) {
 // the engine can return and `posture_of` still classifies it; a
 // carrier that starts reaching it again wants the helper back and, more
 // importantly, wants explaining.
-
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
-}
 
 // ---------------------------------------------------------------
 // The independent oracle: plain-f64 B-spline basis + derivatives
@@ -289,6 +289,10 @@ struct Patch {
 
 impl Patch {
     /// (S, S_u, S_v) by the quotient rule on the homogeneous sums.
+    /// **Deliberately not `shared::patch::Patch::eval`**, which is this
+    /// text: it calls this file's OWN `basis`, whose span seeding is
+    /// where this suite's independence lives (see this module's `basis`).
+    /// The quadrature loop under it IS shared — `patch::dense_over`.
     fn eval(&self, u: f64, v: f64) -> ([f64; 3], [f64; 3], [f64; 3]) {
         let bu = basis(&self.ku, self.du, self.nu, u);
         let bv = basis(&self.kv, self.dv, self.nv, v);
@@ -500,6 +504,7 @@ fn probe(
                 PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 } => {
                     assert!(
                         width_len.is_finite() && width_len > target_len,
@@ -993,11 +998,16 @@ fn probe_determinism_bits() {
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
+            ..
         }) => {
             println!("BUDGET width_len {width_len:.15e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);
             // The schedule is fixed (D9), so this carrier bottoms out
-            // at the same displacement whatever the target is.
+            // at the same displacement whatever the target is. The
+            // payload is the last round's lower bound (the loop refuses
+            // after round 0 once it has proved the schedule cannot
+            // certify): 2.0e-5 relative under the pinned measurement,
+            // which the window below covers without a digit moving.
             assert!(
                 (width_len - QUARTER_CYLINDER_FLOOR).abs() <= 1e-3 * QUARTER_CYLINDER_FLOOR,
                 "the quarter cylinder's refusal floor MOVED: {width_len:e} against \

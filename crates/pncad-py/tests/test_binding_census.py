@@ -465,6 +465,32 @@ BOUND_AS = {
     # crosses holding `NodePick`s.
     "PickTarget": "NodePick",
     "pick_face": "Evaluation.pick_face",
+    # NAME RESOLUTION across re-evaluation, the verdict a stored name
+    # gets on the next run. `Resolution` is spelled identically and is
+    # accounted by rule 1; these two are the family's shape entries,
+    # and both left the `gap` roster at LIB-B-RESOLVE, which closed it.
+    #
+    # `resolve` is a free function taking the run, so it arrives as an
+    # `Evaluation` method beside the read-back and picking doors above
+    # — the same shift, for the same reason.
+    #
+    # `RunCtx` is the entry that carries the argument. Rust's is a
+    # `(doc, eval)` PAIR because neither half answers alone: the
+    # evaluation holds the name tables, and the document decides
+    # whether a stored name's minting node is still in the recipe at
+    # all. Python's `Evaluation` IS that pair — it captures the
+    # document at `evaluate`, beside the `ParamEnv` it already captured
+    # for `select_where`, and for the identical reason stated there:
+    # the answer must be as of the document the evaluation is OF, and
+    # threading a doc back in per query would let the two drift (the
+    # sharper form of that hazard here, since Python's `Doc` is
+    # mutable and `accept` swaps it under the handle). The
+    # carrier-projection rule reads out as it did for `PickTarget`: a
+    # payload's category follows what its CARRIER does at the crossing,
+    # the carrier is the door's run argument, and that argument crosses
+    # as the `Evaluation`.
+    "RunCtx": "Evaluation",
+    "resolve": "Evaluation.resolve",
     # The expression surface, which hangs off the DOCUMENT for the
     # read-back doors' reason one layer over: all three free
     # functions take a per-document table — `parse_expr` the declared
@@ -486,6 +512,27 @@ BOUND_AS = {
     "eval_count": "Doc.eval_count",
     "parse_expr": "Doc.parse_expr",
     "unparse": "Expr.text",
+    # The display formatter, on the receiver the carrier-projection
+    # rule picks — the same reading that put `unparse` on `Expr` two
+    # entries up, applied to a door whose Rust signature does NOT
+    # name its carrier. `fmt_length` takes canonical metres as a bare
+    # `f64` because Rust reaches this module from BELOW, where the
+    # newtype is already unwrapped; Python has no such caller, and
+    # what a Python consumer holds is a `Length` precisely so that a
+    # length and an angle cannot be interchanged. Binding the free
+    # functions as free functions would hand that interchange back —
+    # `fmt_length((90 * deg).radians, mm)` type-checks and prints
+    # plausible nonsense — so the door lands where the value it needs
+    # already lives, and `Length.format(deg)` is refused the way
+    # every other dimension confusion at this boundary is.
+    #
+    # `FmtQuantityError` is spelled identically in the stub and is
+    # accounted by rule 1, not here.
+    #
+    # They left the `gap` roster at LIB-B-FORMAT, which closed
+    # B-FORMAT.
+    "fmt_angle": "Angle.format",
+    "fmt_length": "Length.format",
     # The four different-shape entries LIB-G18b left behind after
     # binding the rest of the assembly vocabulary name-for-name.
     #
@@ -553,6 +600,16 @@ BOUND_AS = {
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",
+    # The fourth rung takes a SECOND argument in Rust, and it crosses
+    # by being captured rather than passed: a `Body` carries the
+    # declared contacts its producer minted for it, so the Python door
+    # is a bare method like the three above it. `ContactRecords` stays
+    # `INTERIOR` for the reason it always was — nothing hands one out
+    # — and now for a second: there is no Python constructor, so a
+    # door taking one would be uncallable, and a door taking ANOTHER
+    # body's records would spell exactly the mis-pairing tier 3′
+    # exists to refuse.
+    "validate_pseudomanifold": "Body.validate_pseudomanifold",
     "write_ascii": "Mesh.to_stl_ascii",
     "write_binary": "Mesh.to_stl_binary",
 }
@@ -606,17 +663,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-RESOLVE": (
-        "name resolution across re-evaluation; closing it binds "
-        "`resolve` and its `Resolution` verdict — the question every "
-        "consumer that STORES names must ask on the next run, which is "
-        "every consumer the stub tells to store one"
-    ),
-    "B-CANCEL": (
-        "cooperative cancellation; closing it puts a `CancelToken` on "
-        "the `evaluate(doc)` door, which today takes none — so a Python "
-        "caller cannot stop a long evaluation at all"
-    ),
     "B-NOTATION": (
         "authored notation, the D6 boundary's other half; closing it "
         "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
@@ -625,12 +671,6 @@ FAMILIES = {
         "today the unit erases at the `Length` door and the document "
         "records the canonical row, which is what Rust authoring "
         "stopped doing at schema v20"
-    ),
-    "B-FORMAT": (
-        "the D6 display formatter; closing it binds `fmt_length` / "
-        "`fmt_angle` and their refusal, so choosing digits and a symbol "
-        "stops being hand-work Python redoes beside `Length.in_unit`'s "
-        "bare float"
     ),
     "B-DISTRIBUTIONS": (
         "parameter uncertainty and the analysis lane (ERROR-DESIGN "
@@ -652,9 +692,14 @@ FAMILIES = {
     "B-MEASURES": (
         "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
         "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
-        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "four verbs and `AssertionDir` onto `Node.measure` / "
         "`Node.assertion` constructors, with `MeasureNodeFault` as the "
-        "refusal a caller dispatches on. The READ half already ships "
+        "refusal a caller dispatches on, and `MinClearanceRefusal` / "
+        "`MeasureUnavailableAt` as the two the FOURTH verb adds: "
+        "`min_clearance` is answered by an engine rather than a "
+        "closed form (M10-6), so it can refuse for the engine's own "
+        "reasons, and at a point scalar it has no value at all and "
+        "says which scalar and which door could answer. The READ half already ships "
         "and is deliberately not in this gap: `Value.measure` answers "
         "with a `Measurement` (value plus the F1 dimension it rides) "
         "and `Value.assertion` with a `Verdict` (three states kept "
@@ -666,12 +711,6 @@ FAMILIES = {
         "caller cannot yet do is WRITE one — the same asymmetry "
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
-    ),
-    "B-VALIDATE4": (
-        "the fourth validator rung; closing it binds "
-        "`validate_pseudomanifold` beside the three `Body` already "
-        "carries — the ladder is bound three-quarters and this is the "
-        "missing quarter"
     ),
 }
 
@@ -822,7 +861,10 @@ FAMILIES = {
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior behind `FlushFinding` (`DeclaredContact`, `ContactVerdict`,
 #: `ContactRefusal`, `FlushEvidence`, `ContactRecords`,
-#: `BooleanDeclarations`), the fillet's coincidence band
+#: `BooleanDeclarations` — `ContactRecords` is behind a SECOND door
+#: since LIB-B-VALIDATE4, `Body.validate_pseudomanifold`, which takes
+#: one in Rust and captures it here rather than asking a caller for a
+#: value they cannot build), the fillet's coincidence band
 #: (`Band`, `BandError`, built from the run's epsilon), and
 #: `ContentBits` — a TRAIT, and Python has no way to spell one.
 #:
@@ -953,11 +995,42 @@ FAMILIES = {
 #: `work/lib/mesh-pick-error-is-unmatchable-under-node-pick-error.md`,
 #: the `DanglingRef` shape one rung along: a payload whose carrier
 #: projects arms, that has no arms of its own to project.
-#: - **B-RESOLVE — name resolution across re-evaluation.** `resolve`,
-#:   `Resolution`, `RunCtx`. The question a consumer that STORES names
-#:   must ask on every run — and Python's whole selection story is
-#:   store-then-reuse (`Node.fillet` freezes a name set), so the
-#:   absence bites exactly the consumers the stub tells to store.
+#: **B-RESOLVE is CLOSED and no longer a `gap` id here**
+#: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
+#: `RunCtx` — and the question a consumer that STORES names must ask
+#: on every run is now askable in the language whose whole selection
+#: story is store-then-reuse: `Evaluation.resolve(name)` answers a
+#: three-state verdict for any name `select`, `all_faces` or a
+#: `PickHit` handed back on an earlier run.
+#:
+#: What the closing measured is a LIMIT, and it is the family's own
+#: version of a shape this roster has now recorded three times. The
+#: verdict's three arms cross — they are matchable, because
+#: `Resolution` is itself curated — but their PAYLOAD types are not:
+#: `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
+#: decided absent from the façade (`crates/pncad/tests/all.rs`'s
+#: `NOT_CARRIED`, "Naming interior"), which states the disposition
+#: exactly — the verdict left that family and its ladder did not,
+#: because "`Resolution`'s arms answer it ... through pattern matching
+#: and `Display`, without naming a payload type". So a Python caller
+#: learns THAT a name failed and can read the kernel's prose about it,
+#: but gets no `vanished` / `ambiguous` / `node_gone` discriminant to
+#: branch on, where every arm of the carrier itself is a branch. This
+#: unit did not relitigate that; it is banked as
+#: `work/lib/resolution-failure-arms-are-unmatchable-under-resolution.md`,
+#: beside `DanglingRef`'s and `MeshPickError`'s — the third instance,
+#: and the first where the carrier is a VALUE rather than a refusal,
+#: which is what makes it worth recording separately.
+#:
+#: Two things the binding gained that the charter did not name.
+#: `RunCtx` is a PAIR in Rust and Python's `Evaluation` became that
+#: pair — it now captures the document at `evaluate` beside the
+#: `ParamEnv` it already captured, so a caller cannot ask an
+#: evaluation about a document it is not of. And the door is
+#: EVALUATION-WIDE where `denotation` is node-scoped: `resolve`
+#: answers which node carries a name, so it resolves names
+#: `denotation` refuses `no_such_name` for at the node a caller
+#: happened to ask.
 #: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
 #: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
 #: `EvalError` — and closing it moved NINE, because the three could
@@ -990,9 +1063,53 @@ FAMILIES = {
 #: signature gap on that page is watched in. G1 keeps a citation
 #: here regardless, on a different residue of the same row:
 #: `ArrivesTangent`, the seam's declared tangent joint.
-#: - **B-VALIDATE4 — the fourth validator rung.**
-#:   `validate_pseudomanifold`. `Body` binds three of the ladder's
-#:   four; this one is simply missing.
+#:
+#: **B-VALIDATE4 is CLOSED and no longer a `gap` id here**
+#: (LIB-B-VALIDATE4). It held ONE name, `validate_pseudomanifold`,
+#: and closing it moved exactly that one — B-FORMAT's cheap case
+#: rather than B-EXPR-READ's expensive one, and the audit-reach check
+#: that separates them came back negative again: the door needs a
+#: body and a `ContactRecords`, Python has had `Body` since §L4, and
+#: no other id owned an entry this unit had to build.
+#:
+#: **What was NOT already crossing is the second argument, and how it
+#: crosses is the family's whole content.** `ContactRecords` has no
+#: Python constructor and never will — it is minted by the ops that
+#: certify geometry — so a `validate_pseudomanifold(contacts)` door
+#: would be a door nobody can call, and one taking ANOTHER body's
+#: records would spell precisely the mis-pairing F1 refuses. The
+#: records are therefore CAPTURED: a `Body` carries the declarations
+#: its producer minted for it, and the Python door is a bare method
+#: like the three rungs below it. That is #1668's carrier-projection
+#: rule (`fmt_length` landing on the `Length` it needs) at a door
+#: whose Rust signature takes two things, and #1664's pairing
+#: argument (`RunCtx` becoming `Evaluation`) at a door that would
+#: otherwise let a caller ask one body about another's intent.
+#: `ContactRecords` accordingly stays `INTERIOR` — the same
+#: disposition, now with a second reason under it.
+#:
+#: **The capture reconciles the kernel's two homes for a record set,
+#: and does it where the kernel does.** `NodeValue::contacts` is what
+#: `instantiate` carried in (D-1); a boolean's records ride
+#: `BooleanValue::Body` instead; `editor_core::product::sources_of`
+#: is where the two meet, and `Value.body` / `Value.bodies` now make
+#: the same reconciliation so a body read off a value and the same
+#: body read by the gather cannot disagree about what was declared
+#: over it. `assemble` is the second source (D-1 plus the mates'
+#: minted D-2), and `product` is deliberately the third case: it
+#: gathers and declares NOTHING, so its body is plain. Those two are
+#: the same geometry through two doors, and the suite pins that they
+#: answer differently — which is the only way to show from Python
+#: that the capture is load-bearing rather than decorative.
+#:
+#: **One thing the closing measured, and it is a defect the other
+#: three rungs could not reach.** Only tier 3′ produces the census
+#: arms, and the kernel words three of them out of `Debug` — so the
+#: first honest call of this door PANICKED inside the crate's own
+#: "never a `Debug` dump" assertion. Filed, not fixed
+#: (`work/lib/tier-3-prime-findings-render-through-debug.md`); the
+#: raise takes a narrow, single-caller exemption that says why, and
+#: the text is pinned so the kernel fix goes red.
 #: **G16 is CLOSED and no longer a `gap` id here** (LIB-G16). It held
 #: `chamfer_edges` and `Chamfered`, and its own row said what would
 #: close it: "the day `Node::Chamfer` lands, binding it is the
@@ -1006,13 +1123,72 @@ FAMILIES = {
 #: error `kind` tag (`fillet`/`chamfer` and the three
 #: `*_selection_*` tags), so the discriminant crosses — just not as a
 #: type.
-#: - **B-CANCEL — cooperative cancellation.** `CancelToken`.
-#:   `evaluate(doc)` takes none, so a Python caller cannot stop a long
-#:   evaluation.
-#: - **B-FORMAT — the D6 display formatter.** `fmt_length`,
-#:   `fmt_angle`, `FmtQuantityError`. `Length.in_unit` answers a bare
-#:   float; choosing digits and a symbol is the formatter's job and
-#:   Python redoes it by hand.
+#: **B-CANCEL is CLOSED and no longer a `gap` id here**
+#: (LIB-B-CANCEL) — the last of the queued mechanical sweep, and the
+#: one whose accounting says the most about what a charter can and
+#: cannot see. It held ONE name, `CancelToken`, and
+#: closing it moved that one; by the B-FORMAT arithmetic that is the
+#: cheap case. It was not, and the reason is the family's own shape.
+#:
+#: **A door's ARGUMENT crossing is not the same as its ANSWER
+#: crossing, and this charter counted only the first.** B-FORMAT was
+#: cheap because `fmt_length`'s arguments already had Python
+#: spellings; B-CANCEL's argument is a token nobody had to build
+#: either — `CancelToken` is an `Arc<AtomicBool>` with two methods.
+#: What was missing was the OTHER end: a canceled run answers by
+#: being a PARTIAL `Evaluation`, and Python could not ask an
+#: `Evaluation` whether it completed. So the family bound its one
+#: chartered name and then had to bind the answer that name makes
+#: reachable — `Evaluation.canceled` — before the door meant
+#: anything. **A charter that names the ARGUMENT of a missing door
+#: undercounts by whatever the door ANSWERS with**, which is the
+#: general form of the thing B-EXPR-READ found by splitting on
+#: audit reach and B-FORMAT found by not needing to.
+#:
+#: `EvalOutcome` therefore stays `different-shape` and is the ONE
+#: roster entry this family re-cut in place rather than moved: see
+#: its entry, which now records a shape it did not have when the
+#: disposition was written.
+#:
+#: The audit-reach check ran first, as it now does on every family,
+#: and came back NEGATIVE in the strongest available form:
+#: `docs/guide/north-star-audit.md` does not contain the string
+#: "cancel" at all. No tour scene interrupts an evaluation, so no
+#: audit gap id reaches this door and nothing was filed under another
+#: id to reclaim — the census's founding finding in its purest case,
+#: and the reason this family was census-owned rather than cited.
+#:
+#: The positive form is `tests/test_cancellation.py`. Its oracle is
+#: the kernel's own contract on a canceled run — full `order()`, the
+#: completed prefix, node granularity — read back through the doors
+#: that report it, with the DETERMINISTIC arm (a token canceled
+#: before the run starts, so the check before the first node fires)
+#: as the pin, and the interruption of a run already under way
+#: measured rather than threshold-guarded. What that arm needed was
+#: not a kernel change: it was releasing the GIL across the kernel
+#: call, because a Python thread that cannot run cannot set a flag.
+#: **B-FORMAT is CLOSED and no longer a `gap` id here**
+#: (LIB-B-FORMAT). It held three names — `fmt_length`, `fmt_angle`
+#: and `FmtQuantityError` — and closing it moved exactly those three,
+#: which is worth recording only because the family before it did not:
+#: B-EXPR-READ chartered three and moved nine. The difference is not
+#: luck, it is that this family's pins were ALREADY BOUND.
+#: `fmt_length` needs a canonical value and a `LengthUnit`; Python has
+#: had `Length` and the seven unit constants since §L4, so there was
+#: nothing to build first and no entry filed under another id to
+#: reclaim. A family is cheap when its arguments already cross, and
+#: that is the only general thing the two closings say together.
+#:
+#: `FmtQuantityError` is a top-level name in `pncad.pyi` and needed no
+#: `BOUND_AS`; `fmt_length` and `fmt_angle` are `BOUND_AS` METHODS on
+#: the quantity they format, for the reason recorded at their entry —
+#: the receiver is what makes `Length.format(deg)` unspellable. The
+#: positive form is `tests/test_quantities.py`, whose oracle is the
+#: EXPRESSION PARSER: `Doc.parse_expr(x.format(u))` evaluates back to
+#: `x`'s exact bits, which is the formatter's own headline pin
+#: checked against the door it names — something the Rust side cannot
+#: do, since `quantity` sits below `editor-core` and its fixture has
+#: to transliterate the parser's literal rule by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
     "ALL_SURFACE_KINDS": SHAPE,
@@ -1033,6 +1209,21 @@ NOT_BOUND = {
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
+    # A two-variant enum flattened to the boolean that answers it:
+    # `Evaluation.canceled`, bound at LIB-B-CANCEL.
+    #
+    # RE-CUT rather than moved, and the re-cut is the point. This
+    # disposition was written when Python's `evaluate` minted a token
+    # nobody could reach, so the outcome of a Python evaluation was a
+    # CONSTANT — `Completed`, on every run, unconditionally. A
+    # constant needs no accessor, so `different-shape` was true
+    # vacuously: there was no Python shape, and none was owed.
+    # B-CANCEL's `cancel=` made the second variant reachable and the
+    # entry therefore owed a real shape, which is the general hazard
+    # this file should be read for — a disposition can be honest about
+    # a surface and stop being honest when a NEIGHBOURING door opens,
+    # with nothing mechanical to say so. Nothing here fails when that
+    # happens; only reading the entry beside the door does.
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
@@ -1168,6 +1359,17 @@ NOT_BOUND = {
     # the category — it is `ValidationError::ContactContradicted`'s
     # payload, it has been curated all along, and it sits at
     # `INTERIOR`.
+    #
+    # LIB-B-VALIDATE4 bound the door that PRODUCES those arms and left
+    # this disposition standing, with one sharper thing to say for it.
+    # A census finding does reach Python — inside the joined message,
+    # through the kernel's own `Debug` rendering of this type, keys and
+    # all. So the sentence above is exact rather than comfortable:
+    # nothing here is a thing Python can READ, and the reason a tag
+    # map was not written to fix that is that the rendering is the
+    # KERNEL's (`work/lib/tier-3-prime-findings-render-through-debug
+    # .md`), so inventing a second vocabulary at the boundary would
+    # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
@@ -1247,6 +1449,13 @@ NOT_BOUND = {
     "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
     "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
+    # The two M10-6 added with the fourth verb. They are READING
+    # names — a caller dispatches on them after an evaluation, not
+    # while authoring — but the read door that would surface them
+    # (`Value.measure` on a `min_clearance`) cannot be reached until
+    # the authoring half exists, so they close with the same family.
+    "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
@@ -1276,10 +1485,12 @@ NOT_BOUND = {
     # `PickTarget` as `NodePick`, the value that plays its role in a
     # language where a raw target has no constructor. The positive
     # form is `tests/test_picking.py`.
-    # --- gap: name resolution (census-owned) ----------------------
-    "Resolution": f"{GAP}: B-RESOLVE names across runs",
-    "RunCtx": f"{GAP}: B-RESOLVE names across runs",
-    "resolve": f"{GAP}: B-RESOLVE names across runs",
+    # B-RESOLVE IS GONE FROM THIS ROSTER, closed at LIB-B-RESOLVE, and
+    # the id is gone from `FAMILIES` with it. One of its three names is
+    # top-level in `pncad.pyi` name for name (`Resolution`); two are in
+    # `BOUND_AS` — `resolve` as `Evaluation.resolve`, and `RunCtx` as
+    # `Evaluation`, which is the (document, evaluation) pair the Rust
+    # type is. The positive form is `tests/test_resolve.py`.
     # --- gap: the seam's declared arrival (audit G1) ---------------
     # The token that DECLARES the seam's tangent joint (PATHS-DESIGN §6;
     # ruled 2026-09-02 — every zero-turn joint is a declared tangent
@@ -1317,11 +1528,25 @@ NOT_BOUND = {
     # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
-    "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
-    "FmtQuantityError": f"{GAP}: B-FORMAT the D6 display formatter",
-    "fmt_angle": f"{GAP}: B-FORMAT the D6 display formatter",
-    "fmt_length": f"{GAP}: B-FORMAT the D6 display formatter",
-    "validate_pseudomanifold": f"{GAP}: B-VALIDATE4 the fourth validator rung",
+    # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
+    # the id is gone from `FAMILIES` with it. `CancelToken` is a
+    # top-level name in `pncad.pyi` at that exact spelling and needed
+    # no `BOUND_AS`; it was the family's only entry and it left alone.
+    # What it did NOT leave alone is `EvalOutcome`, three screens up,
+    # whose `different-shape` was vacuous until this door opened — the
+    # paragraph above says why a charter naming a door's ARGUMENT
+    # undercounts by whatever that door ANSWERS with.
+    # B-FORMAT IS GONE FROM THIS ROSTER, closed at LIB-B-FORMAT, and
+    # the id is gone from `FAMILIES` with it. All three of its names
+    # left and nothing else moved with them — the paragraph above says
+    # why that is the boring case and B-EXPR-READ's was not.
+    # B-VALIDATE4 IS GONE FROM THIS ROSTER TOO, closed at
+    # LIB-B-VALIDATE4, with its id gone from `FAMILIES`. It held ONE
+    # name and moved exactly that one — B-FORMAT's case, for
+    # B-FORMAT's reason (its arguments already crossed), except that
+    # the second argument crossed by being CAPTURED rather than by
+    # already having a spelling; `BOUND_AS` says how, and
+    # `tests/test_validate.py` is the positive form.
 }
 
 

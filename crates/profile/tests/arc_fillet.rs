@@ -425,7 +425,7 @@ fn a_negative_radius_is_refused_by_the_sign_gate_at_the_verb() {
 /// go negative (ρ₁ = −1, ρ₂ = −3/2): every circle of that radius tangent
 /// to either carrier on this turn side contains the carrier whole, and
 /// the corner sits on both carriers, so no such circle can touch the
-/// corner it would round. `docs/ENCLOSING-TANGENCY-DESIGN.md` rules that
+/// corner it would round. `crates/profile/README.md` rules that
 /// class permanently out, and the door names it before a candidate
 /// centre exists.
 ///

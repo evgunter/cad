@@ -83,10 +83,14 @@
 //!
 //! # Which refusal arms have a row, and which cannot
 //!
-//! `ClearanceRefusal` has ten arms. Rows below cover `Budget(Pairs)`,
+//! `ClearanceRefusal` has ELEVEN arms since M10-6 (`NoAdmittedPair`
+//! joined, for the minimum-separation door: two selections whose only
+//! candidate pairs the wedge rule drops). Rows below cover
+//! `Budget(Pairs)`,
 //! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
 //! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
-//! adopted probe suites. FIVE refusal shapes have NO row, and the reason
+//! adopted probe suites, and `NoAdmittedPair` by M10-6's own suite.
+//! FIVE refusal shapes have NO row, and the reason
 //! is the same for each: they are not reachable on any document these
 //! fixtures can build.
 //!
@@ -617,11 +621,28 @@ fn a_bound_over_the_parameter_band_is_violated() {
     );
     let d = witness_distance(&report);
     assert!(d < 0.5, "the witness is under the bound: {d}");
-    // Measured at the leaf's midpoint, where the gap is its nominal
-    // 0.4 — so no witness can be closer than that.
+    // **And no closer than the midpoint gap allows, UP TO THE BOX'S OWN
+    // WIDTH** — which is a correction to what this row used to claim.
+    //
+    // The rebuild does evaluate at the leaf's midpoint, where the gap is
+    // its nominal 0.4. But the two cells it searches are cells of the
+    // CARRIER WINDOW, and a window is derived from a boundary enclosure
+    // taken over the whole parameter box: it is a superset of the face
+    // by about the box's own width. So a station can sit that far
+    // outside the face it belongs to, and the witness distance can
+    // undershoot the midpoint gap by the same order. Measured: 0.4 −
+    // 3.125e-8 at ε = 1e-6, where the box is ε/32 = 3.125e-8 wide.
+    //
+    // The slack is therefore expressed in the BOX's width and not as an
+    // absolute constant. The old `1e-9` held only because the box is
+    // ε-relative and ε is usually 1e-9 or finer; at the 1e-6 row of the
+    // matrix it reported a real property of the window superset as a
+    // defect (found by an eps=1e-6 pin, 2026-09-03).
+    let slack = 4.0 * half();
     assert!(
-        d >= 0.4 - 1e-9,
-        "and no closer than the midpoint gap allows: {d}"
+        d >= 0.4 - slack,
+        "and no closer than the midpoint gap allows, up to the window superset's own \
+         widening ({slack}): {d}"
     );
     assert!(report.receipt().holds());
 }

@@ -21,17 +21,36 @@
     clippy::too_many_arguments
 )]
 
+// Gated to the code it tests (TCOST-1). Every row here drives the public
+// props door `nurbs_patch_face` on an adversarially knotted patch and
+// checks the returned bracket against an independent plain-f64 oracle, so
+// the claim rests on the quad props module — the cut list, the arm choice
+// and the refusal vocabulary — and on the spline machinery the cut list is
+// built from. The certified scalars are named because a bracket IS a
+// `RingInterval` over `Interval`, and the band that decides refusal is
+// `predicate`/`tolerance`; `tests/shared/` is named because the oracle's
+// basis and dense-quadrature helpers live there and a change to them moves
+// the truth this suite compares against.
+test_utils::gated_to![
+    "crates/geom-brep/src/props/",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/real.rs",
+    "crates/geom-core/src/predicate.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-brep/tests/shared/",
+];
+
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::RingInterval;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
 // ---------- independent oracle (no kernel spline code) ----------
 
@@ -152,14 +171,6 @@ impl Oracle {
     }
 }
 
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
-}
-
 /// Drive the public door; assert SOUNDNESS against the oracle.
 /// Returns (posture string, width if refused).
 ///
@@ -270,9 +281,10 @@ fn drive(
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
+            ..
         }) => {
             println!(
-                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
+                "R2 {name}: BUDGET width (the last round's own or its bound) {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
                 width_len / target_len
             );
             assert!(width_len.is_finite() && width_len > target_len);

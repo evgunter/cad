@@ -1537,3 +1537,55 @@ crop M3 added, and it is accurate about that. Read alongside this note.
 `split_sector_{coplanar,extent}` are the `sector_face` twins and the
 face-extent arm — different quantities, still two implementations, the
 rest of smell-scan S5. Pooling does not reach them.
+
+## M10 addendum (2026-09-03): the E6 subdivision driver's own K population — a per-rule verdict
+
+M10-6 added a third E10 CI row that sweeps the E6 subdivision driver's
+certified midpoints and lints the result (`ci.yml`'s
+`driver K-telemetry lint`, on the `dev-probe`/`all` draw of the
+`klint_row` axis). This is the K re-examination E6's T6 obligation
+promised. It is written down here because the runbook above says a
+demotion needs a recorded justification, and because the SHAPE of the
+verdict is not the one the corpus rows have.
+
+**What the population is.** Not author-chosen nominals. The driver
+subdivides a parameter box until every predicate over a leaf is
+definite, so its margins are, by construction, the smallest ones at
+which each predicate still decides — they pile up *just outside* the
+escalation threshold. That is the algorithm working. The corpus rows'
+thresholds were calibrated against a distribution with no such
+pressure, so applying them unchanged to this population measures the
+calibration mismatch rather than any geometry.
+
+**Measured (2026-09-03, this branch, dev profile, `--features probe`).**
+
+| ε | samples | flags |
+| --- | --- | --- |
+| 1e-6 | 257,025 | 15,768 |
+| 1e-9 | 257,025 | 25,112 |
+| 1e-12 | 257,025 | 25,112 |
+
+Every flag is rule 2 or rule 3 — a margin that WAS decided, sitting
+near a threshold or below a calibrated floor. 216 distinct margins are
+involved, with a floor of 1.0083e-5 ≈ Kε on `dihedral_wedge`,
+`dihedral_arm`, `interval_span_forward` and
+`extrusion_normal_component`. **Rule 1 — `indeterminate` or `invalid`
+— fired ZERO times at every ε.**
+
+**The disposition, and why it is not a blanket demotion.** Recourse 2
+above (demote with a recorded justification) is taken, but only for
+rules 2 and 3. Rule 1 keeps gating, via `k-lint --gate-rule-1-only`.
+The reason is that rule 1 is the trigger this document's runbook names:
+an in-band or poisoned margin says the run could not decide something
+it had to. A row demoted wholesale would have printed such a margin
+among tens of thousands of rule-2/3 flags and still gone green — the
+demotion would have covered the very finding the row exists to catch.
+
+**The counts are printed, not inferred.** `k-lint` tallies per rule on
+every run, gated or not, at each ε row, and the CI step relays those
+lines into the job summary. "Zero rule-1 flags" is therefore a reported
+number a reader can check, not something read off the absence of a red.
+
+**What would re-open the K question here**: any rule-1 flag in this
+population. Changing geometry to move a margin out of the band remains
+the forbidden move, exactly as for every other row in this report.

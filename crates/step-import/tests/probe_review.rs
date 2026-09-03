@@ -2,7 +2,6 @@
 //! `review/m7-2` branch (authorship kept). The two `a1_*torus*` probes
 //! that failed deliberately there now assert the fix.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod common;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 

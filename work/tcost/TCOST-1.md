@@ -17,7 +17,7 @@ file are untouched; both CI halves consume it; it fails OPEN on tier `all`,
 on any unresolvable marker and on any parse error; the nightly runs the
 gated set ungated. First users are the existing fuzz rows and randomized
 sweeps. Self-merged with a full writeup, reviewed retroactively (Ev's
-ruling, 2026-09-02). Spec: `docs/TCOST-1-SPEC.md`. PR 1613 is its
+ruling, 2026-09-02). Spec: `work/tcost/TCOST-1.md`. PR 1613 is its
 do-not-merge evidence PR (the gate demonstration).
 
 `work/tcost/log.md`, "Opening state (2026-09-02)" (the gate mechanism's

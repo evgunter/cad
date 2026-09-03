@@ -340,7 +340,7 @@ const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero a
 /// round — and what it runs out of is the FIXED round budget, inside a
 /// factor of two. Named specifically so the gate's preamble (which a
 /// tier-1/2 regression would also match) cannot stand in.
-const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot reach the";
 /// dm1's coarse-band sub-reason: the convergence predicate declines to
 /// decide, by name, so a regression that turned this into a silent
 /// answer (or into a different door) fails the cell.

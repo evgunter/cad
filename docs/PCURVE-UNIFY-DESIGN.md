@@ -21,7 +21,7 @@ read the record replacing MappedCurve's negative space, and the
 naming layer is editor-core, invisible to the kernel; the same
 layering argument that moved ContactClass down. Scheduling
 (delegated): the migration is the PCURVE program, now CLOSED
-2026-08-29 — done-state of record `docs/PCURVE-EXIT-WALK.md`.**
+2026-08-29 — done-state of record its exit walk (recorded in `docs/DOC-LEDGER.md`).**
 This is M9-D (M9-PLAN,
 ratified #509): the ratification pass that must precede any code,
 sequenced before M9-3's seam minting hardens new edge

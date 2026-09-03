@@ -124,6 +124,20 @@ pub enum ErrorClass {
     /// admit it ([`QuantityOpMismatch`]). The Python class is
     /// `DimensionError`.
     Dimension,
+    /// The display formatter refused a value: it is NaN or ±∞, and a
+    /// non-finite quantity has no display form. The Python class
+    /// keeps the Rust type's own name, `FmtQuantityError`.
+    ///
+    /// The quantity boundary's SECOND refusal, and the other one is
+    /// not its neighbour by accident: [`Self::Dimension`] is about
+    /// the pair of dimensions an operator was handed, this one about
+    /// the single number a formatter was handed. `quantity`'s
+    /// newtypes are plain value wrappers and refuse no float, so a
+    /// non-finite `Length` is constructible in Python exactly as it
+    /// is in Rust (`float("inf") * mm`); the fail-loud doors are the
+    /// ones values LEAVE through, and rendering one for a human is
+    /// one of those.
+    FmtQuantity,
     /// A value the expression layer refused (non-finite literal, a
     /// count written as continuous, ...) — the document layer's
     /// `DimensionError`, raised on the LITERAL-CONSTRUCTION door.
@@ -293,6 +307,7 @@ impl ErrorClass {
             Self::Evaluation => "EvaluationError",
             Self::Validation => "ValidationError",
             Self::Dimension => "DimensionError",
+            Self::FmtQuantity => "FmtQuantityError",
             Self::Literal => "LiteralError",
             Self::Parse => "ParseError",
             Self::Eval => "EvalError",

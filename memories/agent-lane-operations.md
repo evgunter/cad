@@ -24,8 +24,12 @@ at: outputs at `cad-work/<name>-substrate/`, the clone INSIDE it,
 remove only the clone at the seam.
 
 **Disk.** Each lane grows a multi-GB `target/`; never share
-`CARGO_TARGET_DIR` across parallel builds (cargo's lock serializes
-them); `~/.cache/gmp-mpfr-sys` IS shared safely. `disk-watchdog.sh`
+`CARGO_TARGET_DIR` across parallel builds — not for speed (cargo's
+lock serializes them) but for CORRECTNESS: two worktrees at different
+content produce the same artifact hash (`all-<hash>` keys on the
+crate metadata, not the source), so one lane RUNS THE OTHER'S BINARY
+— an S-TCOST review lane executed its sibling's mutated build
+(2026-09-03) and had to re-take every result privately; `~/.cache/gmp-mpfr-sys` IS shared safely. `disk-watchdog.sh`
 carries its own thresholds — read them there. Under pressure,
 `local-scripts/clean-lanes.sh [--dry-run]` re-checks pushed/clean/no-
 stash before each rm and refuses loudly, so it is safe in bulk — but it

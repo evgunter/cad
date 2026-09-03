@@ -1,4 +1,15 @@
-//! Stable discriminant tags for the document layer's refusals.
+//! Stable discriminant tags for the document layer's refusals — and
+//! for the one VERDICT that needs one.
+//!
+//! [`resolution_status_tag`] is that one, and it is deliberately not
+//! a refusal: a resolution is a TOTAL answer, one of three states for
+//! every name asked, and it crosses as a value rather than a raise.
+//! What it shares with everything else in this file is the reason a
+//! tag exists at all — a caller branches on the discriminant, prose
+//! is not a stable interface — and the reason this file is its home:
+//! the exhaustive match is a drift alarm that fires in hosted CI,
+//! because this module compiles without Python and the `#[pyclass]`
+//! it feeds does not.
 //!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
@@ -34,7 +45,10 @@ use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{PathError, PathErrorKind};
-use pncad::select::{DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError};
+use pncad::quantity::FmtQuantityError;
+use pncad::select::{
+    DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
+};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -281,6 +295,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
         NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
         NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        // Its own tag rather than `measure_unsupported`'s: the
+        // recourse is "select a body or a face", not "this carrier
+        // pair has no closed form".
+        NodeErrorKind::MeasureSelectionKind { .. } => "measure_selection_kind",
+        // And its own again: the clearance engine refused, so the
+        // recourse is the engine's — a wider budget, an admitted
+        // carrier — and not the measurement vocabulary's.
+        NodeErrorKind::MeasureClearanceRefused(_) => "measure_clearance_refused",
         NodeErrorKind::PayloadExpr { .. } => "payload_expr",
         NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
@@ -557,6 +579,28 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     }
 }
 
+/// The stable tag for a display-formatter refusal (`Length.format` /
+/// `Angle.format`).
+///
+/// One arm today, and the map exists anyway for the reason every
+/// other one does: the tag is the branchable interface, and a SECOND
+/// arm arriving must break this build rather than reach a caller
+/// untagged. A one-arm `match` with no wildcard IS that alarm, at the
+/// size this refusal happens to be.
+///
+/// The tag is `non_finite`, deliberately the same string
+/// [`expr_dimension_error_tag`] uses for `NonFiniteLiteral`. Two
+/// layers refuse the same fact — a float that is NaN or ±∞ — on
+/// opposite doors (one on the way INTO a recipe, one on the way OUT
+/// to a human), and a caller branching on the tag is asking what went
+/// wrong, not which layer said so; the exception CLASS already
+/// answers the second question.
+pub fn fmt_quantity_error_tag(err: &FmtQuantityError) -> &'static str {
+    match err {
+        FmtQuantityError::NonFinite { .. } => "non_finite",
+    }
+}
+
 /// The stable tag for an expression TEXT-door refusal (`parse_expr`).
 ///
 /// The `Dimension` arm keeps a tag of its OWN rather than borrowing
@@ -790,6 +834,26 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     }
 }
 
+/// **The standing ladder's "this run has no result for that node"
+/// word, as a NAME rather than a repeated literal.**
+///
+/// The read-back and picking doors reach this spelling through a
+/// `match` on a kernel arm ([`interrogate_error_tag`],
+/// [`hit_test_error_tag`]), so a rename there is loud. The EVALUATION
+/// door has no kernel arm to match on — `Evaluation::result` answers
+/// `None` for a node a canceled run never reached, and the reason tag
+/// beside it is this crate's own decision — so it spelled the word by
+/// hand, and a hand-spelled copy of a shared vocabulary is exactly
+/// the divergence `tests::dimension_tags_match_the_kernel_prose`
+/// exists for one file over.
+///
+/// Naming it here makes the copy a reference, and
+/// `tests::the_evaluation_door_speaks_the_standing_ladder` pins it
+/// against the two doors that DO match, in both directions. (Both
+/// named as text rather than as intra-doc links: `tests` is
+/// `#[cfg(test)]`, so a link to either would not render.)
+pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
+
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
 /// The three standing arms are the SAME vocabulary
@@ -841,6 +905,46 @@ pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
         NodePickError::NoSuchBody { .. } => "no_such_body",
         NodePickError::Tessellate(err) => tessellate_error_tag(err),
         NodePickError::Index(_) => "mesh_index",
+    }
+}
+
+/// The stable status tag of a resolution VERDICT — a stored name's
+/// standing at the next evaluation.
+///
+/// Not a refusal, and the only entry in this file that is not: every
+/// name asked gets exactly one of these three, never a raise. The tag
+/// is here anyway for the reason the header states — it is the
+/// discriminant a caller branches on, and this file compiles in
+/// hosted CI where `py/resolve.rs` does not, so the exhaustive match
+/// is where the drift alarm can actually fire.
+///
+/// **The three words carry the RECOURSE, which is the whole point of
+/// keeping them three.** `resolved` needs none. `failed` means the
+/// name does not denote in this evaluation and will not come back on
+/// its own — the repair is an explicit rebind. `indeterminate` means
+/// the NAME is fine and the RUN is not: the minting node failed, was
+/// poisoned, or never evaluated, so the reference is unanswerable
+/// right now and resolves again when that node does. Collapsing the
+/// last two would tell a user to rebind a name that never broke.
+///
+/// Lower-case snake, the spelling every other tag in this file uses.
+/// `Verdict.status` — the other value-carried discriminant in these
+/// bindings — capitalizes instead; that divergence predates this and
+/// is not repaired here, because a shipped tag value is an interface.
+///
+/// **What this tag does NOT reach is the failure's own arm.**
+/// `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
+/// DECIDED absent from the façade (`crates/pncad/tests/all.rs`'s
+/// `NOT_CARRIED`, "Naming interior"), so there is no `vanished` /
+/// `ambiguous` / `node_gone` tag to forward and none is invented
+/// here: what crosses beside this word is the kernel's own `Display`.
+/// Banked as `work/lib/resolution-failure-arms-are-unmatchable-under-
+/// resolution.md`, the `MeshPickError` shape one family along.
+pub fn resolution_status_tag(verdict: &Resolution) -> &'static str {
+    match verdict {
+        Resolution::Resolved(_) => "resolved",
+        Resolution::Failed(_) => "failed",
+        Resolution::Indeterminate(_) => "indeterminate",
     }
 }
 

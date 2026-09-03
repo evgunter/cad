@@ -417,7 +417,7 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
         // conditioning gate above it is deliberately NOT laundered into
         // `NoCornerForFillet`: the corner exists and the author can see
         // it — what does not exist, at this radius and permanently, is a
-        // fillet OF it (`docs/ENCLOSING-TANGENCY-DESIGN.md`). Unlike that
+        // fillet OF it (`crates/profile/README.md`). Unlike that
         // gate this one does NOT abort the resolve: ρ's sign is a fact
         // about THIS corner's turn side, and the pair's other crossing
         // turns the other way, where the same radius is an ordinary

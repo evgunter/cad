@@ -15,14 +15,11 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
 use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset};
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
 use crate::shared::fixture::{arc_weight, kv1, kv2};
 use crate::shared::sample::{grid, worst_offset_residual};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::tol::band;
 
 /// A quarter **ellipse** wall: the exact rational quadratic quarter
 /// ellipse (the affine image of the classical arc, so the same

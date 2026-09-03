@@ -736,7 +736,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // (`SplitError::TornCluster`). Opposite sides of a cut and the same
 // cluster are mutually exclusive. A4's sentence and A11's cut rule are
 // in tension for proper edges; that gap is now recorded as **AQ8** in
-// docs/ASSEMBLY-DESIGN.md, whose proposed resolution is a conversion
+// crates/editor-core/ASSEMBLY.md, whose proposed resolution is a conversion
 // door (ASM-XSPLIT) rather than a change to either rule.
 //
 // **And ONLY an edge can cross** (AQ8, ruled — option (b), SKIP). The
@@ -1325,7 +1325,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
 /// DISJOINT is stale, and staleness is a finding against the document
 /// — never a decline.
 ///
-/// This arm is the consequence `docs/CENSUS-REST-CLOSURE-DESIGN.md`
+/// This arm is the consequence `crates/topo/README.md`
 /// reserved: `assembly.rs`'s own comment said it could not execute
 /// while the chart door answered DIVERGENCE for every cross-instance
 /// pair, and asked for an acceptance row "in the same change" the day
