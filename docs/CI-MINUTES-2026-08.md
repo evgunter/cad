@@ -474,13 +474,29 @@ applies to this one. Run `33722478540` (this unit's opening run, head
 cold reading of 331 s for that step on run `33342678074`, the direction
 is right and the magnitude is not yet the answer.
 
-**The warm figure follows in the next commit on this branch, read from
-the run that commit triggers** — same head shape, same job definition,
-cache saved by the run above, which is the identical two-runs-one-input-
-apart method F6 and its addendum both used. The warm baseline it is
-against is the addendum's: job 179 s / **3 billed** at the merge base
-and 222 s / **4 billed** with pass 3, runs `33342571322` and
-`33346546955`.
+**Billed minutes — WARM AGAINST WARM, which is the reading this entry
+turns on.** Run `33727294346` (head `416b94bf`, cache hit, restore 17 s)
+against the addendum's two, whose method this copies:
+
+| | run | `rustdoc (gate)` | non-gate steps | whole job | billed |
+|---|---|---|---|---|---|
+| merge base, before pass 3 | `33342571322` | 110 s | 69 s | 179 s | **3** |
+| with pass 3, on every PR | `33346546955` | 153 s | 69 s | 222 s | **4** |
+| this unit | `33727294346` | **110 s** | **69 s** | **179 s** | **3** |
+
+**−1 billed minute per code-tier PR run**, and the shape of the number
+is worth more than the minute: the job is back at the merge base's cost
+to the second, with pass 3's coverage KEPT rather than dropped — it runs
+nightly instead of per PR. The non-gate steps are 69 s in all three,
+which is what makes the three rows comparable at all.
+
+Two things the row does NOT claim. It is not F6's −1 recovered: that one
+was spent by job growth as well as by pass 3, and this reading says
+nothing about the growth. And 110 s is the gate plus the self-test on a
+tree whose passes 2 and 3 no longer run here — that the total lands on
+the pre-pass-3 figure exactly is a coincidence of two movements in
+opposite directions (fewer passes, a longer self-test), not a
+cancellation anyone designed.
 
 **What the split does NOT buy back, said so it is not rediscovered.**
 The `--selftest` is the half no cache reaches — every case plants a
