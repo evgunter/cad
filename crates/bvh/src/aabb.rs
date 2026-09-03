@@ -197,13 +197,29 @@ impl Aabb {
     /// contract), so a lower bound on the boxes' separation is a lower
     /// bound on the entities' distance.
     ///
-    /// Per axis the gap is `max(0, other.min − self.max, self.min −
-    /// other.max)`; the answer is the norm of the three gaps rounded
-    /// **down** four ulps. Four covers the arithmetic: each of the three
-    /// squares and two sums rounds by at most half an ulp, so the sum
-    /// carries at most ~3.1 · 2⁻⁵³ of relative error, the square root
-    /// halves that and adds its own half ulp — under 2.6 ulps of the
-    /// answer, whichever binade it lands in.
+    /// Per axis the gap is `max(0, other.min - self.max, self.min -
+    /// other.max)`, spelled so a NaN bound cannot be laundered by
+    /// `f64::max` (which IGNORES NaN and would hand back the other
+    /// operand as a separation).
+    ///
+    /// **The norm is taken on a POWER-OF-TWO rescaling of the gaps.**
+    /// Squaring a gap past `sqrt(f64::MAX)` overflows to `+inf`, and an
+    /// infinite sum comes back out of the root as `+inf` — which the
+    /// ulp shave below then turns into a number just under `f64::MAX`,
+    /// an ENORMOUS over-claim on a pair that is merely far away. Scaling
+    /// by `2^-512` first is exact (a power of two moves the exponent and
+    /// touches no mantissa bit), the scaled squares cannot overflow, and
+    /// scaling back by `2^512` cannot overflow either because the true
+    /// distance is at most `sqrt(3)` times the largest gap. Below the
+    /// threshold nothing is scaled and the arithmetic is bit-identical
+    /// to the unscaled form.
+    ///
+    /// The answer is rounded **down four ulps**. Four covers the
+    /// arithmetic: the three subtractions, the three squares and the two
+    /// sums each round by at most half an ulp, so the summand carries at
+    /// most ~4 * 2^-53 of relative error, the square root halves that
+    /// and adds its own half ulp — under 3.5 ulps of the answer in
+    /// whichever binade it lands, and the scaling itself is exact.
     ///
     /// Overlapping, inverted and poison boxes all answer `0.0`: zero is
     /// a true lower bound for every configuration this cannot separate,
@@ -212,20 +228,45 @@ impl Aabb {
     /// box may not be shown far from anything (module docs).
     pub fn separation_lo(&self, other: &Self) -> f64 {
         let gap = |a_min: f64, a_max: f64, b_min: f64, b_max: f64| -> f64 {
-            let g = (b_min - a_max).max(a_min - b_max);
-            // Spelled rather than left to the fold: `f64::max` IGNORES
-            // NaN, so a poison bound would come out of it as the other
-            // operand and silently claim a separation.
-            if g.is_nan() || g < 0.0 { 0.0 } else { g }
+            let lo = b_min - a_max;
+            let hi = a_min - b_max;
+            // NaN first, and on BOTH operands: `f64::max` would drop it.
+            if lo.is_nan() || hi.is_nan() {
+                return 0.0;
+            }
+            let g = lo.max(hi);
+            if g < 0.0 { 0.0 } else { g }
         };
         let gx = gap(self.min_x, self.max_x, other.min_x, other.max_x);
         let gy = gap(self.min_y, self.max_y, other.min_y, other.max_y);
         let gz = gap(self.min_z, self.max_z, other.min_z, other.max_z);
+        // The rescaling threshold and its inverse, both exact powers of
+        // two. `2^-512` takes any finite gap under `sqrt(f64::MAX)`.
+        const DOWN: f64 = 7.458340731200207e-155; // 2^-512
+        const UP: f64 = 1.3407807929942597e154; // 2^512
+        let widest = gx.max(gy).max(gz);
+        let scaled = widest > UP;
+        let (sx, sy, sz) = if scaled {
+            (gx * DOWN, gy * DOWN, gz * DOWN)
+        } else {
+            (gx, gy, gz)
+        };
         // `geom_core`'s own norm — one home for the fold's association
         // order (D9) — rather than a product written here.
-        let d = Vec3::new(gx, gy, gz).norm();
+        let d = Vec3::new(sx, sy, sz).norm();
         if d.is_nan() {
             return 0.0;
+        }
+        let d = if scaled { d * UP } else { d };
+        // The one configuration the rescaling cannot carry: gaps within
+        // a factor of `sqrt(3)` of `f64::MAX` on every axis, whose true
+        // distance is not representable. The widest single gap is itself
+        // a lower bound on the distance (a Euclidean norm dominates each
+        // of its components), so that is what is reported, shaved by the
+        // one ulp its own subtraction could have gained.
+        if !d.is_finite() {
+            let w = widest.next_down();
+            return if w < 0.0 { 0.0 } else { w };
         }
         let d = d.next_down().next_down().next_down().next_down();
         if d < 0.0 { 0.0 } else { d }

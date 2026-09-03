@@ -35,7 +35,6 @@ use editor_core::{
     ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
 };
 use geom_core::{Bounds, Interval, Tol, Vec3};
-use profile::SketchPlane;
 
 use fixture::{Recorder, ang, len, scl};
 
@@ -90,9 +89,19 @@ fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
     }
 }
 
+/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
+///
+/// `ProfileProgram::plane` became a node reference under this branch
+/// (main's move), so every fixture mints the frame first and hands the
+/// profile its id.
+fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+}
+
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
+    let plane = xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
     }));
     r.insert(Node::Extrude {
@@ -333,8 +342,9 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.5))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let plane = xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![chain],
     }));
     let solid = r.insert(Node::Extrude {
@@ -399,10 +409,9 @@ fn a_block_with_a_rounded_bump_asks_the_self_intersection_question() {
 fn a_partial_revolve_band_reports_its_phantom_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
+    let plane = xy_frame(&mut r);
     let profile = r.insert(Node::Profile(fixture::desc(
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
+        plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     )));
     let axis = r.insert(Node::Datum(Datum::Axis {
@@ -469,10 +478,9 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     declare(&mut r, "place", 0.0);
     // Profile on the xz-plane (u = x̂, v = ẑ): the rectangle r ∈ [1, 2],
     // z ∈ [0, 1], revolved 90° about ẑ.
+    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = r.insert(Node::Profile(fixture::desc(
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     )));
     let axis = r.insert(Node::Datum(Datum::Axis {
@@ -672,10 +680,10 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
         };
         let verdict = drive(&doc, &analyzed, &config, Tol::witness()).expect("builds");
         assert!(!verdict.certified().is_empty(), "{}", verdict.serialize());
-        folds.push(clearance_over(&doc, &verdict, &sa, &sb, &q));
+        folds.push(clearance_over(&doc, &analyzed, &verdict, &sa, &sb, &q));
     }
     let cells = folds[0].receipt.discharged + folds[0].receipt.violated + folds[0].receipt.refused;
-    println!("[r1] fold over {} leaves, {cells} cells: {:?}", folds[0].leaves, folds[0].receipt);
+    println!("[r1] fold over {} leaves, {cells} cells: {:?}", folds[0].leaves.len(), folds[0].receipt);
     assert!(cells > 2_000, "a multi-thousand-cell run: {cells}");
     assert_eq!(folds[0], folds[1], "sequential vs rayon");
     assert_eq!(folds[0], folds[2], "repeat");
@@ -804,13 +812,14 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
     );
     let fold = clearance_over(
         &doc,
+        &analyzed,
         &verdict,
         &sc,
         &ss,
         &ClearanceQuery::at_least(0.3, Tol::witness()),
     );
-    println!("[r1 e2e] fold: leaves = {}, verdict = {:?}", fold.leaves, fold.verdict);
-    if fold.leaves == 0 {
+    println!("[r1 e2e] fold: leaves = {}, verdict = {:?}", fold.leaves.len(), fold.verdict);
+    if fold.leaves.is_empty() {
         assert_eq!(
             fold.verdict,
             ClearanceVerdict::Holds,
@@ -818,7 +827,7 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         );
         assert_eq!(fold.verdict.holds(), Some(true));
     } else {
-        println!("[r1 e2e] the driver certified {} leaves over a ±0.05 box", fold.leaves);
+        println!("[r1 e2e] the driver certified {} leaves over a ±0.05 box", fold.leaves.len());
     }
 }
 
@@ -842,6 +851,7 @@ fn a_refused_leaf_is_still_priced_as_certified_mass_by_the_fold() {
     let certified_mass = verdict.accounting().certified.clone();
     let fold = clearance_over(
         &doc,
+        &analyzed,
         &verdict,
         &sa,
         &sb,
@@ -855,7 +865,7 @@ fn a_refused_leaf_is_still_priced_as_certified_mass_by_the_fold() {
     );
     println!(
         "[r1] fold verdict {:?}; accounting {:?}",
-        fold.verdict, fold.accounting
+        fold.verdict, fold.drive_accounting
     );
     assert!(
         matches!(fold.verdict, ClearanceVerdict::Refused(_)),
@@ -863,13 +873,13 @@ fn a_refused_leaf_is_still_priced_as_certified_mass_by_the_fold() {
         fold.verdict
     );
     assert_eq!(
-        fold.accounting.certified, certified_mass,
+        fold.drive_accounting.certified, certified_mass,
         "the refused query did not move a gram of mass out of `certified`"
     );
     assert!(
-        !fold.accounting.refused.contains_key(&editor_core::drive::ReasonClass::Budget),
+        !fold.drive_accounting.refused.contains_key(&editor_core::drive::ReasonClass::Budget),
         "and the clearance budget refusal is not priced under any reason: {:?}",
-        fold.accounting.refused
+        fold.drive_accounting.refused
     );
 }
 

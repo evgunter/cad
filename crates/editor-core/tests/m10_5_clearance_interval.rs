@@ -70,9 +70,9 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
-    CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning, Selection, clearance,
-    clearance_over, clearance_with, self_intersection,
+    CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
+    ClearanceReport, ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning, Selection,
+    clearance, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -80,7 +80,6 @@ use editor_core::{
     ProfileProgram, RecipeNodeId,
 };
 use geom_core::{Sign, Tol};
-use profile::SketchPlane;
 
 use fixture::{Recorder, len, scl};
 
@@ -140,9 +139,19 @@ fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
+/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
+///
+/// `ProfileProgram::plane` became a node reference under this branch
+/// (main's move), so every fixture mints the frame first and hands the
+/// profile its id.
+fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+}
+
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
+    let plane = xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
     }));
     r.insert(Node::Extrude {
@@ -204,6 +213,21 @@ fn neck_walls(minted_at: RecipeNodeId, read_at: RecipeNodeId) -> Selection {
         faces: FaceScope::Named(vec![
             fixture::fname(minted_at, fixture::wall(2)),
             fixture::fname(minted_at, fixture::wall(9)),
+        ]),
+    }
+}
+
+/// The hexagon's two OPPOSITE flats, by the names the extrude minted.
+/// Slanted, so their axis-aligned boxes are 2/sqrt(3) apart where the
+/// faces are 2 m apart — the pair the tree cannot exclude and only the
+/// subdivision can discharge.
+fn opposite_flats(minted: RecipeNodeId) -> Selection {
+    Selection {
+        at: minted,
+        body: 0,
+        faces: FaceScope::Named(vec![
+            fixture::fname(minted, fixture::wall(0)),
+            fixture::fname(minted, fixture::wall(3)),
         ]),
     }
 }
@@ -349,14 +373,20 @@ fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
 
 /// **VERBS acceptance, arm 3**: a starved budget refuses, priced and
 /// named — never a silent partial and never a false certificate.
+///
+/// The question has to be one the engine cannot ANSWER cheaply, which
+/// since the exhibit arm landed is no longer "find a violation": a
+/// violation is witnessed at the root and costs one cell. What still
+/// costs is a bound that HOLDS only by refining — the hexagon's slanted
+/// opposite pair at 1.5 m, whose boxes are 1.155 m apart.
 #[test]
 fn a_starved_cell_budget_refuses_typed() {
-    let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(minted, minted);
+    let (doc, minted, _at) = hexagon();
+    let sel = opposite_flats(minted);
     let q = query(
-        0.6,
+        1.99,
         ClearanceConfig {
-            max_cell_pairs: 8,
+            max_cell_pairs: 1,
             ..ClearanceConfig::default()
         },
     );
@@ -364,7 +394,7 @@ fn a_starved_cell_budget_refuses_typed() {
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs {
             max_cell_pairs,
-        })) => assert_eq!(*max_cell_pairs, 8),
+        })) => assert_eq!(*max_cell_pairs, 1),
         other => panic!("expected a priced budget refusal, got {other:?}"),
     }
     let r = report.receipt();
@@ -376,10 +406,10 @@ fn a_starved_cell_budget_refuses_typed() {
 /// not move it.
 #[test]
 fn a_starved_cell_depth_refuses_on_its_own_axis() {
-    let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(minted, minted);
+    let (doc, minted, _at) = hexagon();
+    let sel = opposite_flats(minted);
     let q = query(
-        0.6,
+        1.5,
         ClearanceConfig {
             max_cell_depth: 0,
             ..ClearanceConfig::default()
@@ -580,19 +610,37 @@ fn a_node_that_does_not_exist_refuses_at_the_selection() {
 /// the same bits, on a run of several thousand cell pairs.
 #[test]
 fn the_answer_is_deterministic_across_repeats() {
+    let (hex, hex_minted, _hex_at) = hexagon();
+    let slanted = opposite_flats(hex_minted);
     let (doc, minted, _at) = dumbbell();
-    let sel = neck_walls(minted, minted);
+    let sel = Selection::body_of(minted);
     let leaf = box_of("place");
-    let first = clearance(&doc, &leaf, &sel, &sel, 0.6, Tol::witness());
-    let cells = first.receipt().discharged + first.receipt().violated + first.receipt().refused;
+    // The stable answer is the claim, and the run that has to be stable
+    // is the EXPENSIVE one: a bound that holds only by refining, which
+    // is the slanted pair a hair under its own separation — thousands
+    // of cell pairs classified in a level-synchronous order that must
+    // not drift.
+    let first = clearance(&hex, &leaf, &slanted, &slanted, 1.99, Tol::witness());
+    let r = first.receipt();
+    let cells = r.discharged + r.violated + r.refused;
     assert!(
-        cells > 200,
-        "the determinism row runs on a many-hundred-cell subdivision: {:?}",
-        first.receipt()
+        cells > 1_000,
+        "the determinism row runs on a multi-thousand-cell subdivision: {r:?}"
     );
     for _ in 0..3 {
-        let again = clearance(&doc, &leaf, &sel, &sel, 0.6, Tol::witness());
+        let again = clearance(&hex, &leaf, &slanted, &slanted, 1.99, Tol::witness());
         assert_eq!(again.serialize(), first.serialize());
+    }
+    // And a violated run is stable too, witness and all — the goldening
+    // form carries the witness's points and chart, so a drift in WHERE
+    // the witness sits is visible here rather than silent.
+    let violated = clearance(&doc, &leaf, &sel, &sel, 0.6, Tol::witness());
+    assert_eq!(violated.verdict().label(), "Violated");
+    for _ in 0..3 {
+        assert_eq!(
+            clearance(&doc, &leaf, &sel, &sel, 0.6, Tol::witness()).serialize(),
+            violated.serialize()
+        );
     }
 }
 
@@ -728,6 +776,7 @@ fn a_driver_certified_leaf_carries_the_certificate() {
     let sel = Selection::body_of(minted);
     let fold = clearance_over(
         &doc,
+        &analyzed,
         &verdict,
         &sel,
         &sel,
@@ -735,29 +784,63 @@ fn a_driver_certified_leaf_carries_the_certificate() {
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
-    assert_eq!(fold.leaves, verdict.certified().len());
-    assert_eq!(&fold.accounting, verdict.accounting());
+    assert_eq!(fold.leaves.len(), verdict.certified().len());
+    assert!(
+        fold.leaves.iter().all(|l| l.verdict == ClearanceVerdict::Holds),
+        "every leaf's own answer is kept, and every one of them holds"
+    );
+    assert_eq!(&fold.drive_accounting, verdict.accounting());
+    // The certified mass is priced by what THIS question said about it:
+    // every leaf held, so it all lands in the holds column and the
+    // unresolved share is the drive's own.
+    let holds = fold.mass.holds.clone().expect("the box prices");
+    let certified = verdict
+        .accounting()
+        .certified
+        .clone()
+        .expect("the drive prices it too");
+    assert!(
+        (holds - certified).abs() <= 1e-12,
+        "the holds column is the drive's certified mass: {holds} vs {certified}"
+    );
+    assert!(fold.mass.violated.clone().expect("prices") == 0.0);
+    assert!(fold.mass.refused.is_empty());
 }
 
 // --------------------------------------------------- the honest limit
 
-/// **The measured limit** (the module header's argument, executed).
+/// **The measured cost curve, executed rather than described.**
+///
+/// The shape is U-shaped in the bound, and neither half of it is the
+/// "logarithmic depth, exponential cost" sentence an earlier draft of
+/// this unit carried:
+///
+/// - **A violated bound is CHEAP and flat.** The sweep stops at the
+///   first verified witness and the exhibit arm finds one at the root,
+///   so every bound the geometry breaks costs a handful of cell pairs
+///   whether it is broken by a millimetre or by a metre.
+/// - **A held bound is cheap when the tree can exclude the pair and
+///   expensive when it cannot** — the slanted pair below is discharged
+///   only by refining, and that is where the budget goes.
+/// - **The frontier between them is what no budget settles**: a bound
+///   strictly inside a pair's own separation range leaves a set of cell
+///   pairs whose enclosures straddle it at every depth, and those
+///   refuse.
 ///
 /// Nothing here is a baseline to preserve: the counts are a fact about
-/// this fixture. What is asserted is the SHAPE the argument predicts —
-/// a definite answer at every bound, a subdivision spanning orders of
-/// magnitude in cell size, and, at the shipped pair budget, part of
-/// every one of those subdivisions left priced-refused.
+/// these fixtures. What is asserted is the shape — and each assertion
+/// can go red on the claim above it, which the previous row's
+/// `cells == previous.max(cells)` could not.
 #[test]
-fn the_widths_at_which_cells_discharge_are_measured() {
+fn the_cost_curve_is_measured_at_both_ends() {
     let (doc, minted, _at) = dumbbell();
     let sel = neck_walls(minted, minted);
     let leaf = box_of("place");
-    let mut previous = 0usize;
-    for c in [0.9, 0.8, 0.7, 0.6, 0.5] {
+    let mut violated_cells = Vec::new();
+    for c in [0.9, 0.8, 0.7, 0.6, 0.5, 0.41] {
         let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
         let r = report.receipt();
-        assert!(r.holds());
+        assert!(r.holds(), "{r:?}");
         assert_eq!(
             report.verdict().holds(),
             Some(false),
@@ -765,25 +848,171 @@ fn the_widths_at_which_cells_discharge_are_measured() {
             report.serialize()
         );
         let cells = r.discharged + r.violated + r.refused;
-        let w = report.widths();
         println!(
-            "[limit] c = {c}: cells = {cells}, splits = {}, widths = {w:?}",
-            r.splits
+            "[limit] violated at c = {c}: cells = {cells}, splits = {}, abandoned = {}",
+            r.splits, r.abandoned
         );
-        // Every row exhausts the shipped pair budget, and still answers
-        // definitely: the violation is found long before the receipt is
-        // complete, and what the budget refuses is the REST of the
-        // subdivision, priced and counted.
-        assert_eq!(cells, previous.max(cells));
-        assert!(
-            r.refused > 0,
-            "the shipped dial does not complete this: {r:?}"
-        );
-        let (widest, narrowest) = (w.widest.unwrap_or(0.0), w.narrowest.unwrap_or(0.0));
-        assert!(
-            narrowest * 100.0 < widest,
-            "the subdivision spans orders of magnitude in cell size: {w:?}"
-        );
-        previous = cells;
+        violated_cells.push(cells);
+    }
+    // Flat AND cheap: the slack between the bound and the 0.4 gap spans
+    // more than a factor of fifty across that row, and the cost does
+    // not move with it.
+    assert!(
+        violated_cells.iter().all(|&n| n <= 8),
+        "a witnessed violation costs a handful of cells at any slack: {violated_cells:?}"
+    );
+
+    // The second regime: a bound that HOLDS, on a pair the tree cannot
+    // exclude — the hexagon's slanted opposite flats, whose boxes are
+    // 1.155 m apart where the faces are 2 m apart. Every cell of it is
+    // classified, so this is what a budget actually buys.
+    let (hex, minted, _at) = hexagon();
+    let sel = opposite_flats(minted);
+    let leaf = box_of("place");
+    let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
+    let hr = held.receipt();
+    assert_eq!(held.verdict(), &ClearanceVerdict::Holds, "{}", held.serialize());
+    assert!(hr.holds());
+    let held_cells = hr.discharged + hr.violated + hr.refused;
+    println!(
+        "[limit] held by refining at c = 1.5: cells = {held_cells}, splits = {}, widths = {:?}",
+        hr.splits,
+        held.widths()
+    );
+    assert!(
+        held_cells > violated_cells.iter().max().copied().unwrap_or(0),
+        "a held bound costs more than a witnessed one: {held_cells} against {violated_cells:?}"
+    );
+
+    // The third regime, and the one no budget settles: a bound strictly
+    // inside the pair's own separation range leaves cell pairs whose
+    // enclosures straddle it at EVERY depth. 1.99 against a 2 m
+    // separation spends the whole dial and refuses, priced.
+    let frontier = clearance(&hex, &leaf, &sel, &sel, 1.99, Tol::witness());
+    let fr = frontier.receipt();
+    assert!(fr.holds());
+    match frontier.verdict() {
+        ClearanceVerdict::Refused(ClearanceRefusal::Budget(_)) => {}
+        other => panic!("expected the frontier to exhaust its budget, got {other:?}"),
+    }
+    let frontier_cells = fr.discharged + fr.violated + fr.refused;
+    println!(
+        "[limit] the frontier at c = 1.99: cells = {frontier_cells}, splits = {}, widths = {:?}",
+        fr.splits,
+        frontier.widths()
+    );
+    assert!(
+        frontier_cells > 100 * held_cells,
+        "the frontier costs orders more than either resolvable end: {frontier_cells} \
+         against {held_cells}"
+    );
+    let w = frontier.widths();
+    let (widest, narrowest) = (w.widest.unwrap_or(0.0), w.narrowest.unwrap_or(0.0));
+    assert!(
+        narrowest * 4.0 < widest,
+        "and it discharges across a range of cell sizes rather than at one: {w:?}"
+    );
+}
+
+/// **What the receipt says when the sweep stops early**, which is the
+/// one place the identity's SHAPE is visible: a verified violation
+/// leaves a frontier unexamined, and those cell pairs are `abandoned` —
+/// never folded into `refused`, which would claim they were tried.
+#[test]
+fn early_exit_accounts_for_what_it_did_not_examine() {
+    let (doc, minted, _at) = dumbbell();
+    let sel = Selection::body_of(minted);
+    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.6, Tol::witness());
+    let r = report.receipt();
+    assert_eq!(report.verdict().label(), "Violated");
+    assert!(r.holds(), "the identity holds with the abandoned column: {r:?}");
+    assert!(
+        r.abandoned > 0,
+        "a whole-body query stops with candidates still unexamined: {r:?}"
+    );
+    assert_eq!(
+        r.discharged + r.violated + r.refused + r.abandoned,
+        r.splits + r.candidates,
+        "spelled out: the four buckets cover the forest's leaves"
+    );
+    // A query that runs to completion abandons nothing.
+    let held = clearance(&doc, &box_of("place"), &sel, &sel, 0.2, Tol::witness());
+    assert_eq!(held.verdict(), &ClearanceVerdict::Holds);
+    assert_eq!(held.receipt().abandoned, 0, "{:?}", held.receipt());
+}
+
+/// **The doors that refuse before any subdivision**: a bound that is
+/// not a distance, and a scope that names nothing. Both used to burn a
+/// whole budget and come back `Budget`, which is the wrong name for
+/// either.
+#[test]
+fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
+    let (doc, minted, _at) = dumbbell();
+    let sel = Selection::body_of(minted);
+    let leaf = box_of("place");
+    for c in [f64::NAN, f64::INFINITY, -1.0] {
+        let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
+        match report.verdict() {
+            ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. }) => {}
+            other => panic!("expected NotADistance for c = {c}, got {other:?}"),
+        }
+        assert_eq!(report.receipt(), CellReceipt::default());
+    }
+    let empty = Selection {
+        at: minted,
+        body: 0,
+        faces: FaceScope::Named(Vec::new()),
+    };
+    match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
+        ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope) => {}
+        other => panic!("expected EmptyScope, got {other:?}"),
+    }
+}
+
+/// **The refusal arms that had no row.** A sliver and a poison
+/// enclosure are not reachable on any fixture this suite can build (the
+/// module door says why), so what is pinned here is the two that ARE:
+/// the resolution floor, and an unsupported carrier.
+#[test]
+fn the_unsupported_carrier_arm_refuses_naming_the_class() {
+    // A loft's walls are free-form patches, which the window door
+    // admits no chart for.
+    let mut r = Recorder::new();
+    declare(&mut r, "place", 0.0);
+    let mut profiles = Vec::new();
+    for (z, scale) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0)] {
+        let plane = r.insert(fixture::frame(
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ));
+        profiles.push(r.insert(Node::Profile(fixture::desc(
+            plane,
+            vec![vec![
+                (0.0, 0.0),
+                (2.0 * scale, 0.0),
+                (2.0 * scale, 1.0 * scale),
+                (0.0, 1.0 * scale),
+            ]],
+        ))));
+    }
+    let loft = r.insert(Node::Loft {
+        profiles,
+        v_degree: Expr::count(2),
+    });
+    let doc = r.doc;
+    let sel = Selection::body_of(loft);
+    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.1, Tol::witness());
+    match report.verdict() {
+        ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, .. }) => {
+            println!("[unsupported] {carrier}");
+        }
+        // A loft that does not build at the interval scalar refuses at
+        // the selection instead, which is the other honest answer and
+        // is not this row's subject.
+        ClearanceVerdict::Refused(ClearanceRefusal::Selection(e)) => {
+            println!("[unsupported] the loft did not build at Interval: {e}");
+        }
+        other => panic!("expected a typed refusal, got {other:?}"),
     }
 }

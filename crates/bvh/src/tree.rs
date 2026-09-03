@@ -130,16 +130,6 @@ impl Bvh {
         Self::build(&boxes)
     }
 
-    /// The item boxes, in input order — what the tree was built over.
-    ///
-    /// A proximity consumer states its certified separation from the
-    /// very box a candidate was accepted on ([`Aabb::separation_lo`]);
-    /// re-deriving that box caller-side would be a second construction
-    /// free to disagree with this one.
-    pub fn boxes(&self) -> &[Aabb] {
-        &self.boxes
-    }
-
     /// The number of items the tree was built over.
     pub fn len(&self) -> usize {
         self.boxes.len()
@@ -280,23 +270,6 @@ impl Bvh {
         let mut out = Vec::new();
         for (i, b) in self.boxes.iter().enumerate() {
             out.extend(other.within(b, pad).into_iter().map(|j| (i, j)));
-        }
-        out
-    }
-
-    /// Every UNORDERED pair `(i, j)`, `i < j`, of this tree's own items
-    /// whose boxes come within `pad` metres, in ascending `(i, j)`
-    /// order: [`Bvh::pairs_within`]'s self form, each pair reported once
-    /// and no item paired with itself.
-    pub fn self_pairs_within(&self, pad: f64) -> Vec<(usize, usize)> {
-        let mut out = Vec::new();
-        for (i, b) in self.boxes.iter().enumerate() {
-            out.extend(
-                self.within(b, pad)
-                    .into_iter()
-                    .filter(|&j| j > i)
-                    .map(|j| (i, j)),
-            );
         }
         out
     }

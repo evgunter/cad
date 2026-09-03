@@ -30,11 +30,27 @@ fn boxed(min: [f64; 3], max: [f64; 3]) -> Aabb {
     }
 }
 
+/// Boxes over a WIDE magnitude range: the generator used to stop at
+/// ±20, which is exactly the band where a squared gap cannot overflow —
+/// so the one arithmetic hazard `separation_lo` has was outside every
+/// sweep. The exponent is sampled rather than the coordinate, so a run
+/// visits 1e0 and 1e200 with the same frequency.
 fn arb_box() -> impl Strategy<Value = Aabb> {
     let c = -20.0..20.0f64;
     let e = 0.0..5.0f64;
     ((c.clone(), c.clone(), c), (e.clone(), e.clone(), e))
         .prop_map(|((x, y, z), (a, b, c))| boxed([x - a, y - b, z - c], [x + a, y + b, z + c]))
+}
+
+/// The same shape, scaled by a sampled power of ten up to 1e200.
+fn arb_wide_box() -> impl Strategy<Value = Aabb> {
+    (arb_box(), 0..200i32).prop_map(|(b, e)| {
+        let s = 10f64.powi(e);
+        boxed(
+            [b.min_x * s, b.min_y * s, b.min_z * s],
+            [b.max_x * s, b.max_y * s, b.max_z * s],
+        )
+    })
 }
 
 /// A point of the box at the three unit-interval coordinates.
@@ -97,6 +113,25 @@ proptest! {
         prop_assert_eq!(tree.within(&query, pad), brute);
     }
 
+    /// The lower-bound claim over the WIDE generator: sampling the
+    /// exponent is what puts the overflow band under the sweep.
+    #[test]
+    fn separation_lo_never_exceeds_a_real_separation_at_any_magnitude(
+        a in arb_wide_box(),
+        b in arb_wide_box(),
+        pa in (0.0..1.0f64, 0.0..1.0f64, 0.0..1.0f64),
+        pb in (0.0..1.0f64, 0.0..1.0f64, 0.0..1.0f64),
+    ) {
+        let lo = a.separation_lo(&b);
+        prop_assert!(lo.is_finite(), "a separation is a number: {lo}");
+        let d = dist(point_in(&a, pa), point_in(&b, pb));
+        // The sampled point pair's own distance can overflow where the
+        // boxes cannot; an infinite `d` bounds nothing and is skipped.
+        if d.is_finite() {
+            prop_assert!(lo <= d, "separation_lo {lo} exceeds a real distance {d}");
+        }
+    }
+
     /// Conservativeness, the property the clearance lane rests on: a
     /// pair whose true separation is at most `pad` is always a
     /// candidate.
@@ -152,6 +187,26 @@ fn the_degenerate_boxes_answer_zero() {
     assert_eq!(tree.within(&far, f64::NAN), vec![0, 1]);
 }
 
+/// **The bound survives the magnitude range**, which is the case the
+/// old ±20 generator could not reach: past `sqrt(f64::MAX)` a squared
+/// gap overflows, and an unguarded norm comes back `+inf` — a claim of
+/// near-`f64::MAX` separation on a pair that is merely far away, which
+/// would DROP it from every proximity query.
+#[test]
+fn separation_lo_is_a_lower_bound_past_the_squaring_overflow() {
+    for e in [150, 154, 160, 200, 300] {
+        let s = 10f64.powi(e);
+        let a = boxed([0.0, 0.0, 0.0], [s, s, s]);
+        let b = boxed([2.0 * s, 0.0, 0.0], [3.0 * s, s, s]);
+        let lo = a.separation_lo(&b);
+        assert!(lo.is_finite(), "1e{e}: not finite: {lo}");
+        // The true separation is exactly `s` (an axis-aligned gap), so
+        // the bound must not exceed it and must not collapse to zero.
+        assert!(lo <= s, "1e{e}: over-claims: {lo} against {s}");
+        assert!(lo >= s * 0.5, "1e{e}: collapsed: {lo} against {s}");
+    }
+}
+
 /// A separation the bound must actually SEE: two unit boxes a metre
 /// apart on each axis are `√3` apart, and the bound is within a few
 /// ulps below it.
@@ -169,24 +224,6 @@ fn separation_lo_is_tight_to_a_few_ulps() {
         truth - lo <= 8.0 * f64::EPSILON,
         "the bound is tight, not merely sound: {lo} vs {truth}"
     );
-}
-
-/// `self_pairs_within` reports each unordered pair once, never a
-/// self-pair, in ascending order.
-#[test]
-fn self_pairs_are_unordered_and_reported_once() {
-    let boxes = [
-        boxed([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
-        boxed([0.5, 0.0, 0.0], [1.5, 1.0, 1.0]),
-        boxed([9.0, 9.0, 9.0], [10.0, 10.0, 10.0]),
-    ];
-    let tree = Bvh::build(&boxes);
-    assert_eq!(tree.self_pairs_within(0.0), vec![(0, 1)]);
-    // The far box is `8√3 ≈ 13.86` away on the diagonal, not 8: the
-    // query's reach is Euclidean, not per-axis. A pad that clears it
-    // pairs everything, still once each and still ascending.
-    assert_eq!(tree.self_pairs_within(13.0), vec![(0, 1)]);
-    assert_eq!(tree.self_pairs_within(14.0), vec![(0, 1), (0, 2), (1, 2)]);
 }
 
 /// The `T: Bounds` door at `T = f64` is the vertex-extent constructor
@@ -207,7 +244,6 @@ fn build_bounded_at_f64_is_the_existing_construction() {
         .map(|c| Aabb::from_points(c.iter().copied()).unwrap().padded(pad))
         .collect();
     let door = Bvh::build_bounded(clouds.clone(), pad);
-    assert_eq!(door.boxes(), by_hand.as_slice());
     assert_eq!(format!("{door:?}"), format!("{:?}", Bvh::build(&by_hand)));
 }
 
@@ -240,20 +276,18 @@ fn the_proximity_queries_are_deterministic() {
         })
         .collect();
     let tree = Bvh::build(&boxes);
-    let first = tree.self_pairs_within(0.25);
+    let first = tree.pairs_within(&tree, 0.25);
     for _ in 0..4 {
-        assert_eq!(Bvh::build(&boxes).self_pairs_within(0.25), first);
+        let again = Bvh::build(&boxes);
+        assert_eq!(again.pairs_within(&again, 0.25), first);
     }
+    // The answer carries input indices, not tree shape: over a reversed
+    // build every pair comes back with its indices reversed and nothing
+    // else moves.
     let reversed: Vec<Aabb> = boxes.iter().rev().copied().collect();
     let rev_tree = Bvh::build(&reversed);
     let n = boxes.len() - 1;
-    let mut mapped: Vec<(usize, usize)> = first
-        .iter()
-        .map(|&(i, j)| {
-            let (a, b) = (n - i, n - j);
-            (a.min(b), a.max(b))
-        })
-        .collect();
+    let mut mapped: Vec<(usize, usize)> = first.iter().map(|&(i, j)| (n - i, n - j)).collect();
     mapped.sort_unstable();
-    assert_eq!(rev_tree.self_pairs_within(0.25), mapped);
+    assert_eq!(rev_tree.pairs_within(&rev_tree, 0.25), mapped);
 }

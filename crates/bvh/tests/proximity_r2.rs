@@ -47,18 +47,16 @@ fn separation_truth(a: &Aabb, b: &Aabb) -> f64 {
     s * (n.0 * n.0 + n.1 * n.1 + n.2 * n.2).sqrt()
 }
 
-/// **The falsification**: at coordinates past `~1.34e154` the per-axis
-/// gaps square to infinity inside `Vec3::norm`, the norm comes back
-/// `inf`, and four `next_down`s off infinity land on `f64::MAX`. The
-/// "certified LOWER bound on the Euclidean distance" is then an
-/// enormous OVER-claim — `1.8e308` reported for boxes `1.7e200` apart.
+/// **The falsification, now a PIN.** At coordinates past `~1.34e154`
+/// the per-axis gaps used to square to infinity inside `Vec3::norm`,
+/// the norm came back `inf`, and four `next_down`s off infinity landed
+/// on `f64::MAX` — an enormous OVER-claim from a door that promises a
+/// LOWER bound: `1.8e308` reported for boxes `1.7e200` apart.
 ///
-/// `Vec3::norm`'s own doc-comment states the overflow ("components
-/// beyond ~1e154 overflow `norm_squared` to ∞"); what is missing is a
-/// guard at the one call site that promises a bound in the other
-/// direction.
+/// `separation_lo` now rescales by an exact power of two before
+/// squaring, so the row asserts the bound rather than the defect.
 #[test]
-fn separation_lo_overclaims_when_the_gap_overflows_the_norm() {
+fn separation_lo_bounds_below_where_the_norm_would_have_overflowed() {
     let big = 1.0e200f64;
     let a = boxed([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
     let b = boxed([big, big, big], [big * 2.0, big * 2.0, big * 2.0]);
@@ -69,24 +67,24 @@ fn separation_lo_overclaims_when_the_gap_overflows_the_norm() {
         "the fixture really is ~1.7e200 apart: {truth}"
     );
     assert!(
-        lo > 1.0e308,
-        "the shipped bound saturates (four `next_down`s off infinity) rather than \
-         bounding: {lo}"
+        lo.is_finite() && lo < 1.0e308,
+        "the bound is a number, not a saturation: {lo}"
     );
     assert!(
-        lo > truth,
-        "R2 finding: separation_lo {lo} EXCEEDS the real separation {truth}, so it is not \
-         a lower bound at this magnitude"
+        lo <= truth,
+        "separation_lo {lo} must not exceed the real separation {truth}"
+    );
+    assert!(
+        lo > truth * 0.99,
+        "and it is still tight at this magnitude: {lo} against {truth}"
     );
 }
 
-/// The consequence at the query door, which is what makes the row above
+/// The consequence at the query door, which is what made the row above
 /// more than an arithmetic curiosity: a pair whose true separation is
-/// well inside `pad` is pruned away, so a consumer that reads
-/// `pairs_within` as "every pair that could be within `pad`" is handed
-/// an answer that silently dropped one.
+/// well inside `pad` used to be pruned away. It is a candidate now.
 #[test]
-fn the_overflowing_pair_is_dropped_from_a_proximity_query() {
+fn a_far_but_within_pad_pair_survives_the_proximity_query() {
     let big = 1.0e200f64;
     let a = boxed([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
     let b = boxed([big, big, big], [big * 2.0, big * 2.0, big * 2.0]);
@@ -99,16 +97,16 @@ fn the_overflowing_pair_is_dropped_from_a_proximity_query() {
     let right = Bvh::build(&[b]);
     assert_eq!(
         left.pairs_within(&right, pad),
-        Vec::<(usize, usize)>::new(),
-        "R2 finding: a pair within the pad is not a candidate"
+        vec![(0, 0)],
+        "a pair within the pad is a candidate"
     );
 }
 
-/// Where the saturation actually begins, so the finding carries its own
-/// threshold rather than one chosen magnitude: `norm_squared` overflows
-/// once a single gap exceeds `sqrt(f64::MAX)`.
+/// Where the saturation used to begin — `norm_squared` overflows once a
+/// single gap exceeds `sqrt(f64::MAX)` — pinned on both sides of that
+/// threshold so a future norm change cannot quietly reintroduce it.
 #[test]
-fn the_overclaim_threshold_is_the_square_root_of_max() {
+fn the_bound_is_sound_on_both_sides_of_the_square_root_of_max() {
     let root = f64::MAX.sqrt(); // ~1.34e154
     let below = boxed([root * 0.5, 0.0, 0.0], [root * 0.5, 0.0, 0.0]);
     let above = boxed([root * 1.5, 0.0, 0.0], [root * 1.5, 0.0, 0.0]);
@@ -117,10 +115,15 @@ fn the_overclaim_threshold_is_the_square_root_of_max() {
         origin.separation_lo(&below).is_finite() && origin.separation_lo(&below) < root,
         "below the threshold the bound is sound"
     );
+    let over = origin.separation_lo(&above);
     assert!(
-        origin.separation_lo(&above) > 1.0e308,
-        "above it every separation saturates near f64::MAX: {}",
-        origin.separation_lo(&above)
+        over.is_finite() && over <= root * 1.5,
+        "above it the bound is still a bound, not a saturation: {over}"
+    );
+    assert!(
+        over > root * 1.4,
+        "and still tight: {over} against {}",
+        root * 1.5
     );
 }
 

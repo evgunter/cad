@@ -46,7 +46,6 @@ use editor_core::{
 };
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Sign, Tol};
-use profile::SketchPlane;
 
 use fixture::{Recorder, len, scl};
 
@@ -98,9 +97,19 @@ fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<Profile
     }
 }
 
+/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
+///
+/// `ProfileProgram::plane` became a node reference under this branch
+/// (main's move), so every fixture mints the frame first and hands the
+/// profile its id.
+fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+}
+
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
+    let plane = xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
     }));
     r.insert(Node::Extrude {
@@ -342,15 +351,15 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
     );
     let sel = Selection::body_of(minted);
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated")] {
-        let fold = clearance_over(&doc, &verdict, &sel, &sel, &at_least(c, cfg(65_536, 40)));
+        let fold = clearance_over(&doc, &analyzed, &verdict, &sel, &sel, &at_least(c, cfg(65_536, 40)));
         assert_eq!(fold.verdict.label(), expected, "at c = {c}");
         assert!(fold.receipt.holds(), "{:?}", fold.receipt);
-        assert_eq!(fold.leaves, verdict.certified().len());
-        assert_eq!(&fold.accounting, verdict.accounting());
+        assert_eq!(fold.leaves.len(), verdict.certified().len());
+        assert_eq!(&fold.drive_accounting, verdict.accounting());
         println!(
             "[r2 e2e] fold at c = {c}: {} over {} leaves, receipt = {:?}",
             fold.verdict.label(),
-            fold.leaves,
+            fold.leaves.len(),
             fold.receipt
         );
     }
@@ -936,11 +945,11 @@ fn the_fold_is_the_same_over_a_parallel_and_a_sequential_drive() {
             Tol::witness(),
         )
         .expect("the comb builds at its nominal");
-        let fold = clearance_over(&doc, &verdict, &sel, &sel, &at_least(0.7, cfg(4_096, 20)));
+        let fold = clearance_over(&doc, &analyzed, &verdict, &sel, &sel, &at_least(0.7, cfg(4_096, 20)));
         (
             fold.verdict.label().to_owned(),
             fold.receipt,
-            fold.leaves,
+            fold.leaves.len(),
             fold.widths,
         )
     };
@@ -982,12 +991,13 @@ fn a_fold_over_zero_certified_leaves_reports_holds_r2_finding() {
     let sel = Selection::body_of(minted);
     let fold = clearance_over(
         &doc,
+        &analyzed,
         &verdict,
         &sel,
         &sel,
         &at_least(0.7, cfg(4_096, 20)),
     );
-    assert_eq!(fold.leaves, 0);
+    assert_eq!(fold.leaves.len(), 0);
     assert_eq!(
         fold.verdict,
         ClearanceVerdict::Holds,
@@ -1001,8 +1011,8 @@ fn a_fold_over_zero_certified_leaves_reports_holds_r2_finding() {
     println!(
         "[r2] zero-leaf fold: verdict = {}, leaves = {}, accounting = {:?}",
         fold.verdict.label(),
-        fold.leaves,
-        fold.accounting
+        fold.leaves.len(),
+        fold.drive_accounting
     );
 }
 
