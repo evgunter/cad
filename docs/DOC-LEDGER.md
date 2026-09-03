@@ -503,3 +503,18 @@ tracker paths and were re-pointed in this sweep rather than left:
 - `work/cert/unify-edge-descriptions-on-pcurves.md` pointed at
   `work/pcurve/program.md` as PCURVE's done-state of record; it now points
   at `docs/PCURVE-EXIT-WALK.md`, which is what that record actually is.
+
+## Per-merge deletion — M10's merged-unit specs (2026-09-03)
+
+Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
+(the M10-4 unit head, before the state-sync commit that deleted
+them). The rule above, applied at M10-4's merge to every M10 spec
+whose unit had merged; each unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/m10/log.md`.
+
+- `M10-1-SPEC.md` — M10-1, distributions in the document (#1147)
+- `M10-DI-SPEC.md` — M10-DI, the Dual contract implementation (#1154)
+- `M10-P-SPEC.md` — M10-P, the profile-parameter lift (#1174)
+- `M10-2-SPEC.md` — M10-2, Measure nodes and Assertions (#1213)
+- `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
+- `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
