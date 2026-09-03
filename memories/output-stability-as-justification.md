@@ -10,7 +10,7 @@ arithmetic association, which of two correct spellings. It may never
 justify **keeping** a thing: not a second implementation, not a dead
 lane, not a worse shape.
 
-**The positive license (Evan, 2026-08-29, ruling on S-CERT Q2 and
+**The positive license (Ev, 2026-08-29, ruling on S-CERT Q2 and
 its follow-up): bit-preservation is not the bar.** A bit change
 ≪ ε is always acceptable when it buys cleaner code — and that is
 *sufficient, not necessary*: even a flipped classification is fine

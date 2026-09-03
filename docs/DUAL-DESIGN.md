@@ -1,13 +1,13 @@
 # The Dual contract — what a `Dual` actually has to do (M10-D)
 
-**Status: RATIFIED (Evan, PR #1146, 2026-08-29 — in-conversation
+**Status: RATIFIED (Ev, PR #1146, 2026-08-29 — in-conversation
 sign-off on the draft as written).**
 This is the design pass the DESIGN.md M10 roadmap entry reserved:
 it answers the collected question (*what does a `Dual` actually
 have to do*), cleans up the `Bounds` / `CertifiedEnclosure` split
 on that answer, and unblocks M10-4. Decisions DL1–DL6; each with
 the proposal, the evidence, and what it forecloses. Grounding: the
-D1 ruling (Evan, 2026-08-19: *a `Dual` may not certify — at least
+D1 ruling (Ev, 2026-08-19: *a `Dual` may not certify — at least
 for now — but it may have `Bounds`*), ERROR-DESIGN E4/E5/E9, the
 `real.rs` ratification ledger, issues 687 and 701, and the
 substrate survey of 2026-08-29 (facts cited inline). No code rides

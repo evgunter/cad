@@ -1,6 +1,6 @@
 # M5 curved-geometry design: SSI, pcurves, NURBS depth, fillets (pre-M5 design doc)
 
-Status: **RATIFIED (Evan, PR #85, 2026-07-24: "lgtm!").** This
+Status: **RATIFIED (Ev, PR #85, 2026-07-24: "lgtm!").** This
 document is the design record for M5 curved geometry. Every fork was
 decided in the #85 review conversation and is recorded inline as
 DECIDED with its ground; candidate decisions C1–C12 are the ratified
@@ -397,7 +397,7 @@ predicate in full; this section only mechanizes it):
 
 - **Shape**: `TangentIntersection { s1, s2, witness }` — mirroring
   `Intersection`, witness pinned at carrier(mid) by the same S2
-  argument. (Rename decided per OQ7, Evan 👍 #85 2026-07-24: the
+  argument. (Rename decided per OQ7, Ev 👍 #85 2026-07-24: the
   variant becomes `TangentIntersection`, a D2 sharpening at
   ratification.) No stored contact-order field: order-k contact beyond
   k = 1 is out of scope (D2 notes the generalization; nothing at M5
@@ -427,7 +427,7 @@ predicate in full; this section only mechanizes it):
   K funnel will see (after `solver_branch_margin` — K-REPORT's scope
   honesty predicted exactly this corpus; the M5 exit must include a
   K-telemetry snapshot).
-- **Tier-3 interaction (decided per OQ7, Evan 👍 #85 2026-07-24 —
+- **Tier-3 interaction (decided per OQ7, Ev 👍 #85 2026-07-24 —
   the two-level shape)**: prefer-intrinsic today enforces
   definitely-transverse ⇒ `Intersection`. The symmetric side gets two
   levels, not one rule: (i) **the mark** — every definitely-tangent
@@ -517,10 +517,10 @@ practice, p. 343).
   recommendation: M5 ships closed smooth chains + the
   three-convex-edge vertex = sphere-octant corner patch, refuses
   typed everything else (`FilletCornerUnsupported`); run-out
-  policies are a taxonomy decision Evan should own before any lands.
+  policies are a taxonomy decision Ev should own before any lands.
   (Scope decided per OQ6, #85 2026-07-24: as recommended, with the
   die-with-pips demo upgrade as the acceptance target. Run-out
-  vocabulary decided too, Evan 👍: minimal two-policy refusal-payload
+  vocabulary decided too, Ev 👍: minimal two-policy refusal-payload
   names — `RunOutStopAtVertex`, `RunOutFeather`, corner-configuration
   tags — zero constructor surface; see OQ6.)
 
@@ -554,7 +554,7 @@ resolution is structural, not a compromise:
   program, scoped to the ring (the Tabled item's hard part —
   transcendental pads — stays tabled).
 
-**DECIDED (Evan, #85, 2026-07-24):** the in-house ring is approved
+**DECIDED (Ev, #85, 2026-07-24):** the in-house ring is approved
 (OQ8). *(As built, it went further than this section proposed: M5
 PR 1 (#127) grew the in-house crate to full transcendentals and
 retired inari from the tree altogether, so the second bullet's
@@ -685,7 +685,7 @@ PR-plan line item, none re-ratifying anything):
    M5 start with a written verdict; the default stance (reference +
    test oracle, vendor specific algorithms if their invariant
    retrofit is cheaper than reimplementation) is DESIGN.md's, and the
-   audit either confirms it or proposes the change to Evan. truck +
+   audit either confirms it or proposes the change to Ev. truck +
    opencascade-rs join as SSI/boolean test oracles per the standing
    review policy (real e2e comparisons, not diff-reading).
 
@@ -747,7 +747,7 @@ for* — each an obligation on M5 code shape, none a new decision:
   of imported fillets a reconstruction into an *existing, certified*
   variant rather than a taxonomy scramble.
 
-## Open questions for Evan (genuine forks)
+## Open questions for Ev (genuine forks)
 
 **OQ1 — Conic carriers: how far up the ladder?** (a) `Ellipse` only
 (bounded cuts; plane×cone generic-tilt refuses to rung 3 or typed);
@@ -758,7 +758,7 @@ NURBS for everything past `Circle`. C1 recommends (b)-staged-via-(a):
 on whether plane×cone acceptance shapes make M5. The real fork is
 taste about enum growth vs uniformity — D3 licenses either.
 
-**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+**DECIDED (Ev, #85, 2026-07-24) — pending whole-doc ratification:**
 (b) staged via (a), as recommended.
 
 **OQ2 — Certificate strength staging.** Is the C2.2 hull-bound
@@ -774,7 +774,7 @@ pass (C3) found multiple branches for the pair? (Recommendation:
 always — the witness semantics is a kernel invariant, not a
 circumstance.)
 
-**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+**DECIDED (Ev, #85, 2026-07-24) — pending whole-doc ratification:**
 both halves as recommended — hull bounds are an *entry* requirement
 (no fitted cache reaches an at-rest body on a schedule-max-only
 certificate), and the C2.3 uniqueness tube is required for every
@@ -792,7 +792,7 @@ preview lane yet, so (c) collapses to (a) until editor-core preview
 exists). The banked principle fixes the *contract* (found-or-typed,
 never silence); the placement is genuinely open.
 
-**DECIDED (Evan 👍, #85, 2026-07-24) — pending whole-doc
+**DECIDED (Ev 👍, #85, 2026-07-24) — pending whole-doc
 ratification:** (a) in-op — the boolean/SSI op does not return until
 every branch is found or it refuses typed. Recorded ground (the
 deciding asymmetry): every other tier-3 obligation certifies *caches*
@@ -816,7 +816,7 @@ alternative — fit pcurves, derive the 3-D cache through the chart —
 is cleaner for trimmed-NURBS-heavy futures and slightly worse for
 everything M5 actually validates. Cheap to flip now, expensive later.
 
-**DECIDED (Evan 👍, #85, 2026-07-24) — pending whole-doc
+**DECIDED (Ev 👍, #85, 2026-07-24) — pending whole-doc
 ratification:** carrier-primary. Recorded grounds: every existing
 certified mechanism keys off the 3-D carrier (witness = carrier(mid),
 certification schedules, dihedral/sector classification, `split_edge`
@@ -837,12 +837,12 @@ coincident-cylinder/tangent-contact classes) is a real
 coincidence-ladder design of its own; recommending it wait for its
 own doc.
 
-**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+**DECIDED (Ev, #85, 2026-07-24) — pending whole-doc ratification:**
 as recommended — the census stays exact-on-planar through M5; curved
 boolean results that touch refuse typed at the 3′ gate; the curved
 coincidence census waits for its own design doc.
 
-**CLOSED (Evan 👍, PR #178, 2026-08-04):** the design doc the
+**CLOSED (Ev 👍, PR #178, 2026-08-04):** the design doc the
 deferral waited for exists and is RATIFIED —
 `docs/CONTACT-DESIGN.md`, proposals C1–C8 (the pair-germ census,
 the structural-only conformality boundary with the
@@ -862,14 +862,14 @@ policy vocabulary should exist even as typed-refusal names? This is
 the survey's termination/corner problem — the one part of fillet
 scope where reasonable kernels genuinely differ.
 
-**Scope DECIDED (Evan, #85, 2026-07-24) — pending whole-doc
+**Scope DECIDED (Ev, #85, 2026-07-24) — pending whole-doc
 ratification:** closed smooth chains AND the three-convex-edge
 sphere-octant corner are in scope; the **die-with-pips demo upgrade**
 (closed chains on the pip rims, open chains terminating in octant
 corners on the cube edges) is the named acceptance target. Everything
 else refuses `FilletCornerUnsupported`.
 
-**Run-out vocabulary DECIDED (Evan 👍, #85, 2026-07-24) — pending
+**Run-out vocabulary DECIDED (Ev 👍, #85, 2026-07-24) — pending
 whole-doc ratification:** the minimal two-policy vocabulary ships as
 **refusal-payload names only** — `FilletCornerUnsupported` carries an
 enumerated payload naming the configuration hit and the policy that
@@ -893,10 +893,10 @@ redraws the boundary between conventional `MappedCurve` smooth joins
 and genuinely intrinsic tangencies (fillet trimlines). The
 discriminator is "do the surfaces determine the locus" — sharp in
 theory; the enforcement predicate needs a margin story at the
-boundary and Evan's eyes on which side conventional splits land.
+boundary and Ev's eyes on which side conventional splits land.
 
-**DECIDED (Evan 👍, #85, 2026-07-24) — pending whole-doc
-ratification:** Evan's two-level shape is adopted and folded into C7:
+**DECIDED (Ev 👍, #85, 2026-07-24) — pending whole-doc
+ratification:** Ev's two-level shape is adopted and folded into C7:
 (i) **the mark** — every definitely-tangent edge carries the tangency
 *verdict* as a named recorded classification (tier 3 already samples
 dihedrals per edge; the same data kept as a verdict instead of
@@ -922,7 +922,7 @@ inari rather than either (a) putting inari on the default path or
 interval program. This is a licensing/architecture fork, small code,
 long shadow.
 
-**DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
+**DECIDED (Ev, #85, 2026-07-24) — pending whole-doc ratification:**
 the in-house ring is approved, doubling as the seed of the eventual
 inari replacement; the temporary inari-on-default-path allowance C9
 sketched was never needed (see C9's decision note).
@@ -934,7 +934,7 @@ heuristics as reference), does that change the build-vs-study stance
 enough to warrant a DESIGN.md Q5 revision, or is a memories/audit
 note sufficient? (Process question as much as technical.)
 
-**DECIDED (Evan, #85, 2026-07-24, deferred-to-judgment; the revision
+**DECIDED (Ev, #85, 2026-07-24, deferred-to-judgment; the revision
 path is taken) — pending whole-doc ratification:** the audit verdict
 lands as a lean DESIGN.md Q5 revision — standing stance and its
 supersession in one place, no re-litigating — pointing at the audit
@@ -988,7 +988,7 @@ discriminating evidence would come from boolean/SSI predicates. C7's
 second-order family and C2.3's branch-separation margins are that
 corpus. The M5 exit K-snapshot is not optional bookkeeping; it is the
 report's own revisit condition firing.
-*(#85 tangent, 2026-07-24: Evan raised whether K should be much
+*(#85 tangent, 2026-07-24: Ev raised whether K should be much
 larger — "any sliver that looks exactly-equal in the GUI is probably
 a mistake." Split to issue #89 rather than decided in #85: the
 kernel-K half waits on the M5 exit K-snapshot (this flag's own

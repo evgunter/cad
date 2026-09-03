@@ -87,7 +87,7 @@ One deliberate exception worth knowing: the `bracket` scene is retired
 from the montage in favour of `rocker`, which shows strictly more.
 
 Note also where the bowtie lives: not in the tour (a broken-on-purpose
-scene is not a use case — Evan's ruling on #413) but asserted in
+scene is not a use case — Ev's ruling on #413) but asserted in
 `crates/profile/tests/rejections.rs`. The chain AUTHORS through the
 lattice — the junction checks are local and all four corners are sharp
 — and `validate` refuses it with the exact typed error.

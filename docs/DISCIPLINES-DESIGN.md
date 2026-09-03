@@ -1,13 +1,13 @@
 # Disciplines and checks — the registry design conversation
 
-**Status: WIP — provisionally accepted (Evan, 2026-08-25, in the
+**Status: WIP — provisionally accepted (Ev, 2026-08-25, in the
 origin conversation: merge as idea-WIP, provisionally accepted).**
 Not yet RATIFIED: the classification and pattern are the accepted
 working frame; full ratification (and a DESIGN.md companion-table
 row) waits for the first implementing unit's conversation.
 (Born in the 2026-08-24 configurable-checks conversation; proposals
 DS1–DS8, open questions DS-Q1–DS-Q6. Round 2 revised DS2 and DS7 per
-Evan's pushback: the mandatory criterion is identification, not
+Ev's pushback: the mandatory criterion is identification, not
 "an op forks"; the permissive mode is a recording dial with a viable
 middle position, not a rejected monolith. Round 3 corrected DS2's
 collinear example against the code (undeclared same-carrier joints
@@ -19,7 +19,7 @@ and the connectedness resident shipped, I1(0b)'s exactness claim
 narrowed to the count, the staleness direction proved non-optional
 within one review cycle, DS-Q3 is answered for grade 4, and DS-Q4
 carries its first-PR position. Round 5 opens the registry to
-out-of-tree checks — DS9, three rulings from Evan plus one
+out-of-tree checks — DS9, three rulings from Ev plus one
 recommendation awaiting reaction. Round 6 ruled that arm: the funnel
 is exposed to plugins, with verdict-producer provenance replacing
 default exclusion; and the machinery unification is planned, #981.) This doc schedules **no
@@ -127,7 +127,7 @@ stratum verdict tunes edge descriptions, legality, and messages, but
 whenever a body builds it is the same body — the fork downstream
 consumes the *geometric verdict*, which exists whether or not anyone
 declared, and the declaration only gates passage. Profile tangency
-is classification-grade (reclassified in round 2 per Evan's
+is classification-grade (reclassified in round 2 per Ev's
 collinear-segments observation; the example corrected in round 3
 against the code). The collinear case, precisely: two consecutive
 collinear segments classify as `JointClass::SameCarrier` — not
@@ -367,7 +367,7 @@ two-directional staleness. Until it exists, `Advisory` is the honest
 knob and the noise is the standing demonstration of the gap.
 
 **Recommendation, refining I1's warn-never-refuse at the severity
-knob (round 3, per Evan: blocking is fine if exceptions are
+knob (round 3, per Ev: blocking is fine if exceptions are
 declarable).** Any check — certified or labeled-heuristic — may
 offer `error` **iff it ships a waiver vocabulary**: a per-finding,
 stable-name-keyed acknowledgment record ("the 2 µm step is
@@ -503,7 +503,7 @@ code with a settings page.
 
 ## DS9 — Out-of-tree checks (round 5)
 
-The registry opens to third-party checks. Three rulings (Evan,
+The registry opens to third-party checks. Three rulings (Ev,
 2026-08-25, the origin conversation's continuation):
 
 - **Extensibility wins over gatekeeping.** No earned-certified rule:
@@ -539,7 +539,7 @@ Consequences, binding on the implementing unit when it comes:
   provision**: the report machinery supplies finding-keyed
   acknowledgment records generically, so "error requires a waiver
   door" holds by construction for every registered check.
-- **Funnel participation (RULED, round 6 — Evan: expose it, and
+- **Funnel participation (RULED, round 6 — Ev: expose it, and
   record provenance rather than excluding).** The plugin API exposes
   `decide`-with-`Margin` as the sanctioned comparison path, so a
   plugin inherits the escalation band, multi-ε behavior, and

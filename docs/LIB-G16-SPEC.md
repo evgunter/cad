@@ -1,7 +1,7 @@
 # LIB-G16 — Node::Chamfer, the fillet's twin (recipe door for chamfer_edges)
 
 **Status: spec under ratified `docs/RECIPE-DOORS-DESIGN.md` D2+D3
-(Evan, in-chat, 2026-08-29) and issue #918. Binding at dispatch.
+(Ev, in-chat, 2026-08-29) and issue #918. Binding at dispatch.
 Full model-A/B protocol unit — a schema break is not mechanical.**
 
 ## Deliverables

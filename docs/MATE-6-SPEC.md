@@ -4,7 +4,7 @@
 difficulty pre-logged in the plan's opening commit: **M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 The primary specification is the RULING — `docs/S-MATE-PLAN.md`
-§Rulings item 1 (Evan, in-chat 2026-08-31) — which is a
+§Rulings item 1 (Ev, in-chat 2026-08-31) — which is a
 DRIFT-CLOSURE against ASSEMBLY-DESIGN A3's own ratified sentence:
 *"Evaluation carries each mate's declaration into the evaluated
 body's contact record set."* The code implemented minting in

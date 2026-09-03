@@ -16,7 +16,7 @@ different files:
     invocation rather than about the image: it made a frame's bytes
     depend on WHERE it was written, so the same pixels staged under one
     directory name and published under another were not the same file.
-    Dropping it (Evan, 2026-08-22 — "we already erase some PNG metadata
+    Dropping it (Ev, 2026-08-22 — "we already erase some PNG metadata
     so we can do the paths too") makes a frame comparable to any other
     frame of the same pixels, whatever path produced it. That is what
     lets a render be A/B-compared against a differently-routed one —

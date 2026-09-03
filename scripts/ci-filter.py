@@ -5,7 +5,7 @@ a thin YAML wrapper) and local-scripts/ci-local.sh. There is no second copy of
 these rules anywhere; hosted and local runs are gated identically, and the
 synthetic-diff tests exercise the one script both of them call.
 
-Three tiers (Evan's ask: "changing a core crate runs everything, adding a
+Three tiers (Ev's ask: "changing a core crate runs everything, adding a
 new crate only runs that new crate's tests" — dependency-AWARE, not naive
 per-crate):
 
@@ -103,7 +103,7 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 SEEDS, not on the closure; see
                                 `VIEWER_TOOLKIT_SEEDS`
 
-CONFIGURATION SAMPLING (2026-08-22, Evan's ask after the minutes audit).
+CONFIGURATION SAMPLING (2026-08-22, Ev's ask after the minutes audit).
 The hosted gate used to run every point of {default, interval} x {default,
 1e-6, 1e-12}. Those points almost always agree — that is the premise the
 `interval` feature's additivity gate and the runtime-eps contract both
@@ -132,7 +132,7 @@ THE THIRD SAMPLED DIMENSION (2026-08-22) is `k-lint (gate)`'s five FEATURE
 UNIFICATIONS — see `KLINT_ROWS`. It is drawn under a salt of its own, like
 lane and eps, so all thirty points of the matrix stay reachable.
 
-AND IT IS THE SECOND DIMENSION WITH A PATH PIN (Evan's ruling, 2026-08-29). A
+AND IT IS THE SECOND DIMENSION WITH A PATH PIN (Ev's ruling, 2026-08-29). A
 change under `tools/` does not draw its k-lint row: `_forces_klint` substitutes
 the row that RUNS THAT CRATE'S OWN SUITE, from a mapping DERIVED off the job's
 own steps (`KLINT_PATH_ROWS`) — which is not the same as the row that compiles
@@ -172,7 +172,7 @@ dimensions, and the notice is composed once per pin in `main`.
     a lane that had been requested. `--notices` is the relay that removed the
     second copy.
 
-WHAT THE PIN NO LONGER COVERS, AND THE CONVENTION THAT REPLACED IT (Evan's
+WHAT THE PIN NO LONGER COVERS, AND THE CONVENTION THAT REPLACED IT (Ev's
 ruling, 2026-08-29, on #1122). `_forces_interval` used to pin on any changed
 file whose BASENAME contained `interval`. That arm is gone: it could not tell
 a rename from a semantic edit, and it gated a whole branch on the wrong axis
@@ -184,7 +184,7 @@ name — it changes nothing about what runs. The rule itself lives in
 `docs/prompts/implementer-discipline.md`, which every lane reads; this
 message is a reminder of that rule, not a second copy of it.
 
-REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Evan's ask). The draw
+REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Ev's ask). The draw
 is a DEFAULT, not a lock: someone who wants this tree gated at 1e-12, or at
 the k-lint row the draw keeps missing, says so and gets it. Two spellings,
 one applier, and the only thing either does is replace a drawn value before
@@ -720,7 +720,7 @@ def _touches_oracle(files: list[str] | None) -> bool:
     return any(f.startswith(ORACLE_PATHS) for f in files)
 
 
-# THE SEEDS THAT BUY THE GUI TOOLKIT ROWS (Evan's viewer-CI-posture ruling,
+# THE SEEDS THAT BUY THE GUI TOOLKIT ROWS (Ev's viewer-CI-posture ruling,
 # 2026-08-27; docs/GUI-LOG.md). SEEDS, not the closure — the argument is at
 # `RUN_VIEWER_TOOLKIT` in `decorate`, and it is the whole of why this is a
 # three-name set rather than "anything viewer depends on".
@@ -823,7 +823,7 @@ KLINT_ROWS: tuple[str, ...] = (
     "dev-default", "release-default", "release-budget", "dev-budget", "dev-probe",
 )
 
-# WHEN THE K-LINT ROW IS NOT LEFT TO CHANCE (Evan's ruling, 2026-08-29). A
+# WHEN THE K-LINT ROW IS NOT LEFT TO CHANCE (Ev's ruling, 2026-08-29). A
 # change under `tools/` PINS the row that RUNS ITS SUITE, ahead of the draw.
 #
 # THE CASE, AND WHY IT IS NOT AN ARGUMENT AGAINST THE SAMPLING. All five rows
@@ -918,7 +918,7 @@ KLINT_PIN_ROOTS: tuple[str, ...] = tuple(
 KLINT_PIN_FALLBACK = "dev-default"
 
 # WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE — AND THE NAME-SHAPED HALF THAT
-# NO LONGER IS (Evan's ruling, 2026-08-29, on #1122).
+# NO LONGER IS (Ev's ruling, 2026-08-29, on #1122).
 #
 # This used to pin the lane on TWO signals. One was exact; the other guessed
 # from a filename, and the guess is gone.
@@ -1144,7 +1144,7 @@ def decorate(
     # probe sweep records predicate margins from every kernel crate. Any
     # member change can break it, so it runs whenever anything builds.
     res["RUN_K_LINT"] = "false" if tier == "docs" else "true"
-    # THE VIEWER TOOLKIT AXIS — SEED-KEYED, NOT CLOSURE-KEYED (Evan,
+    # THE VIEWER TOOLKIT AXIS — SEED-KEYED, NOT CLOSURE-KEYED (Ev,
     # 2026-08-27, ruling recorded in docs/GUI-LOG.md: "the GUI is treated as a
     # third-party consumer of the API").
     #
@@ -1835,7 +1835,7 @@ def _selftest_lane_pin(t: str) -> None:
     `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so a
     branch that trips it is on the interval lane for every push it ever makes.
     For `interval-transcendentals/` that is right — the tree is the backend's
-    own workspace. For a BASENAME it was not, and Evan's ruling on #1122
+    own workspace. For a BASENAME it was not, and Ev's ruling on #1122
     removed that arm: it gated a type migration's whole branch on the wrong
     axis because the rename touched an interval-named test file.
 
