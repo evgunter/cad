@@ -20,7 +20,7 @@
 //! and it is still the thing worth pinning.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::witness_bodies::{keyway, oblique_lens, pole_crossing_half_cap};
 use common::*;

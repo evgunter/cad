@@ -10,7 +10,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::SlotId;
 use pncad::geom_core::Tol;

@@ -38,7 +38,14 @@
 //! `EdgeCurve::certify`'s rung-3 gate and the cache through
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// These trees AUTHOR test documents, and a document that will not build is
+// a test failure, not a value to hand back: the builders panic on a
+// malformed fixture rather than thread a `Result` out to a caller whose
+// only recourse is to unwrap it. Named here, where that code lives, rather
+// than left to the crate-root allow of whatever module loads it.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;

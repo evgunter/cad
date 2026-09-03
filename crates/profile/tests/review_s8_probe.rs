@@ -37,7 +37,6 @@
 // change the bits under test.
 #![allow(clippy::excessive_precision)]
 
-mod common;
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{ArcSweep, Center, Open, Start};

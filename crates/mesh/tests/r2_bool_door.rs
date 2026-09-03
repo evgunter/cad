@@ -11,7 +11,7 @@
     clippy::print_stdout
 )]
 
-mod common;
+use crate::common;
 use common::*;
 use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};

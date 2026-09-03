@@ -9,7 +9,7 @@
 use geom_core::Point3;
 use topo::{Body, FaceSurface, MefSite, MevSite, validate, validate_closed, validate_geometric};
 
-mod common;
+use crate::common;
 use common::{describe_as_intersections, geometric_cube, line};
 use geom_core::Tol;
 

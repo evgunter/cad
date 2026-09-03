@@ -14,7 +14,7 @@
 //! [`profile::PathError`]'s.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{bracket, chain, circle_h, pinned, profile, quarter_bulge, tol};
 use geom_core::Point2;

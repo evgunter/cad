@@ -2,7 +2,14 @@
 //! body builders (through public profile/sweep APIs only), the
 //! full-mesh acceptance check, exact surface distances, and the D9
 //! byte-identity dump.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// These trees AUTHOR test documents, and a document that will not build is
+// a test failure, not a value to hand back: the builders panic on a
+// malformed fixture rather than thread a `Result` out to a caller whose
+// only recourse is to unwrap it. Named here, where that code lives, rather
+// than left to the crate-root allow of whatever module loads it.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 /// The Euler-door witnesses the iso-rectangle shape door is measured

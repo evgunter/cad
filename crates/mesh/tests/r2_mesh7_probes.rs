@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::print_stdout)]
 
-mod common;
+use crate::common;
 
 use common::witness_bodies::{keyway, oblique_lens};
 use common::*;
