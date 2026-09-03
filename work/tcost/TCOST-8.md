@@ -2,9 +2,10 @@
 id: TCOST-8
 kind: unit
 title: geom-brep test helpers: band x47, edge/great x16, p3/v3/pt x38
-status: open
+status: dispatched
 opened: 2026-09-03
 refs: [TCOST-7]
+branch: tcost/8-geom-brep-helpers-2
 ---
 
 Deferred by TCOST-7 (PR 1635): the helper families it left as-is in
