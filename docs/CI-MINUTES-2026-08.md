@@ -869,12 +869,20 @@ measured, and the largest line is not the one you would guess:
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
-| `rustdoc (gate, every root)` | ~3 | S-TCOST C2. DERIVED, not yet measured on a nightly: F6's warm all-seven reading is a 99 s job and the addendum's pass-3 delta is +43 s, so ~142 s. Its own cache lane (`nightly-rustdoc-roots`) is warm night to night; a key rotation costs one night at ~6-7, the same one-cold-run tax F6 records. Re-read it from the first nightly run. The `an ordinary night` line below does not yet include this row |
-| **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
+| `rustdoc (gate, every root)` | ~3 | S-TCOST C2. DERIVED, not yet measured on a nightly: F6's warm all-seven reading is a 99 s job and the addendum's pass-3 delta is +43 s, so ~142 s. Its own cache lane (`nightly-rustdoc-roots`) is warm night to night; a key rotation costs one night at ~6-7, the same one-cold-run tax F6 records. Re-read it from the first nightly run. |
+| `corrupt input (release profile)` | ~2 | S-TCOST C1. The job's own audit-table line, unchanged by the move: it is one `-p topo --lib` release compile and five rows that execute in milliseconds. Read at 98 s / 2 billed on run `33722922975`, where it was still a ci.yml job on a comparable tree. |
+| `python suite (ungated re-take)` | ~2 | S-TCOST C3. The job's own line, re-read at 120 s / 2 billed on run `33722922975` where it was still ci.yml's on a comparable tree; 67 s of that is the wheel, on a cache lane (`nightly-python`) of its own. |
+| **an ordinary night** | **~15** | **~41 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted). Was ~8 before the three S-TCOST C-units above joined this lane on 2026-09-03; each of them books a saving on the PR side against its row here, and `rustdoc (gate, every root)`'s ~3 is the one figure still DERIVED rather than read off a nightly |
 
-**`demoted` is over half of it, and the reason is structural rather than
-sloppy**: the selection is a difference between two listings, and a
-listing is a build. The gate-side one is therefore taken at **opt-0** —
+**`demoted` is the largest single line here, and the reason is
+structural rather than sloppy**: the selection is a difference between
+two listings, and a listing is a build. (It read *over half of it* until
+2026-09-03, and that was true of a ~8-minute night against `demoted`'s
+~11: 11 of 19. The three C-units above take the ordinary night to ~15,
+so it is now ~11 of 26 — still the biggest row by some way, and no
+longer a majority. The sentence is corrected rather than left standing,
+because a figure in this document that disagrees with its own table is
+the drift the document is about.) The gate-side one is therefore taken at **opt-0** —
 nothing is executed from it, and the selection reads test NAMES and
 `ignored` FLAGS, neither of which an optimisation level can move — which
 is ~130 s against the ~430 s the opt-2 build cost (this document's own
@@ -1156,6 +1164,54 @@ from the SOURCE, the way the interval one does: no marker anywhere under
 `crates/` proves the empty case, markers present with an empty difference
 is a broken rig and fails.
 
+### 2026-09-03 — `corrupt input (release profile)` demoted to the nightly
+
+S-TCOST unit C1, Ev's approval in chat the same day. The job moved out of
+`ci.yml` into `nightly.yml` verbatim — its steps, its non-empty-selection
+count guard and its five `... ok` name greps plus the two suite-header
+greps — and now runs ungated on any night main moved, rather than on every
+code-tier PR run whose closure holds `topo`.
+
+**Argued against §*What is NOT sampled, and the rule*, per row**, which is
+what that section demands of a new entry rather than inheriting another
+job's licence. The three profile-independent-but-release-named rows assert
+on the body the operators produce, and a wrong body persists. `review_d18`'s
+two `cfg(not(debug_assertions))` hammer rows run in NO other lane, which is
+the case that looks like an absence detector and is not one: what they
+detect — a row-4 `unreachable!` becoming input-reachable — is a property of
+the tree's code and persists exactly as the rows above do. The genuine
+absence risk, those rows silently ceasing to be selected, is what the count
+guard and the name greps are for, and they moved WITH the job, so the
+detector kept its cadence relative to the rows it guards. The full argument
+is at the job, which is where the rule says it belongs.
+
+**Billed minutes: −2 per code-tier PR run whose closure holds `topo`.**
+The subtrahend is the job's own line in the reference table at the top of
+this document — 1.37 min wall, **2 billed** — and `topo` is in the closure
+of 89 of the last 128 first-parent merges. Against that, **~2 billed
+minutes a night**: the nightly pays the same rounded-up minute, once, on
+days main moved.
+
+The *after* is read from this unit's own PR run, `33721373132` (16 jobs,
+default lane drawn): `corrupt input (release profile)` **is not among
+them**, which is what −2 means here — the job is gone from ci.yml rather
+than shortened, so there is no new duration to read and the delta is the
+whole of its old line. What that run cannot re-take is the 1.37/2 itself,
+because the job no longer runs there; per the F6 addendum's rule, that
+figure is true as of the audit that measured it and the nightly is now
+where a fresh reading of it comes from.
+
+**What the demotion gives up, and what it does not.** It gives up
+attribution: a break lands on the night's merges rather than on the PR that
+caused it. Two handles remain — `nightly.yml`'s `ref` dispatch input
+re-measures any commit, and `local-scripts/ci-local.sh` still runs the row
+on every local gate, still scoped by `RUN_TOPO_RELEASE`. That local
+consumer is why the filter key SURVIVES the demotion: `ci.yml`'s `filter`
+job publishes no `run_topo_release` output any more (an output nothing reads
+is how a reader concludes a job still exists), but deleting the key would
+have promoted a scoped local row to unconditional, which is the opposite of
+what this decided.
+
 ### `ready_for_review` is load-bearing
 
 The default `pull_request` type set is `[opened, synchronize,
@@ -1408,3 +1464,61 @@ script's pipelines to tolerate a closed reader (or for the readers to
 drain), rather than one more `grep` being padded around. Until then a
 red on this step alone, with the real census step green in the same
 run, is a re-run and not a diagnosis.
+
+## 2026-09-03 — the python suite becomes seed-keyed
+
+S-TCOST unit C3, Ev's approval in chat the same day. `python suite
+(wheel + guide + north-star)` was gated on `pncad-py` being in the
+dependent CLOSURE — the wheel compiles that crate's whole dependency
+graph, so the condition read as "something the wheel compiles moved".
+`pncad-py` sits under `pncad`, which re-exports the entire kernel, so
+that is true of nearly every kernel change: the gate selected almost
+nothing, and what it bought on each of those runs was a SECOND compile
+of the kernel under the non-default `python` feature.
+
+It is now keyed on the change filter's SEEDS — the members whose OWN
+files moved — intersecting `{pncad-py, pncad, editor-core}`, exactly the
+shape and exactly the argument of the viewer toolkit axis
+(`RUN_VIEWER_TOOLKIT`, Ev's 2026-08-27 ruling), one crate over.
+
+**Billed minutes: −2 on every code-tier PR run whose seeds miss that
+set.** Read from this unit's own run, `33722922975` (head `13f8a2fb`,
+interval lane drawn, 21 jobs, ~62 billed): the job ran 120 s, i.e.
+**2 billed**, which is also what the audit table at the top of this
+document recorded (1.58 min wall, 2 billed) — so this is the row's cost
+re-taken rather than inherited. Against that, ~2 billed minutes a night
+for `nightly.yml`'s `python suite (ungated re-take)`. The run this
+figure comes from is itself a tier-`all` diff, so the axis was TRUE
+there; the saving is on the kernel-change population it is now false
+for, which is the majority.
+
+**Argued against §*What is NOT sampled, and the rule*, per this row.**
+What the suite detects persists: a broken `.pyi` signature, a guide
+script that stops running, a north-star assertion that stops holding.
+It is not a detector of absence — the suite is DISCOVERED
+(`unittest discover`), not listed, so a test module that vanishes is
+not something this row reports on at any cadence. The one hole the
+seeds open is a kernel change that moves a NUMBER the `.py` assertions
+pin while touching no seed; that is the analogue of the viewer axis's
+toolkit-dependency drift and gets the identical answer, the ungated
+nightly re-take. A change that BREAKS the re-exported Rust API is not
+in that hole: it reds the offending crate's ordinary closure rows on
+the same PR.
+
+**AND THE RE-TAKE IS GUARDED AGAINST RUNNING NOTHING.** `unittest
+discover` prints `Ran 0 tests ... OK` and exits 0 over a directory whose
+modules stop matching, so an ungated nightly lane could report green
+having executed nothing — which is the ABSENCE case this section forbids
+demoting anything into. The count is read back, required to be non-zero
+and echoed, at all three sites that run the suite (both hosted jobs and
+`crates/pncad-py/run-python-tests.sh`); the three copies and why no
+shared runner exists are filed at
+`work/issues/python-suite-zero-test-guard-three-copies.md`.
+
+**RECORDED, NEVER SILENT — and it needed a different seat from the
+viewer's.** The viewer axis prints its verdict inside `fmt`, beside the
+rows it gates. This axis cannot: when it is false the whole JOB is
+skipped, and a skipped job runs no step at all, so there is no seat
+inside it from which to speak. The verdict is a step of the `filter`
+job, which computed the value and carries no `if:` — `python suite -
+the filter's verdict`, printing the seeds it was decided from.

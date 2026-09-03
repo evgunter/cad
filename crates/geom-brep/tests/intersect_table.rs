@@ -5,6 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::implicit_residual;
@@ -13,16 +14,7 @@ use geom_brep::intersect::{
     SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
     plane_cylinder_section, route,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
+use geom_core::{Point3, Vec3};
 
 /// The general rung EXISTS (M5 PR 7). So an arm that still refuses owes
 /// what it is MISSING — a trace shape, a certificate, a conversion —
@@ -650,23 +642,8 @@ fn plane_cone_generic_tilt_refuses_typed_r1() {
 #[cfg(feature = "interval")]
 mod interval {
     use super::*;
+    use crate::shared::interval::{ip, iv3 as iv};
     use geom_core::{Bounds, Interval, Real};
-
-    fn ip(p: Point3<f64>) -> Point3<Interval> {
-        Point3::new(
-            Interval::from_f64(p.x),
-            Interval::from_f64(p.y),
-            Interval::from_f64(p.z),
-        )
-    }
-
-    fn iv(v: Vec3<f64>) -> Vec3<Interval> {
-        Vec3::new(
-            Interval::from_f64(v.x),
-            Interval::from_f64(v.y),
-            Interval::from_f64(v.z),
-        )
-    }
 
     /// The tilted plane×cylinder classification runs at `T = Interval`
     /// and its ellipse's residual enclosures contain zero — the

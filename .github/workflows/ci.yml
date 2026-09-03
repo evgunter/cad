@@ -357,7 +357,36 @@ jobs:
       run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
-      run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
+      # NO `run_topo_release` OUTPUT. The filter still emits the key — the
+      # local half reads it (`local-scripts/ci-local.sh`'s
+      # `corrupt input (release profile)` row) — but the QUESTION that
+      # output answered has no hosted job left to ask it of: "does this
+      # run gate the release-profile row?" has one answer now, `no`, on
+      # every run, because that row moved to nightly.yml and runs ungated
+      # there. The tombstone below carries the argument.
+      #
+      # NOT "an output nothing reads is dead wiring" — this job publishes
+      # two of those on purpose, and they are eight lines down.
+      # `config_source` and `lane_advisory` are read by no job and exist
+      # so that a question ABOUT THIS RUN — which configuration gated it,
+      # was it possibly about the axis it did not gate — is answerable
+      # from the run's outputs. That test is what `run_topo_release`
+      # fails: it would not describe this run, it would describe a job
+      # that is not in this workflow, and its value would be the same
+      # function of the diff it always was with nothing here acting on it.
+      # An output is worth keeping when a reader needs it to interpret
+      # THIS run; it is not worth keeping to record that a job used to
+      # live here.
+      #
+      # AND NO VERDICT STEP, which is where this differs from the python
+      # suite's seed-keyed axis (that one prints RUN/SKIP with its seeds
+      # in a step of this job). A verdict is worth a step when the run
+      # MADE a decision a reader could otherwise only infer from a job's
+      # absence. This run makes none: the demotion is unconditional, so
+      # the step would print one identical constant on every run forever,
+      # and a constant restated in a workflow step is the second copy this
+      # file has twice watched drift away from its source. The tombstone
+      # is where a constant belongs.
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # The sampled matrix point (scripts/ci-filter.py, CONFIGURATION
       # SAMPLING) — or the REQUESTED one: a dispatch input or a `CI-Config:`
@@ -597,6 +626,40 @@ jobs:
           # the wording belongs there and only there.
           if [ -s filter-notices.txt ]; then
             cat filter-notices.txt
+          fi
+
+      # THE PYTHON SUITE AXIS — ITS VERDICT, IN A SEAT THAT ALWAYS SPEAKS.
+      #
+      # `python suite (wheel + guide + north-star)` is SEED-keyed (see that
+      # job, and `RUN_PNCAD_PY` in scripts/ci-filter.py). The viewer axis
+      # prints its verdict inside `fmt`, beside the rows it gates; this one
+      # cannot borrow that arrangement, because when the axis is false the
+      # whole JOB is skipped and a skipped job runs no step at all. A
+      # green checks list with no python row in it, and nothing anywhere
+      # saying why, is exactly the "green job name over a silent skip" the
+      # ruling that created the viewer axis forbade.
+      #
+      # So it is sited here, in the job that computed it and that carries
+      # no `if:` — the same seat and the same reasoning as the two steps
+      # around it. The seeds are printed with the verdict, so a reader who
+      # sees SKIP can see the list it was decided from without re-deriving
+      # it.
+      - name: python suite - the filter's verdict
+        env:
+          TIER: ${{ steps.classify.outputs.TIER }}
+          SEEDS: ${{ steps.classify.outputs.SEEDS }}
+          RUN_PNCAD_PY: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
+        run: |
+          printf 'seeds: %s\n' "$SEEDS"
+          printf 'tier: %s\n' "$TIER"
+          if [ "$RUN_PNCAD_PY" = true ]; then
+            echo 'RUN: the seeds intersect {pncad-py, pncad, editor-core} (or the tier is unscopable).'
+            echo 'RUN: the wheel is built and the unittest suite discovered over crates/pncad-py/tests.'
+          else
+            echo 'SKIP: no seed in {pncad-py, pncad, editor-core} — the wheel is NOT built on this run,'
+            echo 'and the `python suite (wheel + guide + north-star)` job below is skipped entirely.'
+            echo 'The nightly lane re-takes the whole suite ungated; a break in the re-exported Rust API'
+            echo 'still reds the offending crate ordinary closure rows in this same run.'
           fi
 
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
@@ -2193,143 +2256,37 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
-  # tier-1-INVALID bodies to the Euler operators and are written about
-  # RELEASE semantics; the archive matrix above is the dev profile at
-  # opt-1 with debug-assertions ON, so it cannot be what runs them. (The
-  # level moved from 2 on 2026-08-25; the point is unaffected, because what
-  # disqualifies the matrix is debug-assertions, which no opt level moves.)
-  # `review_m1_pr2::release_corruption` splits its expectations on
-  # `cfg(debug_assertions)` outright, so no single profile covers the
-  # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
-  # cfg-split but had never once run in the profile it is named for.
+  # THE `corrupt input (release profile)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (Ev, 2026-09-03; S-TCOST unit C1). It is
+  # a PERSISTENCE-detector, and the demotion was argued against
+  # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule* row by
+  # row rather than by inheriting another job's licence:
   #
-  # WHAT IT BUYS, stated against the ratified text rather than against
-  # the code's current behaviour, because those have diverged:
+  #   * The three profile-independent-but-release-named rows
+  #     (`garbage_in_garbage_out_release`,
+  #     `large_torn_body_terminates_quickly`,
+  #     `kill_ops_survive_torn_bodies_without_panicking`) assert on a body
+  #     the operators produce. A wrong body stays wrong until someone
+  #     changes the code, so a later run of the row still finds it.
+  #   * `review_d18`'s two `cfg(not(debug_assertions))` hammer rows run in
+  #     NO other lane, which is the case that looks like an absence
+  #     detector and is not one: what they detect is a row-4 `unreachable!`
+  #     becoming input-reachable, i.e. a property of the tree's code, which
+  #     persists exactly as the rows above do. The thing that WOULD be an
+  #     absence — those rows silently ceasing to be compiled or selected —
+  #     is caught by the count guard and the five name greps, which moved
+  #     with the job and still run every night.
+  #   * The two suite-header greps are absence detectors about the job's own
+  #     NAME, and they are unaffected by a cadence: they read source files,
+  #     not a test result, and a rename that falsified them stays false
+  #     until fixed.
   #
-  #   * BOUNDED TRAVERSAL. DESIGN.md's D9 footnote, as amended by the D2
-  #     addendum, keeps exactly one clause of the old corrupt-input
-  #     disposition: "The bounded-traversal half stands: never a hang;
-  #     every traversal is bounded." That is
-  #     `large_torn_body_terminates_quickly`, which attacks 3000 struts
-  #     here and 500 under debug-assertions (where the per-op
-  #     postcondition sweep makes the construction loop quadratic). The
-  #     case the gate sees is six times larger in this job, and the
-  #     clause it defends is not superseded by anything.
-  #   * THE ROW-4 ARMS ARE NOT INPUT-REACHABLE, which is the clause the
-  #     whole D2 addendum rests on and the only one with an executable
-  #     test. `review_d18`'s two hammer rows drive every operator that
-  #     reaches `link_half_edges` over randomly torn bodies and over a
-  #     genuinely spent graft destination, counting mutation-phase
-  #     completions. They are release-only BY CONSTRUCTION, not by
-  #     preference: in debug a torn body may legitimately panic at the
-  #     postcondition, so telling that apart from a row-4 arm needs a
-  #     process-global panic hook, which races the threaded matrix. With
-  #     the postcondition compiled out, any panic IS a row-4 arm. So this
-  #     job is the only lane in which those rows mean anything, and the
-  #     only lane that runs them at all.
-  #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
-  #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
-  #     no CI job ever type-checks can rot into a build error with every
-  #     check green, because clippy and the matrix are both debug passes.
-  #     `foreign_parent_loop_garbage_in_garbage_out_release` and the
-  #     `use crate::validate;` it needs are exactly that shape.
-  #
-  # WHAT IT DOES NOT BUY: it does not certify silent discard, and that
-  # distinction is why it survived **W2c**. D9's ratified corrupt-input
-  # disposition allowed "documented garbage-out in release" until the
-  # **D2 addendum** (2026-08-19) superseded that half with "Silent
-  # discard is never an answer"; W2c executed the addendum across
-  # `euler{,_ring,_kill}.rs`, `link_half_edges` and its two unproven
-  # callers included, so no write there swallows a failed lookup any
-  # more. `foreign_parent_loop_garbage_in_garbage_out_release` passes
-  # unchanged across that conversion because the `parent_loop` it plants
-  # is LIVE BUT WRONG: no lookup fails, every write lands, and what the
-  # row observes is wrong DATA, never a swallowed failure. That is the
-  # residue the addendum deliberately leaves standing — corruption a
-  # plan phase cannot observe still yields `Ok` plus a body the
-  # validator refuses — and it is what the row records. The three greps
-  # below are unchanged for the same reason: the conversion renamed and
-  # retired nothing here.
-  #
-  # The other rows in the file are profile-independent — `pillow()` runs
-  # three SUCCESSFUL operators, so they do fire the debug postcondition
-  # during setup, but the operator each one asserts on fails a
-  # precondition and returns before its mutation phase, so no
-  # postcondition runs over the asserted call and the expectation is the
-  # same in both profiles. `debug_postcondition_fires_on_corrupt_input`
-  # is `#[cfg(debug_assertions)]` and belongs to the matrix above.
-  #
-  # SCOPED to one crate's lib unittests, deliberately, not a release
-  # build of the workspace: `-p topo --lib` compiles topo's closure plus
-  # its dev-dependencies and links one binary. The rows execute in
-  # milliseconds — the compile IS the cost of this job (93 s hosted on a
-  # cold cache, measured on this job's first run, and never since: it is a
-  # one-shot reading with no register and no guard, kept because the SHAPE
-  # it supports — that scoping to one crate's lib is what keeps this job
-  # cheap — is what the next reader needs, and that shape does not turn on
-  # the second. This job's billed minutes, which is the figure a cost
-  # decision would actually read, are docs/CI-MINUTES-2026-08.md's).
-  release-corruption:
-    name: corrupt input (release profile)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: github.event_name != 'push' && needs.filter.outputs.run_topo_release == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL — see the full note on the `filter` job above.
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      # Its own cache key: release artifacts share no fingerprint with
-      # the dev-profile jobs, so one shared entry would only thrash.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: topo-release
-      - name: corrupt-input suites, release profile
-        # DEBUG ASSERTIONS OFF, EXPLICITLY — this job's whole subject is
-        # the posture that SHIPS, and the shipping posture is
-        # debug-assertions off (`DESIGN.md`, "Before publishing"). The
-        # root `[profile.release]` turns them ON as a development
-        # measure, which would compile the three `cfg(not(debug_assertions))`
-        # rows below OUT of the only lane that runs them — silently
-        # deleting the coverage this job exists to provide. The count
-        # guard caught exactly that. Pinned here rather than inherited,
-        # so the job states which posture it tests instead of depending
-        # on a profile default that has now changed once.
-        env:
-          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
-        run: |
-          set -o pipefail
-          cargo test --release -p topo --lib -- \
-            review_m1_pr2::release_corruption \
-            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
-            review_d18 \
-            | tee release-corruption.log
-          # A name filter that matches NOTHING exits 0 — the exact
-          # silence this job exists to remove. So assert the selection is
-          # non-empty AND name the rows the job is justified by: delete
-          # or rename one and this reds, rather than quietly returning to
-          # zero coverage.
-          passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' release-corruption.log)
-          echo "release-profile rows run: ${passed:-0}"
-          test "${passed:-0}" -gt 0
-          grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
-          grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
-          grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
-          # `review_d18`'s two hammer rows are `cfg(not(debug_assertions))`
-          # on purpose — in debug a torn body may legitimately panic at the
-          # postcondition, so classifying one needs a process-global hook
-          # that races the matrix; in release the postcondition is compiled
-          # out, so any panic IS a row-4 `unreachable!` and no hook is
-          # needed. This job is therefore the ONLY lane that runs them.
-          grep -q 'torn_bodies_never_reach_a_row_four_unreachable \.\.\. ok' release-corruption.log
-          grep -q 'a_spent_graft_destination_never_reaches_a_row_four_unreachable \.\.\. ok' release-corruption.log
-          # Both suite headers name this job as their mechanism. Nothing
-          # else greps for that name, so renaming the job would leave two
-          # doc comments quietly false; this is what makes it loud.
-          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs
-          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs
+  # −2 billed minutes per code-tier PR run whose closure holds `topo` (89 of
+  # the last 128 first-parent merges), against ~2 a night. `run_topo_release`
+  # still has a consumer — `local-scripts/ci-local.sh` runs the row on every
+  # local gate, where nothing is billed by the minute — so the filter's
+  # plumbing for it stays and the local half is now the only lane that runs
+  # these suites on a PR's tree.
 
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval
@@ -3002,11 +2959,36 @@ jobs:
   # `python` feature, which only maturin turns on). Its failure still
   # reds the PR — that is the point.
   #
-  # Root package pncad-py (see JOB_ROOTS in scripts/ci-filter.py): the
-  # wheel compiles pncad-py's whole dependency graph — the entire façade
-  # stack — so `pncad-py in closure` is exactly the condition under
-  # which anything this job runs can have moved; the .py tests and .pyi
-  # stub live under the member directory and seed the same closure.
+  # SEED-KEYED, NOT CLOSURE-KEYED (Ev's approval in chat, 2026-09-03;
+  # S-TCOST unit C3), and the argument is at `RUN_PNCAD_PY` in
+  # scripts/ci-filter.py. This job used to be keyed on `pncad-py in the
+  # dependent CLOSURE` — the wheel compiles that crate's whole dependency
+  # graph, the entire façade stack, so the condition read as "something
+  # the wheel compiles moved". It is true of nearly every kernel change,
+  # because `pncad` re-exports the kernel and `pncad-py` sits under it, so
+  # it selected almost nothing while buying a SECOND compile of the kernel
+  # under the non-default `python` feature on almost every code-tier run.
+  #
+  # The condition is now the change filter's SEEDS — the members whose OWN
+  # files moved — intersecting {pncad-py, pncad, editor-core}: the binding
+  # layer, the façade every binding call goes through, and the document
+  # model the guide and north-star scripts drive. The .py tests and .pyi
+  # stub live under `crates/pncad-py/`, so they seed that member like any
+  # other source.
+  #
+  # WHAT THE SKIP GIVES UP is re-taken daily: nightly.yml's `python suite
+  # (ungated re-take)` runs this suite with no filter at all, so a kernel
+  # change that moves a NUMBER the .py assertions pin — reaching the
+  # bindings through `pncad`'s re-exports without seeding anything here —
+  # surfaces within a day rather than at whichever unlucky PR next touches
+  # the façade. A change that BREAKS the re-exported Rust API still reds
+  # that crate's ordinary closure rows on the offending PR, in the same
+  # run, because the façade's Rust side is compiled by the ordinary build.
+  #
+  # RECORDED, NEVER SILENT: the verdict is printed by an always-run step
+  # in the `filter` job, with the seeds it was decided from. That siting
+  # is not decoration — a SKIPPED job shows no steps at all, so unlike the
+  # viewer rows there is no seat inside this job from which it could speak.
   # Budget: one job, one Python version, no matrix, debug-profile build
   # (release is not required to prove the suite; the D9 bit-exactness
   # pins hold at any opt level — opt never moves rounding, and the
@@ -3079,12 +3061,40 @@ jobs:
       # Discovery from the repo checkout: guide tests read the docs/
       # Markdown relative to their own file, and the stub check is
       # layout-invariant (validated on the wheel-venv layout, #308).
+      # A ZERO-TEST RUN IS NOT A PASS. `unittest discover` over a
+      # directory whose modules do not match its pattern prints
+      # `Ran 0 tests ... OK` and exits 0 — the same silence ci.yml's
+      # release-profile row keeps a count guard for, one language over.
+      # A renamed tests/ directory, a `--start-directory` that stops
+      # resolving, a wheel that imports but exports nothing the suite
+      # names: each of those leaves a green row that executed nothing.
+      # So the count is read back and required to be non-zero, and it is
+      # ECHOED, so "the python suite ran N tests" comes off the run
+      # rather than being assumed.
+      #
+      # THREE COPIES OF THIS GUARD EXIST and that is stated rather than
+      # hidden: here, in nightly.yml's ungated re-take, and in
+      # crates/pncad-py/run-python-tests.sh. There is no one place all
+      # three call — the hosted jobs cannot call that script, which
+      # builds through `local-scripts/with-build-slot.sh`, a tree every
+      # hosted job deletes at checkout, and stages a cdylib rather than
+      # installing a wheel. The lift is filed at
+      # work/issues/python-suite-zero-test-guard-three-copies.md.
+      #
+      # `Ran N tests` goes to STDERR, so the redirect is load-bearing,
+      # and `pipefail` is what keeps python's own exit status from being
+      # swallowed by `tee`.
       - name: run the Python suite (unittest discover)
         run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/python-suite.log"
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m unittest discover \
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
-            --verbose
+            --verbose 2>&1 | tee "$log"
+          ran=$(sed -n 's/^Ran \([0-9]\{1,\}\) test.*/\1/p' "$log" | tail -1)
+          echo "python tests run: ${ran:-0}"
+          test "${ran:-0}" -gt 0
         env:
           PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
 
@@ -3534,9 +3544,9 @@ jobs:
       # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
-      # `release-corruption` above would suggest. That job is separate
-      # because release artifacts share no fingerprint with any
-      # dev-profile job, so it had to own a cache key. The opposite holds
+      # `release-corruption` — nightly.yml's since 2026-09-03 — would
+      # suggest. That job is separate because release artifacts share no
+      # fingerprint with any dev-profile job, so it had to own a cache key. The opposite holds
       # here: this is already the only job that passes `--features
       # probe`, so its cache is where the probe-instantiated graph lives,
       # and its gate (`run_k_lint`, "whenever anything builds") is
