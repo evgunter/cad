@@ -29,7 +29,6 @@ use editor_core::{
     NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
 
 use fixture::{Recorder, len};
 

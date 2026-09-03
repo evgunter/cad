@@ -12,7 +12,7 @@ use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
     evaluate,
 };
-use fixture::{declare_x_offset_flush, desc, insert, len, on_frame, scl, wall};
+use fixture::{declare_x_offset_flush, insert, len, on_frame, scl, wall};
 use geom_core::Interval;
 use geom_core::Tol;
 

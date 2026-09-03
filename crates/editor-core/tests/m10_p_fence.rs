@@ -110,7 +110,11 @@
 //!
 //! `lib_g16_corpus_name_digests` says exactly that: of its
 //! twenty-two rows, `kitchen_sink` moved and the other twenty-one are
-//! byte-identical. This scalar moves anyway, because it feeds `id.0`
+//! byte-identical. The INTERVAL row moved with the other two and for
+//! the same reason — it is the same digest over the same ids at a
+//! different scalar — and it was re-blessed a cycle later than they
+//! were, because it compiles only under the `interval` feature and a
+//! default-lane run never builds it. The hosted lane is what said so. This scalar moves anyway, because it feeds `id.0`
 //! for every node in every document and two of the die documents'
 //! ids swapped. The geometric evidence below is unchanged and was
 //! re-checked: the exact mass pins, the realized-vs-idealized bit
@@ -533,7 +537,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xebeb_7711_2bec_f970, 0xdd49_270b_7798_ab34),
+        (0x86b7_35d8_075a_5ba2, 0x2c42_e065_4155_aa5e),
         "the corpus's Interval evaluation moved"
     );
 }

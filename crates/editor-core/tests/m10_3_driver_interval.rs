@@ -66,7 +66,6 @@ use editor_core::{
     evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
-use profile::SketchPlane;
 
 use fixture::{Recorder, len};
 

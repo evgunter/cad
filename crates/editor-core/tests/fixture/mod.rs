@@ -62,6 +62,50 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
     })
 }
 
+/// **The `SketchPlane` a frame NODE denotes**, read out of a document.
+///
+/// A test that builds a `profile::Profile` by hand needs the plane the
+/// profile's `plane` id names, and the id alone is not it. Reads the
+/// frame's authored literals and hands them to the same
+/// `SketchPlane::from_frame` the evaluator's own read uses.
+///
+/// **Orthonormality is the caller's, as it is at every other
+/// `from_frame`** — this asserts rather than orthogonalizes, so a
+/// fixture whose frame is not already orthonormal fails here instead of
+/// silently getting a different plane from the one the evaluator would
+/// build. Every fixture frame in this tree is authored orthonormal.
+///
+/// # Panics
+///
+/// If `plane` is not a `Datum::Frame`, if its components are not
+/// literals, or if `u` and `v` are not an orthonormal pair.
+pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
+        panic!("node {} is not a Datum::Frame", plane.0)
+    };
+    let read = |xs: &[Expr; 3]| {
+        let c = |e: &Expr| {
+            e.literal_value()
+                .expect("a fixture frame's components are literals")
+        };
+        geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
+    };
+    let (o, u, v) = (read(origin), read(u), read(v));
+    for (name, w) in [("u", u), ("v", v)] {
+        assert!(
+            (w.norm() - 1.0).abs() < 1e-12,
+            "fixture frame {}'s {name} is not unit",
+            plane.0
+        );
+    }
+    assert!(
+        u.dot(v).abs() < 1e-12,
+        "fixture frame {}'s u and v are not perpendicular",
+        plane.0
+    );
+    profile::SketchPlane::from_frame(geom_core::Point3::new(o.x, o.y, o.z), u, v)
+}
+
 /// The world xy frame as a node — origin at the world origin, sketch
 /// +x along world +x, sketch +y along world +y.
 ///

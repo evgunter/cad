@@ -38,7 +38,7 @@ mod fixture;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, desc, insert, len, on_frame, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::{Bounds, Interval, Real};

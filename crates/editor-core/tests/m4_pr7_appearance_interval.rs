@@ -13,7 +13,7 @@ use editor_core::{
     Attr, AttrKind, BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
     Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{declare_x_offset_flush, desc, insert, len, on_frame, step};
+use fixture::{declare_x_offset_flush, insert, len, on_frame, step};
 use geom_core::Interval;
 use geom_core::Tol;
 

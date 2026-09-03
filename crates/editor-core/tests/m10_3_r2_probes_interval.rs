@@ -48,7 +48,6 @@ use editor_core::{
     ParamName, ProfileDoc, ProfileLift, ProfileProgram, evaluate,
 };
 use geom_core::{Interval, Tol};
-use profile::SketchPlane;
 
 use fixture::Recorder;
 
