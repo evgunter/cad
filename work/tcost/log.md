@@ -749,3 +749,23 @@ greps) moved with it. The nightly job-insertion conflict with C2 was
 resolved by rebuilding nightly.yml from main and re-inserting C1's
 job (both parse; both jobs present; no markers). The nightly budget
 total is edited once, by C3 as the last to land.
+
+## Unit: TCOST-8 merged (2026-09-03)
+
+PR 1659 at `d13b23a9` (default 1e-12 asked, run 33746172065, green
+on the post-merge head; interval 1e-6 asked, run 33728831063, on the
+pre-fix head, the three interval-only edits re-verified locally
+against a byte-identical 553-name listing). Fourteen helper families
+of `crates/geom-brep/tests/` into `tests/shared/` — 43 `fn` bodies
+plus, after the review, 27 inline `Band::linear(Tol::witness())`
+sites, 70 sites for one home; the nextest listing `cmp`-clean
+against the merge base on both lanes throughout. Nineteen "kept
+apart" copies each carry their reason at the copy, the R1/R2 pair
+and the carrier-id stamp among them, and `shared/mod.rs` enumerates
+them with a grep-checkable count. Compile-time deliberately not
+measured (TCOST-7's precedent: noise). Filed: the inline canonical-
+frame surfaces (34 sites at merge-base numbers) and the body-hash
+census's rename-only blind spot (a sweep obligation across geom-brep
+and the B1/B2 crates). Operational: the session scratchpad is shared
+across sibling lanes — one lane's PR draft was overwritten by
+another's; lane notes belong under `~/tcost-work/<lane>-notes/`.
