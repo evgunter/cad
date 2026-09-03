@@ -37,6 +37,7 @@
 use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
 
+use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
@@ -969,6 +970,20 @@ pub fn resolve_loops<T: Decide>(
 }
 
 impl ProfileProgram {
+    /// Whether any expression of this program reads the document
+    /// parameter `name` — the question a C6/D9-pinned consumer of the
+    /// program (a loft's or a sweep's section) asks before a seed on
+    /// that parameter is silently embedded as a constant.
+    pub fn references(&self, name: &ParamName) -> bool {
+        let mut refs = Vec::new();
+        for slot in ProfilePayload::slots(self) {
+            if let Some(e) = ProfilePayload::expr(self, slot) {
+                e.param_refs(&mut refs);
+            }
+        }
+        refs.iter().any(|(n, _)| n == name)
+    }
+
     /// Resolves every loop at f64 — [`resolve_loops`] over this
     /// program's own loops.
     ///

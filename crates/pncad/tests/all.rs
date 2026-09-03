@@ -3066,7 +3066,25 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the certified scalar — so a façade row for it would be a
 ///   conditional door, which this surface does not have and should
 ///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 101] = [
+/// - **The E4 seed door and the E4/E5 driver and report** (`SeedScalar`,
+///   `SeedError`, `seed_env`, `std_deviation`; `sensitivities`,
+///   `Sensitivity`, `SensitivityOutcome`, `SensitivityRefusal`,
+///   `Chamber`, `PairingViolation`, `LiftRefusal`; `stackup`, `Stackup`,
+///   `StackupRefusal`, `PerParam`, `ChamberSpan`, `Rss`, `WorstCase`,
+///   `Unavailable`):
+///   the analysis lane's derivative and stackup services.
+///
+///   Interior for the row above's second reason, which now applies to
+///   the answer as well as the intermediate: `stackup` and the driver
+///   live behind the `interval` feature (the chamber mark's certified
+///   variant is an E6 leaf identity and the gating worst case is a
+///   certified enclosure), so a façade row would be the conditional
+///   door this surface does not have. The seed door's four names are
+///   the evaluation service's own scalar capability and its env
+///   plumbing — `AxisScalar`/`param_env_over`'s family, interior with
+///   them. The curated face is the reporting surface — persisted,
+///   goldened stackups — which is where the façade row lands.
+const NOT_CARRIED: [&str; 120] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3082,6 +3100,8 @@ const NOT_CARRIED: [&str; 101] = [
     "BranchMarginEvidence",
     "BudgetKind",
     "CertifiedLeaf",
+    "Chamber",
+    "ChamberSpan",
     "ContentKey",
     "Coset",
     "DEFAULT_MAX_DEPTH",
@@ -3100,6 +3120,7 @@ const NOT_CARRIED: [&str; 101] = [
     "FlipSet",
     "Implicated",
     "LeafResults",
+    "LiftRefusal",
     "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
@@ -3113,10 +3134,12 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
+    "PairingViolation",
     "ParamBox",
     "ParamBoxError",
     "ParamBoxVerdict",
     "ParamValue",
+    "PerParam",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
@@ -3133,8 +3156,16 @@ const NOT_CARRIED: [&str; 101] = [
     "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
+    "Rss",
     "RunStatus",
+    "SeedError",
+    "SeedScalar",
+    "Sensitivity",
+    "SensitivityOutcome",
+    "SensitivityRefusal",
     "SideVerdict",
+    "Stackup",
+    "StackupRefusal",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
@@ -3142,6 +3173,7 @@ const NOT_CARRIED: [&str; 101] = [
     "SummaryFlipSet",
     "TieWitness",
     "Tombstone",
+    "Unavailable",
     "VerdictFlip",
     "VerdictRow",
     "VerdictSummary",
@@ -3150,6 +3182,7 @@ const NOT_CARRIED: [&str; 101] = [
     "WitnessAge",
     "WitnessBifurcation",
     "WitnessDatum",
+    "WorstCase",
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
@@ -3165,6 +3198,10 @@ const NOT_CARRIED: [&str; 101] = [
     "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",
+    "seed_env",
+    "sensitivities",
+    "stackup",
+    "std_deviation",
     "to_value",
     "verdict_summary",
     "vertex_name",
