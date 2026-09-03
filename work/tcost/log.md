@@ -1264,3 +1264,21 @@ sweep, not names); the home's header states it takes the opposite
 line from `geom-brep/tests/shared` on reviewer-pair rebuilds, and the
 policy question is on the board for Ev
 (`reviewer-pair-rebuilds-two-trees-two-rules`, `needs_ev`).
+
+## Seam: batch 5 on TCOST-11 (2026-09-03, 22:40 UTC)
+
+MERGEABLE WITH FIXES. The reviewer re-derived rather than read: the
+fourteen merge-base guard bodies hash identical (so "nothing
+crate-specific was lost" is true because there was nothing to lose),
+the RULE paragraph is untouched, the source-reader census's predicate
+recomputed on all fourteen heads, the new `bvh` row's population
+enumerated across the tree ({pncad}, and `test-utils` confirmed a
+non-hazard), and TCOST-10's merge proved non-conflicting by
+`merge-tree`. Findings, all cheap: the new row passes green if
+`pncad`'s aggregator is renamed or moved (it keys on a readable
+`all.rs`, not on `autotests = false`); the census's detection margin
+fell from two tells to one and nobody is told; fourteen byte-identical
+guard doc paragraphs arrived with the unit that kills fourteen
+byte-identical guard bodies; the quoted binary-size figure is a local
+build unlabelled; check 2's message lost `assert_eq!`'s left/right
+lines and the body calls it unchanged. Six fixes sent to the lane.
