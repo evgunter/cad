@@ -317,6 +317,8 @@ mod s16_box_soundness;
 mod s49_census_jurisdiction;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
+#[path = "verbs_1031b_arcwind.rs"]
+mod verbs_1031b_arcwind;
 #[path = "verbs_arms1_annulus.rs"]
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]
