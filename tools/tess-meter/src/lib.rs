@@ -367,17 +367,28 @@ pub struct NurbsColumns {
 
 /// What a row says about the Hessian-sized lane's columns.
 ///
-/// **The type exists so that an EMPTY sizing tail is a lane fact and
-/// can be nothing else.** The CSV spells [`Self::OffLane`] as empty
-/// columns, and a reader — `tools/tess-lint` included — takes that as
-/// *"this face is not on the sized lane"*. An `Option` cannot hold
-/// that claim apart from *"nobody looked, or the lookup missed"*, and
-/// the two are opposite readings of the same row: the first says the
-/// budget has no sizing to account for here, the second says the
-/// accounting is short by a face nobody will notice. So the second
-/// state is not in this enum at all — it is refused where the lookup
-/// happens ([`face_rows`]) rather than carried to a consumer that
-/// cannot tell it apart.
+/// **The type has two states because only two of them are lane facts.**
+/// The CSV spells [`Self::OffLane`] as empty columns, and a reader —
+/// `tools/tess-lint` included — takes that as *"this face is not on
+/// the sized lane"*. An `Option` cannot hold that claim apart from
+/// *"nobody looked, or the lookup missed"*, and the two are opposite
+/// readings of the same row: the first says the budget has no sizing
+/// to account for here, the second says the accounting is short by a
+/// face nobody will notice. So the miss is not a state of this enum —
+/// it is refused rather than carried to a consumer that cannot tell it
+/// apart.
+///
+/// **The type is not itself the guarantee, and where the guarantee is
+/// matters.** Nothing here ties a variant to a [`Chart`]: both
+/// variants are `pub`, [`FaceRow`]'s fields are `pub`, and
+/// `FaceRow { chart: Chart::Nurbs, sizing: Sizing::OffLane, .. }` is a
+/// legal struct literal. The pairing is refused at the two sites that
+/// can see both halves — `sizing_of`, where [`face_rows`] DERIVES the
+/// state from a lookup, and [`FaceRow::csv_row`], where the state is
+/// WRITTEN. The second is what makes the claim about the CSV rather
+/// than about one constructor: a row assembled field by field never
+/// passes the first, and the writer is the last place the claim is
+/// still checkable.
 #[derive(Clone, Copy, Debug)]
 pub enum Sizing {
     /// The face's chart is not the sized lane's ([`Chart::sized_lane`]),
@@ -439,7 +450,32 @@ impl FaceRow {
     /// about the LANE ([`Sizing`]), never about the lookup.
     ///
     /// Floats print `{:e}`, which round-trips through `str::parse`.
+    ///
+    /// # Panics
+    ///
+    /// On a row whose `chart` and `sizing` disagree about the lane —
+    /// the same 2×2 `sizing_of` refuses, checked again where the claim
+    /// is WRITTEN. This struct's fields are `pub`, so the pairing the
+    /// lookup cannot produce is still a legal struct literal and
+    /// reaches here: a `nurbs` chart carrying [`Sizing::OffLane`]
+    /// would print the empty tail — the spelling every consumer reads
+    /// as *"not on the sized lane"* — over a face that is on it.
     pub fn csv_row(&self, scene: &str) -> String {
+        match (self.chart.sized_lane(), self.sizing) {
+            (true, Sizing::OffLane) => panic!(
+                "face {} is chart `{}`, the Hessian-sized lane's, and carries no columns: \
+                 the empty tail this would write says the face is OFF that lane",
+                self.face,
+                self.chart.tag()
+            ),
+            (false, Sizing::Measured(_)) => panic!(
+                "face {} is chart `{}`, which the meter measures nothing about, and \
+                 carries the sized lane's columns anyway",
+                self.face,
+                self.chart.tag()
+            ),
+            (true, Sizing::Measured(_)) | (false, Sizing::OffLane) => {}
+        }
         let head = format!(
             "{scene},{},{},{:e},{}",
             self.face,
@@ -558,11 +594,15 @@ pub fn face_rows(
 ///   sizing tail, which is [`Sizing::OffLane`]'s spelling and reads
 ///   everywhere as *"this face is not on the sized lane"* — so the
 ///   face would drop out of the budget's accounting without appearing
-///   anywhere as missing. It is the whole-corpus state of an UNARMED
-///   run, not a corner: `mesh::budget::armed()` is a `const fn`
-///   answering `false` without the `budget` feature, so a caller that
-///   forgot to arm, or built without it, hands over an empty slice and
-///   every NURBS face in the body reads as a plane's.
+///   anywhere as missing. **The reachable way in is an ARMED run whose
+///   measurements are not THIS tessellation's**: `mesh::budget::take`
+///   disarms as it drains, so a slice held across a second
+///   `tessellate`, or taken for another body or another δ, covers
+///   faces this mesh does not — and every face it misses reads as a
+///   plane's. A caller that armed nothing at all lands here too, over
+///   the whole corpus rather than a face. What CANNOT reach it is a
+///   build without the `budget` feature: `arm` and `take` do not exist
+///   there, so a caller of either does not compile.
 /// - an off-lane face WITH a measurement would hang the sized lane's
 ///   columns on a chart nothing sizes that way.
 ///
