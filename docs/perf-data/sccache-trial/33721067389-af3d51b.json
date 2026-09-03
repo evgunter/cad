@@ -1,0 +1,30 @@
+{
+  "run_id": 33721067389,
+  "head_sha": "af3d51bfc5a62aa8ebb990aca2c5fcd19257ab97",
+  "lane": "default",
+  "lane_source": "requested (CI-Config: lane=default)",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "state": "cold — first run with RUSTC_WRAPPER set; rust-cache reported 'No cache found', sccache object cache restored nothing",
+  "archive_step_s": 799,
+  "compiling_lines": 192,
+  "sccache": {
+    "compile_requests": 302,
+    "compile_requests_executed": 195,
+    "cache_hits": 0,
+    "cache_misses": 191,
+    "cache_hits_rate": "0.00 %",
+    "compilations": 191,
+    "non_cacheable_calls": 104,
+    "non_compilation_calls": 3,
+    "non_cacheable_reasons": {
+      "crate-type": 90,
+      "-": 6,
+      "missing input": 4,
+      "-o": 3,
+      "missing emit": 1
+    },
+    "cache_size_written": "198 MiB",
+    "average_compiler_s": 1.865
+  },
+  "object_cache_saved": "sccache-obj-default-33721067389 (205 MB)"
+}
