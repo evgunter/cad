@@ -3701,20 +3701,41 @@ jobs:
       # file the lint cannot parse. Findings (exit 2) are printed and
       # summarized. So the row cannot rot into a green over a broken
       # sweep, which is the failure a plain `|| true` would have.
-      - name: driver K-telemetry lint (E6 evidence — advisory, harness breakage still reds)
+      - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
         if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: |
           set -uo pipefail
           cd tools/k-lint
           status=0
-          cargo run -- \
+          # `--gate-rule-1-only` is the demotion, and it is NARROW: rule
+          # 1 (indeterminate / invalid margins) still reds this row.
+          # That is the arm ERROR-DESIGN E6 names as the trigger for
+          # re-opening the K question, and a blanket demotion would have
+          # covered it — a future in-band margin would have printed
+          # among tens of thousands of rule-2/3 flags and gone green.
+          # Rules 2 and 3 are the ones this population makes in bulk by
+          # construction, and only they are demoted.
+          cargo run -- --gate-rule-1-only \
             ../../target/k-fresh/driver/k-eps-1e-6.csv \
             ../../target/k-fresh/driver/k-eps-1e-9.csv \
-            ../../target/k-fresh/driver/k-eps-1e-12.csv || status=$?
+            ../../target/k-fresh/driver/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-driver.out || status=$?
+          status=${PIPESTATUS[0]:-$status}
+          # THE PER-RULE COUNTS ARE THE ROW'S REPORT, at all three eps
+          # rows, not a summary of one. `k-lint` prints a per-file line
+          # and a TOTAL line; both are relayed so a reader gets the
+          # numbers without opening the log.
+          {
+            echo "### driver K-telemetry (E6 evidence)"
+            echo
+            echo '```'
+            grep -E '^k-lint: (TOTAL|.*samples,)' ../../k-lint-driver.out || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           echo "driver K-telemetry lint exit status: $status" >> "$GITHUB_STEP_SUMMARY"
           case "$status" in
-            0) echo "the driver population crowds no decision boundary" >> "$GITHUB_STEP_SUMMARY" ;;
-            2) echo "FLAGS — distribution EVIDENCE, not a defect: the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            0) echo "no rule-1 margin: every margin the driver produced was DECIDED. Rule-2/3 flags, if any, are distribution EVIDENCE — the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            2) echo "RULE 1 FIRED — a driver margin was indeterminate or invalid. This is the E6 re-open trigger, not a distribution note: read docs/K-REPORT.md's runbook and the flagged rows before anything else." >&2; exit 1 ;;
             *) echo "harness breakage — the sweep wrote something this lint cannot read" >&2; exit 1 ;;
           esac
           # Solver predicates are VACUOUS in v1 (the M10 plan's ruling
