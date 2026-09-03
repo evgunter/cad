@@ -20,10 +20,20 @@ A **library finding** from the demos, in the shape `memories/demo-purpose.md` re
 
 | helper | site(s) | what it re-implements |
 |---|---|---|
-| `nrm` | `:395-397` **and** `:972-974`, byte-identically | normalize |
-| `rot` | `:162` | rotation about an axis |
-| the radial-frame builders | `:387` and `:932` | an orthonormal frame from an axis |
-| `v3` / `pt3` | `:200,204` | the conversion to `Vec3` / `Point3`, applied at the last moment |
+| `nrm` | `:225` | normalize |
+| `rot` | `:171` | rotation about an axis |
+| the radial-frame builders | `:611` (`bud`) and `:1184` (`sepals`) | an orthonormal frame from an axis |
+| `v3` / `pt3` | `:209,213` | the conversion to `Vec3` / `Point3`, applied at the last moment |
+
+**The duplication is gone; the finding is not.** `nrm` was two
+byte-identical closures (then at `:395-397` and `:972-974`) until
+SMELL Track X's `D79`(b) collapsed them to the single free fn above.
+That was duplication removal only — nothing became `Vec3` — so every
+row of this table is still a tuple helper standing in for the kernel's
+own type, which is what this issue is about. The two radial-frame
+builders are still spelled twice, and are not byte-identical: their
+inputs differ in shape, so merging them is a change rather than a
+collapse.
 
 The same file uses `Vec3::norm` and `Vec3::cross` freely inside `mod review_probes` — i.e. when *checking* the geometry rather than *authoring* it. That asymmetry is the finding: the kernel's vector type was reached for when reading results back and avoided when composing them.
 
