@@ -2197,12 +2197,13 @@ mod frame_dispatch_tests {
         }
     }
 
+    /// What the dispatch hands back: the frame tuple, or its absence.
+    type FrameVerdict = Result<Option<(geom_core::Point3<f64>, geom_core::Vec3<f64>)>, FrameError>;
+
     /// `FrameError` is deliberately not `Debug` (it is an internal
     /// dispatch verdict, not a payload), so the rows below name the
     /// outcome they got through this instead of formatting it.
-    fn outcome(
-        got: &Result<Option<(geom_core::Point3<f64>, geom_core::Vec3<f64>)>, FrameError>,
-    ) -> &'static str {
+    fn outcome(got: &FrameVerdict) -> &'static str {
         match got {
             Ok(Some(_)) => "a frame",
             Ok(None) => "the straight-chord verdict",
