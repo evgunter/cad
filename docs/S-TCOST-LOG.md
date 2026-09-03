@@ -212,3 +212,30 @@ lane frees this box (disk and the one-cargo rule).
   one call at an unreachable tolerance — **TCOST-K2 candidate**, spec
   after K1's Phase 1 says whether the same exhausted-budget shape is
   at work in the fit loop.
+
+## Seam: batch style review 1 adjudicated (2026-09-03)
+
+One Opus reviewer over PRs 1608 / 1609 / 1614 (no builds; every
+cited run resolved to its head SHA and read). All three MERGEABLE
+WITH FIXES; fix passes run as the implementers' own lanes.
+
+- **1609 MAJOR-1**: the two retired cost rows had carried a real
+  containment assertion on 12+12-knot patches and the named owner was
+  a different fixture class and predicate — one heavily-knotted row
+  comes back with the assertion and without the timing print (its
+  cost is TCOST-K1's to cut; it is TCOST-1's first gate candidate).
+  **MAJOR-2**: the merged cert6 row's baseline `expect` contradicts
+  its readings' tolerated refusal — the baseline takes the readings'
+  posture (loud skip, never red on an honest refusal).
+- **1614 MINOR-1**: two of the "assertion-free" deletions asserted
+  through `unwrap`; two liveness residues (a cylinder at tol 1e-4, an
+  elliptic wall at d 0.1) get an owner. Eight deletions, not six.
+- **1608**: a stale "not part of the shipped tree" header; an
+  anti-vacuity floor on the re-formed enumeration (65 rays that all
+  come back `Uncertain` would be green).
+- **Class finding, durable home here**: `crates/geom-brep/tests/`
+  carries six spellings of `quarter_cylinder`, four `drive`s and three
+  dense-oracle constructions across the certification probe files,
+  found only by grepping constants — the prose sweep for "verbatim /
+  re-derived / kept in step" returns nothing. A test-helper dedup
+  unit for that crate follows TCOST-B1's pattern (**TCOST-7**).
