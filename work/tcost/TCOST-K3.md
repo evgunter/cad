@@ -2,7 +2,7 @@
 id: TCOST-K3
 kind: unit
 title: validate_geometric recomputes the enclosure its caller holds: one certificate per body
-status: dispatched
+status: review
 opened: 2026-09-03
 refs: [TCOST-K1, TCOST-5]
 branch: tcost/k3-unit
