@@ -525,3 +525,24 @@ two issues this program filed (1607 render-lane checkout; 1646 the
 M10-4 ε-band row) are now `work/issues/` files carrying their numbers,
 and every open unit has an item: TCOST-6 (blocked on B1), B2, 8, C1–C4
 (dispatched), K3 (candidate); TCOST-1/5/7 closed at their merges.
+
+## Unit: TCOST-B1 merged (2026-09-03)
+
+PR 1616 at `913b1f04`, run 33722014086 (interval lane, ε default,
+all green). Each shared test-helper tree is declared ONCE in its
+crate's `tests/all.rs` for editor-core, topo, mesh, sweep, viewer and
+profile (324 `mod` → `use crate::…`, 29 `mod` lines deleted; 329 772
+redundant compiled lines gone, ~96 % of the class the build profile
+measured). `every_suite_file_is_aggregated` in those six crates gained
+the one-declaration assertion (a suite file declares no `mod <name>;`),
+read through the new `test_utils::source::file_module_decls`; it fires
+on exactly the five unconverted crates, which TCOST-B2 takes.
+`clippy::duplicate_mod` allows dropped from eight `all.rs` (kept in the
+five). Measurement: local alternating A/B −20.5 % on editor-core's test
+target (66.5 → 52.9 s median), binaries −4.9 % total; hosted archive
+step ±25 % at fixed tier, so the effect of record is the post-merge
+distribution (a reading for a later census, not one run). Inherited
+red annotated on the PR: the M10-4 bore-pin row at ε 1e-6
+(`work/issues/m10-4-bore-pin-row-red-at-interval-1e-6.md`). TCOST-6
+and TCOST-B2 were dispatched on B1's head before the merge (Ev's call)
+and share its target dir; they retarget onto main from here.

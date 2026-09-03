@@ -4,7 +4,6 @@ kind: unit
 title: editor-core's interval probes and the three fixture-dump infra rows
 status: dispatched
 opened: 2026-09-03
-blocked_on: [TCOST-B1]
 branch: tcost/6-editor-core-interval-probes
 ---
 
