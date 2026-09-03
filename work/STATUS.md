@@ -512,6 +512,7 @@ area `kernel`; prefix `verbs/`; tag `(VERBS orchestrator)`; ab_band `100-199`.
 | `interval-orthonormal-basis-sign-hull` | 2026-09-03 | Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero |
 | `m10-4-bore-pin-row-red-at-interval-1e-6` | 2026-09-03 | M10-4 the_bore_pin_fit_as_a_consumer_reads_it is red at interval / eps 1e-6 on main |
 | `nightly-pin-reading-idiom-four-copies` | 2026-09-03 | nightly.yml reads ci.yml's tool pins with a sed idiom that is now in four places and breaks silently on a second match |
+| `pncad-py-tag-inventory-misses-two-measure-tags` | 2026-09-03 | main is red at the code tier: TAG_INVENTORY does not list two node_error_tag values tags.rs already ships |
 | `proptest-modules-in-src-ungated` | 2026-09-03 | the 14 in-src proptest modules stay ungated: a split per file buys 0.62 cpu-s |
 | `python-suite-zero-test-guard-three-copies` | 2026-09-03 | The python suite's zero-test guard exists in three places because no shared runner does |
 | `render-lanes-checkout-merge-ref-vanishes` | 2026-09-03 | render lanes: ~100 hosted reds are 'couldn't find remote ref refs/pull/N/merge' at checkout |
