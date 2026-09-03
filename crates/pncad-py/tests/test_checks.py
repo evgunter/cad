@@ -334,7 +334,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
-        doc, instance, ev = self.instance_of_the_stand()
+        _doc, instance, ev = self.instance_of_the_stand()
         through_the_value = ev.value(instance).body()
         through_the_attribution = subject_body(ev, instance, 0)
         # It is ONE body: same geometry by every door that cannot see
