@@ -9,12 +9,17 @@
 //! ε, band), and a row that wants the schedule to run out picks the
 //! band that makes it.
 //!
-//! The "schedule's own width" is measured LIVE, not pinned: a face
-//! whose last round lands inside a band's coincidence zone is
-//! classified zero there and falls through to the ordinary
-//! exhaustion refusal, whose payload is the last round's measured
-//! width. The band is chosen from the early exit's own payload, so
-//! the comparison needs no number from outside the run.
+//! The "schedule's own width" is measured LIVE on the rational lane,
+//! not pinned: a face whose last round lands inside a band's
+//! coincidence zone is classified zero there and falls through to
+//! the ordinary exhaustion refusal, whose payload is the last
+//! round's measured width. The band is chosen from the early exit's
+//! own payload, so the comparison needs no number from outside the
+//! run. On the INTEGRAL lane the same measurement costs the
+//! composite's whole schedule — 262 144 cells at the last round,
+//! tens of cpu-seconds on any face past the exact rule's window —
+//! so there the width is pinned ([`RIDGE_SCHEDULE_WIDTH`]) and the
+//! live re-take is a reporting row run by hand.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
@@ -173,25 +178,29 @@ fn quarter_cylinder() -> Face {
     }
 }
 
-/// A degree-5 unit-weight patch over the unit square — past the
-/// exact per-span rule's degree window, so the INTEGRAL lane's
-/// composite rounds run. `z(i, j)` sets the control heights; the
-/// abscissae `i/5` make `x(u) = u` and `y(v) = v` exactly.
+/// A degree-(5, 1) unit-weight patch over the unit square — quintic
+/// in u, past the exact per-span rule's degree window (which needs
+/// `3·degree ≤ 12` in BOTH directions), so the INTEGRAL lane's
+/// composite rounds run; linear in v, so each of the schedule's
+/// 262 144 last-round cells costs a 6 × 2 net rather than a 6 × 6
+/// one. `z(i, j)` sets the control heights; the abscissae `i/5` and
+/// `j` make `x(u) = u` and `y(v) = v` exactly.
 fn quintic(name: &'static str, z: impl Fn(usize, usize) -> f64) -> Face {
-    let kv = KnotVector::clamped(vec![0.0; 6].into_iter().chain([1.0; 6]).collect(), 5).unwrap();
+    let ku = KnotVector::clamped(vec![0.0; 6].into_iter().chain([1.0; 6]).collect(), 5).unwrap();
+    let kv = KnotVector::unit_segment(1);
     let mut net = Vec::new();
     for i in 0..6 {
-        for j in 0..6 {
+        for j in 0..2 {
             #[allow(clippy::cast_precision_loss)]
-            net.push(p(i as f64 / 5.0, j as f64 / 5.0, z(i, j)));
+            net.push(p(i as f64 / 5.0, j as f64, z(i, j)));
         }
     }
     Face {
         name,
-        ku: kv.clone(),
+        ku,
         kv,
         net,
-        weights: vec![1.0; 36],
+        weights: vec![1.0; 12],
         perimeter: 4.0,
     }
 }
@@ -349,29 +358,78 @@ fn early_refusal_width_is_the_schedules_own() {
     }
 }
 
-/// The same three rows on the INTEGRAL lane's composite (a quintic
-/// bump, unit weights, past the exact rule's degree window): refused
-/// early at a tight ε, refused at exhaustion under the coincidence
-/// band, and the early width is the schedule's own.
+/// The integral lane's exhaustion carrier: a quintic ridge, unit
+/// weights, past the exact rule's degree window.
+fn quintic_ridge() -> Face {
+    quintic("quintic ridge", |i, _| {
+        if (2..=3).contains(&i) { 0.6 } else { 0.0 }
+    })
+}
+
+/// The flux width the integral composite's LAST round reaches on
+/// [`quintic_ridge`], as a displacement (m): measured by
+/// [`integral_ridge_schedule_width_retake`] — the schedule run out
+/// under the coincidence band, exactly as the rational rows do live
+/// — and pinned here because that run is 262 144 cells of the
+/// composite (44.7 s on the box that took it; ~25 cpu-s hosted). The
+/// cut schedule is fixed (D9), so this number moves only if the
+/// composite rule, its remainder or the schedule moves; when the pin
+/// fires, run the re-take and decide whether the new width is right.
+const RIDGE_SCHEDULE_WIDTH: f64 = 6.887_594_229_667_246e-6;
+
+/// The early exit on the INTEGRAL lane's composite: the ridge refuses
+/// typed after round 0 at ε = 1e-9, target `1024·ε`, and the payload
+/// is no larger than the schedule's own width and within 1e-4 of it
+/// (measured 1.0e-6 apart: the omitted midpoint sum).
 #[test]
 fn integral_composite_lane_exits_the_same_way() {
-    let bump = quintic("quintic bump", |i, j| {
-        if (2..=3).contains(&i) && (2..=3).contains(&j) {
-            0.6
-        } else {
-            0.0
-        }
-    });
-    let ((bound, _), (measured, _)) = early_then_exhausted(&bump);
-    assert!(
-        bound <= measured,
-        "{}: the early refusal's width {bound:e} exceeds the schedule's own {measured:e}",
-        bump.name
+    let eps = 1e-9;
+    let ridge = quintic_ridge();
+    let (out, secs) = ridge.run(eps, linear_band(eps));
+    let (bound, target) = budget_width(ridge.name, &out);
+    println!(
+        "K1 {}: early budget refusal width {bound:e} in {secs:.3}s",
+        ridge.name
     );
     assert!(
-        measured - bound <= 1e-3 * measured,
-        "{}: the early refusal's width {bound:e} is more than 1e-3 under the schedule's own \
-         {measured:e}",
-        bump.name
+        (target - TARGET_LEN_FACTOR * eps).abs() <= target * 1e-12,
+        "{}: the refused target must be 1024·ε: {target:e}",
+        ridge.name
+    );
+    assert!(
+        bound.is_finite() && bound > target,
+        "{}: the payload must be a finite width that really missed: {bound:e} vs {target:e}",
+        ridge.name
+    );
+    assert!(
+        bound <= RIDGE_SCHEDULE_WIDTH,
+        "{}: the early refusal's width {bound:e} exceeds the schedule's own {RIDGE_SCHEDULE_WIDTH:e}",
+        ridge.name
+    );
+    assert!(
+        RIDGE_SCHEDULE_WIDTH - bound <= 1e-4 * RIDGE_SCHEDULE_WIDTH,
+        "{}: the early refusal's width {bound:e} is more than 1e-4 under the schedule's own \
+         {RIDGE_SCHEDULE_WIDTH:e} — re-take the pin and read why",
+        ridge.name
+    );
+}
+
+/// Reporting row, run by hand: re-takes [`RIDGE_SCHEDULE_WIDTH`] by
+/// running the integral schedule out (the coincidence-band route the
+/// rational rows take live) and prints both widths. Asserts only the
+/// relation the pin encodes, so a moved schedule is read here, not
+/// hidden.
+#[test]
+#[ignore = "reporting: re-takes RIDGE_SCHEDULE_WIDTH by running the integral schedule out (~45 s)"]
+fn integral_ridge_schedule_width_retake() {
+    let ridge = quintic_ridge();
+    let ((bound, _), (measured, _)) = early_then_exhausted(&ridge);
+    println!(
+        "K1 RIDGE_SCHEDULE_WIDTH re-take: pinned {RIDGE_SCHEDULE_WIDTH:e}, measured {measured:e}"
+    );
+    assert!(
+        bound <= measured && measured - bound <= 1e-4 * measured,
+        "{}: the early refusal's width {bound:e} is not the schedule's own {measured:e}",
+        ridge.name
     );
 }
