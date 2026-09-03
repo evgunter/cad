@@ -3484,7 +3484,8 @@ single claimant). Protocol v6 dual: draw = `/dev/urandom` byte
 **136**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before
 either review runs: CONCURRENT same-head on frozen `554f2b0f`, both
 briefs authored and STORED with sha256 before either dispatches
-(identical text modulo lane names), neither reviewer sees the other's
+(sha256 5ccb4c029028… r1 / 77b9cca2538a… r2 — identical text modulo
+lane names, verified by diff), neither reviewer sees the other's
 report, v6 item 5 isolation in both briefs; the implementer's unit
 log entry is not written until the dual concludes. Orchestrator's
 ruling on the spec's Phase 1 stop clause, so the reviewers read it as
