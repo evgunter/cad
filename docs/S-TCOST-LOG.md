@@ -379,3 +379,15 @@ re-spawned fresh from its pushed state rather than resumed again.
   const doc calling a 60° arc 150°; the deleted suite's measured
   negative findings dropped; the fuzz row still the floor-plus-search
   trap the memory names — split per the memory's remedy.
+
+## Seam: container restart (2026-09-03, ~04:50 UTC)
+
+The session's container restarted with five lanes live (TCOST-1 and
+TCOST-5 mid fix-pass, TCOST-B1 with a fresh clippy red on its fix
+head, TCOST-7 with PR 1635 open, TCOST-K1 with its first kernel commit
+pushed and no PR). The disk survived — worktrees, uncommitted fix-pass
+edits (15 files in TCOST-1's lane, 3 in TCOST-5's), warm target dirs —
+and only the agents' transcripts were lost, so each lane was
+re-created FRESH from its on-disk and pushed state with the fix list
+restated in the brief (the death-recovery rule: fresh over resume when
+the remainder is specifiable from what is pushed).
