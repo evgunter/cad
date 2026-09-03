@@ -10,7 +10,7 @@ refs: [852]
 
 ## From GitHub issue 853
 
-opened 2026-08-21, 0 comments.
+Opened 2026-08-21; 0 comments.
 
 sccache went on trial in #852 (audit finding F4, `docs/CI-MINUTES-2026-08.md`). It is **on** — the kill switch is the repo variable `SCCACHE` set to `"0"`; unset means enabled. This issue is the reminder to go back and read the result, in a few days, once enough warm runs have accumulated.
 
@@ -30,7 +30,7 @@ Then, on a warm run:
 2. **`sccache --show-stats`** (a step on both build jobs). This is the part that decides it:
    - **Hits on dependency crates prove nothing.** rust-cache already serves those ~225 crates; a run that only hits there has measured its own redundancy.
    - **Hits on workspace crates are the whole hypothesis.** rust-cache deliberately evicts them (the note on the build job, and render.yml's), and at opt-2 they dominate these two jobs. That is the number worth having.
-3. Sanity-check the object cache is persisting at all — a permanently cold `sccache-obj--` restore means the trial measured nothing.
+3. Sanity-check the object cache is persisting at all — a permanently cold `sccache-obj-<lane>-` restore means the trial measured nothing.
 
 ## Outcomes
 

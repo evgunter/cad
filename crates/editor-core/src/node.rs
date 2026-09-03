@@ -673,6 +673,18 @@ impl InterfaceRecord {
 /// **Not canonicalized.** `t1 ≤ t0` is a REVERSED window, which the
 /// kernel refuses typed (`DegenerateWindow`); swapping the two here
 /// would silently author a different tube than the caller asked for.
+///
+/// **And so neither tube kind gets a canonicalizing construction
+/// door**, which the spec asked for and which is satisfied VACUOUSLY
+/// here — measured, not skipped. A canonicalizing door exists where a
+/// payload is SET-SHAPED and two spellings denote one artifact:
+/// [`Node::fillet`]/[`Node::chamfer`] sort and dedupe a selection,
+/// `PlacedUnion` orders its placements. Every field either tube kind
+/// carries is a scalar, a bare direction, a node id, or this
+/// two-variant window — nothing set-shaped, nothing with a second
+/// spelling to fold — so a door could only re-wrap the struct
+/// literal. The one place canonicalization could have applied is the
+/// window's angle pair, and the paragraph above is why it must not.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum TubeWindow {
@@ -1003,11 +1015,25 @@ pub enum Node<P> {
     /// rotation axis all use. A second datum-axis reference would
     /// carry an origin nothing reads.
     ///
-    /// Neither direction is normalized here: the door STORES what it
-    /// is given and refuses a non-unit axis, a non-unit reference, or
-    /// a non-perpendicular pair, typed. Wiring in a silent
-    /// normalization would be exactly the invention the door exists to
-    /// avoid.
+    /// # The two directions are NOT treated alike, and that asymmetry
+    /// is the datum's doing
+    ///
+    /// `spine` is a datum NODE, and a datum axis normalizes its own
+    /// direction when it evaluates ([`crate::eval`]'s `wire_datum`
+    /// builds a `UnitVec3`, which is what `Node::Revolve` gets too), so
+    /// a spine authored `(0, 0, 2)` is silently the unit z axis and
+    /// builds. Only a degenerate or non-finite direction refuses
+    /// there, one node upstream, and it refuses as a DATUM fault. The
+    /// tube door's own non-unit-axis verdict is therefore unreachable
+    /// along the recipe path; it still guards the kernel-direct
+    /// caller.
+    ///
+    /// `u_ref` is a BARE TRIPLE that passes through no datum, so it
+    /// reaches the door exactly as written: a non-unit reference, or
+    /// one not perpendicular to the axis, refuses TYPED from the door
+    /// ([`crate::eval::NodeErrorKind::Tube`]). Nothing normalizes it
+    /// here — a silent normalization would be exactly the invention
+    /// this door exists to avoid.
     Tube {
         /// The datum-axis node giving the spine's centre (its origin)
         /// and axis (its direction).

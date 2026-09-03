@@ -1834,6 +1834,58 @@ v15 fixture #1224 renamed — a union break gating every PR's Rust
 shards) — routed orchestrator-direct as #1264, per the
 red-goes-straight-to-a-fix social rule.
 
+**LIB-DIETOOL DELIVERED (2026-09-03, mechanical, brief-as-spec).**
+The banked "die_tool's Python re-authoring (banked behind its
+Revolve/datum half)" is CLOSED, and the verdict is CLEARED — by
+construction, not by argument. The record first: the blocker was
+`die_pips`' deviation (b), the equator workaround — the revolve NAME
+EMITTER refused an all-on-axis two-pole loop ("revolve vertex
+resolution exceeded elimination"), so no sphere reached a
+`Node::Revolve` and the ball was charted as two quarter arcs meeting at
+an off-axis equator vertex, the second's bulge derived from `tan(π/8)`.
+`7581fb65d` (2026-08-15) deleted it from `die_pips`, `die_composed` and
+the tour once the emitter grew its pole export. **The Rust corpus
+document never carried it**: `die_tool` (`54f44ac90`) postdates that
+deletion by one commit and reuses `half_disc_program`'s natural
+bulge-1 semicircle, so there was nothing to re-author on that side and
+the name-table digest could not move (measured: `die_tool` still
+`0x9e24_4be7_b06b_9a40`, and `m10_p_fence`'s three scalars unmoved —
+the registry is untouched, so neither gate's re-bless procedure was
+entered). What was genuinely banked was the CROSSING: `heat_sink_fins`
+(Linear, extrude-only) had a Python twin and `die_tool` (Explicit,
+Revolve about a `Datum::Axis`) had none.
+It authors clean. `test_placed_union.py::TestTheDieTool` says the
+document's seven nodes through the bound doors — `Node.polygon`,
+`extrude`, `datum_axis`, `profile` on a `from_frame` plane, `revolve`,
+`placed_union_at` of six `Frame.rotate_then_translate`s, `boolean`
+Subtract — green, valid, one solid, 18 faces, volume on the six-cap
+oracle at 1e-12 relative. The sameness is BYTES, not eyeballs:
+`lib_dietool_crossing.rs` pins the registered document's `persist::save`
+text as `corpus/die_tool.pncad` (with a `PNCAD_BLESS` door), and the
+Python row asserts its own `Doc.save()` against that file line for line
+— the whole 468 lines, identity included (`Doc("mod")` derives the id
+`fixture::Recorder` does), bar the one swept `"epsilon"` line on the
+`plate_param` precedent. A recipe change on either side is now a red
+run.
+Two things swept en route. The Python die scene
+(`test_north_star.py::DieScene.ball`) still carried the equator
+workaround with a docstring asserting a refusal that had been retired
+eighteen days earlier — the stale-comment class, and this one was
+load-bearing prose. Replaced by the scene's own meridian; all
+seventeen die rows (`diepips`, `diecomposed` incl. its 42-rim
+`select_where`, `diechamfer`) green unchanged, so the re-chart was dead
+weight. And ONE finding filed:
+`work/lib/pncad-py-doc-has-no-node-kind-read-door.md` — `Doc` answers
+`order`/`node_count`/`placement`/`reference`/`interface` and no node
+KIND, and `Value.kind` is the value's ("body" for both a group and a
+union), so the Rust row's `(groups, unions, transforms) == (1, 0, 0)`
+has no Python spelling; the mirror asserts the node COUNT (7 against
+the pairwise chain's 18) and leans on the byte pin's JSON for the rest.
+No audit row flips: G8's residual is the Union-into-a-BASE fusion
+asserted by `TestHeatsink`, and this row is a Subtract — though it does
+execute "a group feeds a boolean from Python", which is the half of
+that sentence that was in doubt.
+
 ## Tracker migration (2026-09-03)
 
 This log moved here from `docs/LIB-LOG.md`; the program's contract stays
@@ -1842,6 +1894,62 @@ directory's item files and in `work/STATUS.md` (generated); this log
 stays the narrative. Items created at migration: LIB-TUBE (spec),
 LIB-G17 (parked on issue 1202).
 
+**CUR4 MERGED (2026-09-03, #1633; mechanical under the 08-29 ruling,
+no A/B row).** CUR3's three banked twins come back measured, and two
+of the three answers are not the ones the bank assumed. The
+`FilletError` structural twin is CARRIED — but every coordinate in
+CUR3's row had moved: `6cedf722b` renamed `sweep::fillet` to
+`sweep::blend`, so it is `BlendSite`/`CornerConfig`/`RunOutPolicy` off
+`sweep::blend`, and `FilletError`/`FilletSite` have zero references in
+the tree. The case is STRONGER than the one CUR3 fixed: `DanglingRef`
+at least sat at `topo`'s root, while `sweep` re-exports nothing from
+`blend`, so the only spelling was `pncad::sweep::blend::CornerConfig`.
+A fourth name rides with them — `Convexity`
+(`BlendError::ConvexitySignFlip`), which CUR3's scan could not see
+because its narrowing rule was "same module as the carrier" and
+`Convexity` lives one deeper in `blend::battery`. The
+`ValidationError` trio is CARRIED too, one rung and no further:
+`CensusContact`/`RingContact`/`StaleDeclaration` sit at `topo`'s root
+exactly as `DanglingRef` did, which is what settles that
+root-reachability does NOT discharge a curated list; the list was
+already half-persuaded, since `DeclaredContact` (the
+`ContactContradicted` payload) has been curated through select.rs all
+along. `BandField` is the one that flips: ARGUED NON-CARRIAGE, because
+every verb derives its band through `Band::linear` = `Band::new(ε,
+K·ε)` and `Tol`'s invariant makes the `zero` check unfirable, so the
+only `InvalidValue` a prelude caller can receive is `field: Escalate`
+— a discriminant that is CONSTANT at the curated boundary has nothing
+to branch on. `Band::angular_at` has no live call site anywhere, and
+the argument is written into prelude.rs with its own falsifier (a
+caller for `angular_at` makes `Zero` reachable and flips it). NO
+PYTHON TAG MOVES either way, measured not skipped: `BlendError`
+projects no arms (`node_error_tag` reads the VERB) and the validate
+doors cross as joined `Display` prose with no per-arm tag at all — so
+the rule the two units together settle, now written into the census,
+is that **a payload's category follows what its CARRIER does at the
+crossing** (`DanglingRef` is `BOUND_AS` because `ReadbackError`
+projects; these seven are `INTERIOR` beside `BandError` and
+`DeclaredContact`). New pin
+`carried_refusal_payloads_are_matchable_through_the_prelude` reaches
+every carried name by BARE prelude name with no module path, which is
+the failure mode all.rs's nameability sinks cannot see. CUR3's blind
+spot (a) closed one rung: the struct-payload sweep over 425 curated
+names and 51 carried refusals found 77 uncurated payloads at rung 1
+(20 of them structs) and 24 at the new rung 2, tabled in the PR. Three
+findings banked with homes rather than swept up: `Indeterminate` +
+`MarginDiag` (the escalation payload, uncurated under THIRTEEN
+refusals — far the largest in the tree, and its answer may well be
+`BandField`'s); `EntityId`/`GeomRef`/`ContactFinding` (the rung both
+curation units stopped at, now named once instead of twice);
+`LoopKey`, curated out of step with `VertexKey`/`EdgeKey`/`FaceKey`
+and invisible to both scans because `slotmap::new_key_type!` mints it
+— a FIFTH blind spot (e) beside CUR3's four, filed with the
+methodology note that a flat name index also silently takes the wrong
+definition across crates (`viewer::blend::BlendError` shadowed
+`sweep::blend::BlendError` and hid the whole fillet quartet on the
+first run). `MeshPickError` re-verified DECIDED absent, unchanged. No
+kernel edits; the diff is `pub use` lines, prelude arguments, one test
+and census rows.
 **LIB-TUBE DELIVERED (branch `lib/tube`; spec docs/LIB-TUBE-SPEC.md
 under RECIPE-DOORS D4 AS REVISED by the #1205 split ruling, AMENDED
 2026-09-03). RECIPE-DOORS unit 2 of 3; audit G2's TUBE HALF CLOSED.**
@@ -1876,19 +1984,24 @@ because there is no profile node to anchor to. (2) The storage
 contract is metered at the STORED BITS, not the volumes: rows read
 `Surface::Torus`'s `minor_radius` off the built body and compare
 `to_bits()`, which is the only oracle that can see the claim rows
-26/27 actually make (volumes agree to 1e-12 either way).
+25/26 actually make (volumes agree to 1e-12 either way).
 
-Audit re-cut, honest: rows 24/26/27 flip YES; rows 13 (`lily`) and 28
-(`teapot`) KEEP their NO on blockers that were never the tube (sweep
-+ placement; shell) and their rows now say which half lifted; rows
-20-23 unmoved — no `wire_sweep` motion, U4/LQ3 untouched. G2
-re-counted 8 -> 5, tallies re-derived from the sheet.
+Audit re-cut, honest — at the table's CURRENT numbering, which the
+montage-v3 curation renumbered 47 rows to 43 while this lane was
+dead: rows 23 (`tube_along_arc`), 25 (`hollowelbow`) and 26
+(`hollowtorus`) flip YES; rows 13 (`lily`) and 27 (`teapot`) KEEP
+their NO on blockers that were never the tube (sweep + placement;
+shell) and their rows now say which half lifted; rows 19-22 unmoved
+— no `wire_sweep` motion, U4/LQ3 untouched. G2 re-counted 8 -> 5,
+tallies re-derived from the sheet.
 
 Banked, with homes: (1) per-ARM Python error tags — every op on
 `node_error_tag` gets ONE tag (`revolve` covers ten `RevolveError`
 arms), so a Python caller distinguishes a wall refusal from a frame
 refusal only by prose; worth doing for every op at once, not for the
-one whose unit was written last. (2) `reader_census`'s dot-component
+one whose unit was written last. FILED at the fix pass as
+`lib-per-arm-error-tags` (a banked finding with no item is a finding
+nobody can pick up — R1's Q6). (2) `reader_census`'s dot-component
 filter tests the ABSOLUTE path, so any checkout under a dotted
 directory (`~/.local/...`) reports all 34 ledger entries stale and
 reds for an environmental reason; the filter wants the path relative
@@ -1904,6 +2017,24 @@ was aborted, nothing lost). This row is written at the adaptation,
 which re-merged the eight original commits onto that main, removed
 the void version machinery, moved this row here from
 `docs/LIB-LOG.md`, and re-verified the deliverables.
+
+**FIX PASS (both reviews A-W-F, no MAJOR; union of 10, all taken).**
+The corrections worth naming: the stale pre-migration row numbers were
+a CLASS, not a typo — five citations across the log, `lib_tube_node`,
+the Python suite and the audit's own self-referencing `hollowtorus`
+cell, all re-pointed at the 43-row table; and TWO caller-facing doc
+surfaces claimed a non-unit AXIS refuses, which is FALSE and was
+demonstrated so — a datum axis normalizes its direction on the way
+through (`(0, 0, 2)` builds silently), so only `u_ref`, which passes
+through no datum, is refused for length. Both now say what executes
+and name the asymmetry. Also: `tube_ring`'s header no longer advertises
+an exact mass pin over `pin: None`; the golden's last "the bump" phrase
+is gone; the spec's "canonicalizing construction doors" is recorded as
+VACUOUSLY satisfied at `TubeWindow` (no set-shaped payload exists to
+canonicalize, and the one candidate — the window's angle pair — must
+not be); the audit's four dead `docs/LIB-LOG.md` pointers now resolve;
+and both reviewers' probe branches land as merge parents,
+authorship-preserving, wired in as permanent rows.
 
 Next per ratified D1 sequencing: shell, still HELD behind #1202's
 kernel birth channel.

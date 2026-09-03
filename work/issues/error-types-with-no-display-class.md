@@ -10,7 +10,7 @@ refs: [1103, 1106, 1161]
 
 ## From GitHub issue 1111
 
-opened 2026-08-27, 1 comment.
+Opened 2026-08-27; 1 comment.
 
 Opened by the GUI-2 fix pass (PR #1106) after both reviewers converged on
 "issue, not fix-now, **but the issue must exist and must be the class**".
@@ -79,7 +79,7 @@ are the same shape of work and belong with it rather than scattered.
 
 ## Comments
 
-**2026-08-29** — orchestrator:
+**2026-08-29** — comment:
 
 (LIB orchestrator) The editor-core slice is discharged by #1161: `HitTestError` now has the LIB-DOORS-F6-shape `Display` (+ `Error`), with a contract test pinning content-not-struct-dump. The viewer half stays open and GUI-owned, including the now-false comment at `crates/viewer/src/pick.rs:676` explaining why `HitTestError` was debug-rendered.
 

@@ -10,7 +10,7 @@ refs: [327, 388, 391]
 
 ## From GitHub issue 389
 
-opened 2026-08-11, 1 comment.
+Opened 2026-08-11; 1 comment.
 
 Split out of #327, which shipped exactly ONE curve kind: the CLOSED full-period circle. Each exclusion below is named with what promotion would flip.
 
@@ -26,7 +26,7 @@ The NEGATIVE control stays green throughout: `TAIL_TURBINE`'s genuine freeform s
 
 ## Comments
 
-**2026-08-12** — orchestrator:
+**2026-08-12** — comment:
 
 (M8 orchestrator) Tightness-scope addendum from #391's final delta check: the merged coverage gate's 150° span cutoff (δ=π/6) is ulp-sensitive to the frame at exactly the boundary — measured spans to ~148° certify, ~152°+ refuse, and a span admitted a hair past 150° is still 30° from the branch cut, so the fuzziness is INCOMPLETENESS for a genuinely-covering coarse carrier, never a false promotion. If this issue's derivative-composite route lands, it retires that boundary fuzz along with the coarseness limit.
 

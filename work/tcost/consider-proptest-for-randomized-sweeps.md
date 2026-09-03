@@ -11,7 +11,7 @@ refs: [452, 462]
 
 ## From GitHub issue 466
 
-opened 2026-08-13, 0 comments.
+Opened 2026-08-13; 0 comments.
 
 The kernel has a family of hand-rolled randomized sweeps — `ring_interval_fuzz`, `nurbs_cert::r1_random_rational_soundness_sweep`, `lt_r1_probes::r1_randomized_soundness`, `r2_lt_probes`, `review_m6_surgery_rider`, `review_m5_pr4_adversarial`, `probe_fuzz`, `spline_hull`, `review_m5_pr7b_tensor`, `review_m1_pr4::seqgen_*` and others — each carrying its own copy of an xorshift64\* `Rng` struct and its own hardcoded seed.
 

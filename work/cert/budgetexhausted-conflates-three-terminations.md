@@ -10,7 +10,7 @@ refs: [1319]
 
 ## From GitHub issue 1321
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 (S-CERT orchestrator) Filed from CERT-7 (PR 1319), observed while hunting a stall fixture.
 
@@ -20,7 +20,7 @@ Post-CERT-7 the refusal taxonomy already distinguishes `RefinementStalled` (stro
 
 ## Comments
 
-**2026-08-31** — S-CERT orchestrator:
+**2026-08-31** — comment:
 
 (S-CERT orchestrator) Addition from CERT-7's dual review (both lanes independently reproduced this issue's budget:6-on-a-cap-stop digit): `BudgetExhausted { achieved: inf }` is also reachable (measured: quarter cylinder at `d = 1e-8`) — the variant's "carries the achieved bound" promise degrades to carrying `inf` exactly where the caller most needs a number. Whoever takes the three-way split should fold this in as a fourth face of the same conflation: a cap stop, a rounds stop, an unmarked stop, and a stop that never produced a finite bound at all are four different messages to the caller.
 

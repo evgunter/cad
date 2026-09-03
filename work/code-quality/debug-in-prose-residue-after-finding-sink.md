@@ -10,7 +10,7 @@ refs: [984, 981]
 
 ## From GitHub issue 985
 
-opened 2026-08-25, 0 comments.
+Opened 2026-08-25; 0 comments.
 
 The finding-sink unit (PR #984, #981 part 1) cleaned the finding/refusal surfaces it named (checks, node errors, assembly incl. `ProductError` at the fix pass) and discharged the D54 list. Two sweeps — the implementer's (awk over `impl Display`) and the reviewer's (`{:?}`-shaped grep over all of editor-core/src, which caught the forwarding class the first instrument could not see) — leave this recorded residue, none of it in that unit's scope:
 

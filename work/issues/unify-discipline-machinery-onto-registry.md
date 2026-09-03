@@ -10,7 +10,7 @@ refs: [978, 979]
 
 ## From GitHub issue 981
 
-opened 2026-08-25, 0 comments.
+Opened 2026-08-25; 0 comments.
 
 Recording Ev's ask (2026-08-25, the checks-registry conversation, on reading PR #978's diff): the registry unit deliberately unified none of the existing discipline machinery (DISCIPLINES-DESIGN DS8's no-speculative-refactor rule — sharing lands where a second consumer makes it real), and the unification is now **planned**, not merely possible. Not scheduled by this issue.
 

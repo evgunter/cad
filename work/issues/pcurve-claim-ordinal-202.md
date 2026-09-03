@@ -11,7 +11,7 @@ refs: [1177, 1112, 1115, 1118, 1119, 1095]
 
 ## From GitHub issue 1209
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Claim-at-dispatch. Ordinal 202 = PCURVE P-2's v6 dual (#1177, frozen head `0ecd3f7e`). PCURVE band 200–299; 200 was Census G2, 201 was P-1b.
 

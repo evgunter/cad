@@ -10,7 +10,7 @@ refs: [1128, 1232]
 
 ## From GitHub issue 1295
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 ## What
 

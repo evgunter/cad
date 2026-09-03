@@ -326,12 +326,14 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             },
         },
     );
-    // BOTH tube kinds, and both window
-    // spellings between them. The bump exists for two variants, so a
-    // golden pinning one of them would leave the other's wire shape
-    // frozen by nothing — and the window variant is recipe payload
-    // that decides which slots the node has, so `Full` and `Arc` are
-    // two shapes, not one with different numbers.
+    // BOTH tube kinds, and both window spellings between them. Two
+    // kinds arrived in one vocabulary change, so a golden pinning one
+    // of them would leave the other's wire shape frozen by nothing —
+    // and the window variant is recipe payload that decides which
+    // slots the node has, so `Full` and `Arc` are two shapes, not one
+    // with different numbers. (There is no schema version to pin any
+    // of this against: #1553 retired the version machinery, and these
+    // bytes are the whole freeze.)
     //
     // The solid kind takes the full ring and the hollow kind the arc,
     // rather than the reverse, because that pairing puts the wall

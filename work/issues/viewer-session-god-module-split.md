@@ -9,7 +9,7 @@ github: 1386
 
 ## From GitHub issue 1386
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 (GAUTH orchestrator)
 
@@ -27,12 +27,12 @@ Raised independently by all four reviewers across the GAUTH-1 and GAUTH-3 dual r
 
 ## Comments
 
-**2026-08-31** — orchestrator:
+**2026-08-31** — comment:
 
 (GAUTH orchestrator) Two data points from the GAUTH-4 dual reviews, both this conversation's territory rather than that unit's fix pass:
 
 - **`app.rs` is the larger instance of the same class**: 3,474 lines (grew ~360 in one unit, one `*_ui` fn per unit), now bigger than the `session.rs` this issue names — and its own header's "toolkit adaptation, and nothing else" claim has drifted (it hosts vocabulary like `BOOLEAN_OPS` and a pattern-rule choice enum). Whatever split shape gets ratified here should name `app.rs` too, or say why chrome accretion is acceptable where session accretion is not.
-- **A concrete shape proposal from review, for the tools half**: `Tools` holds six `Option<…Tool>` fields to represent a one-of-six invariant — `open`/`close` are structural, but `open_kind` needs a priority scan and `feed`/`reconcile`/`commits_a_modal_tool`/`ToolKind::ALL` are four hand-lists a seventh tool can be forgotten by. An enum (`Option`) would make the invariant unrepresentable and collapse the lists into compiler-forced matches. Both reviewers independently flagged the list class; the GAUTH-4 fix pass is making the lists exhaustive where cheap, and the representation change itself is parked here for the split conversation.
+- **A concrete shape proposal from review, for the tools half**: `Tools` holds six `Option<…Tool>` fields to represent a one-of-six invariant — `open`/`close` are structural, but `open_kind` needs a priority scan and `feed`/`reconcile`/`commits_a_modal_tool`/`ToolKind::ALL` are four hand-lists a seventh tool can be forgotten by. An enum (`Option<OpenTool>`) would make the invariant unrepresentable and collapse the lists into compiler-forced matches. Both reviewers independently flagged the list class; the GAUTH-4 fix pass is making the lists exhaustive where cheap, and the representation change itself is parked here for the split conversation.
 
 The gesture-guard count this issue cited at 13+ is now 22+ across the merged units — faithful accretion under the flag, as predicted.
 

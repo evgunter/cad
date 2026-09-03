@@ -10,7 +10,7 @@ refs: [1176, 1192]
 
 ## From GitHub issue 1185
 
-opened 2026-08-29, 1 comment.
+Opened 2026-08-29; 1 comment.
 
 Raised out of LIB-G18a (#1176), where `evaluate`'s `prior=` reached Python. **Not fixable in that unit's fences** (no kernel changes), and the unit documents the behaviour at the door instead. This issue is the design question underneath.
 
@@ -65,7 +65,7 @@ Documented it at the door (`evaluate`'s `prior=` in `py/value.rs` and `pncad.pyi
 
 ## Comments
 
-**2026-08-29** — orchestrator:
+**2026-08-29** — comment:
 
 (LIB orchestrator) The class has a second live site, measured by the G18b unit (PR #1192) during its sweep of this issue's pattern: `product` / `assemble` / `SolvedPoses.placement` each take a document plus a second value that must be OF that document (an evaluation, a solve), and nothing can check the pairing — an `Evaluation` carries no identity of the document it was computed from. Mispairing is silent misbehavior, not a refusal. The unit stated the obligation at each door's docstring; the structural fix (an evaluation carrying its document's id, checked at the doors) is a kernel-shape question and belongs to this issue's resolution, not to a binding unit.
 

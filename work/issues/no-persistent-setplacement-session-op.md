@@ -9,7 +9,7 @@ github: 1120
 
 ## From GitHub issue 1120
 
-opened 2026-08-28, 0 comments.
+Opened 2026-08-28; 0 comments.
 
 (GUI orchestrator) Banked from GUI-4's R1 review (n8, `review-report-r1.md` on `gui/gui-4-review-r1`): the layer-3 session vocabulary has no operation that commits an instance placement as a persistent document edit. Free-move is display-layer by ratification (G3 — never persisted), and mates supersede it — but a user who fit-probed an unconstrained instance into position has no door to KEEP that position short of authoring a mate; the shipped document layer has placement machinery (`Doc.placements`, `SetPlacement` at the editor-core level per the ASM series) that the viewer never exposes. R1's rotated-fixture row documents the workaround (author the placement through the document API directly).
 

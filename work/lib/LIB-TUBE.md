@@ -2,7 +2,7 @@
 id: LIB-TUBE
 kind: unit
 title: Node::Tube and Node::HollowTube, the tube recipe doors
-status: dispatched
+status: review
 branch: lib/tube
 opened: 2026-08-29
 refs: [LIB-G17]

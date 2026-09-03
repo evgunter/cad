@@ -10,7 +10,7 @@ refs: [1012]
 
 ## From GitHub issue 1018
 
-opened 2026-08-26, 0 comments.
+Opened 2026-08-26; 0 comments.
 
 `mesh::tessellate` routes a `Surface::Approx` face through the trimmed spline lane on its **fit** (`crates/mesh/src/tessellate.rs`, `trimmed.rs`), and the triangles it produces certify against that fit. They do **not** certify against the face's *description*.
 

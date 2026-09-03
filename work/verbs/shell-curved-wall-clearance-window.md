@@ -11,7 +11,7 @@ refs: [1048, 571]
 
 ## From GitHub issue 1055
 
-opened 2026-08-27, 0 comments.
+Opened 2026-08-27; 0 comments.
 
 **The shell verb's curved wall-clearance window.** Raised by the OFF-D PR-2 review (#1048, ordinal 82, MAJ-1) and adjudicated with Ev; this issue is the documented residue of that ruling.
 

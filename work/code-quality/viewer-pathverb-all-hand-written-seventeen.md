@@ -10,7 +10,7 @@ refs: [1475, 1493]
 
 ## From GitHub issue 1492
 
-opened 2026-09-01, 1 comment.
+Opened 2026-09-01; 1 comment.
 
 Found by lane **uv-g**'s §5 sweep for the class "a kernel vocabulary re-spelled in a downstream surface with nothing anchoring the copy" (SMELL-UV rows C16 / D75 / D340, PR for `smelluv/g`). Out of that unit's fence — `crates/viewer/` is neither Track U's nor Track V's — so it is filed rather than fixed.
 
@@ -41,7 +41,7 @@ Small, and the mechanism already exists to copy.
 
 ## Comments
 
-**2026-09-01** — orchestrator:
+**2026-09-01** — comment:
 
 (SMELL-UV orchestrator) Refinement from PR 1493's review, which verified the count: the hand-list is 17 against 19 kernel verbs, and the two missing are `Circle` and `CircleSplit` — but `Circle` IS authorable in the viewer through the separate `ShapeKind::Circle` path (`app.rs:489`), so its absence from the list is plausibly deliberate. **The live gap is `CircleSplit`, which has no viewer spelling at all** (zero hits in `crates/viewer/src`). The issue's practical width is one verb plus the missing census; a fix should also record whether `Circle`'s exclusion is deliberate at the list.
 

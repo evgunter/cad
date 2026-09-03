@@ -10,7 +10,7 @@ refs: [346, 1044, 1068]
 
 ## From GitHub issue 347
 
-opened 2026-08-10, 2 comments.
+Opened 2026-08-10; 2 comments.
 
 Reported from the LIB-PYG1 unit (PR #346, report finding 3) — kernel-side, outside the bindings program's fence; recorded here for the kernel/assemblies side. Blinded review of the unit is in flight and will independently reproduce the measurement.
 
@@ -27,7 +27,7 @@ If the carrier-vs-trimmed-arc conservatism is a known v1 wall (CurvedBooleanUnsu
 
 ## Comments
 
-**2026-08-26** — orchestrator:
+**2026-08-26** — comment:
 
 **This issue narrows; it does not close.** It carries two demands, and PR #1044 answers one of them.
 
@@ -61,7 +61,7 @@ Measured rather than assumed, and the measurement corrected the plan. Both poses
 
 The four rows above are pinned as they stand, so that unit starts from a red-able measurement rather than a fresh survey.
 
-**2026-08-27** — orchestrator:
+**2026-08-27** — comment:
 
 (VERBS orchestrator) Status update from VERBS-PIERCE (#1068, in review): the union demand SPLITS, and part of it is now measured unreachable-by-design.
 

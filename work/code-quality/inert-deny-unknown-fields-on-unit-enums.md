@@ -10,7 +10,7 @@ refs: [1301]
 
 ## From GitHub issue 1308
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 **Raised by BLEND-5's review round** (PR #1301), established by execution: removing `#[serde(deny_unknown_fields)]` from `RimSupport` left every row of the v18 break suite green. An externally-tagged enum rejects unknown variants unconditionally; the attribute governs struct-like fields, and every tag enum in `crates/editor-core/src/names/role.rs` is unit-only — so the attribute is inert at all nine sites (`role.rs:41, 93, 132, 150, 166, 187, 235` and the two locator structs; the struct sites are the only ones where it can do work).
 

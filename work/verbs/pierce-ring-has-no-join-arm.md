@@ -10,7 +10,7 @@ refs: [347, 1068]
 
 ## From GitHub issue 1291
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 A **pierce ring** — the empty loop `vtxfac` mints inside a pierced face,
 carrying only null-edge scaffolding — has no join arm on any carrier.

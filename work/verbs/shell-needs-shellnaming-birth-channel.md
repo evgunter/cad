@@ -10,11 +10,11 @@ refs: [LIB-G17]
 
 ## From GitHub issue 1202
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 (LIB orchestrator) Filed per ratified `docs/RECIPE-DOORS-DESIGN.md` D5 (Ev, in-chat, 2026-08-29).
 
-`topo::shell` / `shell_open` (`crates/topo/src/shell.rs:472/:494`) return a bare `Body` — no birth record of any kind (measured: no naming machinery anywhere in the file), where fillet (`FilletNaming`, `sweep/src/fillet/naming.rs:85`), split (`SplitNaming`, `topo/src/splitting/finish.rs:101`) and boolean (`BooleanNaming`, `topo/src/boolean/ops.rs:188`) each write one. A `Node::Shell` without an emitter mints no `StableName`s, which reproduces G16's exact defect one verb over — so the recipe door (G17, LIB-owned) is HELD until this lands.
+`topo::shell` / `shell_open` (`crates/topo/src/shell.rs:472/:494`) return a bare `Body<T>` — no birth record of any kind (measured: no naming machinery anywhere in the file), where fillet (`FilletNaming`, `sweep/src/fillet/naming.rs:85`), split (`SplitNaming`, `topo/src/splitting/finish.rs:101`) and boolean (`BooleanNaming`, `topo/src/boolean/ops.rs:188`) each write one. A `Node::Shell` without an emitter mints no `StableName`s, which reproduces G16's exact defect one verb over — so the recipe door (G17, LIB-owned) is HELD until this lands.
 
 **The concrete ask** — a `ShellNaming` record in the `FilletNaming` shape, written by the doors themselves:
 - per surviving source face: the outer wall face it became (`FromTarget`-analogous rows);
@@ -24,7 +24,7 @@ opened 2026-08-29, 0 comments.
 
 The record types carry arena keys only (attribution to stable names is the document layer's job, per the standing division `MintedDeclaration`'s doc comment states). Exact row set is the kernel's to refine — the list above is what LIB's emitter needs to translate, offered so the ask is concrete rather than a shape the kernel has to guess.
 
-Node payload decided already (D5) so this is the only blocker: `Node::Shell { target, thickness: Expr, open: Vec }`, open faces resolved through the N5 ladder to the `FaceKey`s `shell_open` takes — replacing the teapot's by-description plane scan (`demos/tour/src/teapot.rs:417-431`), whose scene note is the recorded friction.
+Node payload decided already (D5) so this is the only blocker: `Node::Shell { target, thickness: Expr, open: Vec<StableName> }`, open faces resolved through the N5 ladder to the `FaceKey`s `shell_open` takes — replacing the teapot's by-description plane scan (`demos/tour/src/teapot.rs:417-431`), whose scene note is the recorded friction.
 
 ## Home
 

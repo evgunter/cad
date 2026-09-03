@@ -11,7 +11,7 @@ needs_ev: true
 
 ## From GitHub issue 1016
 
-opened 2026-08-26, 0 comments.
+Opened 2026-08-26; 0 comments.
 
 (VERBS orchestrator) **Ev — this is the explicit notification the 2026-08-16 stopping-rule amendment pre-registered: the cross-model dual-review target of TWELVE pairs is reached.** A 👍 on this issue acknowledges receipt; the disposition question at the end is yours at leisure.
 

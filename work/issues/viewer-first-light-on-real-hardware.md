@@ -10,7 +10,7 @@ refs: [1094, 1106, 1110]
 
 ## From GitHub issue 1097
 
-opened 2026-08-27, 3 comments.
+Opened 2026-08-27; 3 comments.
 
 Opened by the GUI-0 fix pass (PR #1094) to schedule the deviations that unit
 **disclosed but could not close**, per the v5 rule that a disclosed pickup
@@ -45,10 +45,10 @@ Worth checking specifically, because each is a thing CI cannot see:
 
 - **The depth buffer is actually attached.** `NativeOptions::depth_buffer = 32`
   reaches `egui_wgpu::RendererOptions::depth_stencil_format`; if that wiring is
-  wrong the symptom is the hole's far wall drawing over the near face rather
+  wrong the symptom is the hole&#39;s far wall drawing over the near face rather
   than an error.
 - **The first-frame fit.** Startup frames at a provisional square aspect and
-  the viewport re-frames at the pane's real aspect on its first layout
+  the viewport re-frames at the pane&#39;s real aspect on its first layout
   (`pending_fit`). A visible one-frame jump, or a plate that stays badly
   framed, means that handoff is wrong.
 - **Navigation feel**: middle-drag orbits, shift-middle or right-drag pans,
@@ -61,10 +61,10 @@ Worth checking specifically, because each is a thing CI cannot see:
 ## 2. Back-face culling: `cull_mode: None` → `Some(Back)`
 
 `crates/viewer/src/gpu.rs` draws both sides. The triangles ARE outward-wound
-(`mesh::FacePatch`'s contract, asserted in CI as a positive enclosed volume by
+(`mesh::FacePatch`&#39;s contract, asserted in CI as a positive enclosed volume by
 the divergence theorem) and the shading uses that winding. What could not be
 settled without hardware is the *second* question: which screen-space winding
-wgpu calls "front", given NDC is y-up and framebuffer coordinates are y-down.
+wgpu calls &#34;front&#34;, given NDC is y-up and framebuffer coordinates are y-down.
 Getting it backwards makes a closed solid vanish entirely, which is why the
 lane chose the option that cannot fail that way.
 
@@ -87,19 +87,19 @@ ignorance recorded is a debt.
 
 ## 3. Anything the run reveals
 
-The lane's honest expectation is that something here is wrong in a way no
+The lane&#39;s honest expectation is that something here is wrong in a way no
 amount of reading catches. That is what first light is for. File follow-ups
 against this issue rather than silently patching.
 
-## 4. The GPU id-buffer pass — GUI-2's addition
+## 4. The GPU id-buffer pass — GUI-2&#39;s addition
 
-`crates/viewer/src/gpu.rs`'s `IdPass` renders per-patch ids into a **1×1**
+`crates/viewer/src/gpu.rs`&#39;s `IdPass` renders per-patch ids into a **1×1**
 `R32Uint` target and reads back four bytes at the cursor. Nothing in it has
 executed. Everything about it that a machine without a GPU can check IS checked
 — the id↔(node, body, patch) mapping is a pure function pair with round-trip,
 collision-freedom and stability rows in `crates/viewer/tests/select_pick.rs`,
 and the transform that decides which pixel it samples
-(`viewer::cursor_projection`) has a row composing it with the camera's
+(`viewer::cursor_projection`) has a row composing it with the camera&#39;s
 projection. What is left is the pass itself.
 
 **The verification, and it is one gesture.** The application already runs both
@@ -108,7 +108,7 @@ picking paths on every hovered cursor and compares them: the ray path
 disagreement prints in the status line as
 
 ```
-picking paths disagree at the cursor: id buffer , ray 
+picking paths disagree at the cursor: id buffer <n>, ray <m>
 ```
 
 So the check is: **open the app, sweep the cursor slowly over the plate — the
@@ -127,10 +127,10 @@ the status line.** Silence is agreement. Specifically confirm:
 Three ways this can be wrong that only hardware shows, listed so a failure is
 diagnosable rather than mysterious:
 
-1. **The 1×1 trick's sign or scale is wrong** — `cursor_projection` blows one
+1. **The 1×1 trick&#39;s sign or scale is wrong** — `cursor_projection` blows one
    source pixel up to fill the whole target. A y-flip error makes the id buffer
-   answer the face mirrored about the pane's horizontal centre line, which
-   reads as "disagrees everywhere except near the middle".
+   answer the face mirrored about the pane&#39;s horizontal centre line, which
+   reads as &#34;disagrees everywhere except near the middle&#34;.
 2. **`R32Uint` clear semantics** — the pass clears with
    `LoadOp::Clear(Color::TRANSPARENT)` expecting zero (`IdMap::NOTHING`). If a
    backend clears a uint target differently, the miss case answers garbage and
@@ -142,20 +142,20 @@ diagnosable rather than mysterious:
    cursor having MOVED rather than to remove the comparison.
 
 If the two paths agree across the sweep, say so on this issue: that is the
-hardware half of GQ6-RESURVEY §3's two-lane picking strategy, and it is the
+hardware half of GQ6-RESURVEY §3&#39;s two-lane picking strategy, and it is the
 only place it can be taken.
 
 ## Not in scope
 
-- The `app` feature staying non-default — **settled OFF** by Ev's
+- The `app` feature staying non-default — **settled OFF** by Ev&#39;s
   viewer-CI-posture ruling (`docs/GUI-LOG.md`, 2026-08-27).
-- `epaint_default_fonts`'s OFL-1.1 / Ubuntu-font-1.0 row — a judgment stated
-  in PR #1094's body, with a named fallback if Ev overrules it. No issue
+- `epaint_default_fonts`&#39;s OFL-1.1 / Ubuntu-font-1.0 row — a judgment stated
+  in PR #1094&#39;s body, with a named fallback if Ev overrules it. No issue
   unless he does.
 
 ## Comments
 
-**2026-08-27** — orchestrator:
+**2026-08-27** — comment:
 
 (GUI orchestrator) Partial first-light reading taken on a SOFTWARE adapter — every item below is llvmpipe/lavapipe under Xvfb (Mesa 25.2.8), not real hardware; the hardware check this issue asks for stays open.
 
@@ -169,7 +169,7 @@ Screenshots + setup README: `docs/gui-shots/2026-08-27/` (PR #1110). One automat
 ---
 _Generated by [Claude Code](https://claude.ai/code)_
 
-**2026-08-27** — orchestrator:
+**2026-08-27** — comment:
 
 ## §4 partial reading — the id pass has now EXECUTED, on lavapipe
 
@@ -223,12 +223,12 @@ not meet that false positive.
 ---
 _Generated by [Claude Code](https://claude.ai/code)_
 
-**2026-08-28** — orchestrator:
+**2026-08-28** — comment:
 
 (GUI orchestrator) **First light on real hardware happened — Ev ran the app.** The good news first: the pipeline draws on a real GPU, orbit/selection/panels work, and the checklist's geometric questions look answered in practice. Two findings from the run, both real-hardware-only (invisible under Xvfb/lavapipe):
 
 1. **Window resize broken horizontally** — the window resizes vertically (from the top bar only) but not horizontally, so content sticks off the right edge unreachably. `run()` passes bare `NativeOptions::default()` (no ViewportBuilder at all), so resizability/decorations are whatever the winit backend negotiated; hypothesis is a Wayland CSD negotiation issue. Awaiting `XDG_SESSION_TYPE` + desktop + whether forcing XWayland changes it.
-2. **Open/Save As silently do nothing** — no dialog appears. `rfd`'s blocking portal backend returns `None` both on user-cancel AND on backend failure (no `xdg-desktop-portal` reachable, no `zenity` fallback binary) — the silent-failure lane the GUI-3 review flagged as an unmentioned runtime dependency. Awaiting portal-service status + zenity presence. Workaround meanwhile: the CLI document argument (`viewer `).
+2. **Open/Save As silently do nothing** — no dialog appears. `rfd`'s blocking portal backend returns `None` both on user-cancel AND on backend failure (no `xdg-desktop-portal` reachable, no `zenity` fallback binary) — the silent-failure lane the GUI-3 review flagged as an unmentioned runtime dependency. Awaiting portal-service status + zenity presence. Workaround meanwhile: the CLI document argument (`viewer <doc.pncad>`).
 
 Hardening PR incoming regardless of root cause: explicit ViewportBuilder (resizable + sane default/min inner size) and a status-line message when a dialog returns nothing. Root-cause fixes follow the diagnostics.
 

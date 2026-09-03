@@ -30,7 +30,7 @@
 //! different radius.
 //!
 //! **The storage contract** is the row the volumes cannot reach at
-//! all, and it is what audit rows 26/27 are actually about. A tube
+//! all, and it is what audit rows 25/26 are actually about. A tube
 //! body stores the caller's `minor_radius` VERBATIM in every outer
 //! half-wall and `minor_radius − wall` — one IEEE subtraction of the
 //! caller's own two numbers — in every inner one. Volumes agree to
@@ -873,7 +873,7 @@ fn a_document_written_before_the_tube_vocabulary_still_loads() {
 /// **The wall slot is editable, and the edit moves the stored INNER
 /// radius and nothing else** — the corpus bump, metered at the bits
 /// rather than at the volume, because the bits are what audit rows
-/// 26/27 claim.
+/// 25/26 claim.
 #[test]
 fn bumping_the_wall_moves_the_stored_inner_radius() {
     let d = hollow_tube_elbow::document();

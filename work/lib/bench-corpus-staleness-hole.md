@@ -10,7 +10,7 @@ refs: [1176]
 
 ## From GitHub issue 1186
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Scheduling item for the disclosed gap in LIB-G18a (#1176). Filed because a banked "someone should do this properly" line is not a schedule, and the v5 A1 rule wants a number to point at.
 

@@ -10,7 +10,7 @@ refs: [1220]
 
 ## From GitHub issue 1251
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 **Scheduling register for PR 1220's K-telemetry consequences** (S-CERT CERT-1), so the roster change has a place that executes instead of an "if the census flags it" hedge.
 

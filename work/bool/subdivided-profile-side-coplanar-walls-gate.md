@@ -10,7 +10,7 @@ refs: [1508, 1520, 433, BOOL-12]
 
 ## From GitHub issue 1568
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Forward observation from BOOL-12's pre-build loop-start reading (issues 727/433 lineage; filed by the S-BOOL orchestrator as a durable home — UNMEASURED).**
 

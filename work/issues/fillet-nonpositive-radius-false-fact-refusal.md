@@ -10,7 +10,7 @@ refs: [1328, 1278]
 
 ## From GitHub issue 1336
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 **Raised bilaterally by BLEND-6's review round** (PR #1328; R1 executed it, R2 flagged the same asymmetry as style).
 

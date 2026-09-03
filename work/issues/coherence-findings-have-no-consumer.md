@@ -10,7 +10,7 @@ refs: [1585, 868, 723, 1571]
 
 ## From GitHub issue 1587
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Filed from MESH-8 (PR [#1585](https://github.com/evgunter/cad/pull/1585); issue 868's relocation) as the schedule for a disclosed forward observation.**
 

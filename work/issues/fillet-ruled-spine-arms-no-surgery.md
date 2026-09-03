@@ -10,7 +10,7 @@ refs: [962]
 
 ## From GitHub issue 987
 
-opened 2026-08-25, 0 comments.
+Opened 2026-08-25; 0 comments.
 
 **Raised by VERBS-ARMS-2** (PR #962), which landed the two shared-ruling
 arms as part of the ratified cut and could not carve them.

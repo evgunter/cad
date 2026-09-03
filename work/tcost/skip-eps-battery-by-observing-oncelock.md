@@ -11,7 +11,7 @@ refs: [452, 467, 469]
 
 ## From GitHub issue 470
 
-opened 2026-08-13, 1 comment.
+Opened 2026-08-13; 1 comment.
 
 ## The finding
 
@@ -27,7 +27,7 @@ A read-counter plus an `eps_untouched(…)` wrapper was considered and rejected 
 
 ## The trick: observe, don't declare
 
-`tolerance.rs:214` is `static GLOBAL: OnceLock`, populated by `get_or_init` in `fn global()` at `:223-224`. **The observation already exists as state**: `GLOBAL.get().is_some()` is exactly "did this process ever consult ε".
+`tolerance.rs:214` is `static GLOBAL: OnceLock<Global>`, populated by `get_or_init` in `fn global()` at `:223-224`. **The observation already exists as state**: `GLOBAL.get().is_some()` is exactly "did this process ever consult ε".
 
 So:
 
@@ -65,7 +65,7 @@ Two cases are already provably invariant with no new machinery, if a cheap parti
 
 ## Comments
 
-**2026-08-19** — orchestrator:
+**2026-08-19** — comment:
 
 **Deferred (Ev, 2026-08-19).** Raised while settling S22's ε row; the mechanism is agreed to be the right one — derive by observing the `OnceLock`, never by declaring, so nothing can lie and it fails safe — but the saving does not justify a lane today.
 

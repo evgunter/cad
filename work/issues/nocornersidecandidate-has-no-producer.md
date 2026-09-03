@@ -10,7 +10,7 @@ refs: [1267]
 
 ## From GitHub issue 1280
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 A **finding**, disclosed at the merge of BLEND-7 (PR #1267, the enclosing-tangency refusal) rather than fixed there: after that unit, the refusal reason `NoCornerReason::NoCornerSideCandidate` — "a corner exists, but every tangent circle of that radius touches a side past the corner" — is left with no witness anywhere in the workspace, and three independent searches found no construction that reaches it.
 

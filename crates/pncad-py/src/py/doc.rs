@@ -928,14 +928,24 @@ impl Node {
     /// stores the number you gave it, so `minor_radius` comes back
     /// out of the body bit for bit.
     ///
-    /// # Nothing is pre-checked
+    /// # What refuses, and the one thing that does not
     ///
-    /// A non-unit axis or reference direction, a pair that is not
-    /// perpendicular, a degenerate or reversed window, a window
-    /// reaching one full period (say `TubeWindow.full()` instead),
-    /// and the ring-torus convention `R > r > 0` — every one of those
-    /// is the kernel's own typed refusal at `evaluate`, tagged
-    /// `tube`. There is no wall argument: a tube with a wall is
+    /// A non-unit `u_ref`, a `u_ref` not perpendicular to the axis, a
+    /// degenerate or reversed window, a window reaching one full
+    /// period (say `TubeWindow.full()` instead), and the ring-torus
+    /// convention `R > r > 0` — every one of those is the kernel's own
+    /// typed refusal at `evaluate`, tagged `tube`.
+    ///
+    /// The AXIS is the exception, and it is worth knowing: `spine` is
+    /// a `Node.datum_axis`, and a datum axis NORMALIZES its direction
+    /// when it evaluates — exactly as it does for `Node.revolve`. So
+    /// `datum_axis` given `(0, 0, 2)` is the unit z axis and this
+    /// builds silently; only a zero-length or non-finite direction
+    /// refuses, and it refuses at the DATUM node rather than here.
+    /// `u_ref` is a bare triple that passes through no datum, which is
+    /// why it is the one direction whose length you must get right.
+    ///
+    /// There is no wall argument: a tube with a wall is
     /// `Node.hollow_tube`, a different node kind.
     #[staticmethod]
     fn tube(
@@ -975,7 +985,8 @@ impl Node {
     ///
     /// # Nothing is pre-checked, and the wall least of all
     ///
-    /// Everything `Node.tube` refuses, this refuses identically, plus
+    /// Everything `Node.tube` refuses, this refuses identically — the
+    /// axis normalizes at the datum here too — plus
     /// three verdicts only this door can raise: the thickness is not
     /// positive at tolerance, `minor_radius - wall` is not a bore,
     /// and — the one neither of the others can see — the gap between

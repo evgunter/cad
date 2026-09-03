@@ -11,14 +11,20 @@
 //! band faces), so the covariance row measures a rebuild rather than a
 //! re-authoring.
 //!
-//! # The mass pin is EXACT, and that is not luck
+//! # No mass pin
 //!
-//! `V = 2π²Rr²` carries π², so the pin cannot be the volume. It is the
-//! STORED MINOR RADIUS instead — the number this door exists to keep —
-//! and that one is dyadic and reproduces bit for bit. The corpus's
-//! `MassPin` is asserted with `==`, so anything irrational belongs in
-//! the suite's relative-tolerance rows, not here (the `die_fillet` /
-//! `die_chamfer` disposition, one artifact over).
+//! `V = 2π²Rr²` carries π², and the corpus `MassPin` is asserted with
+//! `==`, so a pin here would fix `f64` rounding of an irrational
+//! rather than the geometry — the `die_fillet` / `die_chamfer`
+//! disposition, and the sibling `hollow_tube_elbow`'s. This document
+//! therefore carries `pin: None`, and the closed forms are metered at
+//! a stated relative tolerance in `lib_tube_node.rs`.
+//!
+//! What IS exact about this document is not a mass at all: the STORED
+//! MINOR RADIUS, the number this door exists to keep. `MINOR` is
+//! dyadic and comes back out of the body bit for bit — metered where
+//! it can be, by `lib_tube_node.rs`'s stored-bits rows reading
+//! `Surface::Torus`, not by anything in this file.
 
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 

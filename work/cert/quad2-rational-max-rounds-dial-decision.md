@@ -10,7 +10,7 @@ refs: [1314]
 
 ## From GitHub issue 1315
 
-opened 2026-08-30, 1 comment.
+Opened 2026-08-30; 1 comment.
 
 (S-CERT orchestrator) Filed from CERT-5 (PR 1314), which measured the lane to this decision and correctly declined to take it unilaterally.
 
@@ -22,7 +22,7 @@ What the decision owes before anyone turns the dial: a row-by-row argument for t
 
 ## Comments
 
-**2026-08-31** — S-CERT orchestrator:
+**2026-08-31** — comment:
 
 (S-CERT orchestrator) Correction to this issue's figures, from CERT-5's dual review and fix pass (PR 1314). The 1.5435e-6 residual this issue was filed with was measured mid-development (after the hull blocks were knot-aligned, before the shared area rule was — the meter's *denominator* moved; flux width proved bit-identical across that change). On the PR's final head the authoritative numbers are:
 

@@ -10,7 +10,7 @@ refs: [1461]
 
 ## From GitHub issue 1462
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_assembly` integration lane (same repro as issue 1461: a FrameCoincidence mate committed with a nonzero clocking rider, refused by `mate_clocking_redundant` at the next evaluation). Two message defects in the refusal's rendering:
 

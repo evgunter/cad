@@ -86,6 +86,8 @@ mod e4_dual_door;
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
 mod gui1_pick_r2;
+#[path = "lib_dietool_crossing.rs"]
+mod lib_dietool_crossing;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]

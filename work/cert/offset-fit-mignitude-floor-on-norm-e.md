@@ -10,7 +10,7 @@ refs: [1008, 1319]
 
 ## From GitHub issue 1320
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-CERT orchestrator) Filed from CERT-7 (PR 1319), whose recentring work measured issue 1008's hoped-for gain to its actual mechanism.
 
