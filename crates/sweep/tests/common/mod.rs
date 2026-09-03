@@ -1,9 +1,10 @@
 //! Shared vocabulary for the sweep test corpus: section authoring
-//! below, and the orientation checking in [`orient`].
+//! below, the orientation checking in [`orient`], the vented-cavity
+//! fixtures in [`cavity`] and the closed forms in [`oracles`].
 //!
-//! **Routing rule**, so a fourth home does not appear without one.
-//! `sweep` has four places a suite can share from, and an item lives at
-//! the narrowest one all of its consumers can reach:
+//! **Routing rule**, so a further home does not appear without one.
+//! These are the places a `sweep` suite can share from, and an item
+//! lives at the narrowest one all of its consumers can reach:
 //!
 //! - `sweep::test_support` — fixtures the LIBRARY can build, reachable
 //!   from in-crate tests, from here, and (behind the same dev-only
@@ -16,10 +17,36 @@
 //! - [`orient`] — what a suite CHECKS of a body it built;
 //! - [`approx`] — the `Surface::Approx` surgery vocabulary (body
 //!   authoring, so it routes to this module rather than to a suite);
+//! - [`cavity`] — the vented-cavity fixture vocabulary (body
+//!   authoring, same routing);
+//! - [`oracles`] — closed-form volumes, which are neither: a truth
+//!   derived without the kernel, so its own doc carries the rule for
+//!   which per-suite spellings may come here at all;
 //! - `revolve_common` — the revolve suites' own, and the place `p2`
 //!   and `eps` presently live despite belonging to no verb.
 //!
 //! A helper one suite uses stays in that suite.
+//!
+//! **Two rules bind every module here, and both are checkable by
+//! reading**: each module says which of its neighbours it deliberately
+//! did NOT absorb, as a list that claims to be the whole of it; and
+//! every suite that keeps its own copy of something this tree holds
+//! says why AT the copy.
+//!
+//! The second rule has a MARKER so it can be compared rather than
+//! sampled: every such copy's note carries the literal
+//! ``NOT `common::`` naming the item it is not, on ONE line, so
+//!
+//! ```text
+//! grep -rn 'NOT `common::' crates/sweep/tests
+//! ```
+//!
+//! returns exactly the kept copies inside this crate and nothing else.
+//! Its hits and the two module lists below name the same set; a hit
+//! missing from a list, or a list entry with no hit, is the rule
+//! broken. (Copies OUTSIDE `crates/sweep` are out of the recipe's
+//! scope by construction — [`oracles`]'s list names the ones it knows
+//! of, and they are tracked as their own item.)
 //!
 //! Section authoring (LIB-U3): loft/sweep sections in the profile
 //! vocabulary, one copy per crate. Cross-crate constant deduplication
@@ -42,6 +69,18 @@ pub mod orient;
 /// the fixtures the OFF-C rows convert, and the surface + carrier +
 /// pcurve surgery itself. Body authoring, so it routes here.
 pub mod approx;
+
+/// The vented-cavity fixture vocabulary the concave blend suites
+/// carve — brick, rod, prism, the vented cavity itself and the
+/// find-an-edge-by-its-endpoints traversal. Body authoring, so it
+/// routes here.
+pub mod cavity;
+
+/// The closed-form volumes those suites meter against. Not a fixture
+/// and not a check of a body, but a truth derived WITHOUT the kernel;
+/// its module doc carries the rule for which per-suite spellings come
+/// here and which are second derivations that must not.
+pub mod oracles;
 
 use geom::NurbsCurve3;
 use geom_core::{Affine3, Mat3, Point2, Vec3};
