@@ -213,8 +213,11 @@ amended:
      `docs/S-MATE-LOG.md`; opened claiming 1200, renumbered per
      the main-is-authority tiebreak when S-MESH's 1200–1299
      reached main first — no S-MATE ordinal had been claimed, so
-     nothing renumbers but the band)**,
-     with **1400+ unallocated** — the orchestrator opening the next
+     nothing renumbers but the band) · S-TCOST 1400–1499 (claimed
+     2026-09-02 at the S-TCOST program's opening —
+     `docs/S-TCOST-LOG.md`; test-only units in that program record
+     no row, so the band serves only its kernel-logic units)**,
+     with **1500+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
