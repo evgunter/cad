@@ -30,6 +30,24 @@
 //! `ORACLE`, `E2E ACCURACY`, `PAD CEILING`, `ROUND TRIP` — so the
 //! failing property is unambiguous from the message alone. Keep that
 //! discipline when adding assertions here.
+//!
+//! # Measured limits of the buildable family (found while probing)
+//!
+//! These bound what a probe of this class can reach at all, and they
+//! are pre-existing kernel facts rather than anything a review PR
+//! introduced:
+//!
+//! - a 3-sub-arc profile arc (> 180 degrees, the only native route to
+//!   OFF-GRID interior *u* knots) never lofts: the build refuses at
+//!   pcurve seam certification, "the seam carrier is not the chart's
+//!   own boundary row";
+//! - the same refusal fires for identical-section stacks at
+//!   `(stations, degree, size, height)` = (7, 2, 1, 2), (8, 3, 1, 2),
+//!   (9, 3, 1, 2), (6, 2, 0.6, 1.75) — and for the unit's own blade
+//!   profile at height 1.75 instead of 2.0. **The buildable family is
+//!   a narrow pocket around the shipped fixtures, and the quadrature
+//!   is unreachable outside it**, which is why the balloon below is
+//!   the shape it is rather than a bigger or a more twisted wall.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
@@ -106,13 +124,14 @@ fn dm1_residual_and_wall_time_remeasured() {
     }
 }
 
-/// The reviewer's OWN body: a flat chord of two straight segments
-/// closed by a bulge arc (single rational sub-arc family, weight
-/// cos 30 deg — no unit fixture's), lofted at six stations on a
+/// The reviewer's OWN body: a square whose `+x` side is replaced by a
+/// SIXTY-degree bulge arc — one rational sub-arc, weight `cos 30 deg`,
+/// which no shipped fixture uses — lofted at six stations on a
 /// quadratic skin, so the section direction carries interior knots at
 /// non-dyadic parameters.
 ///
-/// `tan(150/4 deg)`: one 150-degree bulge arc (two rational sub-arcs).
+/// The constant is `tan(60/4 deg)`: `bulge = tan(theta/4)`, so this is
+/// the 60-degree arc the header names.
 const BULGE: f64 = 0.267_949_192_431_122_7;
 const HEIGHT: f64 = 2.0;
 const STATIONS: usize = 6;
@@ -195,6 +214,24 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
     // pinned at every ε whatever the posture below turns out to be.
     topo::validate_closed(&lofted.body).expect("TIER-1/2: tiers 1/2 admit the balloon");
 
+    // ORACLE: the same profile EXTRUDED — the arc wall is an analytic
+    // cylinder, closed form, pad exactly 0. A different surface
+    // representation, a different props lane, no shared arithmetic with
+    // the quadrature under test. It costs ~0.03 s and it is asserted
+    // AHEAD of the certificate, unconditionally: an oracle that stopped
+    // being a closed form would otherwise go unchecked on exactly the ε
+    // rows where the balloon refuses and this row steps aside.
+    let prof = Profile::new(SketchPlane::xy(), balloon_section())
+        .validate(Tol::witness())
+        .expect("the balloon profile validates");
+    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(HEIGHT), Tol::witness())
+        .expect("extrude");
+    let want = topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic oracle");
+    assert_eq!(
+        want.volume_pad, 0.0,
+        "ORACLE: the extrude oracle must be a closed form"
+    );
+
     // THE ONE CERTIFICATE. Every claim below reads it; nothing
     // recomputes it.
     let native = match topo::mass_properties(&lofted.body, Tol::witness()) {
@@ -212,30 +249,27 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
                 "E2E POSTURE: at a tighter eps the only honest refusal here is the \
                  budget: {e}"
             );
-            eprintln!(
-                "CERT5-R1 roundtrip: import_door_skipped_no_native_enclosure — the native \
-                 body refuses on budget at eps={:e}, so there is no enclosure to \
-                 round-trip",
-                Tol::witness().get().eps
+            // The stand-down goes through the tree's ONE in-row door
+            // (`test_utils::vacuity`'s module docs: every in-row
+            // stand-down in `crates/` uses it, and the whole-binary
+            // `#[cfg]`-gated `interval_lane_skipped_…` rows are a
+            // different idiom). It has to be the in-row one here: the
+            // condition is the RUN's ε, read at run time, so no
+            // `#[cfg]` and therefore no test NAME can carry it.
+            test_utils::vacuity::stood_down(
+                "cert5-r1 balloon round trip",
+                &format!(
+                    "the native balloon refuses on budget at eps={:e}, so there is no \
+                     enclosure to round-trip and the ROUND TRIP assertions below are \
+                     NOT made on this row; the fixture, tiers 1/2, the oracle and the \
+                     typed shape of the refusal are asserted above and hold here",
+                    Tol::witness().get().eps
+                ),
             );
             return;
         }
     };
 
-    // ORACLE: the same profile EXTRUDED — the arc wall is an analytic
-    // cylinder, closed form, pad exactly 0. A different surface
-    // representation, a different props lane, no shared arithmetic
-    // with the quadrature under test.
-    let prof = Profile::new(SketchPlane::xy(), balloon_section())
-        .validate(Tol::witness())
-        .expect("the balloon profile validates");
-    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(HEIGHT), Tol::witness())
-        .expect("extrude");
-    let want = topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic oracle");
-    assert_eq!(
-        want.volume_pad, 0.0,
-        "ORACLE: the extrude oracle must be a closed form"
-    );
     eprintln!(
         "CERT5-R1 balloon: certified volume {} +- {}; oracle {}",
         native.volume, native.volume_pad, want.volume

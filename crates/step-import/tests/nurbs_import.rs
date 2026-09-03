@@ -121,13 +121,29 @@ fn reverse_data_section(text: &str) -> String {
 /// The honest posture of a rational-wall body's mass properties at the
 /// run's ε (M8-3). The schedule is FIXED (D9) and the target is
 /// `1024·ε`, so `Ok` at one ε and a typed budget refusal at a tighter
-/// one are both correct; nothing else is. `Ok` carries the certified
+/// one are both correct; nothing else is. `Certified` carries the
 /// enclosure — the caller reuses it rather than paying a second
 /// rational quadrature, which is the expensive thing in these rows.
-fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::MassProperties<f64>> {
+///
+/// The two refusing postures stay DISTINCT rather than collapsing into
+/// one "no enclosure": they are different verdicts about the same
+/// schedule, and a row that logged an escalation as a budget refusal
+/// would report a frontier the run never reached.
+#[derive(Debug)]
+enum Posture {
+    /// Bounds returned.
+    Certified(topo::MassProperties<f64>),
+    /// The fixed schedule ran out before `1024·ε` — typed, with the
+    /// measured width.
+    Budget,
+    /// The convergence predicate could not be decided in-band.
+    Escalated,
+}
+
+fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
     let target = 1024.0 * geom_core::Tol::witness().get().eps;
     match topo::mass_properties(body, Tol::witness()) {
-        Ok(props) => Some(props),
+        Ok(props) => Posture::Certified(props),
         Err(err) => {
             let topo::MassPropsError::Face { source, .. } = &err else {
                 panic!("{who}: expected a per-face volume refusal, got: {err:?}");
@@ -146,7 +162,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
                         (target_len - target).abs() <= target * 1e-12,
                         "{who}: the refused target must BE 1024·ε: {target_len:e} vs {target:e}"
                     );
-                    None
+                    Posture::Budget
                 }
                 geom_brep::props::PropsError::Escalated { cause } => {
                     assert_eq!(
@@ -154,7 +170,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Option<topo::Mas
                         Some("props_quad_converged"),
                         "{who}: only the convergence predicate may escalate here: {cause:?}"
                     );
-                    None
+                    Posture::Escalated
                 }
                 other => panic!("{who}: not an honest quadrature posture: {other:?}"),
             }
@@ -245,9 +261,13 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // `tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion`
     // pins the verdict itself — paying for it twice here would only buy
     // the same quadrature at the same ε.
-    let native_props = rational_props_posture(&native, "native");
+    let posture = rational_props_posture(&native, "native");
+    let native_props = match &posture {
+        Posture::Certified(props) => Some(props),
+        Posture::Budget | Posture::Escalated => None,
+    };
     let certified = native_props.is_some();
-    if let Some(want) = &native_props {
+    if let Some(want) = native_props {
         assert!(
             want.volume > 12.0 && want.volume < 13.0,
             "native arc-loft volume: {}",
@@ -268,7 +288,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             want.volume, want.volume_pad
         );
     } else {
-        println!("M8-3 arc loft @ eps={eps:e}: Budget (the fixed schedule's honest frontier)");
+        println!("M8-3 arc loft @ eps={eps:e}: {posture:?} (the fixed schedule's honest frontier)");
     }
 
     // ---- The ROUND TRIP, which the bank used to block entirely. ----
@@ -288,7 +308,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             );
             let got = topo::mass_properties(&body, Tol::witness())
                 .expect("imported rational mass properties");
-            let want = native_props.as_ref().expect("the native side certified");
+            let want = native_props.expect("the native side certified");
             // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
             // what soundness needs — two certified enclosures of one
             // solid must intersect — but it is not what actually
