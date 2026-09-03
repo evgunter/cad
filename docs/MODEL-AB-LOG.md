@@ -3515,10 +3515,30 @@ Opened 2026-09-02 (`work/tcost/log.md`, formerly `docs/S-TCOST-LOG.md`);
 single-orchestrator remote box, no away-channel. Test-only and
 CI-infrastructure units in this program record NO row (Ev's review
 split, in-chat 2026-09-02); only kernel-logic units under the v6
-protocol do. Block TCOST-KB1's draw and slot record live branch-side
-(`tcost/kb1-block`) until the block concludes, per the block-draw
-redaction ruling. Pre-draw fields at the spec (`docs/TCOST-K1-SPEC.md`):
+protocol do. Block TCOST-KB1's draw and slot record lived branch-side
+(`tcost/kb1-block`) until the block concluded with K3's merge, per
+the block-draw redaction ruling; the record follows. Pre-draw fields at the spec (`docs/TCOST-K1-SPEC.md`):
 TCOST-K1 difficulty **L**, task-class **NUMERIC**.
+
+Block TCOST-KB1 pre-draw fields (2026-09-03, logged before the draw):
+slot 0 = TCOST-K1 (docs/TCOST-K1-SPEC.md) — difficulty L, task-class
+NUMERIC (interval-arithmetic reasoning about a certified quadrature
+schedule's exit; a D9-preserving early refusal). Slots 1–2 bank for
+the next kernel units in dispatch order, pre-draw fields at their
+specs.
+
+Block TCOST-KB1 draw (2026-09-03, after the pre-draw fields above;
+v3 triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252):
+byte **126**, 126 mod 3 = 0 = fable's position ⇒ **fable at slot 0**.
+So: slot 0 TCOST-K1 = FABLE, slots 1–2 = OPUS. Recorded branch-side
+(the PCURVE/GUI shape, Evan's 2026-08-28 ruling): this record reaches
+main only when the block's last slot's reviews conclude; the ordinal
+claim at review dispatch goes to main on its own.
+
+Block TCOST-KB1 slot record (branch-side, appended as each slot concludes):
+slot 0 = TCOST-K1 (FABLE) — concluded 2026-09-03 at merge 5e668ba6, ordinal 1400, sample #117.
+slot 1 = TCOST-K2 (OPUS; pre-draw M / STRUCTURAL at `docs/TCOST-K2-SPEC.md`) — concluded 2026-09-03 at merge 87d33648c, ordinal 1401, sample #119.
+slot 2 = TCOST-K3 (OPUS; pre-draw M / STRUCTURAL at `docs/TCOST-K3-SPEC.md`) — concluded 2026-09-03 at merge 6381ebdd9, ordinal 1402, sample #120. BLOCK TCOST-KB1 CONCLUDED; this record reaches main with K3's row.
 
 TCOST-K1 review ordinal fixed at dispatch (2026-09-03, PR #1652 open
 — frozen head `554f2b0f`): **ordinal 1400** (S-TCOST band; first and
@@ -3618,23 +3638,3 @@ VERBS-RIMCAP PR-1 review ordinal fixed at dispatch (2026-09-03,
 PR #1674 open — frozen head `8c8a7b7f1`): **ordinal 113** (VERBS
 band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
 Sample number AT MERGE in main's order. Row at merge.
-
-Block TCOST-KB1 pre-draw fields (2026-09-03, logged before the draw):
-slot 0 = TCOST-K1 (docs/TCOST-K1-SPEC.md) — difficulty L, task-class
-NUMERIC (interval-arithmetic reasoning about a certified quadrature
-schedule's exit; a D9-preserving early refusal). Slots 1–2 bank for
-the next kernel units in dispatch order, pre-draw fields at their
-specs.
-
-Block TCOST-KB1 draw (2026-09-03, after the pre-draw fields above;
-v3 triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252):
-byte **126**, 126 mod 3 = 0 = fable's position ⇒ **fable at slot 0**.
-So: slot 0 TCOST-K1 = FABLE, slots 1–2 = OPUS. Recorded branch-side
-(the PCURVE/GUI shape, Evan's 2026-08-28 ruling): this record reaches
-main only when the block's last slot's reviews conclude; the ordinal
-claim at review dispatch goes to main on its own.
-
-Block TCOST-KB1 slot record (branch-side, appended as each slot concludes):
-slot 0 = TCOST-K1 (FABLE) — concluded 2026-09-03 at merge 5e668ba6, ordinal 1400, sample #117.
-slot 1 = TCOST-K2 (OPUS; pre-draw M / STRUCTURAL at `docs/TCOST-K2-SPEC.md`) — concluded 2026-09-03 at merge 87d33648c, ordinal 1401, sample #119.
-slot 2 = TCOST-K3 (OPUS; pre-draw M / STRUCTURAL at `docs/TCOST-K3-SPEC.md`) — concluded 2026-09-03 at merge 6381ebdd9, ordinal 1402, sample #120. BLOCK TCOST-KB1 CONCLUDED; this record reaches main with K3's row.
