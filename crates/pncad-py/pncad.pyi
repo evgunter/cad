@@ -3633,7 +3633,13 @@ def subject_body(
     produced from this evaluation always resolves. `None` where the
     root has no value, denotes no body, or has no output at that index
     — exactly the attributions a `stale_expectation` finding names,
-    which is what makes that `None` an answer and not a failure."""
+    which is what makes that `None` an answer and not a failure.
+
+    The body carries the declarations its producer minted for it, the
+    same ones `Value.body` captures — so a subject reached through an
+    attribution has the SAME tier-3′ verdict as the same body reached
+    through its value, and a declared boolean's own certified seam is
+    not reported here as an undeclared contact."""
 
 def import_step(text: str) -> Body:
     """Parse a STEP text with the kernel's importer and adopt its

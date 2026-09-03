@@ -435,15 +435,33 @@ impl PartResolver for Workspace {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         Workspace::resolve(self, doc_ref, tol).map_err(|e| ResolveFailure {
             fault: resolve_fault(&e),
-            // Not an exception to [`resolve_fault`]'s paragraph
-            // below: this match RENDERS rather than classifies, and
-            // the wildcard's answer is the enum's own `Display`. A
-            // variant added later answers for itself here, and misses
-            // only a recourse sentence it does not have.
-            message: match &e {
-                WorkspaceError::PinMismatch { .. } => format!("{e}; {PIN_MISMATCH_RECOURSE}"),
-                _ => e.to_string(),
-            },
+            // The message is the enum's own `Display`, with nothing
+            // appended and no per-variant rendering — so there is
+            // nothing here for [`resolve_fault`]'s exhaustiveness
+            // paragraph to make an exception for, and a variant added
+            // later answers for itself.
+            //
+            // There WAS an arm here that re-appended
+            // [`PIN_MISMATCH_RECOURSE`] to a `PinMismatch`, so that a
+            // caller holding only the kernel-side
+            // `ResolveFailure::message` — which never sees the store's
+            // `WorkspaceError` — would still be told what to do. That
+            // reason is sound and still holds; the arm was not. The
+            // `Display` arm for `PinMismatch` ends on that same
+            // sentence UNCONDITIONALLY (see the arm above), so the
+            // append was not a fallback for a message that lacked the
+            // recourse, it was a second copy of the paragraph in every
+            // pin-mismatch message that reached an evaluation. Dropping
+            // it is safe precisely BECAUSE `Display` is the guaranteed
+            // source.
+            //
+            // The coupling is therefore real and unguarded by any
+            // test on this side: if a later edit makes `Display`'s
+            // `PinMismatch` arm stop ending on the recourse, this door
+            // silently stops carrying it. The pins that would catch
+            // that live at the far ends (the demo's update walk, the
+            // Python author suite), not here.
+            message: e.to_string(),
         })
     }
 }
