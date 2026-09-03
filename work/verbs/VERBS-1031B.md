@@ -2,8 +2,7 @@
 id: VERBS-1031B
 kind: unit
 title: the full-valence coplanar pair — issue 1031's remaining half
-status: open
-needs_ev: true
+status: spec
 opened: 2026-09-03
 github: 1031
 refs: [VERBS-C5ARMS]
@@ -47,3 +46,12 @@ two-π-band convention and every half-wall-counting fixture, and
 would STILL need the winding arm when re-charting merged walls —
 the measured twist that makes this the "do (1) first" branch of the
 issue's own recorded decision rule).
+**Ruling (Ev, in-chat 2026-09-03):** "my former decision rule still
+makes sense and you should do (1)" — the repair op. Option 2 (the
+revolve producer change) rejected. Spec ratified as
+`docs/VERBS-1031B-SPEC.md` on `mngr/kernel-verbs`; the ratification's
+own code read found the arc machinery ALREADY EXISTS in
+`boolean::join::ring_run_ccw` (the bulge term, the same
+`bool_ring_run_winding` predicate) — the unit is a port into
+`loop_winding`, making merge_faces the predicate's fourth
+identically-stated site.

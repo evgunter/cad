@@ -3137,3 +3137,19 @@ GermFrameUnsupported), and the three principal findings:
 TALLY: candidates now 6 pending the blinded coding (107×2,
 108×1, 110×1, 112×1 — the stopping rule fires at 8 confirmed).
 Pair COUNTS. Union fix pass out (opus, implementer-inherited).
+## VERBS-1031B ruled and specced (2026-09-03)
+
+Ev ruled option (1) in-chat — the repair op; the producer change
+rejected. Spec ratified (docs/VERBS-1031B-SPEC.md, M-): the
+arc-bounded winding arm ports boolean::join::ring_run_ccw's
+existing bulge machinery (axis·sa·sb·(Δ−sinΔ), arc-length
+perimeter, the same bool_ring_run_winding predicate) into
+merge_faces::loop_winding — the ratification read found the
+derivation already lives at the join site, so the unit is a
+fourth identically-stated site, not new mathematics. Acceptance:
+the teapot cup merges (census + tier-3 + re-posed twin), the
+boolean-after-merge measured whatever it is, NonMaximalFaces on
+the unmerged cup as the differential; the register's two settled
+sentences (the lily gate-admission deferral, the cup-seam
+straightness) sync by citation. STOP if a second gap sits behind
+the winding arm.
