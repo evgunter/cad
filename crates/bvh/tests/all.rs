@@ -35,6 +35,10 @@
 mod aggregator_headers;
 #[path = "determinism.rs"]
 mod determinism;
+#[path = "proximity.rs"]
+mod proximity;
+#[path = "proximity_r2.rs"]
+mod proximity_r2;
 #[path = "ray.rs"]
 mod ray;
 #[path = "ray_r2.rs"]

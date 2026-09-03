@@ -2324,6 +2324,47 @@ class Denotation:
     def candidates(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+class Resolution:
+    """A stored name's standing in one evaluation — what
+    `Evaluation.resolve` answers with, and the question every consumer
+    that KEEPS names must ask on every run.
+
+    Total and report-only. `status` is `resolved`, `failed` or
+    `indeterminate`; the other attributes are always present and
+    `None` where the state does not carry them, so `getattr` never
+    raises and a caller never has to test `status` first.
+
+    The three states are kept three because their REPAIRS differ.
+    `resolved` needs none — `node`, `body` and `kind` say where and
+    what. `failed` means the name does not denote here and will not
+    come back on its own: the repair is an explicit rebind, and
+    `offers` is what the kernel is willing to SUGGEST, never a
+    substitution it has made. `indeterminate` means the NAME is fine
+    and the RUN is not — the minting node failed, was poisoned, or
+    never evaluated — so the repair is upstream and the name resolves
+    again when that node does. Rebinding on an `indeterminate` is
+    repairing the wrong end of the document, which is why it is not
+    a `failed`.
+
+    `detail` is the kernel's own prose about the arm. There is no
+    per-arm tag: the failure vocabulary (`ResolveError`,
+    `ResolutionFailure`, `ResolveIndeterminate`) is decided absent
+    from the Rust façade, so `status` plus prose is the whole of what
+    crosses."""
+
+    @property
+    def status(self) -> str: ...
+    @property
+    def node(self) -> Optional[NodeId]: ...
+    @property
+    def body(self) -> Optional[int]: ...
+    @property
+    def kind(self) -> Optional[EntityKind]: ...
+    @property
+    def detail(self) -> Optional[str]: ...
+    @property
+    def offers(self) -> Optional[list[str]]: ...
+
 class Ray:
     """A ray to pick along: an origin and a direction, over `t >= 0`.
 
@@ -2555,6 +2596,26 @@ class Evaluation:
         frame doors refuse a tie rather than picking a candidate, and
         this says whether one is coming. Raises `ReadbackError` for
         `no_such_name` and the node ladder."""
+
+    def resolve(self, name: str) -> Resolution:
+        """Does this STORED name still denote, in THIS evaluation? —
+        the question every consumer that keeps names must ask on every
+        run, and the one Python's whole store-then-reuse story runs on.
+
+        Answers a `Resolution`, never a raise: "this name is gone" is a
+        verdict, not an error. The three states carry three different
+        repairs — see `Resolution`.
+
+        EVALUATION-WIDE, where `denotation` is node-scoped: this
+        searches every table in evaluation order and answers WHICH node
+        carries the name, so it resolves for a name `denotation` would
+        refuse `no_such_name` for at the node you happened to ask (a
+        pass-through node's output carries names its upstream minted).
+
+        The only raise is the boundary one every name-taking door
+        shares: text that is not a name at all is a `ValueError`. A
+        well-formed name that denotes nothing is the `failed` verdict,
+        which is the point of the door."""
 
     def pick_face(
         self, targets: list[NodePick], ray: Ray

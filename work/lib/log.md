@@ -2104,6 +2104,76 @@ concurrent B-lane rather than riding a family unit. Two of the three
 are LIVE claims about where a reader should go, so the ledger's
 append-only-log dispensation does not cover them.
 
+**B-RESOLVE AT REVIEW (2026-09-03, #1664; mechanical under the 08-29
+ruling, no A/B row). Census family B-RESOLVE CLOSED — the question a
+consumer that STORES names must ask on every run becomes askable in
+the language whose whole selection story is store-then-reuse.** Three
+names, all three unbound at the start: `Resolution` crosses
+name-for-name, `resolve` becomes `Evaluation.resolve` beside the
+read-back and picking doors, and `RunCtx` maps to `Evaluation` —
+because Rust's `RunCtx` is a (doc, eval) PAIR and Python's
+`Evaluation` BECAME that pair, capturing the document at `evaluate`
+beside the `ParamEnv` it already captured, for the reason stated
+verbatim there and sharper here: Python's `Doc` is mutable and
+`accept` swaps it under the handle, so a `resolve(doc, name)` door
+would let a caller ask this evaluation about a recipe it is not of and
+get a confident answer. NodePick's pairing argument, on a different
+door. 20 Python tests, oracled against doors that already existed
+rather than against restated verdicts: every materialized name
+resolves and resolves AS the kind the materializer that answered is
+for (new information in Python, where a name is opaque text nobody may
+parse); `denotation` and `resolve` agree where they overlap and differ
+exactly where the docstrings say — a transform's pass-through names
+pin `resolve` on the UPSTREAM carrier against the evaluation's own
+`order()`, and `denotation` refuses `no_such_name` where `resolve`
+answers; and the strongest, a resolved verdict's `(node, body)` fed to
+`NodePick.build` finds the name again in `patch_names`, so the
+verdict's location claim is VERIFIED by an independent door rather
+than asserted. The three states are built from documents, not mocks —
+a real deleted node, a real vanished side face (square plate vs
+triangular, same recipe one argument apart), a real fillet whose
+radius will not fit poisoning a real boolean — each pair asserting its
+node ids match across the two documents, or the comparison is between
+unrelated recipes and proves nothing.
+
+Two things the closing measured. **The tag pin could not be written
+the way every other pin in that file is written.** `Resolution` cannot
+be ASSEMBLED through the façade at all — only obtained — so
+`resolution_status_tags_are_stable` builds a document and lets the
+three states happen to it (resolved, minting node deleted, canceled
+run's suffix). That is a stronger test than the literal pin it
+replaces, because it asserts each state is reachable BY THE ROUTE a
+caller reaches it; it is also a workaround, and the thing it works
+around is the finding. And **the three states carry the RECOURSE**,
+which is why folding `indeterminate` into `failed` would be the one
+substantive error available here: rebinding a name whose minting node
+merely failed repairs the wrong end of the document.
+
+Banked, register category A: **`ResolveError`'s three arms are
+unmatchable under `Resolution`** (`work/lib/resolution-failure-arms-
+are-unmatchable-under-resolution.md`) — the carrier-projection rung a
+THIRD time, and the first where the carrier is a VALUE rather than a
+refusal. `DanglingRef` (curated, CUR3), `MeshPickError` (one arm of
+five, open), this (every payload of the carrier). The issue states
+GUI-2's counter-argument fairly — it carried these payloads briefly
+and put them back because nothing consumed them, and that stands on
+its own terms — and notes only what changed since: a Rust panel
+rendering `Display` has the payload one field away, a Python caller
+holds a string and has nothing else, so the disposition was taken when
+only one side of the boundary existed. Curation queue, not a binding
+unit's call.
+
+Also banked, and deliberately NOT fixed: **the pncad-py
+python-feature clippy lane is red on main and no CI row runs it**
+(`work/lib/pncad-py-python-feature-clippy-lane-is-red.md`). Verified
+on pristine origin/main by checking out its `crates/pncad-py/` and
+re-running — a pre-existing `type_complexity` at `py/value.rs:319`.
+CI's clippy row runs at DEFAULT features (`ci.yml:1523`), which is
+exactly what the manifest's interpreter-free gating is for; the
+consequence nobody had written down is that every `#[pyclass]` in the
+crate sits outside every clippy row CI runs, so the lane has never
+been green because it has never been run. Filed so the next unit that
+runs the command does not re-derive that it is not theirs.
 **B-EXPR-READ IN REVIEW (2026-09-03, #1662; mechanical under the
 08-29 ruling, no A/B row). Census family B-EXPR-READ CLOSED — the
 expression READ side crosses, and the family cost three times the
@@ -2277,3 +2347,12 @@ Not a new fact and not a pin: a sampled rate two lanes could
 re-measure differently is not a guard. What the suite checks instead
 is that ONE named fallback value falls back, and that its text still
 reads back exactly.
+**#917 residue DISCHARGED (2026-09-03, orchestrator note).** The
+G16-banked "#917 vocabulary exemption at the chamfer op message"
+found its home while LIB slept: the conversation is ratified as
+docs/BLEND-VOCAB-DESIGN.md (Ev, 2026-08-30) and executes as BLEND-6
+(V1/V2 wording, V3 rename, Filleted/Chamfered collapse with
+aliases). The G16-era crate markers are already gone (verified:
+only STEP-fixture #917 false positives remain in crates/). Nothing
+LIB holds; the recipe layer's NodeErrorKind::Blend shape is cited
+in that design as ratified precedent.
