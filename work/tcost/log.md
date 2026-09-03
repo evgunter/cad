@@ -1122,3 +1122,21 @@ path −67 % / −61 % on a branch's first build job, which is the case
 F4's premise was false for. The parity step is green on the same run.
 B3's after-reading is closed; the primer's ~7 billed minutes an hour
 buy this on every PR run after a push to main.
+
+## Unit: TCOST-K2 merged (2026-09-03) — the program's second A/B row
+
+PR 1697 at `6108d6f82` (`lane=both eps=1e-12` asked, run 33796624357:
+eighteen jobs green on both lanes; the two `2/2` shards red on the
+inherited `pncad-py` inventory row only, annotated on the PR). Merged
+at 87d33648c, recorded as ordinal 1401 / sample #119 in
+`docs/MODEL-AB-LOG.md`; block TCOST-KB1 slot 1 concluded (record
+branch-side on `tcost/kb1-block`). The Bernstein product's structural
+weight is built once per degree pair and memoized; every coefficient,
+hull and certificate bit-identical (both reviewers measured it
+independently over every consumer); `offset_fit::` −29.7 % / −29.9 %
+normalised on the two lanes, `geom-brep` −8.7 % raw / −6.7 %
+normalised. The fix pass added the asymmetric-bidegree guard rows the
+dual asked for and a typed weight table that makes a swapped key a
+debug panic instead of a wrong bound. `docs/TCOST-K2-SPEC.md` deleted
+at merge per the DOC-LEDGER rule (ledgered this time, with K1's).
+Remaining in the block: TCOST-K3 (slot 2), fix pass in flight.
