@@ -72,6 +72,10 @@ const PLATE_PADDING_PER_HALF_WIDTH: f64 = 2.0;
 /// The rounding on top of the dependency padding: a 0.2-scale quantity
 /// through a few dozen outward-rounded operations (measured ~1e-15).
 const PLATE_ROUNDING: f64 = 1.0e-14;
+/// The degraded-tangent row's hull rounding, as a fraction of the
+/// half-width (measured 1.9e-3 at the 1e-12 row, where it is largest;
+/// zero to four decimals at the wider rows).
+const DEGRADED_HULL_ROUNDING_PER_HALF_WIDTH: f64 = 1.0e-2;
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -674,7 +678,21 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
         }
     );
     let wc = report.worst_case;
-    assert!(wc.lo >= 0.0 && wc.hi <= half + 1e-9, "{wc:?}");
+    // The measure is the norm itself, so the hull's top is the
+    // half-width plus the interval lane's rounding only. Stated as a
+    // fraction of the half-width so the bound means the same thing at
+    // every CI ε row (measured hi/half: 1.0000 at the default row and
+    // at 1e-6, 1.0019 at 1e-12); an absolute slack would say nothing at
+    // the tight rows (issue 1646).
+    println!(
+        "EVIDENCE-ONLY degraded-tangent worst case: {wc:?} against half {half:e} \
+         (hi/half {:.4})",
+        wc.hi / half
+    );
+    assert!(
+        wc.lo >= 0.0 && wc.hi <= half * (1.0 + DEGRADED_HULL_ROUNDING_PER_HALF_WIDTH),
+        "{wc:?}"
+    );
     assert_eq!(wc.leaves, verdict.certified().len());
 }
 
