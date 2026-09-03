@@ -3,7 +3,7 @@
 **Program:** S-TCOST (`docs/S-TCOST-PLAN.md`, lever 3). **Track:**
 test-infrastructure (scripts + workflow wiring + test-file markers; no
 kernel logic) — Opus implementer, batched style review, no A/B row.
-**Landing:** self-merged with a full PR writeup (Evan, in-chat,
+**Landing:** self-merged with a full PR writeup (Ev, in-chat,
 2026-09-02).
 
 ## The claim

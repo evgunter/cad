@@ -3,7 +3,7 @@
 **Binding at dispatch** (S-BOOL program, `docs/S-BOOL-PLAN.md`;
 difficulty logged pre-draw: **M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
-The Q1 third-round ruling (Evan, in-chat, 2026-09-01; ratified PR
+The Q1 third-round ruling (Ev, in-chat, 2026-09-01; ratified PR
 #1512 — `docs/S-BOOL-PLAN.md` §Rulings) is the primary
 specification, together with PATHS §4's ruled seam paragraph
 (`docs/PATHS-DESIGN.md`, "The seam, measured here and RULED") and
@@ -24,7 +24,7 @@ ray and refusing when it does not — and the **structural closer**
 (`Start` as target) is the special case that ends the seam wall.
 Declared and checked, never inferred from a value coincidence.
 
-## The check — RULED (Evan, in-chat, 2026-09-01, fourth round)
+## The check — RULED (Ev, in-chat, 2026-09-01, fourth round)
 
 "Target lies on the ray" means, as ever, TO WITHIN ε.
 Exact-or-refuse is out. The declaration is what legalizes the
@@ -36,7 +36,7 @@ as inconsistent authored data, message naming the declared intent
 and the measured miss.
 
 What remains yours to design, stated at the site and in the §4
-text for Evan's eyes: WHICH ε (the input-quality band ε_input is
+text for Ev's eyes: WHICH ε (the input-quality band ε_input is
 the natural home — argue it against the run band), the LEVER the
 miss is metered by (the leg is a length; the miss is a lateral
 distance — state the metering so the comparison is
@@ -104,7 +104,7 @@ must accept it, and your band boundary needs a row on BOTH sides.
   closing keywords.
 - **The PR does not merge on green** — PATHS §4/verb table is
   design surface; the PR carries your f64 decision's text for
-  Evan's eyes; the orchestrator holds the merge for the sign-off.
+  Ev's eyes; the orchestrator holds the merge for the sign-off.
 - Scope fence: `crates/profile/src/path.rs` + `path/program.rs`,
   profile suites, `demos/tour/src/lily.rs` + `Cargo.toml`,
   `docs/PATHS-DESIGN.md`; wire/persist ONLY per deliverable 3's

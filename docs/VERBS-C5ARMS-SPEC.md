@@ -467,7 +467,7 @@ a two-line cone arm.
 Co-Authored-By trailer (blinding). Lane-private PR drafts.
 Targeted local runs only — hosted CI verified at the STEP level
 is the suite evidence (a green job name is not evidence; the
-regular suite is not re-run locally, per Evan's 2026-08-31
+regular suite is not re-run locally, per Ev's 2026-08-31
 method ruling). Merge origin/main before opening; confirm CI
 jobs actually RUNNING; note the drawn point; watch to
 completion; cancel detached timers before the final report; kill

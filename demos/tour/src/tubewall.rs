@@ -284,7 +284,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     out.push(Stop {
         name: "hollowelbow",
         caption: "THE WINDOWED HOLLOW ELBOW (a wall, and an open bore)".to_string(),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30), with `hollowtorus` and `hollowring`. This was
         // the sheet's one picture of a WALL THICKNESS without a
         // translucency trick, and it goes with the cavity panels it
@@ -411,7 +411,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     out.push(Stop {
         name: "hollowtorus",
         caption: "THE FULL-PERIOD HOLLOW TUBE (the bore becomes a cavity)".to_string(),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30) — see `hollowelbow` above and `ring::hollowring`,
         // which is this same shape through the profile door and goes
         // with it. The cavity, its `Void` shell role and the negated

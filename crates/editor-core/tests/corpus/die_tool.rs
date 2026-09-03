@@ -25,6 +25,27 @@
 //! Vocabulary: Profile, Datum (Axis), Revolve, PlacedUnion (Explicit),
 //! Boolean (Subtract), `InsertNode`, `SetParam`.
 //!
+//! # It crosses to Python, byte for byte
+//!
+//! `work/lib/log.md` carried "die_tool's Python re-authoring (banked
+//! behind its Revolve/datum half)" from LIB-PYPU on: that unit bound
+//! the placement vocabulary and authored the LINEAR twin
+//! (`heat_sink_fins`, extrude-only), while this document's prototype is
+//! a Revolve about a `Datum::Axis` whose meridian runs pole to pole —
+//! the chart `die_pips`' retired deviation (b) existed to dodge.
+//!
+//! LIB-DIETOOL measured that half CLEARED, by construction. The recipe
+//! below is unchanged — it has carried the natural meridian since the
+//! day it was authored, `7581fb65d` having deleted the workaround one
+//! commit earlier — and
+//! `crates/pncad-py/tests/test_placed_union.py::TestTheDieTool` now
+//! says the same seven nodes through the bound Python doors. The claim
+//! is not eyeballed: `crates/editor-core/tests/lib_dietool_crossing.rs`
+//! pins THIS document's saved text as `corpus/die_tool.pncad`, and the
+//! Python row asserts its own `Doc.save()` against those bytes line for
+//! line (bar the swept `epsilon`), so a recipe change on either side is
+//! a red run rather than a silent divergence.
+//!
 //! # No mass pin
 //!
 //! `die_pips`' reason verbatim: the oracle is `L³ − 6 · cap(R, H)` with

@@ -11,7 +11,7 @@
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
 //!
-//! # The demos' purpose (Evan, 2026-08-09 — binding for every edit here)
+//! # The demos' purpose (Ev, 2026-08-09 — binding for every edit here)
 //!
 //! These scenes exist to demonstrate REAL, NATURAL library usage —
 //! the way a user would actually write the model. Consequences:

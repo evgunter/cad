@@ -198,12 +198,12 @@ pub enum BlendSite {
     Chain,
 }
 
-/// The **run-out policy vocabulary** (OQ6, decided by Evan at #85) —
+/// The **run-out policy vocabulary** (OQ6, decided by Ev at #85) —
 /// refusal-payload names ONLY. Neither variant has a constructor
 /// surface anywhere in the kernel: they exist so a refusal can name
 /// the front door that does not exist yet (the standing frontier
 /// error-text pattern), and so the post-M5 unit that implements run-outs
-/// inherits a vocabulary Evan already owns rather than inventing one.
+/// inherits a vocabulary Ev already owns rather than inventing one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
@@ -244,7 +244,7 @@ impl fmt::Display for RunOutPolicy {
 /// which both verbs now carve — so no refusal needs one, and no site
 /// mints [`Self::MixedConvexity`] with `convex: 0` any more. Whether
 /// the CARVED configuration deserves its own tag remains the
-/// corner-taxonomy question OQ6 reserves for Evan (evgunter/cad issue
+/// corner-taxonomy question OQ6 reserves for Ev (evgunter/cad issue
 /// 1355, opened when only the chamfer carved it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {

@@ -228,6 +228,224 @@ fn mesh_validate_and_surface_projection_are_nameable() {
 }
 
 // ---------------------------------------------------------------
+// CUR4: the CURATED half of the closure property.
+//
+// Everything above pins that a payload is nameable from `pncad` at
+// SOME path — contract clause 1, which module re-exports satisfy on
+// their own. These pin the stronger thing a CURATED list owes, and
+// the thing CUR3 established the rule for: a refusal the prelude
+// names must be MATCHABLE THROUGH the prelude. Every type below is
+// reached by a bare name out of `use pncad::prelude::*`, with no
+// module path spelled anywhere in the function — so dropping one from
+// the prelude stops this file compiling even though
+// `pncad::sweep::blend::CornerConfig` still resolves perfectly well.
+// That is the failure mode a nameability pin cannot see.
+//
+// The matches are EXHAUSTIVE for the reason CUR3's tag map is: an arm
+// added kernel-side has to break this build rather than quietly
+// becoming unmatchable at the curated surface.
+// ---------------------------------------------------------------
+
+/// `BlendError::UnsupportedCorner`'s payload — the OQ6 corner
+/// vocabulary (#85) — and the run-out policy the tag's own map
+/// assigns it. The two travel together in the arm, so they are pinned
+/// together here.
+fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
+    // `policy` is the ONE place the tag → policy map lives, so a
+    // refusal cannot disagree with its own tag. Matching its result
+    // exhaustively is what makes `RunOutPolicy`'s carriage
+    // load-bearing rather than decorative.
+    match corner.policy() {
+        Some(RunOutPolicy::RunOutStopAtVertex | RunOutPolicy::RunOutFeather) | None => {}
+    }
+    match corner {
+        CornerConfig::ThreeConvexEdges => "three_convex_edges",
+        CornerConfig::NEdgeVertex { valence } => {
+            named::<usize>(valence);
+            "n_edge_vertex"
+        }
+        CornerConfig::MixedConvexity { convex } => {
+            named::<usize>(convex);
+            "mixed_convexity"
+        }
+        CornerConfig::DependentNormals => "dependent_normals",
+        // Not a corner at all, and the one arm whose recourse names a
+        // door that EXISTS — the distinction a caller who could not
+        // name this type had to read out of the prose.
+        CornerConfig::SeamVertex => "seam_vertex",
+        CornerConfig::Indeterminate => "indeterminate",
+    }
+}
+
+/// `BlendError::Escalated`'s site and `ConvexitySignFlip`'s chain
+/// convexity — the other two blend payloads, matched by bare name.
+fn blend_site_and_convexity_are_matchable(
+    site: BlendSite,
+    chain: Convexity,
+) -> (&'static str, bool) {
+    let where_it_broke = match site {
+        BlendSite::Link { edge } => {
+            named::<EdgeKey>(edge);
+            "link"
+        }
+        BlendSite::Joint { vertex } => {
+            named::<VertexKey>(vertex);
+            "joint"
+        }
+        BlendSite::Chain => "chain",
+    };
+    let removes_material = match chain {
+        Convexity::Convex => true,
+        Convexity::Concave => false,
+    };
+    (where_it_broke, removes_material)
+}
+
+/// `ValidationError::UndeclaredContact`'s payload. The branch that
+/// matters is not "a census contact happened" but WHICH: an
+/// `EdgeFacePierce` is interpenetration and categorically undeclarable
+/// until the C6 era, while an `EdgeEdgeOverlap` is certifiable through
+/// the D3 reconstruction today. Same refusal, opposite advice.
+fn census_contact_is_matchable(contact: CensusContact) -> bool {
+    match contact {
+        CensusContact::VertexVertex { a, b } => {
+            named::<VertexKey>(a);
+            named::<VertexKey>(b);
+            true
+        }
+        CensusContact::VertexOnFace { vertex, face } => {
+            named::<VertexKey>(vertex);
+            named::<FaceKey>(face);
+            true
+        }
+        CensusContact::VertexOnEdge { vertex, edge } => {
+            named::<VertexKey>(vertex);
+            named::<EdgeKey>(edge);
+            true
+        }
+        CensusContact::EdgeFacePierce { .. } => false,
+        CensusContact::EdgeEdgeCross { .. } => true,
+        CensusContact::EdgeEdgeOverlap { .. } => true,
+        CensusContact::EdgeFaceOverlap { .. } => true,
+        // ONE RUNG, AND THIS IS WHERE IT STOPS. The arm binds its
+        // `ContactFinding` without naming it, which is exactly why the
+        // rung below is a banked finding and not this unit's scope:
+        // the DISCRIMINANT is matchable, and that is what the curated
+        // list owes. CUR3 stopped in the same place — `DanglingRef`'s
+        // arms carry `EntityId` and `GeomRef`, both still uncurated.
+        CensusContact::ConformalPatch { .. } => false,
+    }
+}
+
+/// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
+/// payloads — which record to withdraw, and how the ring meets the
+/// loop it should not be touching.
+fn stale_declaration_and_ring_contact_are_matchable(
+    declaration: StaleDeclaration,
+    contact: RingContact,
+) -> (&'static str, &'static str) {
+    let stale = match declaration {
+        StaleDeclaration::VertexVertex { a, b } => {
+            named::<VertexKey>(a);
+            named::<VertexKey>(b);
+            "vertex_vertex"
+        }
+        StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::CurveLocus {
+            face_a,
+            face_b,
+            witness,
+        } => {
+            named::<FaceKey>(face_a);
+            named::<FaceKey>(face_b);
+            named::<EdgeKey>(witness);
+            "curve_locus"
+        }
+        StaleDeclaration::Patch { .. } => "patch",
+    };
+    let ring = match contact {
+        RingContact::Vertex { .. } => "vertex",
+        RingContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingContact::Edge { .. } => "edge",
+    };
+    (stale, ring)
+}
+
+/// The carried payload vocabularies, matched through the prelude
+/// alone.
+///
+/// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
+/// refusals is CONSTRUCTED from a façade door here. Reaching a real
+/// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
+/// and reaching a real `UndeclaredContact` needs a census finding;
+/// both belong to the kernel suites that already own them. What is
+/// pinned is the CURATION property and only that — the values are
+/// built by hand, and every one of them is built with a bare prelude
+/// name, which is the whole claim.
+#[test]
+fn carried_refusal_payloads_are_matchable_through_the_prelude() {
+    assert_eq!(
+        corner_config_is_matchable(CornerConfig::SeamVertex),
+        "seam_vertex"
+    );
+    // The seam vertex is the arm whose policy is `None`: it is not a
+    // corner, so no run-out would help it. A caller that could not
+    // name `CornerConfig` could not tell that from a valence-4 vertex,
+    // whose policy is a real one.
+    assert!(CornerConfig::SeamVertex.policy().is_none());
+    assert_eq!(
+        CornerConfig::NEdgeVertex { valence: 4 }.policy(),
+        Some(RunOutPolicy::RunOutStopAtVertex)
+    );
+    assert_eq!(
+        CornerConfig::MixedConvexity { convex: 2 }.policy(),
+        Some(RunOutPolicy::RunOutFeather)
+    );
+
+    assert_eq!(
+        blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
+        ("chain", true)
+    );
+    assert_eq!(
+        blend_site_and_convexity_are_matchable(
+            BlendSite::Joint {
+                vertex: VertexKey::default()
+            },
+            Convexity::Concave
+        ),
+        ("joint", false)
+    );
+
+    // Declarable vs categorically undeclarable, off the same refusal.
+    assert!(census_contact_is_matchable(
+        CensusContact::EdgeEdgeOverlap {
+            a: EdgeKey::default(),
+            b: EdgeKey::default(),
+        }
+    ));
+    assert!(!census_contact_is_matchable(
+        CensusContact::EdgeFacePierce {
+            edge: EdgeKey::default(),
+            face: FaceKey::default(),
+        }
+    ));
+
+    assert_eq!(
+        stale_declaration_and_ring_contact_are_matchable(
+            StaleDeclaration::Patch {
+                face_a: FaceKey::default(),
+                face_b: FaceKey::default(),
+            },
+            RingContact::Edge {
+                ring_edge: EdgeKey::default(),
+                outer_edge: EdgeKey::default(),
+            },
+        ),
+        ("patch", "edge")
+    );
+}
+
+// ---------------------------------------------------------------
 // Runtime rows. The compile-level pins above are the real content;
 // these keep the functions live (an unused private fn is a warning,
 // and CI runs with `-D warnings`) and give the suite a green row.
@@ -637,7 +855,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     );
 }
 
-/// **No raw loop-minting door is nameable through the façade** — Evan's
+/// **No raw loop-minting door is nameable through the façade** — Ev's
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
@@ -1994,7 +2212,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// rather than harvested from the split, and deliberately so: for a
 /// PROPER mate edge no accepted cut can produce a crossing (the
 /// whole-cluster precondition — see editor-core's `row5_a`), and the
-/// one shape that does mint one today has semantics pending Evan's
+/// one shape that does mint one today has semantics pending Ev's
 /// AQ8 ruling. Authoring the record keeps this row about D9 — the
 /// same bits from the same recipe — rather than about a semantics
 /// question that may move.

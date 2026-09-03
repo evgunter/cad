@@ -179,8 +179,12 @@ fn p1b_without_the_sign_condition_the_inequality_is_false() {
 /// spec's acceptance asks for, built section-wise rather than as a
 /// height field.
 fn skinned_loft() -> NurbsSurface<f64> {
-    let nu = 7usize;
-    let nv = 5usize;
+    // Four spans by three: a genuine multi-span cubic loft with no
+    // closed form as any analytic kind, at the smallest section count
+    // that is still one — the sections, not their number, are what
+    // makes it non-analytic.
+    let nu = 5usize;
+    let nv = 4usize;
     #[allow(clippy::cast_precision_loss)]
     let uparams: Vec<f64> = (0..nu).map(|i| i as f64 / (nu - 1) as f64).collect();
     #[allow(clippy::cast_precision_loss)]

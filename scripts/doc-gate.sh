@@ -682,7 +682,7 @@ gate() {
   # comes out of the --all-features pass and goes back in under DEFAULT
   # features, so its renderer-free modules keep their rustdoc gate and
   # only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
-  # are skipped. Evan's viewer-CI-posture ruling, docs/GUI-LOG.md
+  # are skipped. Ev's viewer-CI-posture ruling, docs/GUI-LOG.md
   # 2026-08-27; the caller decides, this script only obeys, and the
   # hosted caller passes the flag off the change filter's seed-keyed
   # RUN_VIEWER_TOOLKIT.

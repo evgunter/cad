@@ -19,7 +19,7 @@
 //!
 //! This is the unit M5 banked at PR 12 (deviation 1's second door and
 //! deviation 2), sized by that review at one reviewed unit, and
-//! sequenced at the head of M6 by Evan's #169 ruling. It is what makes
+//! sequenced at the head of M6 by Ev's #169 ruling. It is what makes
 //! the COMPOSED DIE possible: the filleted blank, the 21 pips and the
 //! filleted pip rims in ONE body.
 //!

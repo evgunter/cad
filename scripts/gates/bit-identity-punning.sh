@@ -3,7 +3,7 @@
 # ci.yml's "bit-identity punning tripwire" step and
 # local-scripts/ci-local.sh's discipline row both call this file.
 #
-# Complementary punning tripwire (M3 PR 4; Evan #53/#57/#58): the
+# Complementary punning tripwire (M3 PR 4; Ev #53/#57/#58): the
 # type-punning plumbing that lets generic code reach a scalar's
 # bits (Any downcasts / TypeId dispatch) is sanctioned in exactly
 # ONE seam — geom_core::bit_identity. Any other occurrence is a

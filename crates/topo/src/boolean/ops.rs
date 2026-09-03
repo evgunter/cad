@@ -771,7 +771,7 @@ pub(super) fn volume_backstop<T: Decide>(
     // ordinary mm-scale operands in the band and switched their bound
     // checks off. The skip zone survives, now meaning sub-resolution
     // thickness — which is what it always claimed to mean.)
-    // The backstops live on the INVARIANT LANE (Evan's #213 layering
+    // The backstops live on the INVARIANT LANE (Ev's #213 layering
     // ruling): consistency inequalities between integral results are
     // outside the length seam by design — no door, bare T — and a
     // certified violation is a kernel invariant failure, not a

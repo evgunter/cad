@@ -443,7 +443,7 @@ fn a_node_that_made_nothing_marks_what_passed_through_it() {
     assert_eq!(of(die.pip).len(), DIE_CAVITIES);
 }
 
-/// **The click path, which is the one Evan reported.** Every face of
+/// **The click path, which is the one Ev reported.** Every face of
 /// the die is drawn under the outer fillet, so a pick that inverted to
 /// "whose body did the ray meet" answered that fillet for a flat, a
 /// blend and a band alike. It inverts to the feature that MADE the

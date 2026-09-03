@@ -1,11 +1,11 @@
 ---
 name: name-candidates
-description: Q9 project-name candidates — Evan's shortlist with justifications + the full backup slate; availability RE-SWEPT 2026-08-08 (Selvage LOST; Intension cleanest)
+description: Q9 project-name candidates — Ev's shortlist with justifications + the full backup slate; availability RE-SWEPT 2026-08-08 (Selvage LOST; Intension cleanest)
 metadata:
   type: project
 ---
 
-Q9 (project name) is still open; Evan reviewed candidates 2026-07-23
+Q9 (project name) is still open; Ev reviewed candidates 2026-07-23
 and 2026-07-25 and shortlisted four to revisit later. Naming brief he gave: a subtle
 nod to what makes this kernel different — the FUNCTIONAL/INTENSIONAL
 core (the object *is* its definition; everything else derived from
@@ -25,14 +25,14 @@ it), everything explicit, no assumptions/silent fudging.
 - All 7 backups (Scruple, Quiddity, Apartness, Realizer, Quadrance,
   Esakia, Glivenko) remain free on both registries.
 
-## Shortlist (Evan-liked; availability per the re-sweep above — Selvage
+## Shortlist (Ev-liked; availability per the re-sweep above — Selvage
 LOST; first three checked 2026-07-23, Tertium 2026-07-25)
 
 - **Intension** — the philosopher's term for exactly the architecture:
   the definitional content of a thing vs its *extension* (the point
   set); the kernel keeps intensions and derives extensions on demand.
   Already ratified vocabulary (D2 "intensional EdgeGeometry"). Triple
-  pun (Evan): reads as near-miss "intention" (apt — F2's explicit-
+  pun (Ev): reads as near-miss "intention" (apt — F2's explicit-
   intent condition), and "in tension" is apt for mechanical design.
   GitHub: alandipert/intension (★166 Clojure lib) is the only notable
   neighbor.
@@ -41,7 +41,7 @@ LOST; first three checked 2026-07-23, Tertium 2026-07-25)
   version of the same metaphysical joke. Both singular and plural free
   on crates.io; only tiny GitHub repos.
 - **Selvage** — the woven edge that cannot fray → watertight
-  boundaries by construction. Evan likes it a lot but judges it
+  boundaries by construction. Ev likes it a lot but judges it
   slightly tangential to the intensional core. crates.io CLAIMED
   2026-07-24 and PyPI taken — off the board (re-sweep above).
 - **Tertium** (added 2026-07-25, from the constructive-logic vein) —
@@ -50,7 +50,7 @@ LOST; first three checked 2026-07-23, Tertium 2026-07-25)
   Short, same archaic-Latin register as Scruple/Quiddity; needs one
   sentence of unpacking (as do the others). crates.io free.
 
-## Liked but namespace too crowded (Evan)
+## Liked but namespace too crowded (Ev)
 
 - **Witness** — witness midpoints, GQ1 authoritative-branch witnesses,
   certified bounds; internally the most resonant word, externally
@@ -78,7 +78,7 @@ rejection of excluded middle. This vein aims the nod at the logic
 rather than the metaphysics. crates.io re-checked 2026-07-25; GitHub
 and trademark NOT swept for any of these.
 
-Outcome: **Tertium** promoted to the shortlist above. Evan also liked
+Outcome: **Tertium** promoted to the shortlist above. Ev also liked
 the *sound* of Quadrance and Esakia (and Sequent, which is taken)
 while judging their meanings less relevant — kept as backups.
 
@@ -106,11 +106,11 @@ Live candidates (all crates.io-AVAILABLE 2026-07-25):
   surname register unlike the rest of the slate.
 - **Quadrance** — Wildberger's rational trigonometry (quadrance +
   spread; no square roots) → exact-arithmetic geometry, on-ethos for
-  exactness. Evan likes the sound. Caveats: fringe/crank association,
+  exactness. Ev likes the sound. Caveats: fringe/crank association,
   and the kernel is not actually rational-trig based, so the meaning
   is decorative.
 - **Esakia** — Esakia duality (Heyting algebras ↔ Esakia spaces), i.e.
-  the logic-side/space-side correspondence. Evan likes the sound;
+  the logic-side/space-side correspondence. Ev likes the sound;
   meaning is a stretch beyond "constructive logic has a spatial dual."
   Same surname register as Glivenko.
 - **Decidable** — pointed, but claiming it inverts the ethos: the whole
@@ -130,7 +130,7 @@ Ruled out in this vein:
   for the trilean (strong Kleene K3 = true/false/unknown), but every
   Rust dev reads `kleene` as regex/automata. Connotation collision,
   not namespace.
-- **Sequent** — Evan liked the sound; crates.io taken (kindredgroup/
+- **Sequent** — Ev liked the sound; crates.io taken (kindredgroup/
   sequent, discrete-event simulation, stale since 2022 but published).
 - **Locale** — pointfree topology is a perfect intension/extension
   story (describe the space, derive the points) but `locale` is
@@ -161,17 +161,17 @@ Before ratifying any pick into Q9: re-run the crates.io/GitHub sweep
 sanity look;
 then DESIGN.md Q9 closes + crate-prefix rename as a mechanical PR.
 
-## Placeholder in use (2026-08-06, Evan-approved)
+## Placeholder in use (2026-08-06, Ev-approved)
 
 The library-program façade crate is named **`pncad`** ("pending-name
 CAD") until Q9 ratifies the real name — chosen greppable on purpose.
 At rename time: grep for `pncad`, AND audit `cad` occurrences
 broadly (workspace paths, repo name, doc prose, lane scripts'
-hardcoded clone URL) — Evan's note: many `cad` occurrences should
-ultimately become the real name. Q9 timing RELAXED (Evan,
+hardcoded clone URL) — Ev's note: many `cad` occurrences should
+ultimately become the real name. Q9 timing RELAXED (Ev,
 2026-08-08): keep `pncad` (or another recorded greppable
 placeholder) "up until the last minute" — the rename is a
 mechanical pre-release step, not a U9/U10 gate; only the actual
 RELEASE needs the real name.
 
-**DEFERRED (Evan, 2026-08-10, #355 thread): "no i don't want that anytime soon" — do not surface Q9 in check-ins; it re-opens only when Evan raises it.**
+**DEFERRED (Ev, 2026-08-10, #355 thread): "no i don't want that anytime soon" — do not surface Q9 in check-ins; it re-opens only when Ev raises it.**

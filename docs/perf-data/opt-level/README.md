@@ -105,7 +105,7 @@ Two derived figures exist to make the opt-1 row readable at a glance:
 `execution_kept_vs_opt2` (~1.0 means opt-1 runs as fast as opt-2) and
 `build_penalty_kept_vs_opt2` (<1.0 means it pays less to get there).
 
-**The tree was then moved to opt-1 on that evidence** (Evan, 2026-08-25),
+**The tree was then moved to opt-1 on that evidence** (Ev, 2026-08-25),
 before any runner sample existed — deliberately, because the fastest way to
 get runner data on opt-1 is to run the gate on opt-1. Every PR now produces a
 real opt-1 archive step and a real opt-1 test row, and this lane reads exactly
@@ -139,11 +139,6 @@ rebuild.
   arms now pass `--color never`. **Arm A still reports `n/a`** and that is not
   a regression: the jobs API gives step durations, not test counts, so what
   the cross-check can actually compare is arm B against arm C.
-* **A verdict of `opt-1` is a flip like any other**, and it changes nothing by
-  itself. The tree is at opt-level 2 and `ci.yml`'s OPT LEVEL note is still
-  the argument of record; moving it is a separate decision, made against
-  samples from this history rather than against the sweep that motivated the
-  arm.
 * **This has flipped once already.** opt-2 (#449) was itself a reversal of an
   earlier opt-0 verdict (#52/#53) whose premises expired. That is why each
   sample carries its inputs (`r`, `E2`, `a2 - a0`, the build/total split)

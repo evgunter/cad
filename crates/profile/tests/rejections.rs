@@ -95,7 +95,7 @@ fn sliver_arc_bulge_escalates() {
     }
 }
 
-/// **The re-homed fail-loud demo** (LIB-RETTAIL, Evan's ruling on
+/// **The re-homed fail-loud demo** (LIB-RETTAIL, Ev's ruling on
 /// #413). The tour's coda used to build this loop and print the
 /// refusal; a broken-on-purpose scene is not a use case, so the
 /// contract moved here, where it can be asserted instead of narrated.
