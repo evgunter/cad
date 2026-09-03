@@ -1,0 +1,28 @@
+{
+  "run_id": 33726782739,
+  "head_sha": "eaead9ab9a85fb1fe5611805b4c64e4d1fcd0cf5",
+  "lane": "default",
+  "lane_source": "requested (CI-Config: lane=default)",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "state": "WARM — 'Cache restored from key: sccache-obj-default-33724962116' (saved 9 minutes earlier) and rust-cache restored v0-rust-build-Linux-x64-61bb9c0c-66da18f8. Both halves warm at once; this is the run the trial was for.",
+  "archive_step_s": 534,
+  "compiling_lines": 19,
+  "sccache": {
+    "compile_requests": 68,
+    "compile_requests_executed": 18,
+    "cache_hits": 18,
+    "cache_misses": 0,
+    "cache_hits_rate": "100.00 %",
+    "compilations": 0,
+    "non_cacheable_calls": 50,
+    "non_compilation_calls": 0,
+    "non_cacheable_reasons": {
+      "crate-type": 47,
+      "-": 2,
+      "missing input": 1
+    },
+    "cache_size_written": "198 MiB",
+    "average_compiler_s": 0.0
+  },
+  "reading": "The 18 hits are the workspace LIBS — every rlib cargo still had to build once rust-cache had served the dependencies. The 47 crate-type refusals are the binaries: the test binaries and the workspace build scripts. sccache 0.16.0 does not cache --crate-type bin, so the test targets that are 82% of this job's compile time (build-profile REPORT.md 1) went to rustc at full price on a 100%-hit run."
+}
