@@ -42,8 +42,8 @@
 // `tests/common/mod.rs` — and every consumer
 // reaches that one instance through `use crate::<helper>;`.
 //
-// NO `#[path]` ON THESE, deliberately: a `#[path = "..."]` line in this
-// file is the aggregation guard's census of SUITE files
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
 // (`every_suite_file_is_aggregated` counts them against the directory
 // walk), and a helper module directory is not a suite. `mod` without the
 // attribute is also what `test_utils::source::suite_files` assumes when

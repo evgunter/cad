@@ -4,11 +4,7 @@
 //! test binary (`tests/all.rs`).
 #![allow(dead_code)]
 // one instance per binary; no single consumer uses all of it
-// These trees AUTHOR test documents, and a document that will not build is
-// a test failure, not a value to hand back: the builders panic on a
-// malformed fixture rather than thread a `Result` out to a caller whose
-// only recourse is to unwrap it. Named here, where that code lives, rather
-// than left to the crate-root allow of whatever module loads it.
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
 #![allow(clippy::unwrap_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
