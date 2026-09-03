@@ -1,6 +1,6 @@
 //! **The `EdgeEdgeCross` backing rung** — the unified strength's
 //! first instance (issue 973 part (b), stage 1;
-//! `docs/MATE-4B-CROSSING-DESIGN.md`, option A, planar-first).
+//! `crates/topo/README.md`, option A, planar-first).
 //!
 //! The ratified geometric fork, exercised row by row: an
 //! in-contact-plane crossing at a declared seat is LEGAL — the two

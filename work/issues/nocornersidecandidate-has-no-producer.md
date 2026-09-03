@@ -16,7 +16,7 @@ A **finding**, disclosed at the merge of BLEND-7 (PR #1267, the enclosing-tangen
 
 ## What changed under it
 
-`sugar::arc_fillet_trims` now classifies the enclosing (ρ < 0) class before the offset-carrier intersection and refuses it typed (`docs/ENCLOSING-TANGENCY-DESIGN.md`). Every construction that previously reached `NoCornerSideCandidate` in the suite was an enclosing request: the candidates existed, were computed, and failed the corner-side reach gate *because* the blend circle was bigger than both carriers. Those requests now refuse earlier and more specifically.
+`sugar::arc_fillet_trims` now classifies the enclosing (ρ < 0) class before the offset-carrier intersection and refuses it typed (`crates/profile/README.md`). Every construction that previously reached `NoCornerSideCandidate` in the suite was an enclosing request: the candidates existed, were computed, and failed the corner-side reach gate *because* the blend circle was bigger than both carriers. Those requests now refuse earlier and more specifically.
 
 ## The evidence, from three lanes
 

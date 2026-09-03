@@ -12,7 +12,7 @@ under Q1's ruling that growth banks WITH the kissing arm it serves
 (the permission and the demo rider are recorded here for whenever
 it builds). Q3 (follows from Q1): MATE-7 splits — unit one is the
 operand gate + the `carrier_eq` torus rung + the π-arm join wiring,
-with the lily's stem as its demo (`docs/MATE-7A-SPEC.md`); the
+with the lily's stem as its demo (MATE-7a, merged); the
 kissing arm banks with its ruling of record.** The pre-implementation ruling MATE-7
 needs (the Q4 ruling scheduled the torus declared-Rest lane last
 and sent this disposition back separately, per the issue-966

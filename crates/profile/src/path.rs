@@ -799,7 +799,7 @@ pub enum PathError<T: Real> {
     /// being a point of that carrier. An arc that cannot touch the corner
     /// is not a fillet OF that corner, so no fillet of this corner exists
     /// at this radius, and none ever will: the class is permanently out
-    /// of reach by design (`docs/ENCLOSING-TANGENCY-DESIGN.md`), which is
+    /// of reach by design (`crates/profile/README.md`), which is
     /// why it is its own refusal rather than one of the "no corner"
     /// ones — those would send the author looking for a corner that is
     /// right there. The bound is the named side's carrier radius; the

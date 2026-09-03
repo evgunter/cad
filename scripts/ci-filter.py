@@ -245,7 +245,7 @@ eps rows put the value straight into CAD_TOLERANCE_EPS, where `all` is a
 parse error by design. `lane=both` and `klint=all` ARE legal — every job
 condition already spells those as "run every row of that dimension".
 
-THE PER-FILE TEST GATE (2026-09-02, S-TCOST lever 3; docs/TCOST-1-SPEC.md).
+THE PER-FILE TEST GATE (2026-09-02, S-TCOST lever 3; work/tcost/TCOST-1.md).
 A suite that exercises the logic of a few named source files runs on a
 pull-request gate only when one of those files, or the suite's own file, is
 in the diff — rather than whenever any crate in its dependency closure moved,

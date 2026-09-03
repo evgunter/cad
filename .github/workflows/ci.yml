@@ -1471,7 +1471,7 @@ jobs:
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
-      # docs/GUI-DESIGN.md §GQ6 and docs/GQ6-RESURVEY.md §4 both state, as
+      # crates/viewer/README.md (toolkit and CI posture) states, as
       # a MEASURED fact that a ratified toolkit row rests on, that the
       # kernel plus `editor-core` compiles to wasm32-unknown-unknown,
       # `--features interval` included. Nothing re-took that reading:

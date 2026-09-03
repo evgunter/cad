@@ -71,7 +71,7 @@
 //! still a row that greens without entering its own mode the day the
 //! budget starts firing everywhere. The retired `fixture_or_return!` /
 //! `carrier_or_return!` macros returned green in silence, which is the
-//! honesty gap `docs/M5-EXIT-WALK.md` row 15 recorded.
+//! honesty gap this suite closes.
 //!
 //! **Planted quantities are stated in metres, not in multipliers.** The
 //! accounting floor is `SSI_FLOOR · band.zero() · floor_scale`, so a
@@ -246,8 +246,8 @@ fn slab() -> SsiDomain {
 ///
 /// The retired `fixture_or_return!` / `carrier_or_return!` macros made
 /// that stand-down a bare `return`, so a row that asserted NOTHING
-/// reported green and nothing in the log said which it had been — the
-/// honesty gap `docs/M5-EXIT-WALK.md` row 15 records. The `BUDGET` arm
+/// reported green and nothing in the log said which it had been. The
+/// `BUDGET` arm
 /// below still pins the refusal typed, and then SAYS, by name, every
 /// property this run did not cover.
 #[test]
@@ -1093,7 +1093,7 @@ fn wall_outcome() -> Option<geom_brep::SsiOutcome> {
 
 /// The wall fixture's stand-down, said out loud: which row stood down,
 /// and what it therefore did NOT cover. A bare `return` here reports
-/// coverage the run does not have (`docs/M5-EXIT-WALK.md` row 15).
+/// coverage the run does not have.
 ///
 /// One argument's worth of local vocabulary over
 /// [`test_utils::vacuity::stood_down`], not a second implementation of

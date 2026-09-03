@@ -72,7 +72,7 @@
 //! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_lever` | \|ρ₂\| − C·R₂·scale²/(d·ε) | linear band; the arc×arc offset intersection's conditioning (M8) |
-//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`docs/ENCLOSING-TANGENCY-DESIGN.md`) |
+//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`crates/profile/README.md`) |
 //!
 //! Every `fillet_*` row above fires in
 //! the arc-carrier fillet construction (construction sugar's one
@@ -268,7 +268,7 @@ pub enum NoCornerReason {
     ///
     /// **No construction is known to reach this arm** since the
     /// enclosing (ρ < 0) class became a refusal of its own
-    /// (`docs/ENCLOSING-TANGENCY-DESIGN.md`): every request that used to
+    /// (`crates/profile/README.md`): every request that used to
     /// land here was one whose blend circle swallowed the leg carriers,
     /// and those now refuse earlier and more precisely. Four searches
     /// across three lanes (1.24M ordinary arc×arc corners, 400k random
@@ -340,7 +340,7 @@ const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by pr
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
 /// whether the requested fillet would SWALLOW that carrier, the
 /// permanently refused enclosing class
-/// (`docs/ENCLOSING-TANGENCY-DESIGN.md`) — is below the tolerance.
+/// (`crates/profile/README.md`) — is below the tolerance.
 ///
 /// One sentence for the in-band escalation of `fillet_enclosing_carrier`
 /// and for its definite sibling [`crate::PathError::FilletEnclosesLegCarrier`]
