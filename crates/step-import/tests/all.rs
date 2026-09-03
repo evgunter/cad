@@ -154,3 +154,5 @@ fn every_suite_file_is_aggregated() {
         found.len()
     );
 }
+#[path = "mesh12r1_probes.rs"]
+mod mesh12r1_probes;
