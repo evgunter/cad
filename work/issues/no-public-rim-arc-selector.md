@@ -10,7 +10,7 @@ refs: [1222]
 
 ## From GitHub issue 1246
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Surfaced independently by BOTH end-to-end reports in the BLEND-1 review (PR #1222) — two reviewers hit the same friction from the consumer's seat, which is the consumer evidence this had been missing.
 

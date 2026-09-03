@@ -10,7 +10,7 @@ refs: [1267]
 
 ## From GitHub issue 1282
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 A **class**, split out of the BLEND-7 review (PR #1267) rather than swept in there.
 

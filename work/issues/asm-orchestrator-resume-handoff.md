@@ -11,7 +11,7 @@ refs: [414, 425, 561, 611]
 
 ## From GitHub issue 430
 
-opened 2026-08-12, 2 comments.
+Opened 2026-08-12; 2 comments.
 
 > **STATE MOVED (2026-08-16): R1 is COMPLETE and this body's snapshot is historical.** Live state = the docs/ASM-LOG.md tail, always. Rolling state refreshes live in this issue's comments (first one dated 2026-08-16: R1 complete, A12/A13 ratified, R2-a dispatched, schema chain, dual-tally warning). The reading list below still applies.
 
@@ -32,7 +32,7 @@ Standing handoff for whoever picks up the ASM (assemblies) orchestrator role. Re
 
 ## Pending with Ev
 
-- #414 resolver `Option>` shape (defended on that thread; change only on his ruling).
+- #414 resolver `Option<Arc<dyn PartResolver>>` shape (defended on that thread; change only on his ruling).
 - AQ1 / AQ2 / AQ5 / AQ6 open by design; AQ2 turns pressing when the "accept updated version" DocEdit lands (natural home: with or right after ASM-4).
 
 ## Filed findings feeding later units
@@ -44,7 +44,7 @@ Standing handoff for whoever picks up the ASM (assemblies) orchestrator role. Re
 
 ## Comments
 
-**2026-08-16** — orchestrator:
+**2026-08-16** — comment:
 
 (ASM orchestrator) Handoff state refresh (2026-08-16, supersedes the body's 2026-08-12 snapshot — the body's standing reading list still applies; ASM-LOG tail remains the live state):
 
@@ -52,10 +52,10 @@ Standing handoff for whoever picks up the ASM (assemblies) orchestrator role. Re
 - **Ratified this cycle**: A12 (mate reading edges + non-body roots, #522, discharges AQ7 — raised and signed-off same-day), A13 (update granularity, #544, discharges AQ2).
 - **Live pipeline**: R2-A binding spec ready (docs/ASM-R2A-SPEC.md; block ASM-3 slot 1 = opus, L/NUMERIC pre-logged) — **dispatch gates on M9-1 PR-2's merge** (#552, in review at ordinal 47; editor-core ContactClass re-export; their schema shifts to 11). R2-B spec finalizes on the same event (draft carries the recon addendum + coset table + M9-1 seam updates). Block ASM-3 slots 3-4 bank.
 - **Cross-program state**: dual tally 5-of-6 (next qualifying dual's recorder notifies Ev explicitly — next dual ordinal is 48); schema chain v9=RESPELL, v10=ASM-UPD, 11=M9-1's at re-merge; #561 (tag-value pinning) adopted by LIB.
-- **Orchestrator branch this session**: mngr/cad-asm-2 (away-channel prefixes asm/,mngr/cad-asm-2,mngr/cad-assemblies-implement). #414 resolver shape settled (Arc confirmed on-thread, Ev accepted).
+- **Orchestrator branch this session**: mngr/cad-asm-2 (away-channel prefixes asm/,mngr/cad-asm-2,mngr/cad-assemblies-implement). #414 resolver shape settled (Arc<dyn> confirmed on-thread, Ev accepted).
 - Pending with Ev: AQ1/AQ5/AQ6 open by design (AQ6 waits for C7-era tables).
 
-**2026-08-18** — orchestrator:
+**2026-08-18** — comment:
 
 (ASM orchestrator) **Superseded by #611** for the live pointer: the ASM program's ratified v1 scope (R1+R2) is now code-complete, and #611 carries the current resting state, the priority queue (TESS-SPLIT → exit walk + demo → ASM-XSPLIT), and the open threads. This issue's reading list stays valid; its state snapshots are historical. The state of record remains the docs/ASM-LOG.md tail.
 

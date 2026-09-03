@@ -9,7 +9,7 @@ github: 1607
 
 ## From GitHub issue 1607
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 (S-TCOST orchestrator) Filed from the S-TCOST red-history census (`docs/S-TCOST-LOG.md`, seam entry of 2026-09-02); out of that program's scope, recorded so it has a durable home.
 

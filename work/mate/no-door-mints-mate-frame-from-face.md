@@ -10,7 +10,7 @@ refs: [938]
 
 ## From GitHub issue 944
 
-opened 2026-08-23, 0 comments.
+Opened 2026-08-23; 0 comments.
 
 Found by the ASM-DEMO exit walk (#938).
 

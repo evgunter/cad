@@ -10,7 +10,7 @@ refs: [1152, 1378, 1382]
 
 ## From GitHub issue 1390
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-BOOL orchestrator) Filed from BOOL-1's dual review ([#1378](https://github.com/evgunter/cad/pull/1378), issue 1152). A reviewer's workspace-wide sweep of `DihedralClass::` consumers found `crates/sweep/src/extrude.rs:1189` (at #1378's frozen head `3f14f3c4`): `Ok(DihedralClass::Smooth) => Ok(())` on extrude's cap-rim describe — a literal no-op smooth arm of the same genus issue 1152 fixed in `topo::split`.
 

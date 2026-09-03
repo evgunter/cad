@@ -10,7 +10,7 @@ refs: [730]
 
 ## From GitHub issue 1479
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 `crates/pncad-py/src/tags.rs` carried an unowned deferral in its module header — *"Full per-variant field projection (node ids, slots, operand roles) is deferred to the unit that binds the complete surface"* — naming no unit and no criterion. Re-derived against the tree (2026-09-01): most doors have since grown the projection, so what the sentence describes is now a **seven-door remainder**, and this issue is its owner. The header no longer defers; it names the seven and points here.
 
@@ -27,7 +27,7 @@ Doors that cross with `variant` and the message only:
 | `edit_err` (`py/doc.rs`) | `EditError` | node ids, slot indices, entity kinds, dimensions |
 | `declare_err` (`py/doc.rs`) | `DeclareError` | its `Edit` arm's inner payload |
 | `persist_err` (`py/doc.rs`, `py/store.rs`) | `PersistError` | schema versions, the mismatching ids, the failing site |
-| `path_err` (`py/path.rs`) | `PathError` | the offending radius/leg/angle scalars |
+| `path_err` (`py/path.rs`) | `PathError<f64>` | the offending radius/leg/angle scalars |
 | `frame_err` (`py/place.rs`) | `FrameError` | the degenerate direction, the tolerance |
 | `stl_err` (`py/mesh.rs`) | `StlError`, `SolidNameError`, `BinaryHeaderError` | the offending byte/name |
 | `step_import` (`py/value.rs`) | `StepImportError` | entity id and line — **has a stated reason at the site** (all 21 arms are reachable and the id/line live in the prose), so it is the one door here that is already argued rather than merely unprojected |

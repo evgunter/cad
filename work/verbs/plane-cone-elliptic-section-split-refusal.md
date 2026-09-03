@@ -10,7 +10,7 @@ refs: [908, VERBS-CONE, VERBS-C5ARMS]
 
 ## From GitHub issue 1339
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 `topo::split` refuses every body carrying a cone face. The cut a modeller
 actually wants there — a tilted plane through a cone frustum, section an
@@ -127,6 +127,11 @@ plane×cone section as a fitted NURBS curve is fine."* That correction
 concerns the fitted route; this issue is the stronger claim beside it —
 the **elliptic** member is exact, closed-form, and needs no inventory
 growth at all.
+
+So the `intersect.rs` note's "generic tilt routes to rung 3 PERMANENTLY"
+is broader than the decision behind it. What is ratified is that parabola
+and hyperbola stay out; what is *un*-ratified, and simply never built, is
+the ellipse.
 
 ## Scope
 

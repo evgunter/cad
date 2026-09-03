@@ -9,7 +9,7 @@ github: 829
 
 ## From GitHub issue 829
 
-opened 2026-08-20, 0 comments.
+Opened 2026-08-20; 0 comments.
 
 `spec_slots` enumerates a role twice, and `step_expr` gives both slots the same expression, whenever a fused step's two arc specs are the same `Sweep`, `ArcLen` or `Bulge` mode.
 

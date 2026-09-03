@@ -10,7 +10,7 @@ refs: [1573, BOOL-12]
 
 ## From GitHub issue 1610
 
-opened 2026-09-03, 0 comments.
+Opened 2026-09-03; 0 comments.
 
 **Found by BOOL-12's third addendum (PR [#1573](https://github.com/evgunter/cad/pull/1573), Ev's sixth-round ruling: every zero-turn joint is a declared tangent joint; the lattice never asks whether carriers are the same) — filed as the durable home; it is M9/D1's question, not S-BOOL's.**
 

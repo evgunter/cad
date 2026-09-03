@@ -9,7 +9,7 @@ github: 1324
 
 ## From GitHub issue 1324
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 A feature can only be deleted with everything downstream of it, because
 `DocEdit` has no way to rewire a live node's inputs. In a boolean chain
@@ -78,7 +78,7 @@ delete; deliberately excluded from that unit as too involved to fold in.
 
 ## Comments
 
-**2026-08-31** — GUI orchestrator:
+**2026-08-31** — comment:
 
 Cascade delete has landed (branch `gui/delete`), and building it produced
 two findings that sharpen this issue. Both come from an implementer who

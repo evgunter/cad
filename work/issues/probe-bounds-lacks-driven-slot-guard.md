@@ -10,7 +10,7 @@ refs: [1183]
 
 ## From GitHub issue 1458
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_parametric` integration lane. `SetSlot` and `BeginGesture` on an expression-driven slot refuse with the typed `DrivenByExpression` affordance (the ratified micro-decision). `ProbeBounds { target: Slot { … } }` on the same slot does **not**: it runs happily, internally overwriting the expression with sampled literals in scratch, and answers a valid range for a field the user cannot edit numerically.
 

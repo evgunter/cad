@@ -10,7 +10,7 @@ refs: [1377, 347]
 
 ## From GitHub issue 1455
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_authoring` integration lane building a chess rook through the GUI's op vocabulary: the natural crenellation move — a rectangular slab subtracted through a cylindrical crown — is the *first* thing a user carving a round tower reaches, and it fails.
 

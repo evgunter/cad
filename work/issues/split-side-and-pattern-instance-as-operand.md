@@ -9,7 +9,7 @@ github: 1394
 
 ## From GitHub issue 1394
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 ## What
 

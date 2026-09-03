@@ -10,7 +10,7 @@ refs: [1423]
 
 ## From GitHub issue 1439
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Filed from the MATE-3 dual review (PR #1423; found bilaterally — one arm from the prose, one from the constants/data sweep). MATE-3 introduced `geom_brep::folded_lever_arm` documented as "one home for the fold" (three consumers named, margins comparable only if levered against the same arm) — but the identical three-way `min` fold survives hand-rolled at six sites: `topo/boolean/contact_verify.rs:351-353` (the fold's own stated origin), `geom-brep/certify.rs:1685-1687` and `geom-brep/ssi.rs:894-896` (the helper's OWN crate), `topo/boolean/ops.rs:1020-1022`, `sweep/revolve/upgrade.rs:233-235`, `sweep/extrude.rs:882-884`. Two of eight sites use the home.
 

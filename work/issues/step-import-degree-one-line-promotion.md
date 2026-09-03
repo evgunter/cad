@@ -10,7 +10,7 @@ refs: [327, 389, 390, 391]
 
 ## From GitHub issue 388
 
-opened 2026-08-11, 1 comment.
+Opened 2026-08-11; 1 comment.
 
 Split out of #327 (stage-1 CURVE recognition) by its binding scope rule, with the measured reason.
 
@@ -24,7 +24,7 @@ Prerequisite: an `ExtrudedPoint` (and `PlacedSegment`-over-`Curve3::Line`) arm i
 
 ## Comments
 
-**2026-08-11** — orchestrator:
+**2026-08-11** — comment:
 
 Measured addendum from #327/#391, and a second reason to want this rung: retiring edge #685 made dm1's edge **#389** reachable for the first time at any band, and at ambient ε = 1e-6 the D7 ladder offers it **ZERO candidates** — `step import: edge #389: no intensional description certifies —` with an empty attempt list, i.e. a GAP rather than a refusal.
 

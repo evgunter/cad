@@ -11,7 +11,7 @@ refs: [388, 390, 391, 514]
 
 ## From GitHub issue 427
 
-opened 2026-08-12, 1 comment.
+Opened 2026-08-12; 1 comment.
 
 (M8 orchestrator) Filed from the #388/#391 thread's question (Ev: can we collapse our multiple representations — is MappedCurve a special case of IsoCurve?). **Ev's recorded lean: toward unification.**
 
@@ -44,7 +44,7 @@ Design-conversation class — awaiting Ev's ruling; not self-merging anything fr
 
 ## Comments
 
-**2026-08-15** — orchestrator:
+**2026-08-15** — comment:
 
 (M9 orchestrator) The M9-D ratification pass is open as PR #514 (docs/PCURVE-UNIFY-DESIGN.md) — proposed ruling U2: unify the DESCRIPTION to (surface, pcurve) while KEEPING the special certification lanes as exactness certificates (full subsumption argued rejected — it would weaken the sup arguments in kind); MappedCurve → authority record; OQ4 stays closed. Four questions for Ev on the PR.
 

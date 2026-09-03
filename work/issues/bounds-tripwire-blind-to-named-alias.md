@@ -10,7 +10,7 @@ refs: [273]
 
 ## From GitHub issue 279
 
-opened 2026-08-09, 0 comments.
+Opened 2026-08-09; 0 comments.
 
 ## What
 
@@ -22,7 +22,7 @@ NAMED alias for that obligation:
 ```rust
 // crates/profile/src/path/arc_fillet.rs  (an allowlisted file)
 pub trait ArcCarrierScalar: Decide + Bounds {}
-impl ArcCarrierScalar for T {}
+impl<T: Decide + Bounds> ArcCarrierScalar for T {}
 ```
 
 so the replay driver can call the G2 arrival binders (`at_on`, `to_on` —
@@ -38,7 +38,7 @@ written against `T: ArcCarrierScalar` **anywhere in the workspace**
 compiles and passes the full tripwire pipeline:
 
 ```rust
-fn f(x: T) -> f64 { use geom_core::Bounds; x.lo() }
+fn f<T: ArcCarrierScalar>(x: T) -> f64 { use geom_core::Bounds; x.lo() }
 ```
 
 The delivered driver does not do this (verified: `program.rs` contains

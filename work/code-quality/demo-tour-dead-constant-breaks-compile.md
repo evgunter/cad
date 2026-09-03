@@ -10,7 +10,7 @@ refs: [1353]
 
 ## From GitHub issue 1449
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the VERBS-GERMARMS PR-2 fix pass (#1353): both its workflow-dispatch CI runs red at `k-lint (gate)`'s `demos tour suite` step with
 

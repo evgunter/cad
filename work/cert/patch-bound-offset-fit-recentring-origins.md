@@ -10,7 +10,7 @@ refs: [1403, 1006]
 
 ## From GitHub issue 1532
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 (S-CERT orchestrator) Found by CERT-10's second reviewer (PR 1403): `patch_bound::comp_nets`' doc had assigned "unifying the two centres" to "issue 1006, CERT-10, which owns this seam" — i.e. to the unit that chose to keep the seam, a residue with no owner. The doc now names this issue instead. The lane's own statement of the residue:
 

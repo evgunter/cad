@@ -10,7 +10,7 @@ refs: [161, 178, 214, 222, 226, 239, 243]
 
 ## From GitHub issue 250
 
-opened 2026-08-08, 3 comments.
+Opened 2026-08-08; 3 comments.
 
 Consolidated register per Ev's ask at M6 closure (PR #243 comment 5224869607). One row per carried item from docs/M6-EXIT-WALK.md (the ratified done-state); each names its owner and its flip/re-open condition. The M8-bound family folds into the M8 opening plan when C7 opens it — this register is the checklist that folding consumes.
 
@@ -46,15 +46,15 @@ Closing discipline: a row closes by naming the merging PR; this issue closes whe
 
 ## Comments
 
-**2026-08-08** — orchestrator:
+**2026-08-08** — comment:
 
 Register row closed: **k-lint gate flip — DONE, merged as #253** (2026-08-08). The row is now "k-lint (gate)": findings fail the run at exit 2 with the interpretation-discipline message (re-derive per the K-REPORT runbook or demote with recorded justification; geometry changes to silence the lint are the forbidden move); harness breakage keeps its distinct exit-1 voice; the committed baseline gates green at all three ε rows.
 
-**2026-08-08** — orchestrator:
+**2026-08-08** — comment:
 
 Sidecar-row amendment (from #256's tail): the declared-analytic refusal lane BANS keep-as-spline (Ev) — exact analytic geometry gets exactly one native representation, restoring universal byte-identical round trip when the sidecar lands. Recorded consequence to design deliberately: parametric families crossing exact analyticity refuse in a band around the crossing (no sweep-stable spline repair exists); recourse = structural restructure or box-avoidance (M8-certifiable).
 
-**2026-08-08** — orchestrator:
+**2026-08-08** — comment:
 
 New banked row (from #260, Ev's ask): **gate-minted validity currency** — generalize the tier-3′ wrapper precedent so un-validated bodies are unrepresentable at API boundaries (only the shared at-rest gate mints the currency type; 'forgot to validate' becomes a compile error). Kernel-wide signature design; record = #260. The near-term rung (import routes through the shared gate) ships as M7's tier-at-import unit.
 

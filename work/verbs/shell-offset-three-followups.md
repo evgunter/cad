@@ -10,7 +10,7 @@ refs: [1048, 1019]
 
 ## From GitHub issue 1058
 
-opened 2026-08-27, 0 comments.
+Opened 2026-08-27; 0 comments.
 
 **Three small items banked by OFF-D PR-2 (#1048), filed together because each is a line of work rather than a unit.**
 

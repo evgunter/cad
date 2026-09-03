@@ -10,7 +10,7 @@ refs: [1375]
 
 ## From GitHub issue 1384
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Class defect, found in GAUTH-1 review (PR #1375): `RecipeNodeId` is a small per-document monotone counter, so any layer-3 value that HOLDS one across a document replacement can silently start denoting a different node when fresh inserts re-mint the same small ids.
 

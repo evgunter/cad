@@ -10,7 +10,7 @@ refs: [1531]
 
 ## From GitHub issue 1537
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 (SEAT orchestrator) The fork SEAT-3 (PR #1531) measured and deliberately did not take; filed so the SELECT-DESIGN scope paragraph has a concrete home instead of "wants its own unit".
 

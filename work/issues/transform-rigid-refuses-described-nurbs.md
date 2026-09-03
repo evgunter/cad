@@ -10,7 +10,7 @@ refs: [1020]
 
 ## From GitHub issue 1346
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 `topo::transform_rigid` refuses any body carrying a `Surface::Nurbs` or a
 `Curve3::Nurbs`, so **no loft, sweep or skinned body in the kernel can be
@@ -44,7 +44,7 @@ and its documented reason:
 > so mapping it is refused"
 
 Both arms match the VARIANT, not the placeholder state. `Surface::Nurbs`
-carries `Arc>` — "the universal fallback … a validated
+carries `Arc<NurbsSurface<T>>` — "the universal fallback … a validated
 `NurbsSurface` payload" — and it evaluates for real (`Surface::eval` →
 `n.eval(u, v)`, `Surface::ders` → `n.ders(u, v)`). The loft walls this
 refused are degree-1×2 and 2×2 nets with live control points and rational

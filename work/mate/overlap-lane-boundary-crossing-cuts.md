@@ -10,7 +10,7 @@ refs: [1496, 969, 1063]
 
 ## From GitHub issue 1500
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Filed at MATE-9's adjudication (PR #1496) as the scheduled home for the migration blocker both review arms confirmed disclosed-but-unscheduled.
 

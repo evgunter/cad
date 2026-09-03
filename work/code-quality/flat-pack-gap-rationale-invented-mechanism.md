@@ -10,7 +10,7 @@ refs: [1553, 1506]
 
 ## From GitHub issue 1561
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Found by BOOL-13's review (PR [#1553](https://github.com/evgunter/cad/pull/1553), R2 style lane Q2), pre-existing — not that unit's to touch (`demos/tour` is outside its fence).**
 

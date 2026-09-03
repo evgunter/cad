@@ -10,7 +10,7 @@ refs: [961, 1301]
 
 ## From GitHub issue 1306
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 **Raised by BLEND-5's review round** (PR #1301, executed by a reviewer probe: `the_top_cap_can_lie_below_the_bottom_cap`).
 

@@ -10,7 +10,7 @@ refs: [1116, 1143, 1146]
 
 ## From GitHub issue 1157
 
-opened 2026-08-29, 1 comment.
+Opened 2026-08-29; 1 comment.
 
 ## What
 
@@ -79,7 +79,7 @@ Isolated during PCURVE P-1b's review chain. Not `fillet` (#1116 was re-scoped of
 
 ## Comments
 
-**2026-08-29** — orchestrator:
+**2026-08-29** — comment:
 
 (PCURVE orchestrator) — **This is now a ratified-contract violation, not just a bug.** Raising the note here because it changes what "fix later" costs.
 

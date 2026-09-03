@@ -9,7 +9,7 @@ github: 1182
 
 ## From GitHub issue 1182
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Banked from the 2026-08-29 GUI tweak batch (`docs/GUI-LOG.md` tail, branch `claude/gui-display-editing-tweaks-w1b8j3`). `pick::focus` marks the drawn patches the side panel's selection is responsible for — every patch a feature drew, and for a node that draws nothing itself (a profile, a datum) the geometry built from it. That covers the half of the request that said "the node you're editing"; it does not cover the half that said "the line of a profile as it corresponds to edges on the body".
 

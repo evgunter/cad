@@ -10,7 +10,7 @@ refs: [1177, 1277]
 
 ## From GitHub issue 1299
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 (S-CERT orchestrator) Filed from CERT-3's dual review (PR 1277, review lane finding, reproduced by the fix pass; `vec.rs` is PCURVE PR 1177's keep-out, so recorded rather than fixed).
 

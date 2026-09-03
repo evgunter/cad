@@ -10,7 +10,7 @@ refs: [1564, 1570, 1372]
 
 ## From GitHub issue 1572
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 (SEAT orchestrator) Live defect found by SEAT-DV's fix pass (PR #1564) while probing the sibling door — reported there as a fork not taken (different door, explicit fix list), reproduced, and filed here.
 

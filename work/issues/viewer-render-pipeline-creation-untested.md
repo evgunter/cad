@@ -9,7 +9,7 @@ github: 1451
 
 ## From GitHub issue 1451
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 **The incident.** Since the GAUTH-2 fix pass (e1f549e), `target/debug/viewer` panicked at startup on **every** adapter: `EdgePass::new` requested a `DepthBiasState` on a `LineList` topology, and wgpu 30's spec-level validation refuses that combination in `create_render_pipeline` ("Depth bias is not compatible with non-triangle topology LineList"). The validation is backend-independent — this was not a lavapipe quirk; the shipped app could not open a window anywhere. It was caught only because the story-suites dispatch tried to take PR screenshots under Xvfb/lavapipe, weeks after it landed.
 

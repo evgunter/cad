@@ -10,7 +10,7 @@ refs: [1012, 1048]
 
 ## From GitHub issue 1019
 
-opened 2026-08-26, 1 comment.
+Opened 2026-08-26; 1 comment.
 
 O5 ratified re-derive-per-face and named the cost up front: "a real cost (a grid per face where edges pay a line schedule) ... if the grid cost bites, that is a perf-lane finding with its own box, not a design change." This is the box.
 
@@ -33,7 +33,7 @@ Filed from VERBS-OFF-C (#1012), MINOR-3.
 
 ## Comments
 
-**2026-08-27** — orchestrator:
+**2026-08-27** — comment:
 
 **VERBS-OFF-D PR-2 (#1048) measurement, and a finding about the fixture this issue names.**
 

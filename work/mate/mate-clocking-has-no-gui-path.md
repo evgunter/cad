@@ -9,7 +9,7 @@ github: 1461
 
 ## From GitHub issue 1461
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_assembly` integration lane landing two windmill sails crossed. Two halves of one UX hole:
 
