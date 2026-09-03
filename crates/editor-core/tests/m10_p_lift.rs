@@ -24,11 +24,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
-// `fixture::plane_of` is reached only from the interval-gated row below,
-// so the import carries the same gate. (Under the pre-TCOST-B1 `mod
-// fixture;` spelling an unused declaration was silent; a `use` is not.)
-#[cfg(feature = "interval")]
-use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
@@ -193,9 +188,10 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 #[cfg(feature = "interval")]
 #[test]
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
-    // Both of these are used ONLY by this interval-gated row, so they
-    // are imported here rather than at module scope, where the default
-    // build would carry them unused.
+    // All three of these are used ONLY by this interval-gated row, so
+    // they are imported here rather than at module scope, where the
+    // default build would carry them unused.
+    use crate::fixture;
     use editor_core::ParamName;
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
