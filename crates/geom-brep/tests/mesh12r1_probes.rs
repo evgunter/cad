@@ -83,6 +83,28 @@ fn certification(t0: f64, dt: f64, r: f64, band: Band) -> Rung {
     }
 }
 
+/// Certification's answer for the small circle the lever row uses:
+/// the same check on a carrier whose radius is not the sphere's.
+fn certification_on(r_c: f64, t0: f64, dt: f64, band: Band) -> Rung {
+    let carrier = Curve3::Circle {
+        center: Point3::new(RS * (0.75f64).sqrt(), 0.0, 0.0),
+        axis: Vec3::new(1.0, 0.0, 0.0),
+        radius: r_c,
+        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let spec = EdgeCurveSpec::arc_of_circle(carrier.clone(), t0, t0 + dt).unwrap();
+    let (p0, p1) = (carrier.eval(t0), carrier.eval(t0 + dt));
+    match EdgeCurve::certify(spec, p0, p1, |_| None, band) {
+        Ok(_) => Rung::Admits,
+        Err(CertifyError::WindingExceeded) => Rung::Refuses,
+        Err(CertifyError::Escalated {
+            check: CertCheck::ParamSpan,
+            ..
+        }) => Rung::Escalates,
+        Err(e) => panic!("not a span verdict at all: {e:?}"),
+    }
+}
+
 /// The parse's answer for the same span, through the flux lane.
 fn parse(t0: f64, dt: f64, band: Band) -> Rung {
     disposition(&curved_face(
@@ -160,48 +182,72 @@ fn r1_no_span_on_a_fine_sweep_splits_the_two_decides() {
     );
 }
 
-/// **The lever is the SPHERE's radius, not the carrier's.**
-/// Certification meters a circle arc's span at the carrier radius;
-/// the parse meters it at the sphere radius. The two are equal for a
-/// meridian great circle, which `props_meridian_great` pins in the
-/// flux lane — but the BRANCH door classifies a meridian by its axis
-/// alone and never asks whether the carrier is the great circle, so
-/// on a carrier of another radius the two decides are metered
-/// differently. This row measures how far apart, at the widest gap
-/// the ambiguity band allows.
+/// **The lever is the SPHERE's radius, not the carrier's — and the
+/// branch door has a carrier where those differ.** Certification
+/// meters a circle arc's span at the CARRIER's radius; the new decide
+/// meters it at the SPHERE's. The flux lane pins them equal
+/// (`props_meridian_great` refuses a meridian that is not the great
+/// circle), but the branch door classifies a meridian by its axis
+/// alone: a SMALL circle cut from the sphere by a plane parallel to
+/// the axis lies exactly on the surface, has `n_c · axis = 0`, and is
+/// read as a meridian here. On it the two decides are metered a
+/// factor `R / r_c` apart, and this row exhibits a span the door
+/// refuses that certification only escalates on.
 #[test]
 fn r1_the_branch_doors_span_lever_is_not_the_carriers() {
     let bd = band();
-    let small = RS / 8.0;
-    // A span certification refuses at the carrier's own lever …
-    let dt = TAU + 20.0 * bd.escalate() / small;
-    assert_eq!(certification(0.3, dt, small, bd), Rung::Refuses);
-    // … metered instead at the sphere's radius by the branch door.
+    // The circle the plane x = R·√3/2 cuts from the sphere: on the
+    // surface, radius R/2, axis x̂ — perpendicular to the sphere's.
+    let r_c = RS / 2.0;
+    let d = RS * (0.75f64).sqrt();
+    let small = |t0: f64, t1: f64, a: u32, b: u32| {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: Point3::new(d, 0.0, 0.0),
+                axis: Vec3::new(1.0, 0.0, 0.0),
+                radius: r_c,
+                u_ref: Vec3::new(0.0, 1.0, 0.0),
+            },
+            t0,
+            t1,
+            true,
+            a,
+            b,
+        )
+    };
+    // Every point of this circle is on the sphere, so it is a carrier
+    // certification would accept as lying on the surface.
+    for t in [0.0, 1.0, 2.5, 4.0] {
+        let p = Curve3::Circle {
+            center: Point3::new(d, 0.0, 0.0),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: r_c,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        }
+        .eval(t);
+        assert!(((p - Point3::new(0.0, 0.0, 0.0)).norm() - RS).abs() < 1e-15);
+    }
+    // A span whose headroom is 1.5·escalate at the SPHERE's lever and
+    // 0.75·escalate at the CARRIER's: definitely negative at one meter,
+    // in the ambiguity band at the other.
+    let dt = TAU + 1.5 * bd.escalate() / RS;
+    let cert = certification_on(r_c, 0.3, dt, bd);
     let edges = vec![
-        arc(meridian::<f64>(0.0, small), 0.3, 0.3 + dt, 0, 1),
-        arc(meridian::<f64>(0.0, small), 0.3 + dt, 0.3 + 4.0 * PI, 1, 0),
+        small(0.3, 0.3 + dt, 0, 1),
+        small(0.3 + dt, 0.3 + 4.0 * PI, 1, 0),
     ];
     let door = require_one_chart_branch(&sphere::<f64>(), &edges, bd);
-    println!("R1-LEVER small-carrier branch door: {door:?}");
-    // Both levers refuse this far out; the row exists to print the
-    // metering and to pin that the door still answers by the name.
-    assert!(matches!(
-        door,
-        Err(PropsError::NotIsoRectangle {
-            what: "props_meridian_span_winding"
-        })
-    ));
-    // The gap the two levers open: a span certification ESCALATES at
-    // the carrier lever is REFUSED by the door at the sphere lever,
-    // eight times the meter.
-    let dt2 = TAU + 3.0 * bd.escalate() / small;
-    let cert2 = certification(0.3, dt2, small, bd);
-    let edges2 = vec![
-        arc(meridian::<f64>(0.0, small), 0.3, 0.3 + dt2, 0, 1),
-        arc(meridian::<f64>(0.0, small), 0.3 + dt2, 0.3 + 4.0 * PI, 1, 0),
-    ];
-    let door2 = require_one_chart_branch(&sphere::<f64>(), &edges2, bd);
-    println!("R1-LEVER cert={cert2:?} door={door2:?}");
+    println!("R1-LEVER on-sphere small circle: cert={cert:?} door={door:?}");
+    assert_eq!(cert, Rung::Escalates, "certification's own meter");
+    assert!(
+        matches!(
+            door,
+            Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_span_winding"
+            })
+        ),
+        "the branch door meters this span at the sphere radius: {door:?}"
+    );
 }
 
 /// **A rim's span is not decided by this key, past the period or
