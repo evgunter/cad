@@ -59,7 +59,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
         PathErrorKind::SeamTangent => "seam_tangent",
-        PathErrorKind::SameCarrierJunction => "same_carrier_junction",
+        PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
+        PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
         PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",
@@ -96,7 +97,6 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
-        RecordedProgramError::VerbNotInDocumentVocabulary(_) => "verb_not_in_document_vocabulary",
     }
 }
 

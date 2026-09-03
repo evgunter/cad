@@ -76,17 +76,29 @@ fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
     [len(x), len(y)]
 }
 
-/// A SUBDIVIDED axis run (an interior on-axis vertex) is
-/// unrepresentable through the program layer: every authoring of a
-/// collinear line-line junction is refused upstream (overdetermined
-/// close / tangent junction / same-carrier #101), so an
-/// editor-reachable profile's axis run is always ONE segment and
-/// every live on-axis vertex is a run TIP — the pole export's Some.
-/// The full case's deleted-interior branch (None export) is covered
-/// at the sweep API level (sweep/tests/m9_d1_r1_probes.rs); here we
-/// pin that the editor cannot reach it.
+/// **This row's premise is RETIRED, and the row records that rather
+/// than asserting it** (Ev, in-chat, 2026-09-02: every zero-turn
+/// joint is a declared tangent joint).
+///
+/// It used to pin that a SUBDIVIDED axis run — an interior on-axis
+/// vertex — is unrepresentable through the program layer, because every
+/// authoring of a collinear line-line junction was refused upstream
+/// (overdetermined close / tangent junction / same-carrier #101). The
+/// same-carrier refusal is gone: `.tangent()` then `line(len)` is a
+/// DECLARED tangent joint now, so this chain applies.
+///
+/// **FORWARD OBSERVATION, reported not acted on (M9/D1 ground).** What
+/// the old refusal was standing in for is a claim about the pole
+/// export: "an editor-reachable profile's axis run is always ONE
+/// segment, so every live on-axis vertex is a run TIP — the pole
+/// export's `Some`". That claim no longer follows, and the
+/// deleted-interior branch (`None` export), covered at the sweep API
+/// level in `sweep/tests/m9_d1_r1_probes.rs`, is now editor-reachable.
+/// Whether that branch is correct when reached from the editor is M9's
+/// question, not this unit's; this row keeps the fixture alive and
+/// names the change so it cannot be discovered by accident.
 #[test]
-fn subdivided_axis_run_is_refused_upstream_of_the_emitter() {
+fn subdivided_axis_run_is_now_representable_through_the_program_layer() {
     use editor_core::DocEdit;
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
     // The frame goes in first: this row is about the PROGRAM's
@@ -106,14 +118,8 @@ fn subdivided_axis_run_is_refused_upstream_of_the_emitter() {
             }),
         ])],
     });
-    let err = doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness())
-        .unwrap_err();
-    let msg = format!("{err:?}");
-    assert!(
-        msg.contains("carrier identity is not tangency"),
-        "expected the same-carrier refusal, got {msg}"
-    );
+    doc.apply(&DocEdit::InsertNode { node }, Tol::witness())
+        .expect("a declared collinear joint is a tangent joint, so this authors");
 }
 
 /// The mixed dome: (0,0) →line→ (1,0) →quarter arc→ (0,1) →axis

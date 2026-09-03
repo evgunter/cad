@@ -561,17 +561,20 @@ fn path_error_tags_are_stable() {
         .expect_err("a corner tangent to its incoming leg refuses");
     assert_eq!(path_error_tag(&tangent), "junction_tangent");
 
-    let overdetermined = Open
+    // The collinear tangent-arc close: carrier identity is no longer a
+    // refusal (Ev, in-chat, 2026-09-02 — every zero-turn joint is a
+    // declared tangent joint). What refuses is the GEOMETRY: `Start` is
+    // collinear with the declared departure and BEHIND it, so the
+    // tangent-chord angle is pi, the bulge unbounded, and no arc spans
+    // the chord.
+    let degenerate = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(1.0, 0.0), Tol::witness())
         .expect("a leg east")
         .tangent()
         .tangent_arc_to(Start, Tol::witness())
-        .expect_err("a collinear tangent-arc close refuses always");
-    // Carrier identity, and it does not become a different fact because
-    // the target is `Start`: the close-only second name for this was
-    // removed with the seam wall's departure half.
-    assert_eq!(path_error_tag(&overdetermined), "same_carrier_junction");
+        .expect_err("no arc spans a chord behind the departure");
+    assert_eq!(path_error_tag(&degenerate), "degenerate_arc_chord");
 }
 
 /// The prose rule's guard, checked against what it actually guards

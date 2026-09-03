@@ -124,17 +124,13 @@ use core::f64::consts::PI;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, Via};
-// The named gap below (`section_loops`): the raw loop door is kernel
-// vocabulary, off the façade, so the one scene that needs it names the
-// kernel crate directly.
+use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
-use profile::RawLoop;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -720,12 +716,14 @@ fn leaf_a_plan() -> Plan {
             ridge: 0.028,
             keel: 0.020,
             shoulder: 1.0,
+            corners: Corners::Shoulders,
         },
         belly: Section {
             width: 0.420,
             ridge: 0.034,
             keel: 0.016,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         belly_at: 0.22,
         tip: Section {
@@ -733,6 +731,7 @@ fn leaf_a_plan() -> Plan {
             ridge: 0.010,
             keel: 0.006,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         roll0: 0.0,
         twist: deg(160.0),
@@ -854,6 +853,45 @@ fn leaf<S: Scalar>(
 /// so the two shapes must be spelled on a common vertex budget. The
 /// collinear vertices at `shoulder = 0` are exact, not approximate —
 /// a midpoint of two authored points.
+/// Which vertices of a [`Section`]'s eight-vertex ring the outline
+/// actually TURNS at — a structural property of the section the PLAN
+/// authors, not a fact to be read back off its coordinates.
+///
+/// It has to be authored rather than derived, and the reason is
+/// measured: deriving it from `shoulder == 0.0` / `== 1.0` is an exact
+/// float compare on a LERPED parameter, and a section whose shoulder
+/// lands a hair off an endpoint has a junction inside the tangency band
+/// that the algebra correctly refuses. R2's review measured the knife
+/// edge (shoulder 1e-6 authors, 1e-8 refuses `JunctionTangent`), and it
+/// is pinned as a row in `profile`'s `bool12r2_probes`. So the plan
+/// says which sections are the kite and which the rectangle, and
+/// [`Section::lerp`] carries that forward only where it is structurally
+/// true — at the ends of a blend, and through a blend whose two ends
+/// agree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Corners {
+    /// The kite: each shoulder is the midpoint of two tips, so the
+    /// shoulders SUBDIVIDE and the tips turn.
+    Tips,
+    /// The bounding rectangle: each tip lies on the edge its two
+    /// neighbouring corners span, so the tips subdivide and the
+    /// SHOULDERS turn.
+    Shoulders,
+    /// The eased sections in between: every vertex turns.
+    Every,
+}
+
+impl Corners {
+    /// Does the outline turn at ring index `i`? Even indices are tips.
+    fn turns_at(self, i: usize) -> bool {
+        match self {
+            Corners::Tips => i.is_multiple_of(2),
+            Corners::Shoulders => !i.is_multiple_of(2),
+            Corners::Every => true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Section {
     /// Chord length, margin to margin.
@@ -864,12 +902,15 @@ struct Section {
     keel: f64,
     /// 0 = kite, 1 = the bounding rectangle.
     shoulder: f64,
+    /// Which vertices this section turns at — authored beside
+    /// `shoulder`, never derived from it.
+    corners: Corners,
 }
 
 impl Section {
     /// The eight-vertex outline, wound counterclockwise in the sketch
     /// `(s, t)` frame from the `+s` margin.
-    fn outline(self) -> Vec<ProfileLoop<f64>> {
+    fn outline(self, tol: Tol) -> Vec<ProfileLoop<f64>> {
         // The shoulder between tips `a` and `b`: their midpoint at
         // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
         let shoulder = |a: (f64, f64), b: (f64, f64)| {
@@ -880,70 +921,80 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP — the one place in the tour the presented surface
-        // cannot say what the demo means, recorded rather than worked
-        // around (main.rs's purpose block). Both halves the ruling
-        // named are closed; what is left is a third thing, and it is
-        // about THIS SECTION FAMILY rather than about the lattice.
+        // The outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and
+        // attachment sections must be spelled on one vertex budget. So
+        // one junction per side is a straight run SUBDIVIDED, at both
+        // ends of the shoulder parameter — and which vertices are the
+        // corners MOVES between the two ends:
         //
-        // This outline is FOUR corners said on EIGHT vertices, because a
-        // loft matches segment j to segment j and the tip and attachment
-        // sections must be spelled on one vertex budget. So one junction
-        // per side is a straight run subdivided, at both ends of the
-        // shoulder parameter: at `shoulder = 0` each shoulder is the
-        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
-        // lies ON the rectangle edge its two neighbouring corners span —
-        // collinear with them, though only the ridge and keel tips are
-        // that edge's midpoint (the margins sit at y = 0 on an edge
-        // spanning [-keel, ridge], and no section here has keel = ridge).
-        // Only the eased sections in between turn at every vertex.
+        // - `shoulder = 0` (the kite): each shoulder is the midpoint of
+        //   two tips, so the shoulders subdivide and the TIPS turn;
+        // - `shoulder = 1` (the rectangle): each tip lies on the
+        //   rectangle edge its two neighbouring corners span, so the
+        //   tips subdivide and the SHOULDERS turn;
+        // - in between: every vertex turns.
         //
-        // CLOSED: those junctions are carrier IDENTITY, legal
-        // undeclared, and the lattice spells them — `line(len)` off a
-        // directed point for an interior subdivision, `continue_to(p)`
-        // where the subdivision lands on a named point, and
-        // `continue_to(Start)` for a run that crosses the seam. A
-        // single section of this family authors end to end today.
+        // A loft pins ONE rotation for every section and this ring
+        // starts at a TIP, so the kite's seam is a CORNER and the
+        // rectangle's is a SUBDIVISION. Both are spellings now — the
+        // structural closer for the first and the DECLARED STRAIGHT
+        // ARRIVAL for the second (PATHS-DESIGN §6's revised PQ4) — which
+        // is what lets this section finally author through the
+        // presented surface instead of the kernel's raw door.
         //
-        // OPEN, and measured (`bool8_r1_probes`): the closer needs the
-        // seam cut at a CORNER, and this family's corners MOVE. In the
-        // kite the corners are the tips, so the sections whose seam is
-        // a tip author — starts 0, 2, 4, 6 of the ring below. In the
-        // rectangle the corners are the shoulders, so those sections
-        // want starts 1, 3, 5, 7. The two sets are disjoint, and not by
-        // accident: the kite's corner set IS its tips and the
-        // rectangle's IS its shoulders, which are disjoint points of
-        // the outline whatever budget is spent on it. A loft matches
-        // segment j of every section to segment j of every other, so
-        // every section here must be authored at ONE rotation — and
-        // `leaf_a_plan` carries a `shoulder = 1` base AND a
-        // `shoulder = 0` belly, so no rotation gives all of them a
-        // corner at the seam. The section that misses out closes on a
-        // subdivision vertex, which is a mid-carrier seam: PATHS §6
-        // PQ4, deliberately left standing by the ruling.
-        //
-        // So this loop is still raw-authored: `ProfileLoop`'s fields
-        // are sealed, and the only route left is the kernel's raw door,
-        // `profile::RawLoop`, which `pncad::profile` deliberately
-        // omits. That is why this crate carries a second kernel
-        // dependency — the gap stays loud in the dependency graph
-        // instead of hidden in a struct literal. What would close it is
-        // a ruling on whether a DECLARED subdivision vertex is an
-        // admissible seam; the question is put in PATHS §4.
-        let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![RawLoop::new(vec![
-            v(right),
-            v(shoulder(right, ridge)),
-            v(ridge),
-            v(shoulder(ridge, left)),
-            v(left),
-            v(shoulder(left, keel)),
-            v(keel),
-            v(shoulder(keel, right)),
-        ])]
+        // Nothing here is inferred from a coordinate. The corner set is
+        // AUTHORED beside the shoulder parameter (`Corners`, whose doc
+        // says why it is not derived from it), and every declaration
+        // this makes is then CHECKED by the kernel against the points
+        // the section authored.
+        let p = |(x, y): (f64, f64)| Point2::new(x, y);
+        let ring = [
+            right,
+            shoulder(right, ridge),
+            ridge,
+            shoulder(ridge, left),
+            left,
+            shoulder(left, keel),
+            keel,
+            shoulder(keel, right),
+        ];
+        // The entry authors the first side; from there each leg is
+        // named by the junction it DEPARTS — `line_to` where the
+        // outline turns, `continue_to` where the side continues onto a
+        // named point.
+        let mut path = Open
+            .at(p(ring[0]))
+            .line_to(p(ring[1]), tol)
+            .expect("the section's first side");
+        for (i, v) in ring.iter().enumerate().skip(2) {
+            path = if self.corners.turns_at(i - 1) {
+                path.line_to(p(*v), tol).expect("a section corner")
+            } else {
+                path.continue_to(p(*v), tol).expect("a section subdivision")
+            };
+        }
+        // The seam. Its DEPARTURE is the junction at the last vertex and
+        // its ARRIVAL is the junction at the entry, and the two are
+        // independent: this family reaches three of the four
+        // combinations across its own shoulder range.
+        let closed = match (self.corners.turns_at(7), self.corners.turns_at(0)) {
+            (true, true) => path.line_to(Start, tol),
+            (true, false) => path.line_to(Start.arrives_tangent(), tol),
+            (false, true) => path.continue_to(Start, tol),
+            (false, false) => path.continue_to(Start.arrives_tangent(), tol),
+        };
+        vec![closed.expect("the section's seam").into()]
     }
 
-    /// Linear blend, field by field.
+    /// Linear blend, field by field — except the corner set, which is
+    /// STRUCTURAL and does not interpolate.
+    ///
+    /// It carries through only where it is true: at either END of the
+    /// blend (`s` at its own bounds, not a compare on a blended value),
+    /// and across a blend whose two ends already agree. Anywhere else
+    /// the outline turns at every vertex, which is what a section
+    /// strictly between a kite and a rectangle does.
     fn lerp(self, other: Self, s: f64) -> Self {
         let f = |a: f64, b: f64| a + (b - a) * s;
         Self {
@@ -951,6 +1002,15 @@ impl Section {
             ridge: f(self.ridge, other.ridge),
             keel: f(self.keel, other.keel),
             shoulder: f(self.shoulder, other.shoulder),
+            corners: if s <= 0.0 {
+                self.corners
+            } else if s >= 1.0 {
+                other.corners
+            } else if self.corners == other.corners {
+                self.corners
+            } else {
+                Corners::Every
+            },
         }
     }
 }
@@ -1097,7 +1157,7 @@ fn try_lofted_blade<S: Scalar>(
             ct * vk.1 - st * u.1,
             ct * vk.2 - st * u.2,
         );
-        sections.push(plan.at(s).outline());
+        sections.push(plan.at(s).outline(tol));
         places.push(
             SketchPlane::from_frame(
                 pt3(p.0, p.1, p.2),
@@ -1361,12 +1421,14 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             ridge: 0.014,
             keel: 0.008,
             shoulder: 1.0,
+            corners: Corners::Shoulders,
         },
         belly: Section {
             width: 0.265,
             ridge: 0.017,
             keel: 0.008,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         belly_at: 0.30,
         tip: Section {
@@ -1374,6 +1436,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
             ridge: 0.006,
             keel: 0.004,
             shoulder: 0.0,
+            corners: Corners::Tips,
         },
         // Appressed at the base (the face lies on the globe), rolling
         // its face outward toward the tip.
