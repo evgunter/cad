@@ -53,7 +53,7 @@
 //! samples anything.
 
 use super::super::knots::KnotVector;
-use super::{bern_mul_row, binom_row, to_bezier_spans_extra};
+use super::{bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra};
 use crate::ring_interval::RingInterval;
 
 /// One scalar channel of a tensor-product spline in per-cell Bernstein
@@ -305,9 +305,10 @@ impl PatchSpans {
         }
         let (a, b) = (self.deg_u, self.deg_v);
         let (c, d) = (other.deg_u, other.deg_v);
-        let bin_a = binom_row(a);
-        let bin_c = binom_row(c);
-        let bin_ac = binom_row(a + c);
+        // The two weight tables are functions of the bidegrees alone,
+        // so one pair of them serves every cell of this product.
+        let wu = bern_weights(a, c);
+        let wv = bern_weights(b, d);
         let cells = self
             .cells
             .iter()
@@ -315,7 +316,7 @@ impl PatchSpans {
             .map(|(ra, rb)| {
                 ra.iter()
                     .zip(rb.iter())
-                    .map(|(ba, bb)| mul_block(ba, bb, (a, b), (c, d), &bin_a, &bin_c, &bin_ac))
+                    .map(|(ba, bb)| mul_block(ba, bb, (a, b), (c, d), &wu, &wv))
                     .collect()
             })
             .collect();
@@ -360,25 +361,30 @@ fn elevate_block(
     one: RingInterval,
 ) -> Vec<RingInterval> {
     let nv = deg_v + 1;
-    // v-direction first, per u index.
+    // v-direction first, per u index. One weight table and one
+    // all-ones row serve every index: both are functions of the
+    // degrees alone.
+    let ones_v = vec![one; pad_v + 1];
+    let wv = bern_weights(deg_v, pad_v);
     let mut rows: Vec<Vec<RingInterval>> = (0..=deg_u)
         .map(|i| {
             let row = &block[i * nv..(i + 1) * nv];
             if pad_v == 0 {
                 row.to_vec()
             } else {
-                bern_mul_row(row, &vec![one; pad_v + 1])
+                bern_mul_row_with(row, &ones_v, &wv)
             }
         })
         .collect();
     if pad_u > 0 {
         let width = rows.first().map_or(0, Vec::len);
         let ones = vec![one; pad_u + 1];
+        let wu = bern_weights(deg_u, pad_u);
         let mut out: Vec<Vec<RingInterval>> =
             vec![vec![RingInterval::zero(); width]; deg_u + pad_u + 1];
         for k in 0..width {
             let col: Vec<RingInterval> = rows.iter().map(|r| r[k]).collect();
-            let elevated = bern_mul_row(&col, &ones);
+            let elevated = bern_mul_row_with(&col, &ones, &wu);
             for (j, e) in elevated.iter().enumerate() {
                 out[j][k] = *e;
             }
@@ -396,25 +402,91 @@ fn mul_block(
     bb: &[RingInterval],
     (a, b): (usize, usize),
     (c, d): (usize, usize),
-    bin_a: &[f64],
-    bin_c: &[f64],
-    bin_ac: &[f64],
+    wu: &[Vec<RingInterval>],
+    wv: &[Vec<RingInterval>],
 ) -> Vec<RingInterval> {
     let (nb, nd) = (b + 1, d + 1);
     let out_v = b + d + 1;
     let mut out = vec![RingInterval::zero(); (a + c + 1) * out_v];
+    // One row buffer for the whole block: the v-product overwrites it
+    // per `(i, k)` pair and is consumed before the next pair runs.
+    let mut prod: Vec<RingInterval> = Vec::with_capacity(out_v);
     // Fixed ascending order throughout (D9).
     for i in 0..=a {
         let row_a = &ba[i * nb..(i + 1) * nb];
         for k in 0..=c {
             let row_b = &bb[k * nd..(k + 1) * nd];
-            let prod = bern_mul_row(row_a, row_b);
+            bern_mul_row_into(row_a, row_b, wv, &mut prod);
             let r = i + k;
-            let w = RingInterval::point(bin_a[i] * bin_c[k]) / RingInterval::point(bin_ac[r]);
+            let w = wu[r][i - r.saturating_sub(c)];
             for (t, p) in prod.iter().enumerate() {
                 out[r * out_v + t] = out[r * out_v + t] + *p * w;
             }
         }
     }
     out
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// The one cell `(su, sv)` of `p`, as a patch in its own right.
+    fn single_cell(p: &PatchSpans, su: usize, sv: usize) -> PatchSpans {
+        PatchSpans {
+            deg_u: p.deg_u,
+            deg_v: p.deg_v,
+            breaks_u: vec![p.breaks_u[su], p.breaks_u[su + 1]],
+            breaks_v: vec![p.breaks_v[sv], p.breaks_v[sv + 1]],
+            cells: vec![vec![p.cells[su][sv].clone()]],
+        }
+    }
+
+    fn decomposed(du: usize, dv: usize, seed: f64) -> PatchSpans {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0], du).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0], dv).unwrap();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let grid: Vec<RingInterval> = (0..nu * nv)
+            .map(|n| {
+                let c = (n as f64 - 5.0) * seed / 3.0;
+                RingInterval::from_bounds(c - 2e-14, c + 5e-14)
+            })
+            .collect();
+        PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
+    }
+
+    /// The tensor product is separable over cells: a cell's
+    /// coefficients are a function of that cell's two operand blocks
+    /// alone, bit for bit. This is what licenses forming a product
+    /// only on the cells that read it.
+    #[test]
+    fn a_products_cell_is_the_same_formed_whole_patch_or_alone() {
+        let a = decomposed(2, 2, 1.0);
+        let b = decomposed(2, 2, -0.7);
+        let whole = a.mul(&b);
+        let (nu, nv) = whole.cell_counts();
+        assert!(nu > 1 && nv > 1, "the fixture must have interior breaks");
+        for su in 0..nu {
+            for sv in 0..nv {
+                let alone = single_cell(&a, su, sv).mul(&single_cell(&b, su, sv));
+                let (got, want) = (&alone.cells[0][0], &whole.cells[su][sv]);
+                assert_eq!(got.len(), want.len(), "block width at ({su}, {sv})");
+                for (n, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                    assert!(
+                        g.lo().to_bits() == w.lo().to_bits()
+                            && g.hi().to_bits() == w.hi().to_bits(),
+                        "cell ({su}, {sv}) coefficient {n}: {g:?} vs {w:?}"
+                    );
+                }
+                // The hull the bound actually reads follows.
+                let (gh, wh) = (alone.cell_hull(0, 0), whole.cell_hull(su, sv));
+                assert!(
+                    gh.lo().to_bits() == wh.lo().to_bits()
+                        && gh.hi().to_bits() == wh.hi().to_bits(),
+                    "cell hull at ({su}, {sv}): {gh:?} vs {wh:?}"
+                );
+            }
+        }
+    }
 }

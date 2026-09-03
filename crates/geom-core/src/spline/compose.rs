@@ -51,6 +51,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::ring_interval::RingInterval;
+use std::borrow::Cow;
 
 pub mod patch;
 pub mod tensor;
@@ -452,25 +453,91 @@ fn binom_table() -> &'static [Vec<f64>] {
 /// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
 /// [`BINOM_EXACT_MAX`] already poisons through `binom_row`.
 fn bern_mul_row(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
-    let da = a.len() - 1;
-    let db = b.len() - 1;
+    let w = bern_weights(a.len() - 1, b.len() - 1);
+    bern_mul_row_with(a, b, &w)
+}
+
+/// The Bernstein product's weight rows for one degree pair:
+/// `rows[k][i − lo(k)] = C(da,i)·C(db,k−i)/C(da+db,k)` as the ring
+/// quotient, over the `i` the convolution actually visits
+/// (`lo(k) = k − db` clamped at zero, up to `min(k, da)`), in the
+/// ascending order [`bern_mul_row_with`] folds them in.
+///
+/// The weight depends on the two DEGREES alone — pure structure — so
+/// there is exactly one value per `(da, db, k, i)` for the life of the
+/// process, while the loop that reads it runs once per coefficient
+/// pair of every span of every product. This is a memo, not a second
+/// spelling: each entry is the same two `f64` binomials multiplied and
+/// the same ring division, in the same order, bit for bit.
+fn build_bern_weights(da: usize, db: usize) -> Vec<Vec<RingInterval>> {
     let bin_a = binom_row(da);
     let bin_b = binom_row(db);
     let bin_ab = binom_row(da + db);
-    let mut out = Vec::with_capacity(da + db + 1);
-    for (k, bk) in bin_ab.iter().enumerate() {
+    bin_ab
+        .iter()
+        .enumerate()
+        .map(|(k, bk)| {
+            // `point(*bk)` is a pure constructor of the same divisor
+            // the inline loop rebuilt per term; the quotients below
+            // are that loop's, term for term.
+            let den = RingInterval::point(*bk);
+            (k.saturating_sub(db)..=k.min(da))
+                .map(|i| RingInterval::point(bin_a[i] * bin_b[k - i]) / den)
+                .collect()
+        })
+        .collect()
+}
+
+/// [`build_bern_weights`], memoized on the degree pair. The table is
+/// built on first ask and shared thereafter; a degree past
+/// [`BINOM_EXACT_MAX`] (whose rows are all-poison anyway, and which no
+/// kernel-sized spline reaches) is served fresh rather than given a
+/// slot, so the grid stays bounded without a second builder.
+fn bern_weights(da: usize, db: usize) -> Cow<'static, [Vec<RingInterval>]> {
+    const N: usize = BINOM_EXACT_MAX + 1;
+    if da >= N || db >= N {
+        return Cow::Owned(build_bern_weights(da, db));
+    }
+    static GRID: std::sync::OnceLock<Vec<std::sync::OnceLock<Vec<Vec<RingInterval>>>>> =
+        std::sync::OnceLock::new();
+    let grid = GRID.get_or_init(|| (0..N * N).map(|_| std::sync::OnceLock::new()).collect());
+    Cow::Borrowed(grid[da * N + db].get_or_init(|| build_bern_weights(da, db)))
+}
+
+/// [`bern_mul_row`] over a weight table the caller already holds —
+/// the entry point for the tensor product, where one degree pair
+/// serves every cell of a whole patch.
+fn bern_mul_row_with(
+    a: &[RingInterval],
+    b: &[RingInterval],
+    w: &[Vec<RingInterval>],
+) -> Vec<RingInterval> {
+    let mut out = Vec::with_capacity(w.len());
+    bern_mul_row_into(a, b, w, &mut out);
+    out
+}
+
+/// [`bern_mul_row_with`] into a caller-owned buffer (overwritten), so
+/// a loop over cells allocates one output row rather than one per
+/// coefficient block.
+fn bern_mul_row_into(
+    a: &[RingInterval],
+    b: &[RingInterval],
+    w: &[Vec<RingInterval>],
+    out: &mut Vec<RingInterval>,
+) {
+    let db = b.len() - 1;
+    out.clear();
+    out.reserve(w.len());
+    for (k, wk) in w.iter().enumerate() {
+        let lo = k.saturating_sub(db);
         let mut acc = RingInterval::zero();
-        for (i, ai) in a.iter().enumerate() {
-            let Some(j) = k.checked_sub(i) else { continue };
-            if j > db {
-                continue;
-            }
-            let w = RingInterval::point(bin_a[i] * bin_b[j]) / RingInterval::point(*bk);
-            acc = acc + *ai * b[j] * w;
+        for (t, wt) in wk.iter().enumerate() {
+            let i = lo + t;
+            acc = acc + a[i] * b[k - i] * *wt;
         }
         out.push(acc);
     }
-    out
 }
 
 /// A structurally-poisoned channel: the shape mismatch outcome for the
@@ -1139,6 +1206,130 @@ mod tests {
         // hull's honest reach (not vacuously wide).
         let worst = assert_sound(&lin, &kv, &w, &coords, |p| 2.0 * p[0] - p[1] + 3.0);
         assert!(lin.sup_bound() <= 4.0 * worst.max(1.0));
+    }
+
+    /// The recurrence [`build_bern_weights`] replaces, spelled inline
+    /// exactly as the product loop used to spell it — the oracle for
+    /// the rows below, and the only place this arithmetic appears
+    /// twice.
+    fn weight_inline(da: usize, db: usize, k: usize, i: usize) -> RingInterval {
+        let bin_a = binom_row(da);
+        let bin_b = binom_row(db);
+        let bin_ab = binom_row(da + db);
+        RingInterval::point(bin_a[i] * bin_b[k - i]) / RingInterval::point(bin_ab[k])
+    }
+
+    /// Bitwise identity of a ring value: NaN endpoints compare equal
+    /// to each other and to nothing else, which is what a poisoned
+    /// weight has to preserve.
+    fn same_bits(x: RingInterval, y: RingInterval) -> bool {
+        x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
+    }
+
+    #[test]
+    fn the_memoized_weight_table_is_the_recurrence_it_replaces_bitwise() {
+        // Every degree pair the kernel can produce, and then the
+        // straddle: `da + db` past the exactness cap (all-poison rows)
+        // and a single degree past it (the un-slotted path).
+        let mut pairs: Vec<(usize, usize)> = Vec::new();
+        for da in 0..=12 {
+            for db in 0..=12 {
+                pairs.push((da, db));
+            }
+        }
+        pairs.extend([
+            (BINOM_EXACT_MAX, 0),
+            (BINOM_EXACT_MAX - 1, 1),
+            (27, 27),
+            (BINOM_EXACT_MAX, 1),
+            (BINOM_EXACT_MAX, BINOM_EXACT_MAX),
+            (BINOM_EXACT_MAX + 1, 0),
+            (BINOM_EXACT_MAX + 1, 3),
+            (80, 2),
+        ]);
+        for (da, db) in pairs {
+            let rows = bern_weights(da, db);
+            assert_eq!(rows.len(), da + db + 1, "row count at ({da}, {db})");
+            let poisoned = da + db > BINOM_EXACT_MAX;
+            for (k, row) in rows.iter().enumerate() {
+                let lo = k.saturating_sub(db);
+                assert_eq!(
+                    row.len(),
+                    k.min(da) + 1 - lo,
+                    "row {k} width at ({da}, {db})"
+                );
+                for (t, w) in row.iter().enumerate() {
+                    let i = lo + t;
+                    assert!(
+                        same_bits(*w, weight_inline(da, db, k, i)),
+                        "weight ({da}, {db}) k={k} i={i}: memo {w:?} vs recurrence {:?}",
+                        weight_inline(da, db, k, i)
+                    );
+                    // Past the cap the row is all-poison, and the memo
+                    // must carry the poison rather than a rounded
+                    // weight (`binom_row`'s contract).
+                    assert_eq!(
+                        w.lo().is_nan() && w.hi().is_nan(),
+                        poisoned,
+                        "poison at ({da}, {db}) k={k} i={i}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_row_product_is_the_inline_convolution_bitwise() {
+        // Coefficient rows with mixed sign, magnitude and width, so a
+        // dropped or reordered term shows in the endpoints.
+        let sample = |n: usize, seed: usize| -> Vec<RingInterval> {
+            (0..=n)
+                .map(|i| {
+                    let c = (i as f64 - 3.5) * (1.0 + seed as f64) / 7.0;
+                    RingInterval::from_bounds(c - 1e-13, c + 3e-13)
+                })
+                .collect()
+        };
+        for da in 0..=9 {
+            for db in 0..=9 {
+                let a = sample(da, da + 1);
+                let b = sample(db, db + 3);
+                // The pre-memo spelling, term for term.
+                let mut want = Vec::with_capacity(da + db + 1);
+                for k in 0..=(da + db) {
+                    let mut acc = RingInterval::zero();
+                    for (i, ai) in a.iter().enumerate() {
+                        let Some(j) = k.checked_sub(i) else { continue };
+                        if j > db {
+                            continue;
+                        }
+                        acc = acc + *ai * b[j] * weight_inline(da, db, k, i);
+                    }
+                    want.push(acc);
+                }
+                let got = bern_mul_row(&a, &b);
+                assert_eq!(got.len(), want.len(), "row length at ({da}, {db})");
+                for (k, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                    assert!(
+                        same_bits(*g, *w),
+                        "product ({da}, {db}) coefficient {k}: {g:?} vs {w:?}"
+                    );
+                }
+                // A buffer carrying another product's row must leave
+                // no residue: the scratch entry point overwrites.
+                let mut buf = bern_mul_row(&b, &a);
+                buf.push(RingInterval::point(7.0));
+                let w = bern_weights(da, db);
+                bern_mul_row_into(&a, &b, &w, &mut buf);
+                assert_eq!(buf.len(), want.len(), "reused buffer length ({da}, {db})");
+                for (k, (g, w)) in buf.iter().zip(want.iter()).enumerate() {
+                    assert!(
+                        same_bits(*g, *w),
+                        "reused buffer ({da}, {db}) coefficient {k}: {g:?} vs {w:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
