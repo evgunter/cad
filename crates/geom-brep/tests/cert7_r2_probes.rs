@@ -28,14 +28,11 @@ use std::sync::Arc;
 
 use geom::NurbsSurface;
 use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset, recertify_approx};
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
 use crate::shared::fixture::{arc_weight, kv2, quarter_cylinder};
 use crate::shared::sample::{grid, worst_offset_residual};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::tol::band;
 
 /// An ellipse-of-revolution wall: the elliptic meridian arc from
 /// angle `t0` to `t1` (circle arc scaled `a` in x, `b` in z), revolved

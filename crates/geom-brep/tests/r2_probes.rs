@@ -26,29 +26,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::table;
 use geom::{Curve3, Surface};
 use geom_brep::{
     CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, implicit_residual, sample_param,
 };
 use geom_core::{Band, Point3, Vec3};
 
-fn table(
-    surfs: Vec<Surface<f64>>,
-) -> (
-    Vec<geom_brep::SurfaceKey>,
-    impl Fn(geom_brep::SurfaceKey) -> Option<Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<f64>> =
-        slotmap::SlotMap::with_key();
-    let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
-}
-
 /// The probes' fixed drift, and the band built from it (adoption note
 /// 2 in the module docs). Four times the drift is the same fraction
 /// of the band R2's `eps() * 0.25` had, without the ε coupling.
 const DRIFT: f64 = 2.5e-10;
 
+/// Built from `DRIFT` above, not from the run's ε, and therefore
+/// deliberately not `shared::tol::band` — see that constant's note.
 fn band() -> Band {
     Band::new(4.0 * DRIFT, 40.0 * DRIFT).expect("the probes' own band")
 }

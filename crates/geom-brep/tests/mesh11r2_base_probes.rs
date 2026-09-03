@@ -9,32 +9,21 @@
     clippy::print_stdout
 )]
 
-use geom::Curve3;
+use crate::shared::tol::band;
+use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
 use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 
 const PI: f64 = core::f64::consts::PI;
 const RS: f64 = 0.010;
 
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 fn great(t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, -1.0, 0.0),
-            radius: RS,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
-        t0,
-        t1,
-        a,
-        b,
-    )
+    // The u = 0 case: sin 0 and cos 0 are exact, so the shared
+    // builder's axis is bit-identical to the (0, -1, 0) this row
+    // used to spell out, and its u_ref to (1, 0, 0).
+    topo::sphere_great(RS, 0.0, t0, t1, a, b)
 }
 
 #[test]
@@ -45,7 +34,7 @@ fn r2_base_the_fold_on_a_saturated_span_measures_the_hemisphere() {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let bd = Band::linear(Tol::witness()).unwrap();
+    let bd = band();
     let exact = 2.0 * PI * RS * RS;
     let mut short = Vec::new();
     for k in 1..=400 {
