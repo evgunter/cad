@@ -13,7 +13,7 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use mesh::budget::{self, FaceMeasure, Mode};
 use profile::{ProfileLoop, RawLoop as _};
 use sweep::loft_body;
-use tess_meter::{Bound, Chart, best_split_cells, divisions, face_rows};
+use tess_meter::{Bound, Chart, Sizing, best_split_cells, divisions, face_rows};
 use test_utils::vacuity::Exposure;
 use topo::Body;
 
@@ -64,13 +64,22 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     );
     for r in &rows {
         assert_eq!(
-            r.nurbs.is_some(),
+            r.sizing.columns().is_some(),
             r.chart == Chart::Nurbs,
             "sizing columns belong to the Hessian-sized lane and to no other"
         );
+        // The empty tail this fixture's caps take is `OffLane` — the
+        // lane fact — and there is no other way for a row to reach it.
+        assert!(
+            matches!(r.sizing, Sizing::OffLane) == (r.chart == Chart::Plane),
+            "face {}: chart {} took {:?}",
+            r.face,
+            r.chart.tag(),
+            r.sizing
+        );
     }
 
-    let walls: Vec<_> = rows.iter().filter_map(|r| r.nurbs).collect();
+    let walls: Vec<_> = rows.iter().filter_map(|r| r.sizing.columns()).collect();
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     for n in &walls {
         assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
@@ -126,21 +135,88 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     }
 }
 
-/// A face the meter said nothing about still gets a row, and its row
-/// is the empty-tailed shape — a zero in a sizing column would read as
-/// a measured zero.
+/// An OFF-LANE face still gets a row, and its row is the empty-tailed
+/// shape — a zero in a sizing column would read as a measured zero.
+///
+/// The width check runs over both shapes because both are here: this
+/// fixture's caps are planar and its walls are splines, so one call
+/// produces one of each.
 #[test]
-fn a_face_with_no_measurements_gets_an_empty_tailed_row() {
+fn an_off_lane_face_gets_an_empty_tailed_row() {
     let tol = Tol::witness();
     let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
     let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
-    let rows = face_rows(6e-3, &body, &mesh, &[]);
+    let measures = budget::take();
+    let rows = face_rows(6e-3, &body, &mesh, &measures);
     assert_eq!(rows.len(), body.faces().count());
-    assert!(rows.iter().all(|r| r.nurbs.is_none()));
+
+    let caps: Vec<_> = rows.iter().filter(|r| r.chart == Chart::Plane).collect();
+    assert!(!caps.is_empty(), "the loft's caps are planar faces");
     let cols = tess_meter::CSV_HEADER.split(',').count();
+    for r in &caps {
+        assert!(matches!(r.sizing, Sizing::OffLane), "{:?}", r.sizing);
+        let head = head_columns();
+        assert_eq!(
+            r.csv_row("s/b").split(',').skip(head).collect::<Vec<_>>(),
+            vec![""; cols - head],
+            "an off-lane row's sizing columns are empty, not zero"
+        );
+    }
     for r in &rows {
         assert_eq!(r.csv_row("s/b").split(',').count(), cols);
     }
+}
+
+/// How many columns every row fills whatever its lane: through
+/// `triangles`, the last head column. Derived from the header rather
+/// than counted by hand, so a head column added there cannot silently
+/// shorten the tail this file checks is empty.
+fn head_columns() -> usize {
+    tess_meter::CSV_HEADER
+        .split(',')
+        .take_while(|c| *c != "triangles")
+        .count()
+        + 1
+}
+
+/// **A face measured TWICE is a refusal too** — the other half of the
+/// same discard, one line up: building the lookup `collect`s into a
+/// map, and a map drops a collision, so two readings of one face
+/// become whichever one iteration order handed over last.
+#[test]
+#[should_panic(expected = "distinct faces: a face measured twice")]
+fn a_face_measured_twice_refuses() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
+    let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
+    let mut measures = budget::take();
+    measures.push(measures[0].clone());
+    let _ = face_rows(6e-3, &body, &mesh, &measures);
+}
+
+/// **A sized-lane face no measurement covers is a REFUSAL, not an
+/// empty-tailed row** — the distinction the empty tail cannot carry.
+///
+/// The same body and the same mesh as the row above, minus the
+/// arming. Every column of the tail would be empty, which is exactly
+/// what a planar cap writes, so the CSV would report the loft's four
+/// spline walls as faces the Hessian-sized lane never touched — the
+/// budget's whole subject, accounted at zero, with nothing anywhere
+/// saying a measurement was missing.
+///
+/// This is the state an UNARMED run is in end to end, not a corner:
+/// `mesh::budget::armed()` answers `false` without the `budget`
+/// feature, so `take()` — where it exists at all — yields nothing and
+/// every sized face in every body lands here.
+#[test]
+#[should_panic(expected = "the Hessian-sized lane's, and no measurement covers it")]
+fn a_sized_lane_face_with_no_measurement_refuses() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
+    let _ = face_rows(6e-3, &body, &mesh, &[]);
 }
 
 /// The chordal tolerance every row in this file is measured at.
@@ -221,7 +297,7 @@ fn the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target() {
     let mut seen = Exposure::new("δ_s sensitivity");
     let mut nurbs_rows = 0usize;
     for (ordinal, patch) in mesh.patches.iter().enumerate() {
-        let Some(n) = rows[ordinal].nurbs else {
+        let Some(n) = rows[ordinal].sizing.columns() else {
             continue;
         };
         nurbs_rows += 1;

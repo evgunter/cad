@@ -8,7 +8,7 @@
 
 use tess_meter::{
     Bound, CSV_HEADER, Chart, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES,
-    SplitScan, best_split_cells, best_split_scan, best_split_steps, divisions,
+    Sizing, SplitScan, best_split_cells, best_split_scan, best_split_steps, divisions,
     floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
     split_scan_aspects, unfloored_worst_excess,
 };
@@ -869,12 +869,12 @@ fn both_row_shapes_have_the_headers_width() {
         chart: Chart::Plane,
         delta: 1e-3,
         triangles: 2,
-        nurbs: None,
+        sizing: Sizing::OffLane,
     };
     assert_eq!(plane.csv_row("s/b").split(',').count(), cols);
     let nurbs = FaceRow {
         chart: Chart::Nurbs,
-        nurbs: Some(NurbsColumns {
+        sizing: Sizing::Measured(NurbsColumns {
             u: (0.0, 1.0),
             v: (0.0, 1.0),
             nu: 4.0,

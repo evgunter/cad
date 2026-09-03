@@ -190,6 +190,11 @@
 //! it is the lane whose grid is Hessian-sized, and the one #320 is
 //! about. Non-NURBS rows leave those columns empty rather than
 //! reporting a zero that would read as a measurement.
+//!
+//! An empty tail is therefore a statement about the face's LANE, and
+//! it is typed as one ([`Sizing`]) so that a missing measurement
+//! cannot borrow it: a sized-lane face `measures` does not cover is a
+//! refusal, not a row.
 
 use std::collections::HashMap;
 
@@ -267,6 +272,27 @@ impl Chart {
             Chart::Approx => "approx",
         }
     }
+
+    /// Is a face of this chart one the meter measures — i.e. does its
+    /// row OWE the Hessian-sized columns?
+    ///
+    /// This is the meter's contract read from the chart alone, which
+    /// is all a row has: `mesh` hands a `FaceMeasure` over for exactly
+    /// the faces its trimmed lane took on the NURBS arm, and that arm
+    /// is chosen by surface kind — a described NURBS face, or an
+    /// approximating surface meshed on its fit. Every other chart is
+    /// measured by nothing, so its sizing columns are empty because
+    /// there is nothing to put in them.
+    ///
+    /// **No wildcard arm.** A chart added to this enum is a face kind
+    /// whose lane nobody has yet decided, and the compiler is the
+    /// right party to ask.
+    pub fn sized_lane(self) -> bool {
+        match self {
+            Chart::Plane | Chart::Cylinder | Chart::Cone | Chart::Sphere | Chart::Torus => false,
+            Chart::Nurbs | Chart::Approx => true,
+        }
+    }
 }
 
 /// The Hessian-sized lane's own columns (module docs).
@@ -339,6 +365,39 @@ pub struct NurbsColumns {
     pub realized_aspect: f64,
 }
 
+/// What a row says about the Hessian-sized lane's columns.
+///
+/// **The type exists so that an EMPTY sizing tail is a lane fact and
+/// can be nothing else.** The CSV spells [`Self::OffLane`] as empty
+/// columns, and a reader — `tools/tess-lint` included — takes that as
+/// *"this face is not on the sized lane"*. An `Option` cannot hold
+/// that claim apart from *"nobody looked, or the lookup missed"*, and
+/// the two are opposite readings of the same row: the first says the
+/// budget has no sizing to account for here, the second says the
+/// accounting is short by a face nobody will notice. So the second
+/// state is not in this enum at all — it is refused where the lookup
+/// happens ([`face_rows`]) rather than carried to a consumer that
+/// cannot tell it apart.
+#[derive(Clone, Copy, Debug)]
+pub enum Sizing {
+    /// The face's chart is not the sized lane's ([`Chart::sized_lane`]),
+    /// so there is nothing to report and the CSV's sizing columns are
+    /// EMPTY — not zero, which would read as a measured zero.
+    OffLane,
+    /// The sized lane's columns, derived from that face's measurement.
+    Measured(NurbsColumns),
+}
+
+impl Sizing {
+    /// The columns, where there are any.
+    pub fn columns(self) -> Option<NurbsColumns> {
+        match self {
+            Sizing::OffLane => None,
+            Sizing::Measured(n) => Some(n),
+        }
+    }
+}
+
 /// One face's budget row.
 #[derive(Clone, Copy, Debug)]
 pub struct FaceRow {
@@ -351,8 +410,9 @@ pub struct FaceRow {
     pub delta: f64,
     /// Triangles the face contributed.
     pub triangles: usize,
-    /// The Hessian-sized lane's columns, when that is the lane.
-    pub nurbs: Option<NurbsColumns>,
+    /// The Hessian-sized lane's columns, or the lane fact that there
+    /// are none.
+    pub sizing: Sizing,
 }
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
@@ -375,7 +435,8 @@ fn nurbs_column_count() -> usize {
 impl FaceRow {
     /// This row as CSV under `scene`, in [`CSV_HEADER`] order. NURBS
     /// columns are EMPTY (not zero) on a non-NURBS row — a zero there
-    /// would read as a measured zero.
+    /// would read as a measured zero, and an empty tail is a claim
+    /// about the LANE ([`Sizing`]), never about the lookup.
     ///
     /// Floats print `{:e}`, which round-trips through `str::parse`.
     pub fn csv_row(&self, scene: &str) -> String {
@@ -386,12 +447,12 @@ impl FaceRow {
             self.delta,
             self.triangles
         );
-        match self.nurbs {
+        match self.sizing {
             // The empty tail is COUNTED from the header rather than
             // written as a run of commas, so a new column cannot make
             // the two arms disagree about the row's width.
-            None => format!("{head}{}", ",".repeat(nurbs_column_count())),
-            Some(n) => format!(
+            Sizing::OffLane => format!("{head}{}", ",".repeat(nurbs_column_count())),
+            Sizing::Measured(n) => format!(
                 "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
                  {:e},{:e},{:e},{:e},{:e},{:e},{},{},{},{},{:e}",
                 n.u.0,
@@ -433,6 +494,16 @@ impl FaceRow {
 ///
 /// If `mesh` did not come from tessellating `body` — a patch naming a
 /// face the body does not have is harness breakage, not a measurement.
+///
+/// If `measures` names one face twice — two tessellations' output in
+/// one slice, where the row can carry one reading.
+///
+/// If `measures` and `body` disagree about which faces the sized lane
+/// took: a face on that lane no measurement covers, or a measurement
+/// naming a face that is not. Both are the same breakage one field
+/// over — a mesh, a body and a measurement slice that did not come
+/// from one armed tessellation — and [`sizing_of`] argues why neither
+/// may become a row instead.
 pub fn face_rows(
     delta: f64,
     body: &Body<f64>,
@@ -441,6 +512,19 @@ pub fn face_rows(
 ) -> Vec<FaceRow> {
     let by_face: HashMap<topo::FaceKey, &FaceMeasure> =
         measures.iter().map(|m| (m.face, m)).collect();
+    // A `collect` into a map DROPS a collision, and the collision it
+    // would drop here is a face measured twice: two readings of one
+    // face where the row carries one, picked by iteration order. The
+    // meter hands each face over exactly once per tessellation, so
+    // this is measurements from two of them in one slice.
+    assert_eq!(
+        by_face.len(),
+        measures.len(),
+        "{} measurements name only {} distinct faces: a face measured twice is two \
+         tessellations' measurements in one slice",
+        measures.len(),
+        by_face.len()
+    );
     mesh.patches
         .iter()
         .enumerate()
@@ -449,15 +533,59 @@ pub fn face_rows(
                 .get_face(patch.face)
                 .and_then(|f| body.get_surface(f.surface))
                 .expect("the mesh's patches name this body's faces");
+            let chart = Chart::of(surface);
             FaceRow {
                 face: ordinal,
-                chart: Chart::of(surface),
+                chart,
                 delta,
                 triangles: patch.triangles.len(),
-                nurbs: by_face.get(&patch.face).map(|m| columns(m)),
+                sizing: sizing_of(ordinal, chart, by_face.get(&patch.face).copied()),
             }
         })
         .collect()
+}
+
+/// One face's [`Sizing`], from the chart its row already carries and
+/// whatever measurement the lookup found for it.
+///
+/// **The 2×2 is the point, and two of its cells are refusals.** Only
+/// two of the four combinations are a state this crate can write down;
+/// the other two are the chart and the meter disagreeing about which
+/// lane a face took, and each would otherwise leave the CSV saying
+/// something false and saying it quietly:
+///
+/// - a sized-lane face no measurement covers would take the EMPTY
+///   sizing tail, which is [`Sizing::OffLane`]'s spelling and reads
+///   everywhere as *"this face is not on the sized lane"* — so the
+///   face would drop out of the budget's accounting without appearing
+///   anywhere as missing. It is the whole-corpus state of an UNARMED
+///   run, not a corner: `mesh::budget::armed()` is a `const fn`
+///   answering `false` without the `budget` feature, so a caller that
+///   forgot to arm, or built without it, hands over an empty slice and
+///   every NURBS face in the body reads as a plane's.
+/// - an off-lane face WITH a measurement would hang the sized lane's
+///   columns on a chart nothing sizes that way.
+///
+/// A fallback cannot improve either, and the reason is the one stated
+/// once for every column (module docs, *Which columns may carry a
+/// fallback: none of them*): these columns are read by a DIFFERENTIAL
+/// gate, so a value this crate could not take has two ways to lie.
+fn sizing_of(ordinal: usize, chart: Chart, measure: Option<&FaceMeasure>) -> Sizing {
+    match (chart.sized_lane(), measure) {
+        (false, None) => Sizing::OffLane,
+        (true, Some(m)) => Sizing::Measured(columns(m)),
+        (true, None) => panic!(
+            "face {ordinal} is chart `{}`, the Hessian-sized lane's, and no measurement \
+             covers it: the meter was not armed for this tessellation, or these are not \
+             the measurements it took",
+            chart.tag()
+        ),
+        (false, Some(_)) => panic!(
+            "face {ordinal} is chart `{}`, which the meter measures nothing about, and a \
+             measurement names it anyway",
+            chart.tag()
+        ),
+    }
 }
 
 /// The whole CSV for one scene, header included.
