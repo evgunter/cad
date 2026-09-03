@@ -2,9 +2,10 @@
 id: TCOST-6
 kind: unit
 title: editor-core's interval probes and the three fixture-dump infra rows
-status: dispatched
+status: review
 opened: 2026-09-03
 branch: tcost/6-editor-core-interval-probes
+pr: 1666
 ---
 
 Cut at the timing census (`log.md`): editor-core's interval probes
