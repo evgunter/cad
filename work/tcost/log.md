@@ -808,3 +808,22 @@ outgrew the unit — a branch's first build job restores nothing
 verified by its 275 MB save — is TCOST-B3, dispatched. The four
 CI-posture units are landed: PR side −5 billed minutes on a typical
 code-tier run, nightly side +~7.
+
+## Seam: hosted CI down account-wide — the Actions spending limit (2026-09-03, from 11:52 UTC)
+
+Every `ci.yml` run created after 11:52 UTC fails within seconds with
+no job started, on main and every branch ("The job was not started
+because an Actions budget is preventing further use"); the last run
+to get a runner was 33751935948 at 11:51. Verified against the run
+list, not a lane's clock (an earlier "stall" report from the TCOST-9
+lane was a clock error and is retracted). Routed to Ev as an `[ev]`
+PR carrying `work/issues/actions-budget-denies-job-starts.md`
+(`needs_ev: true`; the B3 lane filed it). Lanes told: no empty
+commits to re-gate until CI is back. State at the cut: TCOST-9's
+head green on both test legs (only the runner-less archive-cleanup
+job red); TCOST-B3's default run green on every job that started,
+test legs never started; K1's fix pass had a green default-lane run
+at 11:45. TCOST-B3 is in review (PR 1684) — its finding is the
+program's biggest CI-minutes lever so far: ~45 billed minutes an
+hour going to dependency rebuilds on a cache no branch could read,
+against ~7 for a main-scoped primer.

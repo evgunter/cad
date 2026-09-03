@@ -2,10 +2,11 @@
 id: TCOST-B3
 kind: unit
 title: rust-cache misses on the build job: 'No cache found' on five of seven build jobs and the control
-status: dispatched
+status: review
 opened: 2026-09-03
 refs: [TCOST-C4]
 branch: tcost/b3-rust-cache-misses
+pr: 1684
 ---
 
 
