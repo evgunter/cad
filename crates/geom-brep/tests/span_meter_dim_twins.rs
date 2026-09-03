@@ -39,6 +39,7 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3 as p, v3};
 use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
@@ -47,16 +48,8 @@ use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDes
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, Point3, Sign, Vec3};
+use geom_core::{Band, MarginDiag, Sign};
 use slotmap::SlotMap;
-
-fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
-    Point3::new(Probe(x), Probe(y), Probe(z))
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<Probe> {
-    Vec3::new(Probe(x), Probe(y), Probe(z))
-}
 
 /// The `x = 0` and `y = 0` planes: two analytic charts whose
 /// intersection locus is exactly the `z` axis, which is the class a

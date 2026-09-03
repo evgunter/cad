@@ -12,10 +12,11 @@ use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
 use crate::shared::fixture;
+use crate::shared::fixture::wide_window as window;
 use crate::shared::surf;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
-use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError};
+use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3};
 
@@ -48,15 +49,6 @@ fn image(u: f64) -> Arc<NurbsCurve2<f64>> {
         )
         .expect("the image builds"),
     )
-}
-
-fn window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -10.0,
-        u_max: 10.0,
-        v_min: -10.0,
-        v_max: 10.0,
-    }
 }
 
 /// The mate operand: a plane containing the ruling and meeting the

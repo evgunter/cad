@@ -90,3 +90,32 @@ pub(crate) fn sphere_great<T: Real>(
         b,
     )
 }
+
+/// The rim of a torus at minor angle `v`: the coaxial circle at height
+/// `minor·sin v` with radius `major + minor·cos v`.
+///
+/// **A curve, where the sphere pair above are edges.** The three suites
+/// that build this cut it into a `LoopEdge` through THEIR OWN `edge` —
+/// `mesh10r2_probes.rs`'s stamps a carrier id and the other two do not
+/// — so the shared part stops at the circle.
+pub(crate) fn torus_rim_circle<T: Real>(major: f64, minor: f64, v: f64) -> Curve3<T> {
+    Curve3::Circle {
+        center: p3(0.0, 0.0, minor * v.sin()),
+        axis: v3(0.0, 0.0, 1.0),
+        radius: T::from_f64(major + minor * v.cos()),
+        u_ref: v3(1.0, 0.0, 0.0),
+    }
+}
+
+/// The meridian of a torus at azimuth `u`: the minor circle centred on
+/// the spine at `major·(cos u, sin u, 0)`, in the plane containing the
+/// axis at that azimuth. See [`torus_rim_circle`] on why this is a
+/// curve and not an edge.
+pub(crate) fn torus_meridian_circle<T: Real>(major: f64, minor: f64, u: f64) -> Curve3<T> {
+    Curve3::Circle {
+        center: p3(major * u.cos(), major * u.sin(), 0.0),
+        axis: v3(u.sin(), -u.cos(), 0.0),
+        radius: T::from_f64(minor),
+        u_ref: v3(u.cos(), u.sin(), 0.0),
+    }
+}

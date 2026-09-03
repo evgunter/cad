@@ -189,18 +189,7 @@ fn torus() -> Surface<f64> {
 }
 /// A torus rim: the coaxial circle at minor angle `v`.
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, R0 * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RR + R0 * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    edge(topo::torus_rim_circle(RR, R0, v), u0, u1, a, b)
 }
 /// A torus meridian ARC on the minor circle at azimuth `u`, stamped
 /// with the identity of the edge it is a piece of (`None`: a loop
@@ -208,18 +197,7 @@ fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
     LoopEdge {
         carrier_id: id.map(CarrierId::minted),
-        ..edge(
-            Curve3::Circle {
-                center: p3(RR * u.cos(), RR * u.sin(), 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: R0,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
-            v0,
-            v1,
-            a,
-            b,
-        )
+        ..edge(topo::torus_meridian_circle(RR, R0, u), v0, v1, a, b)
     }
 }
 

@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::surf;
+use crate::shared::surf::arena2;
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
@@ -30,22 +31,6 @@ fn tangent_plane() -> Surface<f64> {
         normal: Vec3::new(1.0, 0.0, 0.0),
         u_ref: Vec3::new(0.0, 0.0, 1.0),
     }
-}
-
-/// An arena of surfaces and its two keys (the established test
-/// idiom: a typed slotmap plus a cloning resolver).
-fn arena2(
-    s1: Surface<f64>,
-    s2: Surface<f64>,
-) -> (
-    SurfaceKey,
-    SurfaceKey,
-    slotmap::SlotMap<SurfaceKey, Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
-    let k1 = map.insert(s1);
-    let k2 = map.insert(s2);
-    (k1, k2, map)
 }
 
 fn keys2() -> (

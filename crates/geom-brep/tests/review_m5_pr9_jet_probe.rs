@@ -4,25 +4,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::arena2;
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Point3, Vec3};
-
-fn arena2(
-    s1: Surface<f64>,
-    s2: Surface<f64>,
-) -> (
-    SurfaceKey,
-    SurfaceKey,
-    slotmap::SlotMap<SurfaceKey, Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
-    let k1 = map.insert(s1);
-    let k2 = map.insert(s2);
-    (k1, k2, map)
-}
 
 fn zcyl(cx: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {

@@ -24,6 +24,7 @@ use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
 use crate::shared::fixture;
+use crate::shared::fixture::wide_window as window;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -223,15 +224,6 @@ fn certify_backwards_span_stays_interval_not_forward() {
 /// The rational quarter-cylinder wall (the m7_8 fixture, verbatim).
 fn quarter_cylinder_wall() -> Surface<f64> {
     Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall()))
-}
-
-fn window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -10.0,
-        u_max: 10.0,
-        v_min: -10.0,
-        v_max: 10.0,
-    }
 }
 
 /// CLAIM 2, iso lane: the poison meter refuses AT THE METER

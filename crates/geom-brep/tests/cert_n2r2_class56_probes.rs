@@ -3,8 +3,9 @@
 //! as the DESCRIBED operand. Probe file — not for merge.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::shared::fixture::segment;
 use crate::shared::tol::band;
-use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, EdgeNurbsLane};
 use geom_core::spline::KnotVector;
@@ -28,10 +29,6 @@ fn wall(f: impl Fn(usize, Point3<f64>) -> Point3<f64>) -> NurbsSurface<f64> {
     .collect();
     let w = core::f64::consts::FRAC_1_SQRT_2;
     NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap()
-}
-fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
-    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    NurbsCurve3::new(k, vec![a, b], vec![1.0, 1.0]).unwrap()
 }
 fn plane() -> Surface<f64> {
     Surface::Plane {

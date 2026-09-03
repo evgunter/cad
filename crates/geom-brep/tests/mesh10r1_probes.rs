@@ -18,11 +18,10 @@
 //!   Do the other pieces' stored circles enter the answer at all?
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::point::{p3, v3};
 use crate::shared::surf;
 use crate::shared::tol::band;
+use crate::shared::topo;
 use crate::shared::topo::edge;
-use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle};
 
@@ -34,34 +33,12 @@ fn torus() -> Surface<f64> {
 }
 
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, R0 * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RR + R0 * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    edge(topo::torus_rim_circle(RR, R0, v), u0, u1, a, b)
 }
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
     LoopEdge {
         carrier_id: id.map(CarrierId::minted),
-        ..edge(
-            Curve3::Circle {
-                center: p3(RR * u.cos(), RR * u.sin(), 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: R0,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
-            v0,
-            v1,
-            a,
-            b,
-        )
+        ..edge(topo::torus_meridian_circle(RR, R0, u), v0, v1, a, b)
     }
 }
 

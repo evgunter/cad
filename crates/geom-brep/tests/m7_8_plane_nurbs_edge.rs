@@ -23,6 +23,7 @@
 //! here observes, is pinned next door in `r1_pxn_probes.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
@@ -32,15 +33,8 @@ use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, EdgeNurbsLane, PlaneNurbsRefusal,
 };
 use geom_core::Tol;
-use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
-
-/// A straight degree-1 carrier through two points, on `[0, 1]`.
-fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
-    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("carrier knots");
-    NurbsCurve3::new(k, vec![a, b], vec![1.0, 1.0]).expect("the carrier builds")
-}
 
 /// **The certifying row.** The file's carrier IS the locus, and every
 /// limb passes: the plane residual is closed-form zero, the NURBS

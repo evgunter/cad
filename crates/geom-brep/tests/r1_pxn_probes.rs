@@ -22,21 +22,16 @@
 //! hollows it out must not be able to leave the suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::fixture::segment;
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
 use crate::shared::tol::band;
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
 use geom_core::Tol;
-use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 use test_utils::tightness::{Anchor, Sup};
 use test_utils::vacuity::{self, Exposure};
-
-fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
-    let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    NurbsCurve3::new(k, vec![a, b], vec![1.0, 1.0]).unwrap()
-}
 
 /// A spline carrier that interpolates `(1 + a·sin(32πt), 0, t)` at 257
 /// chord points: exactly ON both surfaces at every one of the lane's

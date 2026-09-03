@@ -65,3 +65,22 @@ pub(crate) fn table<T: Real>(
     let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
     (keys, move |k| map.get(k).cloned())
 }
+
+/// A two-surface arena: the two keys and the map ITSELF, for the doors
+/// that take a `&SlotMap` rather than a resolver closure.
+///
+/// Distinct from [`table`] in what it hands back, not in what it does —
+/// a door that wants the map cannot be given a closure over it.
+pub(crate) fn arena2<T: Real>(
+    s1: Surface<T>,
+    s2: Surface<T>,
+) -> (
+    SurfaceKey,
+    SurfaceKey,
+    slotmap::SlotMap<SurfaceKey, Surface<T>>,
+) {
+    let mut map: slotmap::SlotMap<SurfaceKey, Surface<T>> = slotmap::SlotMap::with_key();
+    let k1 = map.insert(s1);
+    let k2 = map.insert(s2);
+    (k1, k2, map)
+}
