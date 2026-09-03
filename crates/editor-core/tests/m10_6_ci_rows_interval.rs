@@ -50,7 +50,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, drive};
+use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
@@ -639,4 +639,115 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
         rendered.contains("FORCED, not priced"),
         "the rendering must not let a forced mass read as a priced one: {rendered}"
     );
+}
+
+// ------------------------ the certifying filter's key move, goldened
+
+/// **The witness-vector key of an assertion-carrying document, pinned**
+/// (M10-6 deviation D10; both reviews' MAJOR).
+///
+/// `VerdictVector::certifying` drops `Assertion` rows from the
+/// certification comparison, and that MOVES the `verdict_vector_key`
+/// every certified leaf carries — for every document with an
+/// assertion, including ones with no `min_clearance` anywhere. The
+/// change is deliberate and argued at `certifying`; what it was
+/// missing is a pin, so the move was invisible in review and a FUTURE
+/// move would be too.
+///
+/// This is that pin: the two keys, bit-exact, side by side. `full` is
+/// what the pre-M10-6 comparison produced; `certifying` is what ships.
+/// They must differ — that IS the change — and each must be stable.
+///
+/// # Re-blessing
+///
+/// A diff here means the certification comparison's INPUTS moved:
+/// either the vector's contents (a node kind's verdict rows changed)
+/// or the filter (a new node kind excused from certification). Both
+/// are decisions a PR body has to state. Re-bless with
+/// `M10_6_BLESS_CERT_KEYS=1`, read the diff, and say in the PR which
+/// of the two it was.
+#[test]
+fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
+    let doc = min_clearance_neck();
+    let plain = plain_distance_doc();
+    let mut text = String::new();
+    for (label, d) in [("min_clearance_neck", &doc), ("plain_distance", &plain)] {
+        let ev = evaluate::<f64>(
+            d,
+            None,
+            &CancelToken::new(),
+            &EvalOptions {
+                profile_lift: ProfileLift::Guided,
+                ..EvalOptions::default()
+            },
+            Tol::witness(),
+        );
+        let full = VerdictVector::of(&ev);
+        let certifying = VerdictVector::certifying(d, &ev);
+        assert_ne!(
+            full.key().0,
+            certifying.key().0,
+            "{label}: the filter must MOVE the key — if these agree the document grew no \
+             assertion row and the fixture stopped testing the thing"
+        );
+        use core::fmt::Write as _;
+        let _ = writeln!(
+            text,
+            "{label} full={:032x} certifying={:032x} dropped={}",
+            full.key().0,
+            certifying.key().0,
+            full.rows.len() - certifying.rows.len()
+        );
+    }
+    let path = "tests/golden/m10_6_certifying_keys.txt";
+    if std::env::var("M10_6_BLESS_CERT_KEYS").is_ok() {
+        std::fs::write(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path),
+            &text,
+        )
+        .expect("bless writes");
+        panic!("certifying-key golden re-blessed — commit it WITH the change it records");
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/m10_6_certifying_keys.txt"),
+        "the certification comparison's key moved. Read the diff: either the verdict rows \
+         changed or the filter did, and a PR body has to say which (M10_6_BLESS_CERT_KEYS=1)."
+    );
+}
+
+/// A document with an assertion over a PLAIN `Distance` measure — no
+/// `min_clearance` anywhere. It is here because the review's point was
+/// that the key move is not confined to this unit's new primitive: it
+/// reaches every assertion-carrying document in the tree.
+fn plain_distance_doc() -> ProfileDoc {
+    let mut r = Recorder::new();
+    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![
+            LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)])
+                .expect("finite corners"),
+        ],
+    }));
+    let solid = r.insert(Node::Extrude {
+        profile,
+        distance: len(1.0),
+    });
+    let measure = r.insert(
+        Node::measure(
+            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            vec![
+                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(0))),
+                MeasureRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+            ],
+        )
+        .expect("indices in range"),
+    );
+    r.insert(Node::Assertion {
+        measure,
+        bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+        dir: AssertionDir::AtLeast,
+    });
+    r.doc
 }

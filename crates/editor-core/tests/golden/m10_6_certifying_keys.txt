@@ -1,0 +1,2 @@
+min_clearance_neck full=51f9cfbf8023378bb3e39556905b101e certifying=1621ee6b5d9a648042d73dd11efeb0d5 dropped=1
+plain_distance full=13e14d391c5a421dbbbf289ea27aeff4 certifying=4c3cf43f8037fb248e10c2a246bf4705 dropped=1

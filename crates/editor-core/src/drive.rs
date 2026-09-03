@@ -1182,11 +1182,32 @@ fn classify(
         });
     }
     // NAMED by the built-once engine, not by a second diff of our own
-    // (see `FlipEvidence`): the two evaluations go in, its `FlipSet`
-    // comes out unaltered.
+    // (see `FlipEvidence`): the two evaluations go in and its
+    // `FlipSet` comes out. What this module then does is DROP THE
+    // NODES the comparison above does not read.
+    //
+    // **Why the evidence has to be filtered the same way** (M10-6,
+    // both reviews). `certifying` retains no `Assertion` row, so an
+    // assertion's `assert_bound` flip cannot be why this leaf refused
+    // — the comparison never looked at it. Left in, the evidence names
+    // a predicate that did not cause the refusal, on exactly the
+    // documents E10 exists for: a `min_clearance` assertion is
+    // `Unevaluated` at every f64 witness and definite over a certified
+    // leaf, so it flips on EVERY leaf and would head the flip list of
+    // every unrelated refusal.
+    //
+    // It is a projection of the engine's answer onto the nodes the
+    // question is about, not a second diff: the engine still runs over
+    // the whole evaluation, its per-node deltas come back unaltered,
+    // and the filter is the SAME predicate `certifying` uses, spelled
+    // once here so the two cannot drift.
+    let mut verdicts = diff_verdicts(witness, &leaf);
+    verdicts
+        .nodes
+        .retain(|id, _| !matches!(doc.node(*id), Some(Node::Assertion { .. })));
     LeafVerdict::Refused(RefusalReason::FlipCrossing {
         flipped: Box::new(FlipEvidence {
-            verdicts: diff_verdicts(witness, &leaf),
+            verdicts,
             structure: structure_flips,
         }),
     })
