@@ -438,14 +438,22 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
 
-    // Edit the document in a way the analyzed box cannot see: node 3 is
-    // the boss extrude; retarget its distance off the parameter onto a
-    // literal. The parameter SET, the nominals and the distributions
-    // are untouched, so `ParamBox::of(analyzed)` is unchanged.
+    // Edit the document in a way the analyzed box cannot see: the boss
+    // extrude is the second one, found by kind rather than by literal
+    // id (the sketch frame is a node too). Retarget its distance off
+    // the parameter onto a literal. The parameter SET, the nominals
+    // and the distributions are untouched, so `ParamBox::of(analyzed)`
+    // is unchanged.
     let edited = editor_core::apply(
         &doc,
         &DocEdit::SetParam {
-            node: RecipeNodeId(3),
+            node: doc
+                .order()
+                .iter()
+                .copied()
+                .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
+                .nth(1)
+                .expect("the shaft has a boss extrude"),
             slot: editor_core::SlotId::Distance,
             expr: len(0.75),
         },

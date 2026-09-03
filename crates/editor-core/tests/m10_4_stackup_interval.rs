@@ -833,10 +833,17 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     // A pair the v1 table has no closed form for: a cylinder wall
     // against a plane cap.
     let ev = eval(&doc);
-    // Node order: plate profile 0, plate 1, then (profile, extrude)
-    // per hole — the first hole's extrude is 3.
-    let hole = RecipeNodeId(3);
-    let plate_node = RecipeNodeId(1);
+    // The extrudes in document order: the plate, then one per hole.
+    // Taken by kind rather than by literal id — the sketch frame is a
+    // node too, so counting positions no longer finds them.
+    let extrudes: Vec<_> = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
+        .collect();
+    let plate_node = extrudes[0];
+    let hole = extrudes[1];
     let mut walls = editor_core::select_where(
         &ev,
         hole,
