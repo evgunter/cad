@@ -28,6 +28,15 @@
 // kept verbatim per the do-not-simplify rule.
 #![allow(clippy::manual_range_contains)]
 
+test_utils::gated_to![
+    "crates/geom/src/surfaces/",
+    "crates/geom/src/surfaces.rs",
+    "crates/geom/src/curves/",
+    "crates/geom/src/curves.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/dual.rs",
+];
+
 use core::f64::consts::{FRAC_PI_6, TAU};
 
 use geom::Curve3;

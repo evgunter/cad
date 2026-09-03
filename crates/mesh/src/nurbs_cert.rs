@@ -169,6 +169,18 @@
 //! poisoned/non-finite hulls. The placeholder refuses
 //! [`TessellateError::UnsupportedSurface`] upstream in `trimmed`.
 
+// `cfg(test)`: this file carries production code, and the marker's crate
+// is a dev-dependency.
+#[cfg(test)]
+test_utils::gated_to![
+    "crates/mesh/src/curved.rs",
+    "crates/mesh/src/tessellate.rs",
+    "crates/geom-brep/src/patch_bound.rs",
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom/src/surfaces/",
+    "crates/geom/src/surfaces.rs",
+];
+
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
 use geom_core::ring_interval::RingInterval;

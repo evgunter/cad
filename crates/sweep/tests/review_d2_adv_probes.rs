@@ -53,6 +53,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/topo/src/boolean/",
+];
+
 use core::f64::consts::PI;
 
 use geom_brep::SurfaceKind;

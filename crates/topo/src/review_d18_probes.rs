@@ -28,6 +28,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/topo/src/euler.rs",
+    "crates/topo/src/euler_ring.rs",
+    "crates/topo/src/euler_kill.rs",
+    "crates/topo/src/body.rs",
+    "crates/topo/src/entity.rs",
+];
+
 use geom_core::Point3;
 
 use crate::entity::{EntityId, HalfEdgeKey};

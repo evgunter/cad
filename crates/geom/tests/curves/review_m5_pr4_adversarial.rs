@@ -20,6 +20,13 @@
     dead_code
 )]
 
+test_utils::gated_to![
+    "crates/geom/src/curves/",
+    "crates/geom/src/curves.rs",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/ring_interval.rs",
+];
+
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};

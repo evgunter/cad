@@ -37,6 +37,8 @@
 // change the bits under test.
 #![allow(clippy::excessive_precision)]
 
+test_utils::gated_to!["crates/profile/src/", "crates/geom-core/src/tolerance.rs"];
+
 mod common;
 use geom_core::Point2;
 use geom_core::Tol;

@@ -47,6 +47,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/sweep/src/extrude.rs",
+];
+
 use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::RawLoop;

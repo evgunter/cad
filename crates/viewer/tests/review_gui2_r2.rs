@@ -21,6 +21,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/"];
+
 use std::sync::{Arc, Mutex};
 
 use pncad::document::{

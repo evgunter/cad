@@ -49,6 +49,16 @@
 //! honored AND cross-checked against this inference; disagreement is a
 //! typed error, not a preference (`entities`' face reader).
 
+// `cfg(test)`: this file carries production code, and the marker's crate
+// is a dev-dependency.
+#[cfg(test)]
+test_utils::gated_to![
+    "crates/step-import/src/recognize.rs",
+    "crates/step-import/src/normalize.rs",
+    "crates/geom/src/surfaces/",
+    "crates/geom/src/surfaces.rs",
+];
+
 use geom::Surface;
 use geom_core::{Point2, Point3, Vec3};
 
