@@ -13,6 +13,7 @@ use tess_meter::{
     split_scan_aspects, unfloored_worst_excess,
 };
 use test_utils::fuzz;
+use test_utils::source;
 use test_utils::vacuity::Exposure;
 
 /// A synthetic [`Bound`] with a plausible seed in its `steps`.
@@ -223,25 +224,102 @@ const SPLIT_SCAN_FAMILY: [(&str, Shape, f64, f64, f64); 8] = [
 const FAMILY_DELTA_S: f64 = 1e-3;
 const FAMILY_EXTENT: f64 = 1.0;
 
+/// `tools/tess-lint`'s source text, read across the cargo-root boundary.
+///
+/// **Read rather than imported, and read rather than transcribed.**
+/// `tess-meter` must not DEPEND on `tess-lint` — that crate's manifest
+/// states dependency-freedom as its design, and a consumer that shares
+/// a constant with its producer can no longer fail as a PARSER when
+/// the producer's schema moves, which is the failure mode the lint
+/// wants. The pins below are derivations over that crate's constants,
+/// and a derivation from a transcribed constant is a transcription, so
+/// they read the declarations out of this text instead.
+const LINT_SOURCE: &str = include_str!("../../tess-lint/src/lib.rs");
+
+/// A view of [`LINT_SOURCE`], byte for byte as long as the original.
+///
+/// `test_utils::source` blanks the regions a view drops rather than
+/// removing them, so every offset means the same byte in every view —
+/// which is what lets a declaration be LOCATED in one view and READ in
+/// another. The pins below do exactly that, so the property is
+/// asserted here rather than assumed at each of them.
+fn lint_view(view: fn(&str) -> String) -> String {
+    let text = view(LINT_SOURCE);
+    assert_eq!(
+        text.len(),
+        LINT_SOURCE.len(),
+        "a blanked view is the original's bytes, blanked in place"
+    );
+    text
+}
+
+/// Every initializer following `decl` in `view`, as byte ranges: from
+/// the end of the declaration head to the `;` that closes it.
+///
+/// **`view` is a blanked view, and that is what makes an answer a
+/// declaration.** Over raw text the first occurrence wins, so a doc
+/// comment quoting the declaration — directly above it, where such a
+/// comment is written — outranks the declaration itself and the pin
+/// reads prose; over `code_only` every occurrence is real code. The
+/// closing `;` is sought in the same view, so one inside the
+/// initializer's own string cannot end the statement early.
+fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
+    view.match_indices(decl)
+        .map(|(at, _)| {
+            let start = at + decl.len();
+            let end = start + view[start..].find(';').expect("the declaration ends");
+            start..end
+        })
+        .collect()
+}
+
+/// The ONE initializer `decl` has in `view`.
+///
+/// Exactly one: a second declaration of the same name is an ambiguity
+/// a textual pin cannot resolve, and answering with either of them
+/// silently is the failure this helper exists to refuse.
+fn sole_initializer(view: &str, decl: &str) -> std::ops::Range<usize> {
+    let mut found = initializers(view, decl);
+    assert!(
+        found.len() == 1,
+        "`{decl}` is declared {} times in tess-lint's code, not once",
+        found.len()
+    );
+    found.remove(0)
+}
+
+/// The pins read the declaration and not prose about it.
+///
+/// The wrong answer here is the silent one: a doc comment or a string
+/// spelling the same declaration sorts ahead of the declaration, so a
+/// raw-text search parses THAT and the pin is green over a number
+/// nothing in the tree uses. The fixture carries both decoys above a
+/// real declaration, and the counts are the assertion — three
+/// occurrences in the text, one in the code.
+#[test]
+fn the_pins_read_the_declaration_and_not_prose_about_it() {
+    const DECL: &str = "pub const GROWTH_TOLERANCE: f64 = ";
+    let decoyed = concat!(
+        "/// pub const GROWTH_TOLERANCE: f64 = 9.0;\n",
+        "const QUOTED: &str = \"pub const GROWTH_TOLERANCE: f64 = 8.0;\";\n",
+        "pub const GROWTH_TOLERANCE: f64 = 1.05;\n"
+    );
+    assert_eq!(initializers(decoyed, DECL).len(), 3);
+    let code = source::code_only(decoyed);
+    assert_eq!(code[sole_initializer(&code, DECL)].trim(), "1.05");
+}
+
 /// `tess-lint`'s `GROWTH_TOLERANCE`, read out of its source text.
 ///
-/// **Read rather than transcribed, and read the way this file already
-/// reads that crate** (`the_lints_expected_header_is_this_one`, which
-/// argues the case at length): `tess-meter` must not DEPEND on
-/// `tess-lint` — that crate's manifest states dependency-freedom as its
-/// design — but the ceilings below are derived from this number, and a
-/// derivation from a transcribed constant is a transcription. It is a
-/// real pin and it is ugly: it breaks if that declaration is
-/// reformatted rather than changed, which is the same bargain the
-/// header pin makes.
+/// [`LINT_SOURCE`] says why it is read and not imported. The code view
+/// is the one that carries it: a numeric literal is code to the lexer,
+/// so nothing of the value is lost, and blanking prose AND string
+/// literals leaves only a real declaration able to answer. What the
+/// pin still asks of that crate is the declaration's SPELLING — a
+/// rename, a retype, or a different spacing around the `=` reds it.
 fn lint_growth_tolerance() -> f64 {
-    let lint = include_str!("../../tess-lint/src/lib.rs");
-    let decl = lint
-        .split("pub const GROWTH_TOLERANCE: f64 = ")
-        .nth(1)
-        .expect("tess-lint declares GROWTH_TOLERANCE");
-    let end = decl.find(';').expect("the declaration ends");
-    decl[..end]
+    let code = lint_view(source::code_only);
+    code[sole_initializer(&code, "pub const GROWTH_TOLERANCE: f64 = ")]
         .trim()
         .parse()
         .expect("GROWTH_TOLERANCE is a float literal")
@@ -838,30 +916,40 @@ fn both_row_shapes_have_the_headers_width() {
 /// the lint wants. So the two declarations stay independent and this
 /// test reads the other one's source.
 ///
-/// It is a real pin and it is ugly: it parses Rust string
-/// continuations out of a sibling crate's `lib.rs`, and it breaks if
-/// that declaration is reformatted rather than changed.
+/// **Located in the code view and read in the literal one**, which is
+/// the split this pin needs: the needle is an item head, so only code
+/// may answer it, while the value IS a string literal, which
+/// [`source::code_only`] blanks and would leave this comparing
+/// `CSV_HEADER` against spaces. What the pin still asks of that crate
+/// is the declaration's spelling and a literal written as one plain
+/// string: a `concat!`, a raw string or an escape other than a line
+/// continuation reds it rather than decoding to something else.
 #[test]
 fn the_lints_expected_header_is_this_one() {
-    let lint = include_str!("../../tess-lint/src/lib.rs");
-    let quoted = lint
-        .split("pub const EXPECTED_HEADER: &str = ")
-        .nth(1)
-        .expect("tess-lint declares EXPECTED_HEADER");
-    let end = quoted.find(';').expect("the declaration ends");
-    // Rust string continuations: drop the backslash-newline-indent runs.
-    let mut header = String::new();
-    let mut chars = quoted[..end].chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '"' => {}
-            '\\' => {
-                while chars.peek().is_some_and(|c| c.is_whitespace()) {
-                    chars.next();
-                }
-            }
-            c => header.push(c),
-        }
+    let decl = sole_initializer(
+        &lint_view(source::code_only),
+        "pub const EXPECTED_HEADER: &str = ",
+    );
+    let literals = lint_view(source::code_and_literals);
+    let quoted = literals[decl]
+        .trim()
+        .strip_prefix('"')
+        .and_then(|q| q.strip_suffix('"'))
+        .expect("EXPECTED_HEADER is one plain string literal");
+    // A Rust line continuation is `\` and the whitespace run after it.
+    // Every other escape is REFUSED rather than decoded: the header
+    // carries no whitespace of its own, so a `\` followed by anything
+    // else is a difference in the header and not in its formatting.
+    let mut parts = quoted.split('\\');
+    let mut header = String::from(parts.next().expect("a split yields one part"));
+    for part in parts {
+        let continued = part.trim_start();
+        assert!(
+            continued.len() < part.len(),
+            "EXPECTED_HEADER holds `\\{}`, an escape this pin does not decode",
+            part.chars().next().unwrap_or(' ')
+        );
+        header.push_str(continued);
     }
     assert_eq!(header, CSV_HEADER);
 }
