@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::needless_range_loop)]
 
-mod n1r2_fixtures;
+use crate::curves::n1r2_fixtures;
 
 use std::sync::Arc;
 
