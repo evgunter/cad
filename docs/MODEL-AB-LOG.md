@@ -3456,3 +3456,11 @@ position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2 OPUS, slot 3 FABLE.
 (arm per the block draw above). Spec docs/M10-5-SPEC.md (to main
 at dispatch). Runs CONCURRENT with M10-4 (block B2 slot 3) — two
 implementation lanes, the disk budget's ceiling.
+
+**M10-5 dual draw (branch-side, 2026-09-03, at review dispatch).**
+Ordinal 506. Slot byte 23, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head 9f143595 (PR #1638 — the head after the
+lane's merge-main round; M10-4 had landed under the PR ten minutes
+after it opened, the one conflict a `tests/all.rs` registration
+union), v5 instrument. The implementer lane is the FRESH same-arm
+redispatch recorded above.
