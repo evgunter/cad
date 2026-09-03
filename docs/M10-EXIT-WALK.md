@@ -91,12 +91,17 @@ closed at M10-DI's merge.
 real data)"** — PARTIALLY MET, and this is an honesty row (row 6
 below). M10-3 shipped the funnel row (`KProbe::CertifiedMidpoints`,
 the sweep wiring, the `driver/` CSV beside the linted one) behind
-`probe,interval`, off by default; the hosted K row is M10-6's. Under
-it, main is RED on the k-lint axis at eps=1e-6 today: the driver's
-K-probe dump row panics "nothing certified, nothing to sample" where
-the ε-scaled fixture certifies no leaf, and the probe-suite census
-cannot see the interval-gated suite — four tracker items, M10's
-ground, assigned to M10-6's lane as a hotfix ahead of the unit.
+`probe,interval`, off by default; the hosted K row is M10-6's. The
+row was never executed hosted until another program's census repair
+(#1268) exposed it, and four tracker items reported it red — three of
+them naming ε as the cause. It was not: the fixtures are ε-relative
+and certify the same leaves at every row; the panic ("nothing
+certified, nothing to sample") was already unreachable on main after
+#1343 raised the row's leaf budget, and the census half was #1268's
+own fix. What remained was the SHAPE — a row that would panic rather
+than report an empty population — and M10-6's hotfix (#1670) makes
+the row a census line that reports `certified=0` honestly, asserts
+the biconditional, and plants the empty case.
 
 **10. "every unit merged on its own green hosted head"** — MET. Every
 unit's final head carried its own green run on an asked-for or drawn
@@ -148,9 +153,12 @@ pairs and is a near pair on curved ones; and every `Violated` is
 order-dependent in which witness it finds first (D9-fixed, a property
 of the schedule).
 
-**6. The K funnel row has open reds under it** (criterion 9): the
-row was built and never executed hosted until another program's
-census repair exposed it; four items, one defect, M10-6's hotfix.
+**6. The K funnel row was built and not executed hosted for four
+days** (criterion 9): the reports that found it misnamed the cause
+as ε; the defect that was real was a row that panicked on an empty
+population instead of reporting it. Fixed at #1670, together with two
+pre-existing ε-fragile M10-5 witness-floor assertions (an absolute
+`1e-9` against an ε-relative box) the same pinned point exposed.
 
 **7. Three plan-named capabilities ship as seams, not machinery.**
 `Dual<Interval>` contribution bounds (M10-4 deviation 3,
