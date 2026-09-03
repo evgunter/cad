@@ -177,6 +177,12 @@ fn r2_the_lever_is_the_carrier_radius_at_certification_and_the_sphere_radius_at_
         let lo = bd.zero() / RS.max(r_c);
         let hi = bd.zero() / RS.min(r_c);
         let mut seen = Vec::new();
+        // The window is ~zero²/R² radians wide; at ε = 1e-12 that is
+        // below f64's resolution at τ (one ulp ≈ 8.9e-16 rad), so the
+        // three rungs below collapse onto one span and both decides
+        // land in the ambiguity band together. Asserted only where
+        // the window is resolvable.
+        let resolvable = (hi - lo) > 8.0 * f64::EPSILON * TAU;
         for frac in [0.25, 0.5, 0.75] {
             let x = lo + frac * (hi - lo);
             let dt = TAU + x;
@@ -189,7 +195,12 @@ fn r2_the_lever_is_the_carrier_radius_at_certification_and_the_sphere_radius_at_
             );
             seen.push((cert, parse, door));
         }
-        if r_c < RS {
+        if !resolvable {
+            println!(
+                "R2-LEVER {label}: window {:e} rad is below f64 resolution at τ; not asserted",
+                hi - lo
+            );
+        } else if r_c < RS {
             assert!(
                 seen.iter().all(|(c, p, d)| {
                     *c == Ok(Rung::Admit) && *p == Ok(Rung::Escalate) && *d == Ok(Rung::Escalate)
