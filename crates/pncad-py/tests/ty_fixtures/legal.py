@@ -9,6 +9,7 @@ the guide's own executed blocks.
 from pncad import (
     Advisory,
     Alignment,
+    Angle,
     ArcSweep,
     Assembly,
     AxisSense,
@@ -28,6 +29,7 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Denotation,
+    Expr,
     TubeWindow,
     Doc,
     DocEdit,
@@ -448,3 +450,15 @@ findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
 label: CheckKind = CheckId.Connectedness.kind
 enforce_checks(report, strict)
 flagged: Body | None = subject_body(seamed, instance, 0)
+
+# The expression READ side: text in through the document that declares
+# the parameters, a dimension-checked tree out, and a DIMENSIONED
+# value back. `eval` answers the quantity the expression measures, so
+# the union is narrowed by what the caller knows about the source.
+derived: Expr = doc.parse_expr("1 m + 2 mm")
+reads_back: str = derived.text
+measures: str = derived.dimension
+depends_on: list[ParamName] = derived.params
+bare: float | None = derived.literal_value
+worth: Length | Angle | float = doc.eval(derived)
+how_many: int = doc.eval_count(doc.parse_expr("4"))
