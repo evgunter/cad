@@ -980,3 +980,35 @@ default lane (762 s) and the interval save's steps succeeded under a
 job-level cancel; the 15:11 push RESTORED on both lanes (its dependency
 build skipped) — the mechanism works; the owed reading is the first
 PR-context `build + archive` restore under the new keys.
+
+## Seam: main's inherited red on the board; the K2 dual dispatched (2026-09-03, 18:40 UTC)
+
+`main` has been red at the code tier since the M10 measure tags landed
+ahead of the gate that pins them: `pncad-py`'s `TAG_INVENTORY` misses
+`measure_clearance_refused` and `measure_selection_kind`, and nobody
+saw it because `main`'s own push runs are docs-tier. The K2 lane found
+it on the merge of `main` into its branch and filed it rather than
+repairing it (the repair is a public-Python-surface call — M10's);
+the issue file was cherry-picked onto `main` as PR 1705 (merged
+601977d1) so it is on the board before either kernel lane merges.
+Every K2/K3 run that carries `main` past that point shows ONE red row
+on the `2/2` shard of both lanes; that row is this inherited red and
+is annotated as such at merge, not chased.
+
+TCOST-K2 reported (PR 1697, final head `efeb59f22`): L1 landed in
+`geom-core::compose` (the Bernstein weight table memoized per degree
+pair, one product row reused per cell block, elevation hoisted the
+same way); digest md5-identical on six lane×ε rows; `offset_fit::`
+−29.7 % normalised on both lanes, `geom-brep` whole-crate −8.7 %; L3
+NOT landed — the census reproduced but `measure` reads its poison
+verdict off `X`, so deferring `X` moves which value decides a
+refusal; filed as `offset-composite-lazy-sign-gate`. The lane raised
+the stop clause's ambiguity ("the crate suite" vs the suite the spec
+measured L1 on) rather than reading it its own way. Rulings at the
+claim: the bar reads against the `offset_fit::` suite; L3's argument
+is a finding either way; the inherited red is verified, not
+re-opened. Ordinal 1401 claimed on `main` (PR 1706 from
+`tcost/k2-claim`); byte 128 parity 0 ⇒ R1 OPUS, R2 FABLE; briefs
+hashed and stored under `/home/user/tcost-work/ab/`; both reviewers
+dispatched concurrently on the frozen head with PRIVATE target dirs
+(R1's is the finished implementer lane's, moved; R2's fresh).
