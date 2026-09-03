@@ -2,8 +2,9 @@
 id: TCOST-11
 kind: unit
 title: The one-declaration guard: one home in test_utils, and pncad decided
-status: dispatched
+status: review
 opened: 2026-09-03
+pr: 1716
 branch: tcost/11-aggregation-guard-home
 ---
 

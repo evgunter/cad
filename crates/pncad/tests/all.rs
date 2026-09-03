@@ -4,6 +4,19 @@
 //! LINK/DEBUGINFO note in .github/workflows/ci.yml carries it with its
 //! date and provenance run.
 //!
+//! **No aggregation guard here, and why.** Every other crate's
+//! `tests/all.rs` mounts its suites with `#[path]` and carries
+//! `every_suite_file_is_aggregated`, which checks that set against the
+//! directory on every run. This `tests/` directory holds ONE `.rs`
+//! file — this one — so there is no set to check; and the row could not
+//! live here anyway, because it reads `test_utils::source` and the
+//! guard at the bottom of this file admits no `use` root but the
+//! façade. What keeps that sentence TRUE is not this paragraph:
+//! `crates/bvh/tests/aggregator_headers.rs`'s
+//! `a_non_aggregating_tests_directory_holds_one_suite_file` reds if a
+//! second suite is ever dropped in beside this one, where
+//! `autotests = false` would otherwise leave it uncompiled and unrun.
+//!
 //! What this file pins is the **closure property** (the crate docs'
 //! contract clause 1): every type reachable through the public API of
 //! the re-exported surface — every error-enum payload included — is
