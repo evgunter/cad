@@ -4240,3 +4240,6 @@ mod tests {
         }
     }
 }
+
+// TCOST-9 demonstration head: a comment-only edit to a file the
+// cert5_r2_probes marker names. Evidence, never merged.
