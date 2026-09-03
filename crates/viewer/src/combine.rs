@@ -404,6 +404,12 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
     match node {
         Node::Extrude { .. }
         | Node::Revolve { .. }
+        // Both tube kinds denote ONE body, hollow or not: the hollow
+        // one's cavity is a void inside a single solid, not a second
+        // body, so the seat admits them for the same reason it admits
+        // a revolve.
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Fillet { .. }

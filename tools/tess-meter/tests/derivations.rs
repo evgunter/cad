@@ -8,12 +8,15 @@
 
 use tess_meter::{
     Bound, CSV_HEADER, Chart, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES,
-    SplitScan, best_split_cells, best_split_scan, best_split_steps, divisions,
+    Sizing, SplitScan, best_split_cells, best_split_scan, best_split_steps, divisions,
     floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
     split_scan_aspects, unfloored_worst_excess,
 };
 use test_utils::fuzz;
+use test_utils::source;
 use test_utils::vacuity::Exposure;
+
+use std::sync::OnceLock;
 
 /// A synthetic [`Bound`] with a plausible seed in its `steps`.
 ///
@@ -223,25 +226,149 @@ const SPLIT_SCAN_FAMILY: [(&str, Shape, f64, f64, f64); 8] = [
 const FAMILY_DELTA_S: f64 = 1e-3;
 const FAMILY_EXTENT: f64 = 1.0;
 
+/// `tools/tess-lint`'s source text, read across the cargo-root boundary.
+///
+/// **Read rather than imported, and read rather than transcribed.**
+/// `tess-meter` must not DEPEND on `tess-lint` — that crate's manifest
+/// states dependency-freedom as its design, and a consumer that shares
+/// a constant with its producer can no longer fail as a PARSER when
+/// the producer's schema moves, which is the failure mode the lint
+/// wants. The pins below are derivations over that crate's constants,
+/// and a derivation from a transcribed constant is a transcription, so
+/// they read the declarations out of this text instead.
+const LINT_SOURCE: &str = include_str!("../../tess-lint/src/lib.rs");
+
+/// A view of [`LINT_SOURCE`], byte for byte as long as the original,
+/// lexed once per view and held in `cache`.
+///
+/// `test_utils::source` blanks the regions a view drops rather than
+/// removing them, so every offset means the same byte in every view —
+/// which is what lets a declaration be LOCATED in one view and READ in
+/// another. The pins below do exactly that, so the property is
+/// asserted here rather than assumed at each of them.
+///
+/// **One lex per view, not one per pin.** The views are pure functions
+/// of a `const` text, so every caller wants the same answer; the cache
+/// is what keeps a pin cheap enough that reaching for the other view
+/// is never a reason to skip it.
+fn lint_view(view: fn(&str) -> String, cache: &'static OnceLock<String>) -> &'static str {
+    cache.get_or_init(|| {
+        let text = view(LINT_SOURCE);
+        assert_eq!(
+            text.len(),
+            LINT_SOURCE.len(),
+            "a blanked view is the original's bytes, blanked in place"
+        );
+        text
+    })
+}
+
+/// What the pins below searched, for their refusals — one spelling,
+/// because three call sites naming the same text three times is the
+/// shape these pins exist to keep out of `tess-lint`'s constants.
+const LINT_SEARCHED: &str = "tess-lint's code view";
+
+/// [`LINT_SOURCE`] with prose AND string literals blanked — the view a
+/// declaration is LOCATED in.
+fn lint_code() -> &'static str {
+    static CODE: OnceLock<String> = OnceLock::new();
+    lint_view(source::code_only, &CODE)
+}
+
+/// [`LINT_SOURCE`] with prose blanked and literals kept — the view a
+/// located literal's VALUE is read out of.
+fn lint_literals() -> &'static str {
+    static LITERALS: OnceLock<String> = OnceLock::new();
+    lint_view(source::code_and_literals, &LITERALS)
+}
+
+/// The value of a plain string literal, or `None` where `text` is not
+/// one.
+///
+/// **Plain, and nothing is decoded.** A `concat!`, a raw string or an
+/// escape is not a literal this answers for — the callers refuse what
+/// it returns `None` on rather than guessing, because a mis-decoded
+/// constant is a green pin over a value nothing in the tree uses.
+fn plain_string_literal(text: &str) -> Option<&str> {
+    text.trim()
+        .strip_prefix('"')
+        .and_then(|q| q.strip_suffix('"'))
+}
+
+/// Every initializer following `decl` in `view`, as byte ranges: from
+/// the end of the declaration head to the `;` that closes it.
+///
+/// **`view` is a blanked view, and that is what makes an answer a
+/// declaration.** Over raw text the first occurrence wins, so a doc
+/// comment quoting the declaration — directly above it, where such a
+/// comment is written — outranks the declaration itself and the pin
+/// reads prose; over `code_only` every occurrence is real code. The
+/// closing `;` is sought in the same view, so one inside the
+/// initializer's own string cannot end the statement early.
+fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
+    view.match_indices(decl)
+        .map(|(at, _)| {
+            let start = at + decl.len();
+            let end = start + view[start..].find(';').expect("the declaration ends");
+            start..end
+        })
+        .collect()
+}
+
+/// The ONE initializer `decl` has in `view`, which `searched` names
+/// for the refusal below.
+///
+/// Exactly one: a second declaration of the same name is an ambiguity
+/// a textual pin cannot resolve, and answering with either of them
+/// silently is the failure this helper exists to refuse. `searched` is
+/// a parameter because `view` is any text — a fixture as readily as
+/// `tess-lint`'s source — and a message naming the wrong one sends its
+/// reader to a file that is not the one that failed.
+fn sole_initializer(view: &str, searched: &str, decl: &str) -> std::ops::Range<usize> {
+    let mut found = initializers(view, decl);
+    assert!(
+        found.len() == 1,
+        "`{decl}` is declared {} times in {searched}, not once",
+        found.len()
+    );
+    found.remove(0)
+}
+
+/// The pins read the declaration and not prose about it.
+///
+/// The wrong answer here is the silent one: a doc comment or a string
+/// spelling the same declaration sorts ahead of the declaration, so a
+/// raw-text search parses THAT and the pin is green over a number
+/// nothing in the tree uses. The fixture carries both decoys above a
+/// real declaration, and the counts are the assertion — three
+/// occurrences in the text, one in the code.
+#[test]
+fn the_pins_read_the_declaration_and_not_prose_about_it() {
+    const DECL: &str = "pub const GROWTH_TOLERANCE: f64 = ";
+    let decoyed = concat!(
+        "/// pub const GROWTH_TOLERANCE: f64 = 9.0;\n",
+        "const QUOTED: &str = \"pub const GROWTH_TOLERANCE: f64 = 8.0;\";\n",
+        "pub const GROWTH_TOLERANCE: f64 = 1.05;\n"
+    );
+    assert_eq!(initializers(decoyed, DECL).len(), 3);
+    let code = source::code_only(decoyed);
+    assert_eq!(
+        code[sole_initializer(&code, "the decoy fixture", DECL)].trim(),
+        "1.05"
+    );
+}
+
 /// `tess-lint`'s `GROWTH_TOLERANCE`, read out of its source text.
 ///
-/// **Read rather than transcribed, and read the way this file already
-/// reads that crate** (`the_lints_expected_header_is_this_one`, which
-/// argues the case at length): `tess-meter` must not DEPEND on
-/// `tess-lint` — that crate's manifest states dependency-freedom as its
-/// design — but the ceilings below are derived from this number, and a
-/// derivation from a transcribed constant is a transcription. It is a
-/// real pin and it is ugly: it breaks if that declaration is
-/// reformatted rather than changed, which is the same bargain the
-/// header pin makes.
+/// [`LINT_SOURCE`] says why it is read and not imported. The code view
+/// is the one that carries it: a numeric literal is code to the lexer,
+/// so nothing of the value is lost, and blanking prose AND string
+/// literals leaves only a real declaration able to answer. What the
+/// pin still asks of that crate is the declaration's SPELLING — a
+/// rename, a retype, or a different spacing around the `=` reds it.
 fn lint_growth_tolerance() -> f64 {
-    let lint = include_str!("../../tess-lint/src/lib.rs");
-    let decl = lint
-        .split("pub const GROWTH_TOLERANCE: f64 = ")
-        .nth(1)
-        .expect("tess-lint declares GROWTH_TOLERANCE");
-    let end = decl.find(';').expect("the declaration ends");
-    decl[..end]
+    let code = lint_code();
+    code[sole_initializer(code, LINT_SEARCHED, "pub const GROWTH_TOLERANCE: f64 = ")]
         .trim()
         .parse()
         .expect("GROWTH_TOLERANCE is a float literal")
@@ -780,48 +907,94 @@ fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
     );
 }
 
+/// An off-lane row, hand-built. **The fields are `pub`, so every
+/// pairing of a [`Chart`] with a [`Sizing`] is constructible** — which
+/// is what the refusals below are about, and what lets the two row
+/// shapes be written here without a body to tessellate.
+fn plane_row() -> FaceRow {
+    FaceRow {
+        face: 0,
+        chart: Chart::Plane,
+        delta: 1e-3,
+        triangles: 2,
+        sizing: Sizing::OffLane,
+    }
+}
+
+/// A filled sizing block, hand-built. The values are arbitrary and
+/// distinct: nothing below reads one, they are here so a column
+/// printed out of order is visible in the row's text.
+fn some_columns() -> NurbsColumns {
+    NurbsColumns {
+        u: (0.0, 1.0),
+        v: (0.0, 1.0),
+        nu: 4.0,
+        nv: 5.0,
+        muu: 1.0,
+        muv: 2.0,
+        mvv: 3.0,
+        mu1: 1.5,
+        mv1: 2.5,
+        cells: 6,
+        grid_cells: 12.0,
+        patch_cells: 20.0,
+        opt_cells: 10.0,
+        span_opt_cells: 8.0,
+        worst_cert: 1e-4,
+        worst_dev: 5e-5,
+        dev_samples: 7,
+        bands: 3,
+        cap_bands: 1,
+        snap_bands: 0,
+        realized_aspect: 4.2,
+    }
+}
+
 /// The empty-tail arm and the filled arm must agree about the row's
 /// width, or every consumer's column indices are off by the
 /// difference.
 #[test]
 fn both_row_shapes_have_the_headers_width() {
     let cols = CSV_HEADER.split(',').count();
-    let plane = FaceRow {
-        face: 0,
-        chart: Chart::Plane,
-        delta: 1e-3,
-        triangles: 2,
-        nurbs: None,
-    };
+    let plane = plane_row();
     assert_eq!(plane.csv_row("s/b").split(',').count(), cols);
     let nurbs = FaceRow {
         chart: Chart::Nurbs,
-        nurbs: Some(NurbsColumns {
-            u: (0.0, 1.0),
-            v: (0.0, 1.0),
-            nu: 4.0,
-            nv: 5.0,
-            muu: 1.0,
-            muv: 2.0,
-            mvv: 3.0,
-            mu1: 1.5,
-            mv1: 2.5,
-            cells: 6,
-            grid_cells: 12.0,
-            patch_cells: 20.0,
-            opt_cells: 10.0,
-            span_opt_cells: 8.0,
-            worst_cert: 1e-4,
-            worst_dev: 5e-5,
-            dev_samples: 7,
-            bands: 3,
-            cap_bands: 1,
-            snap_bands: 0,
-            realized_aspect: 4.2,
-        }),
+        sizing: Sizing::Measured(some_columns()),
         ..plane
     };
     assert_eq!(nurbs.csv_row("s/b").split(',').count(), cols);
+}
+
+/// **A sized-lane chart with no columns never reaches the CSV.**
+///
+/// `face_rows` cannot build this row — its lookup refuses the state —
+/// but nothing else has to go through that lookup: [`plane_row`] shows
+/// the literal, and swapping one field produces a `nurbs` face wearing
+/// the empty tail, which every consumer reads as *"this face is not on
+/// the sized lane"*. The refusal is therefore at the WRITER, and this
+/// is the row that says a hand-built one cannot slip past it.
+#[test]
+#[should_panic(expected = "the Hessian-sized lane's, and carries no columns")]
+fn a_sized_lane_chart_with_an_empty_tail_never_reaches_the_csv() {
+    let row = FaceRow {
+        chart: Chart::Nurbs,
+        ..plane_row()
+    };
+    let _ = row.csv_row("s/b");
+}
+
+/// **And the other half of the same 2×2**: an off-lane chart wearing
+/// the sized lane's columns, which would hang a measurement on a chart
+/// nothing sizes that way.
+#[test]
+#[should_panic(expected = "carries the sized lane's columns anyway")]
+fn an_off_lane_chart_with_columns_never_reaches_the_csv() {
+    let row = FaceRow {
+        sizing: Sizing::Measured(some_columns()),
+        ..plane_row()
+    };
+    let _ = row.csv_row("s/b");
 }
 
 /// The header this crate writes and the one `tools/tess-lint` parses
@@ -838,30 +1011,230 @@ fn both_row_shapes_have_the_headers_width() {
 /// the lint wants. So the two declarations stay independent and this
 /// test reads the other one's source.
 ///
-/// It is a real pin and it is ugly: it parses Rust string
-/// continuations out of a sibling crate's `lib.rs`, and it breaks if
-/// that declaration is reformatted rather than changed.
+/// **Located in the code view and read in the literal one**, which is
+/// the split this pin needs: the needle is an item head, so only code
+/// may answer it, while the value IS a string literal, which
+/// [`source::code_only`] blanks and would leave this comparing
+/// `CSV_HEADER` against spaces. What the pin still asks of that crate
+/// is the declaration's spelling and a literal written as one plain
+/// string: a `concat!`, a raw string or an escape other than a line
+/// continuation reds it rather than decoding to something else.
 #[test]
 fn the_lints_expected_header_is_this_one() {
-    let lint = include_str!("../../tess-lint/src/lib.rs");
-    let quoted = lint
-        .split("pub const EXPECTED_HEADER: &str = ")
-        .nth(1)
-        .expect("tess-lint declares EXPECTED_HEADER");
-    let end = quoted.find(';').expect("the declaration ends");
-    // Rust string continuations: drop the backslash-newline-indent runs.
-    let mut header = String::new();
-    let mut chars = quoted[..end].chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '"' => {}
-            '\\' => {
-                while chars.peek().is_some_and(|c| c.is_whitespace()) {
-                    chars.next();
-                }
-            }
-            c => header.push(c),
-        }
+    let decl = sole_initializer(
+        lint_code(),
+        LINT_SEARCHED,
+        "pub const EXPECTED_HEADER: &str = ",
+    );
+    let quoted = plain_string_literal(&lint_literals()[decl])
+        .expect("EXPECTED_HEADER is one plain string literal");
+    // A Rust line continuation is `\` and the whitespace run after it.
+    // Every other escape is REFUSED rather than decoded: the header
+    // carries no whitespace of its own, so a `\` followed by anything
+    // else is a difference in the header and not in its formatting.
+    let mut parts = quoted.split('\\');
+    let mut header = String::from(parts.next().expect("a split yields one part"));
+    for part in parts {
+        let continued = part.trim_start();
+        assert!(
+            continued.len() < part.len(),
+            "EXPECTED_HEADER holds `\\{}`, an escape this pin does not decode",
+            part.chars().next().unwrap_or(' ')
+        );
+        header.push_str(continued);
     }
     assert_eq!(header, CSV_HEADER);
+}
+
+/// The roster of every [`Chart`], and the wildcard-free match that
+/// makes it complete — generated from ONE spelling of the list, which
+/// is the whole mechanism.
+///
+/// **The enforcement is a COMPILE ERROR, not a red test, and it is
+/// exact**: a variant added to `Chart` and not named in this macro's
+/// invocation has no arm in the generated match, that match is
+/// non-exhaustive, and this crate's tests do not build. Nothing here
+/// runs to discover the gap, so nothing here can be green over one.
+///
+/// **What that buys over a hand-written array plus a slot function.**
+/// A slot function alone forces an ARM, never a roster entry: an arm
+/// reusing an existing slot, or naming one past the array's end that
+/// nothing ever indexes with, left every pin below iterating a list
+/// the new variant was not on — and green. Both defeats are
+/// unspellable here, because the array and the match are the same
+/// tokens and there are no slots at all.
+///
+/// **What it does not catch**: a variant listed TWICE. That arm is a
+/// duplicate rather than a missing one, so `unreachable_patterns` is
+/// what sees it — denied below, so it too is a compile error — and
+/// [`the_roster_names_each_chart_once`] carries the reading of that
+/// which a lint cannot make, that no two charts share a `tag`.
+macro_rules! chart_roster {
+    ($($v:ident),+ $(,)?) => {
+        /// Every [`Chart`] this crate has, in declaration order.
+        const EVERY_CHART: &[Chart] = &[$(Chart::$v),+];
+
+        /// Exhaustiveness over `Chart`, spelled in the same tokens as
+        /// [`EVERY_CHART`]. It is never called: the item exists for
+        /// the compile error its non-exhaustiveness would be, per
+        /// [`chart_roster`].
+        #[deny(unreachable_patterns)]
+        #[allow(dead_code)]
+        fn every_chart_is_rostered(c: Chart) {
+            match c {
+                $(Chart::$v => (),)+
+            }
+        }
+    };
+}
+
+chart_roster!(Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx);
+
+/// [`EVERY_CHART`] names each chart once, and each under its own tag.
+///
+/// Completeness is [`chart_roster`]'s compile error and is not
+/// re-asserted here. What is left for a run is the half a match cannot
+/// state: the pins below compare charts BY THEIR TAG, so two charts
+/// sharing one would make the roster containment pass for a row the
+/// CSV cannot tell apart afterwards.
+#[test]
+fn the_roster_names_each_chart_once() {
+    let mut tags: Vec<&str> = EVERY_CHART.iter().map(|c| c.tag()).collect();
+    tags.sort_unstable();
+    tags.dedup();
+    assert_eq!(
+        tags.len(),
+        EVERY_CHART.len(),
+        "EVERY_CHART is {EVERY_CHART:?}, whose tags are not {} distinct names",
+        EVERY_CHART.len()
+    );
+}
+
+/// The string literals of the ONE array `decl` initializes in
+/// `tess-lint`'s source.
+///
+/// **Bracket-balanced rather than `;`-terminated**, which is where
+/// this parts from [`sole_initializer`]: an array's TYPE carries a `;`
+/// of its own (`[&str; 7]`), so the first `;` after the head is inside
+/// the declaration and not at its end. The `=` is sought first for the
+/// same reason — the `[` of `[&str; N]` precedes the `[` of the
+/// initializer.
+///
+/// Located in the code view and read in the literal one, by
+/// [`lint_view`]'s equal-offsets property: over the code view every
+/// bracket and every top-level comma is real, so `source`'s two
+/// bracket helpers ARE the parse; over the literal view the elements
+/// still carry their text.
+fn lint_string_array(decl: &str) -> Vec<String> {
+    string_array(lint_code(), lint_literals(), LINT_SEARCHED, decl)
+}
+
+/// [`lint_string_array`] over any pair of views of one text, so the
+/// locator itself is exercisable on a fixture. `searched` names that
+/// text for the refusals, per [`sole_initializer`].
+fn string_array(code: &str, literals: &str, searched: &str, decl: &str) -> Vec<String> {
+    assert_eq!(
+        code.len(),
+        literals.len(),
+        "the two views are the same bytes, blanked differently"
+    );
+    let mut heads: Vec<usize> = code.match_indices(decl).map(|(at, _)| at).collect();
+    assert!(
+        heads.len() == 1,
+        "`{decl}` is declared {} times in {searched}, not once",
+        heads.len()
+    );
+    let head = heads.remove(0);
+    let eq = head + code[head..].find('=').expect("the declaration initializes");
+    let open = eq + code[eq..].find('[').expect("the initializer is an array");
+    let close = source::balanced_end(code, open).expect("the array closes");
+
+    let inner = open + 1..close;
+    source::top_level_split(&code[inner.clone()], ',')
+        .into_iter()
+        .filter_map(|item| {
+            let at = inner.start + item.start..inner.start + item.end;
+            let text = literals[at].trim();
+            if text.is_empty() {
+                return None; // the trailing comma's empty tail
+            }
+            Some(
+                plain_string_literal(text)
+                    .unwrap_or_else(|| {
+                        panic!("`{decl}` holds {text:?}, not a plain string literal")
+                    })
+                    .to_string(),
+            )
+        })
+        .collect()
+}
+
+/// **`tools/tess-lint`'s roster admits every tag this crate can
+/// emit** — the pin that closes `CHART_TAGS`' one-way asymmetry, on
+/// the side that can close it.
+///
+/// [`LINT_SOURCE`] says why the roster is read and not imported. What
+/// is new here is the DIRECTION, and it is deliberately not equality.
+/// `CHART_TAGS` is the lint's PARSE vocabulary: `parse` refuses any
+/// row whose `chart` token is not in it, and what it parses includes
+/// `docs/tess-budget-data/`, a committed cut of an older tree. So a
+/// tag this crate RETIRES has to stay in that roster for as long as a
+/// committed baseline carries it, and an equality pin would red this
+/// suite over an entry still doing the lint's work. That the two
+/// lists happen to agree today is a fact about today — the roster
+/// already carries `approx`, which no baseline row uses.
+///
+/// The direction that IS owed runs the other way and is the one the
+/// lint cannot check for itself: a tag this crate ADDS arrives there
+/// as harness breakage on every row carrying it, with nothing on this
+/// side saying so. [`EVERY_CHART`] is what makes the containment
+/// complete rather than a spot check, and its own guard is what makes
+/// [`EVERY_CHART`] complete.
+#[test]
+fn the_lints_roster_admits_every_tag_this_crate_emits() {
+    let roster = lint_string_array("pub const CHART_TAGS");
+    for c in EVERY_CHART.iter().copied() {
+        assert!(
+            roster.iter().any(|t| t == c.tag()),
+            "tess-lint's CHART_TAGS is {roster:?}, which does not admit {:?} — \
+             a row carrying it would leave that crate as harness breakage",
+            c.tag()
+        );
+    }
+}
+
+/// The roster pin reads the declaration, and the containment it
+/// asserts is falsifiable.
+///
+/// Two failures this exercises, both of which would otherwise be
+/// silent greens. First, the locator's: a doc comment and a quoted
+/// string spelling the same declaration sort ahead of it, and over the
+/// code view neither can answer — the `;` inside `[&str; N]` is the
+/// second, and it is why the array is bracket-balanced rather than
+/// `;`-terminated. Second, the pin's: a roster short a tag must red,
+/// so the shortfall is constructed here rather than assumed.
+#[test]
+fn the_roster_pin_reads_the_declaration_and_a_short_roster_reds_it() {
+    let decoyed = concat!(
+        "/// pub const CHART_TAGS: [&str; 1] = [\"decoy\"];\n",
+        "const QUOTED: &str = \"pub const CHART_TAGS: [&str; 1] = [\\\"decoy\\\"];\";\n",
+        "pub const CHART_TAGS: [&str; 2] = [\n    \"plane\", \"cone\",\n];\n"
+    );
+    let tags = string_array(
+        &source::code_only(decoyed),
+        &source::code_and_literals(decoyed),
+        "the decoy fixture",
+        "pub const CHART_TAGS",
+    );
+    assert_eq!(tags, ["plane", "cone"]);
+    let missing: Vec<&str> = EVERY_CHART
+        .iter()
+        .map(|c| c.tag())
+        .filter(|t| !tags.iter().any(|r| r == t))
+        .collect();
+    assert_eq!(
+        missing,
+        ["cylinder", "sphere", "torus", "nurbs", "approx"],
+        "the containment separates a roster short a tag from a complete one"
+    );
 }

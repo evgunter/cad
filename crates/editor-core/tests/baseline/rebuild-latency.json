@@ -80,6 +80,16 @@
       "nodes": 3,
       "cone": 2
     },
+    "tube_ring": {
+      "about": "a solid ring torus from its intent parameters, R = 2, r = 0.5",
+      "nodes": 2,
+      "cone": 1
+    },
+    "hollow_tube_elbow": {
+      "about": "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",
+      "nodes": 2,
+      "cone": 1
+    },
     "kiss_carry": {
       "about": "corner-kiss assembly; the surviving v-v record re-entered by Declare",
       "nodes": 9,
