@@ -459,6 +459,25 @@ them, so they run in full every night rather than being left behind at a
 cadence their guard does not share. That is the distinction the `k-lint`
 entry above turns on, argued here rather than inherited.
 
+**THE SCOPING IS A SECOND DEMOTION, and it gets its own row-by-row
+sentence rather than riding the one above.** Pass 1 does not merely move;
+it also narrows, from `--workspace` to the change filter's `CARGO_SCOPE`
+on tier `closure`. So a workspace MEMBER outside the closure — one no
+changed crate depends on — has its prose read on a PR run by nothing, and
+is covered by the nightly alone. Against the rule that is the same
+persistence case as the excluded roots, and it is weaker in one direction
+and stronger in another. Weaker: a member's prose is likelier to be
+edited by a PR than an excluded root's is — but a member whose OWN
+sources changed is a seed and so is in its own closure by construction,
+and what is skipped is a member nothing in the diff touches or depends
+on. Stronger: what a doc link most often breaks on is a RENAMED or
+DELETED item, and a rename in crate A that breaks a link in crate B puts
+B in A's dependent closure, which is exactly what `CARGO_SCOPE` selects.
+What genuinely escapes is a link broken by an edit to prose in an
+unrelated member — ordinary persistence: it stays broken, and the nightly
+reads every member. Tier `all` is unscoped, so an unclassifiable change
+still documents everything.
+
 **The cache moved with the passes.** `--print-roots --pr` prints `.`
 alone, and the `fmt` job's `workspaces:` input is that: F6 taught the
 cache about seven target directories because the job wrote seven, and
@@ -489,6 +508,17 @@ is worth more than the minute: the job is back at the merge base's cost
 to the second, with pass 3's coverage KEPT rather than dropped — it runs
 nightly instead of per PR. The non-gate steps are 69 s in all three,
 which is what makes the three rows comparable at all.
+
+**And the nightly side is priced, because a demotion that books only its
+saving is half a measurement.** `rustdoc (gate, every root)` runs all
+three passes over all seven roots on a cache lane of its own, once a
+night: **~3 billed**, derived from F6's warm all-seven job (99 s) plus
+the addendum's pass-3 delta (+43 s), with one night at ~6-7 whenever that
+lane's key rotates — the one-cold-run tax F6 records. So the ledger is
+−1 per code-tier PR run against +~3 a night; at this repo's PR rate that
+is a saving, and on a quiet day the `gate` job spends nothing at all. It
+is DERIVED and not yet measured on a nightly; the row in the nightly
+budget table below says so and asks for the re-read.
 
 Two things the row does NOT claim. It is not F6's −1 recovered: that one
 was spent by job growth as well as by pass 3, and this reading says
@@ -753,6 +783,7 @@ measured, and the largest line is not the one you would guess:
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| `rustdoc (gate, every root)` | ~3 | S-TCOST C2. DERIVED, not yet measured on a nightly: F6's warm all-seven reading is a 99 s job and the addendum's pass-3 delta is +43 s, so ~142 s. Its own cache lane (`nightly-rustdoc-roots`) is warm night to night; a key rotation costs one night at ~6-7, the same one-cold-run tax F6 records. Re-read it from the first nightly run. The `an ordinary night` line below does not yet include this row |
 | **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than

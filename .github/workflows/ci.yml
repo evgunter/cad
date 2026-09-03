@@ -1307,6 +1307,20 @@ jobs:
       # than the whole workspace. `cargo_scope` is `--workspace` on tier
       # `all`, which is the fail-open direction every signal here takes.
       #
+      # THAT SCOPING IS A SECOND DEMOTION AND IS ARGUED AS ONE, per row,
+      # rather than riding the argument above. What it gives up is a
+      # workspace MEMBER outside the closure: its prose is read on a PR
+      # run by nothing, and by the nightly alone. Two things bound it.
+      # A member whose OWN sources changed is a seed, so it is in its own
+      # closure by construction — what is skipped is a member nothing in
+      # the diff touches or depends on. And the break a doc link most
+      # often takes is a RENAMED or DELETED item, where the crate holding
+      # the link is by definition a dependent of the crate that renamed
+      # it, which is exactly what `cargo_scope` selects. What escapes is
+      # a link broken by an edit to prose in an unrelated member, and
+      # that is the ordinary persistence case: it stays broken until
+      # someone fixes it, and the nightly reads every member every night.
+      #
       # THE `--selftest` LINE IS PART OF THE GATE, not a nicety: the
       # script's `-D warnings`, its `--document-private-items`, its
       # `--bins --examples` invocation, its per-root feature choice and

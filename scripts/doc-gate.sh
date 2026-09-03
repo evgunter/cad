@@ -386,7 +386,8 @@
 # prints `.` alone, because that mode writes one target directory;
 # telling rust-cache about six the job never touches is a restore and a
 # re-save bought for nothing. The measurement below is the full mode's,
-# which is what nightly.yml runs and what the entry it cites measured. Hosted CI's `fmt` job restores one
+# which is what nightly.yml runs and what the entry it cites measured.
+# Hosted CI's `fmt` job restores one
 # `Swatinem/rust-cache` entry, and until #921 that entry covered `./target`
 # and nothing else — so the workspace pass ran against a warm dependency
 # graph while the six roots above compiled from nothing on EVERY run,
@@ -1364,8 +1365,13 @@ gate_selftest() {
     "ends with a bare" --pr --scope "-p"
   gate_selftest_rejects "a --scope on the full gate, which has nothing to scope" \
     "only meaningful with --pr" --scope "-p clean"
+  # THE ONE THAT READS AS A NARROWING AND BEHAVES AS A WIDENING. Without
+  # this arm an empty `CARGO_SCOPE` reaching the hosted step documents the
+  # whole workspace and reports as a scoped pass.
+  gate_selftest_rejects "an empty --scope, which silently widened to --workspace" \
+    "empty selection" --pr --scope ""
 
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection, and REFUSES a malformed scope instead of falling back to one nobody asked for\n' \
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature (whether or not pass 3 also reads that root), and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each of the gate'"'"'s three root treatments, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails; and, per MODE: --pr still fires on the workspace pass and deliberately does NOT read the excluded roots or the not(feature) halves (nightly.yml re-takes both), prints exactly one root for the cache, honours a --scope selection in both directions, documents `viewer` at DEFAULT features under --skip-viewer-toolkit with and without an explicit selection, and REFUSES a malformed or EMPTY scope instead of falling back to one nobody asked for\n' \
     "$(gate_name)"
 }
 
@@ -1381,6 +1387,10 @@ PRINT_ROOTS=false
 SKIP_VIEWER_TOOLKIT=false
 MODE=full
 SCOPE_ARGS=()
+# Whether `--scope` was SPELLED, as opposed to what it resolved to. An
+# empty value resolves to an empty array, which is indistinguishable from
+# never having been passed — and those two must not have the same answer.
+SCOPE_GIVEN=false
 gate_args=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -1399,6 +1409,7 @@ while [ $# -gt 0 ]; do
       # `cargo doc` would document the current directory's package alone.
       # shellcheck disable=SC2206
       SCOPE_ARGS=($1)
+      SCOPE_GIVEN=true
       ;;
     *) gate_args+=("$1") ;;
   esac
@@ -1412,6 +1423,22 @@ gate_parse_args ${gate_args[@]+"${gate_args[@]}"}
 # this one is an INPUT ERROR whose author is a workflow step someone is
 # looking at. Falling back would hand them a green gate over a selection
 # they did not ask for, which is the question they were asking.
+if [ "$SCOPE_GIVEN" = true ] && [ ${#SCOPE_ARGS[@]} -eq 0 ]; then
+  # AN EMPTY `--scope` IS A REFUSAL, NOT A DEFAULT. It is the one input
+  # shape that reads as a narrowing and behaves as a widening: the value
+  # word-splits to nothing, `SCOPE_ARGS` falls back to `--workspace`, and
+  # the gate documents the WHOLE workspace while its caller believes it
+  # asked for a closure. The hosted caller interpolates the change
+  # filter's `CARGO_SCOPE` here, so the way this arrives is exactly the
+  # way it would matter — that key coming back empty because the filter
+  # could not classify. Everything else in this file fails open into more
+  # work because it could not READ the tree; this is an input error whose
+  # author is a workflow step someone is looking at, and handing them a
+  # green gate over a selection they did not ask for is the question they
+  # were asking.
+  gate_error "$(gate_name): --scope was given an empty selection. That is not \`--workspace\`: it is a caller asking for a narrowing and getting the widest pass there is. Pass \`--workspace\` if that is what you mean, or drop --scope"
+  exit 2
+fi
 if [ ${#SCOPE_ARGS[@]} -gt 0 ]; then
   if [ "$MODE" != pr ]; then
     gate_error "$(gate_name): --scope is only meaningful with --pr; the full gate documents every cargo root this repository tracks and has nothing to scope"
