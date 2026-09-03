@@ -120,9 +120,9 @@ fn param_of(doc: &Doc<ProfileProgram>, name: &ParamName) -> SlotValue {
 /// One drum: a circle profile on world XY driven by `radius_expr`,
 /// extruded up by a literal the caller may re-drive afterwards.
 ///
-/// Stacked extruded drums rather than one revolved silhouette,
-/// because `ProfileShape` spells no revolvable silhouette — the
-/// template poverty issue 1457 tracks.
+/// Stacked extruded drums rather than one revolved silhouette: this
+/// scene predates `ProfileShape`'s `Path` arm, which can now spell
+/// one.
 fn drum(
     session: &mut DocSession,
     radius_expr: &str,

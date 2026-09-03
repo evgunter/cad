@@ -244,9 +244,9 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
 /// applied to a shared-wall result (no open chains here, so the blank
 /// phase's channels are empty and asserted so), in BOTH directions:
 /// every output entity is a mint or a survivor, and every recorded
-/// mint is present in the output. What no row anywhere yet does is
-/// drive these records through `editor-core`'s `emit_fillet` on an
-/// annulus body — issue #1294 tracks that end-to-end drive.
+/// mint is present in the output. The end-to-end drive of these
+/// records through `editor-core`'s `emit_fillet` on an annulus body
+/// is `editor-core/tests/blend5_rim_support.rs`.
 fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
     assert!(

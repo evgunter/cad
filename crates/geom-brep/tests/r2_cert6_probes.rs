@@ -43,6 +43,13 @@ fn dome() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>) {
     (k.clone(), k, net)
 }
 
+/// This dome, at these weights and this ε — the row below memoizes on
+/// `(weights, eps)`, so those two are the only things that vary.
+///
+/// Deliberately NOT routed through `shared::patch::face_posture`: that
+/// gate panics on a posture outside the honest set, and which posture
+/// came back — refusals included — is the whole subject of the row
+/// below. The raw `Result` is the reading.
 fn drive(weights: &[f64], eps: f64) -> Result<geom_brep::props::quad::FaceCutBounds, PropsError> {
     let (ku, kv, net) = dome();
     let (a, b) = ku.domain();

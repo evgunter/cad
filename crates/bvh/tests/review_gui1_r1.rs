@@ -31,6 +31,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/"];
+
 use bvh::{Aabb, Bvh, Ray, RayCandidate};
 use geom_core::{Point3, Vec3};
 use test_utils::fuzz;

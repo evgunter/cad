@@ -23,6 +23,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+
 use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};

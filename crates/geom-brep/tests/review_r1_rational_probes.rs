@@ -29,6 +29,8 @@ use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, RingInterval};
 
+use crate::shared::patch::{dbasis_over, dense_over};
+
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
@@ -199,6 +201,20 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 // ---------------------------------------------------------------
 
 /// All basis values N_{i,p}(t) for a clamped knot vector.
+///
+/// **This copy stays, and is the only part of this oracle that does.**
+/// It seeds the Cox-de Boor recursion by clamping `t` into the last
+/// nonzero span at the domain end, where
+/// `crates/geom-brep/tests/shared/patch.rs`'s takes a separate
+/// `t >= knots[n]` branch. That seeding is the part of an oracle a
+/// `props::quad` defect could plausibly be mirrored by, so the crate
+/// keeps more than one of it on purpose; the recurrence and the
+/// quadrature loop underneath carry no such risk and are shared.
+///
+/// It is character-identical to `cert5_r2_probes.rs`'s. Those two are
+/// one derivation spelled twice, and collapsing them is an
+/// adjudication about which suite owns it rather than a dedup — left
+/// for TCOST-8, not decided here.
 fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     let n = knots.len() - 1;
     let mut nn = vec![0.0f64; n]; // degree-0
@@ -253,22 +269,11 @@ fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     nn
 }
 
-/// Basis derivatives N'_{i,p}(t).
+/// Basis derivatives N'_{i,p}(t) — the shared divided difference,
+/// taken over THIS file's `basis` above, so the derivative path keeps
+/// the seeding that makes this oracle independent.
 fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
-    let n = knots.len() - 1;
-    // degree-(p-1) values over the full index range
-    let mut low = basis(knots, degree - 1, n - (degree - 1), t);
-    low.resize(n, 0.0);
-    let mut out = vec![0.0f64; ncp];
-    let pf = degree as f64;
-    for (i, o) in out.iter_mut().enumerate() {
-        let da = knots[i + degree] - knots[i];
-        let db = knots[i + degree + 1] - knots[i + 1];
-        let a = if da > 0.0 { pf / da * low[i] } else { 0.0 };
-        let b = if db > 0.0 { pf / db * low[i + 1] } else { 0.0 };
-        *o = a - b;
-    }
-    out
+    dbasis_over(basis, knots, degree, ncp, t)
 }
 
 struct Patch {
@@ -317,66 +322,14 @@ impl Patch {
         (s, su, sv)
     }
 
-    /// Dense (flux, area) by composite 5-pt Gauss-Legendre per span
-    /// rectangle, `cells` cells per span per axis.
+    /// Dense (flux, area) at `cells` cells per span per axis: the
+    /// shared composite Gauss-Legendre loop over THIS file's `eval`.
+    /// The ladder this suite runs it at is 24/48; why two rungs a
+    /// factor of two apart settle the oracle's own error is
+    /// [`crate::shared::patch::dense_over`]'s doc, which is that
+    /// argument's one home.
     fn dense(&self, cells: usize) -> (f64, f64) {
-        let gx = [
-            -0.906_179_845_938_664,
-            -0.538_469_310_105_683,
-            0.0,
-            0.538_469_310_105_683,
-            0.906_179_845_938_664,
-        ];
-        let gw = [
-            0.236_926_885_056_189,
-            0.478_628_670_499_366,
-            0.568_888_888_888_889,
-            0.478_628_670_499_366,
-            0.236_926_885_056_189,
-        ];
-        let spans = |knots: &[f64]| -> Vec<(f64, f64)> {
-            let mut s = Vec::new();
-            for w in knots.windows(2) {
-                if w[1] > w[0] {
-                    s.push((w[0], w[1]));
-                }
-            }
-            s
-        };
-        let su = spans(&self.ku);
-        let sv = spans(&self.kv);
-        let mut flux = 0.0;
-        let mut area = 0.0;
-        for (ua, ub) in &su {
-            for (va, vb) in &sv {
-                for cu in 0..cells {
-                    for cv in 0..cells {
-                        let hu = (ub - ua) / cells as f64;
-                        let hv = (vb - va) / cells as f64;
-                        let u0 = ua + cu as f64 * hu;
-                        let v0 = va + cv as f64 * hv;
-                        for a in 0..5 {
-                            for b in 0..5 {
-                                let u = u0 + hu * 0.5 * (1.0 + gx[a]);
-                                let v = v0 + hv * 0.5 * (1.0 + gx[b]);
-                                let (s, sud, svd) = self.eval(u, v);
-                                let cx = [
-                                    sud[1] * svd[2] - sud[2] * svd[1],
-                                    sud[2] * svd[0] - sud[0] * svd[2],
-                                    sud[0] * svd[1] - sud[1] * svd[0],
-                                ];
-                                let f = s[0] * cx[0] + s[1] * cx[1] + s[2] * cx[2];
-                                let g = (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
-                                let wq = gw[a] * gw[b] * hu * hv * 0.25;
-                                flux += wq * f;
-                                area += wq * g;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        (flux, area)
+        dense_over(&self.ku, &self.kv, cells, |u, v| self.eval(u, v))
     }
 }
 
