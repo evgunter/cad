@@ -2,8 +2,9 @@
 id: LIB-B-VALIDATE4
 kind: unit
 title: binding census family B-VALIDATE4
-status: review
+status: closed
 opened: 2026-09-03
+closed: 2026-09-03
 branch: lib/b-validate4
 pr: 1677
 ---
