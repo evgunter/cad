@@ -366,11 +366,14 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
 /// Every placement carries [`FLAT_PACK_GAP`] along +x, which is how the
 /// flat-pack sits BESIDE the assembled bench in their shared montage
 /// cell. It is AUTHORED into the frames rather than applied to the
-/// gathered body, and that is not a preference: both furniture bodies
-/// carry declared contacts, and `transform_rigid` re-mints face keys,
-/// so a moved product would carry `ContactRecords` naming faces that
-/// no longer exist. A common offset on every placement moves the
-/// product and changes nothing else about it.
+/// gathered body, and that is not a preference: a layout document's
+/// placements ARE its subject, so where the parts sit has to be
+/// something this document SAYS. What the montage ships is the body
+/// `assemble` returned from this document (`layout_scene`); moving
+/// that afterwards would hand the renderer a body no gate had seen,
+/// standing at coordinates no document records. A common offset on
+/// every placement moves the product and changes nothing else about
+/// it.
 fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
