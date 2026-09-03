@@ -161,14 +161,18 @@
 //!
 //! The SHAPE of the hole, which the cut does not move: each pair is
 //! two walls of one body, and among the sized rows the identity list
-//! is mostly constant — `chart` is `nurbs` on every one of them and
-//! the trim box is the whole unit square on every one, so **five of
-//! the eight entries discriminate nothing there and the live pair is
-//! `nu`/`nv` alone**. Corpus-wide `chart` and the sizing block do
+//! is mostly constant — `chart` is `nurbs` on every one of them, the
+//! trim box is the whole unit square on every one, and the sizing
+//! block is "present" on every one because that is what SIZED means,
+//! so **six of the eight entries discriminate nothing there and the
+//! live pair is `nu`/`nv` alone**. Six plus that pair is the whole
+//! list of eight. Corpus-wide `chart` and the sizing block do
 //! discriminate, and the reroute they catch is a named case — but a
 //! reader sizing up the hole should size up `(nu, nv)`. The same test
-//! pins those statements. Closing it needs a face identity in a column
-//! of the sweep's own, which is `tess_meter`'s half of the contract.
+//! pins those statements, deriving the split column by column from
+//! [`identity_readings`] rather than spot-checking members of it.
+//! Closing it needs a face identity in a column of the sweep's own,
+//! which is `tess_meter`'s half of the contract.
 //!
 //! **A re-key is a finding where it can cost a measurement**, judged
 //! per SCENE: does either side carry a sized face at all. That is
@@ -1033,7 +1037,7 @@ pub const GROWTH_TOLERANCE: f64 = 1.05;
 /// "the sizing block" is whether the row carries the Hessian-sized
 /// columns at all — the reroute case, where a face keeps its surface
 /// description and leaves the sized lane.
-const IDENTITY_COLUMNS: [&str; 8] = [
+pub const IDENTITY_COLUMNS: [&str; 8] = [
     "chart",
     "the sizing block",
     "u0",
@@ -1091,6 +1095,31 @@ fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
         col(|n| n.nu),
         col(|n| n.nv),
     ]
+}
+
+/// One row's reading of [`IDENTITY_COLUMNS`], index for index, in the
+/// form the precondition would ANNOUNCE it — the one shape of this
+/// definition that can be grouped, and the crate's answer to anyone
+/// who needs to key rows by face identity.
+///
+/// `tests/baseline_census.rs` is that anyone. It exists so the census
+/// groups on THIS definition rather than on a transcription of it: a
+/// ninth entry in [`IDENTITY_COLUMNS`] changes this array's length and
+/// the census's grouping with it, which a second copy of the list
+/// could not do.
+///
+/// **It is the precondition's comparison with one documented
+/// divergence.**
+/// Rule 4 compares numbers AS numbers; this renders them, and `-0e0`
+/// and `0e0` render apart. `parse` admits nothing non-finite into
+/// these columns, so the only reachable divergence is that signed
+/// zero, and it can only SPLIT a group — a caller counting equal rows
+/// undercounts rather than over-. A caller that cannot afford even
+/// that must check the sign bits it cares about itself, as the census
+/// does by asserting the trim box is the unit square on every sized
+/// row.
+pub fn identity_readings(r: &Row) -> [String; IDENTITY_COLUMNS.len()] {
+    identity(r).map(Reading::show)
 }
 
 /// Why an ordinal's two rows are not the same face.

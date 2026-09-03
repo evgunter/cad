@@ -7,24 +7,44 @@
 //! is a reading of a committed artefact that a re-baseline moves and a
 //! number transcribed into prose is a number nothing can check.
 //!
-//! Three copies of that paragraph — the module docs and two rows in
-//! `work/code-quality/` — drifted apart from the file they describe.
-//! The cure is the one this tree's own CI comment states for the rule
-//! roster next door: a pointer cannot go stale, so there is one home
-//! and everything else points at it.
+//! # The transcription sweep, and its hit list
+//!
+//! The pattern swept for was that paragraph's own quantities — the
+//! literals `8 pairs` / `16 of` / `22,545` / `1327` / `five of the
+//! eight` and their spellings with and without the thousands comma —
+//! over every `*.md` and `*.rs` in the tree. **What it could not
+//! match**: a copy that paraphrases the figures without repeating a
+//! literal, and a copy in a non-text artefact. Four hits:
+//!
+//! * `lib.rs`'s module docs — FIXED, they now point here.
+//! * `work/code-quality/C15.md` — FIXED, points here.
+//! * `work/code-quality/D201.md` — FIXED, points here.
+//! * `work/code-quality/logs/SMELL-KPW-LOG.md` — **NOT FIXED, and
+//!   deliberately.** It is a dated unit record in `logs/`, and a log
+//!   entry is what the unit reported on the day it reported it. Its
+//!   figures were correct against the tree it closed on; editing them
+//!   now would make the record say something the unit did not say,
+//!   which is a worse defect than the stale number. Frozen, not
+//!   propagated: nothing cites the log for a current count.
+//!
+//! The cure for the three live copies is the one this tree's own CI
+//! comment states for the rule roster next door: a pointer cannot go
+//! stale, so there is one home and everything else points at it.
 //!
 //! # The sweep's definition, beside its result
 //!
 //! Over `docs/tess-budget-data/tess-budget-baseline.csv`, read through
-//! `tess_lint::parse` — so this census counts exactly what the gate
-//! parses, not what a separate reader thinks the columns mean:
+//! [`parse`] — so this census counts exactly what the gate parses, not
+//! what a separate reader thinks the columns mean:
 //!
 //! * a **row** is one parsed [`Row`]: one face of one scene;
 //! * a row is **sized** when it carries the Hessian-sized block
 //!   (`Row::nurbs` is `Some`) — every column from `u0` on is filled;
-//! * a row's **identity** is `IDENTITY_COLUMNS` as rule 4 compares it:
-//!   `chart` and the sizing block's PRESENCE as text, then `u0`, `u1`,
-//!   `v0`, `v1`, `nu`, `nv` as numbers;
+//! * a row's **identity** is [`identity_readings`], which is
+//!   [`IDENTITY_COLUMNS`] as rule 4 compares it. It is the crate's own
+//!   definition and not a copy of it: a ninth entry in that list
+//!   lengthens the key here, so the census cannot go on grouping on
+//!   eight columns while the gate parses nine;
 //! * a **pair** is two rows OF ONE SCENE with equal identities. They
 //!   necessarily have different ordinals (`parse` refuses a repeated
 //!   `(scene, face)`), so each pair is a swap rule 4 would wave
@@ -43,13 +63,10 @@
 //! new number, decide whether the new corpus is what you meant, and
 //! write it in. The failure exists so that the paragraph in `lib.rs`
 //! cannot go on describing a file it no longer describes.
-//!
-//! [`Row`]: tess_lint::Row
-//! [`IDENTITY_COLUMNS`]: tess_lint
 
 use std::collections::HashMap;
 
-use tess_lint::{Nurbs, Row, parse};
+use tess_lint::{IDENTITY_COLUMNS, Row, identity_readings, parse};
 
 /// The committed baseline, by path relative to this crate's manifest.
 ///
@@ -59,38 +76,31 @@ use tess_lint::{Nurbs, Row, parse};
 /// test that silently reads nothing. It costs this crate a build-time
 /// dependency on a path outside itself, which is the price of the
 /// census being checkable at all.
+///
+/// `k-lint`'s `tests/threshold_provenance.rs` reaches out of its own
+/// crate root for the same kind of artefact and does it the other way,
+/// with `CARGO_MANIFEST_DIR` and a runtime read. That is not a second
+/// convention: its payload is deflate, `include_str!` cannot hold it
+/// and that crate has no inflater, so it must stream the file through
+/// `gzip -dc` at run time. Text that fits in the binary is embedded;
+/// anything else is read. The rule is the payload, not the taste.
 const BASELINE: &str = include_str!("../../../docs/tess-budget-data/tess-budget-baseline.csv");
 
-/// One row's reading of the identity columns, in a form that can be
-/// grouped: `chart` and the sizing block's presence as text, the six
-/// measured entries as bit patterns.
+/// One row's identity, keyed for grouping.
 ///
-/// `to_bits` and not the float, because floats are not `Hash`. It is
-/// the same comparison rule 4 runs with ONE exception, and the
-/// exception cannot bite here: `-0e0` and `0e0` compare equal as
-/// numbers and unequal as bits, and `parse` admits no `NaN` into these
-/// columns — so a sign-bit split would show up as a pair MISSING, and
-/// the sweep's own assertion that the trim box is the unit square on
-/// every sized row rules it out for this baseline.
-type Identity = (String, bool, [u64; 6]);
-
-fn identity(r: &Row) -> Identity {
-    let n = r.nurbs;
-    (
-        r.chart.clone(),
-        n.is_some(),
-        n.map_or([0; 6], |n: Nurbs| {
-            [n.u0, n.u1, n.v0, n.v1, n.nu, n.nv].map(f64::to_bits)
-        }),
-    )
+/// Nothing is transcribed here: the array comes from the crate, and
+/// its length is `IDENTITY_COLUMNS.len()`. What this adds is only the
+/// scene, because a pair is two rows OF ONE SCENE.
+fn key(r: &Row) -> (&str, [String; IDENTITY_COLUMNS.len()]) {
+    (r.scene.as_str(), identity_readings(r))
 }
 
 /// `(pairs, rows in a group of two or more, scenes carrying a pair)`,
 /// with the scene names.
 fn census(rows: &[&Row]) -> (usize, usize, Vec<String>) {
-    let mut groups: HashMap<(&str, Identity), usize> = HashMap::new();
+    let mut groups: HashMap<(&str, [String; IDENTITY_COLUMNS.len()]), usize> = HashMap::new();
     for r in rows {
-        *groups.entry((r.scene.as_str(), identity(r))).or_default() += 1;
+        *groups.entry(key(r)).or_default() += 1;
     }
     let pairs = groups.values().map(|k| k * (k - 1) / 2).sum();
     let in_group = groups.values().filter(|k| **k > 1).sum();
@@ -106,6 +116,13 @@ fn census(rows: &[&Row]) -> (usize, usize, Vec<String>) {
 
 /// The census itself. Every quantity `lib.rs` used to transcribe, and
 /// the corpus it is over.
+///
+/// **One of these is not independently exercisable and it is said
+/// rather than hidden**: `all_scenes.len()` is a second reading of the
+/// same corpus-wide grouping as `all_pairs`, and `all_pairs` asserts
+/// first, so no perturbation reaches the scene count without moving
+/// the pair count. It is kept because it is the figure a reader wants
+/// beside the pair count, not because it discriminates on its own.
 #[test]
 fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
@@ -150,14 +167,72 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
 
 /// The other half of the paragraph: WHICH identity entries actually
 /// discriminate among the sized rows, which is the honest reading of
-/// how big the hole is. Five of the eight are constant there, so the
+/// how big the hole is. Six of the eight are constant there — `chart`,
+/// the sizing block's presence, and the four trim-box edges — so the
 /// live pair is `nu`/`nv` alone.
+///
+/// The split is DERIVED, column by column, from
+/// [`tess_lint::identity_readings`] rather than spot-checked: the
+/// constant set and the discriminating set are both named in full and
+/// must partition [`IDENTITY_COLUMNS`], so a column that changes side
+/// and a ninth column both land here rather than going uncounted. The
+/// old shape of this test asserted two of the six and left the arithmetic
+/// (5 + `nu`/`nv` = 8) unreachable by any assertion.
 #[test]
-fn five_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows() {
+fn six_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
     let sized: Vec<&Row> = rows.iter().filter(|r| r.nurbs.is_some()).collect();
     assert!(!sized.is_empty(), "the census needs sized rows to be over");
 
+    // Distinct readings per identity column, over the sized rows.
+    let distinct: Vec<usize> = (0..IDENTITY_COLUMNS.len())
+        .map(|i| {
+            let mut v: Vec<String> = sized
+                .iter()
+                .map(|r| identity_readings(r)[i].clone())
+                .collect();
+            v.sort_unstable();
+            v.dedup();
+            v.len()
+        })
+        .collect();
+
+    let constant: Vec<&str> = IDENTITY_COLUMNS
+        .iter()
+        .zip(&distinct)
+        .filter(|(_, d)| **d == 1)
+        .map(|(c, _)| *c)
+        .collect();
+    let discriminating: Vec<&str> = IDENTITY_COLUMNS
+        .iter()
+        .zip(&distinct)
+        .filter(|(_, d)| **d > 1)
+        .map(|(c, _)| *c)
+        .collect();
+
+    assert_eq!(
+        constant,
+        ["chart", "the sizing block", "u0", "u1", "v0", "v1"],
+        "the identity entries that discriminate NOTHING among the \
+         sized rows; readings per column {distinct:?}"
+    );
+    assert_eq!(
+        discriminating,
+        ["nu", "nv"],
+        "the identity entries that do the separating among the sized \
+         rows; readings per column {distinct:?}"
+    );
+    // The arithmetic the prose states, so the prose cannot drift from
+    // it: six constant plus the live pair is the whole list.
+    assert_eq!(
+        constant.len() + discriminating.len(),
+        IDENTITY_COLUMNS.len(),
+        "every identity entry is either constant or discriminating"
+    );
+
+    // What the two constant halves ARE, which is why they are constant
+    // — the sizing block is "present" by the definition of sized, so
+    // it is the trivial member of the six and named as such.
     for r in &sized {
         let n = r.nurbs.expect("filtered to sized rows");
         assert_eq!(r.chart, "nurbs", "{} face {}", r.scene, r.face);
@@ -169,24 +244,4 @@ fn five_of_the_eight_identity_entries_discriminate_nothing_among_the_sized_rows(
             r.face
         );
     }
-
-    // The positive control the four constants above are worth nothing
-    // without: `nu`/`nv` DO separate rows here, so the pair count
-    // above is a reading of those two columns and of nothing else.
-    let distinct = {
-        let mut v: Vec<[u64; 2]> = sized
-            .iter()
-            .map(|r| {
-                let n = r.nurbs.expect("filtered to sized rows");
-                [n.nu.to_bits(), n.nv.to_bits()]
-            })
-            .collect();
-        v.sort_unstable();
-        v.dedup();
-        v.len()
-    };
-    assert!(
-        distinct > 1,
-        "nu/nv would discriminate nothing either: {distinct} distinct"
-    );
 }
