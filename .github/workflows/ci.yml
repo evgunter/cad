@@ -222,11 +222,13 @@ concurrency:
 #   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
-#   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
-#   standard GitHub-hosted for a private repo; the Bazel report's "4 vCPU"
-#   was wrong). That is why 261 independent link/codegen units are so
-#   expensive here, and why item 1 (collapsing 249 test crates into ~12)
-#   is still the big one.
+#   The runner is 4 vCPU / 16 GB (`nproc` from the provenance step below),
+#   the standard GitHub-hosted machine for a public repo. THE TIMINGS
+#   ABOVE PREDATE IT — they were taken at 2 vCPU / 7 GB — so read them as
+#   an ordering of the costs and not as a budget until something re-takes
+#   them. Item 1 (collapsing 249 test crates into ~12) is still the big
+#   one either way: 261 independent link/codegen units is a serialization
+#   that a core count moves but does not remove.
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
@@ -252,18 +254,6 @@ concurrency:
 # their `install mold` step. Do it on a measurement, not a hunch — and
 # note that a single run cannot settle it, because any env change here
 # rotates the rust-cache key and buys one cold rebuild.
-#
-#   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
-#     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
-#     GitHub-hosted larger runners require an ORGANIZATION on Team or
-#     Enterprise Cloud, and evgunter/cad is a User-owned private repo
-#     (`gh api repos/evgunter/cad --jq .owner.type` ⇒ "User"). Hard-coding
-#     a larger-runner label would fail the build job with "no runner
-#     matching labels" and take the whole gate — and the two build jobs
-#     are the gate's critical path. The variable makes it a one-setting
-#     flip if the repo ever moves under an org. Note also that larger-
-#     runner minutes are billed SEPARATELY from the included-minutes
-#     allowance this repo's change filter exists to protect.
 #
 # NOT MIRRORED into local-scripts/ci-local.sh, deliberately: these are hosted-
 # runner performance knobs, not gate semantics. No job is added, removed
@@ -1691,8 +1681,9 @@ jobs:
   # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
-    # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
-    # Unset today, so this is `ubuntu-latest` and nothing changes.
+    # BUILD_RUNNER: repo variable, unset today, so this is `ubuntu-latest`
+    # and nothing changes. It exists so that swapping the runner is one
+    # setting rather than an edit to this job and `build-interval` both.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
