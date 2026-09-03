@@ -318,3 +318,34 @@ uncommitted instrumentation files and no branch. All four resumed
 from their own transcripts at 04:25 UTC with the cwd-reset rule in
 the message; a lane that shows no progress by the next check-in is
 re-spawned fresh from its pushed state rather than resumed again.
+
+## Seam: TCOST-1 and TCOST-B1 back (2026-09-03)
+
+- **TCOST-1** (PR 1612, green on both compile modes — interval asked
+  on the final head, default drawn on the same code one commit
+  earlier; evidence PR 1613 shows the skip in a run: 35 `gated: …
+  skipped` notices, 2 663 tests run against 5 611 unfiltered).
+  42 markers over 299 tests (5.3 % of the suite): every `fuzz::`/
+  `effort()` caller plus two hand-rolled xorshift sweeps. Deviations
+  disclosed: the marker is a no-op macro without `include_str!`
+  (directories cannot be expressed that way; the discipline gate
+  covers both), an unresolvable marker fails open for its own suite
+  only, the nightly row builds `--features interval` once, and **the
+  nightly row has never executed hosted** (the lane's token could not
+  dispatch nightly.yml). The `proptest!` population (22 files, 15 of
+  them `#[cfg(test)]` modules in production files) is the disclosed
+  next batch. Under review.
+- **TCOST-B1** (PR 1616, green; interval asked on the six-crate head):
+  353 per-suite helper `mod` lines → one declaration per binary,
+  329 772 redundant compiled lines gone (96 % of the class); local
+  editor-core test-target compile −20 % over three alternating pairs,
+  binaries −4.9 %. The lint policy those helper trees inherited from
+  whichever suite loaded them is now stated per tree (159 clippy
+  errors surfaced and were resolved by naming, not widening). A
+  finding for the program: **the hosted archive-step duration is a
+  function of the change filter's tier and package set** — at one
+  identical configuration it ranges ±25 %, wider than any single
+  unit's effect — so build-side units quote the tier with the number
+  or compare post-merge distributions; the 609 s figure in the plan's
+  brief was a median over mixed tiers. Under style batch 2 with
+  TCOST-5.
