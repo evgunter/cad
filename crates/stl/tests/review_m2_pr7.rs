@@ -25,7 +25,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "common/mod.rs"]
 use crate::common;
 
 use geom_core::Tol;

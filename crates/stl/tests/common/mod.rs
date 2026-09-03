@@ -3,6 +3,9 @@
 //! acceptance suites and the CI export example).
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
+// A module of the aggregated `all` binary rather than a child of each
+// including suite, so it no longer inherits their crate-root allows.
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
