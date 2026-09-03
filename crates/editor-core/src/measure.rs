@@ -664,7 +664,7 @@ impl MinClearanceLane for geom_core::Interval {
 
 /// **The symbolic tier has no clearance lane, and the absence is a
 /// DISCLOSED limitation rather than a design position** (E12's unit,
-/// deviation D3; issue 1276).
+/// deviation D3; issue `symbolic-tier-and-clearance-engine`).
 ///
 /// Every other lane the tier composes with is scalar-generic and runs
 /// at `Sym<T>` unaltered. This one is not: [`crate::clearance`]'s engine

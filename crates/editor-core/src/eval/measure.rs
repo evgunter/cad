@@ -45,11 +45,16 @@
 //! escalates refuses typed rather than reporting a number whose
 //! meaning depends on an undecided fact.
 //!
-//! **That arm is `max(separation, 1 m)`, and for any part smaller than
-//! a metre the FLOOR is the lever** — the separation never enters. See
-//! [`arm`] for what that costs and why the redesign is owed rather
-//! than taken here. The table's "lever" column below names the arm the
-//! call site passes, not a promise that the separation dominates it.
+//! **That arm is an UPPER BOUND ON THE EXTENT of the two operands
+//! together, with no floor** (ERROR-DESIGN E3's amendment): the faces'
+//! own reaches plus the separation of their reference points, which
+//! contains their union. A parallelism verdict is consumed as "the
+//! separation is constant ACROSS THESE FACES", and that is the length
+//! the tilt has to be priced over — so the margin is scale-aware, a
+//! sub-millimetre part is not measured against a metre it does not
+//! span, and no absolute constant appears anywhere. See [`arm`] for the
+//! bound, for why over-refusal is the safe direction, and for why a
+//! carrier with no extent is refused structurally rather than floored.
 //!
 //! The C5 sign convention is binding and lives in exactly one place:
 //! [`gap`]. `g > 0` is clearance, `g = 0` contact, `g < 0`
@@ -124,6 +129,10 @@ pub(crate) enum Carrier<T: geom_core::Real> {
         /// material side agrees with the chart, `-normal` when it is
         /// reversed.
         outward: Vec3<T>,
+        /// An UPPER bound on the distance from `origin` to any point of
+        /// the face — the face's own extent, and the lever [`arm`] is
+        /// built from ([`reach_of`]).
+        reach: T,
     },
     /// A cylindrical face's carrier: a point on the axis, the unit
     /// axis direction, and the radius.
@@ -134,6 +143,10 @@ pub(crate) enum Carrier<T: geom_core::Real> {
         axis: Vec3<T>,
         /// The radius, positive by the surface's own convention.
         radius: T,
+        /// An UPPER bound on the distance from `origin` to any point of
+        /// the face — the face's own extent, and the lever [`arm`] is
+        /// built from ([`reach_of`]).
+        reach: T,
     },
     /// A spherical face's carrier: centre and radius.
     Sphere {
@@ -196,23 +209,36 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<T
                 return Carrier::Other("an unreadable face");
             };
             match body.get_surface(face.surface) {
-                Some(Surface::Plane { origin, normal, .. }) => Carrier::Plane {
-                    origin: *origin,
-                    normal: *normal,
-                    // S10's sense bit, folded once, here: `true` means
-                    // the material side agrees with the chart normal.
-                    outward: if face.sense { *normal } else { -*normal },
-                },
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    let Some(reach) = reach_of(body, k, *origin) else {
+                        return Carrier::Other("a face with no readable boundary");
+                    };
+                    Carrier::Plane {
+                        origin: *origin,
+                        normal: *normal,
+                        // S10's sense bit, folded once, here: `true`
+                        // means the material side agrees with the chart
+                        // normal.
+                        outward: if face.sense { *normal } else { -*normal },
+                        reach,
+                    }
+                }
                 Some(Surface::Cylinder {
                     origin,
                     axis,
                     radius,
                     ..
-                }) => Carrier::Cylinder {
-                    origin: *origin,
-                    axis: *axis,
-                    radius: *radius,
-                },
+                }) => {
+                    let Some(reach) = reach_of(body, k, *origin) else {
+                        return Carrier::Other("a face with no readable boundary");
+                    };
+                    Carrier::Cylinder {
+                        origin: *origin,
+                        axis: *axis,
+                        radius: *radius,
+                        reach,
+                    }
+                }
                 Some(Surface::Sphere { center, radius, .. }) => Carrier::Sphere {
                     center: *center,
                     radius: *radius,
@@ -356,36 +382,113 @@ fn parallel<T: Decide>(
     }
 }
 
-/// The lever arm a parallelism verdict is consumed over.
+/// **The lever arm a parallelism verdict is consumed over: an UPPER
+/// bound on the EXTENT of the two operands together, with no floor**
+/// (ERROR-DESIGN E3's amendment, ratified at revision E12).
 ///
-/// **The floor is the operative lever for most parts, and this comment
-/// used to bury that.** The arm is `max(separation, 1 m)`, so for
-/// every model smaller than a metre — which is most of them — the
-/// separation never participates and the lever is the CONSTANT 1 m.
-/// Two walls 10 mm apart tilted by 1e-8 rad induce a deviation of
-/// 1e-10 m across their own separation, a tenth of a default eps, and
-/// the measure refuses them as non-parallel anyway, because the tilt
-/// was priced at a metre it does not span.
+/// A `bool_plane_parallel` verdict is not consumed as "these normals
+/// agree"; it is consumed as "the separation is CONSTANT across the
+/// faces", by [`gap`]'s sign and by the mate consumers. What that costs
+/// is a deviation `sin θ · L` where `L` is the length the faces span,
+/// so the honest lever is the diameter of the region the verdict is
+/// read over — here bounded above by
+/// `reach(a) + reach(b) + ‖ref(b) − ref(a)‖`, which contains the union
+/// of the two carriers by the triangle inequality. The bound is an
+/// UPPER one because over-refusal is the safe direction: an arm larger
+/// than the truth prices a tilt higher and refuses sooner.
 ///
-/// The floor is not gratuitous: a zero separation would price the
-/// misalignment at zero and classify every tilt as parallel, which
-/// fails in the direction that reports numbers rather than refusing
-/// them. What is wrong is the CHOICE of 1 m as the floor — an ad-hoc
-/// absolute constant standing in for a model scale nobody asked for,
-/// exactly the shape `chart_region.rs`'s standing criticism of pinned
-/// arms names.
+/// **What it replaces, and why.** The shipped arm was
+/// `max(separation, 1 m)`. For every part smaller than a metre the
+/// separation never participated and the lever was the CONSTANT 1 m —
+/// an ad-hoc absolute standing in for a model scale nobody asked for,
+/// exactly the class the rejected lever-arm unification names. Two
+/// walls 10 mm apart tilted by 1e-8 rad deviate 1e-10 m across their
+/// own extent, a tenth of a default ε, and the measure refused them as
+/// non-parallel because the tilt was priced across a metre they do not
+/// span. Two planes crossing within ε of the reference point at 45°
+/// certified as parallel under the separation-only reading, and still
+/// do not here: their extent is real and `sin 45° · L` is enormous.
 ///
-/// **Not redesigned here, deliberately.** An honest arm for a
-/// parallelism verdict is a design question (the carriers' own extent?
-/// the consuming model's? the document's bounding box?) that reaches
-/// past this unit into every levered predicate in the kernel; picking
-/// one here would set a precedent by accident. It is recorded as owed
-/// work against the same conversation `chart_region.rs:804` points at,
-/// and the over-refusal direction is the safe one to be wrong in
-/// meanwhile.
-fn arm<T: Decide>(from: Point3<T>, to: Point3<T>) -> T {
-    let separation = (to - from).norm();
-    separation.max(T::one())
+/// **No floor, and no predicate minted to replace one.** A zero lever
+/// would price every tilt at zero and call it parallel — the direction
+/// that reports numbers instead of refusing them — so a carrier with no
+/// extent must not reach this function. It cannot: [`carrier_of`]
+/// refuses a face whose boundary it cannot walk
+/// ([`Carrier::Other`] → the measure's typed refusal), and a face that
+/// PASSES tier-3 validation has positive extent by construction. That
+/// is the argument for having no floor rather than a small one, and it
+/// is a structural refusal rather than a new metered predicate: nothing
+/// here decides anything, and no ε enters.
+fn arm<T: Decide>(a: &Carrier<T>, b: &Carrier<T>) -> T {
+    let (pa, ra) = reference(a);
+    let (pb, rb) = reference(b);
+    ra + rb + (pb - pa).norm()
+}
+
+/// A carrier's reference point and the reach around it — the two halves
+/// [`arm`] adds up. A carrier with no extent of its own (a vertex) has
+/// reach zero, which is the truth about a point.
+fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
+    match c {
+        Carrier::Point(p) => (*p, T::zero()),
+        Carrier::Plane { origin, reach, .. } | Carrier::Cylinder { origin, reach, .. } => {
+            (*origin, *reach)
+        }
+        // A sphere's own radius IS its reach, exactly.
+        Carrier::Sphere { center, radius } => (*center, *radius),
+        // A line carries no origin (its type docs say why), so it has
+        // no reference point to measure a reach from. It never reaches
+        // this door: `angle` is the v1 table's only line consumer and
+        // takes no arm.
+        Carrier::Line { .. } | Carrier::Other(_) | Carrier::Unread => (Point3::origin(), T::zero()),
+    }
+}
+
+/// **An upper bound on the distance from `origin` to any point of face
+/// `k`** — the face's reach ([`arm`]).
+///
+/// The walk is the face's own boundary: every loop, every edge, each
+/// edge bounded from `origin` by [`curve_reach`]. A trimmed region is
+/// contained in the region its boundary bounds for every carrier in the
+/// v1 table (a plane patch and a cylinder patch are both bounded by
+/// their own rims), so the maximum over the boundary bounds the face.
+///
+/// `None` when the boundary cannot be walked or an edge's carrier has
+/// no bound this module can state — a refusal, never a guess, because
+/// an under-estimate here would price a tilt too low and certify a
+/// parallelism that does not hold.
+fn reach_of<T: Decide>(body: &Body<T>, k: topo::entity::FaceKey, origin: Point3<T>) -> Option<T> {
+    let face = body.get_face(k)?;
+    let mut reach = T::zero();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        let (edges, _) = topo::props::loop_edges(body, lk).ok()?;
+        for e in &edges {
+            reach = reach.max(curve_reach(&e.carrier, e.t0, e.t1, origin)?);
+        }
+    }
+    Some(reach)
+}
+
+/// An upper bound on `‖c(t) − origin‖` over `t ∈ [t0, t1]`.
+///
+/// Exact for a line (the maximum of its two ends); the containing
+/// circle or ellipse for the conics, which bounds any TRIM of them; the
+/// control polygon for a NURBS, which contains the curve by the convex
+/// hull property (positive weights, the same assumption
+/// `geom::surfaces::boxes::nurbs_surface_aabb` states). `None` for a
+/// NURBS with an empty control net, which describes no locus to bound.
+fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Option<T> {
+    let from = |p: Point3<T>| (p - origin).norm();
+    match c {
+        Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
+        Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
+        Curve3::Ellipse { center, major, .. } => Some(from(*center) + *major),
+        Curve3::Nurbs(n) => n
+            .control()
+            .iter()
+            .map(|p| from(*p))
+            .reduce(|a, b| a.max(b)),
+    }
 }
 
 /// `distance(a, b)` -> Length. Unsigned throughout: a distance is a
@@ -416,7 +519,7 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
                 ..
             },
         ) => {
-            if !parallel("bool_plane_parallel", *na, *nb, arm(*oa, *ob), band)? {
+            if !parallel("bool_plane_parallel", *na, *nb, arm(a, b), band)? {
                 return not_parallel("distance", "bool_plane_parallel", a, b);
             }
             Ok(magnitude((*ob - *oa).dot(*na)))
@@ -439,7 +542,7 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
                 ..
             },
         ) => {
-            if !parallel("carrier_cyl_axis_parallel", *aa, *ab, arm(*oa, *ob), band)? {
+            if !parallel("carrier_cyl_axis_parallel", *aa, *ab, arm(a, b), band)? {
                 return not_parallel("distance", "carrier_cyl_axis_parallel", a, b);
             }
             Ok(axis_offset(*oa, *aa, *ob))
@@ -551,7 +654,7 @@ fn gap<T: Decide>(
                 ..
             },
         ) => {
-            if !parallel("bool_plane_parallel", *wo, *wi, arm(*oo, *oi), band)? {
+            if !parallel("bool_plane_parallel", *wo, *wi, arm(outer, inner), band)? {
                 return not_parallel("gap", "bool_plane_parallel", outer, inner);
             }
             Ok((*oi - *oo).dot(*wo))
@@ -580,14 +683,16 @@ fn gap<T: Decide>(
                 origin: oo,
                 axis: ao,
                 radius: r_bore,
+                ..
             },
             Carrier::Cylinder {
                 origin: oi,
                 axis: ai,
                 radius: r_pin,
+                ..
             },
         ) => {
-            if !parallel("carrier_cyl_axis_parallel", *ao, *ai, arm(*oo, *oi), band)? {
+            if !parallel("carrier_cyl_axis_parallel", *ao, *ai, arm(outer, inner), band)? {
                 return not_parallel("gap", "carrier_cyl_axis_parallel", outer, inner);
             }
             Ok(*r_bore - *r_pin - axis_offset(*oo, *ao, *oi))

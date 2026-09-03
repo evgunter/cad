@@ -616,7 +616,11 @@ pub fn fold_pair<P>(
 ) -> Result<Coset, Box<MateFault>> {
     let mut held = Coset::unconstrained();
     let mut held_mate = None;
-    let mut arm = 1.0_f64;
+    // The fold's lever is the largest of the mates' own, and it starts
+    // at nothing: the constant, where one is still needed, is
+    // [`Alignment::lever_arm`]'s own and is argued there rather than
+    // seeded here.
+    let mut arm = 0.0_f64;
     for &mate in mates {
         let Some(Node::Mate {
             a,

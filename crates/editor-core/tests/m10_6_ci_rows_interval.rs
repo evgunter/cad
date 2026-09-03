@@ -454,7 +454,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
 /// and every document here takes it — except the ones whose measure is
 /// a `min_clearance`, whose engine has no lane at the tier
 /// (`DriveRefusal::SymbolicClearanceUnsupported`; the deviation is issue
-/// 1276). Those fall back to the numeric-only replay, which keeps their
+/// `symbolic-tier-and-clearance-engine`). Those fall back to the numeric-only replay, which keeps their
 /// recorded budgets real rows rather than skipped ones.
 ///
 /// The fallback is driven by the DRIVER'S OWN refusal rather than by a

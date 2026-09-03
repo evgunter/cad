@@ -70,7 +70,7 @@ use fixture::{Recorder, len};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
-/// the deviation is issue 1276), so every drive over a `min_clearance`
+/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
 /// document asks for the numeric-only replay BY NAME. It is a disclosed
 /// limitation of the tier, not a property of these fixtures: with the
 /// tier on the driver refuses this document up front rather than

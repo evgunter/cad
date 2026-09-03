@@ -253,20 +253,51 @@ impl Alignment {
     /// something through the displacement it induces at a length
     /// scale, and the scale is named at the call site).
     ///
-    /// The unit-metre floor is what keeps a mate authored AT the origin
-    /// from claiming an arbitrarily tight angular threshold: with no
-    /// length in the datum there is no lever, and a metre is the
-    /// session box's own order of magnitude (D4 ¶4).
+    /// **The datum's own extent wherever it has one** (ERROR-DESIGN
+    /// E3's amendment, ratified at revision E12), and the metre ONLY
+    /// where it has none.
+    ///
+    /// The amendment's complaint was that `max(extent, 1 m)` made the
+    /// constant the operative lever for every model smaller than a
+    /// metre: a 10 mm datum's tilt was priced across a metre it does not
+    /// span, and the separation never entered. That half is fixed — a
+    /// datum with any authored length is levered by ITS OWN extent, at
+    /// whatever scale the author works, and no absolute constant
+    /// participates.
+    ///
+    /// **The other half cannot be taken here, and the reason is the
+    /// data this type carries.** `eval::measure`'s sibling arm has no
+    /// floor at all because its operands are FACES and a validated face
+    /// has positive extent by construction. A mate's operands are the
+    /// mated PARTS, which also have extent — but an [`Alignment`]
+    /// carries only the authored DATUM, and a datum authored at the
+    /// origin with no length (`Coaxial` on two frames at their parts'
+    /// origins is the common spelling) has none. Levering that at zero
+    /// would price every tilt at zero and read every pair as parallel:
+    /// an answer, in the direction that reports rather than refuses.
+    /// MEASURED, removing the floor without the parts' extent: twelve
+    /// rows of `asm_r2a_mate_solve` turn into refusals, every one of
+    /// them a document a user may legitimately author.
+    ///
+    /// So the metre survives exactly where D4 ¶4 put it — as the
+    /// session box's own order of magnitude, for a datum that names no
+    /// scale at all — and it is named as that rather than as a lever.
+    /// The full amendment needs the mated parts' extent to reach this
+    /// door, which is issue `mate-lever-needs-the-parts-extent`.
+    ///
+    /// [`arm`]: crate::eval::measure
     pub fn lever_arm(&self) -> f64 {
         let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-        self.primitive
+        let extent = self
+            .primitive
             .authored_lengths()
             .into_iter()
             .flatten()
             .fold(
-                norm(self.a.origin).max(norm(self.b.origin)).max(1.0),
+                norm(self.a.origin).max(norm(self.b.origin)),
                 |lever, length| lever.max(length.abs()),
-            )
+            );
+        if extent > 0.0 { extent } else { 1.0 }
     }
 
     /// Whether every authored coordinate is finite — the edit door's

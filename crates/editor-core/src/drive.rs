@@ -1015,7 +1015,7 @@ pub enum DriveRefusal {
     /// than returning a one-leaf verdict that looks like an analysis.
     NothingVaries,
     /// **The symbolic tier and the clearance engine do not compose**
-    /// (E12's unit, deviation D3; issue 1276).
+    /// (E12's unit, deviation D3; issue `symbolic-tier-and-clearance-engine`).
     ///
     /// `min_clearance` answers with an enclosure computed by
     /// [`crate::clearance`]'s engine, which is written at
