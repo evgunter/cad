@@ -87,8 +87,16 @@ must be non-empty). A ruling is `open` or `closed`. A program is
   conflict, and that is the cross-program handoff surfacing, not a
   bug. Re-parent or re-home by editing the header, never by copying.
 - **Ids are stable.** An item keeps its id for life; a program keeps
-  its directory. Migrated code-quality rows keep the row ids they were
-  cited by (`D102`, `S330`, `C15`).
+  its directory for as long as it is open. Migrated code-quality rows
+  keep the row ids they were cited by (`D102`, `S330`, `C15`).
+- **A closed program's directory is deleted.** `work/` tracks work
+  still to be done, not work that has been done, so once a program
+  closes — its exit walk ratified, or Ev's ruling that it needs none —
+  `program.md`, `plan.md` and `log.md` go, and the deletion is recorded
+  in `docs/DOC-LEDGER.md` with the SHA they are recoverable at. The
+  done-state of record is the exit walk in `docs/`, and residue is
+  re-homed to a live program or to `work/issues/` before the sweep, not
+  left behind in the closed directory.
 - **A rides-along is its own file** with `rides_with:` naming its
   carrier. Closing the carrier does not close the passenger; lint
   refuses a live passenger on a closed carrier.
